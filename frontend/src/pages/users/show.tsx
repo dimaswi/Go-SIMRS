@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Card, CardContent, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { usersApi } from '@/lib/api';
@@ -10,7 +10,7 @@ import { ConfirmDialog } from '@/components/confirm-dialog';
 import { 
   ArrowLeft, 
   Loader2, 
-  Edit, 
+  Pencil, 
   Trash2
 } from 'lucide-react';
 import { setPageTitle } from '@/lib/page-title';
@@ -26,7 +26,7 @@ export default function UserShow() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   useEffect(() => {
-    setPageTitle('User Details');
+    setPageTitle('Detail User');
     loadUser();
   }, [id]);
 
@@ -38,7 +38,7 @@ export default function UserShow() {
       toast({
         variant: "destructive",
         title: "Error!",
-        description: "Failed to load user data.",
+        description: "Gagal memuat data user.",
       });
     } finally {
       setLoading(false);
@@ -56,18 +56,29 @@ export default function UserShow() {
       await usersApi.delete(parseInt(id!));
       toast({
         variant: "success",
-        title: "Success!",
-        description: "User deleted successfully.",
+        title: "Berhasil!",
+        description: "User berhasil dihapus.",
       });
       setTimeout(() => navigate('/users'), 500);
     } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Error!",
-        description: error.response?.data?.error || "Failed to delete user.",
+        description: error.response?.data?.error || "Gagal menghapus user.",
       });
       setDeleting(false);
     }
+  };
+
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return '-';
+    return new Date(dateString).toLocaleDateString('id-ID', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   if (loading) {
@@ -82,9 +93,9 @@ export default function UserShow() {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
-          <p className="text-lg font-semibold">User not found</p>
+          <p className="text-lg font-semibold">User tidak ditemukan</p>
           <Button onClick={() => navigate('/users')} className="mt-4">
-            Back to Users
+            Kembali ke Daftar User
           </Button>
         </div>
       </div>
@@ -92,177 +103,145 @@ export default function UserShow() {
   }
 
   return (
-    <div className="p-6">
-      <div className="max-w-full mx-auto space-y-6">
-        {/* Header with actions */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => navigate('/users')}
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Kembali
-            </Button>
-            <h1 className="text-xl font-semibold">Detail User</h1>
-            <span className="text-muted-foreground">#{user.id}</span>
-          </div>
-          <div className="flex gap-2">
-            {hasPermission('users.update') && (
-              <Button 
-                variant="outline"
-                size="sm"
-                onClick={() => navigate(`/users/${id}/edit`)}
+    <div className="flex flex-1 flex-col gap-4 p-6">
+      <Card className="shadow-md">
+        <CardHeader className="border-b bg-muted/50">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => navigate('/users')}
               >
-                <Edit className="h-4 w-4 mr-2" />
-                Edit
+                <ArrowLeft className="h-4 w-4" />
               </Button>
-            )}
-            {hasPermission('users.delete') && (
-              <Button 
-                variant="destructive"
-                size="sm"
-                onClick={handleDelete}
-                disabled={deleting}
-              >
-                {deleting ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Trash2 className="h-4 w-4 mr-2" />
-                )}
-                Hapus
-              </Button>
-            )}
+              <div className="space-y-1">
+                <CardTitle className="text-base font-semibold">
+                  {user.full_name}
+                </CardTitle>
+                <CardDescription>
+                  @{user.username} • {user.role?.name || 'No Role'}
+                </CardDescription>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge variant={user.is_active ? "default" : "secondary"}>
+                {user.is_active ? 'Aktif' : 'Tidak Aktif'}
+              </Badge>
+              {hasPermission('users.update') && (
+                <Button 
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate(`/users/${id}/edit`)}
+                >
+                  <Pencil className="mr-2 h-4 w-4" />
+                  Edit
+                </Button>
+              )}
+              {hasPermission('users.delete') && (
+                <Button 
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleDelete}
+                  disabled={deleting}
+                >
+                  {deleting ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="mr-2 h-4 w-4" />
+                  )}
+                  Hapus
+                </Button>
+              )}
+            </div>
           </div>
-        </div>
-
-        {/* Single Card with Sections */}
-        <Card>
-          <CardContent className="p-6">
-            {/* User Information Section */}
-            <div className="mb-8">
-              <CardTitle className="text-base text-muted-foreground font-normal mb-4">
-                INFORMASI USER
-              </CardTitle>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div>
-                  <label className="text-sm text-muted-foreground">Nama Lengkap</label>
-                  <p className="font-medium text-base">{user.full_name}</p>
-                </div>
-                <div>
-                  <label className="text-sm text-muted-foreground">Username</label>
-                  <p className="font-medium text-base">{user.username}</p>
-                </div>
-                <div>
-                  <label className="text-sm text-muted-foreground">Email</label>
-                  <p className="font-medium text-base">{user.email}</p>
-                </div>
-                <div>
-                  <label className="text-sm text-muted-foreground">Status</label>
-                  <Badge 
-                    variant={user.is_active ? "default" : "secondary"}
-                    className="text-xs w-fit mt-1"
-                  >
-                    {user.is_active ? 'AKTIF' : 'TIDAK AKTIF'}
-                  </Badge>
-                </div>
+        </CardHeader>
+        <CardContent className="pt-6">
+          {/* Informasi User */}
+          <div className="mb-6">
+            <h3 className="text-sm font-medium text-muted-foreground mb-4">INFORMASI USER</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+              <div>
+                <label className="text-xs text-muted-foreground">Nama Lengkap</label>
+                <p className="font-medium text-sm">{user.full_name}</p>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">Username</label>
+                <p className="font-medium text-sm">{user.username}</p>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">Email</label>
+                <p className="font-medium text-sm">{user.email}</p>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">Pegawai Terkait</label>
+                <p className="font-medium text-sm">
+                  {user.employee ? user.employee.nama_lengkap : '-'}
+                </p>
               </div>
             </div>
+          </div>
 
-            <hr className="border-border/50" />
+          <hr className="border-border/50 my-6" />
 
-            {/* Role Information Section */}
-            <div className="my-8">
-              <CardTitle className="text-base text-muted-foreground font-normal mb-4">
-                INFORMASI ROLE
-              </CardTitle>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <div>
-                  <label className="text-sm text-muted-foreground">Role</label>
-                  <p className="font-medium text-base">{user.role?.name || '-'}</p>
-                </div>
-                <div>
-                  <label className="text-sm text-muted-foreground">Deskripsi Role</label>
-                  <p className="text-muted-foreground text-sm">
-                    {user.role?.description || 'Tidak ada deskripsi'}
-                  </p>
-                </div>
-                {user.role?.permissions && (
-                  <div>
-                    <label className="text-sm text-muted-foreground">Total Permission</label>
-                    <p className="font-medium text-base">{user.role.permissions.length} permission</p>
-                  </div>
-                )}
+          {/* Role */}
+          <div className="mb-6">
+            <h3 className="text-sm font-medium text-muted-foreground mb-4">ROLE</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              <div>
+                <label className="text-xs text-muted-foreground">Nama Role</label>
+                <p className="font-medium text-sm">{user.role?.name || '-'}</p>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">Deskripsi</label>
+                <p className="font-medium text-sm">{user.role?.description || '-'}</p>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">Total Permission</label>
+                <p className="font-medium text-sm">{user.role?.permissions?.length || 0} permission</p>
               </div>
             </div>
+          </div>
 
-            <hr className="border-border/50" />
-
-            {/* System Information Section */}
-            <div className="my-8">
-              <CardTitle className="text-base text-muted-foreground font-normal mb-4">
-                INFORMASI SISTEM
-              </CardTitle>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <div>
-                  <label className="text-sm text-muted-foreground">ID User</label>
-                  <p className="font-medium text-base">#{user.id}</p>
-                </div>
-                <div>
-                  <label className="text-sm text-muted-foreground">Dibuat Pada</label>
-                  <p className="font-medium text-base">
-                    {user.created_at ? new Date(user.created_at).toLocaleDateString('id-ID', {
-                      day: 'numeric',
-                      month: 'long', 
-                      year: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    }) : '-'}
-                  </p>
-                </div>
-                <div>
-                  <label className="text-sm text-muted-foreground">Terakhir Diubah</label>
-                  <p className="font-medium text-base">
-                    {user.updated_at ? new Date(user.updated_at).toLocaleDateString('id-ID', {
-                      day: 'numeric',
-                      month: 'long',
-                      year: 'numeric', 
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    }) : '-'}
-                  </p>
+          {/* Daftar Permission */}
+          {user.role?.permissions && user.role.permissions.length > 0 && (
+            <>
+              <hr className="border-border/50 my-6" />
+              <div className="mb-6">
+                <h3 className="text-sm font-medium text-muted-foreground mb-4">DAFTAR PERMISSION</h3>
+                <div className="flex flex-wrap gap-2">
+                  {user.role.permissions.map((perm: any) => (
+                    <Badge key={perm.id} variant="outline" className="text-xs">
+                      {perm.name}
+                    </Badge>
+                  ))}
                 </div>
               </div>
-            </div>
+            </>
+          )}
 
-            {/* Permissions Section */}
-            {user.role?.permissions && user.role.permissions.length > 0 && (
-              <>
-                <hr className="border-border/50" />
-                <div className="mt-8">
-                  <CardTitle className="text-base text-muted-foreground font-normal mb-4">
-                    DAFTAR PERMISSION
-                  </CardTitle>
-                  <div className="space-y-2">
-                    {user.role.permissions.map((perm: any, index: number) => (
-                      <div 
-                        key={perm.id} 
-                        className="flex items-center justify-between py-2 border-b border-border/30 last:border-b-0"
-                      >
-                        <span className="text-sm font-mono">{perm.name}</span>
-                        <Badge variant="outline" className="text-xs">
-                          {index + 1}
-                        </Badge>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+          <hr className="border-border/50 my-6" />
+
+          {/* Informasi Sistem */}
+          <div>
+            <h3 className="text-sm font-medium text-muted-foreground mb-4">INFORMASI SISTEM</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              <div>
+                <label className="text-xs text-muted-foreground">ID User</label>
+                <p className="font-medium text-sm">#{user.id}</p>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">Dibuat</label>
+                <p className="font-medium text-sm">{formatDate(user.created_at)}</p>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">Terakhir Diperbarui</label>
+                <p className="font-medium text-sm">{formatDate(user.updated_at)}</p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <ConfirmDialog
         open={deleteDialogOpen}

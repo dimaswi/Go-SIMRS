@@ -5,9 +5,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { usersApi, rolesApi } from '@/lib/api';
+import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
+import { usersApi, rolesApi, employeesApi, type Employee } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Loader2, User, Shield } from 'lucide-react';
+import { ArrowLeft, Loader2, User, Shield, Users } from 'lucide-react';
 import { setPageTitle } from '@/lib/page-title';
 
 export default function UserEdit() {
@@ -17,9 +18,11 @@ export default function UserEdit() {
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
   const [roles, setRoles] = useState<any[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [formData, setFormData] = useState({
     full_name: '',
     role_id: '',
+    employee_id: '',
     is_active: true,
   });
 
@@ -30,22 +33,25 @@ export default function UserEdit() {
 
   const loadData = async () => {
     try {
-      const [userRes, rolesRes] = await Promise.all([
+      const [userRes, rolesRes, employeesRes] = await Promise.all([
         usersApi.getById(Number(id)),
         rolesApi.getAll(),
+        employeesApi.getAll(),
       ]);
       const user = userRes.data.data;
       setFormData({
         full_name: user.full_name,
         role_id: String(user.role_id),
+        employee_id: user.employee_id ? String(user.employee_id) : '',
         is_active: user.is_active,
       });
       setRoles(rolesRes.data.data);
+      setEmployees(employeesRes.data.data || []);
     } catch (error) {
       toast({
         variant: "destructive",
         title: "Error!",
-        description: "Failed to load user data.",
+        description: "Gagal memuat data user.",
       });
     } finally {
       setFetching(false);
@@ -60,23 +66,30 @@ export default function UserEdit() {
       await usersApi.update(Number(id), {
         ...formData,
         role_id: parseInt(formData.role_id),
+        employee_id: formData.employee_id ? parseInt(formData.employee_id) : null,
       });
       toast({
         variant: "success",
-        title: "Success!",
-        description: "User updated successfully.",
+        title: "Berhasil!",
+        description: "User berhasil diperbarui.",
       });
       setTimeout(() => navigate('/users'), 500);
     } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Error!",
-        description: error.response?.data?.error || "Failed to update user.",
+        description: error.response?.data?.error || "Gagal memperbarui user.",
       });
     } finally {
       setLoading(false);
     }
   };
+
+  // Convert employees to ComboboxOption format
+  const employeeOptions: ComboboxOption[] = employees.map(emp => ({
+    value: String(emp.id),
+    label: `${emp.nama_lengkap} (${emp.nip || emp.nik})`,
+  }));
 
   if (fetching) {
     return (
@@ -147,6 +160,26 @@ export default function UserEdit() {
                     </option>
                   ))}
                 </select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="employee_id" className="text-xs font-medium flex items-center gap-2">
+                  <Users className="h-3.5 w-3.5 text-muted-foreground" />
+                  Pegawai Terkait
+                  <span className="text-muted-foreground font-normal">(Opsional)</span>
+                </Label>
+                <Combobox
+                  options={employeeOptions}
+                  value={formData.employee_id}
+                  onValueChange={(value) => setFormData({ ...formData, employee_id: value })}
+                  placeholder="Pilih pegawai..."
+                  searchPlaceholder="Cari pegawai..."
+                  emptyText="Pegawai tidak ditemukan"
+                  className="h-9"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Hubungkan user ini dengan data pegawai yang sudah ada
+                </p>
               </div>
 
               <div className="flex items-center justify-between rounded-lg border p-4">

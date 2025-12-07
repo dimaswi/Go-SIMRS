@@ -1,0 +1,857 @@
+package handlers
+
+import (
+	"net/http"
+	"starter/backend/database"
+	"starter/backend/models"
+	"strconv"
+
+	"github.com/gin-gonic/gin"
+)
+
+// ==================== Room Handlers ====================
+
+// GetRooms returns all rooms with pagination and filtering
+func GetRooms(c *gin.Context) {
+	var rooms []models.Room
+	var total int64
+
+	db := database.DB.Model(&models.Room{})
+
+	// Search filter
+	if search := c.Query("search"); search != "" {
+		db = db.Where("code ILIKE ? OR name ILIKE ?",
+			"%"+search+"%", "%"+search+"%")
+	}
+
+	// Service type filter
+	if serviceType := c.Query("service_type"); serviceType != "" {
+		db = db.Where("service_type = ?", serviceType)
+	}
+
+	// Room type filter
+	if roomType := c.Query("room_type"); roomType != "" {
+		db = db.Where("room_type = ?", roomType)
+	}
+
+	// Room class filter
+	if roomClass := c.Query("room_class"); roomClass != "" {
+		db = db.Where("room_class = ?", roomClass)
+	}
+
+	// Status filter
+	if isActive := c.Query("is_active"); isActive != "" {
+		db = db.Where("is_active = ?", isActive == "true")
+	}
+
+	// Count total
+	db.Count(&total)
+
+	// Pagination
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+	offset := (page - 1) * limit
+
+	if err := db.Preload("PICEmployee").Preload("PICEmployee.User").
+		Preload("Units").Preload("Units.Beds").
+		Order("code ASC").Offset(offset).Limit(limit).Find(&rooms).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch rooms"})
+		return
+	}
+
+	// Compute bed stats for each room
+	for i := range rooms {
+		rooms[i].ComputeBedStats(database.DB)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"data": rooms,
+		"meta": gin.H{
+			"total":       total,
+			"page":        page,
+			"limit":       limit,
+			"total_pages": (total + int64(limit) - 1) / int64(limit),
+		},
+	})
+}
+
+// GetRoom returns a single room by ID with all relations
+func GetRoom(c *gin.Context) {
+	id := c.Param("id")
+	var room models.Room
+
+	if err := database.DB.
+		Preload("PICEmployee").Preload("PICEmployee.User").
+		Preload("Units", "deleted_at IS NULL").
+		Preload("Units.Beds", "deleted_at IS NULL").
+		First(&room, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Room not found"})
+		return
+	}
+
+	room.ComputeBedStats(database.DB)
+
+	c.JSON(http.StatusOK, gin.H{"data": room})
+}
+
+// CreateRoomRequest represents the request to create a room
+type CreateRoomRequest struct {
+	Code          string  `json:"code" binding:"required"`
+	Name          string  `json:"name" binding:"required"`
+	QueueCode     string  `json:"queue_code"`
+	ServiceType   string  `json:"service_type" binding:"required"`
+	RoomType      string  `json:"room_type" binding:"required"`
+	RoomClass     string  `json:"room_class"`
+	TotalFloors   int     `json:"total_floors"`
+	TariffPerDay  float64 `json:"tariff_per_day"`
+	Facilities    string  `json:"facilities"`
+	Description   string  `json:"description"`
+	HasBed        bool    `json:"has_bed"`
+	HasSchedule   bool    `json:"has_schedule"`
+	IsActive      bool    `json:"is_active"`
+	PICEmployeeID *uint   `json:"pic_employee_id"`
+}
+
+// CreateRoom creates a new room
+func CreateRoom(c *gin.Context) {
+	var req CreateRoomRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Check if code already exists
+	var existing models.Room
+	if err := database.DB.Where("code = ?", req.Code).First(&existing).Error; err == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Kode ruangan sudah digunakan"})
+		return
+	}
+
+	// Check if queue_code already exists (if provided)
+	if req.QueueCode != "" {
+		if err := database.DB.Where("queue_code = ?", req.QueueCode).First(&existing).Error; err == nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Kode antrean sudah digunakan oleh ruangan lain"})
+			return
+		}
+	}
+
+	// Validate PIC Employee if provided
+	if req.PICEmployeeID != nil && *req.PICEmployeeID > 0 {
+		var employee models.Employee
+		if err := database.DB.First(&employee, *req.PICEmployeeID).Error; err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Karyawan tidak ditemukan"})
+			return
+		}
+	}
+
+	totalFloors := req.TotalFloors
+	if totalFloors < 1 {
+		totalFloors = 1
+	}
+
+	room := models.Room{
+		Code:          req.Code,
+		Name:          req.Name,
+		QueueCode:     req.QueueCode,
+		ServiceType:   req.ServiceType,
+		RoomType:      req.RoomType,
+		RoomClass:     req.RoomClass,
+		TotalFloors:   totalFloors,
+		TariffPerDay:  req.TariffPerDay,
+		Facilities:    req.Facilities,
+		Description:   req.Description,
+		HasBed:        req.HasBed,
+		HasSchedule:   req.HasSchedule,
+		IsActive:      req.IsActive,
+		PICEmployeeID: req.PICEmployeeID,
+	}
+
+	if err := database.DB.Create(&room).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat ruangan"})
+		return
+	}
+
+	// Reload with PIC
+	database.DB.Preload("PICEmployee").Preload("PICEmployee.User").First(&room, room.ID)
+
+	c.JSON(http.StatusCreated, gin.H{"data": room, "message": "Ruangan berhasil dibuat"})
+}
+
+// UpdateRoomRequest represents the request to update a room
+type UpdateRoomRequest struct {
+	Code          string  `json:"code" binding:"required"`
+	Name          string  `json:"name" binding:"required"`
+	QueueCode     string  `json:"queue_code"`
+	ServiceType   string  `json:"service_type" binding:"required"`
+	RoomType      string  `json:"room_type" binding:"required"`
+	RoomClass     string  `json:"room_class"`
+	TotalFloors   int     `json:"total_floors"`
+	TariffPerDay  float64 `json:"tariff_per_day"`
+	Facilities    string  `json:"facilities"`
+	Description   string  `json:"description"`
+	HasBed        bool    `json:"has_bed"`
+	HasSchedule   bool    `json:"has_schedule"`
+	IsActive      bool    `json:"is_active"`
+	PICEmployeeID *uint   `json:"pic_employee_id"`
+}
+
+// UpdateRoom updates an existing room
+func UpdateRoom(c *gin.Context) {
+	id := c.Param("id")
+	var room models.Room
+
+	if err := database.DB.First(&room, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Ruangan tidak ditemukan"})
+		return
+	}
+
+	var req UpdateRoomRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Check if code already exists (excluding current room)
+	var existing models.Room
+	if err := database.DB.Where("code = ? AND id != ?", req.Code, id).First(&existing).Error; err == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Kode ruangan sudah digunakan"})
+		return
+	}
+
+	// Check if queue_code already exists (excluding current room, if provided)
+	if req.QueueCode != "" {
+		if err := database.DB.Where("queue_code = ? AND id != ?", req.QueueCode, id).First(&existing).Error; err == nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Kode antrean sudah digunakan oleh ruangan lain"})
+			return
+		}
+	}
+
+	// Validate PIC Employee if provided
+	if req.PICEmployeeID != nil && *req.PICEmployeeID > 0 {
+		var employee models.Employee
+		if err := database.DB.First(&employee, *req.PICEmployeeID).Error; err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Karyawan tidak ditemukan"})
+			return
+		}
+	}
+
+	totalFloors := req.TotalFloors
+	if totalFloors < 1 {
+		totalFloors = 1
+	}
+
+	room.Code = req.Code
+	room.Name = req.Name
+	room.QueueCode = req.QueueCode
+	room.ServiceType = req.ServiceType
+	room.RoomType = req.RoomType
+	room.RoomClass = req.RoomClass
+	room.TotalFloors = totalFloors
+	room.TariffPerDay = req.TariffPerDay
+	room.Facilities = req.Facilities
+	room.Description = req.Description
+	room.HasBed = req.HasBed
+	room.HasSchedule = req.HasSchedule
+	room.IsActive = req.IsActive
+	room.PICEmployeeID = req.PICEmployeeID
+
+	if err := database.DB.Save(&room).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memperbarui ruangan"})
+		return
+	}
+
+	// Reload with PIC
+	database.DB.Preload("PICEmployee").Preload("PICEmployee.User").First(&room, room.ID)
+
+	c.JSON(http.StatusOK, gin.H{"data": room, "message": "Ruangan berhasil diperbarui"})
+}
+
+// DeleteRoom deletes a room
+func DeleteRoom(c *gin.Context) {
+	id := c.Param("id")
+	var room models.Room
+
+	if err := database.DB.First(&room, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Ruangan tidak ditemukan"})
+		return
+	}
+
+	// Check if room has units
+	var unitCount int64
+	database.DB.Model(&models.RoomUnit{}).Where("room_id = ?", id).Count(&unitCount)
+	if unitCount > 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Tidak dapat menghapus ruangan yang memiliki kamar. Hapus semua kamar terlebih dahulu."})
+		return
+	}
+
+	// Delete room staff first
+	database.DB.Where("room_id = ?", id).Delete(&models.RoomStaff{})
+
+	if err := database.DB.Delete(&room).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menghapus ruangan"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Ruangan berhasil dihapus"})
+}
+
+// ==================== Room Unit Handlers ====================
+
+// GetRoomUnits returns all units for a room
+func GetRoomUnits(c *gin.Context) {
+	roomID := c.Param("id")
+	var units []models.RoomUnit
+
+	db := database.DB.Where("room_id = ?", roomID)
+
+	// Floor filter
+	if floor := c.Query("floor"); floor != "" {
+		db = db.Where("floor = ?", floor)
+	}
+
+	// Status filter
+	if isActive := c.Query("is_active"); isActive != "" {
+		db = db.Where("is_active = ?", isActive == "true")
+	}
+
+	if err := db.Preload("Beds").Order("floor ASC, code ASC").Find(&units).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengambil daftar kamar"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": units})
+}
+
+// GetRoomUnit returns a single room unit
+func GetRoomUnit(c *gin.Context) {
+	roomID := c.Param("id")
+	unitID := c.Param("unit_id")
+	var unit models.RoomUnit
+
+	if err := database.DB.Where("id = ? AND room_id = ?", unitID, roomID).
+		Preload("Room").Preload("Beds").First(&unit).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Kamar tidak ditemukan"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": unit})
+}
+
+// CreateRoomUnitRequest represents the request to create a room unit
+type CreateRoomUnitRequest struct {
+	Code     string `json:"code" binding:"required"`
+	Name     string `json:"name" binding:"required"`
+	Floor    int    `json:"floor"`
+	Capacity int    `json:"capacity"`
+	IsActive bool   `json:"is_active"`
+	Notes    string `json:"notes"`
+}
+
+// CreateRoomUnit creates a new room unit
+func CreateRoomUnit(c *gin.Context) {
+	roomID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID ruangan tidak valid"})
+		return
+	}
+
+	// Check if room exists
+	var room models.Room
+	if err := database.DB.First(&room, roomID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Ruangan tidak ditemukan"})
+		return
+	}
+
+	var req CreateRoomUnitRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Validate floor
+	floor := req.Floor
+	if floor < 1 {
+		floor = 1
+	}
+	if floor > room.TotalFloors {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Lantai tidak boleh melebihi total lantai ruangan (" + strconv.Itoa(room.TotalFloors) + ")"})
+		return
+	}
+
+	// Check if code already exists in this room
+	var existing models.RoomUnit
+	if err := database.DB.Where("room_id = ? AND code = ?", roomID, req.Code).First(&existing).Error; err == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Kode kamar sudah digunakan di ruangan ini"})
+		return
+	}
+
+	capacity := req.Capacity
+	if capacity < 1 {
+		capacity = 1
+	}
+
+	unit := models.RoomUnit{
+		RoomID:   uint(roomID),
+		Code:     req.Code,
+		Name:     req.Name,
+		Floor:    floor,
+		Capacity: capacity,
+		IsActive: req.IsActive,
+		Notes:    req.Notes,
+	}
+
+	if err := database.DB.Create(&unit).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat kamar"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"data": unit, "message": "Kamar berhasil dibuat"})
+}
+
+// UpdateRoomUnitRequest represents the request to update a room unit
+type UpdateRoomUnitRequest struct {
+	Code     string `json:"code" binding:"required"`
+	Name     string `json:"name" binding:"required"`
+	Floor    int    `json:"floor"`
+	Capacity int    `json:"capacity"`
+	IsActive bool   `json:"is_active"`
+	Notes    string `json:"notes"`
+}
+
+// UpdateRoomUnit updates an existing room unit
+func UpdateRoomUnit(c *gin.Context) {
+	roomID := c.Param("id")
+	unitID := c.Param("unit_id")
+	var unit models.RoomUnit
+
+	if err := database.DB.Where("id = ? AND room_id = ?", unitID, roomID).First(&unit).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Kamar tidak ditemukan"})
+		return
+	}
+
+	// Get room for floor validation
+	var room models.Room
+	if err := database.DB.First(&room, roomID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Ruangan tidak ditemukan"})
+		return
+	}
+
+	var req UpdateRoomUnitRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Validate floor
+	floor := req.Floor
+	if floor < 1 {
+		floor = 1
+	}
+	if floor > room.TotalFloors {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Lantai tidak boleh melebihi total lantai ruangan (" + strconv.Itoa(room.TotalFloors) + ")"})
+		return
+	}
+
+	// Check if code already exists in this room (excluding current unit)
+	var existing models.RoomUnit
+	if err := database.DB.Where("room_id = ? AND code = ? AND id != ?", roomID, req.Code, unitID).First(&existing).Error; err == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Kode kamar sudah digunakan di ruangan ini"})
+		return
+	}
+
+	// Check capacity - cannot be less than current bed count
+	var bedCount int64
+	database.DB.Model(&models.Bed{}).Where("room_unit_id = ?", unitID).Count(&bedCount)
+	if req.Capacity < int(bedCount) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Kapasitas tidak boleh kurang dari jumlah bed yang ada (" + strconv.FormatInt(bedCount, 10) + ")"})
+		return
+	}
+
+	capacity := req.Capacity
+	if capacity < 1 {
+		capacity = 1
+	}
+
+	unit.Code = req.Code
+	unit.Name = req.Name
+	unit.Floor = floor
+	unit.Capacity = capacity
+	unit.IsActive = req.IsActive
+	unit.Notes = req.Notes
+
+	if err := database.DB.Save(&unit).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memperbarui kamar"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": unit, "message": "Kamar berhasil diperbarui"})
+}
+
+// DeleteRoomUnit deletes a room unit
+func DeleteRoomUnit(c *gin.Context) {
+	roomID := c.Param("id")
+	unitID := c.Param("unit_id")
+	var unit models.RoomUnit
+
+	if err := database.DB.Where("id = ? AND room_id = ?", unitID, roomID).First(&unit).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Kamar tidak ditemukan"})
+		return
+	}
+
+	// Check if unit has beds
+	var bedCount int64
+	database.DB.Model(&models.Bed{}).Where("room_unit_id = ?", unitID).Count(&bedCount)
+	if bedCount > 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Tidak dapat menghapus kamar yang memiliki tempat tidur. Hapus semua tempat tidur terlebih dahulu."})
+		return
+	}
+
+	if err := database.DB.Delete(&unit).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menghapus kamar"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Kamar berhasil dihapus"})
+}
+
+// ==================== Bed Handlers ====================
+
+// GetBeds returns all beds for a room unit
+func GetBeds(c *gin.Context) {
+	unitID := c.Param("unit_id")
+	var beds []models.Bed
+
+	db := database.DB.Where("room_unit_id = ?", unitID)
+
+	// Status filter
+	if status := c.Query("status"); status != "" {
+		db = db.Where("status = ?", status)
+	}
+
+	if err := db.Order("bed_number ASC").Find(&beds).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengambil daftar tempat tidur"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": beds})
+}
+
+// GetAllRoomBeds returns all beds for a room (across all units)
+func GetAllRoomBeds(c *gin.Context) {
+	roomID := c.Param("id")
+	var beds []models.Bed
+
+	if err := database.DB.
+		Joins("JOIN room_units ON room_units.id = beds.room_unit_id").
+		Where("room_units.room_id = ? AND room_units.deleted_at IS NULL", roomID).
+		Preload("RoomUnit").
+		Order("room_units.floor ASC, room_units.code ASC, beds.bed_number ASC").
+		Find(&beds).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengambil daftar tempat tidur"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": beds})
+}
+
+// CreateBedRequest represents the request to create a bed
+type CreateBedRequest struct {
+	BedNumber string `json:"bed_number" binding:"required"`
+	BedType   string `json:"bed_type"`
+	Status    string `json:"status"`
+	Notes     string `json:"notes"`
+}
+
+// CreateBed creates a new bed for a room unit
+func CreateBed(c *gin.Context) {
+	roomID := c.Param("id")
+	unitID, err := strconv.ParseUint(c.Param("unit_id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID kamar tidak valid"})
+		return
+	}
+
+	// Check if unit exists and belongs to room
+	var unit models.RoomUnit
+	if err := database.DB.Where("id = ? AND room_id = ?", unitID, roomID).First(&unit).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Kamar tidak ditemukan"})
+		return
+	}
+
+	// Check if capacity is reached
+	var bedCount int64
+	database.DB.Model(&models.Bed{}).Where("room_unit_id = ?", unitID).Count(&bedCount)
+	if int(bedCount) >= unit.Capacity {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Kapasitas kamar sudah penuh. Maksimal " + strconv.Itoa(unit.Capacity) + " tempat tidur."})
+		return
+	}
+
+	var req CreateBedRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Check if bed number already exists in this unit
+	var existing models.Bed
+	if err := database.DB.Where("room_unit_id = ? AND bed_number = ?", unitID, req.BedNumber).First(&existing).Error; err == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Nomor tempat tidur sudah digunakan di kamar ini"})
+		return
+	}
+
+	status := req.Status
+	if status == "" {
+		status = "available"
+	}
+
+	bed := models.Bed{
+		RoomUnitID: uint(unitID),
+		BedNumber:  req.BedNumber,
+		BedType:    req.BedType,
+		Status:     status,
+		Notes:      req.Notes,
+	}
+
+	if err := database.DB.Create(&bed).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat tempat tidur"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"data": bed, "message": "Tempat tidur berhasil dibuat"})
+}
+
+// UpdateBedRequest represents the request to update a bed
+type UpdateBedRequest struct {
+	BedNumber string `json:"bed_number" binding:"required"`
+	BedType   string `json:"bed_type"`
+	Status    string `json:"status"`
+	Notes     string `json:"notes"`
+}
+
+// UpdateBed updates an existing bed
+func UpdateBed(c *gin.Context) {
+	roomID := c.Param("id")
+	unitID := c.Param("unit_id")
+	bedID := c.Param("bed_id")
+	var bed models.Bed
+
+	// Verify the chain: room -> unit -> bed
+	var unit models.RoomUnit
+	if err := database.DB.Where("id = ? AND room_id = ?", unitID, roomID).First(&unit).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Kamar tidak ditemukan"})
+		return
+	}
+
+	if err := database.DB.Where("id = ? AND room_unit_id = ?", bedID, unitID).First(&bed).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Tempat tidur tidak ditemukan"})
+		return
+	}
+
+	var req UpdateBedRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Check if bed number already exists in this unit (excluding current bed)
+	var existing models.Bed
+	if err := database.DB.Where("room_unit_id = ? AND bed_number = ? AND id != ?", unitID, req.BedNumber, bedID).First(&existing).Error; err == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Nomor tempat tidur sudah digunakan di kamar ini"})
+		return
+	}
+
+	bed.BedNumber = req.BedNumber
+	bed.BedType = req.BedType
+	bed.Status = req.Status
+	bed.Notes = req.Notes
+
+	if err := database.DB.Save(&bed).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memperbarui tempat tidur"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": bed, "message": "Tempat tidur berhasil diperbarui"})
+}
+
+// DeleteBed deletes a bed
+func DeleteBed(c *gin.Context) {
+	roomID := c.Param("id")
+	unitID := c.Param("unit_id")
+	bedID := c.Param("bed_id")
+	var bed models.Bed
+
+	// Verify the chain: room -> unit -> bed
+	var unit models.RoomUnit
+	if err := database.DB.Where("id = ? AND room_id = ?", unitID, roomID).First(&unit).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Kamar tidak ditemukan"})
+		return
+	}
+
+	if err := database.DB.Where("id = ? AND room_unit_id = ?", bedID, unitID).First(&bed).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Tempat tidur tidak ditemukan"})
+		return
+	}
+
+	// Check if bed is occupied
+	if bed.Status == "occupied" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Tidak dapat menghapus tempat tidur yang sedang digunakan"})
+		return
+	}
+
+	if err := database.DB.Delete(&bed).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menghapus tempat tidur"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Tempat tidur berhasil dihapus"})
+}
+
+// ==================== Room Staff Handlers ====================
+
+// GetRoomStaff returns all staff assigned to a room
+func GetRoomStaff(c *gin.Context) {
+	roomID := c.Param("id")
+	var staff []models.RoomStaff
+
+	if err := database.DB.Where("room_id = ?", roomID).
+		Preload("Employee").Preload("Employee.User").
+		Order("is_primary DESC, role_type ASC").Find(&staff).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengambil daftar staf ruangan"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": staff})
+}
+
+// AssignRoomStaffRequest represents the request to assign staff to a room
+type AssignRoomStaffRequest struct {
+	EmployeeID uint   `json:"employee_id" binding:"required"`
+	RoleType   string `json:"role_type" binding:"required"`
+	IsPrimary  bool   `json:"is_primary"`
+	Notes      string `json:"notes"`
+}
+
+// AssignRoomStaff assigns staff to a room
+func AssignRoomStaff(c *gin.Context) {
+	roomID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID ruangan tidak valid"})
+		return
+	}
+
+	// Check if room exists
+	var room models.Room
+	if err := database.DB.First(&room, roomID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Ruangan tidak ditemukan"})
+		return
+	}
+
+	var req AssignRoomStaffRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Check if employee exists
+	var employee models.Employee
+	if err := database.DB.First(&employee, req.EmployeeID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Karyawan tidak ditemukan"})
+		return
+	}
+
+	// Check if employee is already assigned to this room
+	var existing models.RoomStaff
+	if err := database.DB.Where("room_id = ? AND employee_id = ?", roomID, req.EmployeeID).First(&existing).Error; err == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Karyawan sudah ditugaskan di ruangan ini"})
+		return
+	}
+
+	// If setting as primary, remove primary status from other staff with same role
+	if req.IsPrimary {
+		database.DB.Model(&models.RoomStaff{}).Where("room_id = ? AND role_type = ? AND is_primary = ?", roomID, req.RoleType, true).
+			Update("is_primary", false)
+	}
+
+	roomStaff := models.RoomStaff{
+		RoomID:     uint(roomID),
+		EmployeeID: req.EmployeeID,
+		RoleType:   req.RoleType,
+		IsPrimary:  req.IsPrimary,
+		Notes:      req.Notes,
+	}
+
+	if err := database.DB.Create(&roomStaff).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menugaskan staf"})
+		return
+	}
+
+	// Reload with employee data
+	database.DB.Preload("Employee").Preload("Employee.User").First(&roomStaff, roomStaff.ID)
+
+	c.JSON(http.StatusCreated, gin.H{"data": roomStaff, "message": "Staf berhasil ditugaskan"})
+}
+
+// UpdateRoomStaffRequest represents the request to update room staff
+type UpdateRoomStaffRequest struct {
+	RoleType  string `json:"role_type" binding:"required"`
+	IsPrimary bool   `json:"is_primary"`
+	Notes     string `json:"notes"`
+}
+
+// UpdateRoomStaff updates room staff assignment
+func UpdateRoomStaff(c *gin.Context) {
+	roomID := c.Param("id")
+	staffID := c.Param("staff_id")
+	var staff models.RoomStaff
+
+	if err := database.DB.Where("id = ? AND room_id = ?", staffID, roomID).First(&staff).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Penugasan staf tidak ditemukan"})
+		return
+	}
+
+	var req UpdateRoomStaffRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// If setting as primary, remove primary status from other staff with same role
+	if req.IsPrimary && !staff.IsPrimary {
+		database.DB.Model(&models.RoomStaff{}).
+			Where("room_id = ? AND role_type = ? AND is_primary = ? AND id != ?", roomID, req.RoleType, true, staffID).
+			Update("is_primary", false)
+	}
+
+	staff.RoleType = req.RoleType
+	staff.IsPrimary = req.IsPrimary
+	staff.Notes = req.Notes
+
+	if err := database.DB.Save(&staff).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memperbarui penugasan staf"})
+		return
+	}
+
+	// Reload with employee data
+	database.DB.Preload("Employee").Preload("Employee.User").First(&staff, staff.ID)
+
+	c.JSON(http.StatusOK, gin.H{"data": staff, "message": "Penugasan staf berhasil diperbarui"})
+}
+
+// RemoveRoomStaff removes staff from a room
+func RemoveRoomStaff(c *gin.Context) {
+	roomID := c.Param("id")
+	staffID := c.Param("staff_id")
+	var staff models.RoomStaff
+
+	if err := database.DB.Where("id = ? AND room_id = ?", staffID, roomID).First(&staff).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Penugasan staf tidak ditemukan"})
+		return
+	}
+
+	if err := database.DB.Delete(&staff).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menghapus penugasan staf"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Staf berhasil dihapus dari ruangan"})
+}

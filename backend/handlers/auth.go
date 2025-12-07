@@ -114,7 +114,7 @@ func Login(c *gin.Context) {
 }
 
 func GetProfile(c *gin.Context) {
-	userID, _ := c.Get("user_id")
+	userID, _ := c.Get("userID")
 
 	var user models.User
 	if err := database.DB.Preload("Role.Permissions").First(&user, userID).Error; err != nil {

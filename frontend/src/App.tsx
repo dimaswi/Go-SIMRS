@@ -5,6 +5,12 @@ import { AppLayout } from './components/layout/AppLayout';
 import { ProtectedRoute as PermissionGuard } from './components/protected-route';
 import { Toaster } from '@/components/ui/toaster';
 import { Loader2 } from 'lucide-react';
+import { EmployeeRoutes, RegionRoutes, MasterDataRoutes, RoomRoutes, ProcedureRoutes, PatientRoutes, InventoryRoutes, MedicineRoutes, StockRequestRoutes, DistributionRoutes, PurchaseRoutes, StockOpnameRoutes, SupplierRoutes, RoomStockRoutes, QueueRoutes, RegistrationRoutes } from './routes';
+import { KioskRoutes } from './routes/KioskRoutes';
+import { QueueDisplayRoutes } from './routes/QueueDisplayRoutes';
+import { CounterRoutes } from './routes/CounterRoutes';
+import { RoomQueueRoutes } from './routes/RoomQueueRoutes';
+import VisitRoutes from './routes/VisitRoutes';
 
 // Lazy load pages
 const LoginPage = lazy(() => import('./pages/auth/login'));
@@ -63,6 +69,12 @@ function App() {
     <BrowserRouter>
       <Suspense fallback={<LoadingFallback />}>
         <Routes>
+          {/* Public Kiosk Route */}
+          <Route path="/kiosk" element={<KioskRoutes />} />
+          
+          {/* Public Queue Display */}
+          <Route path="/queue-display/*" element={<QueueDisplayRoutes />} />
+          
           <Route path="/login" element={<LoginPage />} />
           <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
           <Route path="/account" element={<ProtectedRoute><AccountPage /></ProtectedRoute>} />
@@ -121,6 +133,63 @@ function App() {
               </PermissionGuard>
             </ProtectedRoute>
           } />
+          
+          {/* Employees */}
+          {EmployeeRoutes(ProtectedRoute)}
+          
+          {/* Regions */}
+          {RegionRoutes(ProtectedRoute)}
+          
+          {/* Master Data */}
+          {MasterDataRoutes(ProtectedRoute)}
+          
+          {/* Counters */}
+          <Route path="/counters/*" element={<ProtectedRoute><CounterRoutes /></ProtectedRoute>} />
+          
+          {/* Rooms */}
+          {RoomRoutes(ProtectedRoute)}
+          
+          {/* Procedures */}
+          {ProcedureRoutes(ProtectedRoute)}
+          
+          {/* Patients */}
+          {PatientRoutes(ProtectedRoute)}
+          
+          {/* Inventories */}
+          {InventoryRoutes(ProtectedRoute)}
+          
+          {/* Medicines */}
+          {MedicineRoutes(ProtectedRoute)}
+          
+          {/* Stock Requests */}
+          {StockRequestRoutes(ProtectedRoute)}
+          
+          {/* Distributions */}
+          {DistributionRoutes(ProtectedRoute)}
+          
+          {/* Purchases */}
+          {PurchaseRoutes(ProtectedRoute)}
+          
+          {/* Stock Opname */}
+          {StockOpnameRoutes(ProtectedRoute)}
+          
+          {/* Suppliers */}
+          <Route path="/suppliers/*" element={<ProtectedRoute><SupplierRoutes /></ProtectedRoute>} />
+          
+          {/* Queues */}
+          {QueueRoutes(ProtectedRoute)}
+          
+          {/* Registrations */}
+          {RegistrationRoutes(ProtectedRoute)}
+          
+          {/* Room Queues */}
+          {RoomQueueRoutes(ProtectedRoute)}
+          
+          {/* Visits */}
+          <Route path="/visits/*" element={<ProtectedRoute><VisitRoutes /></ProtectedRoute>} />
+          
+          {/* Room Stock */}
+          {RoomStockRoutes(ProtectedRoute)}
           
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
         </Routes>

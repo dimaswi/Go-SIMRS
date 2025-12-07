@@ -27,6 +27,7 @@ export function createUserColumns({
     createSelectColumn<User>(),
     {
       accessorKey: "full_name",
+      sortDescFirst: false,
       header: ({ column }) => {
         return (
           <Button
@@ -49,7 +50,12 @@ export function createUserColumns({
               </AvatarFallback>
             </Avatar>
             <div className="flex flex-col">
-              <span className="font-medium">{user.full_name}</span>
+              <button
+                onClick={() => onView(user.id)}
+                className="font-medium text-primary hover:underline text-left"
+              >
+                {user.full_name}
+              </button>
               <span className="text-sm text-muted-foreground">@{user.username}</span>
             </div>
           </div>

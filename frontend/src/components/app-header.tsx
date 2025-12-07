@@ -3,7 +3,14 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
-import { Moon, Sun } from 'lucide-react';
+import { Moon, Sun, UserPlus } from 'lucide-react';
+import { usePermission } from '@/hooks/usePermission';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -13,9 +20,37 @@ import {
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
 
+// Route label mapping for better breadcrumb display
+const routeLabels: Record<string, string> = {
+  'dashboard': 'Dashboard',
+  'users': 'Users',
+  'roles': 'Roles',
+  'permissions': 'Permissions',
+  'settings': 'Settings',
+  'account': 'Account',
+  'employees': 'Pegawai',
+  'regions': 'Wilayah',
+  'provinces': 'Provinsi',
+  'regencies': 'Kabupaten/Kota',
+  'districts': 'Kecamatan',
+  'villages': 'Desa/Kelurahan',
+  'create': 'Tambah',
+  'edit': 'Edit',
+};
+
+// Check if segment looks like an ID (numeric or uuid-like)
+const isIdSegment = (segment: string): boolean => {
+  // Check if it's a number
+  if (/^\d+$/.test(segment)) return true;
+  // Check if it's a UUID
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(segment)) return true;
+  return false;
+};
+
 export function AppHeader() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { hasPermission } = usePermission();
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
   // Load theme on mount
@@ -43,15 +78,26 @@ export function AppHeader() {
     }
   };
   
-  // Generate breadcrumb from current path
+  // Generate breadcrumb from current path - skip ID segments
   const pathSegments = location.pathname.split('/').filter(Boolean);
-  const breadcrumbs = [
+  const breadcrumbs: { label: string; path: string }[] = [
     { label: 'Home', path: '/' },
-    ...pathSegments.map((segment, index) => ({
-      label: segment.charAt(0).toUpperCase() + segment.slice(1),
-      path: `/${pathSegments.slice(0, index + 1).join('/')}`,
-    })),
   ];
+
+  let currentPath = '';
+  for (let i = 0; i < pathSegments.length; i++) {
+    const segment = pathSegments[i];
+    currentPath += `/${segment}`;
+    
+    // Skip ID segments - don't add them to breadcrumbs
+    if (isIdSegment(segment)) {
+      continue;
+    }
+    
+    // Get label from mapping or capitalize
+    const label = routeLabels[segment] || segment.charAt(0).toUpperCase() + segment.slice(1);
+    breadcrumbs.push({ label, path: currentPath });
+  }
 
   const handleBreadcrumbClick = (e: React.MouseEvent, path: string) => {
     e.preventDefault();
@@ -59,7 +105,7 @@ export function AppHeader() {
   };
 
   return (
-    <header className="sticky top-0 z-50 flex h-14 shrink-0 items-center gap-2 border-b rounded-xl bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4">
+    <header className="sticky top-0 z-50 flex h-14 shrink-0 items-center gap-2 rounded-xl bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4">
       <div className="flex items-center gap-2 flex-1">
         <SidebarTrigger className="h-7 w-7" />
         <Separator orientation="vertical" className="h-4" />
@@ -87,20 +133,44 @@ export function AppHeader() {
         </Breadcrumb>
       </div>
       
-      {/* Theme Toggle */}
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={toggleTheme}
-        className="h-8 w-8"
-      >
-        {theme === 'light' ? (
-          <Moon className="h-4 w-4" />
-        ) : (
-          <Sun className="h-4 w-4" />
+      {/* Quick Actions */}
+      <div className="flex items-center gap-1">
+        {hasPermission('patients.create') && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => navigate('/patients/create')}
+                  className="h-8 w-8"
+                >
+                  <UserPlus className="h-4 w-4" />
+                  <span className="sr-only">Registrasi Pasien Baru</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Registrasi Pasien Baru</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         )}
-        <span className="sr-only">Toggle theme</span>
-      </Button>
+        
+        {/* Theme Toggle */}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={toggleTheme}
+          className="h-8 w-8"
+        >
+          {theme === 'light' ? (
+            <Moon className="h-4 w-4" />
+          ) : (
+            <Sun className="h-4 w-4" />
+          )}
+          <span className="sr-only">Toggle theme</span>
+        </Button>
+      </div>
     </header>
   );
 }

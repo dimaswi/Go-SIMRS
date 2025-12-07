@@ -8,17 +8,19 @@ import (
 )
 
 type User struct {
-	ID        uint           `gorm:"primarykey" json:"id"`
-	CreatedAt time.Time      `json:"created_at"`
-	UpdatedAt time.Time      `json:"updated_at"`
-	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
-	Email     string         `gorm:"uniqueIndex;not null;size:150" json:"email"`
-	Username  string         `gorm:"uniqueIndex;not null;size:50" json:"username"`
-	Password  string         `gorm:"not null;size:255" json:"-"`
-	FullName  string         `gorm:"size:100" json:"full_name"`
-	IsActive  bool           `gorm:"default:true" json:"is_active"`
-	RoleID    uint           `gorm:"not null;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"role_id"`
-	Role      Role           `gorm:"foreignKey:RoleID" json:"role,omitempty"`
+	ID         uint           `gorm:"primarykey" json:"id"`
+	CreatedAt  time.Time      `json:"created_at"`
+	UpdatedAt  time.Time      `json:"updated_at"`
+	DeletedAt  gorm.DeletedAt `gorm:"index" json:"-"`
+	Email      string         `gorm:"not null;size:150" json:"email"`
+	Username   string         `gorm:"not null;size:50" json:"username"`
+	Password   string         `gorm:"not null;size:255" json:"-"`
+	FullName   string         `gorm:"size:100" json:"full_name"`
+	IsActive   bool           `gorm:"default:true" json:"is_active"`
+	RoleID     uint           `gorm:"not null;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"role_id"`
+	Role       Role           `gorm:"foreignKey:RoleID" json:"role,omitempty"`
+	EmployeeID *uint          `gorm:"constraint:OnUpdate:CASCADE,OnDelete:SET NULL" json:"employee_id,omitempty"`
+	Employee   *Employee      `gorm:"foreignKey:EmployeeID" json:"employee,omitempty"`
 }
 
 // HashPassword hashes the user password

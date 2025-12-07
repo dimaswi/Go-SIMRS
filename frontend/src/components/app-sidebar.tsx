@@ -9,7 +9,23 @@ import {
   ChevronRight,
   Lock,
   Building2,
-  Settings
+  Settings,
+  UserCog,
+  MapPin,
+  Database,
+  BedDouble,
+  Syringe,
+  UserRound,
+  Package,
+  Pill,
+  FileText,
+  Send,
+  ShoppingCart,
+  ClipboardList,
+  Truck,
+  Monitor,
+  Tv,
+  Activity
 } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
 import { usePermission } from '@/hooks/usePermission';
@@ -50,6 +66,48 @@ import {
 
 const menuItems = [
   { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, permission: 'dashboard.view' },
+  { 
+    path: '/front-office', 
+    label: 'Front Office', 
+    icon: Users,
+    submenu: [
+      { path: '/queues', label: 'Antrean', icon: ClipboardList, permission: 'queues.view' },
+      { path: '/kiosk', label: 'Kiosk Antrean', icon: Monitor }, // Public - no permission needed
+      { path: '/queue-display', label: 'Display Antrean', icon: Tv }, // Public - no permission needed
+      { path: '/registrations', label: 'Pendaftaran', icon: UserRound, permission: 'registrations.view' },
+      { path: '/visits', label: 'Kunjungan', icon: Activity, permission: 'visits.view' },
+    ]
+  },
+  { 
+    path: '/master', 
+    label: 'Master Data', 
+    icon: Building2,
+    submenu: [
+      { path: '/patients', label: 'Pasien', icon: UserRound, permission: 'patients.view' },
+      { path: '/employees', label: 'Pegawai', icon: UserCog, permission: 'employees.view' },
+      { path: '/rooms', label: 'Ruangan', icon: BedDouble, permission: 'rooms.view' },
+      { path: '/counters', label: 'Loket', icon: Monitor, permission: 'counters.view' },
+      { path: '/inventories', label: 'Inventaris', icon: Package, permission: 'inventories.view' },
+      { path: '/medicines', label: 'Obat', icon: Pill, permission: 'medicines.view' },
+      { path: '/procedures', label: 'Tindakan', icon: Syringe, permission: 'procedures.view' },
+      { path: '/regions', label: 'Wilayah', icon: MapPin },
+      { path: '/master-data', label: 'Referensi Data', icon: Database },
+    ]
+  },
+  { 
+    path: '/logistics', 
+    label: 'Logistik', 
+    icon: Send,
+    submenu: [
+      { path: '/stock-requests', label: 'Permintaan Stok', icon: FileText, permission: 'stock_requests.view' },
+      { path: '/distributions', label: 'Distribusi', icon: Send, permission: 'distributions.view' },
+      { path: '/purchases', label: 'Pembelian', icon: ShoppingCart, permission: 'purchases.view' },
+      { path: '/stock-opname', label: 'Stock Opname', icon: ClipboardList, permission: 'stock_opname.view' },
+      { path: '/suppliers', label: 'Supplier', icon: Truck, permission: 'suppliers.view' },
+      { path: '/room-stock/medicines', label: 'Stok Obat Ruangan', icon: Pill, permission: 'room-medicines.view' },
+      { path: '/room-stock/inventories', label: 'Stok Inventaris Ruangan', icon: Package, permission: 'room-inventories.view' },
+    ]
+  },
   { 
     path: '/users', 
     label: 'User Management', 
@@ -92,6 +150,13 @@ export function AppSidebar() {
 
   // Filter menu items based on permissions
   const visibleMenuItems = menuItems.filter(item => {
+    // For items with submenu, check if any submenu item is visible
+    if ('submenu' in item && item.submenu) {
+      return item.submenu.some((sub: any) => {
+        if (!sub.permission) return true;
+        return hasPermission(sub.permission);
+      });
+    }
     if (!item.permission) return true;
     return hasPermission(item.permission);
   }).map(item => {

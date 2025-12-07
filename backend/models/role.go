@@ -11,7 +11,7 @@ type Role struct {
 	CreatedAt   time.Time      `json:"created_at"`
 	UpdatedAt   time.Time      `json:"updated_at"`
 	DeletedAt   gorm.DeletedAt `gorm:"index" json:"-"`
-	Name        string         `gorm:"uniqueIndex;not null;size:100" json:"name"`
+	Name        string         `gorm:"not null;size:100" json:"name"`
 	Description string         `gorm:"size:255" json:"description"`
 	Permissions []Permission   `gorm:"many2many:role_permissions;" json:"permissions,omitempty"`
 	Users       []User         `gorm:"foreignKey:RoleID" json:"users,omitempty"`

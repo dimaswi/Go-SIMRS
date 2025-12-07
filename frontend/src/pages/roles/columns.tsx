@@ -38,6 +38,7 @@ export function createRoleColumns({
     createSelectColumn<Role>(),
     {
       accessorKey: "name",
+      sortDescFirst: false,
       header: ({ column }) => {
         return (
           <Button
@@ -54,7 +55,12 @@ export function createRoleColumns({
         const role = row.original
         return (
           <div className="flex flex-col">
-            <span className="font-medium">{role.name}</span>
+            <button
+              onClick={() => onView(role.id)}
+              className="font-medium text-primary hover:underline text-left"
+            >
+              {role.name}
+            </button>
           </div>
         )
       },

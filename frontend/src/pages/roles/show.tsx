@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Card, CardContent, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { setPageTitle } from '@/lib/page-title';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -11,7 +11,7 @@ import { ConfirmDialog } from '@/components/confirm-dialog';
 import { 
   ArrowLeft, 
   Loader2, 
-  Edit, 
+  Pencil, 
   Trash2
 } from 'lucide-react';
 
@@ -26,7 +26,7 @@ export default function RoleShow() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   useEffect(() => {
-    setPageTitle('Role Details');
+    setPageTitle('Detail Role');
     loadRole();
   }, [id]);
 
@@ -38,7 +38,7 @@ export default function RoleShow() {
       toast({
         variant: "destructive",
         title: "Error!",
-        description: "Failed to load role data.",
+        description: "Gagal memuat data role.",
       });
     } finally {
       setLoading(false);
@@ -56,18 +56,29 @@ export default function RoleShow() {
       await rolesApi.delete(parseInt(id!));
       toast({
         variant: "success",
-        title: "Success!",
-        description: "Role deleted successfully.",
+        title: "Berhasil!",
+        description: "Role berhasil dihapus.",
       });
       setTimeout(() => navigate('/roles'), 500);
     } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Error!",
-        description: error.response?.data?.error || "Failed to delete role.",
+        description: error.response?.data?.error || "Gagal menghapus role.",
       });
       setDeleting(false);
     }
+  };
+
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return '-';
+    return new Date(dateString).toLocaleDateString('id-ID', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   if (loading) {
@@ -82,9 +93,9 @@ export default function RoleShow() {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
-          <p className="text-lg font-semibold">Role not found</p>
+          <p className="text-lg font-semibold">Role tidak ditemukan</p>
           <Button onClick={() => navigate('/roles')} className="mt-4">
-            Back to Roles
+            Kembali ke Daftar Role
           </Button>
         </div>
       </div>
@@ -92,160 +103,139 @@ export default function RoleShow() {
   }
 
   return (
-    <div className="p-6">
-      <div className="max-w-full mx-auto space-y-6">
-        {/* Header with actions */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => navigate('/roles')}
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Kembali
-            </Button>
-            <h1 className="text-xl font-semibold">Detail Role</h1>
-            <span className="text-muted-foreground">#{role.id}</span>
-          </div>
-          <div className="flex gap-2">
-            {hasPermission('roles.update') && (
-              <Button 
-                variant="outline"
-                size="sm"
-                onClick={() => navigate(`/roles/${id}/edit`)}
+    <div className="flex flex-1 flex-col gap-4 p-6">
+      <Card className="shadow-md">
+        <CardHeader className="border-b bg-muted/50">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => navigate('/roles')}
               >
-                <Edit className="h-4 w-4 mr-2" />
-                Edit
+                <ArrowLeft className="h-4 w-4" />
               </Button>
-            )}
-            {hasPermission('roles.delete') && (
-              <Button 
-                variant="destructive"
-                size="sm"
-                onClick={handleDelete}
-                disabled={deleting}
-              >
-                {deleting ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Trash2 className="h-4 w-4 mr-2" />
-                )}
-                Hapus
-              </Button>
-            )}
-          </div>
-        </div>
-
-        {/* Single Card with Sections */}
-        <Card>
-          <CardContent className="p-6">
-            {/* Role Information Section */}
-            <div className="mb-8">
-              <CardTitle className="text-base text-muted-foreground font-normal mb-4">
-                INFORMASI ROLE
-              </CardTitle>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <div>
-                  <label className="text-sm text-muted-foreground">Nama Role</label>
-                  <p className="font-medium text-base">{role.name}</p>
-                </div>
-                <div>
-                  <label className="text-sm text-muted-foreground">Deskripsi</label>
-                  <p className="text-muted-foreground text-sm">
-                    {role.description || 'Tidak ada deskripsi'}
-                  </p>
-                </div>
-                <div>
-                  <label className="text-sm text-muted-foreground">Total Permission</label>
-                  <p className="font-medium text-base">{role.permissions?.length || 0} permission</p>
-                </div>
+              <div className="space-y-1">
+                <CardTitle className="text-base font-semibold">
+                  {role.name}
+                </CardTitle>
+                <CardDescription>
+                  {role.description || 'Tidak ada deskripsi'} • {role.permissions?.length || 0} permission
+                </CardDescription>
               </div>
             </div>
-
-            <hr className="border-border/50" />
-
-            {/* System Information Section */}
-            <div className="my-8">
-              <CardTitle className="text-base text-muted-foreground font-normal mb-4">
-                INFORMASI SISTEM
-              </CardTitle>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <div>
-                  <label className="text-sm text-muted-foreground">ID Role</label>
-                  <p className="font-medium text-base">#{role.id}</p>
-                </div>
-                <div>
-                  <label className="text-sm text-muted-foreground">Dibuat Pada</label>
-                  <p className="font-medium text-base">
-                    {role.created_at ? new Date(role.created_at).toLocaleDateString('id-ID', {
-                      day: 'numeric',
-                      month: 'long', 
-                      year: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    }) : '-'}
-                  </p>
-                </div>
-                <div>
-                  <label className="text-sm text-muted-foreground">Terakhir Diubah</label>
-                  <p className="font-medium text-base">
-                    {role.updated_at ? new Date(role.updated_at).toLocaleDateString('id-ID', {
-                      day: 'numeric',
-                      month: 'long',
-                      year: 'numeric', 
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    }) : '-'}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Permissions Section */}
-            <hr className="border-border/50" />
-            <div className="mt-8">
-              <CardTitle className="text-base text-muted-foreground font-normal mb-4">
-                DAFTAR PERMISSION
-              </CardTitle>
-              {role.permissions && role.permissions.length > 0 ? (
-                <div className="space-y-2">
-                  {role.permissions.map((perm: any, index: number) => (
-                    <div 
-                      key={perm.id} 
-                      className="flex items-center justify-between py-2 border-b border-border/30 last:border-b-0"
-                    >
-                      <div>
-                        <p className="text-sm font-mono font-medium">{perm.name}</p>
-                        {perm.description && (
-                          <p className="text-xs text-muted-foreground">{perm.description}</p>
-                        )}
-                      </div>
-                      <Badge variant="outline" className="text-xs">
-                        {index + 1}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <p className="text-muted-foreground mb-4">Tidak ada permission yang diberikan</p>
-                  {hasPermission('roles.update') && (
-                    <Button 
-                      onClick={() => navigate(`/roles/${id}/edit`)}
-                      variant="outline"
-                      size="sm"
-                    >
-                      <Edit className="h-4 w-4 mr-2" />
-                      Kelola Permission
-                    </Button>
+            <div className="flex items-center gap-2">
+              {hasPermission('roles.update') && (
+                <Button 
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate(`/roles/${id}/edit`)}
+                >
+                  <Pencil className="mr-2 h-4 w-4" />
+                  Edit
+                </Button>
+              )}
+              {hasPermission('roles.delete') && (
+                <Button 
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleDelete}
+                  disabled={deleting}
+                >
+                  {deleting ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="mr-2 h-4 w-4" />
                   )}
-                </div>
+                  Hapus
+                </Button>
               )}
             </div>
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-6">
+          {/* Informasi Role */}
+          <div className="mb-6">
+            <h3 className="text-sm font-medium text-muted-foreground mb-4">INFORMASI ROLE</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              <div>
+                <label className="text-xs text-muted-foreground">Nama Role</label>
+                <p className="font-medium text-sm">{role.name}</p>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">Deskripsi</label>
+                <p className="font-medium text-sm">{role.description || '-'}</p>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">Total Permission</label>
+                <p className="font-medium text-sm">{role.permissions?.length || 0} permission</p>
+              </div>
+            </div>
+          </div>
+
+          <hr className="border-border/50 my-6" />
+
+          {/* Daftar Permission */}
+          <div className="mb-6">
+            <h3 className="text-sm font-medium text-muted-foreground mb-4">DAFTAR PERMISSION</h3>
+            {role.permissions && role.permissions.length > 0 ? (
+              <div className="space-y-2">
+                {role.permissions.map((perm: any, index: number) => (
+                  <div 
+                    key={perm.id} 
+                    className="flex items-center justify-between py-2 border-b border-border/30 last:border-b-0"
+                  >
+                    <div>
+                      <p className="text-sm font-mono font-medium">{perm.name}</p>
+                      {perm.description && (
+                        <p className="text-xs text-muted-foreground">{perm.description}</p>
+                      )}
+                    </div>
+                    <Badge variant="outline" className="text-xs">
+                      {index + 1}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground mb-4">Tidak ada permission yang diberikan</p>
+                {hasPermission('roles.update') && (
+                  <Button 
+                    onClick={() => navigate(`/roles/${id}/edit`)}
+                    variant="outline"
+                    size="sm"
+                  >
+                    <Pencil className="h-4 w-4 mr-2" />
+                    Kelola Permission
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+
+          <hr className="border-border/50 my-6" />
+
+          {/* Informasi Sistem */}
+          <div>
+            <h3 className="text-sm font-medium text-muted-foreground mb-4">INFORMASI SISTEM</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              <div>
+                <label className="text-xs text-muted-foreground">ID Role</label>
+                <p className="font-medium text-sm">#{role.id}</p>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">Dibuat</label>
+                <p className="font-medium text-sm">{formatDate(role.created_at)}</p>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">Terakhir Diperbarui</label>
+                <p className="font-medium text-sm">{formatDate(role.updated_at)}</p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <ConfirmDialog
         open={deleteDialogOpen}

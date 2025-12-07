@@ -68,16 +68,16 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		c.Set("user_id", claims.UserID)
+		c.Set("userID", claims.UserID)
 		c.Set("email", claims.Email)
-		c.Set("role_id", claims.RoleID)
+		c.Set("roleID", claims.RoleID)
 		c.Next()
 	}
 }
 
 func RequirePermission(permission string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		roleID, exists := c.Get("role_id")
+		roleID, exists := c.Get("roleID")
 		if !exists {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 			c.Abort()

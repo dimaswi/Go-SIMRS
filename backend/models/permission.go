@@ -11,7 +11,7 @@ type Permission struct {
 	CreatedAt   time.Time      `json:"created_at"`
 	UpdatedAt   time.Time      `json:"updated_at"`
 	DeletedAt   gorm.DeletedAt `gorm:"index" json:"-"`
-	Name        string         `gorm:"uniqueIndex;not null;size:100" json:"name" validate:"required,max=100"`
+	Name        string         `gorm:"not null;size:100" json:"name" validate:"required,max=100"`
 	Module      string         `gorm:"not null;size:50;index" json:"module" validate:"required,max=50"`
 	Category    string         `gorm:"not null;size:50;index" json:"category" validate:"required,max=50"`
 	Description string         `gorm:"size:255" json:"description" validate:"max=255"`

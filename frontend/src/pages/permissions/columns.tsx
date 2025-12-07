@@ -30,6 +30,7 @@ export function createPermissionColumns({
     createSelectColumn<Permission>(),
     {
       accessorKey: "name",
+      sortDescFirst: false,
       header: ({ column }) => {
         return (
           <Button
@@ -46,7 +47,12 @@ export function createPermissionColumns({
         const permission = row.original
         return (
           <div className="flex flex-col">
-            <span className="font-medium font-mono text-sm">{permission.name}</span>
+            <button
+              onClick={() => onView(permission.id)}
+              className="font-medium font-mono text-sm text-primary hover:underline text-left"
+            >
+              {permission.name}
+            </button>
           </div>
         )
       },

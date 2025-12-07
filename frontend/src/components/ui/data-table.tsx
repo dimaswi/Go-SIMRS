@@ -50,6 +50,7 @@ interface DataTableProps<TData, TValue> {
   showPagination?: boolean
   showSearch?: boolean
   pageSize?: number
+  meta?: Record<string, unknown>
 }
 
 export function DataTable<TData, TValue>({
@@ -60,6 +61,7 @@ export function DataTable<TData, TValue>({
   showPagination = true,
   showSearch = true,
   pageSize = 10,
+  meta,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
@@ -80,6 +82,7 @@ export function DataTable<TData, TValue>({
     onRowSelectionChange: setRowSelection,
     onGlobalFilterChange: setGlobalFilter,
     globalFilterFn: "includesString",
+    meta,
     state: {
       sorting,
       columnFilters,

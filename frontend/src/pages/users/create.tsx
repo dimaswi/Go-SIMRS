@@ -10,9 +10,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { usersApi, rolesApi } from "@/lib/api";
+import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
+import { usersApi, rolesApi, employeesApi, type Employee } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Loader2, User, Mail, Lock, Shield } from "lucide-react";
+import { ArrowLeft, Loader2, User, Mail, Lock, Shield, Users } from "lucide-react";
 import { setPageTitle } from "@/lib/page-title";
 
 export default function UserCreate() {
@@ -20,25 +21,31 @@ export default function UserCreate() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [roles, setRoles] = useState<{ id: number; name: string }[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [formData, setFormData] = useState({
     email: "",
     username: "",
     password: "",
     full_name: "",
     role_id: "",
+    employee_id: "",
   });
 
   useEffect(() => {
-    setPageTitle("Create User");
-    loadRoles();
+    setPageTitle("Tambah User");
+    loadData();
   }, []);
 
-  const loadRoles = async () => {
+  const loadData = async () => {
     try {
-      const response = await rolesApi.getAll();
-      setRoles(response.data.data);
+      const [rolesRes, employeesRes] = await Promise.all([
+        rolesApi.getAll(),
+        employeesApi.getAll(),
+      ]);
+      setRoles(rolesRes.data.data);
+      setEmployees(employeesRes.data.data || []);
     } catch (error) {
-      console.error("Failed to load roles:", error);
+      console.error("Failed to load data:", error);
     }
   };
 
@@ -50,24 +57,30 @@ export default function UserCreate() {
       await usersApi.create({
         ...formData,
         role_id: parseInt(formData.role_id),
+        employee_id: formData.employee_id ? parseInt(formData.employee_id) : undefined,
       });
       toast({
         variant: "success",
-        title: "Success!",
-        description: "User created successfully.",
+        title: "Berhasil!",
+        description: "User berhasil dibuat.",
       });
       setTimeout(() => navigate("/users"), 500);
-    } catch (error) {
+    } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Error!",
-        description:
-          error instanceof Error ? error.message : "Failed to create user.",
+        description: error.response?.data?.error || "Gagal membuat user.",
       });
     } finally {
       setLoading(false);
     }
   };
+
+  // Convert employees to ComboboxOption format
+  const employeeOptions: ComboboxOption[] = employees.map(emp => ({
+    value: String(emp.id),
+    label: `${emp.nama_lengkap} (${emp.nip || emp.nik})`,
+  }));
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
@@ -205,6 +218,29 @@ export default function UserCreate() {
                     </option>
                   ))}
                 </select>
+              </div>
+
+              <div className="space-y-2">
+                <Label
+                  htmlFor="employee_id"
+                  className="text-xs font-medium flex items-center gap-2"
+                >
+                  <Users className="h-3.5 w-3.5 text-muted-foreground" />
+                  Pegawai Terkait
+                  <span className="text-muted-foreground font-normal">(Opsional)</span>
+                </Label>
+                <Combobox
+                  options={employeeOptions}
+                  value={formData.employee_id}
+                  onValueChange={(value) => setFormData({ ...formData, employee_id: value })}
+                  placeholder="Pilih pegawai..."
+                  searchPlaceholder="Cari pegawai..."
+                  emptyText="Pegawai tidak ditemukan"
+                  className="h-9"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Hubungkan user ini dengan data pegawai yang sudah ada
+                </p>
               </div>
 
               <div className="flex gap-3 justify-end">

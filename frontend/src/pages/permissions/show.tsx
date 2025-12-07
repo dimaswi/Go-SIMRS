@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Card, CardContent, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { setPageTitle } from '@/lib/page-title';
 import { Button } from '@/components/ui/button';
 import { permissionsApi } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import { ConfirmDialog } from '@/components/confirm-dialog';
-import { ArrowLeft, Loader2, Edit, Trash2 } from 'lucide-react';
+import { ArrowLeft, Loader2, Pencil, Trash2 } from 'lucide-react';
 import { usePermission } from '@/hooks/usePermission';
 
 export default function PermissionShow() {
@@ -20,7 +20,7 @@ export default function PermissionShow() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   useEffect(() => {
-    setPageTitle('Permission Details');
+    setPageTitle('Detail Permission');
     loadPermission();
   }, [id]);
 
@@ -32,7 +32,7 @@ export default function PermissionShow() {
       toast({
         variant: "destructive",
         title: "Error!",
-        description: "Failed to load permission data.",
+        description: "Gagal memuat data permission.",
       });
     } finally {
       setLoading(false);
@@ -50,18 +50,29 @@ export default function PermissionShow() {
       await permissionsApi.delete(parseInt(id!));
       toast({
         variant: "success",
-        title: "Success!",
-        description: "Permission deleted successfully.",
+        title: "Berhasil!",
+        description: "Permission berhasil dihapus.",
       });
       setTimeout(() => navigate('/permissions'), 500);
     } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Error!",
-        description: error.response?.data?.error || "Failed to delete permission.",
+        description: error.response?.data?.error || "Gagal menghapus permission.",
       });
       setDeleting(false);
     }
+  };
+
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return '-';
+    return new Date(dateString).toLocaleDateString('id-ID', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   if (loading) {
@@ -76,9 +87,9 @@ export default function PermissionShow() {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
-          <p className="text-lg font-semibold">Permission not found</p>
+          <p className="text-lg font-semibold">Permission tidak ditemukan</p>
           <Button onClick={() => navigate('/permissions')} className="mt-4">
-            Back to Permissions
+            Kembali ke Daftar Permission
           </Button>
         </div>
       </div>
@@ -86,120 +97,100 @@ export default function PermissionShow() {
   }
 
   return (
-    <div className="p-6">
-      <div className="max-w-full mx-auto space-y-6">
-        {/* Header with actions */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => navigate('/permissions')}
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Kembali
-            </Button>
-            <h1 className="text-xl font-semibold">Detail Permission</h1>
-            <span className="text-muted-foreground">#{permission.id}</span>
-          </div>
-          <div className="flex gap-2">
-            {canPerform('role_management', 'update') && (
-              <Button 
-                variant="outline"
-                size="sm"
-                onClick={() => navigate(`/permissions/${id}/edit`)}
+    <div className="flex flex-1 flex-col gap-4 p-6">
+      <Card className="shadow-md">
+        <CardHeader className="border-b bg-muted/50">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => navigate('/permissions')}
               >
-                <Edit className="h-4 w-4 mr-2" />
-                Edit
+                <ArrowLeft className="h-4 w-4" />
               </Button>
-            )}
-            {canPerform('role_management', 'delete') && (
-              <Button 
-                variant="destructive"
-                size="sm"
-                onClick={handleDelete}
-                disabled={deleting}
-              >
-                {deleting ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Trash2 className="h-4 w-4 mr-2" />
-                )}
-                Hapus
-              </Button>
-            )}
-          </div>
-        </div>
-
-        {/* Single Card with Sections */}
-        <Card>
-          <CardContent className="p-6">
-            {/* Permission Information Section */}
-            <div className="mb-8">
-              <CardTitle className="text-base text-muted-foreground font-normal mb-4">
-                INFORMASI PERMISSION
-              </CardTitle>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <div>
-                  <label className="text-sm text-muted-foreground">Nama Permission</label>
-                  <p className="font-medium text-base font-mono">{permission.name}</p>
-                </div>
-                <div>
-                  <label className="text-sm text-muted-foreground">Deskripsi</label>
-                  <p className="text-muted-foreground text-sm">
-                    {permission.description || 'Tidak ada deskripsi'}
-                  </p>
-                </div>
-                <div>
-                  <label className="text-sm text-muted-foreground">Kategori</label>
-                  <p className="font-medium text-base">
-                    {permission.name ? permission.name.split('.')[0] : '-'}
-                  </p>
-                </div>
+              <div className="space-y-1">
+                <CardTitle className="text-base font-semibold font-mono">
+                  {permission.name}
+                </CardTitle>
+                <CardDescription>
+                  {permission.description || 'Tidak ada deskripsi'}
+                </CardDescription>
               </div>
             </div>
-
-            <hr className="border-border/50" />
-
-            {/* System Information Section */}
-            <div className="mt-8">
-              <CardTitle className="text-base text-muted-foreground font-normal mb-4">
-                INFORMASI SISTEM
-              </CardTitle>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <div>
-                  <label className="text-sm text-muted-foreground">ID Permission</label>
-                  <p className="font-medium text-base">#{permission.id}</p>
-                </div>
-                <div>
-                  <label className="text-sm text-muted-foreground">Dibuat Pada</label>
-                  <p className="font-medium text-base">
-                    {permission.created_at ? new Date(permission.created_at).toLocaleDateString('id-ID', {
-                      day: 'numeric',
-                      month: 'long', 
-                      year: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    }) : '-'}
-                  </p>
-                </div>
-                <div>
-                  <label className="text-sm text-muted-foreground">Terakhir Diubah</label>
-                  <p className="font-medium text-base">
-                    {permission.updated_at ? new Date(permission.updated_at).toLocaleDateString('id-ID', {
-                      day: 'numeric',
-                      month: 'long',
-                      year: 'numeric', 
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    }) : '-'}
-                  </p>
-                </div>
+            <div className="flex items-center gap-2">
+              {canPerform('role_management', 'update') && (
+                <Button 
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate(`/permissions/${id}/edit`)}
+                >
+                  <Pencil className="mr-2 h-4 w-4" />
+                  Edit
+                </Button>
+              )}
+              {canPerform('role_management', 'delete') && (
+                <Button 
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleDelete}
+                  disabled={deleting}
+                >
+                  {deleting ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="mr-2 h-4 w-4" />
+                  )}
+                  Hapus
+                </Button>
+              )}
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-6">
+          {/* Informasi Permission */}
+          <div className="mb-6">
+            <h3 className="text-sm font-medium text-muted-foreground mb-4">INFORMASI PERMISSION</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              <div>
+                <label className="text-xs text-muted-foreground">Nama Permission</label>
+                <p className="font-medium text-sm font-mono">{permission.name}</p>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">Deskripsi</label>
+                <p className="font-medium text-sm">{permission.description || '-'}</p>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">Kategori</label>
+                <p className="font-medium text-sm">
+                  {permission.name ? permission.name.split('.')[0] : '-'}
+                </p>
               </div>
             </div>
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+
+          <hr className="border-border/50 my-6" />
+
+          {/* Informasi Sistem */}
+          <div>
+            <h3 className="text-sm font-medium text-muted-foreground mb-4">INFORMASI SISTEM</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              <div>
+                <label className="text-xs text-muted-foreground">ID Permission</label>
+                <p className="font-medium text-sm">#{permission.id}</p>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">Dibuat</label>
+                <p className="font-medium text-sm">{formatDate(permission.created_at)}</p>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">Terakhir Diperbarui</label>
+                <p className="font-medium text-sm">{formatDate(permission.updated_at)}</p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <ConfirmDialog
         open={deleteDialogOpen}

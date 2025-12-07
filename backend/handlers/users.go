@@ -11,7 +11,7 @@ import (
 
 func GetUsers(c *gin.Context) {
 	var users []models.User
-	if err := database.DB.Preload("Role").Find(&users).Error; err != nil {
+	if err := database.DB.Preload("Role").Preload("Employee").Find(&users).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -23,7 +23,7 @@ func GetUser(c *gin.Context) {
 	id := c.Param("id")
 
 	var user models.User
-	if err := database.DB.Preload("Role.Permissions").First(&user, id).Error; err != nil {
+	if err := database.DB.Preload("Role.Permissions").Preload("Employee").First(&user, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
 		return
 	}
@@ -32,11 +32,12 @@ func GetUser(c *gin.Context) {
 }
 
 type CreateUserRequest struct {
-	Email    string `json:"email" binding:"required,email"`
-	Username string `json:"username" binding:"required"`
-	Password string `json:"password" binding:"required,min=6"`
-	FullName string `json:"full_name" binding:"required"`
-	RoleID   uint   `json:"role_id" binding:"required"`
+	Email      string `json:"email" binding:"required,email"`
+	Username   string `json:"username" binding:"required"`
+	Password   string `json:"password" binding:"required,min=6"`
+	FullName   string `json:"full_name" binding:"required"`
+	RoleID     uint   `json:"role_id" binding:"required"`
+	EmployeeID *uint  `json:"employee_id"`
 }
 
 func CreateUser(c *gin.Context) {
@@ -47,11 +48,12 @@ func CreateUser(c *gin.Context) {
 	}
 
 	user := models.User{
-		Email:    req.Email,
-		Username: req.Username,
-		FullName: req.FullName,
-		RoleID:   req.RoleID,
-		IsActive: true,
+		Email:      req.Email,
+		Username:   req.Username,
+		FullName:   req.FullName,
+		RoleID:     req.RoleID,
+		EmployeeID: req.EmployeeID,
+		IsActive:   true,
 	}
 
 	if err := user.HashPassword(req.Password); err != nil {
@@ -64,14 +66,15 @@ func CreateUser(c *gin.Context) {
 		return
 	}
 
-	database.DB.Preload("Role").First(&user, user.ID)
+	database.DB.Preload("Role").Preload("Employee").First(&user, user.ID)
 	c.JSON(http.StatusCreated, gin.H{"data": user})
 }
 
 type UpdateUserRequest struct {
-	FullName string `json:"full_name"`
-	RoleID   uint   `json:"role_id"`
-	IsActive *bool  `json:"is_active"`
+	FullName   string `json:"full_name"`
+	RoleID     uint   `json:"role_id"`
+	EmployeeID *uint  `json:"employee_id"`
+	IsActive   *bool  `json:"is_active"`
 }
 
 func UpdateUser(c *gin.Context) {
@@ -95,6 +98,9 @@ func UpdateUser(c *gin.Context) {
 	if req.RoleID > 0 {
 		user.RoleID = req.RoleID
 	}
+	// Handle employee_id - can be set to null
+	user.EmployeeID = req.EmployeeID
+
 	if req.IsActive != nil {
 		user.IsActive = *req.IsActive
 	}
@@ -104,7 +110,7 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 
-	database.DB.Preload("Role").First(&user, user.ID)
+	database.DB.Preload("Role").Preload("Employee").First(&user, user.ID)
 	c.JSON(http.StatusOK, gin.H{"data": user})
 }
 
@@ -112,7 +118,7 @@ func DeleteUser(c *gin.Context) {
 	id := c.Param("id")
 
 	idInt, _ := strconv.Atoi(id)
-	userID, _ := c.Get("user_id")
+	userID, _ := c.Get("userID")
 	if uint(idInt) == userID {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot delete your own account"})
 		return
