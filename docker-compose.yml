@@ -5,10 +5,12 @@ services:
   postgres:
     image: postgres:15-alpine
     container_name: simrs-postgres
+    env_file:
+      - ./backend/.env.production
     environment:
-      POSTGRES_USER: dimas_simrs
-      POSTGRES_PASSWORD: dimas_simrs_123
-      POSTGRES_DB: simrs
+      POSTGRES_USER: ${POSTGRES_USER:-dimas_simrs}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dimas_simrs_123}
+      POSTGRES_DB: ${POSTGRES_DB:-simrs}
       PGDATA: /var/lib/postgresql/data/pgdata
     ports:
       - "5555:5432"
@@ -28,10 +30,11 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: simrs-backend
+    env_file:
+      - ./backend/.env.production
     environment:
-      DATABASE_DSN: "host=postgres user=dimas_simrs password=dimas_simrs_123 dbname=simrs port=5432 sslmode=disable"
-      JWT_SECRET: "your-secret-key-change-in-production"
-      SERVER_PORT: "8080"
+      DATABASE_DSN: "host=postgres user=${POSTGRES_USER:-dimas_simrs} password=${POSTGRES_PASSWORD:-dimas_simrs_123} dbname=${POSTGRES_DB:-simrs} port=5432 sslmode=disable"
+      APP_ENV: "production"
     ports:
       - "8899:8080"
     depends_on:
