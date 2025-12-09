@@ -49,6 +49,8 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        VITE_API_URL: http://147.93.104.139:8899/api
     container_name: simrs-frontend
     ports:
       - "3232:80"
