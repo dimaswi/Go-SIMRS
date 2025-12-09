@@ -1,0 +1,387 @@
+import { useState, useEffect } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
+import { usePermission } from "@/hooks/usePermission";
+import {
+  Loader2,
+  CheckCircle2,
+  AlertCircle,
+  XCircle,
+  Package,
+  FileImage,
+  TestTube,
+  Stethoscope,
+} from "lucide-react";
+import { visitsApi, medicineOrdersApi, procedureOrdersApi, medicalRecordsApi } from "@/lib/api";
+import type { MedicineOrder, ProcedureOrder } from "@/lib/api";
+
+interface FinalVisitProps {
+  visitId: number;
+  type: "pharmacy" | "radiology" | "laboratory" | "consultation";
+  onVisitUpdate?: () => void;
+}
+
+interface Visit {
+  id: number;
+  visit_number: string;
+  status: string;
+  registration?: {
+    status?: string;
+  };
+}
+
+export function FinalVisit({ visitId, type, onVisitUpdate }: FinalVisitProps) {
+  const { toast } = useToast();
+  const { hasPermission } = usePermission();
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [visit, setVisit] = useState<Visit | null>(null);
+  const [orders, setOrders] = useState<any[]>([]);
+  const [canFinalize, setCanFinalize] = useState(false);
+  const [isFinal, setIsFinal] = useState(false);
+
+  const permission = type === "pharmacy" ? "pharmacy.final" : "procedure_orders.final";
+
+  useEffect(() => {
+    loadData();
+  }, [visitId, type]);
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      // Load visit data
+      const visitRes = await visitsApi.getById(visitId);
+      const visitData = visitRes.data;
+      setVisit(visitData);
+
+      // Check if already finalized
+      setIsFinal(visitData.status === "completed");
+
+      // Load orders based on type
+      if (type === "pharmacy") {
+        const ordersRes = await medicineOrdersApi.getAll({ pharmacy_visit_id: visitId });
+        const ordersData = ordersRes.data || [];
+        setOrders(ordersData);
+        
+        // Can finalize if all orders are delivered
+        const allDelivered = ordersData.length > 0 && 
+          ordersData.every((o: MedicineOrder) => 
+            o.status === "delivered" || o.status === "cancelled" || o.status === "returned"
+          );
+        setCanFinalize(allDelivered);
+      } else if (type === "consultation") {
+        // Consultation - cek apakah ada jawaban konsultasi yang sudah disimpan
+        try {
+          const consultationRes = await medicalRecordsApi.getConsultation(visitId);
+          const consultationData = consultationRes.data;
+          
+          // Jika ada data consultation, berarti sudah dijawab dan bisa difinalisasi
+          if (consultationData && consultationData.id) {
+            setOrders([{ id: consultationData.id, order_number: "Konsultasi", status: "completed" }]);
+            setCanFinalize(true);
+          } else {
+            setOrders([]);
+            setCanFinalize(false);
+          }
+        } catch (error) {
+          // Jika error 404, berarti belum ada jawaban konsultasi
+          setOrders([]);
+          setCanFinalize(false);
+        }
+      } else {
+        // Radiology or Laboratory
+        const procedureType = type === "radiology" ? "radiology" : "laboratory";
+        const ordersRes = await procedureOrdersApi.getAll({ target_visit_id: visitId, order_type: procedureType });
+        const ordersData = ordersRes.data || [];
+        setOrders(ordersData);
+        
+        // Can finalize if all orders are completed or have results
+        const allCompleted = ordersData.length > 0 && 
+          ordersData.every((o: ProcedureOrder) => 
+            o.status === "completed" || o.status === "cancelled" ||
+            (o.items && o.items.every(item => item.status === "completed"))
+          );
+        setCanFinalize(allCompleted);
+      }
+    } catch (error) {
+      console.error("Error loading data:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Gagal memuat data",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleFinalize = async () => {
+    if (!hasPermission(permission)) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Anda tidak memiliki akses untuk menyelesaikan kunjungan",
+      });
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await visitsApi.completeVisit(visitId);
+      
+      toast({
+        title: "Berhasil",
+        description: "Kunjungan berhasil diselesaikan",
+      });
+      
+      loadData();
+      // Notify parent to refresh visit status badge
+      if (onVisitUpdate) {
+        onVisitUpdate();
+      }
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.response?.data?.error || "Gagal menyelesaikan kunjungan",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleCancelFinal = async () => {
+    if (!hasPermission(permission)) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Anda tidak memiliki akses untuk membatalkan final",
+      });
+      return;
+    }
+
+    // Check if registration is already completed
+    if (visit?.registration?.status === "completed" || visit?.registration?.status === "discharged") {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Tidak dapat membatalkan final karena pasien sudah pulang",
+      });
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await visitsApi.cancelCompleteVisit(visitId);
+      
+      toast({
+        title: "Berhasil",
+        description: "Final kunjungan berhasil dibatalkan",
+      });
+      
+      loadData();
+      // Notify parent to refresh visit status badge
+      if (onVisitUpdate) {
+        onVisitUpdate();
+      }
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.response?.data?.error || "Gagal membatalkan final kunjungan",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const getTypeIcon = () => {
+    switch (type) {
+      case "pharmacy":
+        return <Package className="h-5 w-5" />;
+      case "radiology":
+        return <FileImage className="h-5 w-5" />;
+      case "laboratory":
+        return <TestTube className="h-5 w-5" />;
+      case "consultation":
+        return <Stethoscope className="h-5 w-5" />;
+    }
+  };
+
+  const getTypeLabel = () => {
+    switch (type) {
+      case "pharmacy":
+        return "Farmasi";
+      case "radiology":
+        return "Radiologi";
+      case "laboratory":
+        return "Laboratorium";
+      case "consultation":
+        return "Konsultasi";
+    }
+  };
+
+  const getOrderStatusLabel = (status: string) => {
+    const labels: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
+      pending: { label: "Menunggu", variant: "secondary" },
+      reviewed: { label: "Ditelaah", variant: "default" },
+      preparing: { label: "Disiapkan", variant: "default" },
+      ready: { label: "Siap", variant: "default" },
+      delivered: { label: "Diserahkan", variant: "default" },
+      completed: { label: "Selesai", variant: "default" },
+      cancelled: { label: "Dibatalkan", variant: "destructive" },
+      returned: { label: "Return", variant: "outline" },
+      in_progress: { label: "Proses", variant: "default" },
+    };
+    return labels[status] || { label: status, variant: "secondary" };
+  };
+
+  if (loading) {
+    return (
+      <Card className="shadow-md">
+        <CardHeader className="border-b bg-muted/50">
+          <CardTitle className="text-lg flex items-center gap-2">
+            {getTypeIcon()}
+            Final Kunjungan {getTypeLabel()}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-4">
+          <div className="flex items-center justify-center py-8 gap-2">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span className="text-muted-foreground">Memuat data...</span>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Check if registration is completed/discharged
+  const isPatientDischarged = visit?.registration?.status === "completed" || 
+    visit?.registration?.status === "discharged";
+
+  return (
+    <Card className="shadow-md">
+      <CardHeader className="border-b bg-muted/50">
+        <CardTitle className="text-lg flex items-center gap-2">
+          {getTypeIcon()}
+          Final Kunjungan {getTypeLabel()}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-4 space-y-4">
+        {/* Status */}
+        <div className="border rounded-lg p-4 bg-muted/30">
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-sm font-medium">Status Kunjungan</span>
+            {isFinal ? (
+              <Badge variant="default" className="bg-green-600">
+                <CheckCircle2 className="h-3 w-3 mr-1" />
+                Selesai
+              </Badge>
+            ) : (
+              <Badge variant="secondary">
+                <AlertCircle className="h-3 w-3 mr-1" />
+                Belum Selesai
+              </Badge>
+            )}
+          </div>
+
+          {/* Orders Summary */}
+          <div className="space-y-2">
+            <span className="text-sm font-medium">Ringkasan Order:</span>
+            {orders.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Tidak ada order</p>
+            ) : (
+              <div className="space-y-1">
+                {orders.map((order: any) => (
+                  <div key={order.id} className="flex items-center justify-between text-sm bg-background p-2 rounded">
+                    <span>{order.order_number}</span>
+                    <Badge variant={getOrderStatusLabel(order.status).variant}>
+                      {getOrderStatusLabel(order.status).label}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Action Buttons */}
+        {!isFinal && (
+          <>
+            {!canFinalize && (
+              <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 text-sm bg-amber-50 dark:bg-amber-950 p-3 rounded">
+                <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                <span>
+                  {type === "pharmacy" 
+                    ? "Semua obat harus diserahkan sebelum dapat menyelesaikan kunjungan"
+                    : type === "consultation"
+                    ? "Konsultasi harus dijawab sebelum dapat menyelesaikan kunjungan"
+                    : "Semua tindakan harus selesai sebelum dapat menyelesaikan kunjungan"
+                  }
+                </span>
+              </div>
+            )}
+
+            <Button
+              className="w-full"
+              onClick={handleFinalize}
+              disabled={submitting || !canFinalize || !hasPermission(permission)}
+            >
+              {submitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Memproses...
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                  Selesaikan Kunjungan {getTypeLabel()}
+                </>
+              )}
+            </Button>
+          </>
+        )}
+
+        {isFinal && (
+          <>
+            <div className="flex items-center gap-2 text-green-600 dark:text-green-400 text-sm bg-green-50 dark:bg-green-950 p-3 rounded">
+              <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
+              <span>Kunjungan {getTypeLabel()} telah diselesaikan</span>
+            </div>
+
+            {/* Cancel Final Button - only show if patient not discharged */}
+            {!isPatientDischarged && hasPermission(permission) && (
+              <Button
+                variant="destructive"
+                className="w-full"
+                onClick={handleCancelFinal}
+                disabled={submitting}
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Memproses...
+                  </>
+                ) : (
+                  <>
+                    <XCircle className="h-4 w-4 mr-2" />
+                    Batalkan Final
+                  </>
+                )}
+              </Button>
+            )}
+
+            {isPatientDischarged && (
+              <div className="flex items-center gap-2 text-muted-foreground text-sm bg-muted p-3 rounded">
+                <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                <span>Final tidak dapat dibatalkan karena pasien sudah pulang</span>
+              </div>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}

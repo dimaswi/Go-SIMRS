@@ -22,6 +22,7 @@ import type { MedicineOrder, MedicineOrderItem } from "@/lib/api";
 
 interface PharmacyDispenseProps {
   visitId: number;
+  readOnly?: boolean;
 }
 
 const ORDER_STATUS_LABELS: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
@@ -52,7 +53,7 @@ interface DispenseItem {
   remaining: number;
 }
 
-export function PharmacyDispense({ visitId }: PharmacyDispenseProps) {
+export function PharmacyDispense({ visitId, readOnly = false }: PharmacyDispenseProps) {
   const { toast } = useToast();
   const { hasPermission } = usePermission();
   const { user } = useAuthStore();
@@ -487,6 +488,7 @@ export function PharmacyDispense({ visitId }: PharmacyDispenseProps) {
                               handleSelectItem(item.id!, checked as boolean)
                             }
                             className="mt-1"
+                            disabled={readOnly}
                           />
                         )}
                         <div className="flex-1">
@@ -526,6 +528,7 @@ export function PharmacyDispense({ visitId }: PharmacyDispenseProps) {
                                   handleQuantityChange(item.id!, parseInt(e.target.value) || 0)
                                 }
                                 className="w-24 h-8"
+                                disabled={readOnly}
                               />
                               <span className="text-sm text-muted-foreground">
                                 (maks: {remaining})
@@ -563,7 +566,7 @@ export function PharmacyDispense({ visitId }: PharmacyDispenseProps) {
                   <Button
                     className="flex-1"
                     onClick={handleSubmitDispense}
-                    disabled={submitting || dispenseItems.filter((i) => i.selected).length === 0}
+                    disabled={submitting || dispenseItems.filter((i) => i.selected).length === 0 || readOnly}
                   >
                     {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                     <Package className="h-4 w-4 mr-2" />

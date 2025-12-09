@@ -40,6 +40,7 @@ interface DiagnosisFormItem {
 interface DiagnosisFormProps {
   visitId: number;
   onSave?: (data: any) => void;
+  readOnly?: boolean;
 }
 
 // Mock ICD-10 data - in real app, this would come from API
@@ -58,7 +59,7 @@ const mockICD10 = [
   { code: "R50.9", name: "Demam, tidak spesifik" },
 ];
 
-export function DiagnosisForm({ visitId, onSave }: DiagnosisFormProps) {
+export function DiagnosisForm({ visitId, onSave, readOnly = false }: DiagnosisFormProps) {
   const [loading, setLoading] = useState(true);
   const [clinicalImpression, setClinicalImpression] = useState("");
   const [differentialDiagnosis, setDifferentialDiagnosis] = useState("");
@@ -300,7 +301,8 @@ export function DiagnosisForm({ visitId, onSave }: DiagnosisFormProps) {
         <CardTitle className="text-lg">Diagnosis (ICD-10)</CardTitle>
       </CardHeader>
       <CardContent className="p-6">
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <fieldset disabled={readOnly}>
+          <form onSubmit={handleSubmit} className="space-y-6">
           {/* Primary Diagnosis */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
@@ -462,6 +464,7 @@ export function DiagnosisForm({ visitId, onSave }: DiagnosisFormProps) {
             </Button>
           </div>
         </form>
+        </fieldset>
       </CardContent>
     </Card>
   );

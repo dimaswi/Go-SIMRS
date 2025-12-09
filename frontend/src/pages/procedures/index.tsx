@@ -116,6 +116,7 @@ export default function ProceduresPage() {
                 data={procedures}
                 searchPlaceholder="Cari tindakan berdasarkan kode atau nama..."
                 pageSize={10}
+                tableId="procedures"
               />
             )}
           </CardContent>

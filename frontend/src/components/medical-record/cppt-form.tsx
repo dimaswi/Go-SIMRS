@@ -58,6 +58,7 @@ import { id as idLocale } from "date-fns/locale";
 
 interface CPPTFormProps {
   visitId: number;
+  readOnly?: boolean;
 }
 
 const defaultFormData: CreateCPPTInput = {
@@ -76,7 +77,7 @@ const defaultFormData: CreateCPPTInput = {
   pain_scale: 0,
 };
 
-export function CPPTForm({ visitId }: CPPTFormProps) {
+export function CPPTForm({ visitId, readOnly = false }: CPPTFormProps) {
   const { toast } = useToast();
   const { hasPermission } = usePermission();
 
@@ -275,6 +276,7 @@ export function CPPTForm({ visitId }: CPPTFormProps) {
 
   return (
     <>
+      <fieldset disabled={readOnly}>
       <Card className="shadow-md">
         <CardHeader className="border-b bg-muted/50">
           <div className="flex items-center justify-between">
@@ -651,6 +653,7 @@ export function CPPTForm({ visitId }: CPPTFormProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      </fieldset>
     </>
   );
 }

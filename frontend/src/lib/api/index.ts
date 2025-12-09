@@ -39,9 +39,9 @@ export type { Counter, CreateCounterInput, UpdateCounterInput } from './counters
 // Rooms
 export { roomsApi, schedulesApi, getDayName, getDayShortName } from './rooms';
 export type { 
-  Room, RoomUnit, Bed, RoomStaff, 
+  Room, RoomUnit, Bed, RoomStaff, RoomTariff,
   Schedule, DoctorSchedule, ScheduleException,
-  RoomRequest, RoomUnitRequest, BedRequest, RoomStaffRequest, 
+  RoomRequest, RoomUnitRequest, BedRequest, RoomStaffRequest, RoomTariffRequest, BulkRoomTariffRequest,
   ScheduleRequest, DoctorScheduleRequest, ScheduleExceptionRequest,
   RoomListResponse 
 } from './rooms';
@@ -237,3 +237,13 @@ export type {
   UpdateFluidBalanceInput,
   FluidBalanceSummary
 } from './inpatient';
+
+// Billing & Payment
+export { billingApi, registrationTariffApi } from './billing';
+export type {
+  Billing,
+  BillingItem,
+  BillingPayment,
+  RegistrationTariff,
+  CreatePaymentRequest
+} from './billing';

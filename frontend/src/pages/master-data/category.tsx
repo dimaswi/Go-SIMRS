@@ -216,6 +216,7 @@ export default function CategoryListPage() {
               data={data}
               searchPlaceholder={`Cari ${categoryName.toLowerCase()}...`}
               pageSize={10}
+              tableId={`master_data_${category}`}
             />
           </CardContent>
         </Card>

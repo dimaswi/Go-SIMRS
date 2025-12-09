@@ -12,6 +12,7 @@ interface PhysicalExamFormProps {
   visitId: number;
   onSave?: (data: any) => void;
   isEmergency?: boolean;
+  readOnly?: boolean;
 }
 
 // Helper function to calculate BMI
@@ -51,7 +52,7 @@ const defaultFormData = {
   other_findings: "",
 };
 
-export function PhysicalExamForm({ visitId, onSave, isEmergency = false }: PhysicalExamFormProps) {
+export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnly = false }: PhysicalExamFormProps) {
   const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState(defaultFormData);
 
@@ -150,7 +151,8 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false }: Physi
         <CardTitle className="text-lg">Pemeriksaan Fisik</CardTitle>
       </CardHeader>
       <CardContent className="p-6">
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-8">
+          <fieldset disabled={readOnly}>
           {/* General Condition */}
           <div className="space-y-4">
             <h3 className="font-semibold text-sm text-primary">Kondisi Umum</h3>
@@ -478,6 +480,7 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false }: Physi
               Simpan Pemeriksaan Fisik
             </Button>
           </div>
+          </fieldset>
         </form>
       </CardContent>
     </Card>

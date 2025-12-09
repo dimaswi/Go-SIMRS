@@ -48,6 +48,7 @@ import { InventoryAssignmentPanel } from "./components/inventory/inventory-assig
 import { RoomMedicineFormDialog } from "./components/medicine/room-medicine-form-dialog";
 import { MedicineAssignmentPanel } from "./components/medicine/medicine-assignment-panel";
 import { StaffAssignmentPanel } from "./components/staff/staff-assignment-panel";
+import { RoomTariffPanel } from "./components/tariff/room-tariff-panel";
 
 export default function RoomShow() {
   const navigate = useNavigate();
@@ -87,6 +88,7 @@ export default function RoomShow() {
   const [deleteScheduleDialogOpen, setDeleteScheduleDialogOpen] = useState(false);
   const [scheduleToDelete, setScheduleToDelete] = useState<number | null>(null);
   const [doctorScheduleDialogOpen, setDoctorScheduleDialogOpen] = useState(false);
+  
   const [editingDoctorSchedule, setEditingDoctorSchedule] = useState<DoctorSchedule | null>(null);
   const [deleteDoctorScheduleDialogOpen, setDeleteDoctorScheduleDialogOpen] = useState(false);
   const [doctorScheduleToDelete, setDoctorScheduleToDelete] = useState<number | null>(null);
@@ -565,6 +567,7 @@ export default function RoomShow() {
                   data={selectedUnit.beds || []}
                   searchPlaceholder="Cari tempat tidur..."
                   pageSize={10}
+                  tableId={`room_beds_${selectedUnit.id}`}
                 />
               </div>
             ) : (
@@ -616,6 +619,12 @@ export default function RoomShow() {
                   >
                     Obat
                   </TabsTrigger>
+                  <TabsTrigger 
+                    value="tariffs" 
+                    className="px-0 py-2 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none text-sm font-medium text-muted-foreground data-[state=active]:text-foreground"
+                  >
+                    Tarif
+                  </TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="detail" className="mt-0">
@@ -636,6 +645,17 @@ export default function RoomShow() {
                       ) : (
                         <span className="text-sm text-muted-foreground">-</span>
                       )}
+                    </div>
+                    {/* Registration Fee - untuk semua ruangan */}
+                    <div>
+                      <p className="text-xs text-muted-foreground">Tarif Pendaftaran</p>
+                      <p className="text-sm font-medium">
+                        {new Intl.NumberFormat('id-ID', {
+                          style: 'currency',
+                          currency: 'IDR',
+                          minimumFractionDigits: 0,
+                        }).format(room.registration_fee || 0)}
+                      </p>
                     </div>
                     {room.service_type === 'rawat_inap' && (
                       <>
@@ -743,6 +763,7 @@ export default function RoomShow() {
                         data={units}
                         searchPlaceholder="Cari kamar..."
                         pageSize={10}
+                        tableId={`room_units_${id}`}
                       />
                     ) : (
                       <div className="text-center py-8 text-muted-foreground">
@@ -951,6 +972,14 @@ export default function RoomShow() {
                     roomMedicines={roomMedicines}
                     onRefresh={loadData}
                     hasPermission={hasPermission('medicines.create')}
+                  />
+                </TabsContent>
+
+                {/* Room Tariffs Tab (for all room types) */}
+                <TabsContent value="tariffs" className="mt-0">
+                  <RoomTariffPanel
+                    roomId={parseInt(id!)}
+                    hasPermission={hasPermission}
                   />
                 </TabsContent>
               </Tabs>

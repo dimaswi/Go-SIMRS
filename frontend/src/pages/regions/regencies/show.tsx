@@ -129,6 +129,7 @@ export default function RegencyShowPage() {
               columns={columns}
               data={regency.districts}
               searchPlaceholder="Cari kecamatan..."
+              tableId="regency_districts"
             />
           )}
         </CardContent>

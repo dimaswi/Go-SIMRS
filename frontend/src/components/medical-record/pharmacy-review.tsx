@@ -24,6 +24,7 @@ import type { MedicineOrder, PrescriptionReview } from "@/lib/api";
 
 interface PharmacyReviewProps {
   visitId: number;
+  readOnly?: boolean;
 }
 
 const ORDER_STATUS_LABELS: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
@@ -37,7 +38,7 @@ const ORDER_STATUS_LABELS: Record<string, { label: string; variant: "default" | 
   returned: { label: "Ada Return", variant: "outline" },
 };
 
-export function PharmacyReview({ visitId }: PharmacyReviewProps) {
+export function PharmacyReview({ visitId, readOnly = false }: PharmacyReviewProps) {
   const { toast } = useToast();
   const { hasPermission } = usePermission();
   const [loading, setLoading] = useState(true);
@@ -152,28 +153,6 @@ export function PharmacyReview({ visitId }: PharmacyReviewProps) {
     }
   };
 
-  const handleSubmitReview = async () => {
-    if (!selectedOrder) return;
-
-    setSubmitting(true);
-    try {
-      await medicineOrdersApi.submitReview(selectedOrder.id, reviewForm);
-      toast({
-        title: "Berhasil",
-        description: "Telaah resep berhasil disimpan",
-      });
-      loadOrders();
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.response?.data?.error || "Gagal menyimpan telaah resep",
-      });
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   if (loading) {
     return (
       <Card className="shadow-md">
@@ -213,7 +192,11 @@ export function PharmacyReview({ visitId }: PharmacyReviewProps) {
   const isAlreadyReviewed = selectedOrder?.status === 'reviewed' || 
     selectedOrder?.status === 'preparing' || 
     selectedOrder?.status === 'ready' || 
-    selectedOrder?.status === 'delivered';
+    selectedOrder?.status === 'delivered' ||
+    selectedOrder?.status === 'completed';
+  
+  // Check if already approved (has existing review with is_approved = true)
+  const isAlreadyApproved = existingReview?.is_approved === true;
   
   // Check if all checklist items are checked
   const allChecklistCompleted = 
@@ -224,16 +207,9 @@ export function PharmacyReview({ visitId }: PharmacyReviewProps) {
     reviewForm.contraindication_check &&
     reviewForm.indication_check;
   
-  // Can only approve if all checklist is completed and not already reviewed
-  const canApprove = canReview && allChecklistCompleted && !isAlreadyReviewed;
+  // Can only approve if all checklist is completed, not already reviewed, and not already approved
+  const canApprove = canReview && allChecklistCompleted && !isAlreadyReviewed && !isAlreadyApproved;
   
-  // Can only submit if:
-  // 1. Has permission
-  // 2. Has made a decision (clicked Setuju or Tidak Setuju)
-  // 3. If approved, all checklist must be completed
-  // 4. Not already reviewed (unless updating)
-  const canSubmit = canReview && hasDecided && (reviewForm.is_approved ? allChecklistCompleted : true);
-
   return (
     <Card className="shadow-md">
       <CardHeader className="border-b bg-muted/50">
@@ -382,6 +358,7 @@ export function PharmacyReview({ visitId }: PharmacyReviewProps) {
                     onCheckedChange={(checked) =>
                       setReviewForm({ ...reviewForm, drug_interaction_check: checked as boolean })
                     }
+                    disabled={readOnly || isAlreadyReviewed}
                   />
                   <Label htmlFor="drug_interaction" className="text-sm">
                     Cek Interaksi Obat
@@ -394,6 +371,7 @@ export function PharmacyReview({ visitId }: PharmacyReviewProps) {
                     onCheckedChange={(checked) =>
                       setReviewForm({ ...reviewForm, dose_check: checked as boolean })
                     }
+                    disabled={readOnly || isAlreadyReviewed}
                   />
                   <Label htmlFor="dose_check" className="text-sm">
                     Cek Dosis
@@ -406,6 +384,7 @@ export function PharmacyReview({ visitId }: PharmacyReviewProps) {
                     onCheckedChange={(checked) =>
                       setReviewForm({ ...reviewForm, duplication_check: checked as boolean })
                     }
+                    disabled={readOnly || isAlreadyReviewed}
                   />
                   <Label htmlFor="duplication_check" className="text-sm">
                     Cek Duplikasi
@@ -418,6 +397,7 @@ export function PharmacyReview({ visitId }: PharmacyReviewProps) {
                     onCheckedChange={(checked) =>
                       setReviewForm({ ...reviewForm, allergy_check: checked as boolean })
                     }
+                    disabled={readOnly || isAlreadyReviewed}
                   />
                   <Label htmlFor="allergy_check" className="text-sm">
                     Cek Alergi
@@ -430,6 +410,7 @@ export function PharmacyReview({ visitId }: PharmacyReviewProps) {
                     onCheckedChange={(checked) =>
                       setReviewForm({ ...reviewForm, contraindication_check: checked as boolean })
                     }
+                    disabled={readOnly || isAlreadyReviewed}
                   />
                   <Label htmlFor="contraindication_check" className="text-sm">
                     Cek Kontraindikasi
@@ -442,6 +423,7 @@ export function PharmacyReview({ visitId }: PharmacyReviewProps) {
                     onCheckedChange={(checked) =>
                       setReviewForm({ ...reviewForm, indication_check: checked as boolean })
                     }
+                    disabled={readOnly || isAlreadyReviewed}
                   />
                   <Label htmlFor="indication_check" className="text-sm">
                     Cek Indikasi
@@ -463,6 +445,7 @@ export function PharmacyReview({ visitId }: PharmacyReviewProps) {
                   value={reviewForm.warnings}
                   onChange={(e) => setReviewForm({ ...reviewForm, warnings: e.target.value })}
                   rows={2}
+                  disabled={readOnly || isAlreadyReviewed}
                 />
               </div>
 
@@ -475,6 +458,7 @@ export function PharmacyReview({ visitId }: PharmacyReviewProps) {
                   value={reviewForm.suggestion}
                   onChange={(e) => setReviewForm({ ...reviewForm, suggestion: e.target.value })}
                   rows={2}
+                  disabled={readOnly || isAlreadyReviewed}
                 />
               </div>
 
@@ -487,6 +471,7 @@ export function PharmacyReview({ visitId }: PharmacyReviewProps) {
                   value={reviewForm.notes}
                   onChange={(e) => setReviewForm({ ...reviewForm, notes: e.target.value })}
                   rows={2}
+                  disabled={readOnly || isAlreadyReviewed}
                 />
               </div>
 
@@ -524,7 +509,7 @@ export function PharmacyReview({ visitId }: PharmacyReviewProps) {
                   </div>
                 )}
 
-                {!hasDecided && allChecklistCompleted && !isAlreadyReviewed && (
+                {!hasDecided && allChecklistCompleted && !isAlreadyReviewed && !isAlreadyApproved && (
                   <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 text-sm bg-blue-50 dark:bg-blue-950 p-2 rounded">
                     <Clock className="h-4 w-4" />
                     <span>Pilih Setuju atau Tidak Setuju untuk melanjutkan</span>
@@ -534,50 +519,77 @@ export function PharmacyReview({ visitId }: PharmacyReviewProps) {
                 <div className="flex gap-2">
                   <Button
                     type="button"
-                    variant={hasDecided && reviewForm.is_approved ? "default" : "outline"}
+                    variant={isAlreadyApproved || (hasDecided && reviewForm.is_approved) ? "default" : "outline"}
                     className="flex-1"
-                    onClick={() => {
-                      setReviewForm({ ...reviewForm, is_approved: true });
+                    onClick={async () => {
+                      if (!selectedOrder || submitting || isAlreadyApproved) return;
+                      const newForm = { ...reviewForm, is_approved: true };
+                      setReviewForm(newForm);
                       setHasDecided(true);
-                      toast({
-                        title: "Setuju dipilih",
-                        description: "Klik Simpan Telaah Resep untuk menyimpan",
-                      });
+                      
+                      // Auto submit when clicking Setuju
+                      setSubmitting(true);
+                      try {
+                        await medicineOrdersApi.submitReview(selectedOrder.id, newForm);
+                        toast({
+                          title: "Berhasil",
+                          description: "Telaah resep disetujui",
+                        });
+                        loadOrders();
+                      } catch (error: any) {
+                        toast({
+                          variant: "destructive",
+                          title: "Error",
+                          description: error.response?.data?.error || "Gagal menyimpan telaah resep",
+                        });
+                      } finally {
+                        setSubmitting(false);
+                      }
                     }}
-                    disabled={!canApprove}
+                    disabled={!canApprove || submitting || readOnly}
                   >
+                    {submitting && reviewForm.is_approved && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                     <CheckCircle2 className="h-4 w-4 mr-2" />
-                    Setuju
+                    {isAlreadyApproved ? "Sudah Disetujui" : "Setuju"}
                   </Button>
                   <Button
                     type="button"
-                    variant={hasDecided && !reviewForm.is_approved ? "destructive" : "outline"}
+                    variant={hasDecided && !reviewForm.is_approved && !isAlreadyApproved ? "destructive" : "outline"}
                     className="flex-1"
-                    onClick={() => {
-                      setReviewForm({ ...reviewForm, is_approved: false });
+                    onClick={async () => {
+                      if (!selectedOrder || submitting || isAlreadyApproved) return;
+                      const newForm = { ...reviewForm, is_approved: false };
+                      setReviewForm(newForm);
                       setHasDecided(true);
-                      toast({
-                        variant: "destructive",
-                        title: "Tidak Setuju dipilih",
-                        description: "Klik Simpan Telaah Resep untuk menyimpan",
-                      });
+                      
+                      // Auto submit when clicking Tidak Setuju
+                      setSubmitting(true);
+                      try {
+                        await medicineOrdersApi.submitReview(selectedOrder.id, newForm);
+                        toast({
+                          variant: "destructive",
+                          title: "Berhasil",
+                          description: "Telaah resep tidak disetujui",
+                        });
+                        loadOrders();
+                      } catch (error: any) {
+                        toast({
+                          variant: "destructive",
+                          title: "Error",
+                          description: error.response?.data?.error || "Gagal menyimpan telaah resep",
+                        });
+                      } finally {
+                        setSubmitting(false);
+                      }
                     }}
-                    disabled={!canReview || isAlreadyReviewed}
+                    disabled={!canReview || isAlreadyReviewed || isAlreadyApproved || submitting || readOnly}
                   >
+                    {submitting && !reviewForm.is_approved && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                     <XCircle className="h-4 w-4 mr-2" />
                     Tidak Setuju
                   </Button>
                 </div>
               </div>
-
-              <Button
-                className="w-full"
-                onClick={handleSubmitReview}
-                disabled={submitting || !canSubmit}
-              >
-                {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                {existingReview ? "Update Telaah Resep" : "Simpan Telaah Resep"}
-              </Button>
             </div>
           </div>
         </>

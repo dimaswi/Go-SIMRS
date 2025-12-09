@@ -122,6 +122,7 @@ export default function InventoriesPage() {
               data={inventories}
               searchPlaceholder="Cari inventaris berdasarkan kode atau nama..."
               pageSize={10}
+              tableId="inventories"
             />
           </CardContent>
         </Card>

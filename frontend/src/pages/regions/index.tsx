@@ -82,6 +82,7 @@ export default function RegionsPage() {
             columns={columns}
             data={provinces}
             searchPlaceholder="Cari provinsi..."
+            tableId="regions"
           />
         </CardContent>
       </Card>

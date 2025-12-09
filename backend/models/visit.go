@@ -24,7 +24,7 @@ type Visit struct {
 	DoctorID *uint     `gorm:"index" json:"doctor_id,omitempty"`
 	Doctor   *Employee `gorm:"foreignKey:DoctorID" json:"doctor,omitempty"`
 
-	VisitType     string `gorm:"size:50;not null" json:"visit_type"`   // consultation, procedure, lab, radiology, pharmacy
+	VisitType     string `gorm:"size:50;not null" json:"visit_type"`   // consultation, procedure, lab, radiology, pharmacy, inpatient
 	VisitPurpose  string `gorm:"type:text" json:"visit_purpose"`       // Tujuan kunjungan
 	ReferralFrom  *uint  `gorm:"index" json:"referral_from,omitempty"` // Rujukan dari visit ID mana
 	ReferralVisit *Visit `gorm:"foreignKey:ReferralFrom" json:"referral_visit,omitempty"`
@@ -38,6 +38,14 @@ type Visit struct {
 	Diagnosis string `gorm:"type:text" json:"diagnosis"` // Diagnosis
 	Treatment string `gorm:"type:text" json:"treatment"` // Tindakan/treatment
 	Notes     string `gorm:"type:text" json:"notes"`
+
+	// Inpatient Fields (Rawat Inap)
+	BedID          *uint      `gorm:"index" json:"bed_id,omitempty"`            // Bed assignment untuk rawat inap
+	Bed            *Bed       `gorm:"foreignKey:BedID" json:"bed,omitempty"`    // Relasi ke bed
+	AdmissionTime  *time.Time `json:"admission_time,omitempty"`                 // Waktu masuk rawat inap
+	DischargeTime  *time.Time `json:"discharge_time,omitempty"`                 // Waktu keluar rawat inap
+	InpatientClass string     `gorm:"size:20" json:"inpatient_class,omitempty"` // Kelas rawat inap (untuk billing)
+	InpatientDays  int        `gorm:"default:0" json:"inpatient_days"`          // Jumlah hari rawat inap (computed)
 
 	// Relationships
 	RoomQueue *RoomQueue `gorm:"foreignKey:VisitID" json:"room_queue,omitempty"` // 1 Visit = 1 RoomQueue

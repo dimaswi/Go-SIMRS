@@ -123,6 +123,7 @@ export default function ProvinceShowPage() {
               columns={columns}
               data={province.regencies}
               searchPlaceholder="Cari kabupaten/kota..."
+              tableId="province_regencies"
             />
           )}
         </CardContent>

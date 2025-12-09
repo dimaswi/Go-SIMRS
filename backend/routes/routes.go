@@ -80,6 +80,9 @@ func SetupRoutes(r *gin.Engine) {
 		SetupVisitRoutes(r)     // Visit routes
 		SetupRoomQueueRoutes(r) // Room Queue routes
 
+		// Billing & Payment routes
+		SetupBillingRoutes(api)
+
 		// Inpatient Routes (CPPT, Fluid Balance)
 		RegisterInpatientRoutes(api)
 	}

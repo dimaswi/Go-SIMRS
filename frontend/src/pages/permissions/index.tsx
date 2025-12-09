@@ -119,6 +119,7 @@ export default function PermissionsPage() {
               data={permissions}
               searchPlaceholder="Search permissions by name or description..."
               pageSize={10}
+              tableId="permissions"
             />
           </CardContent>
         </Card>

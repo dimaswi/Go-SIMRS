@@ -25,7 +25,8 @@ import {
   Truck,
   Monitor,
   Tv,
-  Activity
+  Activity,
+  Receipt
 } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
 import { usePermission } from '@/hooks/usePermission';
@@ -76,6 +77,7 @@ const menuItems = [
       { path: '/queue-display', label: 'Display Antrean', icon: Tv }, // Public - no permission needed
       { path: '/registrations', label: 'Pendaftaran', icon: UserRound, permission: 'registrations.view' },
       { path: '/visits', label: 'Kunjungan', icon: Activity, permission: 'visits.view' },
+      { path: '/billing', label: 'Kasir & Billing', icon: Receipt, permission: 'billing.view' },
     ]
   },
   { 

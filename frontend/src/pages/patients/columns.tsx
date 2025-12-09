@@ -10,7 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Eye, Pencil, Trash2, User, ArrowUpDown } from "lucide-react";
+import { MoreHorizontal, Eye, Pencil, Trash2, User, ArrowUpDown, CheckCircle, XCircle } from "lucide-react";
 import { format, differenceInYears, parseISO } from "date-fns";
 import { id } from "date-fns/locale";
 
@@ -230,9 +230,20 @@ export const createPatientColumns = ({
       </Button>
     ),
     cell: ({ row }) => (
-      <Badge variant={getStatusVariant(row.original.status)}>
-        {row.original.status}
-      </Badge>
+      <div className="flex items-center gap-2">
+        <Badge variant={getStatusVariant(row.original.status)}>
+          {row.original.status}
+        </Badge>
+        {row.original.is_final ? (
+          <Badge variant="default" className="bg-green-600">
+            <CheckCircle className="h-3 w-3" />
+          </Badge>
+        ) : (
+          <Badge variant="secondary">
+            <XCircle className="h-3 w-3" />
+          </Badge>
+        )}
+      </div>
     ),
   },
   {

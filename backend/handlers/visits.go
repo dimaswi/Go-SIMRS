@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"starter/backend/database"
 	"starter/backend/models"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -38,9 +39,15 @@ func GetVisits(c *gin.Context) {
 		query = query.Where("visit_type = ?", visitType)
 	}
 
-	// Filter by status
+	// Filter by status (support comma-separated values for multiple statuses)
 	if status := c.Query("status"); status != "" {
-		query = query.Where("status = ?", status)
+		// Check if status contains comma (multiple statuses)
+		if strings.Contains(status, ",") {
+			statuses := strings.Split(status, ",")
+			query = query.Where("status IN ?", statuses)
+		} else {
+			query = query.Where("status = ?", status)
+		}
 	}
 
 	// Filter by date range
@@ -51,7 +58,7 @@ func GetVisits(c *gin.Context) {
 		query = query.Where("DATE(check_in_time) <= ?", endDate)
 	}
 
-	// Order by check-in time descending
+	// Order by check-in time descending (newest first)
 	query = query.Order("check_in_time DESC")
 
 	if err := query.Find(&visits).Error; err != nil {
@@ -398,6 +405,94 @@ func AcceptVisit(c *gin.Context) {
 	tx.Commit()
 
 	// Load relationships
+	database.DB.Preload("Registration").Preload("Registration.Patient").
+		Preload("Room").Preload("Doctor").Preload("RoomQueue").
+		First(&visit, visit.ID)
+
+	c.JSON(http.StatusOK, visit)
+}
+
+// CompleteVisit marks a visit as completed
+func CompleteVisit(c *gin.Context) {
+	id := c.Param("id")
+	var visit models.Visit
+
+	if err := database.DB.Preload("Registration").Preload("RoomQueue").First(&visit, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Visit not found"})
+		return
+	}
+
+	// Check if visit is already completed
+	if visit.Status == models.VisitStatusCompleted {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Kunjungan sudah selesai"})
+		return
+	}
+
+	// Update status to completed
+	now := time.Now()
+	visit.Status = models.VisitStatusCompleted
+	visit.EndTime = &now
+
+	if err := database.DB.Save(&visit).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyelesaikan kunjungan"})
+		return
+	}
+
+	// Update room queue if exists
+	if visit.RoomQueue != nil {
+		visit.RoomQueue.Status = "completed"
+		visit.RoomQueue.CompletedAt = &now
+		database.DB.Save(visit.RoomQueue)
+	}
+
+	// Load relationships for response
+	database.DB.Preload("Registration").Preload("Registration.Patient").
+		Preload("Room").Preload("Doctor").Preload("RoomQueue").
+		First(&visit, visit.ID)
+
+	c.JSON(http.StatusOK, visit)
+}
+
+// CancelCompleteVisit reverts a completed visit back to in_progress
+func CancelCompleteVisit(c *gin.Context) {
+	id := c.Param("id")
+	var visit models.Visit
+
+	if err := database.DB.Preload("Registration").Preload("RoomQueue").First(&visit, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Visit not found"})
+		return
+	}
+
+	// Check if visit is completed
+	if visit.Status != models.VisitStatusCompleted {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Kunjungan belum diselesaikan"})
+		return
+	}
+
+	// Check if registration is already completed/discharged
+	if visit.Registration != nil &&
+		(visit.Registration.Status == "completed" || visit.Registration.Status == "discharged") {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Tidak dapat membatalkan final karena pasien sudah pulang"})
+		return
+	}
+
+	// Revert status to in_progress
+	visit.Status = models.VisitStatusInProgress
+	visit.EndTime = nil
+
+	if err := database.DB.Save(&visit).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membatalkan final kunjungan"})
+		return
+	}
+
+	// Update room queue if exists
+	if visit.RoomQueue != nil {
+		visit.RoomQueue.Status = "serving"
+		visit.RoomQueue.CompletedAt = nil
+		database.DB.Save(visit.RoomQueue)
+	}
+
+	// Load relationships for response
 	database.DB.Preload("Registration").Preload("Registration.Patient").
 		Preload("Room").Preload("Doctor").Preload("RoomQueue").
 		First(&visit, visit.ID)

@@ -127,6 +127,7 @@ export default function PurchasesIndex() {
               data={purchases}
               searchPlaceholder="Cari nomor pembelian atau supplier..."
               pageSize={10}
+              tableId="purchases"
             />
           </CardContent>
         </Card>

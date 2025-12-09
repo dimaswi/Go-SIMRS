@@ -12,6 +12,7 @@ export const PROCEDURE_ORDER_STATUS = {
 export const PROCEDURE_ORDER_TYPES = {
   radiology: { label: "Radiologi", prefix: "RAD" },
   laboratory: { label: "Laboratorium", prefix: "LAB" },
+  consultation: { label: "Konsultasi", prefix: "CONS" },
 };
 
 // Interfaces
@@ -78,7 +79,7 @@ export interface ProcedureOrderItem {
 export interface ProcedureOrder {
   id: number;
   order_number: string;
-  order_type: "radiology" | "laboratory";
+  order_type: "radiology" | "laboratory" | "consultation";
   source_visit_id: number;
   source_visit?: {
     id: number;
@@ -125,12 +126,28 @@ export interface ProcedureOrder {
   validated_at?: string;
   attachment_urls?: string;
   items?: ProcedureOrderItem[];
+  consultation?: {
+    id: number;
+    visit_id: number;
+    procedure_order_id?: number;
+    subjective?: string;
+    objective?: string;
+    assessment?: string;
+    plan?: string;
+    recommendation?: string;
+    notes?: string;
+    consultant_id?: number;
+    consultant?: { id: number; nama_lengkap: string };
+    created_by_id?: number;
+    created_at: string;
+    updated_at: string;
+  };
   created_at: string;
   updated_at: string;
 }
 
 export interface CreateProcedureOrderInput {
-  order_type: "radiology" | "laboratory";
+  order_type: "radiology" | "laboratory" | "consultation";
   source_visit_id: number;
   target_room_id: number;
   priority?: string;
@@ -234,6 +251,25 @@ export const procedureOrdersApi = {
   getLaboratoryRooms: () =>
     api.get<{ id: number; name: string; code: string }[]>(
       "/procedure-orders/rooms/laboratory"
+    ),
+
+  // Get consultation rooms (poliklinik, rawat inap, etc. excluding current room)
+  getConsultationRooms: (excludeRoomId?: number) =>
+    api.get<{ id: number; name: string; code: string }[]>(
+      "/procedure-orders/rooms/consultation",
+      { params: excludeRoomId ? { exclude_room_id: excludeRoomId } : undefined }
+    ),
+
+  // Get doctors by room (for consultation)
+  getDoctorsByRoom: (roomId: number) =>
+    api.get<{ id: number; nama_lengkap: string }[]>(
+      `/procedure-orders/doctors/room/${roomId}`
+    ),
+
+  // Get consultation procedures by room
+  getConsultationProcedures: (roomId: number) =>
+    api.get<Procedure[]>(
+      `/procedure-orders/procedures/consultation/${roomId}`
     ),
 
   // Print result

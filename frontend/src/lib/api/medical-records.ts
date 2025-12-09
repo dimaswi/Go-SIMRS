@@ -336,4 +336,19 @@ export const medicalRecordsApi = {
       registration_type: string;
     }>(`/visits/${visitId}/pending-orders`);
   },
+
+  // Consultation endpoints - untuk visit konsultasi
+  getConsultation: async (visitId: number) => {
+    return api.get(`/visits/${visitId}/consultation`);
+  },
+  saveConsultation: async (visitId: number, data: { 
+    subjective: string; 
+    objective: string; 
+    assessment: string; 
+    plan: string;
+    recommendation?: string;
+    notes?: string;
+  }) => {
+    return api.post(`/visits/${visitId}/consultation`, data);
+  },
 };

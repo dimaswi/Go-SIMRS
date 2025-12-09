@@ -323,6 +323,7 @@ export default function QueueIndex() {
               data={queues}
               searchPlaceholder="Cari nomor antrean atau nama pasien..."
               pageSize={10}
+              tableId="queues"
             />
           </CardContent>
         </Card>

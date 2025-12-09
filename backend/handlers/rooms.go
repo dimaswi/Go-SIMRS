@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // ==================== Room Handlers ====================
@@ -854,4 +855,346 @@ func RemoveRoomStaff(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Staf berhasil dihapus dari ruangan"})
+}
+
+// GetMyAssignedRooms returns rooms assigned to the current user via RoomStaff
+func GetMyAssignedRooms(c *gin.Context) {
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	// Find user's employee ID
+	var user models.User
+	if err := database.DB.First(&user, userID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+
+	// If user doesn't have employee ID, return empty array
+	if user.EmployeeID == nil {
+		c.JSON(http.StatusOK, gin.H{"data": []models.Room{}})
+		return
+	}
+
+	// Find room IDs where this employee is assigned
+	var roomStaffs []models.RoomStaff
+	if err := database.DB.Where("employee_id = ?", *user.EmployeeID).Find(&roomStaffs).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch room assignments"})
+		return
+	}
+
+	// Extract room IDs
+	roomIDs := make([]uint, 0)
+	for _, rs := range roomStaffs {
+		roomIDs = append(roomIDs, rs.RoomID)
+	}
+
+	// If no rooms assigned, return empty array
+	if len(roomIDs) == 0 {
+		c.JSON(http.StatusOK, gin.H{"data": []models.Room{}})
+		return
+	}
+
+	// Get the rooms
+	var rooms []models.Room
+	db := database.DB.Model(&models.Room{}).Where("id IN ? AND is_active = ?", roomIDs, true)
+
+	// Apply service type filter if provided
+	if serviceType := c.Query("service_type"); serviceType != "" {
+		db = db.Where("service_type = ?", serviceType)
+	}
+
+	// Apply room type filter if provided
+	if roomType := c.Query("room_type"); roomType != "" {
+		db = db.Where("room_type = ?", roomType)
+	}
+
+	if err := db.Order("name ASC").Find(&rooms).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch rooms"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": rooms})
+}
+
+// ==================== Room Tariff Handlers ====================
+
+// GetRoomTariffs returns all tariffs for a room
+func GetRoomTariffs(c *gin.Context) {
+	roomID := c.Param("id")
+
+	var tariffs []models.RoomTariff
+	if err := database.DB.Where("room_id = ?", roomID).
+		Order("CASE patient_class " +
+			"WHEN 'non_kelas' THEN 1 " +
+			"WHEN 'kelas_3' THEN 2 " +
+			"WHEN 'kelas_2' THEN 3 " +
+			"WHEN 'kelas_1' THEN 4 " +
+			"WHEN 'vip' THEN 5 " +
+			"WHEN 'vvip' THEN 6 " +
+			"ELSE 99 END").
+		Find(&tariffs).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch room tariffs"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": tariffs})
+}
+
+// CreateRoomTariffRequest represents the request to create/update room tariff
+type CreateRoomTariffRequest struct {
+	PatientClass string  `json:"patient_class" binding:"required"`
+	Akomodasi    float64 `json:"akomodasi"`
+	Makan        float64 `json:"makan"`
+	Perawatan    float64 `json:"perawatan"`
+	Administrasi float64 `json:"administrasi"`
+	Lainnya      float64 `json:"lainnya"`
+	IsActive     *bool   `json:"is_active"`
+}
+
+// CreateRoomTariff creates a new tariff for a room
+func CreateRoomTariff(c *gin.Context) {
+	roomID := c.Param("id")
+	roomIDUint, err := strconv.ParseUint(roomID, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid room ID"})
+		return
+	}
+
+	// Check if room exists
+	var room models.Room
+	if err := database.DB.First(&room, roomID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Room not found"})
+		return
+	}
+
+	var req CreateRoomTariffRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Check if tariff already exists for this room and patient class (including soft-deleted)
+	var existing models.RoomTariff
+	err = database.DB.Unscoped().Where("room_id = ? AND patient_class = ?", roomID, req.PatientClass).
+		First(&existing).Error
+
+	if err == nil {
+		// Record exists
+		if existing.DeletedAt.Valid {
+			// Soft-deleted record exists, restore and update it
+			existing.DeletedAt = gorm.DeletedAt{}
+			existing.Akomodasi = req.Akomodasi
+			existing.Makan = req.Makan
+			existing.Perawatan = req.Perawatan
+			existing.Administrasi = req.Administrasi
+			existing.Lainnya = req.Lainnya
+			existing.IsActive = true
+			if req.IsActive != nil {
+				existing.IsActive = *req.IsActive
+			}
+
+			if err := database.DB.Unscoped().Save(&existing).Error; err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to restore room tariff"})
+				return
+			}
+			c.JSON(http.StatusCreated, gin.H{"data": existing, "message": "Room tariff restored successfully"})
+			return
+		}
+		// Active record exists
+		c.JSON(http.StatusConflict, gin.H{"error": "Tariff for this patient class already exists"})
+		return
+	}
+
+	tariff := models.RoomTariff{
+		RoomID:       uint(roomIDUint),
+		PatientClass: req.PatientClass,
+		Akomodasi:    req.Akomodasi,
+		Makan:        req.Makan,
+		Perawatan:    req.Perawatan,
+		Administrasi: req.Administrasi,
+		Lainnya:      req.Lainnya,
+		IsActive:     true,
+	}
+
+	if req.IsActive != nil {
+		tariff.IsActive = *req.IsActive
+	}
+
+	if err := database.DB.Create(&tariff).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create room tariff"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"data": tariff, "message": "Room tariff created successfully"})
+}
+
+// UpdateRoomTariff updates a room tariff
+func UpdateRoomTariff(c *gin.Context) {
+	roomID := c.Param("id")
+	tariffID := c.Param("tariffId")
+
+	// Check if room exists
+	var room models.Room
+	if err := database.DB.First(&room, roomID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Room not found"})
+		return
+	}
+
+	// Find tariff
+	var tariff models.RoomTariff
+	if err := database.DB.Where("id = ? AND room_id = ?", tariffID, roomID).
+		First(&tariff).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Room tariff not found"})
+		return
+	}
+
+	var req CreateRoomTariffRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Check if changing to existing patient class
+	if req.PatientClass != tariff.PatientClass {
+		var existing models.RoomTariff
+		if err := database.DB.Where("room_id = ? AND patient_class = ? AND id != ?",
+			roomID, req.PatientClass, tariffID).First(&existing).Error; err == nil {
+			c.JSON(http.StatusConflict, gin.H{"error": "Tariff for this patient class already exists"})
+			return
+		}
+	}
+
+	// Update fields
+	tariff.PatientClass = req.PatientClass
+	tariff.Akomodasi = req.Akomodasi
+	tariff.Makan = req.Makan
+	tariff.Perawatan = req.Perawatan
+	tariff.Administrasi = req.Administrasi
+	tariff.Lainnya = req.Lainnya
+
+	if req.IsActive != nil {
+		tariff.IsActive = *req.IsActive
+	}
+
+	if err := database.DB.Save(&tariff).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update room tariff"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": tariff, "message": "Room tariff updated successfully"})
+}
+
+// DeleteRoomTariff deletes a room tariff
+func DeleteRoomTariff(c *gin.Context) {
+	roomID := c.Param("id")
+	tariffID := c.Param("tariffId")
+
+	// Check if room exists
+	var room models.Room
+	if err := database.DB.First(&room, roomID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Room not found"})
+		return
+	}
+
+	// Find and delete tariff
+	var tariff models.RoomTariff
+	if err := database.DB.Where("id = ? AND room_id = ?", tariffID, roomID).
+		First(&tariff).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Room tariff not found"})
+		return
+	}
+
+	if err := database.DB.Delete(&tariff).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete room tariff"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Room tariff deleted successfully"})
+}
+
+// BulkUpdateRoomTariffs updates multiple tariffs at once for a room
+type BulkRoomTariffRequest struct {
+	Tariffs []CreateRoomTariffRequest `json:"tariffs" binding:"required"`
+}
+
+func BulkUpdateRoomTariffs(c *gin.Context) {
+	roomID := c.Param("id")
+	roomIDUint, err := strconv.ParseUint(roomID, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid room ID"})
+		return
+	}
+
+	// Check if room exists
+	var room models.Room
+	if err := database.DB.First(&room, roomID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Room not found"})
+		return
+	}
+
+	var req BulkRoomTariffRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	tx := database.DB.Begin()
+
+	for _, tariffReq := range req.Tariffs {
+		// Check if tariff exists (including soft-deleted)
+		var existingTariff models.RoomTariff
+		err := tx.Unscoped().Where("room_id = ? AND patient_class = ?", roomID, tariffReq.PatientClass).
+			First(&existingTariff).Error
+
+		if err == nil {
+			// Record exists, update it
+			existingTariff.DeletedAt = gorm.DeletedAt{} // Restore if soft-deleted
+			existingTariff.Akomodasi = tariffReq.Akomodasi
+			existingTariff.Makan = tariffReq.Makan
+			existingTariff.Perawatan = tariffReq.Perawatan
+			existingTariff.Administrasi = tariffReq.Administrasi
+			existingTariff.Lainnya = tariffReq.Lainnya
+			if tariffReq.IsActive != nil {
+				existingTariff.IsActive = *tariffReq.IsActive
+			}
+
+			if err := tx.Unscoped().Save(&existingTariff).Error; err != nil {
+				tx.Rollback()
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update tariff"})
+				return
+			}
+		} else {
+			// Create new
+			newTariff := models.RoomTariff{
+				RoomID:       uint(roomIDUint),
+				PatientClass: tariffReq.PatientClass,
+				Akomodasi:    tariffReq.Akomodasi,
+				Makan:        tariffReq.Makan,
+				Perawatan:    tariffReq.Perawatan,
+				Administrasi: tariffReq.Administrasi,
+				Lainnya:      tariffReq.Lainnya,
+				IsActive:     true,
+			}
+			if tariffReq.IsActive != nil {
+				newTariff.IsActive = *tariffReq.IsActive
+			}
+
+			if err := tx.Create(&newTariff).Error; err != nil {
+				tx.Rollback()
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create tariff"})
+				return
+			}
+		}
+	}
+
+	tx.Commit()
+
+	// Return updated tariffs
+	var tariffs []models.RoomTariff
+	database.DB.Where("room_id = ?", roomID).Find(&tariffs)
+
+	c.JSON(http.StatusOK, gin.H{"data": tariffs, "message": "Room tariffs updated successfully"})
 }

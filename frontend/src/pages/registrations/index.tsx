@@ -296,6 +296,7 @@ export default function RegistrationIndex() {
               data={registrations}
               searchPlaceholder="Cari no. registrasi atau nama pasien..."
               pageSize={10}
+              tableId="registrations"
             />
           </CardContent>
         </Card>

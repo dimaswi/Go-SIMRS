@@ -23,6 +23,10 @@ func setupPatientRoutes(rg *gin.RouterGroup) {
 	rg.PATCH("/patients/:id/last-visit", middleware.RequirePermission("patients.update"), handlers.UpdatePatientLastVisit)
 	rg.POST("/patients/:id/photo", middleware.RequirePermission("patients.update"), handlers.UploadPatientPhoto)
 
+	// Patient finalization
+	rg.POST("/patients/:id/finalize", middleware.RequirePermission("patients.finalize"), handlers.FinalizePatient)
+	rg.POST("/patients/:id/unfinalize", middleware.RequirePermission("patients.finalize"), handlers.UnfinalizePatient)
+
 	// Reference data
 	rg.GET("/patient-statuses", handlers.GetPatientStatuses)
 	rg.GET("/blood-types", handlers.GetBloodTypes)

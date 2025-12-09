@@ -16,6 +16,8 @@ import {
   Scissors,
   ClipboardCheck,
   Droplets,
+  CheckCircle,
+  Users,
 } from "lucide-react";
 
 interface Tab {
@@ -32,6 +34,7 @@ interface MedicalRecordTabsProps {
   isPharmacy?: boolean;
   isRadiology?: boolean;
   isLaboratory?: boolean;
+  isConsultation?: boolean; // Show simplified tabs for consultation visits
   showProcedureTab?: boolean; // Show procedure tab for rawat_jalan, rawat_inap, gawat_darurat
   isInpatient?: boolean; // Show inpatient tabs (CPPT, Fluid Balance) for rawat_inap
 }
@@ -43,6 +46,7 @@ export function MedicalRecordTabs({
   isPharmacy = false,
   isRadiology = false,
   isLaboratory = false,
+  isConsultation = false,
   showProcedureTab = false,
   isInpatient = false,
 }: MedicalRecordTabsProps) {
@@ -68,6 +72,12 @@ export function MedicalRecordTabs({
       icon: <RotateCcw />,
       permission: "pharmacy.return",
     },
+    {
+      id: "pharmacy-final",
+      label: "Final Kunjungan",
+      icon: <CheckCircle />,
+      permission: "pharmacy.final",
+    },
   ];
 
   // Tabs for radiology visits
@@ -78,6 +88,12 @@ export function MedicalRecordTabs({
       icon: <FileImage />,
       permission: "procedure_orders.perform",
     },
+    {
+      id: "radiology-final",
+      label: "Final Kunjungan",
+      icon: <CheckCircle />,
+      permission: "procedure_orders.final",
+    },
   ];
 
   // Tabs for laboratory visits
@@ -87,6 +103,28 @@ export function MedicalRecordTabs({
       label: "Pengerjaan Laboratorium",
       icon: <TestTube />,
       permission: "procedure_orders.perform",
+    },
+    {
+      id: "laboratory-final",
+      label: "Final Kunjungan",
+      icon: <CheckCircle />,
+      permission: "procedure_orders.final",
+    },
+  ];
+
+  // Tabs for consultation visits - HANYA FORM KONSULTASI SAJA
+  const consultationTabs: Tab[] = [
+    {
+      id: "consultation",
+      label: "Konsultasi",
+      icon: <Users />,
+      permission: "medical_records.cppt",
+    },
+    {
+      id: "consultation-final",
+      label: "Final Kunjungan",
+      icon: <CheckCircle />,
+      permission: "procedure_orders.final",
     },
   ];
 
@@ -162,6 +200,12 @@ export function MedicalRecordTabs({
       permission: "medical_records.laboratory_order",
     },
     {
+      id: "consultation-order",
+      label: "Order Konsultasi",
+      icon: <Users />,
+      permission: "medical_records.consultation_order",
+    },
+    {
       id: "disposition",
       label: "Pasien Pulang",
       icon: <LogOut />,
@@ -175,6 +219,8 @@ export function MedicalRecordTabs({
     ? radiologyTabs 
     : isLaboratory 
     ? laboratoryTabs 
+    : isConsultation
+    ? consultationTabs
     : clinicalTabs;
 
   // Filter tabs based on permissions

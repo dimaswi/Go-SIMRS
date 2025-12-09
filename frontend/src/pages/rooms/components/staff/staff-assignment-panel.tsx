@@ -1,13 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
+import { DataTable } from "@/components/ui/data-table";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Plus, Minus, Search, User, UserCheck, UserX } from "lucide-react";
+import { Loader2, UserCheck, UserX } from "lucide-react";
 import { roomsApi, employeesApi, type Employee, type RoomStaff, type MasterData } from "@/lib/api";
+import { createStaffColumns } from "./columns";
+import { createAvailableStaffColumns } from "./available-columns";
 
 interface StaffAssignmentPanelProps {
   roomId: number;
@@ -27,17 +25,15 @@ export function StaffAssignmentPanel({
   const { toast } = useToast();
   const [loadingEmployees, setLoadingEmployees] = useState(false);
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [searchTerm, setSearchTerm] = useState("");
   const [addingId, setAddingId] = useState<number | null>(null);
-  const [removingId, setRemovingId] = useState<number | null>(null);
-  const [selectedRoleType, setSelectedRoleType] = useState<string>("");
+  const [roleSelections, setRoleSelections] = useState<Record<number, string>>({});
 
-  // Set default role type when master data is available
-  useEffect(() => {
-    if (!selectedRoleType && masterData.room_staff_role?.length > 0) {
-      setSelectedRoleType(masterData.room_staff_role[0].code);
-    }
-  }, [masterData.room_staff_role, selectedRoleType]);
+  const handleRoleChange = (employeeId: number, roleType: string) => {
+    setRoleSelections(prev => ({
+      ...prev,
+      [employeeId]: roleType,
+    }));
+  };
 
   const loadEmployees = useCallback(async () => {
     setLoadingEmployees(true);
@@ -59,24 +55,12 @@ export function StaffAssignmentPanel({
   }, [loadEmployees]);
 
   const assignedEmployeeIds = staff.map((s) => s.employee_id);
-
   const availableEmployees = employees.filter(
-    (emp) =>
-      !assignedEmployeeIds.includes(emp.id) &&
-      (searchTerm === "" ||
-        emp.nama_lengkap.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        emp.nip?.toLowerCase().includes(searchTerm.toLowerCase()))
+    (emp) => !assignedEmployeeIds.includes(emp.id)
   );
 
-  const filteredStaff = staff.filter(
-    (s) =>
-      searchTerm === "" ||
-      s.employee?.nama_lengkap?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      s.employee?.nip?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const handleAdd = async (employeeId: number) => {
-    if (!selectedRoleType) {
+  const handleAdd = async (employeeId: number, roleType: string) => {
+    if (!roleType) {
       toast({
         variant: "destructive",
         title: "Pilih peran",
@@ -89,7 +73,7 @@ export function StaffAssignmentPanel({
     try {
       await roomsApi.assignStaff(roomId, {
         employee_id: employeeId,
-        role_type: selectedRoleType,
+        role_type: roleType,
         is_primary: false,
         notes: "",
       });
@@ -97,6 +81,12 @@ export function StaffAssignmentPanel({
         variant: "success",
         title: "Berhasil!",
         description: "Staff berhasil ditambahkan ke ruangan.",
+      });
+      // Clear role selection after successful add
+      setRoleSelections(prev => {
+        const newSelections = { ...prev };
+        delete newSelections[employeeId];
+        return newSelections;
       });
       onRefresh();
     } catch (error: any) {
@@ -111,7 +101,6 @@ export function StaffAssignmentPanel({
   };
 
   const handleRemove = async (staffId: number) => {
-    setRemovingId(staffId);
     try {
       await roomsApi.removeStaff(roomId, staffId);
       toast({
@@ -126,22 +115,23 @@ export function StaffAssignmentPanel({
         title: "Error!",
         description: error.response?.data?.error || "Gagal menghapus staff.",
       });
-    } finally {
-      setRemovingId(null);
     }
   };
 
-  const roleTypeOptions: ComboboxOption[] = (masterData.room_staff_role || []).map(
-    (item) => ({
-      value: item.code,
-      label: item.name,
-    })
-  );
+  const assignedColumns = createStaffColumns({
+    onRemove: handleRemove,
+    hasPermission,
+    masterData,
+  });
 
-  const getRoleTypeName = (code: string) => {
-    const role = masterData.room_staff_role?.find((r) => r.code === code);
-    return role?.name || code;
-  };
+  const availableColumns = createAvailableStaffColumns({
+    onAdd: handleAdd,
+    hasPermission,
+    addingId,
+    masterData,
+    roleSelections,
+    onRoleChange: handleRoleChange,
+  });
 
   if (loadingEmployees) {
     return (
@@ -153,160 +143,57 @@ export function StaffAssignmentPanel({
 
   return (
     <div className="space-y-4">
-      {/* Search and Role Filter */}
-      <div className="flex gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Cari nama atau NIP..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-        {hasPermission && (
-          <div className="w-48">
-            <Combobox
-              options={roleTypeOptions}
-              value={selectedRoleType}
-              onValueChange={setSelectedRoleType}
-              placeholder="Pilih peran..."
-              searchPlaceholder="Cari peran..."
-            />
-          </div>
-        )}
-      </div>
-
       {/* Two Column Layout */}
       <div className="grid grid-cols-2 gap-4">
         {/* Available Column */}
-        <Card>
-          <CardHeader className="py-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <UserX className="h-4 w-4" />
-              Tersedia ({availableEmployees.length})
-            </CardTitle>
-            <CardDescription className="text-xs">
-              Klik + untuk menambahkan
-            </CardDescription>
+        <Card className="shadow-md">
+          <CardHeader className="py-3 border-b bg-muted/50">
+            <div className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+                <UserX className="h-4 w-4 text-primary" />
+              </div>
+              <div>
+                <CardTitle className="text-sm font-semibold">
+                  Tersedia ({availableEmployees.length})
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Pegawai yang belum ditugaskan
+                </CardDescription>
+              </div>
+            </div>
           </CardHeader>
-          <CardContent className="p-0">
-            <ScrollArea className="h-[350px]">
-              {availableEmployees.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-                  <User className="h-8 w-8 mb-2" />
-                  <p className="text-sm">Tidak ada pegawai tersedia</p>
-                </div>
-              ) : (
-                <div className="divide-y">
-                  {availableEmployees.map((employee) => (
-                    <div
-                      key={employee.id}
-                      className="flex items-center justify-between px-3 py-2 hover:bg-muted/50"
-                    >
-                      <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 shrink-0">
-                          <User className="h-4 w-4 text-primary" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="font-medium text-sm truncate">{employee.nama_lengkap}</p>
-                          <p className="text-xs text-muted-foreground truncate">
-                            {employee.nip || "Tanpa NIP"} • {employee.tipe_karyawan || "-"}
-                          </p>
-                        </div>
-                      </div>
-                      {hasPermission && (
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-7 w-7 shrink-0"
-                          onClick={() => handleAdd(employee.id)}
-                          disabled={addingId === employee.id || !selectedRoleType}
-                        >
-                          {addingId === employee.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Plus className="h-4 w-4" />
-                          )}
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </ScrollArea>
+          <CardContent className="p-4">
+            <DataTable
+              columns={availableColumns}
+              data={availableEmployees}
+
+            />
           </CardContent>
         </Card>
 
         {/* Assigned Column */}
-        <Card>
-          <CardHeader className="py-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <UserCheck className="h-4 w-4" />
-              Ditugaskan ({staff.length})
-            </CardTitle>
-            <CardDescription className="text-xs">
-              Staff di ruangan ini
-            </CardDescription>
+        <Card className="shadow-md">
+          <CardHeader className="py-3 border-b bg-muted/50">
+            <div className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+                <UserCheck className="h-4 w-4 text-primary" />
+              </div>
+              <div>
+                <CardTitle className="text-sm font-semibold">
+                  Ditugaskan ({staff.length})
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Staff di ruangan ini
+                </CardDescription>
+              </div>
+            </div>
           </CardHeader>
-          <CardContent className="p-0">
-            <ScrollArea className="h-[350px]">
-              {filteredStaff.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-                  <UserCheck className="h-8 w-8 mb-2" />
-                  <p className="text-sm">Belum ada staff ditugaskan</p>
-                </div>
-              ) : (
-                <div className="divide-y">
-                  {filteredStaff.map((s) => (
-                    <div
-                      key={s.id}
-                      className="flex items-center justify-between px-3 py-2 hover:bg-muted/50"
-                    >
-                      <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100 shrink-0">
-                          <UserCheck className="h-4 w-4 text-green-600" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1">
-                            <p className="font-medium text-sm truncate">
-                              {s.employee?.nama_lengkap || "Unknown"}
-                            </p>
-                            {s.is_primary && (
-                              <Badge variant="secondary" className="text-[10px] px-1">
-                                Utama
-                              </Badge>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                            <span className="truncate">{s.employee?.nip || "Tanpa NIP"}</span>
-                            <span>•</span>
-                            <Badge variant="outline" className="text-[10px] px-1">
-                              {getRoleTypeName(s.role_type)}
-                            </Badge>
-                          </div>
-                        </div>
-                      </div>
-                      {hasPermission && (
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-7 w-7 shrink-0 text-destructive hover:text-destructive"
-                          onClick={() => handleRemove(s.id)}
-                          disabled={removingId === s.id}
-                        >
-                          {removingId === s.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Minus className="h-4 w-4" />
-                          )}
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </ScrollArea>
+          <CardContent className="p-4">
+            <DataTable
+              columns={assignedColumns}
+              data={staff}
+
+            />
           </CardContent>
         </Card>
       </div>

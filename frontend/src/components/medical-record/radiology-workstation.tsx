@@ -37,9 +37,10 @@ import type { ProcedureOrder } from "@/lib/api/procedure-orders";
 
 interface RadiologyWorkstationProps {
   visitId: number;
+  readOnly?: boolean;
 }
 
-export function RadiologyWorkstation({ visitId }: RadiologyWorkstationProps) {
+export function RadiologyWorkstation({ visitId, readOnly: _readOnly = false }: RadiologyWorkstationProps) {
   const { toast } = useToast();
   const { hasPermission } = usePermission();
   const [loading, setLoading] = useState(true);
@@ -380,6 +381,28 @@ export function RadiologyWorkstation({ visitId }: RadiologyWorkstationProps) {
                   <CheckCircle2 className="h-5 w-5" />
                   Hasil Pemeriksaan
                 </p>
+                
+                {/* Detail Results per Item */}
+                {selectedOrder.items?.map((item) => (
+                  <div key={item.id} className="mb-4 border-b pb-4 last:border-0">
+                    <h4 className="font-semibold mb-2">{item.procedure?.name}</h4>
+                    {item.results && item.results.length > 0 ? (
+                      <div className="space-y-2">
+                        {item.results.map((result) => (
+                          <div key={result.id} className="grid grid-cols-[150px_1fr] gap-2">
+                            <span className="text-sm font-medium text-muted-foreground">
+                              {result.procedure_parameter?.name}:
+                            </span>
+                            <span className="text-sm whitespace-pre-wrap">{result.value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground italic">Tidak ada hasil parameter</p>
+                    )}
+                  </div>
+                ))}
+                
                 {selectedOrder.result_summary && (
                   <div className="mb-3">
                     <span className="text-sm font-medium">Hasil:</span>

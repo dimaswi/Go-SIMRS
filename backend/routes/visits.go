@@ -26,6 +26,12 @@ func SetupVisitRoutes(r *gin.Engine) {
 		// Accept patient for visit
 		visits.PUT("/:id/accept", handlers.AcceptVisit)
 
+		// Complete visit (finalize)
+		visits.PUT("/:id/complete", handlers.CompleteVisit)
+
+		// Cancel complete visit (revert finalization)
+		visits.PUT("/:id/cancel-complete", handlers.CancelCompleteVisit)
+
 		// Get visit statistics
 		visits.GET("/stats/summary", handlers.GetVisitStats)
 
@@ -57,6 +63,10 @@ func SetupVisitRoutes(r *gin.Engine) {
 		visits.POST("/:id/disposition", handlers.SaveDisposition)
 		visits.PUT("/:id/disposition", handlers.SaveDisposition)
 		visits.GET("/:id/pending-orders", handlers.CheckPendingOrders)
+
+		// Consultation - untuk visit konsultasi
+		visits.GET("/:id/consultation", handlers.GetConsultation)
+		visits.POST("/:id/consultation", handlers.SaveConsultation)
 
 		// Visit Procedures - Tindakan yang dilakukan langsung di ruangan
 		visits.GET("/:id/room-procedures", handlers.GetRoomProceduresForVisit)                 // Daftar tindakan tersedia di ruangan

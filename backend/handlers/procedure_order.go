@@ -32,7 +32,8 @@ func GetProcedureOrders(c *gin.Context) {
 		Preload("Items.Procedure.Parameters", func(db *gorm.DB) *gorm.DB {
 			return db.Where("is_active = ?", true).Order("sort_order ASC")
 		}).
-		Preload("Items.Results.ProcedureParameter")
+		Preload("Items.Results.ProcedureParameter").
+		Preload("Consultation.Consultant")
 
 	// Filter by order type (radiology/laboratory)
 	if orderType := c.Query("order_type"); orderType != "" {
@@ -80,6 +81,26 @@ func GetProcedureOrders(c *gin.Context) {
 		return
 	}
 
+	// For consultation orders without direct consultation relation, try to load by target_visit_id or procedure_order_id
+	for i := range orders {
+		if orders[i].OrderType == "consultation" && orders[i].Consultation == nil {
+			var consultation models.Consultation
+			// Try by procedure_order_id first
+			if err := database.DB.Preload("Consultant").
+				Where("procedure_order_id = ?", orders[i].ID).
+				First(&consultation).Error; err == nil {
+				orders[i].Consultation = &consultation
+			} else if orders[i].TargetVisitID != nil {
+				// Fallback to target_visit_id
+				if err := database.DB.Preload("Consultant").
+					Where("visit_id = ?", *orders[i].TargetVisitID).
+					First(&consultation).Error; err == nil {
+					orders[i].Consultation = &consultation
+				}
+			}
+		}
+	}
+
 	c.JSON(http.StatusOK, orders)
 }
 
@@ -102,6 +123,7 @@ func GetProcedureOrder(c *gin.Context) {
 		}).
 		Preload("Items.Results.ProcedureParameter").
 		Preload("Items.PerformedBy").
+		Preload("Consultation.Consultant").
 		First(&order, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Procedure order not found"})
 		return
@@ -139,8 +161,10 @@ func CreateProcedureOrder(c *gin.Context) {
 	}
 
 	// Validate order type
-	if input.OrderType != models.ProcedureOrderTypeRadiology && input.OrderType != models.ProcedureOrderTypeLaboratory {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid order type. Must be 'radiology' or 'laboratory'"})
+	if input.OrderType != models.ProcedureOrderTypeRadiology &&
+		input.OrderType != models.ProcedureOrderTypeLaboratory &&
+		input.OrderType != models.ProcedureOrderTypeConsultation {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid order type. Must be 'radiology', 'laboratory', or 'consultation'"})
 		return
 	}
 
@@ -174,10 +198,15 @@ func CreateProcedureOrder(c *gin.Context) {
 	// Generate order number
 	today := time.Now().Format("20060102")
 	var prefix string
-	if input.OrderType == models.ProcedureOrderTypeRadiology {
+	switch input.OrderType {
+	case models.ProcedureOrderTypeRadiology:
 		prefix = "RAD"
-	} else {
+	case models.ProcedureOrderTypeLaboratory:
 		prefix = "LAB"
+	case models.ProcedureOrderTypeConsultation:
+		prefix = "CONS"
+	default:
+		prefix = "ORD"
 	}
 
 	var lastOrder models.ProcedureOrder
@@ -193,13 +222,23 @@ func CreateProcedureOrder(c *gin.Context) {
 	}
 	orderNumber := fmt.Sprintf("%s%s%04d", prefix, today, orderNum)
 
-	// Create target visit for radiology/laboratory room
+	// Create target visit
 	visitNumber := fmt.Sprintf("VIS%s%06d", time.Now().Format("20060102"), time.Now().UnixNano()%1000000)
 	var visitType string
-	if input.OrderType == models.ProcedureOrderTypeRadiology {
+	var visitPurpose string
+	switch input.OrderType {
+	case models.ProcedureOrderTypeRadiology:
 		visitType = models.VisitTypeRadiology
-	} else {
+		visitPurpose = "Pemeriksaan Radiologi"
+	case models.ProcedureOrderTypeLaboratory:
 		visitType = models.VisitTypeLab
+		visitPurpose = "Pemeriksaan Laboratorium"
+	case models.ProcedureOrderTypeConsultation:
+		visitType = models.VisitTypeConsultation
+		visitPurpose = "Konsultasi ke " + targetRoom.Name
+	default:
+		visitType = "other"
+		visitPurpose = "Pemeriksaan"
 	}
 
 	targetVisit := models.Visit{
@@ -207,7 +246,7 @@ func CreateProcedureOrder(c *gin.Context) {
 		RegistrationID: sourceVisit.RegistrationID,
 		RoomID:         input.TargetRoomID,
 		VisitType:      visitType,
-		VisitPurpose:   "Pemeriksaan " + visitType,
+		VisitPurpose:   visitPurpose,
 		ReferralFrom:   &sourceVisit.ID,
 		Status:         models.VisitStatusWaiting,
 	}
@@ -218,42 +257,44 @@ func CreateProcedureOrder(c *gin.Context) {
 		return
 	}
 
-	// Create room queue for target room
-	queueNumber := generateProcedureQueueNumber(tx, input.TargetRoomID)
+	// Create room queue HANYA untuk radiology dan laboratory (TIDAK untuk consultation)
+	if input.OrderType == models.ProcedureOrderTypeRadiology || input.OrderType == models.ProcedureOrderTypeLaboratory {
+		queueNumber := generateProcedureQueueNumber(tx, input.TargetRoomID)
 
-	// Get room for queue code
-	var targetRoomData models.Room
-	if err := tx.First(&targetRoomData, input.TargetRoomID).Error; err != nil {
-		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get target room: " + err.Error()})
-		return
-	}
+		// Get room for queue code
+		var targetRoomData models.Room
+		if err := tx.First(&targetRoomData, input.TargetRoomID).Error; err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get target room: " + err.Error()})
+			return
+		}
 
-	queueCode := targetRoomData.QueueCode
-	if queueCode == "" {
-		queueCode = "Q"
-	}
+		queueCode := targetRoomData.QueueCode
+		if queueCode == "" {
+			queueCode = "Q"
+		}
 
-	// Parse priority for queue
-	queuePriority := input.Priority
-	if queuePriority == "" {
-		queuePriority = "normal"
-	}
+		// Parse priority for queue
+		queuePriority := input.Priority
+		if queuePriority == "" {
+			queuePriority = "normal"
+		}
 
-	roomQueue := models.RoomQueue{
-		VisitID:     targetVisit.ID,
-		RoomID:      input.TargetRoomID,
-		QueueNumber: queueNumber,
-		QueueCode:   queueCode,
-		QueueDate:   time.Now(),
-		Priority:    queuePriority,
-		Status:      models.RoomQueueStatusWaiting,
-	}
+		roomQueue := models.RoomQueue{
+			VisitID:     targetVisit.ID,
+			RoomID:      input.TargetRoomID,
+			QueueNumber: queueNumber,
+			QueueCode:   queueCode,
+			QueueDate:   time.Now(),
+			Priority:    queuePriority,
+			Status:      models.RoomQueueStatusWaiting,
+		}
 
-	if err := tx.Create(&roomQueue).Error; err != nil {
-		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create room queue: " + err.Error()})
-		return
+		if err := tx.Create(&roomQueue).Error; err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create room queue: " + err.Error()})
+			return
+		}
 	}
 
 	// Set priority
@@ -929,6 +970,86 @@ func GetLaboratoryRooms(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, rooms)
+}
+
+// GetConsultationRooms gets all rooms that can receive consultation (poliklinik, rawat inap, etc)
+func GetConsultationRooms(c *gin.Context) {
+	excludeRoomID := c.Query("exclude_room_id")
+
+	var rooms []models.Room
+	query := database.DB.Where("is_active = ?", true).
+		Where("service_type IN ?", []string{"rawat_jalan", "rawat_inap", "gawat_darurat"})
+
+	if excludeRoomID != "" {
+		query = query.Where("id != ?", excludeRoomID)
+	}
+
+	if err := query.Order("name ASC").Find(&rooms).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": rooms})
+}
+
+// GetDoctorsByRoom gets all doctors assigned to a room via room_staff
+func GetDoctorsByRoom(c *gin.Context) {
+	roomID := c.Param("room_id")
+
+	var doctors []models.Employee
+
+	// Get all employee IDs that are assigned to this room via room_staff
+	var employeeIDs []uint
+	err := database.DB.Table("room_staff").
+		Select("employee_id").
+		Where("room_id = ?", roomID).
+		Where("deleted_at IS NULL").
+		Pluck("employee_id", &employeeIDs).Error
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// If no staff assigned to this room, return empty array
+	if len(employeeIDs) == 0 {
+		c.JSON(http.StatusOK, gin.H{"data": []models.Employee{}})
+		return
+	}
+
+	// Get employees (doctors) with those employee IDs
+	err = database.DB.
+		Where("id IN ?", employeeIDs).
+		Where("is_active = ?", true).
+		Where("tipe_karyawan = ?", models.EmployeeTypeDokter).
+		Order("nama_lengkap ASC").
+		Find(&doctors).Error
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": doctors})
+}
+
+// GetConsultationProcedures gets all procedures with type consultation for a room
+func GetConsultationProcedures(c *gin.Context) {
+	roomID := c.Param("room_id")
+
+	var procedures []models.Procedure
+	query := database.DB.
+		Joins("JOIN room_procedures ON room_procedures.procedure_id = procedures.id").
+		Where("room_procedures.room_id = ?", roomID).
+		Where("procedures.procedure_type = ?", "consultation").
+		Where("procedures.is_active = ?", true).
+		Preload("Tariffs").
+		Order("procedures.name ASC")
+
+	if err := query.Find(&procedures).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": procedures})
 }
 
 // GetOrdersBySourceVisit gets all procedure orders for a source visit

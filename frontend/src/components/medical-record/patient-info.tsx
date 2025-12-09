@@ -97,7 +97,7 @@ export function PatientInfo({ visit }: PatientInfoProps) {
   const patient = visit.registration?.patient;
   const hasAllergies =
     patient?.alergi_obat || patient?.alergi_makanan || patient?.alergi_lainnya;
-  const [isOpen, setIsOpen] = useState(true);
+  const [isOpen, setIsOpen] = useState(false);
 
   return (
     <Card className="border-none shadow-sm">

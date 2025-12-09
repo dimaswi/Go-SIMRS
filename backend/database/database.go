@@ -155,6 +155,7 @@ func Migrate() error {
 		&models.RoomUnit{},          // Room Units (Kamar)
 		&models.Bed{},               // Beds (Tempat Tidur)
 		&models.RoomStaff{},         // Room Staff assignments
+		&models.RoomTariff{},        // Room Tariffs (Tarif per Kelas Pasien untuk Rawat Inap)
 		&models.Schedule{},          // Room Schedules (Jadwal Poli)
 		&models.DoctorSchedule{},    // Doctor Schedules (Jadwal Dokter)
 		&models.ScheduleException{}, // Schedule Exceptions (Libur/Perubahan Jadwal)
@@ -217,6 +218,13 @@ func Migrate() error {
 		// Inpatient Records (Rawat Inap)
 		&models.CPPT{},         // CPPT - Catatan Perkembangan Pasien Terintegrasi
 		&models.FluidBalance{}, // Fluid Balance - Balance Cairan
+		// Consultation (Jawaban Konsultasi)
+		&models.Consultation{}, // Consultation - Jawaban/Hasil Konsultasi
+		// Billing & Payment
+		&models.RegistrationTariff{}, // Registration Tariffs (Tarif Pendaftaran)
+		&models.Billing{},            // Billings (Tagihan)
+		&models.BillingItem{},        // Billing Items (Detail Tagihan)
+		&models.BillingPayment{},     // Billing Payments (Pembayaran)
 	)
 
 	if err != nil {
@@ -254,10 +262,15 @@ func Migrate() error {
 	// 	return err
 	// }
 
-	// Seed procedures data (procedures with tariffs)
-	// if err := migrations.SeedProcedures(DB); err != nil {
-	// 	return err
-	// }
+	// Seed procedures data (procedures with tariffs and parameters)
+	if err := migrations.SeedProcedures(DB); err != nil {
+		return err
+	}
+
+	// Seed billing data (registration tariffs)
+	if err := migrations.SeedBillingData(DB); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -500,6 +513,7 @@ func SeedData() error {
 		{Name: "medical_records.medicine_order", Module: "Medical Record Management", Category: "Medical", Description: "Create and view medicine orders from medical record", Actions: `["create", "read"]`},
 		{Name: "medical_records.radiology_order", Module: "Medical Record Management", Category: "Medical", Description: "Create and view radiology orders from medical record", Actions: `["create", "read"]`},
 		{Name: "medical_records.laboratory_order", Module: "Medical Record Management", Category: "Medical", Description: "Create and view laboratory orders from medical record", Actions: `["create", "read"]`},
+		{Name: "medical_records.consultation_order", Module: "Medical Record Management", Category: "Medical", Description: "Create and view consultation orders from medical record", Actions: `["create", "read"]`},
 
 		// Medicine Orders (Order Obat)
 		{Name: "medicine_orders.view", Module: "Medicine Order Management", Category: "Pharmacy", Description: "View medicine orders", Actions: `["read"]`},
@@ -518,6 +532,19 @@ func SeedData() error {
 		{Name: "pharmacy.review", Module: "Pharmacy Management", Category: "Pharmacy", Description: "Review prescriptions (telaah resep)", Actions: `["create", "update"]`},
 		{Name: "pharmacy.dispense", Module: "Pharmacy Management", Category: "Pharmacy", Description: "Dispense medicines to patients", Actions: `["create", "update"]`},
 		{Name: "pharmacy.return", Module: "Pharmacy Management", Category: "Pharmacy", Description: "Process medicine returns", Actions: `["create"]`},
+		{Name: "pharmacy.final", Module: "Pharmacy Management", Category: "Pharmacy", Description: "Finalize pharmacy visit", Actions: `["create", "update"]`},
+
+		// Procedure Orders (Radiologi & Laboratorium)
+		{Name: "procedure_orders.final", Module: "Procedure Orders", Category: "Medical Services", Description: "Finalize radiology/laboratory visit", Actions: `["create", "update"]`},
+
+		// Billing Management (Kasir & Tagihan)
+		{Name: "billing.view", Module: "Billing Management", Category: "Front Office", Description: "View billing list and details", Actions: `["read"]`},
+		{Name: "billing.create", Module: "Billing Management", Category: "Front Office", Description: "Generate billing from completed visits", Actions: `["create"]`},
+		{Name: "billing.update", Module: "Billing Management", Category: "Front Office", Description: "Update billing (discount, adjustment)", Actions: `["update"]`},
+		{Name: "billing.delete", Module: "Billing Management", Category: "Front Office", Description: "Cancel billing", Actions: `["delete"]`},
+		{Name: "billing.payment", Module: "Billing Management", Category: "Front Office", Description: "Process payments for billing", Actions: `["create", "update"]`},
+		{Name: "billing.void_payment", Module: "Billing Management", Category: "Front Office", Description: "Void/cancel payments", Actions: `["delete"]`},
+		{Name: "billing.finalize", Module: "Billing Management", Category: "Front Office", Description: "Finalize billing after full payment", Actions: `["update"]`},
 
 		// System & Dashboard
 		{Name: "dashboard.view", Module: "Dashboard", Category: "Analytics", Description: "Access dashboard and reports", Actions: `["read"]`},

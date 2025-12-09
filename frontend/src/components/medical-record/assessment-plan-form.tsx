@@ -11,9 +11,10 @@ interface AssessmentPlanFormProps {
   visitId: number;
   initialData?: AssessmentPlan;
   onSave?: (data: AssessmentPlan) => void;
+  readOnly?: boolean;
 }
 
-export function AssessmentPlanForm({ visitId, initialData, onSave }: AssessmentPlanFormProps) {
+export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = false }: AssessmentPlanFormProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -105,6 +106,7 @@ export function AssessmentPlanForm({ visitId, initialData, onSave }: AssessmentP
       </CardHeader>
       <CardContent className="p-6">
         <form onSubmit={handleSubmit} className="space-y-6">
+          <fieldset disabled={readOnly}>
           {/* Clinical Assessment / Clinical Impression */}
           <div className="space-y-2">
             <Label htmlFor="clinical_assessment" className="text-sm font-semibold">
@@ -259,6 +261,7 @@ export function AssessmentPlanForm({ visitId, initialData, onSave }: AssessmentP
               Simpan Assessment & Plan
             </Button>
           </div>
+          </fieldset>
         </form>
       </CardContent>
     </Card>

@@ -118,6 +118,7 @@ export default function PatientsPage() {
               data={patients}
               searchPlaceholder="Cari nama, No. RM, NIK, atau No. BPJS..."
               pageSize={10}
+              tableId="patients"
               meta={{ onView: handleView }}
             />
           </CardContent>

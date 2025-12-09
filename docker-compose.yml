@@ -4,41 +4,41 @@ services:
   # PostgreSQL Database
   postgres:
     image: postgres:15-alpine
-    container_name: pos-postgres
+    container_name: simrs-postgres
     environment:
-      POSTGRES_USER: dimas
-      POSTGRES_PASSWORD: dimas123
-      POSTGRES_DB: pos
+      POSTGRES_USER: dimas_simrs
+      POSTGRES_PASSWORD: dimas_simrs_123
+      POSTGRES_DB: simrs
       PGDATA: /var/lib/postgresql/data/pgdata
     ports:
-      - "5434:5432"
+      - "5555:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U dimas -d pos"]
+      test: ["CMD-SHELL", "pg_isready -U dimas_simrs -d simrs"]
       interval: 10s
       timeout: 5s
       retries: 5
     networks:
-      - pos-network
+      - simrs-network
 
   # Backend API (Go)
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: pos-backend
+    container_name: simrs-backend
     environment:
-      DATABASE_DSN: "host=postgres user=dimas password=dimas123 dbname=pos port=5434 sslmode=disable"
+      DATABASE_DSN: "host=postgres user=dimas_simrs password=dimas_simrs_123 dbname=simrs port=5432 sslmode=disable"
       JWT_SECRET: "your-secret-key-change-in-production"
       SERVER_PORT: "8080"
     ports:
-      - "8080:8080"
+      - "8899:8080"
     depends_on:
       postgres:
         condition: service_healthy
     networks:
-      - pos-network
+      - simrs-network
     restart: unless-stopped
 
   # Frontend (React)
@@ -46,18 +46,18 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: pos-frontend
+    container_name: simrs-frontend
     ports:
-      - "3000:80"
+      - "3232:80"
     depends_on:
       - backend
     networks:
-      - pos-network
+      - simrs-network
     restart: unless-stopped
 
 volumes:
   postgres_data:
 
 networks:
-  pos-network:
+  simrs-network:
     driver: bridge

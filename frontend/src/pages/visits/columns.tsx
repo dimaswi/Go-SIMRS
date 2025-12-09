@@ -10,9 +10,11 @@ interface Visit {
   room_id: number;
   doctor_id?: number;
   visit_type: string;
+  referral_from?: number; // ID visit asal jika ini adalah visit order
   status: string;
   check_in_time?: string;
-  check_out_time?: string;
+  end_time?: string;
+  created_at?: string;
   complaint?: string;
   registration?: {
     id: number;
@@ -91,6 +93,32 @@ const getQueueStatusBadge = (status: string) => {
   return <Badge variant={config.variant}>{config.label}</Badge>;
 };
 
+// Cek apakah ini kunjungan order atau kunjungan normal
+// Visit order memiliki referral_from (rujukan dari visit lain)
+const getVisitCategoryBadge = (visit: Visit) => {
+  const isOrder = visit.referral_from !== null && visit.referral_from !== undefined;
+  
+  if (isOrder) {
+    const orderLabels: Record<string, string> = {
+      lab: "🧪 Order Lab",
+      radiology: "📷 Order Radiologi",
+      consultation: "👨‍⚕️ Order Konsultasi",
+      pharmacy: "💊 Order Farmasi",
+    };
+    return (
+      <Badge variant="outline" className="bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300 border-amber-300">
+        {orderLabels[visit.visit_type] || "Order"}
+      </Badge>
+    );
+  }
+  
+  return (
+    <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+      📋 Pendaftaran
+    </Badge>
+  );
+};
+
 export const createVisitColumns = ({
   onCallQueue,
   onRecallQueue,
@@ -142,11 +170,56 @@ export const createVisitColumns = ({
     ),
   },
   {
+    accessorKey: "visit_type",
+    header: "Jenis",
+    cell: ({ row }) => getVisitCategoryBadge(row.original),
+  },
+  {
+    accessorKey: "room.name",
+    header: "Ruangan",
+    cell: ({ row }) => (
+      <div>{row.original.room?.name || "-"}</div>
+    ),
+  },
+  {
     accessorKey: "doctor.nama_lengkap",
     header: "Dokter",
     cell: ({ row }) => (
       <div>{row.original.doctor?.nama_lengkap || "-"}</div>
     ),
+  },
+  {
+    accessorKey: "check_in_time",
+    header: "Tanggal Masuk",
+    cell: ({ row }) => {
+      // Use check_in_time if available, otherwise fallback to created_at
+      const time = row.original.check_in_time || row.original.created_at;
+      return time
+        ? new Date(time).toLocaleString("id-ID", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          })
+        : "-";
+    },
+  },
+  {
+    accessorKey: "end_time",
+    header: "Tanggal Keluar",
+    cell: ({ row }) => {
+      const time = row.original.end_time;
+      return time
+        ? new Date(time).toLocaleString("id-ID", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          })
+        : "-";
+    },
   },
   {
     accessorKey: "status",
@@ -162,39 +235,49 @@ export const createVisitColumns = ({
     },
   },
   {
-    accessorKey: "check_in_time",
-    header: "Check-in",
-    cell: ({ row }) => {
-      const time = row.original.check_in_time;
-      return time
-        ? new Date(time).toLocaleTimeString("id-ID", {
-            hour: "2-digit",
-            minute: "2-digit",
-          })
-        : "-";
-    },
-  },
-  {
     id: "actions",
     header: () => <div className="text-right">Aksi</div>,
     cell: ({ row }) => {
       const visit = row.original;
-      const canCall = hasCallPermission && visit.room_queue?.status === "waiting";
+      
+      // Check if this is an emergency visit (UGD)
+      const isEmergency = visit.visit_type === "emergency" || 
+        visit.room?.name?.toLowerCase().includes("ugd") ||
+        visit.room?.name?.toLowerCase().includes("igd");
+      
+      // Check if this is an inpatient visit (Rawat Inap)
+      const isInpatient = visit.visit_type === "inpatient" ||
+        visit.room?.name?.toLowerCase().includes("rawat inap") ||
+        visit.room?.name?.toLowerCase().includes("ranap");
+      
+      // Check if room has no queue system (no room_queue data)
+      const hasNoQueueSystem = !visit.room_queue;
+      
+      // UGD dan Rawat Inap tidak menggunakan sistem antrian, langsung dilayani
+      const canCall = hasCallPermission && 
+        !isEmergency && 
+        !isInpatient &&
+        !hasNoQueueSystem &&
+        visit.room_queue?.status === "waiting";
+      
       const canRecall = hasCallPermission && 
+        !isEmergency && 
+        !isInpatient &&
+        !hasNoQueueSystem &&
         visit.room_queue?.status === "called" && 
         visit.status !== "in_progress";
       
       // Can accept if:
       // - Has accept permission
-      // - Queue has been called (room_queue status = called)
       // - Visit status is not yet in_progress or completed
-      // - For UGD without queue: can accept directly from waiting status
+      // - For UGD/emergency/inpatient/rooms without queue: can accept directly from waiting or in_queue status
+      // - For regular rooms with queue: only after queue has been called
       const canAccept = hasAcceptPermission && 
         visit.status !== "in_progress" && 
         visit.status !== "completed" &&
         (
-          visit.room_queue?.status === "called" ||
-          (visit.status === "waiting" && !visit.room_queue)
+          ((isEmergency || isInpatient || hasNoQueueSystem) && (visit.status === "waiting" || visit.status === "in_queue")) ||
+          visit.room_queue?.status === "called"
         );
       
       // Can view detail:

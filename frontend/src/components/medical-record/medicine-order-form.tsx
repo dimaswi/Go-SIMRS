@@ -36,6 +36,7 @@ import {
   Printer,
   ChevronDown,
   ChevronRight,
+  AlertTriangle,
 } from "lucide-react";
 import {
   Collapsible,
@@ -49,6 +50,7 @@ interface MedicineOrderFormProps {
   visitId: number;
   registrationId: number;
   sourceRoomId: number;
+  readOnly?: boolean;
 }
 
 interface OrderItem {
@@ -238,7 +240,7 @@ function OrderCollapsible({ order }: { order: MedicineOrder }) {
   );
 }
 
-export function MedicineOrderForm({ visitId }: MedicineOrderFormProps) {
+export function MedicineOrderForm({ visitId, readOnly = false }: MedicineOrderFormProps) {
   const { toast } = useToast();
   const { hasPermission } = usePermission();
   const [loading, setLoading] = useState(true);
@@ -471,6 +473,18 @@ export function MedicineOrderForm({ visitId }: MedicineOrderFormProps) {
         </Card>
       )}
 
+      {/* Read-only notice */}
+      {readOnly && (
+        <Card className="border-amber-200 bg-amber-50 dark:bg-amber-950">
+          <CardContent className="flex items-center gap-2 p-3 text-amber-800 dark:text-amber-200">
+            <AlertTriangle className="h-4 w-4" />
+            <p className="text-sm">
+              Pasien sudah pulang. Semua form rekam medis dalam mode baca saja (read-only).
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       {/* New Order Form */}
       <Card>
         <CardHeader className="border-b bg-muted/30 py-3 px-4">
@@ -483,6 +497,7 @@ export function MedicineOrderForm({ visitId }: MedicineOrderFormProps) {
           </CardDescription>
         </CardHeader>
         <CardContent className="p-4 space-y-4">
+          <fieldset disabled={readOnly}>
           {/* Pharmacy Room Selection */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -534,7 +549,7 @@ export function MedicineOrderForm({ visitId }: MedicineOrderFormProps) {
               <Label className="text-base font-medium">Daftar Obat</Label>
               <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
                 <DialogTrigger asChild>
-                  <Button size="sm" disabled={!selectedPharmacyRoom || loadingMedicines}>
+                  <Button size="sm" disabled={!selectedPharmacyRoom || loadingMedicines || readOnly}>
                     <Plus className="h-4 w-4 mr-1" />
                     Tambah Obat
                   </Button>
@@ -771,7 +786,7 @@ export function MedicineOrderForm({ visitId }: MedicineOrderFormProps) {
           <div className="flex justify-end pt-4">
             <Button
               size="lg"
-              disabled={submitting || orderItems.length === 0 || !hasPermission('medicine_orders.create')}
+              disabled={submitting || orderItems.length === 0 || !hasPermission('medicine_orders.create') || readOnly}
               onClick={handleSubmitOrder}
             >
               {submitting ? (
@@ -787,6 +802,7 @@ export function MedicineOrderForm({ visitId }: MedicineOrderFormProps) {
               )}
             </Button>
           </div>
+          </fieldset>
         </CardContent>
       </Card>
     </div>

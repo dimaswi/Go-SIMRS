@@ -14,6 +14,7 @@ export default function RoomQueueDisplay() {
   const [room, setRoom] = useState<{ id: number; name: string } | null>(null);
   const [currentQueue, setCurrentQueue] = useState<RoomQueue | null>(null);
   const [lastCalledTime, setLastCalledTime] = useState<string | null>(null);
+  const [lastAnnouncedQueueId, setLastAnnouncedQueueId] = useState<number | null>(null);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   const loadQueues = useCallback(async () => {
@@ -50,9 +51,12 @@ export default function RoomQueueDisplay() {
       
       if (latest && latest.status === 'called' && latest.called_at) {
         const newCalledTime = latest.called_at;
-        if (lastCalledTime !== newCalledTime) {
+        // Track by both queue ID and called_at to prevent re-announcements
+        const isNewCall = latest.id !== lastAnnouncedQueueId || lastCalledTime !== newCalledTime;
+        if (isNewCall) {
           console.log('New call detected:', latest.queue_number, 'at', newCalledTime);
           setLastCalledTime(newCalledTime);
+          setLastAnnouncedQueueId(latest.id);
           setCurrentQueue(latest);
           
           // Only play sound if not initial load
@@ -75,7 +79,7 @@ export default function RoomQueueDisplay() {
     } catch (error) {
       console.error('Failed to load queues:', error);
     }
-  }, [roomId, lastCalledTime]);
+  }, [roomId, lastCalledTime, lastAnnouncedQueueId]);
 
   const loadAllQueues = useCallback(async () => {
     try {

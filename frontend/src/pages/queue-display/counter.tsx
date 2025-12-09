@@ -14,6 +14,7 @@ export default function CounterQueueDisplay() {
   const [counter, setCounter] = useState<Counter | null>(null);
   const [currentQueue, setCurrentQueue] = useState<Queue | null>(null);
   const [lastCalledTime, setLastCalledTime] = useState<string | null>(null);
+  const [lastAnnouncedQueueId, setLastAnnouncedQueueId] = useState<number | null>(null);
   const [hospitalName, setHospitalName] = useState("RUMAH SAKIT");
   const [isInitialLoad, setIsInitialLoad] = useState(true);
 
@@ -51,9 +52,12 @@ export default function CounterQueueDisplay() {
       
       if (latest && latest.status === "called" && latest.called_at) {
         const newCalledTime = latest.called_at;
-        if (lastCalledTime !== newCalledTime) {
+        // Track by both queue ID and called_at to prevent re-announcements
+        const isNewCall = latest.id !== lastAnnouncedQueueId || lastCalledTime !== newCalledTime;
+        if (isNewCall) {
           console.log("New call detected:", latest.queue_number, "at", newCalledTime);
           setLastCalledTime(newCalledTime);
+          setLastAnnouncedQueueId(latest.id);
           setCurrentQueue(latest);
           
           // Only play sound if not initial load
@@ -78,7 +82,7 @@ export default function CounterQueueDisplay() {
     } catch (error) {
       console.error("Failed to load queues:", error);
     }
-  }, [counterId, lastCalledTime]);
+  }, [counterId, lastCalledTime, lastAnnouncedQueueId]);
 
   const loadAllQueues = useCallback(async () => {
     try {

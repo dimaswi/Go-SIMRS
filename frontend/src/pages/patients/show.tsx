@@ -20,6 +20,8 @@ import {
   Users,
   Shield,
   Heart,
+  CheckCircle,
+  XCircle,
 } from 'lucide-react';
 import { format, parseISO, differenceInYears } from 'date-fns';
 import { id } from 'date-fns/locale';
@@ -33,6 +35,8 @@ export default function PatientShow() {
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [finalizing, setFinalizing] = useState(false);
+  const [unfinalizing, setUnfinalizing] = useState(false);
 
   useEffect(() => {
     setPageTitle('Detail Pasien');
@@ -57,6 +61,50 @@ export default function PatientShow() {
 
   const handleDelete = async () => {
     setDeleteDialogOpen(true);
+  };
+
+  const handleFinalize = async () => {
+    if (!patientId) return;
+    setFinalizing(true);
+    try {
+      await patientsApi.finalize(Number(patientId));
+      toast({
+        variant: "success",
+        title: "Berhasil!",
+        description: "Data pasien berhasil difinalisasi.",
+      });
+      loadPatient();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error!",
+        description: error.response?.data?.error || "Gagal memfinalisasi data pasien.",
+      });
+    } finally {
+      setFinalizing(false);
+    }
+  };
+
+  const handleUnfinalize = async () => {
+    if (!patientId) return;
+    setUnfinalizing(true);
+    try {
+      await patientsApi.unfinalize(Number(patientId));
+      toast({
+        variant: "success",
+        title: "Berhasil!",
+        description: "Finalisasi data pasien berhasil dibuka.",
+      });
+      loadPatient();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error!",
+        description: error.response?.data?.error || "Gagal membuka finalisasi data pasien.",
+      });
+    } finally {
+      setUnfinalizing(false);
+    }
   };
 
   const confirmDelete = async () => {
@@ -178,9 +226,52 @@ export default function PatientShow() {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              {patient.is_final ? (
+                <Badge variant="default" className="bg-green-600">
+                  <CheckCircle className="mr-1 h-3 w-3" />
+                  Final
+                </Badge>
+              ) : (
+                <Badge variant="secondary">
+                  <XCircle className="mr-1 h-3 w-3" />
+                  Belum Final
+                </Badge>
+              )}
               <Badge variant={getStatusVariant(patient.status)}>
                 {patient.status}
               </Badge>
+              {/* Tombol Finalisasi */}
+              {!patient.is_final && hasPermission('patients.finalize') && (
+                <Button 
+                  variant="default"
+                  size="sm"
+                  onClick={handleFinalize}
+                  disabled={finalizing}
+                >
+                  {finalizing ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <CheckCircle className="mr-2 h-4 w-4" />
+                  )}
+                  Finalisasi
+                </Button>
+              )}
+              {/* Tombol Buka Finalisasi */}
+              {patient.is_final && hasPermission('patients.finalize') && (
+                <Button 
+                  variant="outline"
+                  size="sm"
+                  onClick={handleUnfinalize}
+                  disabled={unfinalizing}
+                >
+                  {unfinalizing ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <XCircle className="mr-2 h-4 w-4" />
+                  )}
+                  Buka Finalisasi
+                </Button>
+              )}
               {hasPermission('patients.update') && (
                 <Button 
                   variant="outline"

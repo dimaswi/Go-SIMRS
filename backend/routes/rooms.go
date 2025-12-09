@@ -8,6 +8,9 @@ import (
 )
 
 func setupRoomRoutes(rg *gin.RouterGroup) {
+	// My assigned rooms (must be before :id route)
+	rg.GET("/rooms/my-assigned", middleware.AuthMiddleware(), handlers.GetMyAssignedRooms)
+
 	// Rooms (Ruangan/Bangsal)
 	rg.GET("/rooms", middleware.RequirePermission("rooms.view"), handlers.GetRooms)
 	rg.GET("/rooms/:id", middleware.RequirePermission("rooms.view"), handlers.GetRoom)
@@ -63,6 +66,13 @@ func setupRoomRoutes(rg *gin.RouterGroup) {
 	rg.POST("/rooms/:id/procedures/bulk", middleware.RequirePermission("rooms.update"), handlers.BulkAssignProcedures)
 	rg.PUT("/rooms/:id/procedures/:rpId", middleware.RequirePermission("rooms.update"), handlers.UpdateRoomProcedure)
 	rg.DELETE("/rooms/:id/procedures/:rpId", middleware.RequirePermission("rooms.update"), handlers.DeleteRoomProcedure)
+
+	// Room Tariffs (Tarif per Kelas Pasien untuk Rawat Inap)
+	rg.GET("/rooms/:id/tariffs", middleware.RequirePermission("rooms.view"), handlers.GetRoomTariffs)
+	rg.POST("/rooms/:id/tariffs", middleware.RequirePermission("rooms.update"), handlers.CreateRoomTariff)
+	rg.POST("/rooms/:id/tariffs/bulk", middleware.RequirePermission("rooms.update"), handlers.BulkUpdateRoomTariffs)
+	rg.PUT("/rooms/:id/tariffs/:tariffId", middleware.RequirePermission("rooms.update"), handlers.UpdateRoomTariff)
+	rg.DELETE("/rooms/:id/tariffs/:tariffId", middleware.RequirePermission("rooms.update"), handlers.DeleteRoomTariff)
 
 	// Room Inventories (Inventaris yang di-assign ke ruangan)
 	rg.GET("/rooms/:id/inventories", middleware.RequirePermission("inventories.view"), handlers.GetRoomInventories)

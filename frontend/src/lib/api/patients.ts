@@ -101,6 +101,12 @@ export interface Patient {
   tanggal_registrasi?: string;
   tanggal_kunjungan_terakhir?: string;
   catatan_khusus?: string;
+  
+  // Finalization
+  is_final?: boolean;
+  finalized_at?: string;
+  finalized_by?: number;
+  
   created_by?: number;
   updated_by?: number;
   
@@ -278,6 +284,18 @@ export const patientsApi = {
   // Get patient statistics
   getStats: async () => {
     const response = await api.get('/patients/stats');
+    return response.data;
+  },
+
+  // Finalize patient data
+  finalize: async (id: number) => {
+    const response = await api.post(`/patients/${id}/finalize`);
+    return response.data;
+  },
+
+  // Unfinalize patient data
+  unfinalize: async (id: number) => {
+    const response = await api.post(`/patients/${id}/unfinalize`);
     return response.data;
   },
 

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { usePermission } from "@/hooks/usePermission";
 import { setPageTitle } from "@/lib/page-title";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2, AlertTriangle } from "lucide-react";
 import { visitsApi, medicalRecordsApi } from "@/lib/api";
 import { PatientInfo } from "@/components/medical-record/patient-info";
 import { MedicalRecordTabs } from "@/components/medical-record/medical-record-tabs";
@@ -18,6 +18,7 @@ import { DispositionForm } from "@/components/medical-record/disposition-form";
 import { MedicineOrderForm } from "@/components/medical-record/medicine-order-form";
 import { RadiologyOrderForm } from "@/components/medical-record/radiology-order-form";
 import { LaboratoryOrderForm } from "@/components/medical-record/laboratory-order-form";
+import { ConsultationOrderForm } from "@/components/medical-record/consultation-order-form";
 import { RadiologyWorkstation } from "@/components/medical-record/radiology-workstation";
 import { LaboratoryWorkstation } from "@/components/medical-record/laboratory-workstation";
 import { PharmacyReview } from "@/components/medical-record/pharmacy-review";
@@ -26,6 +27,8 @@ import { PharmacyReturn } from "@/components/medical-record/pharmacy-return";
 import { ProcedureForm } from "@/components/medical-record/procedure-form";
 import { CPPTForm } from "@/components/medical-record/cppt-form";
 import { FluidBalanceForm } from "@/components/medical-record/fluid-balance-form";
+import { FinalVisit } from "@/components/medical-record/final-visit";
+import { ConsultationForm } from "@/components/medical-record/consultation-form";
 
 export default function VisitShow() {
   const { id } = useParams<{ id: string }>();
@@ -41,8 +44,10 @@ export default function VisitShow() {
   const [isPharmacy, setIsPharmacy] = useState(false);
   const [isRadiology, setIsRadiology] = useState(false);
   const [isLaboratory, setIsLaboratory] = useState(false);
+  const [isConsultation, setIsConsultation] = useState(false);
   const [showProcedureTab, setShowProcedureTab] = useState(false);
   const [isInpatient, setIsInpatient] = useState(false);
+  const [isPatientDischarged, setIsPatientDischarged] = useState(false);
 
   // Refresh tab content when switching tabs
   const handleTabChange = (tab: string) => {
@@ -57,8 +62,10 @@ export default function VisitShow() {
     }
   }, [id]);
 
-  const loadVisit = async () => {
-    setLoading(true);
+  const loadVisit = async (silent = false) => {
+    if (!silent) {
+      setLoading(true);
+    }
     try {
       const response = await visitsApi.getById(Number(id));
       const visitData = response.data;
@@ -80,6 +87,11 @@ export default function VisitShow() {
       const laboratory = visitData.visit_type === "lab";
       setIsLaboratory(laboratory);
 
+      // Check if consultation visit (ORDER konsultasi, bukan pendaftaran biasa)
+      // Visit order konsultasi memiliki referral_from (rujukan dari visit lain)
+      const consultation = visitData.visit_type === "consultation" && !!visitData.referral_from;
+      setIsConsultation(consultation);
+
       // Show procedure tab for clinical visits (rawat_jalan, rawat_inap, gawat_darurat)
       const allowedServiceTypes = ["rawat_jalan", "rawat_inap", "gawat_darurat"];
       const shouldShowProcedureTab = allowedServiceTypes.includes(visitData.room?.service_type);
@@ -89,44 +101,55 @@ export default function VisitShow() {
       const inpatient = visitData.room?.service_type === "rawat_inap";
       setIsInpatient(inpatient);
 
-      // Set default active tab based on visit type and permissions
-      if (pharmacy) {
-        // Pharmacy visit tabs
-        if (hasPermission("pharmacy.review")) {
-          setActiveTab("prescription-review");
-        } else if (hasPermission("pharmacy.dispense")) {
-          setActiveTab("medicine-dispense");
-        } else if (hasPermission("pharmacy.return")) {
-          setActiveTab("medicine-return");
+      // Check if patient is discharged (disposition saved)
+      const discharged = visitData.registration?.status === "completed" || 
+                        visitData.registration?.status === "discharged" ||
+                        visitData.status === "completed";
+      setIsPatientDischarged(discharged);
+
+      // Set default active tab based on visit type and permissions (only on first load)
+      if (!activeTab) {
+        if (pharmacy) {
+          // Pharmacy visit tabs - langsung ke penyerahan obat
+          if (hasPermission("pharmacy.dispense")) {
+            setActiveTab("medicine-dispense");
+          } else if (hasPermission("pharmacy.review")) {
+            setActiveTab("prescription-review");
+          } else if (hasPermission("pharmacy.return")) {
+            setActiveTab("medicine-return");
+          } else {
+            setActiveTab("medicine-dispense");
+          }
+        } else if (radiology) {
+          // Radiology visit tabs - langsung ke pengerjaan
+          if (hasPermission("procedure_orders.perform")) {
+            setActiveTab("radiology-workstation");
+          }
+        } else if (laboratory) {
+          // Laboratory visit tabs - langsung ke pengerjaan
+          if (hasPermission("procedure_orders.perform")) {
+            setActiveTab("laboratory-workstation");
+          }
+        } else if (consultation) {
+          // Consultation visit tabs - langsung ke form konsultasi
+          setActiveTab("consultation");
         } else {
-          setActiveTab("prescription-review");
-        }
-      } else if (radiology) {
-        // Radiology visit tabs
-        if (hasPermission("procedure_orders.perform")) {
-          setActiveTab("radiology-workstation");
-        }
-      } else if (laboratory) {
-        // Laboratory visit tabs
-        if (hasPermission("procedure_orders.perform")) {
-          setActiveTab("laboratory-workstation");
-        }
-      } else {
-        // Clinical visit tabs
-        if (emergency && hasPermission("medical_records.triage")) {
-          setActiveTab("triage");
-        } else if (hasPermission("medical_records.anamnesis")) {
-          setActiveTab("anamnesis");
-        } else if (hasPermission("medical_records.physical_exam")) {
-          setActiveTab("physical-exam");
-        } else if (hasPermission("medical_records.diagnosis")) {
-          setActiveTab("diagnosis");
-        } else if (hasPermission("medical_records.assessment_plan")) {
-          setActiveTab("assessment-plan");
-        } else if (hasPermission("medical_records.disposition")) {
-          setActiveTab("disposition");
-        } else {
-          setActiveTab("anamnesis"); // fallback
+          // Clinical visit tabs
+          if (emergency && hasPermission("medical_records.triage")) {
+            setActiveTab("triage");
+          } else if (hasPermission("medical_records.anamnesis")) {
+            setActiveTab("anamnesis");
+          } else if (hasPermission("medical_records.physical_exam")) {
+            setActiveTab("physical-exam");
+          } else if (hasPermission("medical_records.diagnosis")) {
+            setActiveTab("diagnosis");
+          } else if (hasPermission("medical_records.assessment_plan")) {
+            setActiveTab("assessment-plan");
+          } else if (hasPermission("medical_records.disposition")) {
+            setActiveTab("disposition");
+          } else {
+            setActiveTab("anamnesis"); // fallback
+          }
         }
       }
     } catch (error: any) {
@@ -137,8 +160,15 @@ export default function VisitShow() {
       });
       navigate("/visits");
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
+  };
+
+  // Callback to refresh visit data after status-changing operations
+  const handleVisitUpdate = () => {
+    loadVisit(true); // Silent reload to update visit data without showing loading state
   };
 
   const handleSaveTriage = async (data: any) => {
@@ -219,7 +249,7 @@ export default function VisitShow() {
             </Card>
           );
         }
-        return <TriageForm visitId={visit.id} onSave={handleSaveTriage} />;
+        return <TriageForm visitId={visit.id} onSave={handleSaveTriage} readOnly={isPatientDischarged} />;
       case "anamnesis":
         if (!hasPermission("medical_records.anamnesis")) {
           return (
@@ -230,7 +260,7 @@ export default function VisitShow() {
             </Card>
           );
         }
-        return <AnamnesisForm visitId={visit.id} onSave={handleSaveAnamnesis} />;
+        return <AnamnesisForm visitId={visit.id} onSave={handleSaveAnamnesis} readOnly={isPatientDischarged} />;
       case "physical-exam":
         if (!hasPermission("medical_records.physical_exam")) {
           return (
@@ -246,6 +276,7 @@ export default function VisitShow() {
             visitId={visit.id}
             onSave={handleSavePhysicalExam}
             isEmergency={isEmergency}
+            readOnly={isPatientDischarged}
           />
         );
       case "diagnosis":
@@ -258,7 +289,7 @@ export default function VisitShow() {
             </Card>
           );
         }
-        return <DiagnosisForm visitId={visit.id} onSave={handleSaveDiagnosis} />;
+        return <DiagnosisForm visitId={visit.id} onSave={handleSaveDiagnosis} readOnly={isPatientDischarged} />;
       case "assessment-plan":
         if (!hasPermission("medical_records.assessment_plan")) {
           return (
@@ -269,7 +300,7 @@ export default function VisitShow() {
             </Card>
           );
         }
-        return <AssessmentPlanForm visitId={visit.id} />;
+        return <AssessmentPlanForm visitId={visit.id} readOnly={isPatientDischarged} />;
       case "procedure":
         if (!hasPermission("medical_records.procedure")) {
           return (
@@ -280,7 +311,7 @@ export default function VisitShow() {
             </Card>
           );
         }
-        return <ProcedureForm key={`procedure-${visit.id}-${tabRefreshKey}`} visitId={visit.id} />;
+        return <ProcedureForm key={`procedure-${visit.id}-${tabRefreshKey}`} visitId={visit.id} readOnly={isPatientDischarged} />;
       case "cppt":
         if (!hasPermission("medical_records.cppt")) {
           return (
@@ -291,7 +322,7 @@ export default function VisitShow() {
             </Card>
           );
         }
-        return <CPPTForm key={`cppt-${visit.id}-${tabRefreshKey}`} visitId={visit.id} />;
+        return <CPPTForm key={`cppt-${visit.id}-${tabRefreshKey}`} visitId={visit.id} readOnly={isPatientDischarged} />;
       case "fluid-balance":
         if (!hasPermission("medical_records.fluid_balance")) {
           return (
@@ -302,7 +333,7 @@ export default function VisitShow() {
             </Card>
           );
         }
-        return <FluidBalanceForm key={`fluid-balance-${visit.id}-${tabRefreshKey}`} visitId={visit.id} />;
+        return <FluidBalanceForm key={`fluid-balance-${visit.id}-${tabRefreshKey}`} visitId={visit.id} readOnly={isPatientDischarged} />;
       case "medicine-order":
         if (!hasPermission("medical_records.medicine_order")) {
           return (
@@ -318,6 +349,7 @@ export default function VisitShow() {
             visitId={visit.id}
             registrationId={visit.registration_id}
             sourceRoomId={visit.room_id}
+            readOnly={isPatientDischarged}
           />
         );
       case "radiology-order":
@@ -335,6 +367,7 @@ export default function VisitShow() {
             visitId={visit.id}
             registrationId={visit.registration_id}
             sourceRoomId={visit.room_id}
+            readOnly={isPatientDischarged}
           />
         );
       case "laboratory-order":
@@ -352,8 +385,53 @@ export default function VisitShow() {
             visitId={visit.id}
             registrationId={visit.registration_id}
             sourceRoomId={visit.room_id}
+            readOnly={isPatientDischarged}
           />
         );
+      case "consultation-order":
+        if (!hasPermission("medical_records.consultation_order")) {
+          return (
+            <Card className="p-6">
+              <p className="text-center text-muted-foreground">
+                Anda tidak memiliki akses untuk Order Konsultasi
+              </p>
+            </Card>
+          );
+        }
+        return (
+          <ConsultationOrderForm
+            visitId={visit.id}
+            registrationId={visit.registration_id}
+            sourceRoomId={visit.room_id}
+            readOnly={isPatientDischarged}
+          />
+        );
+      
+      // Consultation tab - form jawaban konsultasi
+      case "consultation":
+        if (!hasPermission("medical_records.cppt")) {
+          return (
+            <Card className="p-6">
+              <p className="text-center text-muted-foreground">
+                Anda tidak memiliki akses untuk Form Konsultasi
+              </p>
+            </Card>
+          );
+        }
+        return <ConsultationForm key={`consultation-${visit.id}-${tabRefreshKey}`} visitId={visit.id} readOnly={isPatientDischarged} />;
+
+      case "consultation-final":
+        if (!hasPermission("procedure_orders.final")) {
+          return (
+            <Card className="p-6">
+              <p className="text-center text-muted-foreground">
+                Anda tidak memiliki akses untuk Final Kunjungan Konsultasi
+              </p>
+            </Card>
+          );
+        }
+        return <FinalVisit key={`consultation-final-${visit.id}-${tabRefreshKey}`} visitId={visit.id} type="consultation" onVisitUpdate={handleVisitUpdate} />;
+
       case "disposition":
         if (!hasPermission("medical_records.disposition")) {
           return (
@@ -364,7 +442,7 @@ export default function VisitShow() {
             </Card>
           );
         }
-        return <DispositionForm visitId={visit.id} isEmergency={isEmergency} />;
+        return <DispositionForm visitId={visit.id} isEmergency={isEmergency} readOnly={isPatientDischarged} onSave={handleVisitUpdate} />;
       
       // Pharmacy tabs
       case "prescription-review":
@@ -377,7 +455,7 @@ export default function VisitShow() {
             </Card>
           );
         }
-        return <PharmacyReview key={`review-${visit.id}-${tabRefreshKey}`} visitId={visit.id} />;
+        return <PharmacyReview key={`review-${visit.id}-${tabRefreshKey}`} visitId={visit.id} readOnly={visit.status === "completed"} />;
       case "medicine-dispense":
         if (!hasPermission("pharmacy.dispense")) {
           return (
@@ -388,7 +466,7 @@ export default function VisitShow() {
             </Card>
           );
         }
-        return <PharmacyDispense key={`dispense-${visit.id}-${tabRefreshKey}`} visitId={visit.id} />;
+        return <PharmacyDispense key={`dispense-${visit.id}-${tabRefreshKey}`} visitId={visit.id} readOnly={visit.status === "completed"} />;
       case "medicine-return":
         if (!hasPermission("pharmacy.return")) {
           return (
@@ -399,7 +477,19 @@ export default function VisitShow() {
             </Card>
           );
         }
-        return <PharmacyReturn key={`return-${visit.id}-${tabRefreshKey}`} visitId={visit.id} />;
+        return <PharmacyReturn key={`return-${visit.id}-${tabRefreshKey}`} visitId={visit.id} readOnly={visit.status === "completed"} />;
+      
+      case "pharmacy-final":
+        if (!hasPermission("pharmacy.final")) {
+          return (
+            <Card className="p-6">
+              <p className="text-center text-muted-foreground">
+                Anda tidak memiliki akses untuk Final Kunjungan Farmasi
+              </p>
+            </Card>
+          );
+        }
+        return <FinalVisit key={`pharmacy-final-${visit.id}-${tabRefreshKey}`} visitId={visit.id} type="pharmacy" onVisitUpdate={handleVisitUpdate} />;
       
       // Radiology workstation tab
       case "radiology-workstation":
@@ -412,7 +502,19 @@ export default function VisitShow() {
             </Card>
           );
         }
-        return <RadiologyWorkstation key={`radiology-ws-${visit.id}-${tabRefreshKey}`} visitId={visit.id} />;
+        return <RadiologyWorkstation key={`radiology-ws-${visit.id}-${tabRefreshKey}`} visitId={visit.id} readOnly={visit.status === "completed"} />;
+      
+      case "radiology-final":
+        if (!hasPermission("procedure_orders.final")) {
+          return (
+            <Card className="p-6">
+              <p className="text-center text-muted-foreground">
+                Anda tidak memiliki akses untuk Final Kunjungan Radiologi
+              </p>
+            </Card>
+          );
+        }
+        return <FinalVisit key={`radiology-final-${visit.id}-${tabRefreshKey}`} visitId={visit.id} type="radiology" onVisitUpdate={handleVisitUpdate} />;
       
       // Laboratory workstation tab
       case "laboratory-workstation":
@@ -425,7 +527,19 @@ export default function VisitShow() {
             </Card>
           );
         }
-        return <LaboratoryWorkstation key={`laboratory-ws-${visit.id}-${tabRefreshKey}`} visitId={visit.id} />;
+        return <LaboratoryWorkstation key={`laboratory-ws-${visit.id}-${tabRefreshKey}`} visitId={visit.id} readOnly={visit.status === "completed"} />;
+
+      case "laboratory-final":
+        if (!hasPermission("procedure_orders.final")) {
+          return (
+            <Card className="p-6">
+              <p className="text-center text-muted-foreground">
+                Anda tidak memiliki akses untuk Final Kunjungan Laboratorium
+              </p>
+            </Card>
+          );
+        }
+        return <FinalVisit key={`laboratory-final-${visit.id}-${tabRefreshKey}`} visitId={visit.id} type="laboratory" onVisitUpdate={handleVisitUpdate} />;
 
       default:
         return null;
@@ -462,6 +576,16 @@ export default function VisitShow() {
       {/* Patient Info Header */}
       <PatientInfo visit={visit} />
 
+      {/* Patient Discharged Banner */}
+      {isPatientDischarged && (
+        <div className="bg-amber-100 dark:bg-amber-900 border border-amber-200 dark:border-amber-700 rounded-lg p-3 flex items-center gap-2">
+          <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+          <span className="text-amber-800 dark:text-amber-200 text-sm font-medium">
+            Pasien sudah pulang. Semua form rekam medis dalam mode baca saja (read-only).
+          </span>
+        </div>
+      )}
+
       {/* Main Content Area with Tabs and Form */}
       <div className="grid grid-cols-1 lg:grid-cols-[200px_1fr] gap-4">
         {/* Left Sidebar: Tabs Navigation */}
@@ -478,6 +602,7 @@ export default function VisitShow() {
                 isPharmacy={isPharmacy}
                 isRadiology={isRadiology}
                 isLaboratory={isLaboratory}
+                isConsultation={isConsultation}
                 showProcedureTab={showProcedureTab}
                 isInpatient={isInpatient}
               />

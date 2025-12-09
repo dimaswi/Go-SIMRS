@@ -119,6 +119,7 @@ export default function RolesPage() {
               data={roles}
               searchPlaceholder="Search roles by name or description..."
               pageSize={10}
+              tableId="roles"
             />
           </CardContent>
         </Card>

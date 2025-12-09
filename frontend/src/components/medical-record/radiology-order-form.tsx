@@ -40,6 +40,7 @@ interface RadiologyOrderFormProps {
   visitId: number;
   registrationId?: number;
   sourceRoomId?: number;
+  readOnly?: boolean;
 }
 
 interface OrderItem {
@@ -215,6 +216,28 @@ function OrderCollapsible({ order, onCancel, canCancel }: { order: ProcedureOrde
                   <CheckCircle2 className="h-4 w-4" />
                   Hasil Pemeriksaan
                 </p>
+                
+                {/* Detail Results per Item */}
+                {order.items?.map((item) => (
+                  <div key={item.id} className="mb-3 pb-3 border-b last:border-0">
+                    <h5 className="font-semibold text-sm mb-2">{item.procedure?.name}</h5>
+                    {item.results && item.results.length > 0 ? (
+                      <div className="space-y-1">
+                        {item.results.map((result) => (
+                          <div key={result.id} className="grid grid-cols-[120px_1fr] gap-2">
+                            <span className="text-xs font-medium text-muted-foreground">
+                              {result.procedure_parameter?.name}:
+                            </span>
+                            <span className="text-xs whitespace-pre-wrap">{result.value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground italic">Tidak ada hasil parameter</p>
+                    )}
+                  </div>
+                ))}
+                
                 {order.result_summary && (
                   <div>
                     <span className="text-xs font-medium">Hasil:</span>
@@ -251,7 +274,7 @@ function OrderCollapsible({ order, onCancel, canCancel }: { order: ProcedureOrde
   );
 }
 
-export function RadiologyOrderForm({ visitId }: RadiologyOrderFormProps) {
+export function RadiologyOrderForm({ visitId, readOnly = false }: RadiologyOrderFormProps) {
   const { toast } = useToast();
   const { hasPermission } = usePermission();
   const [loading, setLoading] = useState(true);
@@ -449,6 +472,18 @@ export function RadiologyOrderForm({ visitId }: RadiologyOrderFormProps) {
         </Card>
       )}
 
+      {/* Read-only notice */}
+      {readOnly && (
+        <Card className="border-amber-200 bg-amber-50 dark:bg-amber-950">
+          <CardContent className="flex items-center gap-2 p-3 text-amber-800 dark:text-amber-200">
+            <AlertCircle className="h-4 w-4" />
+            <p className="text-sm">
+              Pasien sudah pulang. Semua form rekam medis dalam mode baca saja (read-only).
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       {/* New Order Form */}
       {canOrder && (
         <Card>
@@ -462,7 +497,7 @@ export function RadiologyOrderForm({ visitId }: RadiologyOrderFormProps) {
             </CardDescription>
           </CardHeader>
           <CardContent className="p-4 space-y-4">
-            {/* Room & Priority Selection */}
+            <fieldset disabled={readOnly}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Unit Radiologi Tujuan</Label>
@@ -541,12 +576,12 @@ export function RadiologyOrderForm({ visitId }: RadiologyOrderFormProps) {
                       return (
                         <div
                           key={proc.id}
-                          className={`p-3 flex items-center gap-3 cursor-pointer hover:bg-muted/50 ${
+                          className={`p-3 flex items-center gap-3 ${!readOnly ? 'cursor-pointer hover:bg-muted/50' : 'opacity-60'} ${
                             isSelected ? "bg-primary/5 border-l-2 border-l-primary" : ""
                           }`}
-                          onClick={() => handleToggleProcedure(proc)}
+                          onClick={() => !readOnly && handleToggleProcedure(proc)}
                         >
-                          <Checkbox checked={isSelected} />
+                          <Checkbox checked={isSelected} disabled={readOnly} />
                           <div className="flex-1">
                             <p className="font-medium text-sm">{proc.name}</p>
                             <p className="text-xs text-muted-foreground">
@@ -591,7 +626,7 @@ export function RadiologyOrderForm({ visitId }: RadiologyOrderFormProps) {
             <div className="flex justify-end pt-4">
               <Button
                 size="lg"
-                disabled={submitting || orderItems.length === 0}
+                disabled={submitting || orderItems.length === 0 || readOnly}
                 onClick={handleSubmitOrder}
               >
                 {submitting ? (
@@ -607,6 +642,7 @@ export function RadiologyOrderForm({ visitId }: RadiologyOrderFormProps) {
                 )}
               </Button>
             </div>
+            </fieldset>
           </CardContent>
         </Card>
       )}

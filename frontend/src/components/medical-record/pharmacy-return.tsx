@@ -37,6 +37,7 @@ import type { MedicineOrder, MedicineOrderItem, MedicineReturn } from "@/lib/api
 
 interface PharmacyReturnProps {
   visitId: number;
+  readOnly?: boolean;
 }
 
 const ORDER_STATUS_LABELS: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
@@ -50,7 +51,7 @@ const ORDER_STATUS_LABELS: Record<string, { label: string; variant: "default" | 
   returned: { label: "Ada Return", variant: "outline" },
 };
 
-export function PharmacyReturn({ visitId }: PharmacyReturnProps) {
+export function PharmacyReturn({ visitId, readOnly = false }: PharmacyReturnProps) {
   const { toast } = useToast();
   const { hasPermission } = usePermission();
   const canReturn = hasPermission("pharmacy.return");
@@ -387,7 +388,7 @@ export function PharmacyReturn({ visitId }: PharmacyReturnProps) {
                             variant="outline"
                             size="sm"
                             onClick={() => handleOpenReturnDialog(item)}
-                            disabled={returnableQty <= 0 || !canReturn}
+                            disabled={returnableQty <= 0 || !canReturn || readOnly}
                           >
                             <RotateCcw className="h-4 w-4 mr-1" />
                             Return
@@ -509,7 +510,7 @@ export function PharmacyReturn({ visitId }: PharmacyReturnProps) {
             <Button variant="outline" onClick={() => setShowReturnDialog(false)}>
               Batal
             </Button>
-            <Button onClick={handleSubmitReturn} disabled={submitting || !canReturn}>
+            <Button onClick={handleSubmitReturn} disabled={submitting || !canReturn || readOnly}>
               {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Simpan Pengembalian
             </Button>

@@ -11,6 +11,7 @@ import { QueueDisplayRoutes } from './routes/QueueDisplayRoutes';
 import { CounterRoutes } from './routes/CounterRoutes';
 import { RoomQueueRoutes } from './routes/RoomQueueRoutes';
 import VisitRoutes from './routes/VisitRoutes';
+import BillingRoutes from './routes/BillingRoutes';
 
 // Lazy load pages
 const LoginPage = lazy(() => import('./pages/auth/login'));
@@ -187,6 +188,9 @@ function App() {
           
           {/* Visits */}
           <Route path="/visits/*" element={<ProtectedRoute><VisitRoutes /></ProtectedRoute>} />
+          
+          {/* Billing & Kasir */}
+          <Route path="/billing/*" element={<ProtectedRoute><BillingRoutes /></ProtectedRoute>} />
           
           {/* Room Stock */}
           {RoomStockRoutes(ProtectedRoute)}

@@ -48,9 +48,10 @@ import type { ProcedureOrder, ProcedureOrderItem, ProcedureParameter } from "@/l
 
 interface LaboratoryWorkstationProps {
   visitId: number;
+  readOnly?: boolean;
 }
 
-export function LaboratoryWorkstation({ visitId }: LaboratoryWorkstationProps) {
+export function LaboratoryWorkstation({ visitId, readOnly: _readOnly = false }: LaboratoryWorkstationProps) {
   const { toast } = useToast();
   const { hasPermission } = usePermission();
   const [loading, setLoading] = useState(true);

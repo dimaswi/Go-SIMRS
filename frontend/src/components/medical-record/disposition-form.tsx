@@ -19,6 +19,7 @@ interface DispositionFormProps {
   initialData?: Disposition;
   onSave?: (data: Disposition) => void;
   isEmergency?: boolean;
+  readOnly?: boolean;
 }
 
 // Description mapping for disposition options
@@ -42,7 +43,7 @@ interface PendingOrdersInfo {
   registration_type: string;
 }
 
-export function DispositionForm({ visitId, initialData, onSave, isEmergency: _isEmergency = false }: DispositionFormProps) {
+export function DispositionForm({ visitId, initialData, onSave, isEmergency: _isEmergency = false, readOnly = false }: DispositionFormProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -362,6 +363,7 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
         )}
         
         <form onSubmit={handleSubmit} className="space-y-6">
+          <fieldset disabled={readOnly}>
           {/* Disposition Type */}
           <div className="space-y-3">
             <Label className="text-sm font-semibold">
@@ -817,6 +819,7 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
               </Button>
             )}
           </div>
+          </fieldset>
         </form>
       </CardContent>
     </Card>

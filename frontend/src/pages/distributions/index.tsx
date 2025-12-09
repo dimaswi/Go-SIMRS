@@ -109,6 +109,7 @@ export default function DistributionsIndex() {
               data={distributions}
               searchPlaceholder="Cari nomor distribusi..."
               pageSize={10}
+              tableId="distributions"
             />
           </CardContent>
         </Card>

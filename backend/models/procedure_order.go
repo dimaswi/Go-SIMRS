@@ -16,8 +16,9 @@ const (
 
 // Procedure Order Type Constants
 const (
-	ProcedureOrderTypeRadiology  = "radiology"  // Order Radiologi
-	ProcedureOrderTypeLaboratory = "laboratory" // Order Laboratorium
+	ProcedureOrderTypeRadiology    = "radiology"    // Order Radiologi
+	ProcedureOrderTypeLaboratory   = "laboratory"   // Order Laboratorium
+	ProcedureOrderTypeConsultation = "consultation" // Order Konsultasi
 )
 
 // ProcedureOrder represents an order for radiology or laboratory procedure
@@ -88,7 +89,8 @@ type ProcedureOrder struct {
 	AttachmentURLs string `gorm:"type:text" json:"attachment_urls"` // JSON array of URLs
 
 	// Relations
-	Items []ProcedureOrderItem `gorm:"foreignKey:ProcedureOrderID" json:"items,omitempty"`
+	Items        []ProcedureOrderItem `gorm:"foreignKey:ProcedureOrderID" json:"items,omitempty"`
+	Consultation *Consultation        `gorm:"foreignKey:ProcedureOrderID" json:"consultation,omitempty"` // For consultation orders
 }
 
 // TableName sets the table name for ProcedureOrder

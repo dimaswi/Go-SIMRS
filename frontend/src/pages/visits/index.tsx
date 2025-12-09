@@ -35,7 +35,6 @@ import { usePermission } from "@/hooks/usePermission";
 import { setPageTitle } from "@/lib/page-title";
 import { 
   Loader2,
-  Users,
   Activity,
   RefreshCcw,
   Check,
@@ -45,6 +44,7 @@ import {
 import { roomQueuesApi, roomsApi, visitsApi } from "@/lib/api";
 import type { Room } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useAuthStore } from "@/lib/store";
 
 interface Visit {
   id: number;
@@ -72,6 +72,7 @@ interface Visit {
     id: number;
     code: string;
     name: string;
+    service_type?: string;
   };
   doctor?: {
     id: number;
@@ -89,42 +90,82 @@ export default function VisitsIndex() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { hasPermission } = usePermission();
+  const { user } = useAuthStore();
+
+  // Load saved filters from localStorage
+  const getSavedFilter = (key: string, defaultValue: string) => {
+    try {
+      const saved = localStorage.getItem(`visits_filter_${key}`);
+      return saved !== null ? saved : defaultValue;
+    } catch {
+      return defaultValue;
+    }
+  };
 
   const [visits, setVisits] = useState<Visit[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
-  const [selectedRoom, setSelectedRoom] = useState<string>("");
-  const [selectedStatus, setSelectedStatus] = useState<string>("all");
+  const [selectedRoom, setSelectedRoom] = useState<string>(() => getSavedFilter('room', ''));
+  const [selectedStatus, setSelectedStatus] = useState<string>(() => getSavedFilter('status', 'active'));
   const [loading, setLoading] = useState(false);
   const [callingId, setCallingId] = useState<number | null>(null);
   const [recallingId, setRecallingId] = useState<number | null>(null);
   const [acceptingId, setAcceptingId] = useState<number | null>(null);
   const [roomPopoverOpen, setRoomPopoverOpen] = useState(false);
+  
+  // Check if user is admin
+  const isAdmin = user?.role?.name?.toLowerCase() === 'admin';
+
+  // Save filters to localStorage whenever they change
+  useEffect(() => {
+    try {
+      localStorage.setItem('visits_filter_room', selectedRoom);
+      localStorage.setItem('visits_filter_status', selectedStatus);
+    } catch (error) {
+      console.error('Failed to save filters:', error);
+    }
+  }, [selectedRoom, selectedStatus]);
 
   useEffect(() => {
     setPageTitle("Kunjungan");
     loadRooms();
-  }, []);
+  }, [isAdmin]);
 
   useEffect(() => {
-    if (selectedRoom) {
-      loadVisits();
-      // Auto refresh every 10 seconds
-      const interval = setInterval(loadVisits, 10000);
-      return () => clearInterval(interval);
-    }
+    // Load visits on mount and when filters change
+    loadVisits();
+    // Auto refresh every 10 seconds
+    const interval = setInterval(loadVisits, 10000);
+    return () => clearInterval(interval);
   }, [selectedRoom, selectedStatus]);
 
   const loadRooms = async () => {
     try {
-      const response = await roomsApi.getAll({ limit: 100 });
-      // Filter: rawat jalan, gawat darurat (UGD), penunjang medis, farmasi, dan rawat inap yang aktif (BUKAN depo)
-      const filteredRooms = (response.data.data || []).filter(
-        (room: Room) => 
-          room.is_active && 
-          room.service_type &&
-          ['rawat_jalan', 'gawat_darurat', 'penunjang_medis', 'farmasi', 'rawat_inap'].includes(room.service_type) &&
-          room.room_type !== 'depo_farmasi' // Exclude depo farmasi
+      console.log("Loading rooms, isAdmin:", isAdmin);
+      console.log("User role:", user?.role?.name);
+      
+      // Admin can see all rooms, regular users only see assigned rooms
+      const response = isAdmin 
+        ? await roomsApi.getAll({ limit: 1000 }) // Request all rooms for admin
+        : await roomsApi.getMyAssignedRooms();
+      
+      console.log("Raw response:", response.data.data);
+      
+      // Filter: hanya yang aktif dan bukan depo farmasi atau gudang
+      const allRooms = response.data.data || [];
+      console.log("Total rooms from API:", allRooms.length);
+      
+      const filteredRooms = allRooms.filter(
+        (room: Room) => {
+          const isActive = room.is_active === true;
+          const notDepo = room.room_type !== 'depo_farmasi';
+          const notGudang = room.room_type !== 'gudang_farmasi';
+          return isActive && notDepo && notGudang;
+        }
       );
+      
+      console.log("Filtered rooms:", filteredRooms.length);
+      console.log("Filtered rooms list:", filteredRooms.map(r => ({ code: r.code, name: r.name, type: r.room_type })));
+      
       setRooms(filteredRooms);
     } catch (error) {
       console.error("Failed to load rooms:", error);
@@ -132,21 +173,36 @@ export default function VisitsIndex() {
   };
 
   const loadVisits = useCallback(async () => {
-    if (!selectedRoom) return;
-
     setLoading(true);
     try {
       const params: any = {
-        room_id: selectedRoom,
         date: new Date().toISOString().split('T')[0],
       };
 
-      if (selectedStatus !== "all") {
+      // Only add room_id filter if a room is selected
+      if (selectedRoom) {
+        params.room_id = selectedRoom;
+      }
+
+      // Handle status filter
+      if (selectedStatus === "active") {
+        // Active means: waiting, in_queue, in_progress (not completed)
+        params.status = "waiting,in_queue,in_progress";
+      } else if (selectedStatus !== "all") {
         params.status = selectedStatus;
       }
 
       const response = await visitsApi.getAll(params);
-      setVisits(response.data || []);
+      const data = response.data || [];
+      
+      // Sort by check_in_time descending (newest first)
+      const sortedData = data.sort((a: Visit, b: Visit) => {
+        const timeA = a.check_in_time ? new Date(a.check_in_time).getTime() : 0;
+        const timeB = b.check_in_time ? new Date(b.check_in_time).getTime() : 0;
+        return timeB - timeA; // Descending order (newest first)
+      });
+      
+      setVisits(sortedData);
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -320,7 +376,7 @@ export default function VisitsIndex() {
                   >
                     {selectedRoom
                       ? `${rooms.find((r) => r.id.toString() === selectedRoom)?.code} - ${rooms.find((r) => r.id.toString() === selectedRoom)?.name}`
-                      : "Pilih Ruangan *"}
+                      : "Semua Ruangan"}
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
                 </PopoverTrigger>
@@ -330,6 +386,21 @@ export default function VisitsIndex() {
                     <CommandList>
                       <CommandEmpty>Ruangan tidak ditemukan.</CommandEmpty>
                       <CommandGroup>
+                        <CommandItem
+                          value="Semua Ruangan"
+                          onSelect={() => {
+                            setSelectedRoom("");
+                            setRoomPopoverOpen(false);
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              !selectedRoom ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          Semua Ruangan
+                        </CommandItem>
                         {rooms.map((room) => (
                           <CommandItem
                             key={room.id}
@@ -360,6 +431,7 @@ export default function VisitsIndex() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="active">Aktif (Belum Selesai)</SelectItem>
                   <SelectItem value="all">Semua Status</SelectItem>
                   <SelectItem value="waiting">Menunggu</SelectItem>
                   <SelectItem value="in_queue">Dalam Antrian</SelectItem>
@@ -376,20 +448,13 @@ export default function VisitsIndex() {
           </div>
         </CardHeader>
         <CardContent className="pt-6">
-          {!selectedRoom ? (
-            <div className="text-center py-12 text-muted-foreground">
-              <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p className="text-lg font-medium">Pilih Ruangan</p>
-              <p className="text-sm">Pilih ruangan untuk melihat daftar kunjungan pasien</p>
-            </div>
-          ) : (
-            <DataTable
-              columns={columns}
-              data={visits}
-              searchPlaceholder="Cari nomor RM, nama pasien, nomor kunjungan..."
-              pageSize={10}
-            />
-          )}
+          <DataTable
+            columns={columns}
+            data={visits}
+            searchPlaceholder="Cari nomor RM, nama pasien, nomor kunjungan..."
+            pageSize={10}
+            tableId="visits"
+          />
         </CardContent>
       </Card>
     </div>

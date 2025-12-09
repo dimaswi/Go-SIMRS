@@ -144,6 +144,12 @@ func CreateRegistration(c *gin.Context) {
 		return
 	}
 
+	// Check if patient data is finalized
+	if !patient.IsFinal {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Data pasien belum final. Silakan lengkapi dan finalisasi data pasien terlebih dahulu."})
+		return
+	}
+
 	// Validate destination room exists
 	var room models.Room
 	if err := database.DB.First(&room, input.DestinationRoomID).Error; err != nil {
@@ -271,12 +277,28 @@ func CreateRegistration(c *gin.Context) {
 		visitNumber := fmt.Sprintf("VIS%s%04d", todayStr, visitNum)
 		now := time.Now()
 
+		// Determine visit type based on room service type
+		visitType := "consultation" // default fallback
+		switch room.ServiceType {
+		case "rawat_jalan":
+			visitType = "outpatient"
+		case "rawat_inap":
+			visitType = "inpatient"
+		case "gawat_darurat":
+			visitType = "emergency"
+		case "penunjang":
+			// For penunjang, keep as consultation or determine by room_type
+			visitType = "consultation"
+		default:
+			visitType = "outpatient"
+		}
+
 		visit = &models.Visit{
 			VisitNumber:    visitNumber,
 			RegistrationID: registration.ID,
 			RoomID:         input.DestinationRoomID,
 			DoctorID:       input.DoctorID,
-			VisitType:      "consultation", // Default to consultation
+			VisitType:      visitType,
 			VisitPurpose:   "Pemeriksaan",
 			Status:         models.VisitStatusWaiting,
 			CheckInTime:    &now,
@@ -346,10 +368,13 @@ func CreateRegistration(c *gin.Context) {
 	if input.QueueID != nil {
 		var queue models.Queue
 		if err := tx.First(&queue, *input.QueueID).Error; err == nil {
-			// Update queue to serving status
-			queue.Status = "serving"
+			// Update queue to completed status (registration done)
+			queue.Status = "completed"
 			now := time.Now()
-			queue.ServicedAt = &now
+			if queue.ServicedAt == nil {
+				queue.ServicedAt = &now
+			}
+			queue.CompletedAt = &now
 			tx.Save(&queue)
 		}
 	}

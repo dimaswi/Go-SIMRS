@@ -14,6 +14,7 @@ import type { Triage } from "@/lib/api";
 interface TriageFormProps {
   visitId: number;
   onSave?: (data: any) => void;
+  readOnly?: boolean;
 }
 
 // Triage level dengan warna khusus (tidak dari master data karena butuh warna)
@@ -49,7 +50,7 @@ const defaultFormData = {
   immediate_actions: "",
 };
 
-export function TriageForm({ visitId, onSave }: TriageFormProps) {
+export function TriageForm({ visitId, onSave, readOnly = false }: TriageFormProps) {
   const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState(defaultFormData);
 
@@ -150,6 +151,7 @@ export function TriageForm({ visitId, onSave }: TriageFormProps) {
       </CardHeader>
       <CardContent className="p-6">
         <form onSubmit={handleSubmit} className="space-y-6">
+          <fieldset disabled={readOnly}>
           {/* Arrival Information */}
           <div className="space-y-4">
             <h3 className="font-semibold text-sm text-primary">Informasi Kedatangan</h3>
@@ -453,6 +455,7 @@ export function TriageForm({ visitId, onSave }: TriageFormProps) {
               Simpan Triase
             </Button>
           </div>
+          </fieldset>
         </form>
       </CardContent>
     </Card>

@@ -119,6 +119,7 @@ export default function UsersPage() {
               data={users}
               searchPlaceholder="Search users by name, username, or email..."
               pageSize={10}
+              tableId="users"
             />
           </CardContent>
         </Card>

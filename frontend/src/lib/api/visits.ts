@@ -83,6 +83,16 @@ export const visitsApi = {
     return api.put<Visit>(`/visits/${id}/accept`, {});
   },
 
+  // Complete visit (mark as finished)
+  completeVisit: async (id: number) => {
+    return api.put<Visit>(`/visits/${id}/complete`, {});
+  },
+
+  // Cancel complete visit (revert to in_progress)
+  cancelCompleteVisit: async (id: number) => {
+    return api.put<Visit>(`/visits/${id}/cancel-complete`, {});
+  },
+
   // Get visit statistics
   getStats: async (params?: {
     start_date?: string;

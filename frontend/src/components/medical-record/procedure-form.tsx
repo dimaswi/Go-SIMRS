@@ -65,6 +65,7 @@ import { id as idLocale } from "date-fns/locale";
 
 interface ProcedureFormProps {
   visitId: number;
+  readOnly?: boolean;
 }
 
 // Check if procedure has parameters
@@ -72,7 +73,7 @@ function procedureHasParameters(procedure: VisitProcedure): boolean {
   return (procedure.procedure?.parameters && procedure.procedure.parameters.length > 0) || false;
 }
 
-export function ProcedureForm({ visitId }: ProcedureFormProps) {
+export function ProcedureForm({ visitId, readOnly = false }: ProcedureFormProps) {
   const { toast } = useToast();
   const { hasPermission } = usePermission();
 
@@ -405,6 +406,7 @@ export function ProcedureForm({ visitId }: ProcedureFormProps) {
   }
 
   return (
+    <fieldset disabled={readOnly}>
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       {/* Left Column - Available Procedures to Add */}
       <Card className="shadow-md">
@@ -870,5 +872,6 @@ export function ProcedureForm({ visitId }: ProcedureFormProps) {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+    </fieldset>
   );
 }

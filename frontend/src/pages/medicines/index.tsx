@@ -122,6 +122,7 @@ export default function MedicinesPage() {
               data={medicines}
               searchPlaceholder="Cari obat berdasarkan kode, nama, atau nama generik..."
               pageSize={10}
+              tableId="medicines"
             />
           </CardContent>
         </Card>

@@ -122,6 +122,7 @@ export default function SuppliersIndex() {
               data={suppliers}
               searchPlaceholder="Cari supplier berdasarkan kode atau nama..."
               pageSize={10}
+              tableId="suppliers"
             />
           </CardContent>
         </Card>

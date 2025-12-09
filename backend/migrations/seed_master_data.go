@@ -255,9 +255,10 @@ func SeedMasterData(db *gorm.DB) error {
 		{Category: models.CategoryRoomStaffRole, Code: "cleaning_service", Name: "Cleaning Service", SortOrder: 6, IsActive: true},
 
 		// Jenis Tindakan (Procedure Type)
-		{Category: models.CategoryProcedureType, Code: "medical", Name: "Tindakan Medis", Description: "Tindakan medis umum seperti bedah, konsultasi, dll", SortOrder: 1, IsActive: true},
+		{Category: models.CategoryProcedureType, Code: "medical", Name: "Tindakan Medis", Description: "Tindakan medis umum seperti bedah, dll", SortOrder: 1, IsActive: true},
 		{Category: models.CategoryProcedureType, Code: "radiology", Name: "Radiologi", Description: "Pemeriksaan radiologi seperti X-Ray, CT Scan, MRI, USG", SortOrder: 2, IsActive: true},
 		{Category: models.CategoryProcedureType, Code: "laboratory", Name: "Laboratorium", Description: "Pemeriksaan laboratorium seperti darah, urine, dll", SortOrder: 3, IsActive: true},
+		{Category: models.CategoryProcedureType, Code: "consultation", Name: "Konsultasi", Description: "Konsultasi antar spesialis/dokter", SortOrder: 4, IsActive: true},
 
 		// Jenis Layanan Tindakan
 		{Category: models.CategoryProcedureServiceType, Code: "all", Name: "Semua Layanan", SortOrder: 1, IsActive: true},

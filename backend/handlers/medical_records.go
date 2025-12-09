@@ -1156,3 +1156,170 @@ func GetMedicalRecordSummary(c *gin.Context) {
 		"disposition":     disposition,
 	})
 }
+
+// ===========================================================================
+// CONSULTATION (untuk visit konsultasi)
+// ===========================================================================
+
+// SaveConsultation saves consultation result (SOAP format)
+// Menyimpan jawaban konsultasi dalam tabel consultations
+func SaveConsultation(c *gin.Context) {
+	visitID := c.Param("id")
+
+	// Get userID from context (set by AuthMiddleware)
+	userIDVal, exists := c.Get("userID")
+	if !exists || userIDVal == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated - userID not found in context"})
+		return
+	}
+
+	userID, ok := userIDVal.(uint)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid userID type in context"})
+		return
+	}
+
+	// Validate userID is not zero (means invalid JWT token)
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid user ID - please login again"})
+		return
+	}
+
+	var input struct {
+		Subjective     string `json:"subjective"`
+		Objective      string `json:"objective"`
+		Assessment     string `json:"assessment"`
+		Plan           string `json:"plan"`
+		Recommendation string `json:"recommendation"`
+		Notes          string `json:"notes"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	var visit models.Visit
+	if err := database.DB.First(&visit, visitID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Visit not found"})
+		return
+	}
+
+	// Verify user exists in database
+	var user models.User
+	if err := database.DB.Preload("Employee").First(&user, userID).Error; err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User account not found - please login again"})
+		return
+	}
+
+	// Get consultant ID from employee
+	var consultantID *uint
+	if user.EmployeeID != nil {
+		consultantID = user.EmployeeID
+	}
+
+	// Check if there's a consultation order for this visit
+	var procedureOrder models.ProcedureOrder
+	var procedureOrderID *uint
+	err := database.DB.Where("target_visit_id = ? AND order_type = ?", visitID, "consultation").
+		First(&procedureOrder).Error
+	if err == nil {
+		procedureOrderID = &procedureOrder.ID
+	}
+
+	// Simpan sebagai Consultation
+	consultation := models.Consultation{
+		VisitID:          visit.ID,
+		ProcedureOrderID: procedureOrderID,
+		Subjective:       input.Subjective,
+		Objective:        input.Objective,
+		Assessment:       input.Assessment,
+		Plan:             input.Plan,
+		Recommendation:   input.Recommendation,
+		Notes:            input.Notes,
+		ConsultantID:     consultantID,
+		CreatedByID:      &userID,
+	}
+
+	if err := database.DB.Create(&consultation).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save consultation: " + err.Error()})
+		return
+	}
+
+	// If there's a procedure order, update its status to completed
+	if procedureOrderID != nil {
+		// Format hasil konsultasi SOAP untuk ditampilkan di riwayat order
+		resultSummary := ""
+		if input.Subjective != "" {
+			resultSummary += "S: " + input.Subjective + "\n"
+		}
+		if input.Objective != "" {
+			resultSummary += "O: " + input.Objective + "\n"
+		}
+		if input.Assessment != "" {
+			resultSummary += "A: " + input.Assessment + "\n"
+		}
+		if input.Plan != "" {
+			resultSummary += "P: " + input.Plan
+		}
+
+		updateData := map[string]interface{}{
+			"status":         models.ProcedureOrderStatusCompleted,
+			"result_summary": resultSummary,
+			"conclusion":     input.Plan,
+			"suggestion":     input.Recommendation,
+			"completed_at":   time.Now(),
+		}
+
+		// Set performed_by_id if consultant is available
+		if consultantID != nil {
+			updateData["performed_by_id"] = *consultantID
+		}
+
+		database.DB.Model(&models.ProcedureOrder{}).
+			Where("id = ?", *procedureOrderID).
+			Updates(updateData)
+
+		// Also update all items status to completed
+		itemUpdateData := map[string]interface{}{
+			"status":       models.ProcedureOrderStatusCompleted,
+			"completed_at": time.Now(),
+		}
+		if consultantID != nil {
+			itemUpdateData["performed_by_id"] = *consultantID
+		}
+		database.DB.Model(&models.ProcedureOrderItem{}).
+			Where("procedure_order_id = ?", *procedureOrderID).
+			Updates(itemUpdateData)
+	}
+
+	// Reload with relations
+	database.DB.Preload("Consultant").Preload("CreatedBy").First(&consultation, consultation.ID)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Konsultasi berhasil disimpan",
+		"data":    consultation,
+	})
+}
+
+// GetConsultation gets consultation result for a visit
+func GetConsultation(c *gin.Context) {
+	visitID := c.Param("id")
+
+	var consultation models.Consultation
+	if err := database.DB.
+		Preload("Consultant").
+		Preload("CreatedBy").
+		Preload("ProcedureOrder").
+		Where("visit_id = ?", visitID).
+		First(&consultation).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Consultation not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, consultation)
+}

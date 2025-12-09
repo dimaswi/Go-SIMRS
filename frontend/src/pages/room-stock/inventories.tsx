@@ -173,7 +173,7 @@ export default function RoomInventoryPage() {
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
               </div>
             ) : (
-              <DataTable columns={columns} data={roomInventories} />
+              <DataTable columns={columns} data={roomInventories} tableId="room_inventories" />
             )}
           </CardContent>
         </Card>

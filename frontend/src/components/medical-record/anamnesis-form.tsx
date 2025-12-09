@@ -11,6 +11,7 @@ import type { Anamnesis } from "@/lib/api";
 interface AnamnesisFormProps {
   visitId: number;
   onSave?: (data: any) => void;
+  readOnly?: boolean;
 }
 
 const defaultFormData = {
@@ -23,7 +24,7 @@ const defaultFormData = {
   current_medications: "",
 };
 
-export function AnamnesisForm({ visitId, onSave }: AnamnesisFormProps) {
+export function AnamnesisForm({ visitId, onSave, readOnly = false }: AnamnesisFormProps) {
   const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState(defaultFormData);
 
@@ -87,6 +88,7 @@ export function AnamnesisForm({ visitId, onSave }: AnamnesisFormProps) {
       </CardHeader>
       <CardContent className="p-4">
         <form onSubmit={handleSubmit} className="space-y-4">
+          <fieldset disabled={readOnly} className="space-y-4">
           {/* Keluhan Utama */}
           <div className="space-y-2">
             <Label htmlFor="chief_complaint" className="text-sm font-semibold">
@@ -187,12 +189,15 @@ export function AnamnesisForm({ visitId, onSave }: AnamnesisFormProps) {
             />
           </div>
 
-          <div className="flex justify-end gap-2 pt-3 border-t mt-4">
-            <Button type="submit" size="sm" className="gap-1.5">
-              <Save className="h-3.5 w-3.5" />
-              Simpan Anamnesis
-            </Button>
-          </div>
+          {!readOnly && (
+            <div className="flex justify-end gap-2 pt-3 border-t mt-4">
+              <Button type="submit" size="sm" className="gap-1.5">
+                <Save className="h-3.5 w-3.5" />
+                Simpan Anamnesis
+              </Button>
+            </div>
+          )}
+          </fieldset>
         </form>
       </CardContent>
     </Card>

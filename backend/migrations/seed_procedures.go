@@ -13,6 +13,101 @@ func SeedProcedures(db *gorm.DB) error {
 	// ==========================================
 	procedures := []models.Procedure{
 		// =====================================
+		// KONSULTASI (untuk order konsultasi antar spesialis)
+		// =====================================
+		{
+			Code: "CONS-001", Name: "Konsultasi Dokter Umum",
+			Description:   "Konsultasi dengan dokter umum",
+			ProcedureType: "consultation", ProcedureGroup: "konsultasi", Specialty: "umum",
+			Duration: 15, RequiresAnesthesia: false, IsEmergency: false, IsSurgical: false,
+			ServiceType: "all", IsActive: true,
+		},
+		{
+			Code: "CONS-002", Name: "Konsultasi Spesialis Penyakit Dalam",
+			Description:   "Konsultasi dengan dokter spesialis penyakit dalam",
+			ProcedureType: "consultation", ProcedureGroup: "konsultasi", Specialty: "penyakit_dalam",
+			Duration: 20, RequiresAnesthesia: false, IsEmergency: false, IsSurgical: false,
+			ServiceType: "all", IsActive: true,
+		},
+		{
+			Code: "CONS-003", Name: "Konsultasi Spesialis Bedah",
+			Description:   "Konsultasi dengan dokter spesialis bedah",
+			ProcedureType: "consultation", ProcedureGroup: "konsultasi", Specialty: "bedah",
+			Duration: 20, RequiresAnesthesia: false, IsEmergency: false, IsSurgical: false,
+			ServiceType: "all", IsActive: true,
+		},
+		{
+			Code: "CONS-004", Name: "Konsultasi Spesialis Anak",
+			Description:   "Konsultasi dengan dokter spesialis anak",
+			ProcedureType: "consultation", ProcedureGroup: "konsultasi", Specialty: "anak",
+			Duration: 20, RequiresAnesthesia: false, IsEmergency: false, IsSurgical: false,
+			ServiceType: "all", IsActive: true,
+		},
+		{
+			Code: "CONS-005", Name: "Konsultasi Spesialis Kandungan",
+			Description:   "Konsultasi dengan dokter spesialis kebidanan dan kandungan",
+			ProcedureType: "consultation", ProcedureGroup: "konsultasi", Specialty: "kandungan",
+			Duration: 20, RequiresAnesthesia: false, IsEmergency: false, IsSurgical: false,
+			ServiceType: "all", IsActive: true,
+		},
+		{
+			Code: "CONS-006", Name: "Konsultasi Spesialis Jantung",
+			Description:   "Konsultasi dengan dokter spesialis jantung",
+			ProcedureType: "consultation", ProcedureGroup: "konsultasi", Specialty: "jantung",
+			Duration: 20, RequiresAnesthesia: false, IsEmergency: false, IsSurgical: false,
+			ServiceType: "all", IsActive: true,
+		},
+		{
+			Code: "CONS-007", Name: "Konsultasi Spesialis Syaraf",
+			Description:   "Konsultasi dengan dokter spesialis syaraf",
+			ProcedureType: "consultation", ProcedureGroup: "konsultasi", Specialty: "syaraf",
+			Duration: 20, RequiresAnesthesia: false, IsEmergency: false, IsSurgical: false,
+			ServiceType: "all", IsActive: true,
+		},
+		{
+			Code: "CONS-008", Name: "Konsultasi Spesialis Mata",
+			Description:   "Konsultasi dengan dokter spesialis mata",
+			ProcedureType: "consultation", ProcedureGroup: "konsultasi", Specialty: "mata",
+			Duration: 20, RequiresAnesthesia: false, IsEmergency: false, IsSurgical: false,
+			ServiceType: "all", IsActive: true,
+		},
+		{
+			Code: "CONS-009", Name: "Konsultasi Spesialis THT",
+			Description:   "Konsultasi dengan dokter spesialis THT",
+			ProcedureType: "consultation", ProcedureGroup: "konsultasi", Specialty: "tht",
+			Duration: 20, RequiresAnesthesia: false, IsEmergency: false, IsSurgical: false,
+			ServiceType: "all", IsActive: true,
+		},
+		{
+			Code: "CONS-010", Name: "Konsultasi Spesialis Kulit",
+			Description:   "Konsultasi dengan dokter spesialis kulit dan kelamin",
+			ProcedureType: "consultation", ProcedureGroup: "konsultasi", Specialty: "kulit",
+			Duration: 20, RequiresAnesthesia: false, IsEmergency: false, IsSurgical: false,
+			ServiceType: "all", IsActive: true,
+		},
+		{
+			Code: "CONS-011", Name: "Konsultasi Spesialis Gigi",
+			Description:   "Konsultasi dengan dokter gigi spesialis",
+			ProcedureType: "consultation", ProcedureGroup: "konsultasi", Specialty: "gigi",
+			Duration: 20, RequiresAnesthesia: false, IsEmergency: false, IsSurgical: false,
+			ServiceType: "all", IsActive: true,
+		},
+		{
+			Code: "CONS-012", Name: "Konsultasi Spesialis Jiwa",
+			Description:   "Konsultasi dengan dokter spesialis jiwa",
+			ProcedureType: "consultation", ProcedureGroup: "konsultasi", Specialty: "jiwa",
+			Duration: 30, RequiresAnesthesia: false, IsEmergency: false, IsSurgical: false,
+			ServiceType: "all", IsActive: true,
+		},
+		{
+			Code: "CONS-013", Name: "Konsultasi Spesialis Rehabilitasi Medik",
+			Description:   "Konsultasi dengan dokter spesialis rehabilitasi medik",
+			ProcedureType: "consultation", ProcedureGroup: "konsultasi", Specialty: "rehabilitasi",
+			Duration: 20, RequiresAnesthesia: false, IsEmergency: false, IsSurgical: false,
+			ServiceType: "all", IsActive: true,
+		},
+
+		// =====================================
 		// PEMERIKSAAN UMUM
 		// =====================================
 		{
@@ -494,6 +589,103 @@ func SeedProcedures(db *gorm.DB) error {
 					NonMedis:       t.NonMedis,
 				}
 				if err := db.Create(&tariff).Error; err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	// ==========================================
+	// PROCEDURE PARAMETERS - Parameter untuk hasil tindakan
+	// ==========================================
+
+	// Seed Radiology Parameters
+	radiologyParams := map[string][]models.ProcedureParameter{
+		// Rontgen Thorax (RAD-001)
+		"RAD-001": {
+			{Code: "klinis", Name: "Klinis", Description: "Informasi klinis pasien", InputType: "textarea", IsRequired: true, SortOrder: 1, IsActive: true},
+			{Code: "teknik", Name: "Teknik Pemeriksaan", Description: "Teknik proyeksi yang digunakan", InputType: "text", IsRequired: true, SortOrder: 2, IsActive: true},
+			{Code: "hasil", Name: "Hasil Pemeriksaan", Description: "Deskripsi hasil foto thorax", InputType: "textarea", IsRequired: true, SortOrder: 3, IsActive: true},
+			{Code: "kesan", Name: "Kesan", Description: "Kesan/kesimpulan radiologi", InputType: "textarea", IsRequired: true, SortOrder: 4, IsActive: true},
+		},
+		// Rontgen Kepala (RAD-002)
+		"RAD-002": {
+			{Code: "klinis", Name: "Klinis", Description: "Informasi klinis pasien", InputType: "textarea", IsRequired: true, SortOrder: 1, IsActive: true},
+			{Code: "teknik", Name: "Teknik Pemeriksaan", Description: "Teknik proyeksi yang digunakan", InputType: "text", IsRequired: true, SortOrder: 2, IsActive: true},
+			{Code: "hasil", Name: "Hasil Pemeriksaan", Description: "Deskripsi hasil foto kepala", InputType: "textarea", IsRequired: true, SortOrder: 3, IsActive: true},
+			{Code: "kesan", Name: "Kesan", Description: "Kesan/kesimpulan radiologi", InputType: "textarea", IsRequired: true, SortOrder: 4, IsActive: true},
+		},
+		// Rontgen Extremitas (RAD-003)
+		"RAD-003": {
+			{Code: "klinis", Name: "Klinis", Description: "Informasi klinis pasien", InputType: "textarea", IsRequired: true, SortOrder: 1, IsActive: true},
+			{Code: "lokasi", Name: "Lokasi Extremitas", Description: "Lokasi extremitas yang difoto", InputType: "text", IsRequired: true, SortOrder: 2, IsActive: true},
+			{Code: "teknik", Name: "Teknik Pemeriksaan", Description: "Teknik proyeksi yang digunakan", InputType: "text", IsRequired: true, SortOrder: 3, IsActive: true},
+			{Code: "hasil", Name: "Hasil Pemeriksaan", Description: "Deskripsi hasil foto extremitas", InputType: "textarea", IsRequired: true, SortOrder: 4, IsActive: true},
+			{Code: "kesan", Name: "Kesan", Description: "Kesan/kesimpulan radiologi", InputType: "textarea", IsRequired: true, SortOrder: 5, IsActive: true},
+		},
+		// USG Abdomen (RAD-004)
+		"RAD-004": {
+			{Code: "klinis", Name: "Klinis", Description: "Informasi klinis pasien", InputType: "textarea", IsRequired: true, SortOrder: 1, IsActive: true},
+			{Code: "hepar", Name: "Hepar", Description: "Deskripsi hepar", InputType: "textarea", IsRequired: false, SortOrder: 2, IsActive: true},
+			{Code: "kandung_empedu", Name: "Kandung Empedu", Description: "Deskripsi kandung empedu", InputType: "textarea", IsRequired: false, SortOrder: 3, IsActive: true},
+			{Code: "pankreas", Name: "Pankreas", Description: "Deskripsi pankreas", InputType: "textarea", IsRequired: false, SortOrder: 4, IsActive: true},
+			{Code: "lien", Name: "Lien", Description: "Deskripsi lien", InputType: "textarea", IsRequired: false, SortOrder: 5, IsActive: true},
+			{Code: "ginjal", Name: "Ginjal", Description: "Deskripsi ginjal kanan dan kiri", InputType: "textarea", IsRequired: false, SortOrder: 6, IsActive: true},
+			{Code: "kesan", Name: "Kesan", Description: "Kesan/kesimpulan USG", InputType: "textarea", IsRequired: true, SortOrder: 7, IsActive: true},
+		},
+		// CT-Scan Kepala (RAD-005)
+		"RAD-005": {
+			{Code: "klinis", Name: "Klinis", Description: "Informasi klinis pasien", InputType: "textarea", IsRequired: true, SortOrder: 1, IsActive: true},
+			{Code: "teknik", Name: "Teknik Pemeriksaan", Description: "Teknik CT-Scan yang digunakan", InputType: "text", IsRequired: true, SortOrder: 2, IsActive: true},
+			{Code: "hasil", Name: "Hasil Pemeriksaan", Description: "Deskripsi hasil CT-Scan kepala", InputType: "textarea", IsRequired: true, SortOrder: 3, IsActive: true},
+			{Code: "kesan", Name: "Kesan", Description: "Kesan/kesimpulan radiologi", InputType: "textarea", IsRequired: true, SortOrder: 4, IsActive: true},
+		},
+		// CT-Scan Kepala dengan Kontras (RAD-006)
+		"RAD-006": {
+			{Code: "klinis", Name: "Klinis", Description: "Informasi klinis pasien", InputType: "textarea", IsRequired: true, SortOrder: 1, IsActive: true},
+			{Code: "kontras", Name: "Jenis Kontras", Description: "Jenis dan dosis kontras yang digunakan", InputType: "text", IsRequired: true, SortOrder: 2, IsActive: true},
+			{Code: "teknik", Name: "Teknik Pemeriksaan", Description: "Teknik CT-Scan yang digunakan", InputType: "text", IsRequired: true, SortOrder: 3, IsActive: true},
+			{Code: "hasil", Name: "Hasil Pemeriksaan", Description: "Deskripsi hasil CT-Scan kepala", InputType: "textarea", IsRequired: true, SortOrder: 4, IsActive: true},
+			{Code: "kesan", Name: "Kesan", Description: "Kesan/kesimpulan radiologi", InputType: "textarea", IsRequired: true, SortOrder: 5, IsActive: true},
+		},
+		// MRI Kepala (RAD-007)
+		"RAD-007": {
+			{Code: "klinis", Name: "Klinis", Description: "Informasi klinis pasien", InputType: "textarea", IsRequired: true, SortOrder: 1, IsActive: true},
+			{Code: "teknik", Name: "Teknik Pemeriksaan", Description: "Teknik dan sequence MRI", InputType: "text", IsRequired: true, SortOrder: 2, IsActive: true},
+			{Code: "hasil", Name: "Hasil Pemeriksaan", Description: "Deskripsi hasil MRI kepala", InputType: "textarea", IsRequired: true, SortOrder: 3, IsActive: true},
+			{Code: "kesan", Name: "Kesan", Description: "Kesan/kesimpulan radiologi", InputType: "textarea", IsRequired: true, SortOrder: 4, IsActive: true},
+		},
+		// EKG (RAD-008)
+		"RAD-008": {
+			{Code: "klinis", Name: "Klinis", Description: "Informasi klinis pasien", InputType: "textarea", IsRequired: true, SortOrder: 1, IsActive: true},
+			{Code: "irama", Name: "Irama", Description: "Irama jantung", InputType: "text", IsRequired: true, SortOrder: 2, IsActive: true},
+			{Code: "heart_rate", Name: "Heart Rate", Description: "Denyut jantung per menit", InputType: "number", Unit: "bpm", IsRequired: true, SortOrder: 3, IsActive: true},
+			{Code: "axis", Name: "Axis", Description: "Axis jantung", InputType: "text", IsRequired: false, SortOrder: 4, IsActive: true},
+			{Code: "hasil", Name: "Hasil Pemeriksaan", Description: "Deskripsi hasil EKG", InputType: "textarea", IsRequired: true, SortOrder: 5, IsActive: true},
+			{Code: "kesan", Name: "Kesan", Description: "Kesan/kesimpulan EKG", InputType: "textarea", IsRequired: true, SortOrder: 6, IsActive: true},
+		},
+		// Echocardiography (RAD-009)
+		"RAD-009": {
+			{Code: "klinis", Name: "Klinis", Description: "Informasi klinis pasien", InputType: "textarea", IsRequired: true, SortOrder: 1, IsActive: true},
+			{Code: "lvef", Name: "LVEF", Description: "Left Ventricular Ejection Fraction", InputType: "number", Unit: "%", IsRequired: true, SortOrder: 2, IsActive: true},
+			{Code: "hasil", Name: "Hasil Pemeriksaan", Description: "Deskripsi hasil echocardiography", InputType: "textarea", IsRequired: true, SortOrder: 3, IsActive: true},
+			{Code: "kesan", Name: "Kesan", Description: "Kesan/kesimpulan echo", InputType: "textarea", IsRequired: true, SortOrder: 4, IsActive: true},
+		},
+	}
+
+	// Create radiology parameters
+	for procCode, params := range radiologyParams {
+		procID := procedureMap[procCode]
+		if procID == 0 {
+			continue
+		}
+
+		for _, param := range params {
+			var existing models.ProcedureParameter
+			result := db.Where("procedure_id = ? AND code = ?", procID, param.Code).First(&existing)
+			if result.Error == gorm.ErrRecordNotFound {
+				param.ProcedureID = procID
+				if err := db.Create(&param).Error; err != nil {
 					return err
 				}
 			}

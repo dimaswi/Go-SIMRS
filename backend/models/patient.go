@@ -362,6 +362,11 @@ type Patient struct {
 	// Catatan Khusus
 	CatatanKhusus string `gorm:"type:text" json:"catatan_khusus,omitempty"`
 
+	// Data Final - menandakan data pasien sudah lengkap dan diverifikasi
+	IsFinal     bool       `gorm:"default:false" json:"is_final"`
+	FinalizedAt *time.Time `json:"finalized_at,omitempty"`
+	FinalizedBy *uint      `json:"finalized_by,omitempty"`
+
 	// User ID yang membuat data
 	CreatedBy *uint `json:"created_by,omitempty"`
 

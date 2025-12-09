@@ -178,6 +178,7 @@ export default function StockRequestsIndex() {
                   data={requests}
                   searchPlaceholder="Cari nomor permintaan..."
                   pageSize={10}
+                  tableId="stock_requests_all"
                 />
               </TabsContent>
 
@@ -187,6 +188,7 @@ export default function StockRequestsIndex() {
                   data={myRequests}
                   searchPlaceholder="Cari nomor permintaan..."
                   pageSize={10}
+                  tableId="stock_requests_my"
                 />
               </TabsContent>
 
@@ -196,6 +198,7 @@ export default function StockRequestsIndex() {
                   data={pendingApprovals}
                   searchPlaceholder="Cari nomor permintaan..."
                   pageSize={10}
+                  tableId="stock_requests_pending"
                 />
               </TabsContent>
             </Tabs>

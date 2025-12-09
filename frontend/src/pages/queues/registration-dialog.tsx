@@ -63,6 +63,7 @@ export function RegistrationDialog({
   const [insuranceNumber, setInsuranceNumber] = useState("");
   const [complaint, setComplaint] = useState("");
   const [priority, setPriority] = useState<"normal" | "urgent" | "emergency">("normal");
+  const [selectedServiceType, setSelectedServiceType] = useState<string>("");
 
   // Master data state
   const [masterData, setMasterData] = useState<Record<string, MasterData[]>>({});
@@ -92,6 +93,7 @@ export function RegistrationDialog({
       setInsuranceNumber("");
       setComplaint("");
       setPriority("normal");
+      setSelectedServiceType("");
       setRoomStaff([]);
     }
   }, [open]);
@@ -114,22 +116,24 @@ export function RegistrationDialog({
           "bpjs_class",
         ]),
         regionsApi.getProvinces(),
-        roomsApi.getAll(),
+        roomsApi.getAll({ limit: 1000, is_active: "true" }),
       ]);
 
       setMasterData(masterDataRes.data.data || {});
       setProvinces(provincesRes.data.data || []);
-      // Filter: only show rawat_jalan, penunjang_medis, and farmasi
-      // Exclude: rawat_inap, gawat_darurat, administrasi, depo, gudang
-      const filteredRooms = (roomsRes.data.data || []).filter(
-        (room: Room) => 
-          (room.service_type === "rawat_jalan" || 
-           room.service_type === "penunjang_medis" ||
-           room.service_type === "farmasi") &&
-          room.room_type !== "depo_farmasi" && 
-          room.room_type !== "gudang_farmasi" &&
-          room.is_active
+      // Show all active rooms excluding depo and gudang
+      const allRooms = roomsRes.data.data || [];
+      
+      const filteredRooms = allRooms.filter(
+        (room: Room) => {
+          const notExcluded = room.room_type !== "depo_farmasi" && 
+                              room.room_type !== "gudang_farmasi";
+          const isActive = room.is_active === true;
+          
+          return notExcluded && isActive;
+        }
       );
+      
       setRooms(filteredRooms);
     } catch (error) {
       console.error("Failed to load reference data:", error);
@@ -936,15 +940,40 @@ export function RegistrationDialog({
               
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2 space-y-2">
+                  <Label htmlFor="service_type">Tipe Layanan *</Label>
+                  <Combobox
+                    options={[
+                      { value: "rawat_jalan", label: "Rawat Jalan" },
+                      { value: "gawat_darurat", label: "UGD (Gawat Darurat)" },
+                      { value: "penunjang_medis", label: "Penunjang Medis" },
+                      { value: "farmasi", label: "Farmasi" },
+                      { value: "rawat_inap", label: "Rawat Inap" },
+                    ]}
+                    value={selectedServiceType}
+                    onValueChange={(value) => {
+                      setSelectedServiceType(value || "");
+                      // Reset room selection when service type changes
+                      setDestinationRoomId(null);
+                      setDoctorId(null);
+                      setRoomStaff([]);
+                    }}
+                    placeholder="Pilih tipe layanan"
+                  />
+                </div>
+
+                <div className="col-span-2 space-y-2">
                   <Label htmlFor="destination_room">Ruangan Tujuan *</Label>
                   <Combobox
-                    options={(rooms || []).map(room => ({
-                      value: room.id.toString(),
-                      label: `${room.code} - ${room.name}`,
-                    }))}
+                    options={!selectedServiceType || selectedServiceType === "all" ? [] : (rooms || [])
+                      .filter(room => room.service_type === selectedServiceType)
+                      .map(room => ({
+                        value: room.id.toString(),
+                        label: `${room.code} - ${room.name}`,
+                      }))}
                     value={destinationRoomId?.toString() || ""}
                     onValueChange={handleRoomChange}
-                    placeholder="Pilih ruangan tujuan"
+                    placeholder={!selectedServiceType || selectedServiceType === "all" ? "Pilih tipe layanan terlebih dahulu" : "Pilih ruangan tujuan"}
+                    disabled={!selectedServiceType || selectedServiceType === "all"}
                   />
                 </div>
 

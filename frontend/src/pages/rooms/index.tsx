@@ -135,6 +135,7 @@ export default function RoomsPage() {
               data={rooms}
               searchPlaceholder="Cari ruangan berdasarkan kode atau nama..."
               pageSize={10}
+              tableId="rooms"
             />
           </CardContent>
         </Card>

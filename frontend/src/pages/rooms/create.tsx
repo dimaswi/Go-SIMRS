@@ -34,6 +34,7 @@ export default function RoomCreate() {
     room_type: "",
     room_class: "",
     total_floors: 1,
+    registration_fee: 0,
     tariff_per_day: 0,
     facilities: "",
     description: "",
@@ -76,6 +77,7 @@ export default function RoomCreate() {
         room_type: formData.room_type,
         room_class: formData.room_class || undefined,
         total_floors: formData.total_floors,
+        registration_fee: formData.registration_fee,
         tariff_per_day: formData.tariff_per_day,
         facilities: formData.facilities,
         description: formData.description,
@@ -305,8 +307,31 @@ export default function RoomCreate() {
 
               <hr className="border-border/50" />
 
-              {/* Total Floors, Tariff (only for rawat_inap) and PIC */}
-              <div className={`grid grid-cols-1 gap-5 ${formData.service_type === 'rawat_inap' ? 'md:grid-cols-3' : 'md:grid-cols-1'}`}>
+              {/* Total Floors, Registration Fee, Tariff (only for rawat_inap) and PIC */}
+              <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
+                {/* Registration Fee - untuk semua ruangan */}
+                <div className="space-y-2">
+                  <Label
+                    htmlFor="registration_fee"
+                    className="text-xs font-medium flex items-center gap-2"
+                  >
+                    <DollarSign className="h-3.5 w-3.5 text-muted-foreground" />
+                    Tarif Pendaftaran (Rp)
+                  </Label>
+                  <Input
+                    id="registration_fee"
+                    type="number"
+                    min={0}
+                    value={formData.registration_fee}
+                    onChange={(e) =>
+                      setFormData({ ...formData, registration_fee: parseFloat(e.target.value) || 0 })
+                    }
+                    className="h-9 text-sm"
+                    placeholder="0"
+                  />
+                  <p className="text-xs text-muted-foreground">Tarif pendaftaran per kunjungan ke ruangan ini</p>
+                </div>
+
                 {formData.service_type === 'rawat_inap' && (
                   <>
                     <div className="space-y-2">

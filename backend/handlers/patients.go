@@ -443,3 +443,135 @@ func UploadPatientPhoto(c *gin.Context) {
 		},
 	})
 }
+
+// FinalizePatient marks patient data as final/verified
+// @Summary Finalize patient data
+// @Description Mark patient data as final/verified so they can be registered
+// @Tags Patients
+// @Accept json
+// @Produce json
+// @Param id path int true "Patient ID"
+// @Success 200 {object} map[string]interface{}
+// @Router /patients/{id}/finalize [post]
+func FinalizePatient(c *gin.Context) {
+	id := c.Param("id")
+
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	var patient models.Patient
+	if err := database.DB.First(&patient, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Pasien tidak ditemukan"})
+		return
+	}
+
+	if patient.IsFinal {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Data pasien sudah difinalisasi"})
+		return
+	}
+
+	// Validate required fields for finalization
+	missingFields := []string{}
+
+	if patient.NamaLengkap == "" {
+		missingFields = append(missingFields, "Nama Lengkap")
+	}
+	if patient.NIK == "" {
+		missingFields = append(missingFields, "NIK")
+	}
+	if patient.TanggalLahir == nil || patient.TanggalLahir.IsZero() {
+		missingFields = append(missingFields, "Tanggal Lahir")
+	}
+	if patient.JenisKelamin == "" {
+		missingFields = append(missingFields, "Jenis Kelamin")
+	}
+	if patient.AlamatKTP == "" && patient.AlamatDomisili == "" {
+		missingFields = append(missingFields, "Alamat")
+	}
+	if patient.NoHP == "" && patient.NoTelepon == "" {
+		missingFields = append(missingFields, "Nomor Telepon/HP")
+	}
+
+	if len(missingFields) > 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":          "Data pasien belum lengkap. Harap lengkapi field berikut: " + strings.Join(missingFields, ", "),
+			"missing_fields": missingFields,
+		})
+		return
+	}
+
+	now := time.Now()
+	userIDUint := userID.(uint)
+
+	if err := database.DB.Model(&patient).Updates(map[string]interface{}{
+		"is_final":     true,
+		"finalized_at": now,
+		"finalized_by": userIDUint,
+	}).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memfinalisasi data pasien"})
+		return
+	}
+
+	// Reload patient
+	database.DB.First(&patient, id)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Data pasien berhasil difinalisasi",
+		"data":    patient,
+	})
+}
+
+// UnfinalizePatient removes finalization from patient data
+// @Summary Unfinalize patient data
+// @Description Remove finalization from patient data for editing
+// @Tags Patients
+// @Accept json
+// @Produce json
+// @Param id path int true "Patient ID"
+// @Success 200 {object} map[string]interface{}
+// @Router /patients/{id}/unfinalize [post]
+func UnfinalizePatient(c *gin.Context) {
+	id := c.Param("id")
+
+	var patient models.Patient
+	if err := database.DB.First(&patient, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Pasien tidak ditemukan"})
+		return
+	}
+
+	if !patient.IsFinal {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Data pasien belum difinalisasi"})
+		return
+	}
+
+	// Check if patient has any active (non-completed/cancelled) registrations
+	var activeCount int64
+	database.DB.Model(&models.Registration{}).
+		Where("patient_id = ? AND status NOT IN ('completed', 'cancelled', 'discharged')", patient.ID).
+		Count(&activeCount)
+
+	if activeCount > 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Tidak dapat membuka finalisasi karena pasien memiliki pendaftaran aktif"})
+		return
+	}
+
+	if err := database.DB.Model(&patient).Updates(map[string]interface{}{
+		"is_final":     false,
+		"finalized_at": nil,
+		"finalized_by": nil,
+	}).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuka finalisasi data pasien"})
+		return
+	}
+
+	// Reload patient
+	database.DB.First(&patient, id)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Finalisasi data pasien berhasil dibuka",
+		"data":    patient,
+	})
+}

@@ -18,7 +18,6 @@ import {
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -42,6 +41,48 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
+// Helper untuk baca pageIndex dari localStorage
+function getStoredPageIndex(tableId: string): number {
+  if (!tableId) return 0
+  try {
+    const stored = localStorage.getItem(`dt_page_${tableId}`)
+    if (stored) {
+      const parsed = parseInt(stored, 10)
+      if (!isNaN(parsed) && parsed >= 0) return parsed
+    }
+  } catch {}
+  return 0
+}
+
+// Helper untuk simpan pageIndex ke localStorage
+function setStoredPageIndex(tableId: string, pageIndex: number) {
+  if (!tableId) return
+  try {
+    localStorage.setItem(`dt_page_${tableId}`, String(pageIndex))
+  } catch {}
+}
+
+// Helper untuk baca pageSize dari localStorage
+function getStoredPageSize(tableId: string, defaultSize: number): number {
+  if (!tableId) return defaultSize
+  try {
+    const stored = localStorage.getItem(`dt_size_${tableId}`)
+    if (stored) {
+      const parsed = parseInt(stored, 10)
+      if (!isNaN(parsed) && parsed > 0) return parsed
+    }
+  } catch {}
+  return defaultSize
+}
+
+// Helper untuk simpan pageSize ke localStorage
+function setStoredPageSize(tableId: string, pageSize: number) {
+  if (!tableId) return
+  try {
+    localStorage.setItem(`dt_size_${tableId}`, String(pageSize))
+  } catch {}
+}
+
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
   data: TData[]
@@ -51,6 +92,11 @@ interface DataTableProps<TData, TValue> {
   showSearch?: boolean
   pageSize?: number
   meta?: Record<string, unknown>
+  // ID untuk persist pagination - jika diberikan, pagination akan disimpan ke localStorage
+  tableId?: string
+  // Legacy props untuk backward compatibility
+  pageIndex?: number
+  onPageIndexChange?: (pageIndex: number) => void
 }
 
 export function DataTable<TData, TValue>({
@@ -60,14 +106,85 @@ export function DataTable<TData, TValue>({
   showColumnVisibility = true,
   showPagination = true,
   showSearch = true,
-  pageSize = 10,
+  pageSize: defaultPageSize = 10,
   meta,
+  tableId,
+  pageIndex: controlledPageIndex,
+  onPageIndexChange,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
   const [rowSelection, setRowSelection] = React.useState({})
-  const [globalFilter, setGlobalFilter] = React.useState("")
+  
+  // State untuk globalFilter - initialize dari localStorage jika ada tableId
+  const [globalFilter, setGlobalFilter] = React.useState<string>(() => {
+    if (tableId) {
+      try {
+        const stored = localStorage.getItem(`dt_search_${tableId}`)
+        return stored || ""
+      } catch {}
+    }
+    return ""
+  })
+  
+  // State untuk pageSize - initialize dari localStorage jika ada tableId
+  const [pageSize, setPageSize] = React.useState(() => {
+    if (tableId) {
+      return getStoredPageSize(tableId, defaultPageSize)
+    }
+    return defaultPageSize
+  })
+  
+  // State untuk pageIndex - initialize dari localStorage jika ada tableId
+  const [internalPageIndex, setInternalPageIndex] = React.useState(() => {
+    if (tableId) {
+      return getStoredPageIndex(tableId)
+    }
+    return 0
+  })
+
+  // Save search filter to localStorage when it changes
+  React.useEffect(() => {
+    if (tableId) {
+      try {
+        localStorage.setItem(`dt_search_${tableId}`, globalFilter)
+      } catch {}
+    }
+  }, [globalFilter, tableId])
+
+  // Determine the actual pageIndex to use
+  const rawPageIndex = controlledPageIndex ?? internalPageIndex
+  
+  // Validate pageIndex doesn't exceed available pages
+  // Only validate if we have data - don't reset to 0 when data is empty (loading state)
+  const totalPages = Math.ceil(data.length / pageSize)
+  const maxPage = Math.max(0, totalPages - 1)
+  const pageIndex = data.length > 0 ? Math.min(rawPageIndex, maxPage) : rawPageIndex
+
+  // Handle page change
+  const handlePageChange = React.useCallback((newPageIndex: number) => {
+    // Simpan ke localStorage jika ada tableId
+    if (tableId) {
+      setStoredPageIndex(tableId, newPageIndex)
+    }
+    
+    // Update state
+    if (onPageIndexChange) {
+      onPageIndexChange(newPageIndex)
+    } else {
+      setInternalPageIndex(newPageIndex)
+    }
+  }, [tableId, onPageIndexChange])
+
+  // Handle page size change - reset to page 0 and persist
+  const handlePageSizeChange = React.useCallback((newSize: number) => {
+    setPageSize(newSize)
+    if (tableId) {
+      setStoredPageSize(tableId, newSize)
+    }
+    handlePageChange(0)
+  }, [handlePageChange, tableId])
 
   const table = useReactTable({
     data,
@@ -89,11 +206,7 @@ export function DataTable<TData, TValue>({
       columnVisibility,
       rowSelection,
       globalFilter,
-    },
-    initialState: {
-      pagination: {
-        pageSize,
-      },
+      pagination: { pageIndex, pageSize },
     },
   })
 
@@ -121,8 +234,8 @@ export function DataTable<TData, TValue>({
             <DropdownMenuContent align="end">
               {table
                 .getAllColumns()
-                .filter((column: any) => column.getCanHide())
-                .map((column: any) => {
+                .filter((column) => column.getCanHide())
+                .map((column) => {
                   return (
                     <DropdownMenuCheckboxItem
                       key={column.id}
@@ -145,9 +258,9 @@ export function DataTable<TData, TValue>({
       <div className="rounded-md border">
         <Table>
           <TableHeader>
-            {table.getHeaderGroups().map((headerGroup: any) => (
+            {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header: any) => {
+                {headerGroup.headers.map((header) => {
                   return (
                     <TableHead key={header.id}>
                       {header.isPlaceholder
@@ -164,12 +277,12 @@ export function DataTable<TData, TValue>({
           </TableHeader>
           <TableBody>
             {table.getRowModel().rows?.length ? (
-              table.getRowModel().rows.map((row: any) => (
+              table.getRowModel().rows.map((row) => (
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
                 >
-                  {row.getVisibleCells().map((cell: any) => (
+                  {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
                       {flexRender(
                         cell.column.columnDef.cell,
@@ -185,7 +298,7 @@ export function DataTable<TData, TValue>({
                   colSpan={columns.length}
                   className="h-24 text-center"
                 >
-                  No results.
+                  Tidak ada data.
                 </TableCell>
               </TableRow>
             )}
@@ -196,41 +309,34 @@ export function DataTable<TData, TValue>({
       {/* Pagination */}
       {showPagination && (
         <div className="flex items-center justify-between space-x-2 py-4">
-          <div className="flex-1 text-sm text-muted-foreground">
-            {table.getFilteredSelectedRowModel().rows.length} of{" "}
-            {table.getFilteredRowModel().rows.length} row(s) selected.
+          <div className="flex items-center space-x-2">
+            <p className="text-sm text-muted-foreground">Baris per halaman</p>
+            <Select
+              value={String(pageSize)}
+              onValueChange={(value) => handlePageSizeChange(Number(value))}
+            >
+              <SelectTrigger className="h-8 w-[70px]">
+                <SelectValue placeholder={String(pageSize)} />
+              </SelectTrigger>
+              <SelectContent side="top">
+                {[5, 10, 20, 30, 50, 100].map((size) => (
+                  <SelectItem key={size} value={String(size)}>
+                    {size}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-          <div className="flex items-center space-x-6">
-            <div className="flex items-center space-x-2">
-              <p className="text-sm font-medium">Rows per page</p>
-              <Select
-                value={`${table.getState().pagination.pageSize}`}
-                onValueChange={(value) => {
-                  table.setPageSize(Number(value))
-                }}
-              >
-                <SelectTrigger className="h-8 w-[70px]">
-                  <SelectValue placeholder={table.getState().pagination.pageSize} />
-                </SelectTrigger>
-                <SelectContent side="top">
-                  {[10, 20, 30, 40, 50].map((pageSize) => (
-                    <SelectItem key={pageSize} value={`${pageSize}`}>
-                      {pageSize}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex w-[100px] items-center justify-center text-sm font-medium">
-              Page {table.getState().pagination.pageIndex + 1} of{" "}
-              {table.getPageCount()}
+          <div className="flex items-center space-x-6 lg:space-x-8">
+            <div className="flex w-[100px] items-center justify-center text-sm text-muted-foreground">
+              Halaman {pageIndex + 1} dari {Math.max(1, totalPages)}
             </div>
             <div className="flex items-center space-x-2">
               <Button
                 variant="outline"
                 className="hidden h-8 w-8 p-0 lg:flex"
-                onClick={() => table.setPageIndex(0)}
-                disabled={!table.getCanPreviousPage()}
+                onClick={() => handlePageChange(0)}
+                disabled={pageIndex === 0}
               >
                 <span className="sr-only">Go to first page</span>
                 <ChevronsLeft className="h-4 w-4" />
@@ -238,8 +344,8 @@ export function DataTable<TData, TValue>({
               <Button
                 variant="outline"
                 className="h-8 w-8 p-0"
-                onClick={() => table.previousPage()}
-                disabled={!table.getCanPreviousPage()}
+                onClick={() => handlePageChange(pageIndex - 1)}
+                disabled={pageIndex === 0}
               >
                 <span className="sr-only">Go to previous page</span>
                 <ChevronLeft className="h-4 w-4" />
@@ -247,8 +353,8 @@ export function DataTable<TData, TValue>({
               <Button
                 variant="outline"
                 className="h-8 w-8 p-0"
-                onClick={() => table.nextPage()}
-                disabled={!table.getCanNextPage()}
+                onClick={() => handlePageChange(pageIndex + 1)}
+                disabled={pageIndex >= maxPage}
               >
                 <span className="sr-only">Go to next page</span>
                 <ChevronRight className="h-4 w-4" />
@@ -256,8 +362,8 @@ export function DataTable<TData, TValue>({
               <Button
                 variant="outline"
                 className="hidden h-8 w-8 p-0 lg:flex"
-                onClick={() => table.setPageIndex(table.getPageCount() - 1)}
-                disabled={!table.getCanNextPage()}
+                onClick={() => handlePageChange(maxPage)}
+                disabled={pageIndex >= maxPage}
               >
                 <span className="sr-only">Go to last page</span>
                 <ChevronsRight className="h-4 w-4" />
@@ -270,28 +376,4 @@ export function DataTable<TData, TValue>({
   )
 }
 
-// Helper function to create a select column
-export function createSelectColumn<T>(): ColumnDef<T> {
-  return {
-    id: "select",
-    header: ({ table }: any) => (
-      <Checkbox
-        checked={
-          table.getIsAllPageRowsSelected() ||
-          (table.getIsSomePageRowsSelected() && "indeterminate")
-        }
-        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-        aria-label="Select all"
-      />
-    ),
-    cell: ({ row }: any) => (
-      <Checkbox
-        checked={row.getIsSelected()}
-        onCheckedChange={(value) => row.toggleSelected(!!value)}
-        aria-label="Select row"
-      />
-    ),
-    enableSorting: false,
-    enableHiding: false,
-  }
-}
+export { type ColumnDef } from "@tanstack/react-table"

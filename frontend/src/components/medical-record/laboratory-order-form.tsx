@@ -50,6 +50,7 @@ interface LaboratoryOrderFormProps {
   visitId: number;
   registrationId?: number;
   sourceRoomId?: number;
+  readOnly?: boolean;
 }
 
 interface OrderItem {
@@ -321,7 +322,7 @@ function OrderCollapsible({ order, onCancel, canCancel }: { order: ProcedureOrde
   );
 }
 
-export function LaboratoryOrderForm({ visitId }: LaboratoryOrderFormProps) {
+export function LaboratoryOrderForm({ visitId, readOnly = false }: LaboratoryOrderFormProps) {
   const { toast } = useToast();
   const { hasPermission } = usePermission();
   const [loading, setLoading] = useState(true);
@@ -519,6 +520,18 @@ export function LaboratoryOrderForm({ visitId }: LaboratoryOrderFormProps) {
         </Card>
       )}
 
+      {/* Read-only notice */}
+      {readOnly && (
+        <Card className="border-amber-200 bg-amber-50 dark:bg-amber-950">
+          <CardContent className="flex items-center gap-2 p-3 text-amber-800 dark:text-amber-200">
+            <AlertCircle className="h-4 w-4" />
+            <p className="text-sm">
+              Pasien sudah pulang. Semua form rekam medis dalam mode baca saja (read-only).
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       {/* New Order Form */}
       {canOrder && (
         <Card>
@@ -532,6 +545,7 @@ export function LaboratoryOrderForm({ visitId }: LaboratoryOrderFormProps) {
             </CardDescription>
           </CardHeader>
           <CardContent className="p-4 space-y-4">
+            <fieldset disabled={readOnly}>
             {/* Room & Priority Selection */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -661,7 +675,7 @@ export function LaboratoryOrderForm({ visitId }: LaboratoryOrderFormProps) {
             <div className="flex justify-end pt-4">
               <Button
                 size="lg"
-                disabled={submitting || orderItems.length === 0}
+                disabled={submitting || orderItems.length === 0 || readOnly}
                 onClick={handleSubmitOrder}
               >
                 {submitting ? (
@@ -677,6 +691,7 @@ export function LaboratoryOrderForm({ visitId }: LaboratoryOrderFormProps) {
                 )}
               </Button>
             </div>
+            </fieldset>
           </CardContent>
         </Card>
       )}

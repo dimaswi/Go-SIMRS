@@ -11,6 +11,7 @@ export interface Room {
   room_type: string;
   room_class: string;
   total_floors: number;
+  registration_fee: number;
   tariff_per_day: number;
   facilities: string;
   description: string;
@@ -21,10 +22,40 @@ export interface Room {
   pic_employee?: Employee;
   units?: RoomUnit[];
   schedules?: Schedule[];
+  tariffs?: RoomTariff[];
   total_beds?: number;
   available_beds?: number;
   created_at: string;
   updated_at: string;
+}
+
+// RoomTariff - Tariff per patient class for inpatient rooms
+export interface RoomTariff {
+  id: number;
+  room_id: number;
+  patient_class: string; // non_kelas, kelas_3, kelas_2, kelas_1, vip, vvip
+  akomodasi: number;
+  makan: number;
+  perawatan: number;
+  administrasi: number;
+  lainnya: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RoomTariffRequest {
+  patient_class: string;
+  akomodasi: number;
+  makan: number;
+  perawatan: number;
+  administrasi: number;
+  lainnya: number;
+  is_active?: boolean;
+}
+
+export interface BulkRoomTariffRequest {
+  tariffs: RoomTariffRequest[];
 }
 
 // RoomUnit (Kamar) - Chamber within a Room
@@ -133,6 +164,7 @@ export interface RoomRequest {
   room_type: string;
   room_class?: string;
   total_floors?: number;
+  registration_fee?: number;
   tariff_per_day?: number;
   facilities?: string;
   description?: string;
@@ -237,6 +269,15 @@ export const roomsApi = {
     const queryString = searchParams.toString();
     return api.get<RoomListResponse>(`/rooms${queryString ? `?${queryString}` : ''}`);
   },
+
+  // Get rooms assigned to current user (via RoomStaff)
+  getMyAssignedRooms: (params?: { service_type?: string; room_type?: string }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.service_type) searchParams.append('service_type', params.service_type);
+    if (params?.room_type) searchParams.append('room_type', params.room_type);
+    const queryString = searchParams.toString();
+    return api.get<{ data: Room[] }>(`/rooms/my-assigned${queryString ? `?${queryString}` : ''}`);
+  },
   
   getById: (id: number) =>
     api.get<{ data: Room }>(`/rooms/${id}`),
@@ -333,6 +374,22 @@ export const roomsApi = {
   
   deleteDoctorSchedule: (roomId: number, scheduleId: number) =>
     api.delete<{ message: string }>(`/rooms/${roomId}/doctor-schedules/${scheduleId}`),
+
+  // Room Tariffs (Tarif per Kelas Pasien untuk Rawat Inap)
+  getTariffs: (roomId: number) =>
+    api.get<{ data: RoomTariff[] }>(`/rooms/${roomId}/tariffs`),
+  
+  createTariff: (roomId: number, data: RoomTariffRequest) =>
+    api.post<{ data: RoomTariff; message: string }>(`/rooms/${roomId}/tariffs`, data),
+  
+  updateTariff: (roomId: number, tariffId: number, data: RoomTariffRequest) =>
+    api.put<{ data: RoomTariff; message: string }>(`/rooms/${roomId}/tariffs/${tariffId}`, data),
+  
+  deleteTariff: (roomId: number, tariffId: number) =>
+    api.delete<{ message: string }>(`/rooms/${roomId}/tariffs/${tariffId}`),
+  
+  bulkUpdateTariffs: (roomId: number, data: BulkRoomTariffRequest) =>
+    api.post<{ data: RoomTariff[]; message: string }>(`/rooms/${roomId}/tariffs/bulk`, data),
 };
 
 // Schedule API (general endpoints)

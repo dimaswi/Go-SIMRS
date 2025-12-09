@@ -139,6 +139,7 @@ export default function StockOpnameIndex() {
               data={stockOpnames}
               searchPlaceholder="Cari nomor opname..."
               pageSize={10}
+              tableId="stock_opname"
             />
           </CardContent>
         </Card>

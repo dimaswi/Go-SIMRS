@@ -131,6 +131,7 @@ export default function DistrictShowPage() {
               columns={columns}
               data={district.villages}
               searchPlaceholder="Cari desa/kelurahan..."
+              tableId="district_villages"
             />
           )}
         </CardContent>

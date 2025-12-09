@@ -58,6 +58,7 @@ import { id as idLocale } from "date-fns/locale";
 
 interface FluidBalanceFormProps {
   visitId: number;
+  readOnly?: boolean;
 }
 
 const defaultFormData: CreateFluidBalanceInput = {
@@ -91,7 +92,7 @@ const defaultFormData: CreateFluidBalanceInput = {
   notes: "",
 };
 
-export function FluidBalanceForm({ visitId }: FluidBalanceFormProps) {
+export function FluidBalanceForm({ visitId, readOnly = false }: FluidBalanceFormProps) {
   const { toast } = useToast();
   const { hasPermission } = usePermission();
 
@@ -299,6 +300,7 @@ export function FluidBalanceForm({ visitId }: FluidBalanceFormProps) {
 
   return (
     <>
+      <fieldset disabled={readOnly}>
       <Card className="shadow-md">
         <CardHeader className="border-b bg-muted/50">
           <div className="flex items-center justify-between">
@@ -718,6 +720,7 @@ export function FluidBalanceForm({ visitId }: FluidBalanceFormProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      </fieldset>
     </>
   );
 }
