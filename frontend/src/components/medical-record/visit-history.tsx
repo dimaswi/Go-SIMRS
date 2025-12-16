@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { visitsApi } from "@/lib/api";
 import { format } from "date-fns";
