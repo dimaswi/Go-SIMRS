@@ -18,6 +18,8 @@ import {
   Droplets,
   CheckCircle,
   Users,
+  HeartPulse,
+  ArrowRightLeft,
 } from "lucide-react";
 
 interface Tab {
@@ -174,12 +176,26 @@ export function MedicalRecordTabs({
       icon: <ClipboardCheck />,
       permission: "medical_records.cppt",
     }] : []),
+    // Nursing Care tab - show for rawat_inap only
+    ...(isInpatient ? [{
+      id: "nursing-care",
+      label: "Asuhan Keperawatan",
+      icon: <HeartPulse />,
+      permission: "medical_records.nursing_care",
+    }] : []),
     // Fluid Balance tab - show for rawat_inap only
     ...(isInpatient ? [{
       id: "fluid-balance",
       label: "Balance Cairan",
       icon: <Droplets />,
       permission: "medical_records.fluid_balance",
+    }] : []),
+    // Bed Transfer tab - show for rawat_inap only
+    ...(isInpatient ? [{
+      id: "bed-transfer",
+      label: "Mutasi Pasien",
+      icon: <ArrowRightLeft />,
+      permission: "medical_records.bed_transfer",
     }] : []),
     {
       id: "medicine-order",

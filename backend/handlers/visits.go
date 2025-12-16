@@ -16,7 +16,7 @@ func GetVisits(c *gin.Context) {
 	var visits []models.Visit
 
 	query := database.DB.Preload("Registration").Preload("Registration.Patient").
-		Preload("Room").Preload("Doctor").Preload("RoomQueue")
+		Preload("Room").Preload("Doctor").Preload("RoomQueue").Preload("Bed")
 
 	// Filter by registration_id
 	if registrationID := c.Query("registration_id"); registrationID != "" {
@@ -75,7 +75,7 @@ func GetVisit(c *gin.Context) {
 	var visit models.Visit
 
 	if err := database.DB.Preload("Registration").Preload("Registration.Patient").
-		Preload("Room").Preload("Doctor").Preload("RoomQueue").
+		Preload("Room").Preload("Doctor").Preload("RoomQueue").Preload("Bed").
 		First(&visit, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Visit not found"})
 		return

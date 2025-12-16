@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -71,13 +72,16 @@ export function RadiologyWorkstation({ visitId, readOnly: _readOnly = false }: R
         order_type: "radiology",
       });
       setOrders(res.data || []);
-      // Select first pending/in_progress order
+      
+      // Select first pending/in_progress order, or fallback to first order (including completed)
       const activeOrder = (res.data || []).find(
         (o: ProcedureOrder) => o.status === "pending" || o.status === "in_progress"
       );
-      if (activeOrder) {
-        setSelectedOrder(activeOrder);
-        initializeResults(activeOrder);
+      const orderToSelect = activeOrder || (res.data && res.data.length > 0 ? res.data[0] : null);
+      
+      if (orderToSelect) {
+        setSelectedOrder(orderToSelect);
+        initializeResults(orderToSelect);
       }
     } catch (error) {
       console.error("Error loading orders:", error);
@@ -287,7 +291,9 @@ export function RadiologyWorkstation({ visitId, readOnly: _readOnly = false }: R
               {getStatusBadge(selectedOrder.status)}
             </div>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="p-0">
+            <ScrollArea className="h-[calc(100vh-450px)] min-h-[570px]">
+              <div className="p-4 space-y-4">
             {/* Patient Info */}
             <div className="grid grid-cols-2 gap-4 text-sm p-3 bg-muted/50 rounded-lg">
               <div className="flex items-center gap-2">
@@ -432,6 +438,8 @@ export function RadiologyWorkstation({ visitId, readOnly: _readOnly = false }: R
                 )}
               </div>
             )}
+              </div>
+            </ScrollArea>
           </CardContent>
         </Card>
       )}

@@ -83,6 +83,12 @@ export interface Bed {
   status: string;
   notes: string;
   room_unit?: RoomUnit;
+  current_patient?: {
+    name: string;
+    medical_record_number: string;
+    admission_date?: string;
+    visit_id: number;
+  };
   created_at: string;
   updated_at: string;
 }

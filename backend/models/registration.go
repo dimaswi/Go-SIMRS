@@ -25,12 +25,21 @@ type Registration struct {
 	InsuranceName      string     `json:"insurance_name" gorm:"size:100"`
 	InsuranceNumber    string     `json:"insurance_number" gorm:"size:50"`
 	Complaint          string     `json:"complaint" gorm:"type:text"`                 // Keluhan utama
-	Status             string     `json:"status" gorm:"size:20;default:'registered'"` // registered, in_queue, in_progress, completed, discharged, cancelled
+	Status             string     `json:"status" gorm:"size:20;default:'registered'"` // registered, scheduled, in_queue, in_progress, completed, discharged, cancelled, no_show
 	DischargedAt       *time.Time `json:"discharged_at,omitempty"`                    // Waktu pulang/dipulangkan
 	RegisteredByID     uint       `json:"registered_by_id"`
 	RegisteredBy       *User      `json:"registered_by,omitempty" gorm:"foreignKey:RegisteredByID"`
 	Notes              string     `json:"notes" gorm:"type:text"`
 	VisitNumber        int        `json:"visit_number"` // Kunjungan ke-N untuk pasien ini (lifetime count)
+
+	// Follow-up / Scheduled Registration fields
+	IsFollowUp    bool       `json:"is_follow_up" gorm:"default:false"`                       // Flag untuk jadwal kontrol
+	SourceVisitID *uint      `json:"source_visit_id" gorm:"index"`                            // Visit ID asal yang order kontrol
+	SourceVisit   *Visit     `json:"source_visit,omitempty" gorm:"foreignKey:SourceVisitID"`  // Relasi ke visit asal
+	ScheduledDate *time.Time `json:"scheduled_date" gorm:"type:date;index"`                   // Tanggal yang dijadwalkan kontrol
+	CheckedInAt   *time.Time `json:"checked_in_at,omitempty"`                                 // Waktu pasien check-in/datang
+	CheckedInByID *uint      `json:"checked_in_by_id,omitempty"`                              // User yang melakukan check-in
+	CheckedInBy   *User      `json:"checked_in_by,omitempty" gorm:"foreignKey:CheckedInByID"` // Relasi ke user check-in
 
 	// Relationships - One Registration can have multiple Visits
 	Visits []Visit `json:"visits,omitempty" gorm:"foreignKey:RegistrationID"`
@@ -38,6 +47,18 @@ type Registration struct {
 	// For easier access to primary visit
 	Visit *Visit `json:"visit,omitempty" gorm:"foreignKey:RegistrationID"`
 }
+
+// Registration Status constants
+const (
+	RegistrationStatusRegistered = "registered" // Pendaftaran biasa
+	RegistrationStatusScheduled  = "scheduled"  // Jadwal kontrol (belum datang)
+	RegistrationStatusInQueue    = "in_queue"   // Dalam antrian
+	RegistrationStatusInProgress = "in_progress"
+	RegistrationStatusCompleted  = "completed"
+	RegistrationStatusDischarged = "discharged"
+	RegistrationStatusCancelled  = "cancelled"
+	RegistrationStatusNoShow     = "no_show" // Tidak datang setelah 30 hari
+)
 
 // TableName specifies the table name for Registration
 func (Registration) TableName() string {

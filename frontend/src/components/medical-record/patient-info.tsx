@@ -1,7 +1,9 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Alert } from "@/components/ui/alert";
 import {
   User,
   Calendar,
@@ -13,6 +15,7 @@ import {
   ChevronDown,
   ChevronUp,
   MessageSquare,
+  ArrowLeft,
 } from "lucide-react";
 
 interface PatientInfoProps {
@@ -22,8 +25,18 @@ interface PatientInfoProps {
     visit_type: string;
     status: string;
     check_in_time?: string;
+    admission_time?: string;
+    discharge_time?: string;
+    referral_from?: number; // For consultation orders
+    bed_id?: number;
+    bed?: {
+      id: number;
+      bed_number: string;
+      status: string;
+    };
     registration?: {
       registration_number: string;
+      status?: string;
       payment_method?: string;
       bpjs_number?: string;
       insurance_name?: string;
@@ -48,6 +61,7 @@ interface PatientInfoProps {
     room?: {
       code: string;
       name: string;
+      service_type?: string;
     };
     doctor?: {
       nama_lengkap: string;
@@ -93,28 +107,126 @@ const getPriorityBadge = (priority?: string) => {
   return <Badge variant={config.variant}>{config.label}</Badge>;
 };
 
+// Get visit category badge based on visit_type and service_type
+const getVisitCategoryBadge = (visit: PatientInfoProps["visit"]) => {
+  const serviceType = visit.room?.service_type;
+  const visitType = visit.visit_type;
+  const hasReferral = !!visit.referral_from;
+
+  // Support visits (order from other visit)
+  if (visitType === "pharmacy") {
+    return (
+      <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 border-purple-300">
+        🏥 Farmasi
+      </Badge>
+    );
+  }
+  if (visitType === "radiology") {
+    return (
+      <Badge className="bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200 border-cyan-300">
+        📷 Radiologi
+      </Badge>
+    );
+  }
+  if (visitType === "lab") {
+    return (
+      <Badge className="bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200 border-teal-300">
+        🧪 Laboratorium
+      </Badge>
+    );
+  }
+  if (visitType === "consultation" && hasReferral) {
+    return (
+      <Badge className="bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200 border-indigo-300">
+        👨‍⚕️ Order Konsultasi
+      </Badge>
+    );
+  }
+
+  // Clinical visits based on service_type
+  if (serviceType === "gawat_darurat" || visitType === "emergency") {
+    return (
+      <Badge className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 border-red-300">
+        🚨 UGD
+      </Badge>
+    );
+  }
+  if (serviceType === "rawat_inap" || visitType === "inpatient") {
+    return (
+      <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 border-blue-300">
+        🛏️ Rawat Inap
+      </Badge>
+    );
+  }
+  if (serviceType === "rawat_jalan" || visitType === "outpatient") {
+    return (
+      <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border-green-300">
+        🏃 Rawat Jalan
+      </Badge>
+    );
+  }
+
+  // Fallback for consultation (non-order) or other
+  if (visitType === "consultation") {
+    return (
+      <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border-green-300">
+        👨‍⚕️ Konsultasi
+      </Badge>
+    );
+  }
+
+  return (
+    <Badge variant="outline">
+      {visitType || "Kunjungan"}
+    </Badge>
+  );
+};
+
 export function PatientInfo({ visit }: PatientInfoProps) {
+  const navigate = useNavigate();
+  
   const patient = visit.registration?.patient;
   const hasAllergies =
     patient?.alergi_obat || patient?.alergi_makanan || patient?.alergi_lainnya;
   const [isOpen, setIsOpen] = useState(false);
+  
+  // Check if this is inpatient visit
+  const isInpatient = visit.room?.service_type === "rawat_inap" || visit.visit_type === "inpatient";
+  
+  // Check if patient is discharged
+  const isPatientDischarged = visit.registration?.status === "completed" || 
+                              visit.registration?.status === "discharged" ||
+                              visit.status === "completed";
 
   return (
-    <Card className="border-none shadow-sm">
-      <CardHeader
-        className="border-b bg-muted/30 px-4 py-2.5 cursor-pointer hover:bg-muted/40 transition-colors"
-        onClick={() => setIsOpen(!isOpen)}
-      >
+    <Card className="border-none shadow-none relative">
+      <CardHeader className="border-b bg-muted/30 px-4 py-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+            <Button 
+              variant="outline" 
+              size="icon" 
+              onClick={() => navigate("/visits")}
+              className="flex-shrink-0"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <div 
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 cursor-pointer"
+              onClick={() => setIsOpen(!isOpen)}
+            >
               <User className="h-5 w-5 text-primary" />
             </div>
-            <div>
+            <div 
+              className="cursor-pointer hover:opacity-80 transition-opacity flex-1"
+              onClick={() => setIsOpen(!isOpen)}
+            >
               <h3 className="text-base font-semibold">
                 {patient?.nama_lengkap || "-"}
               </h3>
-              <div className="flex items-center gap-2 mt-0.5">
+              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                <span className="text-xs text-muted-foreground">Kunjungan #{visit.visit_number}</span>
+                <span className="text-muted-foreground">•</span>
                 <Badge variant="outline" className="font-mono text-xs">
                   {patient?.no_rm || "-"}
                 </Badge>
@@ -130,17 +242,45 @@ export function PatientInfo({ visit }: PatientInfoProps) {
                     ? "Perempuan"
                     : "-"}
                 </Badge>
+                {/* Room and Bed Info for Inpatient */}
+                {isInpatient && visit.room && (
+                  <>
+                    <span className="text-muted-foreground">•</span>
+                    <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-blue-200">
+                      🏥 {visit.room.name}
+                    </Badge>
+                    {visit.bed && (
+                      <Badge variant="outline" className="text-xs bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300 border-green-200">
+                        🛏️ Bed {visit.bed.bed_number}
+                      </Badge>
+                    )}
+                  </>
+                )}
               </div>
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {/* Visit Category Badge */}
+            {getVisitCategoryBadge(visit)}
+            {isPatientDischarged && (
+              <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 border-amber-300 gap-1.5">
+                <AlertTriangle className="h-3.5 w-3.5" />
+                Sudah Pulang
+              </Badge>
+            )}
             {hasAllergies && (
               <Badge variant="destructive" className="gap-1.5">
                 <AlertTriangle className="h-3.5 w-3.5" />
                 Alergi
               </Badge>
             )}
-            <div className="flex items-center justify-center h-8 w-8">
+            <div 
+              className="flex items-center justify-center h-8 w-8 cursor-pointer hover:bg-muted rounded"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsOpen(!isOpen);
+              }}
+            >
               {isOpen ? (
                 <ChevronUp className="h-4 w-4" />
               ) : (
@@ -151,41 +291,70 @@ export function PatientInfo({ visit }: PatientInfoProps) {
         </div>
       </CardHeader>
       {isOpen && (
-        <CardContent className="p-3">
+        <CardContent className="p-3 absolute left-0 right-0 top-full z-50 bg-background border-b shadow-lg">
           {hasAllergies && (
-            <Alert variant="destructive" className="mb-3">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertDescription className="text-sm">
-                <div className="font-semibold mb-1">
-                  Perhatian: Pasien Memiliki Alergi
+            <Alert variant="destructive" className="mb-3 bg-red-50 dark:bg-red-950/20 border-red-300 dark:border-red-800">
+              <div className="flex items-start gap-3">
+                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-red-500 text-white flex-shrink-0">
+                  <AlertTriangle className="h-5 w-5" />
                 </div>
-                <div className="space-y-0.5 text-xs">
-                  {patient?.alergi_obat && (
-                    <div className="flex gap-1.5">
-                      <Pill className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
-                      <span>
-                        <strong>Obat:</strong> {patient.alergi_obat}
-                      </span>
-                    </div>
-                  )}
-                  {patient?.alergi_makanan && (
-                    <div className="flex gap-1.5">
-                      <span className="text-sm mt-0.5">🍽️</span>
-                      <span>
-                        <strong>Makanan:</strong> {patient.alergi_makanan}
-                      </span>
-                    </div>
-                  )}
-                  {patient?.alergi_lainnya && (
-                    <div className="flex gap-1.5">
-                      <AlertTriangle className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
-                      <span>
-                        <strong>Lainnya:</strong> {patient.alergi_lainnya}
-                      </span>
-                    </div>
-                  )}
+                <div className="flex-1 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-red-900 dark:text-red-100 text-sm">
+                      ⚠️ PERHATIAN: PASIEN MEMILIKI ALERGI
+                    </span>
+                    <Badge variant="destructive" className="text-xs animate-pulse">
+                      {[patient?.alergi_obat, patient?.alergi_makanan, patient?.alergi_lainnya].filter(Boolean).length} Alergi
+                    </Badge>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                    {patient?.alergi_obat && (
+                      <div className="bg-white dark:bg-red-950/50 border-2 border-red-200 dark:border-red-800 rounded-lg p-2.5">
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <div className="flex items-center justify-center w-7 h-7 rounded-full bg-red-100 dark:bg-red-900">
+                            <Pill className="h-4 w-4 text-red-600 dark:text-red-300" />
+                          </div>
+                          <span className="font-semibold text-xs text-red-800 dark:text-red-200">ALERGI OBAT</span>
+                        </div>
+                        <p className="text-xs font-medium text-red-900 dark:text-red-100 leading-relaxed">
+                          {patient.alergi_obat}
+                        </p>
+                      </div>
+                    )}
+                    {patient?.alergi_makanan && (
+                      <div className="bg-white dark:bg-red-950/50 border-2 border-red-200 dark:border-red-800 rounded-lg p-2.5">
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <div className="flex items-center justify-center w-7 h-7 rounded-full bg-red-100 dark:bg-red-900">
+                            <span className="text-base">🍽️</span>
+                          </div>
+                          <span className="font-semibold text-xs text-red-800 dark:text-red-200">ALERGI MAKANAN</span>
+                        </div>
+                        <p className="text-xs font-medium text-red-900 dark:text-red-100 leading-relaxed">
+                          {patient.alergi_makanan}
+                        </p>
+                      </div>
+                    )}
+                    {patient?.alergi_lainnya && (
+                      <div className="bg-white dark:bg-red-950/50 border-2 border-red-200 dark:border-red-800 rounded-lg p-2.5">
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <div className="flex items-center justify-center w-7 h-7 rounded-full bg-red-100 dark:bg-red-900">
+                            <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-300" />
+                          </div>
+                          <span className="font-semibold text-xs text-red-800 dark:text-red-200">ALERGI LAINNYA</span>
+                        </div>
+                        <p className="text-xs font-medium text-red-900 dark:text-red-100 leading-relaxed">
+                          {patient.alergi_lainnya}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                  <div className="bg-red-100 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded px-2.5 py-1.5">
+                    <p className="text-xs text-red-800 dark:text-red-200 font-medium">
+                      💊 Pastikan untuk memeriksa riwayat alergi sebelum memberikan obat atau tindakan medis
+                    </p>
+                  </div>
                 </div>
-              </AlertDescription>
+              </div>
             </Alert>
           )}
 
@@ -296,13 +465,45 @@ export function PatientInfo({ visit }: PatientInfoProps) {
                 <label className="text-xs text-muted-foreground">Status</label>
                 <div className="mt-0.5">{getStatusBadge(visit.status)}</div>
               </div>
-              {visit.check_in_time && (
+              {!isInpatient && visit.check_in_time && (
                 <div>
                   <label className="text-xs text-muted-foreground">
                     Check-in
                   </label>
                   <p className="text-xs font-medium mt-0.5">
                     {new Date(visit.check_in_time).toLocaleString("id-ID", {
+                      day: "2-digit",
+                      month: "short",
+                      year: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </p>
+                </div>
+              )}
+              {(isInpatient && visit.admission_time) && (
+                <div>
+                  <label className="text-xs text-muted-foreground">
+                    Tanggal Masuk Rawat Inap
+                  </label>
+                  <p className="text-xs font-medium mt-0.5">
+                    {new Date(visit.admission_time).toLocaleString("id-ID", {
+                      day: "2-digit",
+                      month: "short",
+                      year: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </p>
+                </div>
+              )}
+              {(isInpatient && visit.discharge_time) && (
+                <div>
+                  <label className="text-xs text-muted-foreground">
+                    Tanggal Keluar Rawat Inap
+                  </label>
+                  <p className="text-xs font-medium mt-0.5 text-green-600 dark:text-green-400">
+                    {new Date(visit.discharge_time).toLocaleString("id-ID", {
                       day: "2-digit",
                       month: "short",
                       year: "numeric",

@@ -92,7 +92,63 @@ func GetRoom(c *gin.Context) {
 
 	room.ComputeBedStats(database.DB)
 
+	// Load current patient info for each occupied bed
+	loadBedPatientInfo(database.DB, &room)
+
 	c.JSON(http.StatusOK, gin.H{"data": room})
+}
+
+// loadBedPatientInfo loads patient information for occupied beds in a room
+func loadBedPatientInfo(db *gorm.DB, room *models.Room) {
+	for i := range room.Units {
+		for j := range room.Units[i].Beds {
+			bed := &room.Units[i].Beds[j]
+			if bed.Status == "occupied" {
+				// Find active visit for this bed (query by bed_id)
+				var visit models.Visit
+				err := db.
+					Preload("Registration.Patient").
+					Where("bed_id = ? AND status IN (?, ?)", bed.ID, "in_progress", "waiting").
+					First(&visit).Error
+
+				if err == nil && visit.Registration != nil && visit.Registration.Patient != nil {
+					bed.CurrentPatient = &models.BedPatient{
+						Name:                visit.Registration.Patient.NamaLengkap,
+						MedicalRecordNumber: visit.Registration.Patient.NoRM,
+						AdmissionDate:       visit.AdmissionTime,
+						VisitID:             visit.ID,
+					}
+				} else {
+					// Fallback: If bed is occupied but no visit found with bed_id,
+					// try to find visit by room_id for inpatient rooms (legacy data)
+					var roomCheck models.Room
+					db.First(&roomCheck, room.ID)
+					if roomCheck.ServiceType == "rawat_inap" {
+						// Get unit's room_id
+						var unit models.RoomUnit
+						if db.First(&unit, bed.RoomUnitID).Error == nil {
+							// Find any active inpatient visit in this room without bed assignment
+							var inpatientVisit models.Visit
+							err := db.
+								Preload("Registration.Patient").
+								Where("room_id = ? AND status IN (?, ?) AND (bed_id IS NULL OR bed_id = 0)",
+									unit.RoomID, "in_progress", "waiting").
+								First(&inpatientVisit).Error
+
+							if err == nil && inpatientVisit.Registration != nil && inpatientVisit.Registration.Patient != nil {
+								bed.CurrentPatient = &models.BedPatient{
+									Name:                inpatientVisit.Registration.Patient.NamaLengkap,
+									MedicalRecordNumber: inpatientVisit.Registration.Patient.NoRM,
+									AdmissionDate:       inpatientVisit.AdmissionTime,
+									VisitID:             inpatientVisit.ID,
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
 }
 
 // CreateRoomRequest represents the request to create a room

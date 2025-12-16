@@ -1,11 +1,10 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { usePermission } from "@/hooks/usePermission";
 import { setPageTitle } from "@/lib/page-title";
-import { ArrowLeft, Loader2, AlertTriangle } from "lucide-react";
+import { Loader2, ChevronDown, ChevronUp } from "lucide-react";
 import { visitsApi, medicalRecordsApi } from "@/lib/api";
 import { PatientInfo } from "@/components/medical-record/patient-info";
 import { MedicalRecordTabs } from "@/components/medical-record/medical-record-tabs";
@@ -27,8 +26,11 @@ import { PharmacyReturn } from "@/components/medical-record/pharmacy-return";
 import { ProcedureForm } from "@/components/medical-record/procedure-form";
 import { CPPTForm } from "@/components/medical-record/cppt-form";
 import { FluidBalanceForm } from "@/components/medical-record/fluid-balance-form";
+import { NursingCareForm } from "@/components/medical-record/nursing-care-form";
+import { BedTransferForm } from "@/components/medical-record/bed-transfer-form";
 import { FinalVisit } from "@/components/medical-record/final-visit";
 import { ConsultationForm } from "@/components/medical-record/consultation-form";
+import { VisitHistory } from "@/components/medical-record/visit-history";
 
 export default function VisitShow() {
   const { id } = useParams<{ id: string }>();
@@ -48,16 +50,49 @@ export default function VisitShow() {
   const [showProcedureTab, setShowProcedureTab] = useState(false);
   const [isInpatient, setIsInpatient] = useState(false);
   const [isPatientDischarged, setIsPatientDischarged] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    const saved = localStorage.getItem('medicalRecordTabsCollapsed');
+    return saved ? JSON.parse(saved) : true;
+  });
+  const [historySidebarCollapsed, setHistorySidebarCollapsed] = useState(() => {
+    const saved = localStorage.getItem('visitHistoryCollapsed');
+    return saved ? JSON.parse(saved) : true;
+  });
+  const [patientId, setPatientId] = useState<number | null>(null);
 
   // Refresh tab content when switching tabs
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
     setTabRefreshKey(prev => prev + 1);
   };
+  
+  // Save state to localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem('medicalRecordTabsCollapsed', JSON.stringify(sidebarCollapsed));
+  }, [sidebarCollapsed]);
+  
+  useEffect(() => {
+    localStorage.setItem('visitHistoryCollapsed', JSON.stringify(historySidebarCollapsed));
+  }, [historySidebarCollapsed]);
 
+  // Reset states and load visit when ID changes (navigating to different visit)
+  // This ensures the correct default tab is shown for each visit type
   useEffect(() => {
     setPageTitle("Rekam Medis");
+    
     if (id) {
+      // Reset all states when navigating to a different visit
+      setActiveTab("");
+      setIsEmergency(false);
+      setIsPharmacy(false);
+      setIsRadiology(false);
+      setIsLaboratory(false);
+      setIsConsultation(false);
+      setShowProcedureTab(false);
+      setIsInpatient(false);
+      setIsPatientDischarged(false);
+      
+      // Load the visit data (this will set the correct default tab)
       loadVisit();
     }
   }, [id]);
@@ -70,6 +105,13 @@ export default function VisitShow() {
       const response = await visitsApi.getById(Number(id));
       const visitData = response.data;
       setVisit(visitData);
+
+      // Extract patient ID from visit data
+      if (visitData.registration?.patient?.id) {
+        setPatientId(visitData.registration.patient.id);
+      } else if (visitData.registration?.patient_id) {
+        setPatientId(visitData.registration.patient_id);
+      }
 
       // Check if emergency (UGD)
       const emergency = visitData.room?.service_type === "gawat_darurat";
@@ -91,6 +133,16 @@ export default function VisitShow() {
       // Visit order konsultasi memiliki referral_from (rujukan dari visit lain)
       const consultation = visitData.visit_type === "consultation" && !!visitData.referral_from;
       setIsConsultation(consultation);
+      
+      console.log("Current visit data:", {
+        id: visitData.id,
+        visit_type: visitData.visit_type,
+        referral_from: visitData.referral_from,
+        isConsultationOrder: consultation,
+        service_type: visitData.room?.service_type,
+        admission_time: visitData.admission_time,
+        discharge_time: visitData.discharge_time
+      });
 
       // Show procedure tab for clinical visits (rawat_jalan, rawat_inap, gawat_darurat)
       const allowedServiceTypes = ["rawat_jalan", "rawat_inap", "gawat_darurat"];
@@ -124,11 +176,15 @@ export default function VisitShow() {
           // Radiology visit tabs - langsung ke pengerjaan
           if (hasPermission("procedure_orders.perform")) {
             setActiveTab("radiology-workstation");
+          } else {
+            setActiveTab("radiology-workstation"); // fallback even without permission
           }
         } else if (laboratory) {
           // Laboratory visit tabs - langsung ke pengerjaan
           if (hasPermission("procedure_orders.perform")) {
             setActiveTab("laboratory-workstation");
+          } else {
+            setActiveTab("laboratory-workstation"); // fallback even without permission
           }
         } else if (consultation) {
           // Consultation visit tabs - langsung ke form konsultasi
@@ -169,6 +225,13 @@ export default function VisitShow() {
   // Callback to refresh visit data after status-changing operations
   const handleVisitUpdate = () => {
     loadVisit(true); // Silent reload to update visit data without showing loading state
+  };
+
+  // Handle visit selection from history sidebar
+  const handleVisitSelect = (visitId: number) => {
+    if (visitId !== Number(id)) {
+      navigate(`/visits/${visitId}`);
+    }
   };
 
   const handleSaveTriage = async (data: any) => {
@@ -238,8 +301,31 @@ export default function VisitShow() {
   const renderActiveTabContent = () => {
     if (!visit) return null;
 
+    // Derive support visit types directly from visit data to avoid stale state
+    const visitIsRadiology = visit.visit_type === "radiology";
+    const visitIsLaboratory = visit.visit_type === "lab";
+    const visitIsPharmacy = visit.visit_type === "pharmacy";
+    const visitIsConsultation = visit.visit_type === "consultation" && !!visit.referral_from;
+
+    // Helper: Check if current visit is a support visit (pharmacy, radiology, lab, consultation order)
+    const isSupportVisit = visitIsPharmacy || visitIsRadiology || visitIsLaboratory || visitIsConsultation;
+    
+    // Helper: Render message for wrong visit type
+    const renderWrongVisitTypeMessage = (expectedType: string) => (
+      <Card className="p-6">
+        <p className="text-center text-muted-foreground">
+          Tab ini tidak tersedia untuk jenis kunjungan ini. 
+          Tab ini hanya untuk kunjungan {expectedType}.
+        </p>
+      </Card>
+    );
+
     switch (activeTab) {
       case "triage":
+        // Triage only for emergency visits
+        if (!isEmergency) {
+          return renderWrongVisitTypeMessage("Gawat Darurat (UGD)");
+        }
         if (!hasPermission("medical_records.triage")) {
           return (
             <Card className="p-6">
@@ -251,6 +337,10 @@ export default function VisitShow() {
         }
         return <TriageForm visitId={visit.id} onSave={handleSaveTriage} readOnly={isPatientDischarged} />;
       case "anamnesis":
+        // Anamnesis only for clinical visits (not support visits)
+        if (isSupportVisit) {
+          return renderWrongVisitTypeMessage("klinis (Rawat Jalan/Rawat Inap/UGD)");
+        }
         if (!hasPermission("medical_records.anamnesis")) {
           return (
             <Card className="p-6">
@@ -262,6 +352,10 @@ export default function VisitShow() {
         }
         return <AnamnesisForm visitId={visit.id} onSave={handleSaveAnamnesis} readOnly={isPatientDischarged} />;
       case "physical-exam":
+        // Physical exam only for clinical visits (not support visits)
+        if (isSupportVisit) {
+          return renderWrongVisitTypeMessage("klinis (Rawat Jalan/Rawat Inap/UGD)");
+        }
         if (!hasPermission("medical_records.physical_exam")) {
           return (
             <Card className="p-6">
@@ -280,6 +374,10 @@ export default function VisitShow() {
           />
         );
       case "diagnosis":
+        // Diagnosis only for clinical visits (not support visits)
+        if (isSupportVisit) {
+          return renderWrongVisitTypeMessage("klinis (Rawat Jalan/Rawat Inap/UGD)");
+        }
         if (!hasPermission("medical_records.diagnosis")) {
           return (
             <Card className="p-6">
@@ -291,6 +389,10 @@ export default function VisitShow() {
         }
         return <DiagnosisForm visitId={visit.id} onSave={handleSaveDiagnosis} readOnly={isPatientDischarged} />;
       case "assessment-plan":
+        // Assessment plan only for clinical visits (not support visits)
+        if (isSupportVisit) {
+          return renderWrongVisitTypeMessage("klinis (Rawat Jalan/Rawat Inap/UGD)");
+        }
         if (!hasPermission("medical_records.assessment_plan")) {
           return (
             <Card className="p-6">
@@ -302,6 +404,10 @@ export default function VisitShow() {
         }
         return <AssessmentPlanForm visitId={visit.id} readOnly={isPatientDischarged} />;
       case "procedure":
+        // Procedure only for clinical visits (not support visits)
+        if (isSupportVisit) {
+          return renderWrongVisitTypeMessage("klinis (Rawat Jalan/Rawat Inap/UGD)");
+        }
         if (!hasPermission("medical_records.procedure")) {
           return (
             <Card className="p-6">
@@ -313,6 +419,10 @@ export default function VisitShow() {
         }
         return <ProcedureForm key={`procedure-${visit.id}-${tabRefreshKey}`} visitId={visit.id} readOnly={isPatientDischarged} />;
       case "cppt":
+        // CPPT only for inpatient visits
+        if (!isInpatient) {
+          return renderWrongVisitTypeMessage("Rawat Inap");
+        }
         if (!hasPermission("medical_records.cppt")) {
           return (
             <Card className="p-6">
@@ -323,7 +433,26 @@ export default function VisitShow() {
           );
         }
         return <CPPTForm key={`cppt-${visit.id}-${tabRefreshKey}`} visitId={visit.id} readOnly={isPatientDischarged} />;
+      case "nursing-care":
+        // Nursing care only for inpatient visits
+        if (!isInpatient) {
+          return renderWrongVisitTypeMessage("Rawat Inap");
+        }
+        if (!hasPermission("medical_records.nursing_care")) {
+          return (
+            <Card className="p-6">
+              <p className="text-center text-muted-foreground">
+                Anda tidak memiliki akses untuk Asuhan Keperawatan
+              </p>
+            </Card>
+          );
+        }
+        return <NursingCareForm key={`nursing-care-${visit.id}-${tabRefreshKey}`} visitId={visit.id} readOnly={isPatientDischarged} />;
       case "fluid-balance":
+        // Fluid balance only for inpatient visits
+        if (!isInpatient) {
+          return renderWrongVisitTypeMessage("Rawat Inap");
+        }
         if (!hasPermission("medical_records.fluid_balance")) {
           return (
             <Card className="p-6">
@@ -334,7 +463,35 @@ export default function VisitShow() {
           );
         }
         return <FluidBalanceForm key={`fluid-balance-${visit.id}-${tabRefreshKey}`} visitId={visit.id} readOnly={isPatientDischarged} />;
+      case "bed-transfer":
+        // Bed transfer only for inpatient visits
+        if (!isInpatient) {
+          return renderWrongVisitTypeMessage("Rawat Inap");
+        }
+        if (!hasPermission("medical_records.bed_transfer")) {
+          return (
+            <Card className="p-6">
+              <p className="text-center text-muted-foreground">
+                Anda tidak memiliki akses untuk Mutasi Pasien
+              </p>
+            </Card>
+          );
+        }
+        return (
+          <BedTransferForm
+            key={`bed-transfer-${visit.id}-${tabRefreshKey}`}
+            visitId={visit.id}
+            currentRoomId={visit.room_id}
+            currentBedId={visit.bed_id}
+            readOnly={isPatientDischarged}
+            onTransferComplete={() => loadVisit(true)}
+          />
+        );
       case "medicine-order":
+        // Medicine order only for clinical visits (not support visits)
+        if (isSupportVisit) {
+          return renderWrongVisitTypeMessage("klinis (Rawat Jalan/Rawat Inap/UGD)");
+        }
         if (!hasPermission("medical_records.medicine_order")) {
           return (
             <Card className="p-6">
@@ -353,6 +510,10 @@ export default function VisitShow() {
           />
         );
       case "radiology-order":
+        // Radiology order only for clinical visits (not support visits)
+        if (isSupportVisit) {
+          return renderWrongVisitTypeMessage("klinis (Rawat Jalan/Rawat Inap/UGD)");
+        }
         if (!hasPermission("medical_records.radiology_order")) {
           return (
             <Card className="p-6">
@@ -371,6 +532,10 @@ export default function VisitShow() {
           />
         );
       case "laboratory-order":
+        // Laboratory order only for clinical visits (not support visits)
+        if (isSupportVisit) {
+          return renderWrongVisitTypeMessage("klinis (Rawat Jalan/Rawat Inap/UGD)");
+        }
         if (!hasPermission("medical_records.laboratory_order")) {
           return (
             <Card className="p-6">
@@ -389,6 +554,10 @@ export default function VisitShow() {
           />
         );
       case "consultation-order":
+        // Consultation order only for clinical visits (not support visits)
+        if (isSupportVisit) {
+          return renderWrongVisitTypeMessage("klinis (Rawat Jalan/Rawat Inap/UGD)");
+        }
         if (!hasPermission("medical_records.consultation_order")) {
           return (
             <Card className="p-6">
@@ -407,7 +576,7 @@ export default function VisitShow() {
           />
         );
       
-      // Consultation tab - form jawaban konsultasi
+      // Consultation tab - form jawaban konsultasi (ONLY for consultation order visits)
       case "consultation":
         if (!hasPermission("medical_records.cppt")) {
           return (
@@ -433,6 +602,10 @@ export default function VisitShow() {
         return <FinalVisit key={`consultation-final-${visit.id}-${tabRefreshKey}`} visitId={visit.id} type="consultation" onVisitUpdate={handleVisitUpdate} />;
 
       case "disposition":
+        // Disposition only for clinical visits (not support visits)
+        if (isSupportVisit) {
+          return renderWrongVisitTypeMessage("klinis (Rawat Jalan/Rawat Inap/UGD)");
+        }
         if (!hasPermission("medical_records.disposition")) {
           return (
             <Card className="p-6">
@@ -444,7 +617,7 @@ export default function VisitShow() {
         }
         return <DispositionForm visitId={visit.id} isEmergency={isEmergency} readOnly={isPatientDischarged} onSave={handleVisitUpdate} />;
       
-      // Pharmacy tabs
+      // Pharmacy tabs - ONLY for pharmacy visits
       case "prescription-review":
         if (!hasPermission("pharmacy.review")) {
           return (
@@ -491,7 +664,7 @@ export default function VisitShow() {
         }
         return <FinalVisit key={`pharmacy-final-${visit.id}-${tabRefreshKey}`} visitId={visit.id} type="pharmacy" onVisitUpdate={handleVisitUpdate} />;
       
-      // Radiology workstation tab
+      // Radiology workstation tab - ONLY for radiology visits
       case "radiology-workstation":
         if (!hasPermission("procedure_orders.perform")) {
           return (
@@ -516,7 +689,7 @@ export default function VisitShow() {
         }
         return <FinalVisit key={`radiology-final-${visit.id}-${tabRefreshKey}`} visitId={visit.id} type="radiology" onVisitUpdate={handleVisitUpdate} />;
       
-      // Laboratory workstation tab
+      // Laboratory workstation tab - ONLY for laboratory visits
       case "laboratory-workstation":
         if (!hasPermission("procedure_orders.perform")) {
           return (
@@ -559,60 +732,83 @@ export default function VisitShow() {
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-4 p-6">
-      {/* Header with Back Button */}
-      <div className="flex items-center gap-4">
-        <Button variant="outline" size="icon" onClick={() => navigate("/visits")}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div>
-          <h1 className="text-2xl font-bold">Rekam Medis Pasien</h1>
-          <p className="text-sm text-muted-foreground">
-            Kunjungan #{visit.visit_number}
-          </p>
-        </div>
+    <div className="flex flex-col h-full">
+      {/* Patient Info Header - Sticky */}
+      <div className="sticky top-0 z-50 bg-background px-6 pt-6 pb-3 flex-shrink-0">
+        <PatientInfo visit={visit} />
       </div>
 
-      {/* Patient Info Header */}
-      <PatientInfo visit={visit} />
-
-      {/* Patient Discharged Banner */}
-      {isPatientDischarged && (
-        <div className="bg-amber-100 dark:bg-amber-900 border border-amber-200 dark:border-amber-700 rounded-lg p-3 flex items-center gap-2">
-          <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 flex-shrink-0" />
-          <span className="text-amber-800 dark:text-amber-200 text-sm font-medium">
-            Pasien sudah pulang. Semua form rekam medis dalam mode baca saja (read-only).
-          </span>
-        </div>
-      )}
-
       {/* Main Content Area with Tabs and Form */}
-      <div className="grid grid-cols-1 lg:grid-cols-[200px_1fr] gap-4">
-        {/* Left Sidebar: Tabs Navigation */}
-        <div>
-          <Card className="border-none shadow-sm">
-            <CardHeader className="border-b bg-muted/30 px-3 py-2.5">
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase">Menu Rekam Medis</h3>
-            </CardHeader>
-            <CardContent className="p-2.5">
-              <MedicalRecordTabs
-                activeTab={activeTab}
-                onTabChange={handleTabChange}
-                isEmergency={isEmergency}
-                isPharmacy={isPharmacy}
-                isRadiology={isRadiology}
-                isLaboratory={isLaboratory}
-                isConsultation={isConsultation}
-                showProcedureTab={showProcedureTab}
-                isInpatient={isInpatient}
-              />
-            </CardContent>
-          </Card>
-        </div>
+      <div className="flex-1 min-h-0 px-6 pb-6 pt-4">
+        <div className="grid grid-cols-1 lg:grid-cols-[200px_1fr] gap-4">
+          {/* Left Sidebar: Tabs Navigation & Visit History - Sticky */}
+          <div className="self-start sticky top-[120px] z-30 space-y-4">
+            {/* Medical Record Tabs */}
+            <Card className="border-none shadow-sm">
+              <CardHeader className="border-b bg-muted/30 px-3 py-2.5 cursor-pointer hover:bg-muted/40 transition-colors" onClick={() => {
+                const newState = !sidebarCollapsed;
+                setSidebarCollapsed(newState);
+                if (!newState) {
+                  setHistorySidebarCollapsed(true);
+                }
+              }}>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-semibold text-muted-foreground uppercase">Menu Rekam Medis</h3>
+                  {sidebarCollapsed ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronUp className="h-4 w-4 text-muted-foreground" />}
+                </div>
+              </CardHeader>
+              {!sidebarCollapsed && (
+                <CardContent className="p-2.5">
+                  <MedicalRecordTabs
+                    activeTab={activeTab}
+                    onTabChange={handleTabChange}
+                    isEmergency={isEmergency}
+                    isPharmacy={isPharmacy}
+                    isRadiology={isRadiology}
+                    isLaboratory={isLaboratory}
+                    isConsultation={isConsultation}
+                    showProcedureTab={showProcedureTab}
+                    isInpatient={isInpatient}
+                  />
+                </CardContent>
+              )}
+            </Card>
 
-        {/* Right Content: Active Tab Form */}
-        <div>
-          {renderActiveTabContent()}
+            {/* Visit History Sidebar */}
+            {patientId && (
+              <Card className="border-none shadow-sm">
+                <CardHeader className="border-b bg-muted/30 px-3 py-2.5 cursor-pointer hover:bg-muted/40 transition-colors" onClick={() => {
+                  const newState = !historySidebarCollapsed;
+                  setHistorySidebarCollapsed(newState);
+                  if (!newState) {
+                    setSidebarCollapsed(true);
+                  }
+                }}>
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-semibold text-muted-foreground uppercase">Riwayat Kunjungan</h3>
+                    {historySidebarCollapsed ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronUp className="h-4 w-4 text-muted-foreground" />}
+                  </div>
+                </CardHeader>
+                {!historySidebarCollapsed && (
+                  <CardContent className="p-2.5">
+                    <VisitHistory
+                      patientId={patientId}
+                      currentVisitId={Number(id)}
+                      currentVisitType={visit?.visit_type || "consultation"}
+                      currentServiceType={visit?.room?.service_type}
+                      isConsultationOrder={isConsultation}
+                      onVisitSelect={handleVisitSelect}
+                    />
+                  </CardContent>
+                )}
+              </Card>
+            )}
+          </div>
+
+          {/* Right Content: Active Tab Form */}
+          <div>
+            {renderActiveTabContent()}
+          </div>
         </div>
       </div>
     </div>

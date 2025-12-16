@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -263,11 +263,14 @@ export function FinalVisit({ visitId, type, onVisitUpdate }: FinalVisitProps) {
 
   return (
     <Card className="shadow-md">
-      <CardHeader className="border-b bg-muted/50">
-        <CardTitle className="text-lg flex items-center gap-2">
+      <CardHeader className="border-b bg-muted/30 py-3 px-4">
+        <CardTitle className="text-base font-semibold flex items-center gap-2">
           {getTypeIcon()}
           Final Kunjungan {getTypeLabel()}
         </CardTitle>
+        <CardDescription>
+          Finalisasi kunjungan setelah semua order selesai dikerjakan
+        </CardDescription>
       </CardHeader>
       <CardContent className="p-4 space-y-4">
         {/* Status */}

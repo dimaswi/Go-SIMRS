@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { usePermission } from "@/hooks/usePermission";
 import {
@@ -212,10 +213,18 @@ export function PharmacyReview({ visitId, readOnly = false }: PharmacyReviewProp
   
   return (
     <Card className="shadow-md">
-      <CardHeader className="border-b bg-muted/50">
-        <CardTitle className="text-lg">Telaah Resep</CardTitle>
+      <CardHeader className="border-b bg-muted/30 py-3 px-4">
+        <CardTitle className="text-base font-semibold flex items-center gap-2">
+          <FileCheck className="h-4 w-4" />
+          Telaah Resep
+        </CardTitle>
+        <CardDescription>
+          Verifikasi dan telaah keamanan resep sebelum penyiapan obat
+        </CardDescription>
       </CardHeader>
-      <CardContent className="p-4 space-y-4">
+      <CardContent className="p-0">
+        <ScrollArea className="h-[calc(100vh-300px)] min-h-[400px]">
+          <div className="p-4 space-y-4">
       {/* Order Selection if multiple */}
       {orders.length > 1 && (
         <div className="border rounded-lg p-3 bg-muted/30">
@@ -593,8 +602,8 @@ export function PharmacyReview({ visitId, readOnly = false }: PharmacyReviewProp
             </div>
           </div>
         </>
-      )}
-      </CardContent>
+      )}          </div>
+        </ScrollArea>      </CardContent>
     </Card>
   );
 }

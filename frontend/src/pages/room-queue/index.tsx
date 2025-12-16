@@ -21,7 +21,17 @@ export default function RoomQueueManagement() {
   const [stats, setStats] = useState<RoomQueueStats | null>(null);
   const [currentQueue, setCurrentQueue] = useState<RoomQueue | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const today = format(new Date(), 'yyyy-MM-dd');
+  
+  // Format tanggal ke string yyyy-MM-dd (dari browser timezone lokal)
+  const getTodayString = (): string => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+  
+  const today = getTodayString();
 
   const fetchData = async () => {
     if (!roomId) return;

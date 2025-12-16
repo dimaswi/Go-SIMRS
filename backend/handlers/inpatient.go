@@ -635,3 +635,630 @@ func DeleteFluidBalance(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "Balance cairan berhasil dihapus"})
 }
+
+// ===========================================================================
+// NURSING CARE HANDLERS - Asuhan Keperawatan
+// ===========================================================================
+
+// GetNursingCares returns all nursing care records for a visit
+func GetNursingCares(c *gin.Context) {
+	visitID := c.Param("id")
+
+	// Verify visit exists
+	var visit models.Visit
+	if err := database.DB.Preload("Room").First(&visit, visitID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Kunjungan tidak ditemukan"})
+		return
+	}
+
+	// Nursing care only for inpatient visits
+	if visit.Room == nil || visit.Room.ServiceType != "rawat_inap" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Asuhan keperawatan hanya tersedia untuk rawat inap"})
+		return
+	}
+
+	var records []models.NursingCare
+	query := database.DB.
+		Where("visit_id = ?", visitID).
+		Preload("CreatedBy").
+		Preload("VerifiedBy").
+		Order("record_date DESC, created_at DESC")
+
+	// Filter by date range
+	if startDate := c.Query("start_date"); startDate != "" {
+		query = query.Where("DATE(record_date) >= ?", startDate)
+	}
+	if endDate := c.Query("end_date"); endDate != "" {
+		query = query.Where("DATE(record_date) <= ?", endDate)
+	}
+
+	// Filter by shift
+	if shiftType := c.Query("shift_type"); shiftType != "" {
+		query = query.Where("shift_type = ?", shiftType)
+	}
+
+	// Filter by problem status
+	if problemStatus := c.Query("problem_status"); problemStatus != "" {
+		query = query.Where("problem_status = ?", problemStatus)
+	}
+
+	if err := query.Find(&records).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengambil data asuhan keperawatan"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": records})
+}
+
+// GetNursingCare returns a single nursing care record
+func GetNursingCare(c *gin.Context) {
+	visitID := c.Param("id")
+	nursingID := c.Param("nursingId")
+
+	var record models.NursingCare
+	if err := database.DB.
+		Where("visit_id = ? AND id = ?", visitID, nursingID).
+		Preload("CreatedBy").
+		Preload("VerifiedBy").
+		First(&record).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Data asuhan keperawatan tidak ditemukan"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": record})
+}
+
+// CreateNursingCare creates a new nursing care record
+func CreateNursingCare(c *gin.Context) {
+	visitID := c.Param("id")
+	userIDVal, _ := c.Get("userID")
+	userID, _ := userIDVal.(uint)
+
+	var input struct {
+		RecordDate              string `json:"record_date" binding:"required"`
+		ShiftType               string `json:"shift_type"`
+		ChiefComplaint          string `json:"chief_complaint"`
+		PainAssessment          string `json:"pain_assessment"`
+		PainScale               int    `json:"pain_scale"`
+		ConsciousnessLevel      string `json:"consciousness_level"`
+		FunctionalStatus        string `json:"functional_status"`
+		FallRiskAssessment      string `json:"fall_risk_assessment"`
+		FallRiskScore           int    `json:"fall_risk_score"`
+		NutritionAssessment     string `json:"nutrition_assessment"`
+		SkinAssessment          string `json:"skin_assessment"`
+		PressureUlcerRisk       string `json:"pressure_ulcer_risk"`
+		BloodPressure           string `json:"blood_pressure"`
+		HeartRate               int    `json:"heart_rate"`
+		RespiratoryRate         int    `json:"respiratory_rate"`
+		Temperature             string `json:"temperature"`
+		OxygenSaturation        int    `json:"oxygen_saturation"`
+		NursingDiagnosis        string `json:"nursing_diagnosis"`
+		NursingDiagnosisCode    string `json:"nursing_diagnosis_code"`
+		ProblemEtiology         string `json:"problem_etiology"`
+		SignsSymptoms           string `json:"signs_symptoms"`
+		NursingOutcome          string `json:"nursing_outcome"`
+		NursingOutcomeCode      string `json:"nursing_outcome_code"`
+		OutcomeIndicators       string `json:"outcome_indicators"`
+		OutcomeTarget           string `json:"outcome_target"`
+		NursingIntervention     string `json:"nursing_intervention"`
+		NursingInterventionCode string `json:"nursing_intervention_code"`
+		ObservationActions      string `json:"observation_actions"`
+		TherapeuticActions      string `json:"therapeutic_actions"`
+		EducationActions        string `json:"education_actions"`
+		CollaborationActions    string `json:"collaboration_actions"`
+		Implementation          string `json:"implementation"`
+		ImplementationTime      string `json:"implementation_time"`
+		PatientResponse         string `json:"patient_response"`
+		EvaluationSubjective    string `json:"evaluation_subjective"`
+		EvaluationObjective     string `json:"evaluation_objective"`
+		EvaluationAnalysis      string `json:"evaluation_analysis"`
+		EvaluationPlanning      string `json:"evaluation_planning"`
+		ProblemStatus           string `json:"problem_status"`
+		Notes                   string `json:"notes"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Verify visit exists and is inpatient
+	visitIDUint, _ := strconv.ParseUint(visitID, 10, 32)
+	var visit models.Visit
+	if err := database.DB.Preload("Room").First(&visit, visitIDUint).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Kunjungan tidak ditemukan"})
+		return
+	}
+
+	if visit.Room == nil || visit.Room.ServiceType != "rawat_inap" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Asuhan keperawatan hanya tersedia untuk rawat inap"})
+		return
+	}
+
+	// Parse record date
+	recordDate, err := time.Parse("2006-01-02T15:04", input.RecordDate)
+	if err != nil {
+		recordDate, err = time.Parse("2006-01-02 15:04", input.RecordDate)
+		if err != nil {
+			recordDate = time.Now()
+		}
+	}
+
+	// Parse implementation time if provided
+	var implTime time.Time
+	if input.ImplementationTime != "" {
+		implTime, _ = time.Parse("2006-01-02T15:04", input.ImplementationTime)
+	}
+
+	var createdByID *uint
+	if userID > 0 {
+		createdByID = &userID
+	}
+
+	record := models.NursingCare{
+		VisitID:                 uint(visitIDUint),
+		RecordDate:              recordDate,
+		ShiftType:               input.ShiftType,
+		ChiefComplaint:          input.ChiefComplaint,
+		PainAssessment:          input.PainAssessment,
+		PainScale:               input.PainScale,
+		ConsciousnessLevel:      input.ConsciousnessLevel,
+		FunctionalStatus:        input.FunctionalStatus,
+		FallRiskAssessment:      input.FallRiskAssessment,
+		FallRiskScore:           input.FallRiskScore,
+		NutritionAssessment:     input.NutritionAssessment,
+		SkinAssessment:          input.SkinAssessment,
+		PressureUlcerRisk:       input.PressureUlcerRisk,
+		BloodPressure:           input.BloodPressure,
+		HeartRate:               input.HeartRate,
+		RespiratoryRate:         input.RespiratoryRate,
+		Temperature:             input.Temperature,
+		OxygenSaturation:        input.OxygenSaturation,
+		NursingDiagnosis:        input.NursingDiagnosis,
+		NursingDiagnosisCode:    input.NursingDiagnosisCode,
+		ProblemEtiology:         input.ProblemEtiology,
+		SignsSymptoms:           input.SignsSymptoms,
+		NursingOutcome:          input.NursingOutcome,
+		NursingOutcomeCode:      input.NursingOutcomeCode,
+		OutcomeIndicators:       input.OutcomeIndicators,
+		OutcomeTarget:           input.OutcomeTarget,
+		NursingIntervention:     input.NursingIntervention,
+		NursingInterventionCode: input.NursingInterventionCode,
+		ObservationActions:      input.ObservationActions,
+		TherapeuticActions:      input.TherapeuticActions,
+		EducationActions:        input.EducationActions,
+		CollaborationActions:    input.CollaborationActions,
+		Implementation:          input.Implementation,
+		ImplementationTime:      implTime,
+		PatientResponse:         input.PatientResponse,
+		EvaluationSubjective:    input.EvaluationSubjective,
+		EvaluationObjective:     input.EvaluationObjective,
+		EvaluationAnalysis:      input.EvaluationAnalysis,
+		EvaluationPlanning:      input.EvaluationPlanning,
+		ProblemStatus:           input.ProblemStatus,
+		Notes:                   input.Notes,
+		CreatedByID:             createdByID,
+	}
+
+	if err := database.DB.Create(&record).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan asuhan keperawatan"})
+		return
+	}
+
+	// Reload with relations
+	database.DB.Preload("CreatedBy").First(&record, record.ID)
+
+	c.JSON(http.StatusCreated, gin.H{"data": record})
+}
+
+// UpdateNursingCare updates a nursing care record
+func UpdateNursingCare(c *gin.Context) {
+	visitID := c.Param("id")
+	nursingID := c.Param("nursingId")
+
+	var record models.NursingCare
+	if err := database.DB.
+		Where("visit_id = ? AND id = ?", visitID, nursingID).
+		First(&record).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Data asuhan keperawatan tidak ditemukan"})
+		return
+	}
+
+	// Don't allow editing verified records
+	if record.IsVerified {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Asuhan keperawatan yang sudah diverifikasi tidak dapat diubah"})
+		return
+	}
+
+	var input struct {
+		RecordDate              string `json:"record_date"`
+		ShiftType               string `json:"shift_type"`
+		ChiefComplaint          string `json:"chief_complaint"`
+		PainAssessment          string `json:"pain_assessment"`
+		PainScale               int    `json:"pain_scale"`
+		ConsciousnessLevel      string `json:"consciousness_level"`
+		FunctionalStatus        string `json:"functional_status"`
+		FallRiskAssessment      string `json:"fall_risk_assessment"`
+		FallRiskScore           int    `json:"fall_risk_score"`
+		NutritionAssessment     string `json:"nutrition_assessment"`
+		SkinAssessment          string `json:"skin_assessment"`
+		PressureUlcerRisk       string `json:"pressure_ulcer_risk"`
+		BloodPressure           string `json:"blood_pressure"`
+		HeartRate               int    `json:"heart_rate"`
+		RespiratoryRate         int    `json:"respiratory_rate"`
+		Temperature             string `json:"temperature"`
+		OxygenSaturation        int    `json:"oxygen_saturation"`
+		NursingDiagnosis        string `json:"nursing_diagnosis"`
+		NursingDiagnosisCode    string `json:"nursing_diagnosis_code"`
+		ProblemEtiology         string `json:"problem_etiology"`
+		SignsSymptoms           string `json:"signs_symptoms"`
+		NursingOutcome          string `json:"nursing_outcome"`
+		NursingOutcomeCode      string `json:"nursing_outcome_code"`
+		OutcomeIndicators       string `json:"outcome_indicators"`
+		OutcomeTarget           string `json:"outcome_target"`
+		NursingIntervention     string `json:"nursing_intervention"`
+		NursingInterventionCode string `json:"nursing_intervention_code"`
+		ObservationActions      string `json:"observation_actions"`
+		TherapeuticActions      string `json:"therapeutic_actions"`
+		EducationActions        string `json:"education_actions"`
+		CollaborationActions    string `json:"collaboration_actions"`
+		Implementation          string `json:"implementation"`
+		ImplementationTime      string `json:"implementation_time"`
+		PatientResponse         string `json:"patient_response"`
+		EvaluationSubjective    string `json:"evaluation_subjective"`
+		EvaluationObjective     string `json:"evaluation_objective"`
+		EvaluationAnalysis      string `json:"evaluation_analysis"`
+		EvaluationPlanning      string `json:"evaluation_planning"`
+		ProblemStatus           string `json:"problem_status"`
+		Notes                   string `json:"notes"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	updates := map[string]interface{}{
+		"shift_type":                input.ShiftType,
+		"chief_complaint":           input.ChiefComplaint,
+		"pain_assessment":           input.PainAssessment,
+		"pain_scale":                input.PainScale,
+		"consciousness_level":       input.ConsciousnessLevel,
+		"functional_status":         input.FunctionalStatus,
+		"fall_risk_assessment":      input.FallRiskAssessment,
+		"fall_risk_score":           input.FallRiskScore,
+		"nutrition_assessment":      input.NutritionAssessment,
+		"skin_assessment":           input.SkinAssessment,
+		"pressure_ulcer_risk":       input.PressureUlcerRisk,
+		"blood_pressure":            input.BloodPressure,
+		"heart_rate":                input.HeartRate,
+		"respiratory_rate":          input.RespiratoryRate,
+		"temperature":               input.Temperature,
+		"oxygen_saturation":         input.OxygenSaturation,
+		"nursing_diagnosis":         input.NursingDiagnosis,
+		"nursing_diagnosis_code":    input.NursingDiagnosisCode,
+		"problem_etiology":          input.ProblemEtiology,
+		"signs_symptoms":            input.SignsSymptoms,
+		"nursing_outcome":           input.NursingOutcome,
+		"nursing_outcome_code":      input.NursingOutcomeCode,
+		"outcome_indicators":        input.OutcomeIndicators,
+		"outcome_target":            input.OutcomeTarget,
+		"nursing_intervention":      input.NursingIntervention,
+		"nursing_intervention_code": input.NursingInterventionCode,
+		"observation_actions":       input.ObservationActions,
+		"therapeutic_actions":       input.TherapeuticActions,
+		"education_actions":         input.EducationActions,
+		"collaboration_actions":     input.CollaborationActions,
+		"implementation":            input.Implementation,
+		"patient_response":          input.PatientResponse,
+		"evaluation_subjective":     input.EvaluationSubjective,
+		"evaluation_objective":      input.EvaluationObjective,
+		"evaluation_analysis":       input.EvaluationAnalysis,
+		"evaluation_planning":       input.EvaluationPlanning,
+		"problem_status":            input.ProblemStatus,
+		"notes":                     input.Notes,
+	}
+
+	if input.RecordDate != "" {
+		recordDate, err := time.Parse("2006-01-02T15:04", input.RecordDate)
+		if err != nil {
+			recordDate, _ = time.Parse("2006-01-02 15:04", input.RecordDate)
+		}
+		updates["record_date"] = recordDate
+	}
+
+	if input.ImplementationTime != "" {
+		implTime, err := time.Parse("2006-01-02T15:04", input.ImplementationTime)
+		if err == nil {
+			updates["implementation_time"] = implTime
+		}
+	}
+
+	if err := database.DB.Model(&record).Updates(updates).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memperbarui asuhan keperawatan"})
+		return
+	}
+
+	// Reload with relations
+	database.DB.Preload("CreatedBy").Preload("VerifiedBy").First(&record, record.ID)
+
+	c.JSON(http.StatusOK, gin.H{"data": record})
+}
+
+// VerifyNursingCare verifies a nursing care record
+func VerifyNursingCare(c *gin.Context) {
+	visitID := c.Param("id")
+	nursingID := c.Param("nursingId")
+	userIDVal, _ := c.Get("userID")
+	userID, _ := userIDVal.(uint)
+
+	var record models.NursingCare
+	if err := database.DB.
+		Where("visit_id = ? AND id = ?", visitID, nursingID).
+		First(&record).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Data asuhan keperawatan tidak ditemukan"})
+		return
+	}
+
+	if record.IsVerified {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Asuhan keperawatan sudah diverifikasi"})
+		return
+	}
+
+	now := time.Now()
+	updates := map[string]interface{}{
+		"is_verified":    true,
+		"verified_by_id": userID,
+		"verified_at":    &now,
+	}
+
+	if err := database.DB.Model(&record).Updates(updates).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memverifikasi asuhan keperawatan"})
+		return
+	}
+
+	// Reload with relations
+	database.DB.Preload("CreatedBy").Preload("VerifiedBy").First(&record, record.ID)
+
+	c.JSON(http.StatusOK, gin.H{"data": record})
+}
+
+// DeleteNursingCare deletes a nursing care record
+func DeleteNursingCare(c *gin.Context) {
+	visitID := c.Param("id")
+	nursingID := c.Param("nursingId")
+
+	var record models.NursingCare
+	if err := database.DB.
+		Where("visit_id = ? AND id = ?", visitID, nursingID).
+		First(&record).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Data asuhan keperawatan tidak ditemukan"})
+		return
+	}
+
+	if record.IsVerified {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Asuhan keperawatan yang sudah diverifikasi tidak dapat dihapus"})
+		return
+	}
+
+	if err := database.DB.Delete(&record).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menghapus asuhan keperawatan"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Asuhan keperawatan berhasil dihapus"})
+}
+
+// ===========================================================================
+// BED TRANSFER HANDLERS - Mutasi Pasien (Pindah Kamar/Bed)
+// ===========================================================================
+
+// GetBedTransfers returns all bed transfer records for a visit
+func GetBedTransfers(c *gin.Context) {
+	visitID := c.Param("id")
+
+	// Verify visit exists and is inpatient
+	var visit models.Visit
+	if err := database.DB.Preload("Room").First(&visit, visitID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Kunjungan tidak ditemukan"})
+		return
+	}
+
+	if visit.Room == nil || visit.Room.ServiceType != "rawat_inap" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Mutasi hanya tersedia untuk rawat inap"})
+		return
+	}
+
+	var transfers []models.BedTransfer
+	if err := database.DB.
+		Where("visit_id = ?", visitID).
+		Preload("FromRoom").
+		Preload("FromBed").
+		Preload("ToRoom").
+		Preload("ToBed").
+		Preload("CreatedBy").
+		Order("transfer_date DESC").
+		Find(&transfers).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengambil data mutasi"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": transfers})
+}
+
+// GetBedTransfer returns a single bed transfer record
+func GetBedTransfer(c *gin.Context) {
+	visitID := c.Param("id")
+	transferID := c.Param("transferId")
+
+	var transfer models.BedTransfer
+	if err := database.DB.
+		Where("visit_id = ? AND id = ?", visitID, transferID).
+		Preload("FromRoom").
+		Preload("FromBed").
+		Preload("ToRoom").
+		Preload("ToBed").
+		Preload("CreatedBy").
+		First(&transfer).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Data mutasi tidak ditemukan"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": transfer})
+}
+
+// CreateBedTransfer creates a new bed transfer (mutasi)
+func CreateBedTransfer(c *gin.Context) {
+	visitID := c.Param("id")
+	userIDVal, _ := c.Get("userID")
+	userID, _ := userIDVal.(uint)
+
+	var input struct {
+		ToRoomID       uint   `json:"to_room_id" binding:"required"`
+		ToBedID        uint   `json:"to_bed_id" binding:"required"`
+		TransferReason string `json:"transfer_reason"`
+		TransferType   string `json:"transfer_type"`
+		Notes          string `json:"notes"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Get visit with current bed info
+	var visit models.Visit
+	if err := database.DB.
+		Preload("Room").
+		Preload("Bed").
+		First(&visit, visitID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Kunjungan tidak ditemukan"})
+		return
+	}
+
+	// Verify it's an inpatient visit
+	if visit.Room == nil || visit.Room.ServiceType != "rawat_inap" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Mutasi hanya tersedia untuk rawat inap"})
+		return
+	}
+
+	// Verify visit is still in progress
+	if visit.Status != "in_progress" && visit.Status != "waiting" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Mutasi hanya bisa dilakukan untuk kunjungan aktif"})
+		return
+	}
+
+	// Check if this is initial placement (no current bed) or transfer
+	var oldBedID uint
+	isInitialPlacement := true
+	if visit.BedID != nil && *visit.BedID > 0 {
+		isInitialPlacement = false
+		oldBedID = *visit.BedID
+	}
+
+	// Verify target bed exists and is available
+	var targetBed models.Bed
+	if err := database.DB.Preload("RoomUnit").First(&targetBed, input.ToBedID).Error; err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Bed tujuan tidak ditemukan"})
+		return
+	}
+
+	// Check if target bed is the same as current bed
+	if !isInitialPlacement && oldBedID == input.ToBedID {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Bed tujuan sama dengan bed saat ini"})
+		return
+	}
+
+	if targetBed.Status != "available" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Bed tujuan tidak tersedia (sedang terisi)"})
+		return
+	}
+
+	// Verify target room exists
+	var targetRoom models.Room
+	if err := database.DB.First(&targetRoom, input.ToRoomID).Error; err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Ruangan tujuan tidak ditemukan"})
+		return
+	}
+
+	// Get target room class for billing
+	newInpatientClass := targetRoom.RoomClass
+
+	// Start transaction
+	tx := database.DB.Begin()
+
+	// Create transfer record
+	now := time.Now()
+	transfer := models.BedTransfer{
+		VisitID:           visit.ID,
+		FromRoomID:        visit.RoomID,
+		ToRoomID:          input.ToRoomID,
+		ToBedID:           input.ToBedID,
+		TransferDate:      now,
+		TransferReason:    input.TransferReason,
+		TransferType:      input.TransferType,
+		OldInpatientClass: visit.InpatientClass,
+		NewInpatientClass: newInpatientClass,
+		Notes:             input.Notes,
+		CreatedByID:       &userID,
+	}
+
+	// Set FromBedID only if patient already has a bed
+	if !isInitialPlacement && oldBedID > 0 {
+		transfer.FromBedID = &oldBedID
+	}
+
+	if err := tx.Create(&transfer).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat catatan mutasi"})
+		return
+	}
+
+	// Update old bed status to available (only if patient already has a bed)
+	if !isInitialPlacement && oldBedID > 0 {
+		if err := tx.Model(&models.Bed{}).Where("id = ?", oldBedID).Update("status", "available").Error; err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal update bed lama"})
+			return
+		}
+	}
+
+	// Update new bed status to occupied
+	if err := tx.Model(&models.Bed{}).Where("id = ?", input.ToBedID).Update("status", "occupied").Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal update bed baru"})
+		return
+	}
+
+	// Update visit with new room and bed - use visit.ID to ensure correct record is updated
+	if err := tx.Model(&models.Visit{}).Where("id = ?", visit.ID).Updates(map[string]interface{}{
+		"room_id":         input.ToRoomID,
+		"bed_id":          input.ToBedID,
+		"inpatient_class": newInpatientClass,
+	}).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal update kunjungan"})
+		return
+	}
+
+	tx.Commit()
+
+	// Reload transfer with relations
+	database.DB.
+		Preload("FromRoom").
+		Preload("FromBed").
+		Preload("ToRoom").
+		Preload("ToBed").
+		Preload("CreatedBy").
+		First(&transfer, transfer.ID)
+
+	message := "Mutasi pasien berhasil"
+	if isInitialPlacement {
+		message = "Penempatan bed pasien berhasil"
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"data":    transfer,
+		"message": message,
+	})
+}

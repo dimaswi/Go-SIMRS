@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Check, ChevronsUpDown, Loader2, User } from "lucide-react"
+import { Check, ChevronsUpDown, Loader2, User, SlidersHorizontal, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
@@ -17,6 +17,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { patientsApi, type Patient } from "@/lib/api"
 
 interface PatientSearchComboboxProps {
@@ -38,6 +40,9 @@ export function PatientSearchCombobox({
   const [search, setSearch] = React.useState("")
   const [patients, setPatients] = React.useState<Patient[]>([])
   const [loading, setLoading] = React.useState(false)
+  const [showAdvanced, setShowAdvanced] = React.useState(false)
+  const [addressFilter, setAddressFilter] = React.useState("")
+  const [birthDateFilter, setBirthDateFilter] = React.useState("")
 
   // Calculate age from birth date
   const calculateAge = (birthDate: string | undefined) => {
@@ -62,11 +67,13 @@ export function PatientSearchCombobox({
     const timer = setTimeout(async () => {
       setLoading(true)
       try {
-        console.log("Searching for:", search)
-        const response = await patientsApi.search(search, 20)
-        console.log("Search response:", response)
+        const response = await patientsApi.search(
+          search, 
+          20, 
+          addressFilter || undefined, 
+          birthDateFilter || undefined
+        )
         const data = response.data?.data || response.data || []
-        console.log("Patients found:", data)
         setPatients(Array.isArray(data) ? data : [])
       } catch (error) {
         console.error("Failed to search patients:", error)
@@ -77,7 +84,7 @@ export function PatientSearchCombobox({
     }, 300)
 
     return () => clearTimeout(timer)
-  }, [search])
+  }, [search, addressFilter, birthDateFilter])
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -111,12 +118,97 @@ export function PatientSearchCombobox({
       </PopoverTrigger>
       <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
         <Command shouldFilter={false}>
-          <CommandInput 
-            placeholder="Ketik nama, NIK, atau No. RM..." 
-            value={search}
-            onValueChange={setSearch}
-            className="h-9" 
-          />
+          <div className="border-b">
+            <CommandInput 
+              placeholder="Ketik nama, NIK, atau No. RM..." 
+              value={search}
+              onValueChange={setSearch}
+              className="h-9" 
+            />
+            
+            {/* Advanced Filters Toggle */}
+            <div className="px-2 pb-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs w-full justify-start gap-1"
+                onClick={() => setShowAdvanced(!showAdvanced)}
+              >
+                <SlidersHorizontal className="h-3 w-3" />
+                {showAdvanced ? "Sembunyikan" : "Tampilkan"} Filter Lanjutan
+              </Button>
+              
+              {showAdvanced && (
+                <div className="space-y-2 mt-2 pt-2 border-t">
+                  <div className="space-y-1">
+                    <Label htmlFor="address-filter" className="text-xs text-muted-foreground">
+                      Alamat
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        id="address-filter"
+                        placeholder="Filter berdasarkan alamat..."
+                        value={addressFilter}
+                        onChange={(e) => setAddressFilter(e.target.value)}
+                        className="h-8 text-xs pr-7"
+                      />
+                      {addressFilter && (
+                        <button
+                          type="button"
+                          onClick={() => setAddressFilter("")}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-1">
+                    <Label htmlFor="birth-date-filter" className="text-xs text-muted-foreground">
+                      Tanggal Lahir
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        id="birth-date-filter"
+                        type="date"
+                        value={birthDateFilter}
+                        onChange={(e) => setBirthDateFilter(e.target.value)}
+                        className="h-8 text-xs pr-7"
+                      />
+                      {birthDateFilter && (
+                        <button
+                          type="button"
+                          onClick={() => setBirthDateFilter("")}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {(addressFilter || birthDateFilter) && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs w-full"
+                      onClick={() => {
+                        setAddressFilter("")
+                        setBirthDateFilter("")
+                      }}
+                    >
+                      <X className="h-3 w-3 mr-1" />
+                      Hapus Semua Filter
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+          
           <CommandList>
             {loading && (
               <div className="flex items-center justify-center py-6">
@@ -142,6 +234,9 @@ export function PatientSearchCombobox({
                       onValueChange?.(patient)
                       setOpen(false)
                       setSearch("")
+                      setAddressFilter("")
+                      setBirthDateFilter("")
+                      setShowAdvanced(false)
                     }}
                     className="py-3"
                   >

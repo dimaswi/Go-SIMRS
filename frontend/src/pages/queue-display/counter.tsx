@@ -55,19 +55,16 @@ export default function CounterQueueDisplay() {
         // Track by both queue ID and called_at to prevent re-announcements
         const isNewCall = latest.id !== lastAnnouncedQueueId || lastCalledTime !== newCalledTime;
         if (isNewCall) {
-          console.log("New call detected:", latest.queue_number, "at", newCalledTime);
           setLastCalledTime(newCalledTime);
           setLastAnnouncedQueueId(latest.id);
           setCurrentQueue(latest);
           
           // Only play sound if not initial load
           if (!isInitialLoad) {
-            console.log("Playing sound for:", latest.queue_number);
             setTimeout(() => {
               speakQueue(latest);
             }, 100);
           } else {
-            console.log("Initial load - skipping sound");
             setIsInitialLoad(false);
           }
           return;
@@ -134,14 +131,12 @@ export default function CounterQueueDisplay() {
   }, [loadQueues, loadAllQueues]);
 
   const speakQueue = (queue: Queue) => {
-    console.log("speakQueue called for:", queue.queue_number);
     if ("speechSynthesis" in window) {
       window.speechSynthesis.cancel();
 
       const counterName = queue.counter?.name || counter?.name || "loket";
       const text = `Nomor antrean ${queue.queue_number.split("").join(" ")}, silakan menuju ${counterName}`;
 
-      console.log("Speaking:", text);
       
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = "id-ID";

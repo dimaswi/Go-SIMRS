@@ -54,17 +54,14 @@ export default function RoomQueueDisplay() {
         // Track by both queue ID and called_at to prevent re-announcements
         const isNewCall = latest.id !== lastAnnouncedQueueId || lastCalledTime !== newCalledTime;
         if (isNewCall) {
-          console.log('New call detected:', latest.queue_number, 'at', newCalledTime);
           setLastCalledTime(newCalledTime);
           setLastAnnouncedQueueId(latest.id);
           setCurrentQueue(latest);
           
           // Only play sound if not initial load
           if (!isInitialLoad) {
-            console.log('Playing sound for:', latest.queue_number);
             speakQueue(latest);
           } else {
-            console.log('Initial load - skipping sound');
             setIsInitialLoad(false);
           }
           return;
@@ -124,7 +121,6 @@ export default function RoomQueueDisplay() {
   }, [loadQueues, loadAllQueues]);
 
   const speakQueue = (queue: RoomQueue) => {
-    console.log('speakQueue called for:', queue.queue_number);
     
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
@@ -132,7 +128,6 @@ export default function RoomQueueDisplay() {
       const roomNameText = queue.room?.name || room?.name || 'ruangan';
       const text = `Nomor antrean ${queue.queue_number.split('').join(' ')}, silakan menuju ${roomNameText}`;
 
-      console.log('Speaking:', text);
       
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = 'id-ID';

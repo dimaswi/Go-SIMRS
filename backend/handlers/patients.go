@@ -95,20 +95,42 @@ func GetPatientByNoRM(c *gin.Context) {
 // SearchPatients quick search for autocomplete
 func SearchPatients(c *gin.Context) {
 	query := c.Query("q")
+	address := c.Query("address")
+	birthDate := c.Query("birth_date")
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
 
-	if query == "" {
+	if query == "" && address == "" && birthDate == "" {
 		c.JSON(http.StatusOK, gin.H{"data": []models.Patient{}})
 		return
 	}
 
 	var patients []models.Patient
-	searchPattern := "%" + strings.ToLower(query) + "%"
+	db := database.DB.Model(&models.Patient{})
 
-	database.DB.
-		Where("LOWER(nama_lengkap) LIKE ? OR no_rm LIKE ? OR nik LIKE ? OR no_bpjs LIKE ?",
-			searchPattern, searchPattern, searchPattern, searchPattern).
-		Where("status = ?", models.PatientStatusActive).
+	// Search by name, no_rm, nik, or bpjs
+	if query != "" {
+		searchPattern := "%" + strings.ToLower(query) + "%"
+		db = db.Where("LOWER(nama_lengkap) LIKE ? OR no_rm LIKE ? OR nik LIKE ? OR no_bpjs LIKE ?",
+			searchPattern, searchPattern, searchPattern, searchPattern)
+	}
+
+	// Search by address (alamat_ktp or alamat_domisili)
+	if address != "" {
+		addressPattern := "%" + strings.ToLower(address) + "%"
+		db = db.Where("LOWER(alamat_ktp) LIKE ? OR LOWER(alamat_domisili) LIKE ?",
+			addressPattern, addressPattern)
+	}
+
+	// Search by birth date
+	if birthDate != "" {
+		// Try to parse the date
+		parsedDate, err := time.Parse("2006-01-02", birthDate)
+		if err == nil {
+			db = db.Where("tanggal_lahir = ?", parsedDate)
+		}
+	}
+
+	db.Where("status = ?", models.PatientStatusActive).
 		Order("nama_lengkap ASC").
 		Limit(limit).
 		Find(&patients)
@@ -176,6 +198,10 @@ func CreatePatient(c *gin.Context) {
 	if input.Kewarganegaraan == "" {
 		input.Kewarganegaraan = "WNI"
 	}
+
+	// Auto-finalize patient data when all required fields are provided
+	// This allows immediate registration without manual finalization step
+	input.IsFinal = true
 
 	if err := database.DB.Create(&input).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create patient: " + err.Error()})

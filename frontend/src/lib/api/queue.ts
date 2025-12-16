@@ -131,7 +131,7 @@ export interface Registration {
   insurance_name?: string;
   insurance_number?: string;
   complaint?: string;
-  status: "registered" | "in_queue" | "in_progress" | "completed" | "cancelled";
+  status: "registered" | "in_queue" | "in_progress" | "completed" | "cancelled" | "scheduled" | "no_show";
   registered_by_id: number;
   registered_by?: {
     id: number;
@@ -220,6 +220,18 @@ export const registrationApi = {
       { params }
     ),
 
+  // Get scheduled registrations (kontrol/follow-up)
+  getScheduled: (params?: { 
+    date?: string; 
+    room_id?: number; 
+    status?: string;
+    include_past?: boolean;
+  }) =>
+    api.get<{ 
+      data: ScheduledRegistration[]; 
+      summary: { today: number; upcoming: number; no_show: number } 
+    }>("/registrations/scheduled", { params }),
+
   // Get single registration
   getById: (id: number) => api.get<{ data: Registration }>(`/registrations/${id}`),
 
@@ -252,6 +264,18 @@ export const registrationApi = {
   complete: (id: number) =>
     api.post<{ data: Registration }>(`/registrations/${id}/complete`),
 
+  // Check-in scheduled registration (for kontrol/follow-up)
+  checkIn: (id: number) =>
+    api.post<{ data: ScheduledRegistration; message: string }>(`/registrations/${id}/checkin`),
+
+  // Reschedule registration
+  reschedule: (id: number, data: { new_date: string; new_room_id?: number; reason?: string }) =>
+    api.put<{ data: ScheduledRegistration; message: string }>(`/registrations/${id}/reschedule`, data),
+
+  // Cancel scheduled registration
+  cancelScheduled: (id: number) =>
+    api.post<{ data: ScheduledRegistration; message: string }>(`/registrations/${id}/cancel-scheduled`),
+
   // Get patient registrations history
   getPatientHistory: (
     patientId: number,
@@ -262,6 +286,24 @@ export const registrationApi = {
       meta: { page: number; limit: number; total: number; total_page: number };
     }>(`/patients/${patientId}/registrations`, { params }),
 };
+
+// Scheduled Registration (extends Registration with follow-up fields)
+export interface ScheduledRegistration extends Registration {
+  is_follow_up: boolean;
+  source_visit_id?: number;
+  source_visit?: {
+    id: number;
+    visit_number: string;
+  };
+  scheduled_date?: string;
+  checked_in_at?: string;
+  checked_in_by_id?: number;
+  checked_in_by?: {
+    id: number;
+    username: string;
+    full_name?: string;
+  };
+}
 
 // Queue Status Labels
 export const queueStatusLabels: Record<string, string> = {
@@ -287,6 +329,8 @@ export const registrationStatusLabels: Record<string, string> = {
   in_progress: "Sedang Dilayani",
   completed: "Selesai",
   cancelled: "Dibatalkan",
+  scheduled: "Terjadwal",
+  no_show: "Tidak Datang",
 };
 
 // Payment Method Labels

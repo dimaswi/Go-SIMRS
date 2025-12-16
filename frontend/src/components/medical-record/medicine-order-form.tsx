@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { usePermission } from "@/hooks/usePermission";
 import {
@@ -243,6 +244,7 @@ function OrderCollapsible({ order }: { order: MedicineOrder }) {
 export function MedicineOrderForm({ visitId, readOnly = false }: MedicineOrderFormProps) {
   const { toast } = useToast();
   const { hasPermission } = usePermission();
+  const [activeTab, setActiveTab] = useState<"form" | "history">("form");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [existingOrders, setExistingOrders] = useState<MedicineOrder[]>([]);
@@ -289,8 +291,8 @@ export function MedicineOrderForm({ visitId, readOnly = false }: MedicineOrderFo
       const ordersRes = await medicineOrdersApi.getAll({ source_visit_id: visitId });
       setExistingOrders(ordersRes.data || []);
 
-      // Load pharmacy rooms
-      const roomsRes = await roomsApi.getAll();
+      // Load pharmacy rooms - use high limit to get all rooms
+      const roomsRes = await roomsApi.getAll({ limit: 1000, is_active: 'true' });
       const allRooms = roomsRes.data?.data || [];
       const pharmRooms = allRooms.filter(isPharmacyRoom);
       setPharmacyRooms(pharmRooms);
@@ -451,53 +453,68 @@ export function MedicineOrderForm({ visitId, readOnly = false }: MedicineOrderFo
   }
 
   return (
-    <div className="space-y-4">
-      {/* Existing Orders */}
-      {existingOrders.length > 0 && (
-        <Card>
-          <CardHeader className="border-b bg-muted/30 py-3 px-4">
-            <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <Clock className="h-4 w-4" />
-              Riwayat Order Obat ({existingOrders.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <ScrollArea className="max-h-[400px]">
-              <div className="divide-y">
-                {existingOrders.map((order) => (
-                  <OrderCollapsible key={order.id} order={order} />
-                ))}
-              </div>
-            </ScrollArea>
-          </CardContent>
-        </Card>
-      )}
+    <Card className="shadow-md">
+      <CardHeader className="border-b bg-muted/30 py-3 px-4">
+        <CardTitle className="text-base font-semibold flex items-center gap-2">
+          <Pill className="h-4 w-4" />
+          Order Obat
+        </CardTitle>
+        <CardDescription>
+          Kelola pesanan obat untuk pasien
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="p-0">
+        {/* Inline Tabs with Underline */}
+        <div className="border-b">
+          <div className="flex">
+            <button
+              onClick={() => setActiveTab("form")}
+              className={cn(
+                "px-4 py-2.5 text-sm font-medium transition-colors relative",
+                activeTab === "form"
+                  ? "text-primary"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <span className="flex items-center gap-2">
+                <Pill className="h-4 w-4" />
+                Order Baru
+              </span>
+              {activeTab === "form" && (
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
+              )}
+            </button>
+            <button
+              onClick={() => setActiveTab("history")}
+              className={cn(
+                "px-4 py-2.5 text-sm font-medium transition-colors relative",
+                activeTab === "history"
+                  ? "text-primary"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <span className="flex items-center gap-2">
+                <Clock className="h-4 w-4" />
+                Riwayat Order
+                {existingOrders.length > 0 && (
+                  <Badge variant="secondary" className="ml-1 h-5 px-1.5">
+                    {existingOrders.length}
+                  </Badge>
+                )}
+              </span>
+              {activeTab === "history" && (
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
+              )}
+            </button>
+          </div>
+        </div>
 
-      {/* Read-only notice */}
-      {readOnly && (
-        <Card className="border-amber-200 bg-amber-50 dark:bg-amber-950">
-          <CardContent className="flex items-center gap-2 p-3 text-amber-800 dark:text-amber-200">
-            <AlertTriangle className="h-4 w-4" />
-            <p className="text-sm">
-              Pasien sudah pulang. Semua form rekam medis dalam mode baca saja (read-only).
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* New Order Form */}
-      <Card>
-        <CardHeader className="border-b bg-muted/30 py-3 px-4">
-          <CardTitle className="text-base font-semibold flex items-center gap-2">
-            <Pill className="h-4 w-4" />
-            Buat Order Obat Baru
-          </CardTitle>
-          <CardDescription>
-            Pilih obat dari farmasi dan buat resep untuk pasien
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="p-4 space-y-4">
-          <fieldset disabled={readOnly}>
+        <ScrollArea className="h-[calc(100vh-450px)] min-h-[570px]">
+          <div className="p-4">
+            {/* Order Form Tab */}
+            {activeTab === "form" && (
+              <div className="space-y-4">
+                <fieldset disabled={readOnly}>
           {/* Pharmacy Room Selection */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -802,9 +819,30 @@ export function MedicineOrderForm({ visitId, readOnly = false }: MedicineOrderFo
               )}
             </Button>
           </div>
-          </fieldset>
-        </CardContent>
-      </Card>
-    </div>
+                </fieldset>
+              </div>
+            )}
+
+            {/* History Tab */}
+            {activeTab === "history" && (
+              <div className="space-y-2">
+                {existingOrders.length > 0 ? (
+                  <div className="divide-y border rounded-lg">
+                    {existingOrders.map((order) => (
+                      <OrderCollapsible key={order.id} order={order} />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p>Belum ada riwayat order obat</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </ScrollArea>
+      </CardContent>
+    </Card>
   );
 }

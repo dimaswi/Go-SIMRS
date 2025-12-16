@@ -109,6 +109,11 @@ export interface PhysicalExam {
   cardiac?: string;
   pulmonary?: string;
   musculoskel?: string;
+  // Supporting Examinations - ECG
+  ecg_performed?: boolean;
+  ecg_result?: string;
+  ecg_interpretation?: string;
+  ecg_notes?: string;
   // Extra fields
   liver?: string;
   spleen?: string;

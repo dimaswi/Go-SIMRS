@@ -219,14 +219,24 @@ export type {
   UpdateVisitProcedureStatusInput
 } from './visit-procedures';
 
-// Inpatient (CPPT & Fluid Balance)
+// Inpatient (CPPT, Fluid Balance & Nursing Care)
 export {
   cpptApi,
   fluidBalanceApi,
+  nursingCareApi,
   CPPT_PROFESSIONS,
   SHIFT_TYPES,
+  CONSCIOUSNESS_LEVELS,
+  FUNCTIONAL_STATUS,
+  PRESSURE_ULCER_RISK,
+  OUTCOME_TARGETS,
+  PROBLEM_STATUS,
   getCPPTProfessionLabel,
-  getShiftTypeLabel
+  getShiftTypeLabel,
+  getConsciousnessLevelLabel,
+  getFunctionalStatusLabel,
+  getProblemStatusLabel,
+  getProblemStatusColor
 } from './inpatient';
 export type {
   CPPT,
@@ -235,7 +245,10 @@ export type {
   FluidBalance,
   CreateFluidBalanceInput,
   UpdateFluidBalanceInput,
-  FluidBalanceSummary
+  FluidBalanceSummary,
+  NursingCare,
+  CreateNursingCareInput,
+  UpdateNursingCareInput
 } from './inpatient';
 
 // Billing & Payment

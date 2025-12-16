@@ -12,6 +12,7 @@ import { CounterRoutes } from './routes/CounterRoutes';
 import { RoomQueueRoutes } from './routes/RoomQueueRoutes';
 import VisitRoutes from './routes/VisitRoutes';
 import BillingRoutes from './routes/BillingRoutes';
+import { ICDRoutes } from './routes/ICDRoutes';
 
 // Lazy load pages
 const LoginPage = lazy(() => import('./pages/auth/login'));
@@ -194,6 +195,9 @@ function App() {
           
           {/* Room Stock */}
           {RoomStockRoutes(ProtectedRoute)}
+          
+          {/* ICD Codes */}
+          <Route path="/icd/*" element={<ProtectedRoute><ICDRoutes /></ProtectedRoute>} />
           
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
         </Routes>

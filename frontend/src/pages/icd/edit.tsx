@@ -1,0 +1,471 @@
+import { useState, useEffect } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { icd10Api, icd9cmApi, type ICD10, type ICD9CM } from "@/lib/api/icd";
+import { useToast } from "@/hooks/use-toast";
+import { setPageTitle } from "@/lib/page-title";
+import { ArrowLeft, Save, Loader2, Stethoscope, Syringe } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+
+type ICDType = "icd10" | "icd9cm";
+
+interface ICDFormData {
+  code: string;
+  code2?: string;
+  display: string;
+  valid_code: boolean;
+  acc_pdx: boolean;
+  asterisk: boolean;
+  im: boolean;
+  is_active: boolean;
+  chapter?: string;
+  chapter_name?: string;
+}
+
+const icdFormSchema = z.object({
+  code: z.string().min(1, "Kode wajib diisi").max(20, "Kode maksimal 20 karakter"),
+  code2: z.string().max(20, "Kode alternatif maksimal 20 karakter").optional(),
+  display: z.string().min(1, "Nama/deskripsi wajib diisi").max(500, "Nama maksimal 500 karakter"),
+  valid_code: z.boolean(),
+  acc_pdx: z.boolean(),
+  asterisk: z.boolean(),
+  im: z.boolean(),
+  is_active: z.boolean(),
+  chapter: z.string().max(10, "Chapter maksimal 10 karakter").optional(),
+  chapter_name: z.string().max(200, "Nama chapter maksimal 200 karakter").optional(),
+});
+
+export default function ICDEditPage() {
+  const navigate = useNavigate();
+  const { type, id } = useParams<{ type: ICDType; id: string }>();
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [originalCode, setOriginalCode] = useState("");
+
+  const isICD10 = type === "icd10";
+
+  const form = useForm<ICDFormData>({
+    resolver: zodResolver(icdFormSchema),
+    defaultValues: {
+      code: "",
+      code2: "",
+      display: "",
+      valid_code: true,
+      acc_pdx: true,
+      asterisk: false,
+      im: false,
+      is_active: true,
+      chapter: "",
+      chapter_name: "",
+    },
+  });
+
+  useEffect(() => {
+    const loadData = async () => {
+      if (!type || !id) return;
+
+      try {
+        setLoading(true);
+        
+        let data: ICD10 | ICD9CM;
+        const numId = parseInt(id, 10);
+        if (isICD10) {
+          data = await icd10Api.getById(numId);
+        } else {
+          data = await icd9cmApi.getById(numId);
+        }
+
+        setOriginalCode(data.code);
+        setPageTitle(`Edit ${isICD10 ? "ICD-10" : "ICD-9-CM"}: ${data.code}`);
+
+        const icdData = data as ICD10;
+        form.reset({
+          code: data.code,
+          code2: data.code2 || "",
+          display: data.display,
+          valid_code: data.valid_code,
+          acc_pdx: icdData.acc_pdx ?? true,
+          asterisk: icdData.asterisk ?? false,
+          im: icdData.im ?? false,
+          is_active: data.is_active,
+          chapter: icdData.chapter || "",
+          chapter_name: icdData.chapter_name || "",
+        });
+      } catch (error) {
+        toast({
+          variant: "destructive",
+          title: "Error!",
+          description: error instanceof Error ? error.message : "Gagal memuat data ICD.",
+        });
+        navigate(`/icd?type=${type}`);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, [type, id, isICD10, form, toast, navigate]);
+
+  const onSubmit = async (data: ICDFormData) => {
+    try {
+      setSubmitting(true);
+      const numId = parseInt(id!, 10);
+      
+      if (isICD10) {
+        await icd10Api.update(numId, {
+          code: data.code,
+          code2: data.code2 || "",
+          display: data.display,
+          valid_code: data.valid_code,
+          acc_pdx: data.acc_pdx,
+          asterisk: data.asterisk,
+          im: data.im,
+          is_active: data.is_active,
+          chapter: data.chapter,
+          chapter_name: data.chapter_name,
+        });
+      } else {
+        await icd9cmApi.update(numId, {
+          code: data.code,
+          code2: data.code2 || "",
+          display: data.display,
+          valid_code: data.valid_code,
+          acc_pdx: data.acc_pdx,
+          asterisk: data.asterisk,
+          im: data.im,
+          is_active: data.is_active,
+        });
+      }
+
+      toast({
+        variant: "success",
+        title: "Berhasil!",
+        description: `Kode ${isICD10 ? "ICD-10" : "ICD-9-CM"} berhasil diperbarui.`,
+      });
+      navigate(`/icd?type=${type}`);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error!",
+        description: error.response?.data?.error || "Gagal memperbarui data.",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-1 flex-col gap-4 p-6">
+      <div className="grid gap-4">
+        <Card className="shadow-md">
+          <CardHeader className="border-b bg-muted/50">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => navigate(`/icd?type=${type}`)}
+                  className="h-9 w-9"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+                <div className="flex items-center gap-3">
+                  <div className={`p-2 rounded-lg ${isICD10 ? "bg-blue-100 dark:bg-blue-900/50" : "bg-green-100 dark:bg-green-900/50"}`}>
+                    {isICD10 ? (
+                      <Stethoscope className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                    ) : (
+                      <Syringe className="h-5 w-5 text-green-600 dark:text-green-400" />
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    <CardTitle className="text-base font-semibold flex items-center gap-2">
+                      Edit {isICD10 ? "ICD-10" : "ICD-9-CM"}
+                      <Badge variant="outline" className="font-mono">
+                        {originalCode}
+                      </Badge>
+                    </CardTitle>
+                    <CardDescription>
+                      Perbarui informasi kode {isICD10 ? "diagnosis" : "prosedur"}
+                    </CardDescription>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                {/* Basic Information */}
+                <div className="space-y-4">
+                  <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
+                    Informasi Dasar
+                  </h3>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <FormField
+                      control={form.control}
+                      name="code"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Kode *</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder={isICD10 ? "Contoh: A00.1" : "Contoh: 00.01"}
+                              className="font-mono"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            Kode {isICD10 ? "ICD-10" : "ICD-9-CM"} dengan format standar
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="code2"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Kode Alternatif</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder={isICD10 ? "Contoh: A001" : "Contoh: 0001"}
+                              className="font-mono"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            Kode tanpa titik (opsional)
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <FormField
+                    control={form.control}
+                    name="display"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Nama/Deskripsi *</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder={isICD10 ? "Contoh: Cholera due to Vibrio cholerae 01, biovar eltor" : "Contoh: Therapeutic ultrasound of vessels of head and neck"}
+                            className="min-h-[80px]"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                {/* Attributes */}
+                <div className="space-y-4">
+                  <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
+                    Atribut Kode
+                  </h3>
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                    <FormField
+                      control={form.control}
+                      name="valid_code"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                          <div className="space-y-0.5">
+                            <FormLabel className="text-sm">Kode Valid</FormLabel>
+                            <FormDescription className="text-xs">
+                              Bukan header/kategori
+                            </FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="acc_pdx"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                          <div className="space-y-0.5">
+                            <FormLabel className="text-sm">Acc PDx</FormLabel>
+                            <FormDescription className="text-xs">
+                              Acceptable as Primary Dx
+                            </FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="asterisk"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                          <div className="space-y-0.5">
+                            <FormLabel className="text-sm">Asterisk</FormLabel>
+                            <FormDescription className="text-xs">
+                              Kode manifestasi (*)
+                            </FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="im"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                          <div className="space-y-0.5">
+                            <FormLabel className="text-sm">Indonesia Modified</FormLabel>
+                            <FormDescription className="text-xs">
+                              Modifikasi Indonesia
+                            </FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+
+                {/* Classification */}
+                <div className="space-y-4">
+                  <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
+                    Klasifikasi (Opsional)
+                  </h3>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <FormField
+                      control={form.control}
+                      name="chapter"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Chapter</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Contoh: I, II, III..." {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="chapter_name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Nama Chapter</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Contoh: Certain infectious and parasitic diseases" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+
+                {/* Status */}
+                <div className="space-y-4">
+                  <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
+                    Status
+                  </h3>
+                  <FormField
+                    control={form.control}
+                    name="is_active"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                        <div className="space-y-0.5">
+                          <FormLabel>Status Aktif</FormLabel>
+                          <FormDescription>
+                            Kode yang tidak aktif tidak akan muncul di pencarian
+                          </FormDescription>
+                        </div>
+                        <FormControl>
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                {/* Actions */}
+                <div className="flex justify-end gap-3 pt-4 border-t">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => navigate(`/icd?type=${type}`)}
+                  >
+                    Batal
+                  </Button>
+                  <Button type="submit" disabled={submitting}>
+                    {submitting ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Save className="mr-2 h-4 w-4" />
+                    )}
+                    Simpan Perubahan
+                  </Button>
+                </div>
+              </form>
+            </Form>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}

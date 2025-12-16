@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Combobox } from "@/components/ui/combobox";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Save, AlertTriangle, Loader2 } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Save, AlertTriangle, Loader2, FileText, Heart, Activity } from "lucide-react";
 import { useMultipleMasterData } from "@/hooks/useMasterData";
 import { medicalRecordsApi } from "@/lib/api";
 import type { Triage } from "@/lib/api";
@@ -125,11 +126,14 @@ export function TriageForm({ visitId, onSave, readOnly = false }: TriageFormProp
   if (loading || masterDataLoading) {
     return (
       <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-destructive" />
-            <CardTitle className="text-lg">Triase UGD</CardTitle>
-          </div>
+        <CardHeader className="border-b bg-muted/30 py-3 px-4">
+          <CardTitle className="text-base font-semibold flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-destructive" />
+            Triase UGD
+          </CardTitle>
+          <CardDescription>
+            Penilaian prioritas penanganan pasien gawat darurat
+          </CardDescription>
         </CardHeader>
         <CardContent className="p-6">
           <div className="flex items-center justify-center py-8 gap-2">
@@ -143,311 +147,350 @@ export function TriageForm({ visitId, onSave, readOnly = false }: TriageFormProp
 
   return (
     <Card className="shadow-md">
-      <CardHeader className="border-b bg-muted/50">
-        <div className="flex items-center gap-2">
-          <AlertTriangle className="h-5 w-5 text-destructive" />
-          <CardTitle className="text-lg">Triase UGD</CardTitle>
-        </div>
+      <CardHeader className="border-b bg-muted/30 py-3 px-4">
+        <CardTitle className="text-base font-semibold flex items-center gap-2">
+          <AlertTriangle className="h-4 w-4 text-destructive" />
+          Triase UGD
+        </CardTitle>
+        <CardDescription>
+          Penilaian prioritas penanganan pasien gawat darurat
+        </CardDescription>
       </CardHeader>
-      <CardContent className="p-6">
+      <CardContent className="p-0">
+        <ScrollArea className="h-[calc(100vh-300px)] min-h-[400px]">
+          <div className="p-4">
         <form onSubmit={handleSubmit} className="space-y-6">
-          <fieldset disabled={readOnly}>
-          {/* Arrival Information */}
-          <div className="space-y-4">
-            <h3 className="font-semibold text-sm text-primary">Informasi Kedatangan</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <fieldset disabled={readOnly} className="space-y-6">
+          
+          {/* Section 1: Informasi Kedatangan */}
+          <Card className="border-red-200 dark:border-red-800">
+            <CardHeader className="py-3 px-4 bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-950/30 dark:to-orange-950/30">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-red-100 dark:bg-red-900/50">
+                  <AlertTriangle className="h-5 w-5 text-red-500" />
+                </div>
+                <CardTitle className="text-base font-semibold">Informasi Kedatangan</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="arrival_mode" className="text-sm font-semibold">
+                    Moda Kedatangan <span className="text-destructive">*</span>
+                  </Label>
+                  <Combobox
+                    options={arrivalModeOptions}
+                    value={formData.arrival_mode}
+                    onValueChange={(value) => handleChange("arrival_mode", value)}
+                    placeholder="Pilih moda kedatangan"
+                    searchPlaceholder="Cari moda kedatangan..."
+                    emptyText="Tidak ditemukan"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="triage_complaint" className="text-sm font-semibold">
+                    Keluhan Utama <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="triage_complaint"
+                    placeholder="Keluhan utama pasien..."
+                    value={formData.triage_complaint}
+                    onChange={(e) => handleChange("triage_complaint", e.target.value)}
+                    className="h-11"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Triage Level */}
               <div className="space-y-2">
-                <Label htmlFor="arrival_mode" className="text-sm">
-                  Moda Kedatangan <span className="text-destructive">*</span>
+                <Label className="text-sm font-semibold">
+                  Level Triase <span className="text-destructive">*</span>
                 </Label>
-                <Combobox
-                  options={arrivalModeOptions}
-                  value={formData.arrival_mode}
-                  onValueChange={(value) => handleChange("arrival_mode", value)}
-                  placeholder="Pilih moda kedatangan"
-                  searchPlaceholder="Cari moda kedatangan..."
-                  emptyText="Tidak ditemukan"
-                />
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+                  {triageLevelOptions.map((level) => (
+                    <button
+                      key={level.value}
+                      type="button"
+                      onClick={() => handleChange("triage_level", level.value)}
+                      className={`p-3 rounded-lg border-2 text-white font-medium text-sm transition-all ${
+                        formData.triage_level === level.value
+                          ? `${triageLevelColors[level.value] || "bg-gray-500"} border-white scale-105`
+                          : `${triageLevelColors[level.value] || "bg-gray-500"} opacity-60 border-transparent hover:opacity-80`
+                      }`}
+                    >
+                      {level.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Section 2: Primary Survey (ABC) */}
+          <Card className="border-blue-200 dark:border-blue-800">
+            <CardHeader className="py-3 px-4 bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-950/30 dark:to-cyan-950/30">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/50">
+                  <Activity className="h-5 w-5 text-blue-500" />
+                </div>
+                <CardTitle className="text-base font-semibold">Primary Survey (ABC)</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="airway" className="text-sm font-semibold">Airway (Jalan Napas)</Label>
+                  <Combobox
+                    options={airwayOptions}
+                    value={formData.airway}
+                    onValueChange={(value) => handleChange("airway", value)}
+                    placeholder="Pilih kondisi jalan napas"
+                    searchPlaceholder="Cari kondisi airway..."
+                    emptyText="Tidak ditemukan"
+                  />
+                </div>
+                <div className="col-span-2 space-y-2">
+                  <Label htmlFor="airway_note" className="text-sm font-semibold">Catatan Airway</Label>
+                  <Input
+                    id="airway_note"
+                    placeholder="Catatan tambahan..."
+                    value={formData.airway_note}
+                    onChange={(e) => handleChange("airway_note", e.target.value)}
+                    className="h-11"
+                  />
+                </div>
               </div>
 
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="breathing" className="text-sm font-semibold">Breathing (Pernapasan)</Label>
+                  <Combobox
+                    options={breathingOptions}
+                    value={formData.breathing}
+                    onValueChange={(value) => handleChange("breathing", value)}
+                    placeholder="Pilih kondisi pernapasan"
+                    searchPlaceholder="Cari kondisi breathing..."
+                    emptyText="Tidak ditemukan"
+                  />
+                </div>
+                <div className="col-span-2 space-y-2">
+                  <Label htmlFor="breathing_note" className="text-sm font-semibold">Catatan Breathing</Label>
+                  <Input
+                    id="breathing_note"
+                    placeholder="Catatan tambahan..."
+                    value={formData.breathing_note}
+                    onChange={(e) => handleChange("breathing_note", e.target.value)}
+                    className="h-11"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="circulation" className="text-sm font-semibold">Circulation (Sirkulasi)</Label>
+                  <Combobox
+                    options={circulationOptions}
+                    value={formData.circulation}
+                    onValueChange={(value) => handleChange("circulation", value)}
+                    placeholder="Pilih kondisi sirkulasi"
+                    searchPlaceholder="Cari kondisi sirkulasi..."
+                    emptyText="Tidak ditemukan"
+                  />
+                </div>
+                <div className="col-span-2 space-y-2">
+                  <Label htmlFor="circulation_note" className="text-sm font-semibold">Catatan Circulation</Label>
+                  <Input
+                    id="circulation_note"
+                    placeholder="Catatan tambahan..."
+                    value={formData.circulation_note}
+                    onChange={(e) => handleChange("circulation_note", e.target.value)}
+                    className="h-11"
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Section 3: Tanda Vital */}
+          <Card className="border-purple-200 dark:border-purple-800">
+            <CardHeader className="py-3 px-4 bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-950/30 dark:to-pink-950/30">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-purple-100 dark:bg-purple-900/50">
+                  <Heart className="h-5 w-5 text-purple-500" />
+                </div>
+                <CardTitle className="text-base font-semibold">Tanda Vital</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="blood_pressure" className="text-sm font-semibold">Tekanan Darah</Label>
+                  <Input
+                    id="blood_pressure"
+                    placeholder="120/80 mmHg"
+                    value={formData.blood_pressure}
+                    onChange={(e) => handleChange("blood_pressure", e.target.value)}
+                    className="h-11"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="heart_rate" className="text-sm font-semibold">Nadi (x/menit)</Label>
+                  <Input
+                    id="heart_rate"
+                    type="number"
+                    placeholder="80"
+                    value={formData.heart_rate || ""}
+                    onChange={(e) => handleChange("heart_rate", parseInt(e.target.value) || 0)}
+                    className="h-11"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="respiratory_rate" className="text-sm font-semibold">Frekuensi Napas (x/menit)</Label>
+                  <Input
+                    id="respiratory_rate"
+                    type="number"
+                    placeholder="20"
+                    value={formData.respiratory_rate || ""}
+                    onChange={(e) => handleChange("respiratory_rate", parseInt(e.target.value) || 0)}
+                    className="h-11"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="temperature" className="text-sm font-semibold">Suhu (°C)</Label>
+                  <Input
+                    id="temperature"
+                    type="number"
+                    step="0.1"
+                    placeholder="36.5"
+                    value={formData.temperature || ""}
+                    onChange={(e) => handleChange("temperature", parseFloat(e.target.value) || 0)}
+                    className="h-11"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="oxygen_saturation" className="text-sm font-semibold">SpO2 (%)</Label>
+                  <Input
+                    id="oxygen_saturation"
+                    type="number"
+                    placeholder="98"
+                    value={formData.oxygen_saturation || ""}
+                    onChange={(e) => handleChange("oxygen_saturation", parseInt(e.target.value) || 0)}
+                    className="h-11"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="pain_scale" className="text-sm font-semibold">Skala Nyeri (0-10)</Label>
+                  <Input
+                    id="pain_scale"
+                    type="number"
+                    min="0"
+                    max="10"
+                    placeholder="0"
+                    value={formData.pain_scale || ""}
+                    onChange={(e) => handleChange("pain_scale", parseInt(e.target.value) || 0)}
+                    className="h-11"
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Section 4: GCS & Penilaian */}
+          <Card className="border-green-200 dark:border-green-800">
+            <CardHeader className="py-3 px-4 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-green-100 dark:bg-green-900/50">
+                  <FileText className="h-5 w-5 text-green-500" />
+                </div>
+                <CardTitle className="text-base font-semibold">Glasgow Coma Scale & Penilaian</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="gcs_e" className="text-sm font-semibold">Eye Opening (E) [1-4]</Label>
+                  <Input
+                    id="gcs_e"
+                    type="number"
+                    min="1"
+                    max="4"
+                    value={formData.gcs_e}
+                    onChange={(e) => handleChange("gcs_e", parseInt(e.target.value) || 1)}
+                    className="h-11"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="gcs_v" className="text-sm font-semibold">Verbal Response (V) [1-5]</Label>
+                  <Input
+                    id="gcs_v"
+                    type="number"
+                    min="1"
+                    max="5"
+                    value={formData.gcs_v}
+                    onChange={(e) => handleChange("gcs_v", parseInt(e.target.value) || 1)}
+                    className="h-11"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="gcs_m" className="text-sm font-semibold">Motor Response (M) [1-6]</Label>
+                  <Input
+                    id="gcs_m"
+                    type="number"
+                    min="1"
+                    max="6"
+                    value={formData.gcs_m}
+                    onChange={(e) => handleChange("gcs_m", parseInt(e.target.value) || 1)}
+                    className="h-11"
+                  />
+                </div>
+              </div>
+              
+              <div className="p-3 bg-primary/10 rounded-lg">
+                <div className="text-sm font-semibold flex items-center gap-2">
+                  <span>Total GCS:</span>
+                  <Badge variant="default">{gcsTotal}</Badge>
+                  <span className="text-muted-foreground text-xs">
+                    (E{formData.gcs_e}V{formData.gcs_v}M{formData.gcs_m})
+                  </span>
+                </div>
+              </div>
+
+              {/* Assessment */}
               <div className="space-y-2">
-                <Label htmlFor="triage_complaint" className="text-sm">
-                  Keluhan Utama <span className="text-destructive">*</span>
+                <Label htmlFor="triage_assessment" className="text-sm font-semibold">
+                  Penilaian Awal
                 </Label>
-                <Input
-                  id="triage_complaint"
-                  placeholder="Keluhan utama pasien..."
-                  value={formData.triage_complaint}
-                  onChange={(e) => handleChange("triage_complaint", e.target.value)}
-                  className="h-11"
-                  required
+                <Textarea
+                  id="triage_assessment"
+                  placeholder="Penilaian awal kondisi pasien..."
+                  value={formData.triage_assessment}
+                  onChange={(e) => handleChange("triage_assessment", e.target.value)}
+                  className="min-h-[100px] resize-none"
                 />
               </div>
-            </div>
-          </div>
 
-          {/* Triage Level */}
-          <div className="space-y-2">
-            <Label className="text-sm font-semibold">
-              Level Triase <span className="text-destructive">*</span>
-            </Label>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
-              {triageLevelOptions.map((level) => (
-                <button
-                  key={level.value}
-                  type="button"
-                  onClick={() => handleChange("triage_level", level.value)}
-                  className={`p-3 rounded-lg border-2 text-white font-medium text-sm transition-all ${
-                    formData.triage_level === level.value
-                      ? `${triageLevelColors[level.value] || "bg-gray-500"} border-white scale-105`
-                      : `${triageLevelColors[level.value] || "bg-gray-500"} opacity-60 border-transparent hover:opacity-80`
-                  }`}
-                >
-                  {level.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Primary Survey (ABC) */}
-          <div className="space-y-4">
-            <h3 className="font-semibold text-sm text-primary">
-              Primary Survey (ABC) <span className="text-destructive">*</span>
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Immediate Actions */}
               <div className="space-y-2">
-                <Label htmlFor="airway" className="text-sm">Airway (Jalan Napas)</Label>
-                <Combobox
-                  options={airwayOptions}
-                  value={formData.airway}
-                  onValueChange={(value) => handleChange("airway", value)}
-                  placeholder="Pilih kondisi jalan napas"
-                  searchPlaceholder="Cari kondisi airway..."
-                  emptyText="Tidak ditemukan"
+                <Label htmlFor="immediate_actions" className="text-sm font-semibold">
+                  Tindakan Segera
+                </Label>
+                <Textarea
+                  id="immediate_actions"
+                  placeholder="Tindakan segera yang telah/akan dilakukan..."
+                  value={formData.immediate_actions}
+                  onChange={(e) => handleChange("immediate_actions", e.target.value)}
+                  className="min-h-[100px] resize-none"
                 />
               </div>
-              <div className="col-span-2 space-y-2">
-                <Label htmlFor="airway_note" className="text-sm">Catatan Airway</Label>
-                <Input
-                  id="airway_note"
-                  placeholder="Catatan tambahan..."
-                  value={formData.airway_note}
-                  onChange={(e) => handleChange("airway_note", e.target.value)}
-                  className="h-11"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="breathing" className="text-sm">Breathing (Pernapasan)</Label>
-                <Combobox
-                  options={breathingOptions}
-                  value={formData.breathing}
-                  onValueChange={(value) => handleChange("breathing", value)}
-                  placeholder="Pilih kondisi pernapasan"
-                  searchPlaceholder="Cari kondisi breathing..."
-                  emptyText="Tidak ditemukan"
-                />
-              </div>
-              <div className="col-span-2 space-y-2">
-                <Label htmlFor="breathing_note" className="text-sm">Catatan Breathing</Label>
-                <Input
-                  id="breathing_note"
-                  placeholder="Catatan tambahan..."
-                  value={formData.breathing_note}
-                  onChange={(e) => handleChange("breathing_note", e.target.value)}
-                  className="h-11"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="circulation" className="text-sm">Circulation (Sirkulasi)</Label>
-                <Combobox
-                  options={circulationOptions}
-                  value={formData.circulation}
-                  onValueChange={(value) => handleChange("circulation", value)}
-                  placeholder="Pilih kondisi sirkulasi"
-                  searchPlaceholder="Cari kondisi sirkulasi..."
-                  emptyText="Tidak ditemukan"
-                />
-              </div>
-              <div className="col-span-2 space-y-2">
-                <Label htmlFor="circulation_note" className="text-sm">Catatan Circulation</Label>
-                <Input
-                  id="circulation_note"
-                  placeholder="Catatan tambahan..."
-                  value={formData.circulation_note}
-                  onChange={(e) => handleChange("circulation_note", e.target.value)}
-                  className="h-11"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Vital Signs */}
-          <div className="space-y-4">
-            <h3 className="font-semibold text-sm text-primary">
-              Tanda Vital <span className="text-destructive">*</span>
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="blood_pressure" className="text-sm">Tekanan Darah</Label>
-                <Input
-                  id="blood_pressure"
-                  placeholder="120/80 mmHg"
-                  value={formData.blood_pressure}
-                  onChange={(e) => handleChange("blood_pressure", e.target.value)}
-                  className="h-11"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="heart_rate" className="text-sm">Nadi (x/menit)</Label>
-                <Input
-                  id="heart_rate"
-                  type="number"
-                  placeholder="80"
-                  value={formData.heart_rate || ""}
-                  onChange={(e) => handleChange("heart_rate", parseInt(e.target.value) || 0)}
-                  className="h-11"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="respiratory_rate" className="text-sm">Frekuensi Napas (x/menit)</Label>
-                <Input
-                  id="respiratory_rate"
-                  type="number"
-                  placeholder="20"
-                  value={formData.respiratory_rate || ""}
-                  onChange={(e) => handleChange("respiratory_rate", parseInt(e.target.value) || 0)}
-                  className="h-11"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="temperature" className="text-sm">Suhu (°C)</Label>
-                <Input
-                  id="temperature"
-                  type="number"
-                  step="0.1"
-                  placeholder="36.5"
-                  value={formData.temperature || ""}
-                  onChange={(e) => handleChange("temperature", parseFloat(e.target.value) || 0)}
-                  className="h-11"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="oxygen_saturation" className="text-sm">SpO2 (%)</Label>
-                <Input
-                  id="oxygen_saturation"
-                  type="number"
-                  placeholder="98"
-                  value={formData.oxygen_saturation || ""}
-                  onChange={(e) => handleChange("oxygen_saturation", parseInt(e.target.value) || 0)}
-                  className="h-11"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="pain_scale" className="text-sm">Skala Nyeri (0-10)</Label>
-                <Input
-                  id="pain_scale"
-                  type="number"
-                  min="0"
-                  max="10"
-                  placeholder="0"
-                  value={formData.pain_scale || ""}
-                  onChange={(e) => handleChange("pain_scale", parseInt(e.target.value) || 0)}
-                  className="h-11"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* GCS Score */}
-          <div className="space-y-4">
-            <h3 className="font-semibold text-sm text-primary">Glasgow Coma Scale (GCS)</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="gcs_e" className="text-sm">Eye Opening (E) [1-4]</Label>
-                <Input
-                  id="gcs_e"
-                  type="number"
-                  min="1"
-                  max="4"
-                  value={formData.gcs_e}
-                  onChange={(e) => handleChange("gcs_e", parseInt(e.target.value) || 1)}
-                  className="h-11"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="gcs_v" className="text-sm">Verbal Response (V) [1-5]</Label>
-                <Input
-                  id="gcs_v"
-                  type="number"
-                  min="1"
-                  max="5"
-                  value={formData.gcs_v}
-                  onChange={(e) => handleChange("gcs_v", parseInt(e.target.value) || 1)}
-                  className="h-11"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="gcs_m" className="text-sm">Motor Response (M) [1-6]</Label>
-                <Input
-                  id="gcs_m"
-                  type="number"
-                  min="1"
-                  max="6"
-                  value={formData.gcs_m}
-                  onChange={(e) => handleChange("gcs_m", parseInt(e.target.value) || 1)}
-                  className="h-11"
-                />
-              </div>
-            </div>
-            <div className="p-3 bg-primary/10 rounded-lg">
-              <div className="text-sm font-semibold flex items-center gap-2">
-                <span>Total GCS:</span>
-                <Badge variant="default">{gcsTotal}</Badge>
-                <span className="text-muted-foreground text-xs">
-                  (E{formData.gcs_e}V{formData.gcs_v}M{formData.gcs_m})
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Assessment */}
-          <div className="space-y-2">
-            <Label htmlFor="triage_assessment" className="text-sm font-semibold">
-              Penilaian Awal
-            </Label>
-            <Textarea
-              id="triage_assessment"
-              placeholder="Penilaian awal kondisi pasien..."
-              value={formData.triage_assessment}
-              onChange={(e) => handleChange("triage_assessment", e.target.value)}
-              className="min-h-[100px] resize-none"
-            />
-          </div>
-
-          {/* Immediate Actions */}
-          <div className="space-y-2">
-            <Label htmlFor="immediate_actions" className="text-sm font-semibold">
-              Tindakan Segera
-            </Label>
-            <Textarea
-              id="immediate_actions"
-              placeholder="Tindakan segera yang telah/akan dilakukan..."
-              value={formData.immediate_actions}
-              onChange={(e) => handleChange("immediate_actions", e.target.value)}
-              className="min-h-[100px] resize-none"
-            />
-          </div>
+            </CardContent>
+          </Card>
 
           <div className="flex justify-end gap-3 pt-4 border-t">
             <Button type="submit" className="gap-2">
@@ -457,6 +500,8 @@ export function TriageForm({ visitId, onSave, readOnly = false }: TriageFormProp
           </div>
           </fieldset>
         </form>
+          </div>
+        </ScrollArea>
       </CardContent>
     </Card>
   );

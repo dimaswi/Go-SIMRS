@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Save, FileText, CheckCircle2, User } from "lucide-react";
 import { medicalRecordsApi } from "@/lib/api";
@@ -110,18 +111,23 @@ export function ConsultationForm({ visitId, readOnly = false }: ConsultationForm
 
   return (
     <Card>
-      <CardHeader className="border-b bg-muted/30">
+      <CardHeader className="border-b bg-muted/30 py-3 px-4">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-lg font-semibold flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            Form Jawaban Konsultasi
-            {existingData && (
-              <Badge variant="default" className="ml-2">
-                <CheckCircle2 className="h-3 w-3 mr-1" />
-                Sudah Dijawab
-              </Badge>
-            )}
-          </CardTitle>
+          <div className="flex-1">
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <FileText className="h-4 w-4" />
+              Form Jawaban Konsultasi
+              {existingData && (
+                <Badge variant="default" className="ml-2">
+                  <CheckCircle2 className="h-3 w-3 mr-1" />
+                  Sudah Dijawab
+                </Badge>
+              )}
+            </CardTitle>
+            <CardDescription>
+              Jawaban konsultasi dari dokter spesialis untuk kasus yang dikonsultasikan
+            </CardDescription>
+          </div>
           {!readOnly && !existingData && (
             <Button onClick={handleSave} disabled={saving}>
               {saving ? (
@@ -139,7 +145,9 @@ export function ConsultationForm({ visitId, readOnly = false }: ConsultationForm
           )}
         </div>
       </CardHeader>
-      <CardContent className="p-6">
+      <CardContent className="p-0">
+        <ScrollArea className="h-[calc(100vh-300px)] min-h-[400px]">
+          <div className="p-6">
         {existingData && (
           <>
             <div className="bg-green-50 dark:bg-green-950 border border-green-200 rounded-lg p-4 mb-6">
@@ -265,6 +273,8 @@ export function ConsultationForm({ visitId, readOnly = false }: ConsultationForm
             </div>
           )}
         </div>
+          </div>
+        </ScrollArea>
       </CardContent>
     </Card>
   );

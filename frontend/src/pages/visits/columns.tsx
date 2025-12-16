@@ -16,6 +16,12 @@ interface Visit {
   end_time?: string;
   created_at?: string;
   complaint?: string;
+  bed_id?: number;
+  bed?: {
+    id: number;
+    bed_number: string;
+    status: string;
+  };
   registration?: {
     id: number;
     registration_number: string;
@@ -31,6 +37,7 @@ interface Visit {
     id: number;
     code: string;
     name: string;
+    service_type?: string;
   };
   doctor?: {
     id: number;
@@ -56,6 +63,18 @@ interface CreateColumnsProps {
   hasAcceptPermission: boolean;
   hasViewPermission: boolean;
 }
+
+// Calculate age from birth date
+const calculateAge = (birthDate: string) => {
+  const today = new Date();
+  const birth = new Date(birthDate);
+  let age = today.getFullYear() - birth.getFullYear();
+  const monthDiff = today.getMonth() - birth.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+    age--;
+  }
+  return age;
+};
 
 const getStatusBadge = (status: string) => {
   const variants: Record<string, { variant: any; label: string }> = {
@@ -94,27 +113,48 @@ const getQueueStatusBadge = (status: string) => {
 };
 
 // Cek apakah ini kunjungan order atau kunjungan normal
-// Visit order memiliki referral_from (rujukan dari visit lain)
+// HANYA support visit (lab/rad/pharmacy/consultation) yang punya referral_from yang dianggap order
+// Inpatient/rawat jalan/UGD BUKAN order meskipun punya referral_from
 const getVisitCategoryBadge = (visit: Visit) => {
-  const isOrder = visit.referral_from !== null && visit.referral_from !== undefined;
+  const supportVisitTypes = ["lab", "radiology", "pharmacy", "consultation"];
+  const isOrder = visit.referral_from !== null && 
+                  visit.referral_from !== undefined && 
+                  supportVisitTypes.includes(visit.visit_type);
   
   if (isOrder) {
     const orderLabels: Record<string, string> = {
-      lab: "🧪 Order Lab",
-      radiology: "📷 Order Radiologi",
-      consultation: "👨‍⚕️ Order Konsultasi",
-      pharmacy: "💊 Order Farmasi",
+      lab: "Order Lab",
+      radiology: "Order Radiologi",
+      consultation: "Order Konsultasi",
+      pharmacy: "Order Farmasi",
     };
     return (
-      <Badge variant="outline" className="bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300 border-amber-300">
+      <Badge variant="outline" className="bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300 border-amber-300 text-xs">
         {orderLabels[visit.visit_type] || "Order"}
       </Badge>
     );
   }
   
+  // Service type based badges
+  const serviceType = visit.room?.service_type;
+  if (serviceType === "rawat_inap" || visit.visit_type === "inpatient") {
+    return (
+      <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 text-xs">
+        🛏️ Ranap
+      </Badge>
+    );
+  }
+  if (serviceType === "gawat_darurat" || visit.visit_type === "emergency") {
+    return (
+      <Badge className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 text-xs">
+        🚨 UGD
+      </Badge>
+    );
+  }
+  
   return (
-    <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-      📋 Pendaftaran
+    <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 text-xs">
+      🏃 Rajal
     </Badge>
   );
 };
@@ -133,41 +173,54 @@ export const createVisitColumns = ({
 }: CreateColumnsProps): ColumnDef<Visit>[] => [
   {
     accessorKey: "room_queue.queue_number",
-    header: "No. Antrian",
+    header: "Antrian",
     cell: ({ row }) => {
       const queue = row.original.room_queue;
+      if (!queue?.queue_number) return <span className="text-muted-foreground text-xs">-</span>;
       return (
-        <div className="font-medium">
-          {queue?.queue_number || "-"}
-          {getPriorityBadge(queue?.priority)}
+        <div className="flex flex-col gap-0.5">
+          <span className="font-bold text-lg">{queue.queue_number}</span>
+          {queue.priority && queue.priority !== "normal" && (
+            <Badge 
+              variant={queue.priority === "emergency" ? "destructive" : "default"} 
+              className="text-[10px] px-1 py-0 w-fit"
+            >
+              {queue.priority === "emergency" ? "Darurat" : "Mendesak"}
+            </Badge>
+          )}
         </div>
       );
     },
   },
   {
-    accessorKey: "visit_number",
-    header: "No. Kunjungan",
-    cell: ({ row }) => (
-      <div className="font-mono text-sm">{row.original.visit_number}</div>
-    ),
-  },
-  {
-    accessorKey: "registration.patient.no_rm",
-    header: "No. RM",
-    cell: ({ row }) => (
-      <div className="font-mono text-sm">
-        {row.original.registration?.patient?.no_rm || "-"}
-      </div>
-    ),
-  },
-  {
-    accessorKey: "registration.patient.nama_lengkap",
-    header: "Nama Pasien",
-    cell: ({ row }) => (
-      <div className="font-medium">
-        {row.original.registration?.patient?.nama_lengkap || "-"}
-      </div>
-    ),
+    id: "patient_info",
+    header: "Pasien",
+    cell: ({ row }) => {
+      const patient = row.original.registration?.patient;
+      const age = patient?.tanggal_lahir 
+        ? calculateAge(patient.tanggal_lahir) 
+        : null;
+      return (
+        <div className="flex flex-col gap-0.5">
+          <span className="font-medium">{patient?.nama_lengkap || "-"}</span>
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span className="font-mono">{patient?.no_rm || "-"}</span>
+            {patient?.jenis_kelamin && (
+              <>
+                <span>•</span>
+                <span>{patient.jenis_kelamin === "L" ? "L" : "P"}</span>
+              </>
+            )}
+            {age !== null && (
+              <>
+                <span>•</span>
+                <span>{age} th</span>
+              </>
+            )}
+          </div>
+        </div>
+      );
+    },
   },
   {
     accessorKey: "visit_type",
@@ -175,63 +228,62 @@ export const createVisitColumns = ({
     cell: ({ row }) => getVisitCategoryBadge(row.original),
   },
   {
-    accessorKey: "room.name",
-    header: "Ruangan",
-    cell: ({ row }) => (
-      <div>{row.original.room?.name || "-"}</div>
-    ),
+    id: "room_bed",
+    header: "Ruangan / Bed",
+    cell: ({ row }) => {
+      const visit = row.original;
+      const isInpatient = visit.room?.service_type === "rawat_inap" || visit.visit_type === "inpatient";
+      return (
+        <div className="flex flex-col gap-0.5">
+          <span className="text-sm">{visit.room?.name || "-"}</span>
+          {isInpatient && visit.bed && (
+            <Badge variant="outline" className="text-[10px] px-1 py-0 w-fit bg-green-50 text-green-700 border-green-200">
+              🛏️ {visit.bed.bed_number}
+            </Badge>
+          )}
+        </div>
+      );
+    },
   },
   {
     accessorKey: "doctor.nama_lengkap",
     header: "Dokter",
     cell: ({ row }) => (
-      <div>{row.original.doctor?.nama_lengkap || "-"}</div>
+      <div className="text-sm">{row.original.doctor?.nama_lengkap || "-"}</div>
     ),
   },
   {
     accessorKey: "check_in_time",
-    header: "Tanggal Masuk",
+    header: "Waktu Masuk",
     cell: ({ row }) => {
       // Use check_in_time if available, otherwise fallback to created_at
       const time = row.original.check_in_time || row.original.created_at;
-      return time
-        ? new Date(time).toLocaleString("id-ID", {
-            day: "2-digit",
-            month: "2-digit",
-            year: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-          })
-        : "-";
+      if (!time) return <span className="text-muted-foreground text-xs">-</span>;
+      const date = new Date(time);
+      return (
+        <div className="flex flex-col text-xs">
+          <span>{date.toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })}</span>
+          <span className="text-muted-foreground">{date.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}</span>
+        </div>
+      );
     },
   },
   {
-    accessorKey: "end_time",
-    header: "Tanggal Keluar",
+    id: "combined_status",
+    header: "Status",
     cell: ({ row }) => {
-      const time = row.original.end_time;
-      return time
-        ? new Date(time).toLocaleString("id-ID", {
-            day: "2-digit",
-            month: "2-digit",
-            year: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-          })
-        : "-";
-    },
-  },
-  {
-    accessorKey: "status",
-    header: "Status Kunjungan",
-    cell: ({ row }) => getStatusBadge(row.original.status),
-  },
-  {
-    accessorKey: "room_queue.status",
-    header: "Status Antrian",
-    cell: ({ row }) => {
-      const queue = row.original.room_queue;
-      return queue ? getQueueStatusBadge(queue.status) : <span className="text-muted-foreground">-</span>;
+      const visit = row.original;
+      const queue = visit.room_queue;
+      return (
+        <div className="flex flex-col gap-1">
+          {getStatusBadge(visit.status)}
+          {queue && queue.status !== visit.status && (
+            <span className="text-[10px] text-muted-foreground">
+              Antrian: {getQueueStatusBadge(queue.status)}
+            </span>
+          )}
+        </div>
+      );
     },
   },
   {

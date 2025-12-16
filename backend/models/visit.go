@@ -58,12 +58,14 @@ func (Visit) TableName() string {
 
 // VisitType constants
 const (
-	VisitTypeConsultation = "consultation" // Konsultasi dokter
+	VisitTypeConsultation = "consultation" // Order Konsultasi (rujukan dari visit lain)
 	VisitTypeProcedure    = "procedure"    // Tindakan medis
 	VisitTypeLab          = "lab"          // Laboratorium
 	VisitTypeRadiology    = "radiology"    // Radiologi
 	VisitTypePharmacy     = "pharmacy"     // Farmasi
 	VisitTypeInpatient    = "inpatient"    // Rawat Inap
+	VisitTypeOutpatient   = "outpatient"   // Rawat Jalan (kunjungan Poli biasa)
+	VisitTypeEmergency    = "emergency"    // Gawat Darurat (kunjungan UGD biasa)
 	VisitTypeOther        = "other"        // Lainnya
 )
 

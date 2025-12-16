@@ -264,6 +264,11 @@ func SavePhysicalExam(c *gin.Context) {
 		Musculoskel            string  `json:"musculoskel"`
 		Genitourinary          string  `json:"genitourinary"`
 		OtherFindings          string  `json:"other_findings"`
+		// Supporting Examinations - ECG
+		ECGPerformed      bool   `json:"ecg_performed"`
+		ECGResult         string `json:"ecg_result"`
+		ECGInterpretation string `json:"ecg_interpretation"`
+		ECGNotes          string `json:"ecg_notes"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -409,6 +414,12 @@ func SavePhysicalExam(c *gin.Context) {
 	physExam.Musculoskel = input.Musculoskel
 	physExam.Genitourinary = input.Genitourinary
 	physExam.OtherFindings = input.OtherFindings
+
+	// Supporting Examinations - ECG
+	physExam.ECGPerformed = input.ECGPerformed
+	physExam.ECGResult = input.ECGResult
+	physExam.ECGInterpretation = input.ECGInterpretation
+	physExam.ECGNotes = input.ECGNotes
 
 	if err := database.DB.Save(&physExam).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -995,10 +1006,32 @@ func SaveDisposition(c *gin.Context) {
 	if input.DispositionType != "" {
 		now := time.Now()
 
+		// If this is an inpatient visit being discharged, free up the bed
+		if visit.VisitType == "inpatient" {
+			var bedIDToRelease *uint
+
+			// First, try to get bed from visit.BedID
+			if visit.BedID != nil {
+				bedIDToRelease = visit.BedID
+			} else {
+				// Fallback: find the latest bed transfer for this visit
+				var latestTransfer models.BedTransfer
+				if err := tx.Where("visit_id = ?", visit.ID).Order("created_at DESC").First(&latestTransfer).Error; err == nil {
+					bedIDToRelease = &latestTransfer.ToBedID
+				}
+			}
+
+			// Release the bed if found
+			if bedIDToRelease != nil {
+				tx.Model(&models.Bed{}).Where("id = ?", *bedIDToRelease).Update("status", "available")
+			}
+		}
+
 		// Complete the visit
 		tx.Model(&models.Visit{}).Where("id = ?", visit.ID).Updates(map[string]interface{}{
-			"status":   models.VisitStatusCompleted,
-			"end_time": now,
+			"status":         models.VisitStatusCompleted,
+			"end_time":       now,
+			"discharge_time": now, // Set discharge time for inpatient
 		})
 
 		// Complete the room queue if exists
@@ -1034,6 +1067,13 @@ func createInpatientVisit(tx *gorm.DB, sourceVisit *models.Visit, roomID *uint, 
 		}
 	}
 
+	// Get room class for inpatient billing
+	var room models.Room
+	var inpatientClass string
+	if err := tx.First(&room, *roomID).Error; err == nil {
+		inpatientClass = room.RoomClass
+	}
+
 	now := time.Now()
 	inpatientVisit := models.Visit{
 		VisitNumber:    visitNumber,
@@ -1046,6 +1086,9 @@ func createInpatientVisit(tx *gorm.DB, sourceVisit *models.Visit, roomID *uint, 
 		Status:         models.VisitStatusWaiting,
 		CheckInTime:    &now,
 		Complaint:      sourceVisit.Complaint,
+		BedID:          bedID,          // Set bed ID to visit
+		AdmissionTime:  &now,           // Set admission time
+		InpatientClass: inpatientClass, // Set inpatient class from room
 	}
 
 	if err := tx.Create(&inpatientVisit).Error; err != nil {
@@ -1067,12 +1110,18 @@ func createInpatientVisit(tx *gorm.DB, sourceVisit *models.Visit, roomID *uint, 
 	return &inpatientVisit, nil
 }
 
-// createFollowUpRegistration creates a scheduled follow-up registration
+// createFollowUpRegistration creates a scheduled follow-up registration with Visit and RoomQueue
 func createFollowUpRegistration(tx *gorm.DB, sourceVisit *models.Visit, followUpDate *time.Time, roomID *uint) (*models.Registration, error) {
 	// Get patient ID from source registration
 	var sourceReg models.Registration
 	if err := tx.First(&sourceReg, sourceVisit.RegistrationID).Error; err != nil {
 		return nil, err
+	}
+
+	// Get destination room for queue code
+	var room models.Room
+	if err := tx.First(&room, *roomID).Error; err != nil {
+		return nil, fmt.Errorf("room not found: %w", err)
 	}
 
 	// Generate registration number
@@ -1101,13 +1150,95 @@ func createFollowUpRegistration(tx *gorm.DB, sourceVisit *models.Visit, followUp
 		BPJSNumber:         sourceReg.BPJSNumber,
 		InsuranceName:      sourceReg.InsuranceName,
 		InsuranceNumber:    sourceReg.InsuranceNumber,
-		Status:             "scheduled",
+		Status:             models.RegistrationStatusScheduled,
 		Notes:              fmt.Sprintf("Kontrol dari kunjungan %s", sourceVisit.VisitNumber),
 		VisitNumber:        int(visitCount) + 1,
+		// Follow-up specific fields
+		IsFollowUp:    true,
+		SourceVisitID: &sourceVisit.ID,
+		ScheduledDate: followUpDate,
 	}
 
 	if err := tx.Create(&followUpReg).Error; err != nil {
 		return nil, err
+	}
+
+	// Generate visit number for follow-up date
+	todayStr := followUpDate.Format("20060102")
+	var lastVisit models.Visit
+	var visitNum int
+
+	err := tx.Where("visit_number LIKE ?", "VIS"+todayStr+"%").
+		Order("visit_number DESC").First(&lastVisit).Error
+
+	if err != nil {
+		visitNum = 1
+	} else {
+		var lastNum int
+		fmt.Sscanf(lastVisit.VisitNumber, "VIS"+todayStr+"%d", &lastNum)
+		visitNum = lastNum + 1
+	}
+
+	visitNumber := fmt.Sprintf("VIS%s%04d", todayStr, visitNum)
+
+	// Create Visit for follow-up (status waiting, no check-in time yet)
+	followUpVisit := models.Visit{
+		VisitNumber:    visitNumber,
+		RegistrationID: followUpReg.ID,
+		RoomID:         *roomID,
+		DoctorID:       sourceVisit.DoctorID,
+		VisitType:      models.VisitTypeOutpatient,
+		VisitPurpose:   "Kontrol",
+		Status:         models.VisitStatusWaiting,
+		Complaint:      fmt.Sprintf("Kontrol dari kunjungan %s", sourceVisit.VisitNumber),
+		Notes:          followUpReg.Notes,
+	}
+
+	if err := tx.Create(&followUpVisit).Error; err != nil {
+		return nil, fmt.Errorf("failed to create follow-up visit: %w", err)
+	}
+
+	// Generate room queue number for follow-up date
+	queueCode := room.QueueCode
+	if queueCode == "" {
+		queueCode = "Q"
+	}
+
+	var lastQueue models.RoomQueue
+	var queueNum int
+
+	err = tx.Where("room_id = ? AND queue_date = ?", *roomID, *followUpDate).
+		Order("queue_number DESC").First(&lastQueue).Error
+
+	if err != nil {
+		queueNum = 1
+	} else {
+		var lastNum int
+		fmt.Sscanf(lastQueue.QueueNumber, queueCode+"%d", &lastNum)
+		queueNum = lastNum + 1
+	}
+
+	queueNumber := fmt.Sprintf("%s%03d", queueCode, queueNum)
+
+	// Create RoomQueue for follow-up (already has queue number, waiting for check-in)
+	roomQueue := models.RoomQueue{
+		QueueNumber: queueNumber,
+		QueueCode:   queueCode,
+		QueueDate:   *followUpDate,
+		VisitID:     followUpVisit.ID,
+		RoomID:      *roomID,
+		Priority:    models.PriorityNormal, // No special priority for follow-up
+		Status:      models.RoomQueueStatusWaiting,
+	}
+
+	if err := tx.Create(&roomQueue).Error; err != nil {
+		return nil, fmt.Errorf("failed to create follow-up room queue: %w", err)
+	}
+
+	// Update visit status to in_queue
+	followUpVisit.Status = models.VisitStatusInQueue
+	if err := tx.Save(&followUpVisit).Error; err != nil {
+		return nil, fmt.Errorf("failed to update visit status: %w", err)
 	}
 
 	return &followUpReg, nil

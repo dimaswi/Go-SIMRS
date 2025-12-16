@@ -174,3 +174,157 @@ const (
 	ShiftTypeAfternoon = "siang" // 14:00 - 21:00
 	ShiftTypeNight     = "malam" // 21:00 - 07:00
 )
+
+// ===========================================================================
+// NURSING CARE - Asuhan Keperawatan
+// Dokumentasi asuhan keperawatan berdasarkan SDKI-SLKI-SIKI
+// ===========================================================================
+
+// NursingCare represents nursing care documentation
+// Menggunakan standar SDKI (Standar Diagnosis Keperawatan Indonesia),
+// SLKI (Standar Luaran Keperawatan Indonesia),
+// SIKI (Standar Intervensi Keperawatan Indonesia)
+type NursingCare struct {
+	ID        uint           `gorm:"primarykey" json:"id"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
+
+	VisitID uint   `gorm:"not null;index" json:"visit_id"` // Multiple entries per visit
+	Visit   *Visit `gorm:"foreignKey:VisitID" json:"visit,omitempty"`
+
+	// Record Date/Time
+	RecordDate time.Time `gorm:"not null" json:"record_date"`
+	ShiftType  string    `gorm:"size:20" json:"shift_type,omitempty"` // pagi, siang, malam
+
+	// ==================== PENGKAJIAN (Assessment) ====================
+	// Keluhan & Status
+	ChiefComplaint      string `gorm:"type:text" json:"chief_complaint,omitempty"`      // Keluhan utama
+	PainAssessment      string `gorm:"type:text" json:"pain_assessment,omitempty"`      // Pengkajian nyeri (lokasi, skala, karakteristik)
+	PainScale           int    `gorm:"default:0" json:"pain_scale,omitempty"`           // Skala nyeri 0-10
+	ConsciousnessLevel  string `gorm:"size:50" json:"consciousness_level,omitempty"`    // Tingkat kesadaran (CM, Apatis, Somnolen, dll)
+	FunctionalStatus    string `gorm:"size:50" json:"functional_status,omitempty"`      // Mandiri, Partial, Total
+	FallRiskAssessment  string `gorm:"type:text" json:"fall_risk_assessment,omitempty"` // Pengkajian risiko jatuh
+	FallRiskScore       int    `gorm:"default:0" json:"fall_risk_score,omitempty"`      // Skor risiko jatuh
+	NutritionAssessment string `gorm:"type:text" json:"nutrition_assessment,omitempty"` // Pengkajian nutrisi
+	SkinAssessment      string `gorm:"type:text" json:"skin_assessment,omitempty"`      // Pengkajian kulit/integritas kulit
+	PressureUlcerRisk   string `gorm:"size:50" json:"pressure_ulcer_risk,omitempty"`    // Risiko luka tekan (rendah/sedang/tinggi)
+
+	// Vital Signs at Assessment
+	BloodPressure    string `gorm:"size:20" json:"blood_pressure,omitempty"`      // mmHg
+	HeartRate        int    `gorm:"default:0" json:"heart_rate,omitempty"`        // x/menit
+	RespiratoryRate  int    `gorm:"default:0" json:"respiratory_rate,omitempty"`  // x/menit
+	Temperature      string `gorm:"size:20" json:"temperature,omitempty"`         // °C
+	OxygenSaturation int    `gorm:"default:0" json:"oxygen_saturation,omitempty"` // %
+
+	// ==================== DIAGNOSIS KEPERAWATAN (SDKI) ====================
+	NursingDiagnosis     string `gorm:"type:text" json:"nursing_diagnosis,omitempty"`    // Diagnosis keperawatan (kode & deskripsi SDKI)
+	NursingDiagnosisCode string `gorm:"size:20" json:"nursing_diagnosis_code,omitempty"` // Kode SDKI (contoh: D.0001)
+	ProblemEtiology      string `gorm:"type:text" json:"problem_etiology,omitempty"`     // Etiologi/penyebab masalah
+	SignsSymptoms        string `gorm:"type:text" json:"signs_symptoms,omitempty"`       // Tanda & gejala (batasan karakteristik)
+
+	// ==================== LUARAN KEPERAWATAN (SLKI) ====================
+	NursingOutcome     string `gorm:"type:text" json:"nursing_outcome,omitempty"`    // Target/luaran yang diharapkan
+	NursingOutcomeCode string `gorm:"size:20" json:"nursing_outcome_code,omitempty"` // Kode SLKI (contoh: L.01001)
+	OutcomeIndicators  string `gorm:"type:text" json:"outcome_indicators,omitempty"` // Indikator luaran
+	OutcomeTarget      string `gorm:"size:50" json:"outcome_target,omitempty"`       // Target pencapaian (meningkat/menurun/membaik)
+
+	// ==================== INTERVENSI KEPERAWATAN (SIKI) ====================
+	NursingIntervention     string `gorm:"type:text" json:"nursing_intervention,omitempty"`    // Intervensi keperawatan
+	NursingInterventionCode string `gorm:"size:20" json:"nursing_intervention_code,omitempty"` // Kode SIKI (contoh: I.01001)
+	ObservationActions      string `gorm:"type:text" json:"observation_actions,omitempty"`     // Tindakan observasi
+	TherapeuticActions      string `gorm:"type:text" json:"therapeutic_actions,omitempty"`     // Tindakan terapeutik
+	EducationActions        string `gorm:"type:text" json:"education_actions,omitempty"`       // Tindakan edukasi
+	CollaborationActions    string `gorm:"type:text" json:"collaboration_actions,omitempty"`   // Tindakan kolaborasi
+
+	// ==================== IMPLEMENTASI ====================
+	Implementation     string    `gorm:"type:text" json:"implementation,omitempty"`   // Tindakan yang dilakukan
+	ImplementationTime time.Time `json:"implementation_time,omitempty"`               // Waktu implementasi
+	PatientResponse    string    `gorm:"type:text" json:"patient_response,omitempty"` // Respon pasien terhadap tindakan
+
+	// ==================== EVALUASI (SOAP) ====================
+	EvaluationSubjective string `gorm:"type:text" json:"evaluation_subjective,omitempty"` // S - Keluhan pasien setelah tindakan
+	EvaluationObjective  string `gorm:"type:text" json:"evaluation_objective,omitempty"`  // O - Hasil observasi/pemeriksaan
+	EvaluationAnalysis   string `gorm:"type:text" json:"evaluation_analysis,omitempty"`   // A - Analisis masalah (teratasi/belum/sebagian)
+	EvaluationPlanning   string `gorm:"type:text" json:"evaluation_planning,omitempty"`   // P - Rencana tindak lanjut
+	ProblemStatus        string `gorm:"size:30" json:"problem_status,omitempty"`          // teratasi, teratasi_sebagian, belum_teratasi
+
+	// Additional Notes
+	Notes string `gorm:"type:text" json:"notes,omitempty"` // Catatan tambahan
+
+	// Verification
+	IsVerified   bool       `gorm:"default:false" json:"is_verified"`
+	VerifiedByID *uint      `gorm:"index" json:"verified_by_id,omitempty"`
+	VerifiedBy   *User      `gorm:"foreignKey:VerifiedByID" json:"verified_by,omitempty"`
+	VerifiedAt   *time.Time `json:"verified_at,omitempty"`
+
+	// Audit
+	CreatedByID *uint `gorm:"index" json:"created_by_id,omitempty"`
+	CreatedBy   *User `gorm:"foreignKey:CreatedByID" json:"created_by,omitempty"`
+}
+
+func (NursingCare) TableName() string {
+	return "nursing_cares"
+}
+
+// Problem status constants
+const (
+	ProblemStatusResolved        = "teratasi"
+	ProblemStatusPartialResolved = "teratasi_sebagian"
+	ProblemStatusUnresolved      = "belum_teratasi"
+)
+
+// ===========================================================================
+// BED TRANSFER - Mutasi Pasien (Pindah Kamar/Bed)
+// ===========================================================================
+
+// BedTransfer represents a patient bed transfer/mutation record
+type BedTransfer struct {
+	ID        uint           `gorm:"primarykey" json:"id"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
+
+	VisitID uint   `gorm:"not null;index" json:"visit_id"`
+	Visit   *Visit `gorm:"foreignKey:VisitID" json:"visit,omitempty"`
+
+	// Source (From) - nullable for initial placement
+	FromRoomID uint  `gorm:"index" json:"from_room_id"`
+	FromRoom   *Room `gorm:"foreignKey:FromRoomID" json:"from_room,omitempty"`
+	FromBedID  *uint `gorm:"index" json:"from_bed_id,omitempty"`
+	FromBed    *Bed  `gorm:"foreignKey:FromBedID" json:"from_bed,omitempty"`
+
+	// Destination (To)
+	ToRoomID uint  `gorm:"not null;index" json:"to_room_id"`
+	ToRoom   *Room `gorm:"foreignKey:ToRoomID" json:"to_room,omitempty"`
+	ToBedID  uint  `gorm:"not null;index" json:"to_bed_id"`
+	ToBed    *Bed  `gorm:"foreignKey:ToBedID" json:"to_bed,omitempty"`
+
+	// Transfer Details
+	TransferDate   time.Time `gorm:"not null" json:"transfer_date"`
+	TransferReason string    `gorm:"type:text" json:"transfer_reason"` // Alasan pindah kamar
+	TransferType   string    `gorm:"size:30" json:"transfer_type"`     // upgrade, downgrade, medical, request, other
+
+	// Old and New Inpatient Class (for billing adjustment)
+	OldInpatientClass string `gorm:"size:20" json:"old_inpatient_class,omitempty"`
+	NewInpatientClass string `gorm:"size:20" json:"new_inpatient_class,omitempty"`
+
+	Notes string `gorm:"type:text" json:"notes,omitempty"`
+
+	// Audit
+	CreatedByID *uint `gorm:"index" json:"created_by_id,omitempty"`
+	CreatedBy   *User `gorm:"foreignKey:CreatedByID" json:"created_by,omitempty"`
+}
+
+func (BedTransfer) TableName() string {
+	return "bed_transfers"
+}
+
+// Transfer type constants
+const (
+	TransferTypeUpgrade   = "upgrade"   // Naik kelas
+	TransferTypeDowngrade = "downgrade" // Turun kelas
+	TransferTypeMedical   = "medical"   // Kebutuhan medis
+	TransferTypeRequest   = "request"   // Permintaan pasien
+	TransferTypeOther     = "other"     // Lainnya
+)

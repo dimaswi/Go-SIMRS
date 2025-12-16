@@ -23,6 +23,7 @@ import {
   Phone,
   ClipboardList,
   RefreshCcw,
+  Calendar,
 } from "lucide-react";
 import {
   Select,
@@ -31,6 +32,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { format } from "date-fns";
+import { id as idLocale } from "date-fns/locale";
 
 export default function QueueIndex() {
   const navigate = useNavigate();
@@ -42,15 +46,25 @@ export default function QueueIndex() {
   const [loadingCounters, setLoadingCounters] = useState(true);
   const [selectedCounter, setSelectedCounter] = useState<string>("all");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
+  const [selectedDate, setSelectedDate] = useState<string>(""); // Empty = show all data
   const [calling, setCalling] = useState(false);
   const [skipId, setSkipId] = useState<number | null>(null);
   const [cancelId, setCancelId] = useState<number | null>(null);
-  const [registerQueue, setRegisterQueue] = useState<{id: number; number: string} | null>(null);
+  const [registerQueue, setRegisterQueue] = useState<{
+    id: number;
+    number: string;
+  } | null>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const params: Record<string, string | number> = {};
+
+      // Only add date filter if date is selected
+      if (selectedDate) {
+        params.date = selectedDate;
+      }
+
       if (selectedCounter !== "all")
         params.counter_id = parseInt(selectedCounter);
       if (selectedStatus !== "all") params.status = selectedStatus;
@@ -66,11 +80,11 @@ export default function QueueIndex() {
     } finally {
       setLoading(false);
     }
-  }, [selectedCounter, selectedStatus, toast]);
+  }, [selectedCounter, selectedStatus, selectedDate, toast]);
 
   useEffect(() => {
     setPageTitle("Antrean");
-    
+
     const loadCounters = async () => {
       try {
         const data = await counterApi.getActiveCounters();
@@ -92,7 +106,7 @@ export default function QueueIndex() {
     loadData();
     // Hentikan auto refresh jika dialog registrasi sedang dibuka
     if (registerQueue !== null) return;
-    
+
     const interval = setInterval(loadData, 30000);
     return () => clearInterval(interval);
   }, [loadData, registerQueue]);
@@ -121,8 +135,7 @@ export default function QueueIndex() {
       toast({
         variant: "destructive",
         title: "Error",
-        description:
-          error.response?.data?.error || "Gagal memanggil antrean.",
+        description: error.response?.data?.error || "Gagal memanggil antrean.",
       });
     } finally {
       setCalling(false);
@@ -141,8 +154,7 @@ export default function QueueIndex() {
       toast({
         variant: "destructive",
         title: "Error",
-        description:
-          error.response?.data?.error || "Gagal memanggil antrean.",
+        description: error.response?.data?.error || "Gagal memanggil antrean.",
       });
     }
   };
@@ -235,87 +247,85 @@ export default function QueueIndex() {
         <Card className="shadow-md">
           <CardHeader className="border-b bg-muted/50">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                  <ClipboardList className="h-5 w-5 text-primary" />
-                </div>
-                <div className="space-y-1">
-                  <CardTitle className="text-base font-semibold">
-                    Antrean Pasien
-                  </CardTitle>
-                  <CardDescription>
-                    Kelola antrean pasien untuk pendaftaran
-                  </CardDescription>
-                </div>
+              <div className="space-y-1">
+                <CardTitle className="text-base font-semibold">
+                  Antrean Pasien
+                </CardTitle>
+                <CardDescription>
+                  Kelola antrean pasien untuk pendaftaran -{" "}
+                  {selectedDate
+                    ? format(new Date(selectedDate), "EEEE, dd MMMM yyyy", {
+                        locale: idLocale,
+                      })
+                    : "Semua Data"}
+                </CardDescription>
               </div>
-              <div className="flex items-center gap-2">
-                <Select
-                  value={selectedCounter}
-                  onValueChange={setSelectedCounter}
+
+              <div className="flex items-center gap-2 pt-2 flex-wrap">
+                <Input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="w-48"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSelectedDate("")}
                 >
-                  <SelectTrigger className="w-[150px]">
-                    <SelectValue placeholder="Pilih Loket" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Semua Loket</SelectItem>
-                    {loadingCounters ? (
-                      <SelectItem value="loading" disabled>
-                        <Loader2 className="h-3 w-3 animate-spin mr-2 inline" />
-                        Memuat...
-                      </SelectItem>
-                    ) : (
-                      counters.map((counter) => (
-                        <SelectItem
-                          key={counter.id}
-                          value={counter.id.toString()}
-                        >
-                          {counter.name}
-                        </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
-                <Select
-                  value={selectedStatus}
-                  onValueChange={setSelectedStatus}
-                >
-                  <SelectTrigger className="w-[150px]">
-                    <SelectValue placeholder="Semua Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Semua Status</SelectItem>
-                    <SelectItem value="waiting">Menunggu</SelectItem>
-                    <SelectItem value="called">Dipanggil</SelectItem>
-                    <SelectItem value="serving">Dilayani</SelectItem>
-                    <SelectItem value="completed">Selesai</SelectItem>
-                    <SelectItem value="skipped">Dilewati</SelectItem>
-                    <SelectItem value="cancelled">Dibatalkan</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Button variant="outline" size="icon" onClick={loadData}>
-                  <RefreshCcw className="h-4 w-4" />
+                  Semua Data
                 </Button>
-                {hasPermission("queues.call") && (
-                  <Button onClick={handleCallNext} disabled={calling} size="sm">
-                    {calling ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <Phone className="mr-2 h-4 w-4" />
-                    )}
-                    Panggil
-                  </Button>
-                )}
-                {hasPermission("queues.create") && (
-                  <Button
-                    onClick={() => navigate("/queues/create")}
-                    size="sm"
+                  <Select
+                    value={selectedCounter}
+                    onValueChange={setSelectedCounter}
                   >
-                    <Plus className="mr-2 h-4 w-4" />
-                    Ambil Antrean
+                    <SelectTrigger className="w-[150px]">
+                      <SelectValue placeholder="Pilih Loket" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Semua Loket</SelectItem>
+                      {loadingCounters ? (
+                        <SelectItem value="loading" disabled>
+                          <Loader2 className="h-3 w-3 animate-spin mr-2 inline" />
+                          Memuat...
+                        </SelectItem>
+                      ) : (
+                        counters.map((counter) => (
+                          <SelectItem
+                            key={counter.id}
+                            value={counter.id.toString()}
+                          >
+                            {counter.name}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={selectedStatus}
+                    onValueChange={setSelectedStatus}
+                  >
+                    <SelectTrigger className="w-[150px]">
+                      <SelectValue placeholder="Semua Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Semua Status</SelectItem>
+                      <SelectItem value="waiting">Menunggu</SelectItem>
+                      <SelectItem value="called">Dipanggil</SelectItem>
+                      <SelectItem value="serving">Dilayani</SelectItem>
+                      <SelectItem value="completed">Selesai</SelectItem>
+                      <SelectItem value="skipped">Dilewati</SelectItem>
+                      <SelectItem value="cancelled">Dibatalkan</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button variant="outline" size="icon" onClick={loadData}>
+                    <RefreshCcw className="h-4 w-4" />
                   </Button>
-                )}
               </div>
             </div>
+
+            {/* Date Filter */}
+            <div className="flex items-center gap-4 pt-4 border-t"></div>
           </CardHeader>
           <CardContent className="pt-6">
             <DataTable

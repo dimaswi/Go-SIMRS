@@ -26,7 +26,9 @@ import {
   Monitor,
   Tv,
   Activity,
-  Receipt
+  Receipt,
+  CalendarClock,
+  BookMarked
 } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
 import { usePermission } from '@/hooks/usePermission';
@@ -76,6 +78,7 @@ const menuItems = [
       { path: '/kiosk', label: 'Kiosk Antrean', icon: Monitor }, // Public - no permission needed
       { path: '/queue-display', label: 'Display Antrean', icon: Tv }, // Public - no permission needed
       { path: '/registrations', label: 'Pendaftaran', icon: UserRound, permission: 'registrations.view' },
+      { path: '/registrations/scheduled', label: 'Jadwal Kontrol', icon: CalendarClock, permission: 'registrations.view' },
       { path: '/visits', label: 'Kunjungan', icon: Activity, permission: 'visits.view' },
       { path: '/billing', label: 'Kasir & Billing', icon: Receipt, permission: 'billing.view' },
     ]
@@ -92,6 +95,7 @@ const menuItems = [
       { path: '/inventories', label: 'Inventaris', icon: Package, permission: 'inventories.view' },
       { path: '/medicines', label: 'Obat', icon: Pill, permission: 'medicines.view' },
       { path: '/procedures', label: 'Tindakan', icon: Syringe, permission: 'procedures.view' },
+      { path: '/icd', label: 'Kode ICD', icon: BookMarked },
       { path: '/regions', label: 'Wilayah', icon: MapPin },
       { path: '/master-data', label: 'Referensi Data', icon: Database },
     ]

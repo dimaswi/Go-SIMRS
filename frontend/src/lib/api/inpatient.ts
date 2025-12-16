@@ -224,3 +224,298 @@ export const getShiftTypeLabel = (shiftType: string): string => {
   const found = SHIFT_TYPES.find(s => s.value === shiftType);
   return found?.label || shiftType;
 };
+
+// ===========================================================================
+// NURSING CARE INTERFACES - Asuhan Keperawatan
+// ===========================================================================
+
+export interface NursingCare {
+  id: number;
+  created_at: string;
+  updated_at: string;
+  visit_id: number;
+  record_date: string;
+  shift_type?: string;
+  // Pengkajian
+  chief_complaint?: string;
+  pain_assessment?: string;
+  pain_scale?: number;
+  consciousness_level?: string;
+  functional_status?: string;
+  fall_risk_assessment?: string;
+  fall_risk_score?: number;
+  nutrition_assessment?: string;
+  skin_assessment?: string;
+  pressure_ulcer_risk?: string;
+  // Vital Signs
+  blood_pressure?: string;
+  heart_rate?: number;
+  respiratory_rate?: number;
+  temperature?: string;
+  oxygen_saturation?: number;
+  // Diagnosis Keperawatan (SDKI)
+  nursing_diagnosis?: string;
+  nursing_diagnosis_code?: string;
+  problem_etiology?: string;
+  signs_symptoms?: string;
+  // Luaran (SLKI)
+  nursing_outcome?: string;
+  nursing_outcome_code?: string;
+  outcome_indicators?: string;
+  outcome_target?: string;
+  // Intervensi (SIKI)
+  nursing_intervention?: string;
+  nursing_intervention_code?: string;
+  observation_actions?: string;
+  therapeutic_actions?: string;
+  education_actions?: string;
+  collaboration_actions?: string;
+  // Implementasi
+  implementation?: string;
+  implementation_time?: string;
+  patient_response?: string;
+  // Evaluasi
+  evaluation_subjective?: string;
+  evaluation_objective?: string;
+  evaluation_analysis?: string;
+  evaluation_planning?: string;
+  problem_status?: string;
+  notes?: string;
+  // Verification
+  is_verified: boolean;
+  verified_by_id?: number;
+  verified_by?: {
+    id: number;
+    username: string;
+    full_name: string;
+  };
+  verified_at?: string;
+  created_by_id?: number;
+  created_by?: {
+    id: number;
+    username: string;
+    full_name: string;
+  };
+}
+
+export interface CreateNursingCareInput {
+  record_date: string;
+  shift_type?: string;
+  chief_complaint?: string;
+  pain_assessment?: string;
+  pain_scale?: number;
+  consciousness_level?: string;
+  functional_status?: string;
+  fall_risk_assessment?: string;
+  fall_risk_score?: number;
+  nutrition_assessment?: string;
+  skin_assessment?: string;
+  pressure_ulcer_risk?: string;
+  blood_pressure?: string;
+  heart_rate?: number;
+  respiratory_rate?: number;
+  temperature?: string;
+  oxygen_saturation?: number;
+  nursing_diagnosis?: string;
+  nursing_diagnosis_code?: string;
+  problem_etiology?: string;
+  signs_symptoms?: string;
+  nursing_outcome?: string;
+  nursing_outcome_code?: string;
+  outcome_indicators?: string;
+  outcome_target?: string;
+  nursing_intervention?: string;
+  nursing_intervention_code?: string;
+  observation_actions?: string;
+  therapeutic_actions?: string;
+  education_actions?: string;
+  collaboration_actions?: string;
+  implementation?: string;
+  implementation_time?: string;
+  patient_response?: string;
+  evaluation_subjective?: string;
+  evaluation_objective?: string;
+  evaluation_analysis?: string;
+  evaluation_planning?: string;
+  problem_status?: string;
+  notes?: string;
+}
+
+export interface UpdateNursingCareInput extends Partial<CreateNursingCareInput> {}
+
+// ===========================================================================
+// NURSING CARE API
+// ===========================================================================
+
+export const nursingCareApi = {
+  getAll: (visitId: number, params?: { start_date?: string; end_date?: string; shift_type?: string; problem_status?: string }) => 
+    api.get<{ data: NursingCare[] }>(`/visits/${visitId}/nursing-care`, { params }),
+  
+  getOne: (visitId: number, nursingId: number) => 
+    api.get<{ data: NursingCare }>(`/visits/${visitId}/nursing-care/${nursingId}`),
+  
+  create: (visitId: number, data: CreateNursingCareInput) => 
+    api.post<{ data: NursingCare }>(`/visits/${visitId}/nursing-care`, data),
+  
+  update: (visitId: number, nursingId: number, data: UpdateNursingCareInput) => 
+    api.put<{ data: NursingCare }>(`/visits/${visitId}/nursing-care/${nursingId}`, data),
+  
+  verify: (visitId: number, nursingId: number) => 
+    api.put<{ data: NursingCare }>(`/visits/${visitId}/nursing-care/${nursingId}/verify`),
+  
+  delete: (visitId: number, nursingId: number) => 
+    api.delete(`/visits/${visitId}/nursing-care/${nursingId}`),
+};
+
+// ===========================================================================
+// NURSING CARE CONSTANTS
+// ===========================================================================
+
+export const CONSCIOUSNESS_LEVELS = [
+  { value: 'composmentis', label: 'Compos Mentis (CM)' },
+  { value: 'apatis', label: 'Apatis' },
+  { value: 'somnolen', label: 'Somnolen' },
+  { value: 'sopor', label: 'Sopor' },
+  { value: 'koma', label: 'Koma' },
+];
+
+export const FUNCTIONAL_STATUS = [
+  { value: 'mandiri', label: 'Mandiri' },
+  { value: 'partial', label: 'Dibantu Sebagian' },
+  { value: 'total', label: 'Dibantu Total' },
+];
+
+export const PRESSURE_ULCER_RISK = [
+  { value: 'rendah', label: 'Risiko Rendah' },
+  { value: 'sedang', label: 'Risiko Sedang' },
+  { value: 'tinggi', label: 'Risiko Tinggi' },
+];
+
+export const OUTCOME_TARGETS = [
+  { value: 'meningkat', label: 'Meningkat' },
+  { value: 'menurun', label: 'Menurun' },
+  { value: 'membaik', label: 'Membaik' },
+  { value: 'cukup', label: 'Cukup' },
+  { value: 'sedang', label: 'Sedang' },
+];
+
+export const PROBLEM_STATUS = [
+  { value: 'teratasi', label: 'Teratasi' },
+  { value: 'teratasi_sebagian', label: 'Teratasi Sebagian' },
+  { value: 'belum_teratasi', label: 'Belum Teratasi' },
+];
+
+export const getConsciousnessLevelLabel = (level: string): string => {
+  const found = CONSCIOUSNESS_LEVELS.find(l => l.value === level);
+  return found?.label || level;
+};
+
+export const getFunctionalStatusLabel = (status: string): string => {
+  const found = FUNCTIONAL_STATUS.find(s => s.value === status);
+  return found?.label || status;
+};
+
+export const getProblemStatusLabel = (status: string): string => {
+  const found = PROBLEM_STATUS.find(s => s.value === status);
+  return found?.label || status;
+};
+
+export const getProblemStatusColor = (status: string): string => {
+  switch (status) {
+    case 'teratasi':
+      return 'bg-green-100 text-green-800';
+    case 'teratasi_sebagian':
+      return 'bg-yellow-100 text-yellow-800';
+    case 'belum_teratasi':
+      return 'bg-red-100 text-red-800';
+    default:
+      return 'bg-gray-100 text-gray-800';
+  }
+};
+
+// ===========================================================================
+// BED TRANSFER INTERFACES - Mutasi Pasien
+// ===========================================================================
+
+export interface BedTransfer {
+  id: number;
+  created_at: string;
+  updated_at: string;
+  visit_id: number;
+  from_room_id: number;
+  from_room?: {
+    id: number;
+    code: string;
+    name: string;
+    room_class?: string;
+  };
+  from_bed_id: number;
+  from_bed?: {
+    id: number;
+    bed_number: string;
+  };
+  to_room_id: number;
+  to_room?: {
+    id: number;
+    code: string;
+    name: string;
+    room_class?: string;
+  };
+  to_bed_id: number;
+  to_bed?: {
+    id: number;
+    bed_number: string;
+  };
+  transfer_date: string;
+  transfer_reason?: string;
+  transfer_type?: string;
+  old_inpatient_class?: string;
+  new_inpatient_class?: string;
+  notes?: string;
+  created_by_id?: number;
+  created_by?: {
+    id: number;
+    username: string;
+    full_name: string;
+  };
+}
+
+export interface CreateBedTransferInput {
+  to_room_id: number;
+  to_bed_id: number;
+  transfer_reason?: string;
+  transfer_type?: string;
+  notes?: string;
+}
+
+// ===========================================================================
+// BED TRANSFER API
+// ===========================================================================
+
+export const bedTransferApi = {
+  getAll: (visitId: number) => 
+    api.get<{ data: BedTransfer[] }>(`/visits/${visitId}/bed-transfer`),
+  
+  getOne: (visitId: number, transferId: number) => 
+    api.get<{ data: BedTransfer }>(`/visits/${visitId}/bed-transfer/${transferId}`),
+  
+  create: (visitId: number, data: CreateBedTransferInput) => 
+    api.post<{ data: BedTransfer; message: string }>(`/visits/${visitId}/bed-transfer`, data),
+};
+
+// ===========================================================================
+// BED TRANSFER CONSTANTS
+// ===========================================================================
+
+export const TRANSFER_TYPES = [
+  { value: 'upgrade', label: 'Naik Kelas' },
+  { value: 'downgrade', label: 'Turun Kelas' },
+  { value: 'medical', label: 'Kebutuhan Medis' },
+  { value: 'request', label: 'Permintaan Pasien' },
+  { value: 'other', label: 'Lainnya' },
+];
+
+export const getTransferTypeLabel = (type: string): string => {
+  const found = TRANSFER_TYPES.find(t => t.value === type);
+  return found?.label || type;
+};

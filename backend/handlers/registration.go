@@ -144,12 +144,6 @@ func CreateRegistration(c *gin.Context) {
 		return
 	}
 
-	// Check if patient data is finalized
-	if !patient.IsFinal {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Data pasien belum final. Silakan lengkapi dan finalisasi data pasien terlebih dahulu."})
-		return
-	}
-
 	// Validate destination room exists
 	var room models.Room
 	if err := database.DB.First(&room, input.DestinationRoomID).Error; err != nil {
@@ -278,7 +272,11 @@ func CreateRegistration(c *gin.Context) {
 		now := time.Now()
 
 		// Determine visit type based on room service type
-		visitType := "consultation" // default fallback
+		// DEBUG: Log room service type
+		fmt.Printf("DEBUG CreateRegistration: Room ID=%d, Name=%s, ServiceType='%s', RoomType='%s'\n",
+			room.ID, room.Name, room.ServiceType, room.RoomType)
+
+		visitType := "outpatient" // default untuk kunjungan biasa
 		switch room.ServiceType {
 		case "rawat_jalan":
 			visitType = "outpatient"
@@ -287,11 +285,22 @@ func CreateRegistration(c *gin.Context) {
 		case "gawat_darurat":
 			visitType = "emergency"
 		case "penunjang":
-			// For penunjang, keep as consultation or determine by room_type
-			visitType = "consultation"
+			// Untuk penunjang, tentukan berdasarkan room_type
+			switch room.RoomType {
+			case "laboratorium":
+				visitType = "lab"
+			case "radiologi":
+				visitType = "radiology"
+			case "farmasi", "depo_farmasi", "gudang_farmasi":
+				visitType = "pharmacy"
+			default:
+				visitType = "procedure" // tindakan medis lainnya
+			}
 		default:
 			visitType = "outpatient"
 		}
+
+		fmt.Printf("DEBUG CreateRegistration: Determined visitType='%s'\n", visitType)
 
 		visit = &models.Visit{
 			VisitNumber:    visitNumber,
@@ -866,4 +875,360 @@ func SearchPatientForQueue(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": results})
+}
+
+// ===========================================================================
+// SCHEDULED REGISTRATIONS (Follow-up/Kontrol)
+// ===========================================================================
+
+// GetScheduledRegistrations godoc
+// @Summary Get scheduled registrations (kontrol)
+// @Description Get list of scheduled follow-up registrations with optional filters
+// @Tags Registration
+// @Accept json
+// @Produce json
+// @Param date query string false "Filter by scheduled date (YYYY-MM-DD), defaults to today"
+// @Param room_id query int false "Filter by destination room"
+// @Param status query string false "Filter by status (scheduled, no_show)"
+// @Param include_past query bool false "Include past scheduled dates"
+// @Success 200 {object} map[string]interface{}
+// @Router /registrations/scheduled [get]
+func GetScheduledRegistrations(c *gin.Context) {
+	// Auto-cancel old scheduled registrations (30 days)
+	autoMarkNoShow()
+
+	query := database.DB.Preload("Patient").Preload("DestinationRoom").
+		Preload("Doctor").Preload("Visit").Preload("Visit.RoomQueue").
+		Preload("SourceVisit").Preload("CheckedInBy").
+		Where("is_follow_up = ?", true)
+
+	// Filter by date
+	if dateStr := c.Query("date"); dateStr != "" {
+		parsed, err := time.Parse("2006-01-02", dateStr)
+		if err == nil {
+			query = query.Where("scheduled_date = ?", parsed)
+		}
+	} else if c.Query("include_past") != "true" {
+		// Default: only today and future
+		today := time.Now().Truncate(24 * time.Hour)
+		query = query.Where("scheduled_date >= ?", today)
+	}
+
+	// Filter by room
+	if roomID := c.Query("room_id"); roomID != "" {
+		query = query.Where("destination_room_id = ?", roomID)
+	}
+
+	// Filter by status
+	if status := c.Query("status"); status != "" {
+		query = query.Where("status = ?", status)
+	} else {
+		// Default: only scheduled (not yet checked in or no_show)
+		query = query.Where("status IN ?", []string{models.RegistrationStatusScheduled, models.RegistrationStatusNoShow})
+	}
+
+	var registrations []models.Registration
+	query.Order("scheduled_date ASC, created_at ASC").Find(&registrations)
+
+	// Summary counts
+	today := time.Now().Truncate(24 * time.Hour)
+	var todayCount, upcomingCount, noShowCount int64
+
+	database.DB.Model(&models.Registration{}).
+		Where("is_follow_up = ? AND scheduled_date = ? AND status = ?", true, today, models.RegistrationStatusScheduled).
+		Count(&todayCount)
+
+	database.DB.Model(&models.Registration{}).
+		Where("is_follow_up = ? AND scheduled_date > ? AND status = ?", true, today, models.RegistrationStatusScheduled).
+		Count(&upcomingCount)
+
+	database.DB.Model(&models.Registration{}).
+		Where("is_follow_up = ? AND status = ?", true, models.RegistrationStatusNoShow).
+		Count(&noShowCount)
+
+	c.JSON(http.StatusOK, gin.H{
+		"data": registrations,
+		"summary": gin.H{
+			"today":    todayCount,
+			"upcoming": upcomingCount,
+			"no_show":  noShowCount,
+		},
+	})
+}
+
+// CheckInScheduledRegistration godoc
+// @Summary Check-in a scheduled registration
+// @Description Validate that patient has arrived for scheduled follow-up
+// @Tags Registration
+// @Accept json
+// @Produce json
+// @Param id path int true "Registration ID"
+// @Success 200 {object} map[string]interface{}
+// @Router /registrations/{id}/checkin [post]
+func CheckInScheduledRegistration(c *gin.Context) {
+	id := c.Param("id")
+	var registration models.Registration
+
+	if err := database.DB.Preload("Visit").Preload("Visit.RoomQueue").First(&registration, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Pendaftaran tidak ditemukan"})
+		return
+	}
+
+	// Validate it's a scheduled follow-up
+	if !registration.IsFollowUp {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Pendaftaran ini bukan jadwal kontrol"})
+		return
+	}
+
+	// Validate status
+	if registration.Status != models.RegistrationStatusScheduled {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Pendaftaran tidak dalam status terjadwal"})
+		return
+	}
+
+	// Get current user
+	userID, exists := c.Get("userID")
+	if !exists || userID == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User tidak terautentikasi"})
+		return
+	}
+	userIDUint := userID.(uint)
+
+	// Update registration
+	now := time.Now()
+	registration.Status = models.RegistrationStatusInQueue
+	registration.CheckedInAt = &now
+	registration.CheckedInByID = &userIDUint
+
+	if err := database.DB.Save(&registration).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal melakukan check-in"})
+		return
+	}
+
+	// Update visit check-in time
+	if registration.Visit != nil {
+		registration.Visit.CheckInTime = &now
+		database.DB.Save(&registration.Visit)
+	}
+
+	// Reload with associations
+	database.DB.Preload("Patient").Preload("DestinationRoom").
+		Preload("Doctor").Preload("Visit").Preload("Visit.RoomQueue").
+		Preload("CheckedInBy").
+		First(&registration, registration.ID)
+
+	c.JSON(http.StatusOK, gin.H{
+		"data":    registration,
+		"message": "Check-in berhasil. Pasien sudah masuk antrian ruangan.",
+	})
+}
+
+// RescheduleRegistrationInput represents input for rescheduling
+type RescheduleRegistrationInput struct {
+	NewDate string `json:"new_date" binding:"required"` // YYYY-MM-DD
+	NewRoom *uint  `json:"new_room_id"`                 // Optional: change room
+	Reason  string `json:"reason"`                      // Optional: reason for reschedule
+}
+
+// RescheduleRegistration godoc
+// @Summary Reschedule a scheduled registration
+// @Description Change the scheduled date for a follow-up registration
+// @Tags Registration
+// @Accept json
+// @Produce json
+// @Param id path int true "Registration ID"
+// @Param input body RescheduleRegistrationInput true "Reschedule data"
+// @Success 200 {object} map[string]interface{}
+// @Router /registrations/{id}/reschedule [put]
+func RescheduleRegistration(c *gin.Context) {
+	id := c.Param("id")
+	var registration models.Registration
+
+	if err := database.DB.Preload("Visit").Preload("Visit.RoomQueue").First(&registration, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Pendaftaran tidak ditemukan"})
+		return
+	}
+
+	// Validate it's a scheduled follow-up
+	if !registration.IsFollowUp {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Hanya jadwal kontrol yang bisa di-reschedule"})
+		return
+	}
+
+	// Validate status
+	if registration.Status != models.RegistrationStatusScheduled && registration.Status != models.RegistrationStatusNoShow {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Pendaftaran tidak dalam status yang bisa di-reschedule"})
+		return
+	}
+
+	var input RescheduleRegistrationInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Parse new date
+	newDate, err := time.Parse("2006-01-02", input.NewDate)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Format tanggal tidak valid (gunakan YYYY-MM-DD)"})
+		return
+	}
+
+	// Validate new date is not in the past
+	today := time.Now().Truncate(24 * time.Hour)
+	if newDate.Before(today) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Tanggal tidak boleh di masa lalu"})
+		return
+	}
+
+	tx := database.DB.Begin()
+
+	// Update registration
+	oldDate := registration.ScheduledDate
+	registration.ScheduledDate = &newDate
+	registration.RegistrationDate = newDate
+	registration.Status = models.RegistrationStatusScheduled // Reset status if was no_show
+
+	if input.NewRoom != nil {
+		registration.DestinationRoomID = *input.NewRoom
+	}
+
+	if input.Reason != "" {
+		registration.Notes = fmt.Sprintf("%s\n[Reschedule dari %s: %s]",
+			registration.Notes, oldDate.Format("2006-01-02"), input.Reason)
+	}
+
+	if err := tx.Save(&registration).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan perubahan"})
+		return
+	}
+
+	// Update RoomQueue date and regenerate queue number if exists
+	if registration.Visit != nil && registration.Visit.RoomQueue != nil {
+		roomQueue := registration.Visit.RoomQueue
+		roomID := registration.DestinationRoomID
+
+		// Get room for queue code
+		var room models.Room
+		tx.First(&room, roomID)
+
+		queueCode := room.QueueCode
+		if queueCode == "" {
+			queueCode = "Q"
+		}
+
+		// Generate new queue number for new date
+		var lastQueue models.RoomQueue
+		var queueNum int
+
+		err := tx.Where("room_id = ? AND queue_date = ? AND id != ?", roomID, newDate, roomQueue.ID).
+			Order("queue_number DESC").First(&lastQueue).Error
+
+		if err != nil {
+			queueNum = 1
+		} else {
+			var lastNum int
+			fmt.Sscanf(lastQueue.QueueNumber, queueCode+"%d", &lastNum)
+			queueNum = lastNum + 1
+		}
+
+		roomQueue.QueueNumber = fmt.Sprintf("%s%03d", queueCode, queueNum)
+		roomQueue.QueueDate = newDate
+		roomQueue.RoomID = roomID
+
+		if err := tx.Save(roomQueue).Error; err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal update antrian"})
+			return
+		}
+
+		// Update visit room if changed
+		if input.NewRoom != nil {
+			registration.Visit.RoomID = *input.NewRoom
+			tx.Save(&registration.Visit)
+		}
+	}
+
+	tx.Commit()
+
+	// Reload with associations
+	database.DB.Preload("Patient").Preload("DestinationRoom").
+		Preload("Doctor").Preload("Visit").Preload("Visit.RoomQueue").
+		First(&registration, registration.ID)
+
+	c.JSON(http.StatusOK, gin.H{
+		"data":    registration,
+		"message": fmt.Sprintf("Jadwal kontrol berhasil diubah ke tanggal %s", newDate.Format("2006-01-02")),
+	})
+}
+
+// autoMarkNoShow marks scheduled registrations as no_show after 30 days
+func autoMarkNoShow() {
+	cutoffDate := time.Now().AddDate(0, 0, -30) // 30 days ago
+
+	database.DB.Model(&models.Registration{}).
+		Where("is_follow_up = ? AND status = ? AND scheduled_date < ?",
+			true, models.RegistrationStatusScheduled, cutoffDate).
+		Update("status", models.RegistrationStatusNoShow)
+}
+
+// CancelScheduledRegistration godoc
+// @Summary Cancel a scheduled registration
+// @Description Cancel a scheduled follow-up registration
+// @Tags Registration
+// @Accept json
+// @Produce json
+// @Param id path int true "Registration ID"
+// @Success 200 {object} map[string]interface{}
+// @Router /registrations/{id}/cancel-scheduled [post]
+func CancelScheduledRegistration(c *gin.Context) {
+	id := c.Param("id")
+	var registration models.Registration
+
+	if err := database.DB.Preload("Visit").Preload("Visit.RoomQueue").First(&registration, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Pendaftaran tidak ditemukan"})
+		return
+	}
+
+	// Validate it's a scheduled follow-up
+	if !registration.IsFollowUp {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Pendaftaran ini bukan jadwal kontrol"})
+		return
+	}
+
+	// Validate status
+	if registration.Status != models.RegistrationStatusScheduled {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Hanya jadwal kontrol aktif yang bisa dibatalkan"})
+		return
+	}
+
+	tx := database.DB.Begin()
+
+	// Cancel registration
+	registration.Status = models.RegistrationStatusCancelled
+	if err := tx.Save(&registration).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membatalkan"})
+		return
+	}
+
+	// Cancel visit
+	if registration.Visit != nil {
+		registration.Visit.Status = models.VisitStatusCancelled
+		tx.Save(&registration.Visit)
+
+		// Cancel room queue
+		if registration.Visit.RoomQueue != nil {
+			registration.Visit.RoomQueue.Status = models.RoomQueueStatusCancelled
+			tx.Save(&registration.Visit.RoomQueue)
+		}
+	}
+
+	tx.Commit()
+
+	c.JSON(http.StatusOK, gin.H{
+		"data":    registration,
+		"message": "Jadwal kontrol berhasil dibatalkan",
+	})
 }

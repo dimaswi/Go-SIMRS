@@ -13,12 +13,19 @@ import { Textarea } from "@/components/ui/textarea";
 import { Combobox } from "@/components/ui/combobox";
 import { DatePickerDropdown } from "@/components/ui/date-picker-dropdown";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Separator } from "@/components/ui/separator";
-import { PatientSearchCombobox } from "@/components/ui/patient-search-combobox";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { masterDataApi, regionsApi, patientsApi, roomsApi, registrationApi } from "@/lib/api";
 import type { PatientRequest, MasterData, Province, Regency, District, Village, Patient, Room, RoomStaff } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, UserPlus, User, MapPin, Phone, Shield } from "lucide-react";
+import { Loader2, UserPlus, User, MapPin, Search } from "lucide-react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 interface RegistrationDialogProps {
   open: boolean;
@@ -47,6 +54,9 @@ export function RegistrationDialog({
   // Step 1: Search RM or new patient
   const [step, setStep] = useState<"search" | "form" | "registration">("search");
   const [existingPatient, setExistingPatient] = useState<Patient | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<Patient[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
 
   // Form data
   const [formData, setFormData] = useState<PatientRequest>(initialFormData);
@@ -83,6 +93,10 @@ export function RegistrationDialog({
     if (open) {
       setStep("search");
       setExistingPatient(null);
+      setSearchQuery("");
+      setSearchAddress("");
+      setSearchBirthDate("");
+      setSearchResults([]);
       setFormData(initialFormData);
       setSameAddress(false);
       setDestinationRoomId(null);
@@ -97,6 +111,53 @@ export function RegistrationDialog({
       setRoomStaff([]);
     }
   }, [open]);
+
+  const [searchAddress, setSearchAddress] = useState("");
+  const [searchBirthDate, setSearchBirthDate] = useState("");
+
+  const handleSearch = async () => {
+    if (!searchQuery || searchQuery.length < 2) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Masukkan minimal 2 karakter untuk mencari",
+      });
+      return;
+    }
+
+    setSearchLoading(true);
+    try {
+      const response = await patientsApi.search(
+        searchQuery, 
+        50,
+        searchAddress || undefined,
+        searchBirthDate || undefined
+      );
+      const data = response.data?.data || response.data || [];
+      setSearchResults(Array.isArray(data) ? data : []);
+      
+      if (Array.isArray(data) && data.length === 0) {
+        toast({
+          title: "Tidak Ada Hasil",
+          description: "Tidak ada pasien yang ditemukan dengan kata kunci tersebut",
+        });
+      }
+    } catch (error) {
+      console.error("Failed to search patients:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Gagal mencari pasien",
+      });
+      setSearchResults([]);
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  const handleSelectPatient = (patient: Patient) => {
+    setExistingPatient(patient);
+  };
 
   const loadReferenceData = async () => {
     setLoadingMaster(true);
@@ -162,17 +223,14 @@ export function RegistrationDialog({
     if (id) {
       try {
         const response = await roomsApi.getStaff(id);
-        console.log("Room staff response:", response.data.data);
         
         // Filter only doctors (employee type = dokter)
         const doctors = (response.data.data || []).filter(
           (staff: RoomStaff) => {
-            console.log("Staff:", staff.employee?.nama_lengkap, "Type:", staff.employee?.tipe_karyawan);
             return staff.employee?.tipe_karyawan === "dokter" &&
               (!staff.end_date || new Date(staff.end_date) >= new Date());
           }
         );
-        console.log("Filtered doctors:", doctors);
         setRoomStaff(doctors);
       } catch (error) {
         console.error("Failed to load room staff:", error);
@@ -182,8 +240,47 @@ export function RegistrationDialog({
 
   const handleUseExistingPatient = async () => {
     if (!existingPatient) return;
-    setStep("registration");
-    loadReferenceData();
+    
+    // Check if patient has unpaid registrations
+    setLoading(true);
+    try {
+      const response = await registrationApi.getAll({
+        patient_id: existingPatient.id,
+        limit: 10,
+      });
+      
+      const registrations = response.data.data || [];
+      
+      // Check if there's any registration that's not completed or cancelled
+      const hasUnpaidRegistration = registrations.some((reg: any) => {
+        // A registration is considered "unpaid" if it's not completed/discharged and doesn't have paid billing
+        return reg.status !== "completed" && 
+               reg.status !== "discharged" && 
+               reg.status !== "cancelled";
+      });
+      
+      if (hasUnpaidRegistration) {
+        toast({
+          variant: "destructive",
+          title: "Tidak Dapat Mendaftar",
+          description: "Pasien masih memiliki pendaftaran aktif yang belum diselesaikan. Silakan selesaikan billing pendaftaran sebelumnya terlebih dahulu.",
+        });
+        setLoading(false);
+        return;
+      }
+      
+      setStep("registration");
+      loadReferenceData();
+    } catch (error: any) {
+      console.error("Error checking patient registrations:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Gagal memeriksa status pendaftaran pasien",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Auto-load BPJS data when payment method is BPJS and patient has BPJS number
@@ -330,7 +427,6 @@ export function RegistrationDialog({
     try {
       // Create patient
       const patientResponse = await patientsApi.create(formData);
-      console.log("Patient created response:", patientResponse);
       
       // patientsApi.create returns response.data which has structure { message, data }
       const newPatient = patientResponse.data;
@@ -419,8 +515,6 @@ export function RegistrationDialog({
       });
 
       const registration = response.data.data;
-      console.log("Registration full response:", response.data);
-      console.log("Registration data:", registration);
       
       // Try to get visit from multiple possible sources
       // Use type assertion to handle dynamic response structure
@@ -433,7 +527,6 @@ export function RegistrationDialog({
         visit = regData.visit;
       }
       
-      console.log("Visit:", visit);
       
       // Get room queue number
       let roomQueueNumber = "-";
@@ -443,9 +536,6 @@ export function RegistrationDialog({
       
       const roomName = registration.destination_room?.name || "";
       
-      console.log("Room queue number:", roomQueueNumber);
-      console.log("Room name:", roomName);
-
       toast({
         title: "Pendaftaran Berhasil!",
         description: (
@@ -474,8 +564,8 @@ export function RegistrationDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="max-w-[100vw] w-[100vw] h-[100vh] max-h-[100vh] flex flex-col p-6 m-0 rounded-none">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle>Pendaftaran Pasien - Antrean {queueNumber}</DialogTitle>
           <DialogDescription>
             {step === "search" 
@@ -486,68 +576,155 @@ export function RegistrationDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {step === "search" && (
-          <div className="space-y-6">
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label>Cari Pasien</Label>
-                <PatientSearchCombobox
-                  value={existingPatient}
-                  onValueChange={setExistingPatient}
-                  placeholder="Cari berdasarkan Nama, NIK, atau No. RM..."
-                />
-                <p className="text-xs text-muted-foreground">
-                  Ketik minimal 2 karakter untuk mencari pasien berdasarkan nama, NIK, atau nomor rekam medis
-                </p>
-              </div>
+        <div className="flex-1 overflow-y-auto pr-2 -mr-2">{/* Scrollable content */}
 
-              {existingPatient && (
-                <div className="p-4 border rounded-lg bg-muted/50 space-y-3">
-                  <div className="flex items-center gap-2">
-                    <User className="h-5 w-5 text-primary" />
-                    <h4 className="font-semibold">Data Pasien Ditemukan</h4>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div>
-                      <span className="text-muted-foreground">Nama:</span>
-                      <p className="font-medium">{existingPatient.nama_lengkap}</p>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">No. RM:</span>
-                      <p className="font-medium">{existingPatient.no_rm}</p>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">NIK:</span>
-                      <p className="font-medium">{existingPatient.nik || "-"}</p>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Tanggal Lahir:</span>
-                      <p className="font-medium">{existingPatient.tanggal_lahir || "-"}</p>
-                    </div>
-                  </div>
-                  <Button onClick={handleUseExistingPatient} className="w-full" disabled={loading}>
-                    {loading ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <UserPlus className="mr-2 h-4 w-4" />
-                    )}
-                    Gunakan Data Pasien Ini
+        {step === "search" && (
+          <div className="space-y-4 flex flex-col h-full">
+            {/* Search Bar */}
+            <div className="space-y-2 flex-shrink-0">
+              <Label>Cari Pasien</Label>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Cari Nama, NIK, No. RM, BPJS..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      handleSearch();
+                    }
+                  }}
+                  className="flex-1"
+                />
+                <Input
+                  placeholder="Filter Alamat..."
+                  value={searchAddress}
+                  onChange={(e) => setSearchAddress(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      handleSearch();
+                    }
+                  }}
+                  className="flex-1"
+                />
+                <Input
+                  type="date"
+                  placeholder="Tanggal Lahir..."
+                  value={searchBirthDate}
+                  onChange={(e) => setSearchBirthDate(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      handleSearch();
+                    }
+                  }}
+                  className="w-[180px]"
+                />
+                {(searchAddress || searchBirthDate) && (
+                  <Button 
+                    variant="outline"
+                    onClick={() => {
+                      setSearchAddress("");
+                      setSearchBirthDate("");
+                    }}
+                  >
+                    Reset
                   </Button>
+                )}
+                <Button onClick={handleSearch} disabled={searchLoading}>
+                  {searchLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Search className="h-4 w-4" />
+                  )}
+                  <span className="ml-2">Cari</span>
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Ketik minimal 2 karakter pada pencarian, gunakan filter alamat dan tanggal lahir untuk hasil lebih spesifik
+              </p>
+            </div>
+
+            {/* Table Results */}
+            <div className="flex-1 border rounded-lg overflow-hidden">
+              {searchLoading ? (
+                <div className="flex items-center justify-center h-64">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              ) : searchResults.length > 0 ? (
+                <div className="overflow-auto max-h-[calc(100vh-300px)]">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-[50px]">Pilih</TableHead>
+                        <TableHead>No. RM</TableHead>
+                        <TableHead>Nama Lengkap</TableHead>
+                        <TableHead>NIK</TableHead>
+                        <TableHead>No. BPJS</TableHead>
+                        <TableHead>Jenis Kelamin</TableHead>
+                        <TableHead>Tanggal Lahir</TableHead>
+                        <TableHead>Alamat</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {searchResults.map((patient) => (
+                        <TableRow
+                          key={patient.id}
+                          className={existingPatient?.id === patient.id ? "bg-primary/10" : "cursor-pointer hover:bg-muted/50"}
+                          onClick={() => handleSelectPatient(patient)}
+                        >
+                          <TableCell className="text-center">
+                            <input
+                              type="radio"
+                              name="patient-select"
+                              checked={existingPatient?.id === patient.id}
+                              onChange={() => handleSelectPatient(patient)}
+                              className="cursor-pointer"
+                            />
+                          </TableCell>
+                          <TableCell className="font-medium">{patient.no_rm}</TableCell>
+                          <TableCell className="font-medium">{patient.nama_lengkap}</TableCell>
+                          <TableCell>{patient.nik || "-"}</TableCell>
+                          <TableCell>{patient.no_bpjs || "-"}</TableCell>
+                          <TableCell>{patient.jenis_kelamin === "L" ? "Laki-laki" : "Perempuan"}</TableCell>
+                          <TableCell>{patient.tanggal_lahir || "-"}</TableCell>
+                          <TableCell className="max-w-[200px] truncate">
+                            {patient.alamat_domisili || patient.alamat_ktp || "-"}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
+                  <User className="h-12 w-12 mb-2" />
+                  <p>Gunakan pencarian untuk menemukan pasien</p>
+                  <p className="text-sm">atau klik tombol "Pasien Baru" di bawah</p>
                 </div>
               )}
+            </div>
 
-              <Separator />
-
-              <Button onClick={handleNewPatient} variant="outline" className="w-full">
+            {/* Action Buttons */}
+            <div className="flex justify-end gap-2 flex-shrink-0 pt-2 border-t">
+              <Button onClick={handleNewPatient} variant="outline">
                 <UserPlus className="mr-2 h-4 w-4" />
                 Pasien Baru
               </Button>
+              {existingPatient && (
+                <Button onClick={handleUseExistingPatient} disabled={loading}>
+                  {loading ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <UserPlus className="mr-2 h-4 w-4" />
+                  )}
+                  Gunakan Pasien: {existingPatient.nama_lengkap}
+                </Button>
+              )}
             </div>
           </div>
         )}
 
         {step === "form" && (
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-4">
             {loadingMaster && (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -555,14 +732,17 @@ export function RegistrationDialog({
             )}
 
             {!loadingMaster && (
-              <>
-                {/* Identitas */}
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2">
-                    <User className="h-5 w-5 text-primary" />
-                    <h3 className="font-semibold">Identitas</h3>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
+              <Tabs defaultValue="identitas" className="w-full">
+                <TabsList className="grid w-full grid-cols-4">
+                  <TabsTrigger value="identitas">Identitas</TabsTrigger>
+                  <TabsTrigger value="alamat">Alamat</TabsTrigger>
+                  <TabsTrigger value="kontak">Kontak</TabsTrigger>
+                  <TabsTrigger value="jaminan">Jaminan</TabsTrigger>
+                </TabsList>
+
+                {/* Tab Identitas */}
+                <TabsContent value="identitas" className="space-y-4 mt-4">
+                  <div className="grid grid-cols-4 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="nama_lengkap">Nama Lengkap *</Label>
                       <Input
@@ -633,196 +813,182 @@ export function RegistrationDialog({
                       />
                     </div>
                   </div>
-                </div>
+                </TabsContent>
 
-                <Separator />
+                {/* Tab Alamat */}
+                <TabsContent value="alamat" className="space-y-4 mt-4">
+                  <div className="grid grid-cols-2 gap-6">
+                    {/* Alamat KTP */}
+                    <div className="space-y-3">
+                      <h4 className="font-medium text-sm flex items-center gap-2 pb-2 border-b">
+                        <MapPin className="h-4 w-4" />
+                        Alamat KTP
+                      </h4>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="col-span-2 space-y-2">
+                          <Label htmlFor="alamat_ktp" className="text-xs">Alamat</Label>
+                          <Textarea
+                            id="alamat_ktp"
+                            value={formData.alamat_ktp || ""}
+                            onChange={(e) => setFormData({ ...formData, alamat_ktp: e.target.value })}
+                            rows={2}
+                            className="text-sm"
+                          />
+                        </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs">Provinsi</Label>
+                        <Combobox
+                          options={toRegionOptions(provinces)}
+                          value={formData.provinsi_ktp || ""}
+                          onValueChange={handleProvinceKTPChange}
+                          placeholder="Pilih provinsi"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs">Kota/Kabupaten</Label>
+                        <Combobox
+                          options={toRegionOptions(regenciesKTP)}
+                          value={formData.kota_ktp || ""}
+                          onValueChange={handleRegencyKTPChange}
+                          placeholder="Pilih kota"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs">Kecamatan</Label>
+                        <Combobox
+                          options={toRegionOptions(districtsKTP)}
+                          value={formData.kecamatan_ktp || ""}
+                          onValueChange={handleDistrictKTPChange}
+                          placeholder="Pilih kecamatan"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs">Kelurahan</Label>
+                        <Combobox
+                          options={toRegionOptions(villagesKTP)}
+                          value={formData.kelurahan_ktp || ""}
+                          onValueChange={(value) => setFormData({ ...formData, kelurahan_ktp: value })}
+                          placeholder="Pilih kelurahan"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="rt_ktp" className="text-xs">RT</Label>
+                        <Input
+                          id="rt_ktp"
+                          value={formData.rt_ktp || ""}
+                          onChange={(e) => setFormData({ ...formData, rt_ktp: e.target.value })}
+                          className="text-sm"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="rw_ktp" className="text-xs">RW</Label>
+                        <Input
+                          id="rw_ktp"
+                          value={formData.rw_ktp || ""}
+                          onChange={(e) => setFormData({ ...formData, rw_ktp: e.target.value })}
+                          className="text-sm"
+                        />
+                      </div>
+                    </div>{/* End grid KTP */}
+                  </div>{/* End Alamat KTP */}
 
-                {/* Alamat KTP */}
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2">
-                    <MapPin className="h-5 w-5 text-primary" />
-                    <h3 className="font-semibold">Alamat KTP</h3>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="col-span-2 space-y-2">
-                      <Label htmlFor="alamat_ktp">Alamat</Label>
-                      <Textarea
-                        id="alamat_ktp"
-                        value={formData.alamat_ktp || ""}
-                        onChange={(e) => setFormData({ ...formData, alamat_ktp: e.target.value })}
-                      />
+                    {/* Alamat Domisili */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between pb-2 border-b">
+                        <h4 className="font-medium text-sm flex items-center gap-2">
+                          <MapPin className="h-4 w-4" />
+                          Alamat Domisili
+                        </h4>
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            id="same-address"
+                            checked={sameAddress}
+                            onCheckedChange={handleSameAddressChange}
+                          />
+                          <Label htmlFor="same-address" className="cursor-pointer text-xs">
+                            Sama dengan KTP
+                          </Label>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="col-span-2 space-y-2">
+                          <Label htmlFor="alamat_domisili" className="text-xs">Alamat</Label>
+                          <Textarea
+                            id="alamat_domisili"
+                            value={formData.alamat_domisili || ""}
+                            onChange={(e) => setFormData({ ...formData, alamat_domisili: e.target.value })}
+                            disabled={sameAddress}
+                            rows={2}
+                            className="text-sm"
+                          />
+                        </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs">Provinsi</Label>
+                        <Combobox
+                          options={toRegionOptions(provinces)}
+                          value={formData.provinsi_domisili || ""}
+                          onValueChange={handleProvinceDomisiliChange}
+                          placeholder="Pilih provinsi"
+                          disabled={sameAddress}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs">Kota/Kabupaten</Label>
+                        <Combobox
+                          options={toRegionOptions(regenciesDomisili)}
+                          value={formData.kota_domisili || ""}
+                          onValueChange={handleRegencyDomisiliChange}
+                          placeholder="Pilih kota"
+                          disabled={sameAddress}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs">Kecamatan</Label>
+                        <Combobox
+                          options={toRegionOptions(districtsDomisili)}
+                          value={formData.kecamatan_domisili || ""}
+                          onValueChange={handleDistrictDomisiliChange}
+                          placeholder="Pilih kecamatan"
+                          disabled={sameAddress}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs">Kelurahan</Label>
+                        <Combobox
+                          options={toRegionOptions(villagesDomisili)}
+                          value={formData.kelurahan_domisili || ""}
+                          onValueChange={(value) => setFormData({ ...formData, kelurahan_domisili: value })}
+                          placeholder="Pilih kelurahan"
+                          disabled={sameAddress}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="rt_domisili" className="text-xs">RT</Label>
+                        <Input
+                          id="rt_domisili"
+                          value={formData.rt_domisili || ""}
+                          onChange={(e) => setFormData({ ...formData, rt_domisili: e.target.value })}
+                          disabled={sameAddress}
+                          className="text-sm"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="rw_domisili" className="text-xs">RW</Label>
+                        <Input
+                          id="rw_domisili"
+                          value={formData.rw_domisili || ""}
+                          onChange={(e) => setFormData({ ...formData, rw_domisili: e.target.value })}
+                          disabled={sameAddress}
+                          className="text-sm"
+                        />
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label>Provinsi</Label>
-                      <Combobox
-                        options={toRegionOptions(provinces)}
-                        value={formData.provinsi_ktp || ""}
-                        onValueChange={handleProvinceKTPChange}
-                        placeholder="Pilih provinsi"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Kota/Kabupaten</Label>
-                      <Combobox
-                        options={toRegionOptions(regenciesKTP)}
-                        value={formData.kota_ktp || ""}
-                        onValueChange={handleRegencyKTPChange}
-                        placeholder="Pilih kota/kabupaten"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Kecamatan</Label>
-                      <Combobox
-                        options={toRegionOptions(districtsKTP)}
-                        value={formData.kecamatan_ktp || ""}
-                        onValueChange={handleDistrictKTPChange}
-                        placeholder="Pilih kecamatan"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Kelurahan</Label>
-                      <Combobox
-                        options={toRegionOptions(villagesKTP)}
-                        value={formData.kelurahan_ktp || ""}
-                        onValueChange={(value) => setFormData({ ...formData, kelurahan_ktp: value })}
-                        placeholder="Pilih kelurahan"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="rt_ktp">RT</Label>
-                      <Input
-                        id="rt_ktp"
-                        value={formData.rt_ktp || ""}
-                        onChange={(e) => setFormData({ ...formData, rt_ktp: e.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="rw_ktp">RW</Label>
-                      <Input
-                        id="rw_ktp"
-                        value={formData.rw_ktp || ""}
-                        onChange={(e) => setFormData({ ...formData, rw_ktp: e.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="kode_pos_ktp">Kode Pos</Label>
-                      <Input
-                        id="kode_pos_ktp"
-                        value={formData.kode_pos_ktp || ""}
-                        onChange={(e) => setFormData({ ...formData, kode_pos_ktp: e.target.value })}
-                      />
-                    </div>
-                  </div>
-                </div>
+                  </div>{/* End Alamat Domisili */}
+                  </div>{/* End grid 2 kolom alamat */}
+                </TabsContent>
 
-                <Separator />
-
-                {/* Alamat Domisili */}
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <MapPin className="h-5 w-5 text-primary" />
-                      <h3 className="font-semibold">Alamat Domisili</h3>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Checkbox
-                        id="same-address"
-                        checked={sameAddress}
-                        onCheckedChange={handleSameAddressChange}
-                      />
-                      <Label htmlFor="same-address" className="cursor-pointer">
-                        Sama dengan KTP
-                      </Label>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="col-span-2 space-y-2">
-                      <Label htmlFor="alamat_domisili">Alamat</Label>
-                      <Textarea
-                        id="alamat_domisili"
-                        value={formData.alamat_domisili || ""}
-                        onChange={(e) => setFormData({ ...formData, alamat_domisili: e.target.value })}
-                        disabled={sameAddress}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Provinsi</Label>
-                      <Combobox
-                        options={toRegionOptions(provinces)}
-                        value={formData.provinsi_domisili || ""}
-                        onValueChange={handleProvinceDomisiliChange}
-                        placeholder="Pilih provinsi"
-                        disabled={sameAddress}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Kota/Kabupaten</Label>
-                      <Combobox
-                        options={toRegionOptions(regenciesDomisili)}
-                        value={formData.kota_domisili || ""}
-                        onValueChange={handleRegencyDomisiliChange}
-                        placeholder="Pilih kota/kabupaten"
-                        disabled={sameAddress}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Kecamatan</Label>
-                      <Combobox
-                        options={toRegionOptions(districtsDomisili)}
-                        value={formData.kecamatan_domisili || ""}
-                        onValueChange={handleDistrictDomisiliChange}
-                        placeholder="Pilih kecamatan"
-                        disabled={sameAddress}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Kelurahan</Label>
-                      <Combobox
-                        options={toRegionOptions(villagesDomisili)}
-                        value={formData.kelurahan_domisili || ""}
-                        onValueChange={(value) => setFormData({ ...formData, kelurahan_domisili: value })}
-                        placeholder="Pilih kelurahan"
-                        disabled={sameAddress}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="rt_domisili">RT</Label>
-                      <Input
-                        id="rt_domisili"
-                        value={formData.rt_domisili || ""}
-                        onChange={(e) => setFormData({ ...formData, rt_domisili: e.target.value })}
-                        disabled={sameAddress}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="rw_domisili">RW</Label>
-                      <Input
-                        id="rw_domisili"
-                        value={formData.rw_domisili || ""}
-                        onChange={(e) => setFormData({ ...formData, rw_domisili: e.target.value })}
-                        disabled={sameAddress}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="kode_pos_domisili">Kode Pos</Label>
-                      <Input
-                        id="kode_pos_domisili"
-                        value={formData.kode_pos_domisili || ""}
-                        onChange={(e) => setFormData({ ...formData, kode_pos_domisili: e.target.value })}
-                        disabled={sameAddress}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <Separator />
-
-                {/* Kontak */}
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2">
-                    <Phone className="h-5 w-5 text-primary" />
-                    <h3 className="font-semibold">Kontak</h3>
-                  </div>
+                {/* Tab Kontak */}
+                <TabsContent value="kontak" className="space-y-4 mt-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="no_hp">No. HP</Label>
@@ -842,16 +1008,10 @@ export function RegistrationDialog({
                       />
                     </div>
                   </div>
-                </div>
+                </TabsContent>
 
-                <Separator />
-
-                {/* Jaminan */}
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2">
-                    <Shield className="h-5 w-5 text-primary" />
-                    <h3 className="font-semibold">Jaminan</h3>
-                  </div>
+                {/* Tab Jaminan */}
+                <TabsContent value="jaminan" className="space-y-4 mt-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="jenis_jaminan">Jenis Jaminan *</Label>
@@ -884,67 +1044,59 @@ export function RegistrationDialog({
                       </>
                     )}
                   </div>
-                </div>
-
-                <div className="flex justify-end gap-2 pt-4">
-                  <Button type="button" variant="outline" onClick={() => setStep("search")}>
-                    Kembali
-                  </Button>
-                  <Button type="submit" disabled={loading}>
-                    {loading ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <UserPlus className="mr-2 h-4 w-4" />
-                    )}
-                    Lanjut ke Pendaftaran
-                  </Button>
-                </div>
-              </>
+                </TabsContent>
+              </Tabs>
             )}
+
+            <div className="flex justify-end gap-2 pt-4 border-t">
+              <Button type="button" variant="outline" onClick={() => setStep("search")}>
+                Kembali
+              </Button>
+              <Button type="submit" disabled={loading}>
+                {loading ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <UserPlus className="mr-2 h-4 w-4" />
+                )}
+                Lanjut ke Pendaftaran
+              </Button>
+            </div>
           </form>
         )}
 
         {step === "registration" && existingPatient && (
-          <form onSubmit={handleRegistration} className="space-y-6">
+          <form onSubmit={handleRegistration} className="space-y-4">
             {/* Patient Info Summary */}
-            <div className="p-4 border rounded-lg bg-muted/50 space-y-2">
-              <div className="flex items-center gap-2">
-                <User className="h-5 w-5 text-primary" />
-                <h4 className="font-semibold">Pasien</h4>
-              </div>
-              <div className="grid grid-cols-2 gap-3 text-sm">
+            <div className="p-3 border rounded-lg bg-muted/50">
+              <div className="grid grid-cols-4 gap-2 text-sm">
                 <div>
-                  <span className="text-muted-foreground">Nama:</span>
-                  <p className="font-medium">{existingPatient.nama_lengkap}</p>
+                  <span className="text-xs text-muted-foreground">Nama:</span>
+                  <p className="font-medium text-sm">{existingPatient.nama_lengkap}</p>
                 </div>
                 <div>
-                  <span className="text-muted-foreground">No. RM:</span>
-                  <p className="font-medium">{existingPatient.no_rm}</p>
+                  <span className="text-xs text-muted-foreground">No. RM:</span>
+                  <p className="font-medium text-sm">{existingPatient.no_rm}</p>
                 </div>
                 <div>
-                  <span className="text-muted-foreground">NIK:</span>
-                  <p className="font-medium">{existingPatient.nik || "-"}</p>
+                  <span className="text-xs text-muted-foreground">NIK:</span>
+                  <p className="font-medium text-sm">{existingPatient.nik || "-"}</p>
                 </div>
                 <div>
-                  <span className="text-muted-foreground">Tanggal Lahir:</span>
-                  <p className="font-medium">{existingPatient.tanggal_lahir || "-"}</p>
+                  <span className="text-xs text-muted-foreground">Tgl Lahir:</span>
+                  <p className="font-medium text-sm">{existingPatient.tanggal_lahir || "-"}</p>
                 </div>
               </div>
             </div>
 
-            <Separator />
-
             {/* Registration Form */}
             <div className="space-y-4">
-              <h3 className="font-semibold text-lg">Data Pendaftaran</h3>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2 space-y-2">
-                  <Label htmlFor="service_type">Tipe Layanan *</Label>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="service_type" className="text-sm">Tipe Layanan *</Label>
                   <Combobox
                     options={[
                       { value: "rawat_jalan", label: "Rawat Jalan" },
-                      { value: "gawat_darurat", label: "UGD (Gawat Darurat)" },
+                      { value: "gawat_darurat", label: "UGD" },
                       { value: "penunjang_medis", label: "Penunjang Medis" },
                       { value: "farmasi", label: "Farmasi" },
                       { value: "rawat_inap", label: "Rawat Inap" },
@@ -952,7 +1104,6 @@ export function RegistrationDialog({
                     value={selectedServiceType}
                     onValueChange={(value) => {
                       setSelectedServiceType(value || "");
-                      // Reset room selection when service type changes
                       setDestinationRoomId(null);
                       setDoctorId(null);
                       setRoomStaff([]);
@@ -961,8 +1112,8 @@ export function RegistrationDialog({
                   />
                 </div>
 
-                <div className="col-span-2 space-y-2">
-                  <Label htmlFor="destination_room">Ruangan Tujuan *</Label>
+                <div className="space-y-2">
+                  <Label htmlFor="destination_room" className="text-sm">Ruangan Tujuan *</Label>
                   <Combobox
                     options={!selectedServiceType || selectedServiceType === "all" ? [] : (rooms || [])
                       .filter(room => room.service_type === selectedServiceType)
@@ -972,36 +1123,13 @@ export function RegistrationDialog({
                       }))}
                     value={destinationRoomId?.toString() || ""}
                     onValueChange={handleRoomChange}
-                    placeholder={!selectedServiceType || selectedServiceType === "all" ? "Pilih tipe layanan terlebih dahulu" : "Pilih ruangan tujuan"}
+                    placeholder={!selectedServiceType ? "Pilih tipe layanan dulu" : "Pilih ruangan"}
                     disabled={!selectedServiceType || selectedServiceType === "all"}
                   />
                 </div>
 
-                {destinationRoomId && (
-                  <div className="col-span-2 space-y-2">
-                    <Label htmlFor="doctor">Dokter (Opsional)</Label>
-                    {roomStaff.length > 0 ? (
-                      <Combobox
-                        options={roomStaff.map(staff => ({
-                          value: staff.employee_id.toString(),
-                          label: staff.employee?.nama_lengkap || "Unknown",
-                        }))}
-                        value={doctorId?.toString() || ""}
-                        onValueChange={(value) => setDoctorId(value ? Number(value) : null)}
-                        placeholder="Pilih dokter (opsional)"
-                      />
-                    ) : (
-                      <Input
-                        disabled
-                        placeholder="Tidak ada dokter di ruangan ini"
-                        className="bg-muted"
-                      />
-                    )}
-                  </div>
-                )}
-
-                <div className="col-span-2 space-y-2">
-                  <Label htmlFor="payment_method">Metode Pembayaran *</Label>
+                <div className="space-y-2">
+                  <Label htmlFor="payment_method" className="text-sm">Metode Pembayaran *</Label>
                   <Combobox
                     options={[
                       { value: "cash", label: "Tunai" },
@@ -1010,65 +1138,12 @@ export function RegistrationDialog({
                     ]}
                     value={paymentMethod}
                     onValueChange={(value) => setPaymentMethod(value as any)}
-                    placeholder="Pilih metode pembayaran"
+                    placeholder="Pilih metode"
                   />
                 </div>
 
-                {paymentMethod === "bpjs" && (
-                  <>
-                    <div className="space-y-2">
-                      <Label htmlFor="bpjs_number">Nomor BPJS *</Label>
-                      <Input
-                        id="bpjs_number"
-                        value={bpjsNumber}
-                        onChange={(e) => setBpjsNumber(e.target.value)}
-                        placeholder={existingPatient?.no_bpjs ? "Terisi dari data pasien" : "Masukkan nomor BPJS"}
-                      />
-                      {existingPatient?.no_bpjs && (
-                        <p className="text-xs text-muted-foreground">
-                          Nomor BPJS dari data pasien: {existingPatient.no_bpjs}
-                        </p>
-                      )}
-                    </div>
-                    {existingPatient?.kelas_bpjs && (
-                      <div className="space-y-2">
-                        <Label htmlFor="bpjs_class">Kelas BPJS</Label>
-                        <Input
-                          id="bpjs_class"
-                          value={existingPatient.kelas_bpjs}
-                          disabled
-                          className="bg-muted"
-                        />
-                      </div>
-                    )}
-                  </>
-                )}
-
-                {paymentMethod === "insurance" && (
-                  <>
-                    <div className="space-y-2">
-                      <Label htmlFor="insurance_name">Nama Asuransi *</Label>
-                      <Combobox
-                        options={toOptions(masterData.insurance_company)}
-                        value={insuranceName}
-                        onValueChange={(value) => setInsuranceName(value)}
-                        placeholder="Pilih perusahaan asuransi"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="insurance_number">Nomor Asuransi *</Label>
-                      <Input
-                        id="insurance_number"
-                        value={insuranceNumber}
-                        onChange={(e) => setInsuranceNumber(e.target.value)}
-                        placeholder="Nomor polis/kartu asuransi"
-                      />
-                    </div>
-                  </>
-                )}
-
-                <div className="col-span-2 space-y-2">
-                  <Label htmlFor="priority">Prioritas</Label>
+                <div className="space-y-2">
+                  <Label htmlFor="priority" className="text-sm">Prioritas</Label>
                   <Combobox
                     options={[
                       { value: "normal", label: "Normal" },
@@ -1081,24 +1156,98 @@ export function RegistrationDialog({
                   />
                 </div>
 
-                <div className="col-span-2 space-y-2">
-                  <Label htmlFor="complaint">Keluhan</Label>
+                {destinationRoomId && (
+                  <div className="col-span-3 space-y-2">
+                    <Label htmlFor="doctor" className="text-sm">Dokter (Opsional)</Label>
+                    {roomStaff.length > 0 ? (
+                      <Combobox
+                        options={roomStaff.map(staff => ({
+                          value: staff.employee_id.toString(),
+                          label: staff.employee?.nama_lengkap || "Unknown",
+                        }))}
+                        value={doctorId?.toString() || ""}
+                        onValueChange={(value) => setDoctorId(value ? Number(value) : null)}
+                        placeholder="Pilih dokter"
+                      />
+                    ) : (
+                      <Input
+                        disabled
+                        placeholder="Tidak ada dokter"
+                        className="bg-muted text-sm"
+                      />
+                    )}
+                  </div>
+                )}
+
+                {paymentMethod === "bpjs" && (
+                  <div className="col-span-3 grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="bpjs_number" className="text-sm">Nomor BPJS *</Label>
+                      <Input
+                        id="bpjs_number"
+                        value={bpjsNumber}
+                        onChange={(e) => setBpjsNumber(e.target.value)}
+                        placeholder={existingPatient?.no_bpjs || "Nomor BPJS"}
+                        className="text-sm"
+                      />
+                    </div>
+                    {existingPatient?.kelas_bpjs && (
+                      <div className="space-y-2">
+                        <Label htmlFor="bpjs_class" className="text-sm">Kelas</Label>
+                        <Input
+                          id="bpjs_class"
+                          value={existingPatient.kelas_bpjs}
+                          disabled
+                          className="bg-muted text-sm"
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {paymentMethod === "insurance" && (
+                  <div className="col-span-3 grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="insurance_name" className="text-sm">Nama Asuransi *</Label>
+                      <Combobox
+                        options={toOptions(masterData.insurance_company)}
+                        value={insuranceName}
+                        onValueChange={(value) => setInsuranceName(value)}
+                        placeholder="Pilih asuransi"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="insurance_number" className="text-sm">Nomor Polis *</Label>
+                      <Input
+                        id="insurance_number"
+                        value={insuranceNumber}
+                        onChange={(e) => setInsuranceNumber(e.target.value)}
+                        placeholder="Nomor polis"
+                        className="text-sm"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className="col-span-3 space-y-2">
+                  <Label htmlFor="complaint" className="text-sm">Keluhan (Opsional)</Label>
                   <Textarea
                     id="complaint"
                     value={complaint}
                     onChange={(e) => setComplaint(e.target.value)}
-                    placeholder="Keluhan pasien (opsional)"
-                    rows={3}
+                    placeholder="Keluhan pasien"
+                    rows={2}
+                    className="text-sm"
                   />
                 </div>
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-4">
-              <Button type="button" variant="outline" onClick={() => setStep("search")}>
+            <div className="flex justify-end gap-2 pt-3 border-t">
+              <Button type="button" variant="outline" onClick={() => setStep("search")} size="sm">
                 Kembali
               </Button>
-              <Button type="submit" disabled={loading || loadingMaster}>
+              <Button type="submit" disabled={loading || loadingMaster} size="sm">
                 {loading ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
@@ -1109,6 +1258,7 @@ export function RegistrationDialog({
             </div>
           </form>
         )}
+        </div>{/* End scrollable content */}
       </DialogContent>
     </Dialog>
   );

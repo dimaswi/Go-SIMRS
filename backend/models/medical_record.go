@@ -163,6 +163,12 @@ type PhysicalExamination struct {
 	Heart  string `gorm:"type:text" json:"heart,omitempty"`  // Jantung
 	Lungs  string `gorm:"type:text" json:"lungs,omitempty"`  // Paru
 
+	// Supporting Examinations - ECG
+	ECGPerformed      bool   `gorm:"default:false" json:"ecg_performed"`           // EKG dilakukan
+	ECGResult         string `gorm:"type:text" json:"ecg_result,omitempty"`        // Hasil EKG
+	ECGInterpretation string `gorm:"size:100" json:"ecg_interpretation,omitempty"` // Interpretasi (Normal/Abnormal)
+	ECGNotes          string `gorm:"type:text" json:"ecg_notes,omitempty"`         // Catatan detail EKG
+
 	// Audit
 	ExaminedByID *uint `gorm:"index" json:"examined_by_id,omitempty"`
 	ExaminedBy   *User `gorm:"foreignKey:ExaminedByID" json:"examined_by,omitempty"`

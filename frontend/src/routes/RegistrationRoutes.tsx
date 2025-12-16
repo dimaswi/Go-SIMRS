@@ -5,6 +5,7 @@ import { ProtectedRoute as PermissionGuard } from '@/components/protected-route'
 const RegistrationIndex = lazy(() => import('@/pages/registrations/index'));
 const RegistrationCreate = lazy(() => import('@/pages/registrations/create'));
 const RegistrationShow = lazy(() => import('@/pages/registrations/show'));
+const ScheduledRegistrations = lazy(() => import('@/pages/registrations/scheduled'));
 
 export function RegistrationRoutes(ProtectedRoute: React.ComponentType<{ children: React.ReactNode }>) {
   return (
@@ -27,6 +28,13 @@ export function RegistrationRoutes(ProtectedRoute: React.ComponentType<{ childre
         <ProtectedRoute>
           <PermissionGuard permission="registrations.view">
             <RegistrationShow />
+          </PermissionGuard>
+        </ProtectedRoute>
+      } />
+      <Route path="/registrations/scheduled" element={
+        <ProtectedRoute>
+          <PermissionGuard permission="registrations.view">
+            <ScheduledRegistrations />
           </PermissionGuard>
         </ProtectedRoute>
       } />

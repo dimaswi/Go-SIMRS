@@ -53,6 +53,9 @@ func SetupRegistrationRoutes(router *gin.RouterGroup) {
 		// Get today's registrations
 		registrations.GET("/today", middleware.RequirePermission("registrations.view"), handlers.GetTodayRegistrations)
 
+		// Get scheduled registrations (follow-up/kontrol)
+		registrations.GET("/scheduled", middleware.RequirePermission("registrations.view"), handlers.GetScheduledRegistrations)
+
 		// Search patient for queue registration
 		registrations.GET("/search-patient", middleware.RequirePermission("registrations.create"), handlers.SearchPatientForQueue)
 
@@ -70,5 +73,14 @@ func SetupRegistrationRoutes(router *gin.RouterGroup) {
 
 		// Complete registration
 		registrations.POST("/:id/complete", middleware.RequirePermission("registrations.update"), handlers.CompleteRegistration)
+
+		// Check-in scheduled registration (for follow-up)
+		registrations.POST("/:id/checkin", middleware.RequirePermission("registrations.update"), handlers.CheckInScheduledRegistration)
+
+		// Reschedule registration (for follow-up)
+		registrations.PUT("/:id/reschedule", middleware.RequirePermission("registrations.update"), handlers.RescheduleRegistration)
+
+		// Cancel scheduled registration
+		registrations.POST("/:id/cancel-scheduled", middleware.RequirePermission("registrations.delete"), handlers.CancelScheduledRegistration)
 	}
 }

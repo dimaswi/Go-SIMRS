@@ -150,8 +150,6 @@ export default function StockOpnameCreate() {
   }, [watchRoomId, loadRoomStock]);
 
   const onSubmit = async (values: FormValues) => {
-    console.log("Form values:", values);
-    console.log("Room stock:", roomStock);
     if (values.items.length === 0 || roomStock.length === 0) {
       toast({
         variant: "destructive",
@@ -179,7 +177,6 @@ export default function StockOpnameCreate() {
           };
         }),
       };
-      console.log("Payload:", payload);
       await stockOpnameApi.create(payload);
       toast({
         title: "Berhasil",

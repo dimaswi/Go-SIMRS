@@ -15,7 +15,7 @@ type Config struct {
 
 func Load() *Config {
 	env := getEnv("APP_ENV", "development")
-	
+
 	config := &Config{
 		Environment: env,
 		ServerPort:  getEnv("SERVER_PORT", "8080"),

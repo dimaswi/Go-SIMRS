@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -320,7 +320,9 @@ export function LaboratoryWorkstation({ visitId, readOnly: _readOnly = false }: 
               {getStatusBadge(selectedOrder.status)}
             </div>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="p-0">
+            <ScrollArea className="h-[calc(100vh-450px)] min-h-[570px]">
+              <div className="p-4 space-y-4">
             {/* Patient Info */}
             <div className="grid grid-cols-2 gap-4 text-sm p-3 bg-muted/50 rounded-lg">
               <div className="flex items-center gap-2">
@@ -504,6 +506,8 @@ export function LaboratoryWorkstation({ visitId, readOnly: _readOnly = false }: 
                 )}
               </div>
             )}
+              </div>
+            </ScrollArea>
           </CardContent>
         </Card>
       )}

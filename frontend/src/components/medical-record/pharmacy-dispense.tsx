@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import { usePermission } from "@/hooks/usePermission";
 import { useAuthStore } from "@/lib/store";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import {
   Loader2,
@@ -331,10 +332,18 @@ export function PharmacyDispense({ visitId, readOnly = false }: PharmacyDispense
 
   return (
     <Card className="shadow-md">
-      <CardHeader className="border-b bg-muted/50">
-        <CardTitle className="text-lg">Penyerahan Obat</CardTitle>
+      <CardHeader className="border-b bg-muted/30 py-3 px-4">
+        <CardTitle className="text-base font-semibold flex items-center gap-2">
+          <Package className="h-4 w-4" />
+          Penyerahan Obat
+        </CardTitle>
+        <CardDescription>
+          Serahkan obat yang telah disiapkan kepada pasien
+        </CardDescription>
       </CardHeader>
-      <CardContent className="p-4 space-y-4">
+      <CardContent className="p-0">
+        <ScrollArea className="h-[calc(100vh-300px)] min-h-[400px]">
+          <div className="p-4 space-y-4">
       {/* Order Selection if multiple */}
       {orders.length > 1 && (
         <div className="border rounded-lg p-3 bg-muted/30">
@@ -577,8 +586,8 @@ export function PharmacyDispense({ visitId, readOnly = false }: PharmacyDispense
             </div>
           </div>
         </>
-      )}
-      </CardContent>
+      )}          </div>
+        </ScrollArea>      </CardContent>
     </Card>
   );
 }

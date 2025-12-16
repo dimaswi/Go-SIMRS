@@ -218,6 +218,8 @@ func Migrate() error {
 		// Inpatient Records (Rawat Inap)
 		&models.CPPT{},         // CPPT - Catatan Perkembangan Pasien Terintegrasi
 		&models.FluidBalance{}, // Fluid Balance - Balance Cairan
+		&models.NursingCare{},  // Nursing Care - Asuhan Keperawatan
+		&models.BedTransfer{},  // Bed Transfer - Mutasi Pasien (Pindah Kamar/Bed)
 		// Consultation (Jawaban Konsultasi)
 		&models.Consultation{}, // Consultation - Jawaban/Hasil Konsultasi
 		// Billing & Payment
@@ -225,6 +227,10 @@ func Migrate() error {
 		&models.Billing{},            // Billings (Tagihan)
 		&models.BillingItem{},        // Billing Items (Detail Tagihan)
 		&models.BillingPayment{},     // Billing Payments (Pembayaran)
+		// ICD Code Systems (ICD-10, ICD-9-CM, ICD-O)
+		&models.ICD10{},          // ICD-10 Diagnosis Codes (Indonesia Modified)
+		&models.ICD9CM{},         // ICD-9-CM Procedure Codes (Indonesia Modified)
+		&models.ICDOMorphology{}, // ICD-O Morphology Codes (Tumor)
 	)
 
 	if err != nil {
@@ -402,6 +408,12 @@ func SeedData() error {
 		{Name: "procedures.update", Module: "Procedure Management", Category: "Procedures", Description: "Update existing procedures", Actions: `["update"]`},
 		{Name: "procedures.delete", Module: "Procedure Management", Category: "Procedures", Description: "Delete procedures", Actions: `["delete"]`},
 
+		// ICD Code Management (Kode ICD)
+		{Name: "icd.view", Module: "ICD Management", Category: "ICD", Description: "View ICD-10, ICD-9-CM, and ICD-O codes", Actions: `["read"]`},
+		{Name: "icd.create", Module: "ICD Management", Category: "ICD", Description: "Create new ICD codes", Actions: `["create"]`},
+		{Name: "icd.update", Module: "ICD Management", Category: "ICD", Description: "Update existing ICD codes", Actions: `["update"]`},
+		{Name: "icd.delete", Module: "ICD Management", Category: "ICD", Description: "Delete ICD codes", Actions: `["delete"]`},
+
 		// Patient Management (Pasien)
 		{Name: "patients.view", Module: "Patient Management", Category: "Patients", Description: "View patients list and details", Actions: `["read"]`},
 		{Name: "patients.create", Module: "Patient Management", Category: "Patients", Description: "Register new patients", Actions: `["create"]`},
@@ -509,7 +521,9 @@ func SeedData() error {
 		{Name: "medical_records.procedure", Module: "Medical Record Management", Category: "Medical", Description: "Perform and record procedures during visit", Actions: `["create", "update", "delete"]`},
 		{Name: "medical_records.inpatient", Module: "Medical Record Management", Category: "Medical", Description: "Manage inpatient records (CPPT, Fluid Balance)", Actions: `["create", "update", "delete"]`},
 		{Name: "medical_records.cppt", Module: "Medical Record Management", Category: "Medical", Description: "Create and manage CPPT records", Actions: `["create", "update", "delete"]`},
+		{Name: "medical_records.nursing_care", Module: "Medical Record Management", Category: "Medical", Description: "Create and manage nursing care (asuhan keperawatan) records", Actions: `["create", "update", "delete"]`},
 		{Name: "medical_records.fluid_balance", Module: "Medical Record Management", Category: "Medical", Description: "Create and manage fluid balance records", Actions: `["create", "update", "delete"]`},
+		{Name: "medical_records.bed_transfer", Module: "Medical Record Management", Category: "Medical", Description: "Create and manage bed transfer (mutasi pasien) records", Actions: `["create", "update", "delete"]`},
 		{Name: "medical_records.medicine_order", Module: "Medical Record Management", Category: "Medical", Description: "Create and view medicine orders from medical record", Actions: `["create", "read"]`},
 		{Name: "medical_records.radiology_order", Module: "Medical Record Management", Category: "Medical", Description: "Create and view radiology orders from medical record", Actions: `["create", "read"]`},
 		{Name: "medical_records.laboratory_order", Module: "Medical Record Management", Category: "Medical", Description: "Create and view laboratory orders from medical record", Actions: `["create", "read"]`},

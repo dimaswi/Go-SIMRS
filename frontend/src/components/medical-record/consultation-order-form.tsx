@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { cn } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -48,7 +49,6 @@ import {
   ChevronsUpDown,
   Check,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { procedureOrdersApi, PROCEDURE_ORDER_STATUS } from "@/lib/api";
 import type { ProcedureOrder, Procedure as ProcedureType } from "@/lib/api/procedure-orders";
 
@@ -293,6 +293,7 @@ function OrderCollapsible({ order, onCancel, canCancel }: { order: ProcedureOrde
 export function ConsultationOrderForm({ visitId, sourceRoomId, readOnly = false }: ConsultationOrderFormProps) {
   const { toast } = useToast();
   const { hasPermission } = usePermission();
+  const [activeTab, setActiveTab] = useState<"form" | "history">("form");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [existingOrders, setExistingOrders] = useState<ProcedureOrder[]>([]);
@@ -355,12 +356,10 @@ export function ConsultationOrderForm({ visitId, sourceRoomId, readOnly = false 
     setLoadingProcedures(true);
     try {
       const res = await procedureOrdersApi.getConsultationProcedures(roomId);
-      console.log("Procedures response:", res);
       // Handle nested data response
       const procedureData = Array.isArray(res.data) 
         ? res.data 
         : ((res.data as any)?.data || []);
-      console.log("Procedures data:", procedureData);
       setProcedures(procedureData);
     } catch (error) {
       console.error("Error loading procedures:", error);
@@ -503,57 +502,68 @@ export function ConsultationOrderForm({ visitId, sourceRoomId, readOnly = false 
   }
 
   return (
-    <div className="space-y-4">
-      {/* Existing Orders */}
-      {existingOrders.length > 0 && (
-        <Card>
-          <CardHeader className="border-b bg-muted/30 py-3 px-4">
-            <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <Clock className="h-4 w-4" />
-              Riwayat Order Konsultasi ({existingOrders.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="divide-y">
-              {existingOrders.map((order) => (
-                <OrderCollapsible 
-                  key={order.id} 
-                  order={order} 
-                  onCancel={handleCancelOrder}
-                  canCancel={canOrder}
-                />
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+    <Card className="shadow-md">
+      <CardHeader className="border-b bg-muted/30 py-3 px-4">
+        <CardTitle className="text-base font-semibold flex items-center gap-2">
+          <Stethoscope className="h-4 w-4" />
+          Order Konsultasi
+        </CardTitle>
+        <CardDescription>
+          Kelola konsultasi ke dokter spesialis
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="p-0">
+        {/* Inline Tabs with Underline */}
+        <div className="border-b">
+          <div className="flex">
+            <button
+              onClick={() => setActiveTab("form")}
+              className={cn(
+                "px-4 py-2.5 text-sm font-medium transition-colors relative",
+                activeTab === "form"
+                  ? "text-primary"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <span className="flex items-center gap-2">
+                <Stethoscope className="h-4 w-4" />
+                Order Baru
+              </span>
+              {activeTab === "form" && (
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
+              )}
+            </button>
+            <button
+              onClick={() => setActiveTab("history")}
+              className={cn(
+                "px-4 py-2.5 text-sm font-medium transition-colors relative",
+                activeTab === "history"
+                  ? "text-primary"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <span className="flex items-center gap-2">
+                <Clock className="h-4 w-4" />
+                Riwayat Order
+                {existingOrders.length > 0 && (
+                  <Badge variant="secondary" className="ml-1 h-5 px-1.5">
+                    {existingOrders.length}
+                  </Badge>
+                )}
+              </span>
+              {activeTab === "history" && (
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
+              )}
+            </button>
+          </div>
+        </div>
 
-      {/* Read-only notice */}
-      {readOnly && (
-        <Card className="border-amber-200 bg-amber-50 dark:bg-amber-950">
-          <CardContent className="flex items-center gap-2 p-3 text-amber-800 dark:text-amber-200">
-            <AlertCircle className="h-4 w-4" />
-            <p className="text-sm">
-              Pasien sudah pulang. Semua form rekam medis dalam mode baca saja (read-only).
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* New Order Form */}
-      {canOrder && (
-        <Card>
-          <CardHeader className="border-b bg-muted/30 py-3 px-4">
-            <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <Stethoscope className="h-4 w-4" />
-              Buat Order Konsultasi Baru
-            </CardTitle>
-            <CardDescription>
-              Kirim pasien untuk konsultasi ke dokter spesialis lain
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="p-4 space-y-4">
-            <fieldset disabled={readOnly}>
+        <ScrollArea className="h-[calc(100vh-300px)] min-h-[400px]">
+          <div className="p-4">
+            {/* Order Form Tab */}
+            {activeTab === "form" && canOrder && (
+              <div className="space-y-4">
+                <fieldset disabled={readOnly}>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Ruangan Tujuan Konsultasi</Label>
@@ -805,22 +815,43 @@ export function ConsultationOrderForm({ visitId, sourceRoomId, readOnly = false 
                   )}
                 </Button>
               </div>
-            </fieldset>
-          </CardContent>
-        </Card>
-      )}
+                </fieldset>
+              </div>
+            )}
 
-      {/* No permission notice */}
-      {!canOrder && existingOrders.length === 0 && (
-        <Card>
-          <CardContent className="py-12">
-            <div className="text-center text-muted-foreground">
-              <Stethoscope className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>Belum ada order konsultasi</p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-    </div>
+            {/* No permission notice for form tab */}
+            {activeTab === "form" && !canOrder && (
+              <div className="text-center py-12 text-muted-foreground">
+                <Stethoscope className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p>Anda tidak memiliki akses untuk membuat order konsultasi</p>
+              </div>
+            )}
+
+            {/* History Tab */}
+            {activeTab === "history" && (
+              <div className="space-y-2">
+                {existingOrders.length > 0 ? (
+                  <div className="divide-y border rounded-lg">
+                    {existingOrders.map((order) => (
+                      <OrderCollapsible 
+                        key={order.id} 
+                        order={order} 
+                        onCancel={handleCancelOrder}
+                        canCancel={canOrder}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p>Belum ada riwayat order konsultasi</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </ScrollArea>
+      </CardContent>
+    </Card>
   );
 }

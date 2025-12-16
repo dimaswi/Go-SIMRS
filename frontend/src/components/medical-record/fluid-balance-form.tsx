@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,6 +7,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import {
   Select,
   SelectContent,
@@ -52,6 +57,8 @@ import {
   User,
   ArrowDownToLine,
   ArrowUpFromLine,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
@@ -59,6 +66,145 @@ import { id as idLocale } from "date-fns/locale";
 interface FluidBalanceFormProps {
   visitId: number;
   readOnly?: boolean;
+}
+
+// Collapsible Row Component for Fluid Balance
+function FluidBalanceCollapsibleRow({
+  balance,
+  canEdit,
+  canDelete,
+  onEdit,
+  onDelete,
+  getShiftColor,
+  getBalanceStatus,
+}: {
+  balance: FluidBalance;
+  canEdit: boolean;
+  canDelete: boolean;
+  onEdit: (balance: FluidBalance) => void;
+  onDelete: (id: number) => void;
+  getShiftColor: (shift: string) => string;
+  getBalanceStatus: (balance: number) => { icon: any; color: string; label: string };
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const status = getBalanceStatus(balance.balance);
+  const StatusIcon = status.icon;
+
+  return (
+    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+      <div className="hover:bg-muted/30">
+        {/* Table Row */}
+        <div className="grid grid-cols-12 gap-2 px-4 py-3 items-center text-sm">
+          <div className="col-span-1">
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-6 w-6">
+                {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+              </Button>
+            </CollapsibleTrigger>
+          </div>
+          <div className="col-span-2">
+            <span className="font-medium">{format(new Date(balance.record_date), "dd MMM yyyy", { locale: idLocale })}</span>
+          </div>
+          <div className="col-span-2">
+            <Badge className={getShiftColor(balance.shift_type)}>
+              {getShiftTypeLabel(balance.shift_type)}
+            </Badge>
+          </div>
+          <div className="col-span-2">
+            <span className="text-green-600 font-medium flex items-center gap-1">
+              <ArrowDownToLine className="h-3 w-3" /> {balance.total_intake} ml
+            </span>
+          </div>
+          <div className="col-span-2">
+            <span className="text-red-600 font-medium flex items-center gap-1">
+              <ArrowUpFromLine className="h-3 w-3" /> {balance.total_output} ml
+            </span>
+          </div>
+          <div className="col-span-2">
+            <div className="flex flex-col gap-0.5">
+              <span className={`flex items-center gap-1 font-bold ${status.color}`}>
+                <StatusIcon className="h-4 w-4" />
+                {balance.balance > 0 ? "+" : ""}{balance.balance} ml
+              </span>
+              {balance.created_by && (
+                <span className="text-[10px] text-muted-foreground truncate">
+                  {balance.created_by.full_name}
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="col-span-1 flex items-center gap-1">
+            {canEdit && (
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEdit(balance)}>
+                <Pencil className="h-4 w-4" />
+              </Button>
+            )}
+            {canDelete && (
+              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => onDelete(balance.id)}>
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Expanded Content */}
+        <CollapsibleContent>
+          <div className="px-4 pb-4 pt-0 ml-8 mr-4">
+            {/* Intake/Output Details */}
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div className="bg-green-50 dark:bg-green-950 rounded-lg p-3">
+                <p className="font-medium text-green-700 dark:text-green-300 mb-2 flex items-center gap-1">
+                  <ArrowDownToLine className="h-4 w-4" />
+                  Intake: {balance.total_intake} ml
+                </p>
+                <div className="grid grid-cols-2 gap-1 text-xs text-green-800 dark:text-green-200">
+                  {balance.oral_drink > 0 && <span>Minum: {balance.oral_drink} ml</span>}
+                  {balance.iv_fluid > 0 && <span>Infus: {balance.iv_fluid} ml</span>}
+                  {balance.oral_food > 0 && <span>Makanan: {balance.oral_food} ml</span>}
+                  {balance.iv_medicine > 0 && <span>Obat IV: {balance.iv_medicine} ml</span>}
+                  {balance.enteral_feed > 0 && <span>NGT: {balance.enteral_feed} ml</span>}
+                  {balance.blood_product > 0 && <span>Darah: {balance.blood_product} ml</span>}
+                  {balance.oral_medicine > 0 && <span>Obat Oral: {balance.oral_medicine} ml</span>}
+                  {balance.other_intake > 0 && <span>Lainnya: {balance.other_intake} ml</span>}
+                </div>
+              </div>
+              <div className="bg-red-50 dark:bg-red-950 rounded-lg p-3">
+                <p className="font-medium text-red-700 dark:text-red-300 mb-2 flex items-center gap-1">
+                  <ArrowUpFromLine className="h-4 w-4" />
+                  Output: {balance.total_output} ml
+                </p>
+                <div className="grid grid-cols-2 gap-1 text-xs text-red-800 dark:text-red-200">
+                  {balance.urine_amount > 0 && <span>Urine: {balance.urine_amount} ml</span>}
+                  {balance.feces_amount > 0 && <span>BAB: {balance.feces_amount} ml</span>}
+                  {balance.vomit_amount > 0 && <span>Muntah: {balance.vomit_amount} ml</span>}
+                  {balance.drain_amount > 0 && <span>Drain: {balance.drain_amount} ml</span>}
+                  {balance.iwl > 0 && <span>IWL: {balance.iwl} ml</span>}
+                  {balance.blood_loss > 0 && <span>Perdarahan: {balance.blood_loss} ml</span>}
+                  {balance.other_output > 0 && <span>Lainnya: {balance.other_output} ml</span>}
+                </div>
+              </div>
+            </div>
+
+            {/* Notes */}
+            {balance.notes && (
+              <div className="mt-3 p-2 bg-muted rounded text-sm">
+                <p className="text-xs font-medium text-muted-foreground mb-1">Catatan:</p>
+                <p>{balance.notes}</p>
+              </div>
+            )}
+
+            {/* Footer */}
+            {balance.created_by && (
+              <div className="mt-3 text-xs text-muted-foreground flex items-center gap-1">
+                <User className="h-3 w-3" />
+                Dicatat oleh: {balance.created_by.full_name}
+              </div>
+            )}
+          </div>
+        </CollapsibleContent>
+      </div>
+    </Collapsible>
+  );
 }
 
 const defaultFormData: CreateFluidBalanceInput = {
@@ -108,9 +254,9 @@ export function FluidBalanceForm({ visitId, readOnly = false }: FluidBalanceForm
   const [balanceToDelete, setBalanceToDelete] = useState<number | null>(null);
 
   // Permissions
-  const canCreate = hasPermission("medical_records.fluid_balance");
-  const canEdit = hasPermission("medical_records.fluid_balance");
-  const canDelete = hasPermission("medical_records.fluid_balance");
+  const canCreate = hasPermission("medical_records.fluid_balance") && !readOnly;
+  const canEdit = hasPermission("medical_records.fluid_balance") && !readOnly;
+  const canDelete = hasPermission("medical_records.fluid_balance") && !readOnly;
 
   // Load data
   const loadData = useCallback(async () => {
@@ -282,11 +428,14 @@ export function FluidBalanceForm({ visitId, readOnly = false }: FluidBalanceForm
   if (loading) {
     return (
       <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Droplets className="h-5 w-5" />
+        <CardHeader className="border-b bg-muted/30 py-3 px-4">
+          <CardTitle className="text-base font-semibold flex items-center gap-2">
+            <Droplets className="h-4 w-4" />
             Balance Cairan
           </CardTitle>
+          <CardDescription>
+            Pencatatan asupan dan keluaran cairan pasien per shift
+          </CardDescription>
         </CardHeader>
         <CardContent className="p-4">
           <div className="flex items-center justify-center py-8 gap-2">
@@ -300,16 +449,20 @@ export function FluidBalanceForm({ visitId, readOnly = false }: FluidBalanceForm
 
   return (
     <>
-      <fieldset disabled={readOnly}>
       <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
+        <CardHeader className="border-b bg-muted/30 py-3 px-4">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Droplets className="h-5 w-5" />
-              Balance Cairan
-              <Badge variant="secondary" className="ml-2">{balances.length} Catatan</Badge>
-            </CardTitle>
-            {canCreate && (
+            <div className="flex-1">
+              <CardTitle className="text-base font-semibold flex items-center gap-2">
+                <Droplets className="h-4 w-4" />
+                Balance Cairan
+                <Badge variant="secondary" className="ml-2">{balances.length} Catatan</Badge>
+              </CardTitle>
+              <CardDescription>
+                Pencatatan asupan dan keluaran cairan pasien per shift
+              </CardDescription>
+            </div>
+            {canCreate && !readOnly && (
               <Button onClick={handleOpenCreate} size="sm">
                 <Plus className="h-4 w-4 mr-1" />
                 Tambah Balance
@@ -355,96 +508,32 @@ export function FluidBalanceForm({ visitId, readOnly = false }: FluidBalanceForm
           {/* Balance List */}
           {balances.length > 0 ? (
             <ScrollArea className="h-[calc(100vh-500px)] min-h-[200px]">
-              <div className="divide-y border rounded-lg">
-                {balances.map((balance) => {
-                  const status = getBalanceStatus(balance.balance);
-                  const StatusIcon = status.icon;
-                  return (
-                    <div key={balance.id} className="p-4 hover:bg-muted/30">
-                      {/* Header Row */}
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-3">
-                          <Badge className={getShiftColor(balance.shift_type)}>
-                            {getShiftTypeLabel(balance.shift_type)}
-                          </Badge>
-                          <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                            <Calendar className="h-3.5 w-3.5" />
-                            {format(new Date(balance.record_date), "dd MMM yyyy", { locale: idLocale })}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className={`flex items-center gap-1 ${status.color} font-semibold`}>
-                            <StatusIcon className="h-4 w-4" />
-                            <span>{balance.balance > 0 ? "+" : ""}{balance.balance} ml</span>
-                          </div>
-                          {canEdit && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              onClick={() => handleOpenEdit(balance)}
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                          )}
-                          {canDelete && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-destructive"
-                              onClick={() => {
-                                setBalanceToDelete(balance.id);
-                                setDeleteDialogOpen(true);
-                              }}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Intake/Output Summary */}
-                      <div className="grid grid-cols-2 gap-3 text-sm">
-                        <div className="bg-green-50 dark:bg-green-950 rounded-lg p-3">
-                          <p className="font-medium text-green-700 dark:text-green-300 mb-2 flex items-center gap-1">
-                            <ArrowDownToLine className="h-4 w-4" />
-                            Intake: {balance.total_intake} ml
-                          </p>
-                          <div className="grid grid-cols-2 gap-1 text-xs text-green-800 dark:text-green-200">
-                            {balance.oral_drink > 0 && <span>Minum: {balance.oral_drink}</span>}
-                            {balance.iv_fluid > 0 && <span>Infus: {balance.iv_fluid}</span>}
-                            {balance.oral_food > 0 && <span>Makanan: {balance.oral_food}</span>}
-                            {balance.iv_medicine > 0 && <span>Obat IV: {balance.iv_medicine}</span>}
-                            {balance.enteral_feed > 0 && <span>NGT: {balance.enteral_feed}</span>}
-                            {balance.blood_product > 0 && <span>Darah: {balance.blood_product}</span>}
-                          </div>
-                        </div>
-                        <div className="bg-red-50 dark:bg-red-950 rounded-lg p-3">
-                          <p className="font-medium text-red-700 dark:text-red-300 mb-2 flex items-center gap-1">
-                            <ArrowUpFromLine className="h-4 w-4" />
-                            Output: {balance.total_output} ml
-                          </p>
-                          <div className="grid grid-cols-2 gap-1 text-xs text-red-800 dark:text-red-200">
-                            {balance.urine_amount > 0 && <span>Urine: {balance.urine_amount}</span>}
-                            {balance.feces_amount > 0 && <span>BAB: {balance.feces_amount}</span>}
-                            {balance.vomit_amount > 0 && <span>Muntah: {balance.vomit_amount}</span>}
-                            {balance.drain_amount > 0 && <span>Drain: {balance.drain_amount}</span>}
-                            {balance.iwl > 0 && <span>IWL: {balance.iwl}</span>}
-                            {balance.blood_loss > 0 && <span>Perdarahan: {balance.blood_loss}</span>}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Footer */}
-                      {balance.created_by && (
-                        <div className="mt-2 text-xs text-muted-foreground flex items-center gap-1">
-                          <User className="h-3 w-3" />
-                          Dicatat oleh: {balance.created_by.full_name}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+              {/* Table Header */}
+              <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-muted/50 text-xs font-medium text-muted-foreground border-b sticky top-0 rounded-t-lg">
+                <div className="col-span-1"></div>
+                <div className="col-span-2">Tanggal</div>
+                <div className="col-span-2">Shift</div>
+                <div className="col-span-2">Intake</div>
+                <div className="col-span-2">Output</div>
+                <div className="col-span-2">Balance</div>
+                <div className="col-span-1">Aksi</div>
+              </div>
+              <div className="divide-y border-x border-b rounded-b-lg">
+                {balances.map((balance) => (
+                  <FluidBalanceCollapsibleRow
+                    key={balance.id}
+                    balance={balance}
+                    canEdit={canEdit}
+                    canDelete={canDelete}
+                    onEdit={handleOpenEdit}
+                    onDelete={(id) => {
+                      setBalanceToDelete(id);
+                      setDeleteDialogOpen(true);
+                    }}
+                    getShiftColor={getShiftColor}
+                    getBalanceStatus={getBalanceStatus}
+                  />
+                ))}
               </div>
             </ScrollArea>
           ) : (
@@ -457,98 +546,99 @@ export function FluidBalanceForm({ visitId, readOnly = false }: FluidBalanceForm
         </CardContent>
       </Card>
 
-      {/* Create/Edit Modal */}
+      {/* Create/Edit Modal - Fullscreen */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
+        <DialogContent className="max-w-full w-full h-screen max-h-screen flex flex-col p-0 gap-0 rounded-none">
+          <DialogHeader className="px-6 py-4 border-b bg-muted/50 shrink-0">
             <DialogTitle className="flex items-center gap-2">
               <Droplets className="h-5 w-5" />
               {editingId ? "Edit Balance Cairan" : "Tambah Balance Cairan"}
             </DialogTitle>
           </DialogHeader>
 
-          <div className="grid gap-4 py-4">
-            {/* Date & Shift */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Tanggal</Label>
-                <Input
-                  type="date"
-                  value={formData.record_date}
-                  onChange={(e) => handleChange("record_date", e.target.value)}
-                />
+          <ScrollArea className="flex-1 px-6 py-4">
+            <div className="grid gap-4 pb-4">
+              {/* Date & Shift */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Tanggal</Label>
+                  <Input
+                    type="date"
+                    value={formData.record_date}
+                    onChange={(e) => handleChange("record_date", e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Shift</Label>
+                  <Select
+                    value={formData.shift_type}
+                    onValueChange={(v) => handleChange("shift_type", v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Pilih shift" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SHIFT_TYPES.map((s) => (
+                        <SelectItem key={s.value} value={s.value}>
+                          {s.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label>Shift</Label>
-                <Select
-                  value={formData.shift_type}
-                  onValueChange={(v) => handleChange("shift_type", v)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Pilih shift" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {SHIFT_TYPES.map((s) => (
-                      <SelectItem key={s.value} value={s.value}>
-                        {s.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
 
-            {/* Intake Section */}
-            <div className="border rounded-lg p-4 bg-green-50/50 dark:bg-green-950/30">
-              <Label className="text-green-700 dark:text-green-300 font-semibold flex items-center gap-2 mb-3">
-                <ArrowDownToLine className="h-4 w-4" />
-                INTAKE (Masukan)
-              </Label>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div className="space-y-1">
-                  <Label className="text-xs">Minum (ml)</Label>
-                  <Input
-                    type="number"
-                    value={formData.oral_drink || ""}
-                    onChange={(e) => handleChange("oral_drink", parseFloat(e.target.value) || 0)}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Air Makanan (ml)</Label>
-                  <Input
-                    type="number"
-                    value={formData.oral_food || ""}
-                    onChange={(e) => handleChange("oral_food", parseFloat(e.target.value) || 0)}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Obat Oral (ml)</Label>
-                  <Input
-                    type="number"
-                    value={formData.oral_medicine || ""}
-                    onChange={(e) => handleChange("oral_medicine", parseFloat(e.target.value) || 0)}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Cairan Infus (ml)</Label>
-                  <Input
-                    type="number"
-                    value={formData.iv_fluid || ""}
-                    onChange={(e) => handleChange("iv_fluid", parseFloat(e.target.value) || 0)}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Obat IV (ml)</Label>
-                  <Input
-                    type="number"
-                    value={formData.iv_medicine || ""}
-                    onChange={(e) => handleChange("iv_medicine", parseFloat(e.target.value) || 0)}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Produk Darah (ml)</Label>
-                  <Input
-                    type="number"
+              {/* Intake Section */}
+              <div className="border rounded-lg p-4 bg-green-50/50 dark:bg-green-950/30">
+                <Label className="text-green-700 dark:text-green-300 font-semibold flex items-center gap-2 mb-3">
+                  <ArrowDownToLine className="h-4 w-4" />
+                  INTAKE (Masukan)
+                </Label>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Minum (ml)</Label>
+                    <Input
+                      type="number"
+                      value={formData.oral_drink || ""}
+                      onChange={(e) => handleChange("oral_drink", parseFloat(e.target.value) || 0)}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Air Makanan (ml)</Label>
+                    <Input
+                      type="number"
+                      value={formData.oral_food || ""}
+                      onChange={(e) => handleChange("oral_food", parseFloat(e.target.value) || 0)}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Obat Oral (ml)</Label>
+                    <Input
+                      type="number"
+                      value={formData.oral_medicine || ""}
+                      onChange={(e) => handleChange("oral_medicine", parseFloat(e.target.value) || 0)}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Cairan Infus (ml)</Label>
+                    <Input
+                      type="number"
+                      value={formData.iv_fluid || ""}
+                      onChange={(e) => handleChange("iv_fluid", parseFloat(e.target.value) || 0)}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Obat IV (ml)</Label>
+                    <Input
+                      type="number"
+                      value={formData.iv_medicine || ""}
+                      onChange={(e) => handleChange("iv_medicine", parseFloat(e.target.value) || 0)}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Produk Darah (ml)</Label>
+                    <Input
+                      type="number"
                     value={formData.blood_product || ""}
                     onChange={(e) => handleChange("blood_product", parseFloat(e.target.value) || 0)}
                   />
@@ -575,114 +665,115 @@ export function FluidBalanceForm({ visitId, readOnly = false }: FluidBalanceForm
               </div>
             </div>
 
-            {/* Output Section */}
-            <div className="border rounded-lg p-4 bg-red-50/50 dark:bg-red-950/30">
-              <Label className="text-red-700 dark:text-red-300 font-semibold flex items-center gap-2 mb-3">
-                <ArrowUpFromLine className="h-4 w-4" />
-                OUTPUT (Keluaran)
-              </Label>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div className="space-y-1">
-                  <Label className="text-xs">Urine (ml)</Label>
-                  <Input
-                    type="number"
-                    value={formData.urine_amount || ""}
-                    onChange={(e) => handleChange("urine_amount", parseFloat(e.target.value) || 0)}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">BAB (ml)</Label>
-                  <Input
-                    type="number"
-                    value={formData.feces_amount || ""}
-                    onChange={(e) => handleChange("feces_amount", parseFloat(e.target.value) || 0)}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Muntah (ml)</Label>
-                  <Input
-                    type="number"
-                    value={formData.vomit_amount || ""}
-                    onChange={(e) => handleChange("vomit_amount", parseFloat(e.target.value) || 0)}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Drain (ml)</Label>
-                  <Input
-                    type="number"
-                    value={formData.drain_amount || ""}
-                    onChange={(e) => handleChange("drain_amount", parseFloat(e.target.value) || 0)}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Perdarahan (ml)</Label>
-                  <Input
-                    type="number"
-                    value={formData.blood_loss || ""}
-                    onChange={(e) => handleChange("blood_loss", parseFloat(e.target.value) || 0)}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">IWL (ml)</Label>
-                  <Input
-                    type="number"
-                    value={formData.iwl || ""}
-                    onChange={(e) => handleChange("iwl", parseFloat(e.target.value) || 0)}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Output Lain (ml)</Label>
-                  <Input
-                    type="number"
-                    value={formData.other_output || ""}
-                    onChange={(e) => handleChange("other_output", parseFloat(e.target.value) || 0)}
-                  />
-                </div>
-                <div className="flex items-end pb-1">
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="catheter"
-                      checked={formData.urine_catheter}
-                      onCheckedChange={(checked) => handleChange("urine_catheter", checked)}
+              {/* Output Section */}
+              <div className="border rounded-lg p-4 bg-red-50/50 dark:bg-red-950/30">
+                <Label className="text-red-700 dark:text-red-300 font-semibold flex items-center gap-2 mb-3">
+                  <ArrowUpFromLine className="h-4 w-4" />
+                  OUTPUT (Keluaran)
+                </Label>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Urine (ml)</Label>
+                    <Input
+                      type="number"
+                      value={formData.urine_amount || ""}
+                      onChange={(e) => handleChange("urine_amount", parseFloat(e.target.value) || 0)}
                     />
-                    <label htmlFor="catheter" className="text-xs">
-                      Pakai Kateter
-                    </label>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">BAB (ml)</Label>
+                    <Input
+                      type="number"
+                      value={formData.feces_amount || ""}
+                      onChange={(e) => handleChange("feces_amount", parseFloat(e.target.value) || 0)}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Muntah (ml)</Label>
+                    <Input
+                      type="number"
+                      value={formData.vomit_amount || ""}
+                      onChange={(e) => handleChange("vomit_amount", parseFloat(e.target.value) || 0)}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Drain (ml)</Label>
+                    <Input
+                      type="number"
+                      value={formData.drain_amount || ""}
+                      onChange={(e) => handleChange("drain_amount", parseFloat(e.target.value) || 0)}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Perdarahan (ml)</Label>
+                    <Input
+                      type="number"
+                      value={formData.blood_loss || ""}
+                      onChange={(e) => handleChange("blood_loss", parseFloat(e.target.value) || 0)}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">IWL (ml)</Label>
+                    <Input
+                      type="number"
+                      value={formData.iwl || ""}
+                      onChange={(e) => handleChange("iwl", parseFloat(e.target.value) || 0)}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Output Lain (ml)</Label>
+                    <Input
+                      type="number"
+                      value={formData.other_output || ""}
+                      onChange={(e) => handleChange("other_output", parseFloat(e.target.value) || 0)}
+                    />
+                  </div>
+                  <div className="flex items-end pb-1">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="catheter"
+                        checked={formData.urine_catheter}
+                        onCheckedChange={(checked) => handleChange("urine_catheter", checked)}
+                      />
+                      <label htmlFor="catheter" className="text-xs">
+                        Pakai Kateter
+                      </label>
+                    </div>
                   </div>
                 </div>
+                <div className="mt-2 text-right text-sm font-semibold text-red-700">
+                  Total Output: {calcOutput()} ml
+                </div>
               </div>
-              <div className="mt-2 text-right text-sm font-semibold text-red-700">
-                Total Output: {calcOutput()} ml
-              </div>
-            </div>
 
-            {/* Balance Preview */}
-            <div className={`border rounded-lg p-4 text-center ${
-              calcIntake() - calcOutput() > 0 ? "bg-green-100" : 
-              calcIntake() - calcOutput() < 0 ? "bg-red-100" : "bg-gray-100"
-            }`}>
-              <p className="text-sm font-medium">BALANCE</p>
-              <p className={`text-2xl font-bold ${
-                calcIntake() - calcOutput() > 0 ? "text-green-700" : 
-                calcIntake() - calcOutput() < 0 ? "text-red-700" : "text-gray-700"
+              {/* Balance Preview */}
+              <div className={`border rounded-lg p-4 text-center ${
+                calcIntake() - calcOutput() > 0 ? "bg-green-100" : 
+                calcIntake() - calcOutput() < 0 ? "bg-red-100" : "bg-gray-100"
               }`}>
-                {calcIntake() - calcOutput() > 0 ? "+" : ""}{calcIntake() - calcOutput()} ml
-              </p>
-            </div>
+                <p className="text-sm font-medium">BALANCE</p>
+                <p className={`text-2xl font-bold ${
+                  calcIntake() - calcOutput() > 0 ? "text-green-700" : 
+                  calcIntake() - calcOutput() < 0 ? "text-red-700" : "text-gray-700"
+                }`}>
+                  {calcIntake() - calcOutput() > 0 ? "+" : ""}{calcIntake() - calcOutput()} ml
+                </p>
+              </div>
 
-            {/* Notes */}
-            <div className="space-y-2">
-              <Label>Catatan</Label>
-              <Textarea
-                value={formData.notes}
-                onChange={(e) => handleChange("notes", e.target.value)}
-                placeholder="Catatan tambahan..."
-                rows={2}
-              />
+              {/* Notes */}
+              <div className="space-y-2">
+                <Label>Catatan</Label>
+                <Textarea
+                  value={formData.notes}
+                  onChange={(e) => handleChange("notes", e.target.value)}
+                  placeholder="Catatan tambahan..."
+                  rows={2}
+                />
+              </div>
             </div>
-          </div>
+          </ScrollArea>
 
-          <DialogFooter>
+          <DialogFooter className="px-6 py-4 border-t bg-muted/50 shrink-0">
             <Button variant="outline" onClick={() => setIsModalOpen(false)}>
               Batal
             </Button>
@@ -720,7 +811,6 @@ export function FluidBalanceForm({ visitId, readOnly = false }: FluidBalanceForm
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      </fieldset>
     </>
   );
 }

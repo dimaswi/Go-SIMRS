@@ -106,16 +106,25 @@ func (RoomUnit) TableName() string {
 
 // Bed represents a bed within a room unit (Tempat Tidur)
 type Bed struct {
-	ID         uint           `gorm:"primarykey" json:"id"`
-	CreatedAt  time.Time      `json:"created_at"`
-	UpdatedAt  time.Time      `json:"updated_at"`
-	DeletedAt  gorm.DeletedAt `gorm:"index" json:"-"`
-	RoomUnitID uint           `gorm:"not null;index;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"room_unit_id"`
-	RoomUnit   *RoomUnit      `gorm:"foreignKey:RoomUnitID" json:"room_unit,omitempty"`
-	BedNumber  string         `gorm:"not null;size:20" json:"bed_number"`        // e.g., "A", "B", "1", "2"
-	BedType    string         `gorm:"size:50" json:"bed_type"`                   // bed_type from master data
-	Status     string         `gorm:"size:50;default:'available'" json:"status"` // bed_status from master data
-	Notes      string         `gorm:"type:text" json:"notes"`
+	ID             uint           `gorm:"primarykey" json:"id"`
+	CreatedAt      time.Time      `json:"created_at"`
+	UpdatedAt      time.Time      `json:"updated_at"`
+	DeletedAt      gorm.DeletedAt `gorm:"index" json:"-"`
+	RoomUnitID     uint           `gorm:"not null;index;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"room_unit_id"`
+	RoomUnit       *RoomUnit      `gorm:"foreignKey:RoomUnitID" json:"room_unit,omitempty"`
+	BedNumber      string         `gorm:"not null;size:20" json:"bed_number"`        // e.g., "A", "B", "1", "2"
+	BedType        string         `gorm:"size:50" json:"bed_type"`                   // bed_type from master data
+	Status         string         `gorm:"size:50;default:'available'" json:"status"` // bed_status from master data
+	Notes          string         `gorm:"type:text" json:"notes"`
+	CurrentPatient *BedPatient    `gorm:"-" json:"current_patient,omitempty"` // Virtual field: patient currently occupying this bed
+}
+
+// BedPatient represents basic patient info for bed occupancy display
+type BedPatient struct {
+	Name                string     `json:"name"`
+	MedicalRecordNumber string     `json:"medical_record_number"`
+	AdmissionDate       *time.Time `json:"admission_date,omitempty"`
+	VisitID             uint       `json:"visit_id"`
 }
 
 // TableName sets the table name for Bed

@@ -1,11 +1,16 @@
 import { useEffect, useState, useCallback } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import {
   Select,
   SelectContent,
@@ -52,6 +57,8 @@ import {
   Thermometer,
   Activity,
   ShieldCheck,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
@@ -59,6 +66,195 @@ import { id as idLocale } from "date-fns/locale";
 interface CPPTFormProps {
   visitId: number;
   readOnly?: boolean;
+}
+
+// Collapsible Row Component for CPPT
+function CPPTCollapsibleRow({
+  cppt,
+  canVerify,
+  canEdit,
+  canDelete,
+  onVerify,
+  onEdit,
+  onDelete,
+  getProfessionColor,
+}: {
+  cppt: CPPT;
+  canVerify: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
+  onVerify: (id: number) => void;
+  onEdit: (cppt: CPPT) => void;
+  onDelete: (id: number) => void;
+  getProfessionColor: (profession: string) => string;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  // Get summary of SOAP
+  const getSoapSummary = () => {
+    const parts = [];
+    if (cppt.subjective) parts.push(`S: ${cppt.subjective.substring(0, 30)}${cppt.subjective.length > 30 ? '...' : ''}`);
+    if (cppt.objective) parts.push(`O: ${cppt.objective.substring(0, 30)}${cppt.objective.length > 30 ? '...' : ''}`);
+    if (cppt.assessment) parts.push(`A: ${cppt.assessment.substring(0, 30)}${cppt.assessment.length > 30 ? '...' : ''}`);
+    return parts.join(' | ') || '-';
+  };
+
+  return (
+    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+      <div className="hover:bg-muted/30">
+        {/* Table Row */}
+        <div className="grid grid-cols-12 gap-2 px-4 py-3 items-center text-sm">
+          <div className="col-span-1">
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-6 w-6">
+                {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+              </Button>
+            </CollapsibleTrigger>
+          </div>
+          <div className="col-span-2">
+            <div className="flex flex-col">
+              <span className="font-medium">{format(new Date(cppt.record_date), "dd MMM yyyy", { locale: idLocale })}</span>
+              <span className="text-xs text-muted-foreground">{format(new Date(cppt.record_date), "HH:mm")}</span>
+            </div>
+          </div>
+          <div className="col-span-2">
+            <Badge className={getProfessionColor(cppt.profession)}>
+              {getCPPTProfessionLabel(cppt.profession)}
+            </Badge>
+          </div>
+          <div className="col-span-4">
+            <p className="text-xs text-muted-foreground truncate">{getSoapSummary()}</p>
+          </div>
+          <div className="col-span-2">
+            <div className="flex flex-col gap-0.5">
+              {cppt.is_verified ? (
+                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 w-fit">
+                  <ShieldCheck className="h-3 w-3 mr-1" />
+                  Verified
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="text-muted-foreground w-fit">Pending</Badge>
+              )}
+              <div className="text-[10px] text-muted-foreground truncate">
+                {cppt.created_by && <span>{cppt.created_by.full_name}</span>}
+                {cppt.is_verified && cppt.verified_by && <span className="ml-1">• {cppt.verified_by.full_name}</span>}
+              </div>
+            </div>
+          </div>
+          <div className="col-span-1 flex items-center gap-1">
+            {canVerify && !cppt.is_verified && (
+              <Button variant="ghost" size="icon" className="h-7 w-7 text-green-600" onClick={() => onVerify(cppt.id)}>
+                <CheckCircle className="h-4 w-4" />
+              </Button>
+            )}
+            {canEdit && !cppt.is_verified && (
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEdit(cppt)}>
+                <Pencil className="h-4 w-4" />
+              </Button>
+            )}
+            {canDelete && !cppt.is_verified && (
+              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => onDelete(cppt.id)}>
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Expanded Content */}
+        <CollapsibleContent>
+          <div className="px-4 pb-4 pt-0 ml-8 mr-4">
+            {/* SOAP Content */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+              {cppt.subjective && (
+                <div className="bg-blue-50 dark:bg-blue-950 rounded-lg p-3">
+                  <p className="font-medium text-blue-700 dark:text-blue-300 mb-1">S - Subjektif</p>
+                  <p className="text-blue-900 dark:text-blue-100 whitespace-pre-wrap">{cppt.subjective}</p>
+                </div>
+              )}
+              {cppt.objective && (
+                <div className="bg-green-50 dark:bg-green-950 rounded-lg p-3">
+                  <p className="font-medium text-green-700 dark:text-green-300 mb-1">O - Objektif</p>
+                  <p className="text-green-900 dark:text-green-100 whitespace-pre-wrap">{cppt.objective}</p>
+                </div>
+              )}
+              {cppt.assessment && (
+                <div className="bg-orange-50 dark:bg-orange-950 rounded-lg p-3">
+                  <p className="font-medium text-orange-700 dark:text-orange-300 mb-1">A - Asesmen</p>
+                  <p className="text-orange-900 dark:text-orange-100 whitespace-pre-wrap">{cppt.assessment}</p>
+                </div>
+              )}
+              {cppt.plan && (
+                <div className="bg-purple-50 dark:bg-purple-950 rounded-lg p-3">
+                  <p className="font-medium text-purple-700 dark:text-purple-300 mb-1">P - Plan</p>
+                  <p className="text-purple-900 dark:text-purple-100 whitespace-pre-wrap">{cppt.plan}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Vital Signs */}
+            {(cppt.blood_pressure || cppt.heart_rate || cppt.temperature || cppt.oxygen_saturation) && (
+              <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                {cppt.blood_pressure && (
+                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-muted rounded">
+                    <Activity className="h-3 w-3" /> TD: {cppt.blood_pressure} mmHg
+                  </span>
+                )}
+                {cppt.heart_rate ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-muted rounded">
+                    <Heart className="h-3 w-3" /> HR: {cppt.heart_rate} x/mnt
+                  </span>
+                ) : null}
+                {cppt.respiratory_rate ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-muted rounded">
+                    RR: {cppt.respiratory_rate} x/mnt
+                  </span>
+                ) : null}
+                {cppt.temperature && (
+                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-muted rounded">
+                    <Thermometer className="h-3 w-3" /> T: {cppt.temperature}°C
+                  </span>
+                )}
+                {cppt.oxygen_saturation ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-muted rounded">
+                    SpO2: {cppt.oxygen_saturation}%
+                  </span>
+                ) : null}
+                {cppt.pain_scale ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-muted rounded">
+                    Nyeri: {cppt.pain_scale}/10
+                  </span>
+                ) : null}
+              </div>
+            )}
+
+            {/* Instruction */}
+            {cppt.instruction && (
+              <div className="mt-3 p-2 bg-yellow-50 dark:bg-yellow-950 rounded border border-yellow-200">
+                <p className="text-xs font-medium text-yellow-700 dark:text-yellow-300">Instruksi:</p>
+                <p className="text-sm text-yellow-900 dark:text-yellow-100">{cppt.instruction}</p>
+              </div>
+            )}
+
+            {/* Footer */}
+            <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
+              {cppt.created_by && (
+                <span className="flex items-center gap-1">
+                  <User className="h-3 w-3" />
+                  Dicatat: {cppt.created_by.full_name}
+                </span>
+              )}
+              {cppt.is_verified && cppt.verified_by && (
+                <span className="flex items-center gap-1">
+                  <ShieldCheck className="h-3 w-3" />
+                  Diverifikasi: {cppt.verified_by.full_name}
+                </span>
+              )}
+            </div>
+          </div>
+        </CollapsibleContent>
+      </div>
+    </Collapsible>
+  );
 }
 
 const defaultFormData: CreateCPPTInput = {
@@ -92,10 +288,10 @@ export function CPPTForm({ visitId, readOnly = false }: CPPTFormProps) {
   const [cpptToDelete, setCpptToDelete] = useState<number | null>(null);
 
   // Permissions
-  const canCreate = hasPermission("medical_records.cppt");
-  const canEdit = hasPermission("medical_records.cppt");
-  const canDelete = hasPermission("medical_records.cppt");
-  const canVerify = hasPermission("medical_records.cppt");
+  const canCreate = hasPermission("medical_records.cppt") && !readOnly;
+  const canEdit = hasPermission("medical_records.cppt") && !readOnly;
+  const canDelete = hasPermission("medical_records.cppt") && !readOnly;
+  const canVerify = hasPermission("medical_records.cppt") && !readOnly;
 
   // Load data
   const loadData = useCallback(async () => {
@@ -258,11 +454,14 @@ export function CPPTForm({ visitId, readOnly = false }: CPPTFormProps) {
   if (loading) {
     return (
       <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <ClipboardCheck className="h-5 w-5" />
+        <CardHeader className="border-b bg-muted/30 py-3 px-4">
+          <CardTitle className="text-base font-semibold flex items-center gap-2">
+            <ClipboardCheck className="h-4 w-4" />
             CPPT - Catatan Perkembangan Pasien Terintegrasi
           </CardTitle>
+          <CardDescription>
+            Catatan perkembangan harian pasien oleh berbagai profesi medis
+          </CardDescription>
         </CardHeader>
         <CardContent className="p-4">
           <div className="flex items-center justify-center py-8 gap-2">
@@ -276,16 +475,20 @@ export function CPPTForm({ visitId, readOnly = false }: CPPTFormProps) {
 
   return (
     <>
-      <fieldset disabled={readOnly}>
       <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
+        <CardHeader className="border-b bg-muted/30 py-3 px-4">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <ClipboardCheck className="h-5 w-5" />
-              CPPT - Catatan Perkembangan Pasien Terintegrasi
-              <Badge variant="secondary" className="ml-2">{cppts.length} Catatan</Badge>
-            </CardTitle>
-            {canCreate && (
+            <div className="flex-1">
+              <CardTitle className="text-base font-semibold flex items-center gap-2">
+                <ClipboardCheck className="h-4 w-4" />
+                CPPT - Catatan Perkembangan Pasien Terintegrasi
+                <Badge variant="secondary" className="ml-2">{cppts.length} Catatan</Badge>
+              </CardTitle>
+              <CardDescription>
+                Catatan perkembangan harian pasien oleh berbagai profesi medis
+              </CardDescription>
+            </div>
+            {canCreate && !readOnly && (
               <Button onClick={handleOpenCreate} size="sm">
                 <Plus className="h-4 w-4 mr-1" />
                 Tambah CPPT
@@ -296,158 +499,31 @@ export function CPPTForm({ visitId, readOnly = false }: CPPTFormProps) {
         <CardContent className="p-0">
           {cppts.length > 0 ? (
             <ScrollArea className="h-[calc(100vh-400px)] min-h-[300px]">
+              {/* Table Header */}
+              <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-muted/50 text-xs font-medium text-muted-foreground border-b sticky top-0">
+                <div className="col-span-1"></div>
+                <div className="col-span-2">Tanggal/Waktu</div>
+                <div className="col-span-2">Profesi</div>
+                <div className="col-span-4">Ringkasan SOAP</div>
+                <div className="col-span-2">Status</div>
+                <div className="col-span-1">Aksi</div>
+              </div>
               <div className="divide-y">
                 {cppts.map((cppt) => (
-                  <div key={cppt.id} className="p-4 hover:bg-muted/30">
-                    {/* Header Row */}
-                    <div className="flex items-start justify-between gap-4 mb-3">
-                      <div className="flex items-center gap-3 flex-wrap">
-                        <Badge className={getProfessionColor(cppt.profession)}>
-                          {getCPPTProfessionLabel(cppt.profession)}
-                        </Badge>
-                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                          <Calendar className="h-3.5 w-3.5" />
-                          {format(new Date(cppt.record_date), "dd MMM yyyy", { locale: idLocale })}
-                        </div>
-                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                          <Clock className="h-3.5 w-3.5" />
-                          {format(new Date(cppt.record_date), "HH:mm")}
-                        </div>
-                        {cppt.is_verified && (
-                          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                            <ShieldCheck className="h-3 w-3 mr-1" />
-                            Verified
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-1">
-                        {canVerify && !cppt.is_verified && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-green-600"
-                            title="Verifikasi"
-                            onClick={() => handleVerify(cppt.id)}
-                          >
-                            <CheckCircle className="h-4 w-4" />
-                          </Button>
-                        )}
-                        {canEdit && !cppt.is_verified && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            title="Edit"
-                            onClick={() => handleOpenEdit(cppt)}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                        )}
-                        {canDelete && !cppt.is_verified && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-destructive"
-                            title="Hapus"
-                            onClick={() => {
-                              setCpptToDelete(cppt.id);
-                              setDeleteDialogOpen(true);
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* SOAP Content */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                      {cppt.subjective && (
-                        <div className="bg-blue-50 dark:bg-blue-950 rounded-lg p-3">
-                          <p className="font-medium text-blue-700 dark:text-blue-300 mb-1">S - Subjektif</p>
-                          <p className="text-blue-900 dark:text-blue-100 whitespace-pre-wrap">{cppt.subjective}</p>
-                        </div>
-                      )}
-                      {cppt.objective && (
-                        <div className="bg-green-50 dark:bg-green-950 rounded-lg p-3">
-                          <p className="font-medium text-green-700 dark:text-green-300 mb-1">O - Objektif</p>
-                          <p className="text-green-900 dark:text-green-100 whitespace-pre-wrap">{cppt.objective}</p>
-                        </div>
-                      )}
-                      {cppt.assessment && (
-                        <div className="bg-orange-50 dark:bg-orange-950 rounded-lg p-3">
-                          <p className="font-medium text-orange-700 dark:text-orange-300 mb-1">A - Asesmen</p>
-                          <p className="text-orange-900 dark:text-orange-100 whitespace-pre-wrap">{cppt.assessment}</p>
-                        </div>
-                      )}
-                      {cppt.plan && (
-                        <div className="bg-purple-50 dark:bg-purple-950 rounded-lg p-3">
-                          <p className="font-medium text-purple-700 dark:text-purple-300 mb-1">P - Plan</p>
-                          <p className="text-purple-900 dark:text-purple-100 whitespace-pre-wrap">{cppt.plan}</p>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Vital Signs (if any) */}
-                    {(cppt.blood_pressure || cppt.heart_rate || cppt.temperature || cppt.oxygen_saturation) && (
-                      <div className="mt-3 flex flex-wrap gap-2 text-xs">
-                        {cppt.blood_pressure && (
-                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-muted rounded">
-                            <Activity className="h-3 w-3" /> TD: {cppt.blood_pressure} mmHg
-                          </span>
-                        )}
-                        {cppt.heart_rate ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-muted rounded">
-                            <Heart className="h-3 w-3" /> HR: {cppt.heart_rate} x/mnt
-                          </span>
-                        ) : null}
-                        {cppt.respiratory_rate ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-muted rounded">
-                            RR: {cppt.respiratory_rate} x/mnt
-                          </span>
-                        ) : null}
-                        {cppt.temperature && (
-                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-muted rounded">
-                            <Thermometer className="h-3 w-3" /> T: {cppt.temperature}°C
-                          </span>
-                        )}
-                        {cppt.oxygen_saturation ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-muted rounded">
-                            SpO2: {cppt.oxygen_saturation}%
-                          </span>
-                        ) : null}
-                        {cppt.pain_scale ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-muted rounded">
-                            Nyeri: {cppt.pain_scale}/10
-                          </span>
-                        ) : null}
-                      </div>
-                    )}
-
-                    {/* Instruction */}
-                    {cppt.instruction && (
-                      <div className="mt-3 p-2 bg-yellow-50 dark:bg-yellow-950 rounded border border-yellow-200">
-                        <p className="text-xs font-medium text-yellow-700 dark:text-yellow-300">Instruksi:</p>
-                        <p className="text-sm text-yellow-900 dark:text-yellow-100">{cppt.instruction}</p>
-                      </div>
-                    )}
-
-                    {/* Footer */}
-                    <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
-                      {cppt.created_by && (
-                        <span className="flex items-center gap-1">
-                          <User className="h-3 w-3" />
-                          Dicatat: {cppt.created_by.full_name}
-                        </span>
-                      )}
-                      {cppt.is_verified && cppt.verified_by && (
-                        <span className="flex items-center gap-1">
-                          <ShieldCheck className="h-3 w-3" />
-                          Diverifikasi: {cppt.verified_by.full_name}
-                        </span>
-                      )}
-                    </div>
-                  </div>
+                  <CPPTCollapsibleRow
+                    key={cppt.id}
+                    cppt={cppt}
+                    canVerify={canVerify}
+                    canEdit={canEdit}
+                    canDelete={canDelete}
+                    onVerify={handleVerify}
+                    onEdit={handleOpenEdit}
+                    onDelete={(id) => {
+                      setCpptToDelete(id);
+                      setDeleteDialogOpen(true);
+                    }}
+                    getProfessionColor={getProfessionColor}
+                  />
                 ))}
               </div>
             </ScrollArea>
@@ -461,86 +537,87 @@ export function CPPTForm({ visitId, readOnly = false }: CPPTFormProps) {
         </CardContent>
       </Card>
 
-      {/* Create/Edit Modal */}
+      {/* Create/Edit Modal - Fullscreen */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
+        <DialogContent className="max-w-full w-full h-screen max-h-screen flex flex-col p-0 gap-0 rounded-none">
+          <DialogHeader className="px-6 py-4 border-b bg-muted/50 shrink-0">
             <DialogTitle className="flex items-center gap-2">
               <ClipboardCheck className="h-5 w-5" />
               {editingId ? "Edit CPPT" : "Tambah CPPT Baru"}
             </DialogTitle>
           </DialogHeader>
 
-          <div className="grid gap-4 py-4">
-            {/* Row 1 - Date, Profession */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Tanggal & Waktu</Label>
-                <Input
-                  type="datetime-local"
-                  value={formData.record_date}
-                  onChange={(e) => handleChange("record_date", e.target.value)}
-                />
+          <ScrollArea className="flex-1 px-6 py-4">
+            <div className="grid gap-4 pb-4">
+              {/* Row 1 - Date, Profession */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Tanggal & Waktu</Label>
+                  <Input
+                    type="datetime-local"
+                    value={formData.record_date}
+                    onChange={(e) => handleChange("record_date", e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Profesi</Label>
+                  <Select
+                    value={formData.profession}
+                    onValueChange={(v) => handleChange("profession", v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Pilih profesi" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CPPT_PROFESSIONS.map((p) => (
+                        <SelectItem key={p.value} value={p.value}>
+                          {p.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label>Profesi</Label>
-                <Select
-                  value={formData.profession}
-                  onValueChange={(v) => handleChange("profession", v)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Pilih profesi" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CPPT_PROFESSIONS.map((p) => (
-                      <SelectItem key={p.value} value={p.value}>
-                        {p.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
 
-            {/* SOAP */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="text-blue-600">S - Subjektif (Keluhan)</Label>
-                <Textarea
-                  value={formData.subjective}
-                  onChange={(e) => handleChange("subjective", e.target.value)}
-                  placeholder="Keluhan yang dirasakan pasien..."
-                  rows={4}
-                />
+              {/* SOAP */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-blue-600">S - Subjektif (Keluhan)</Label>
+                  <Textarea
+                    value={formData.subjective}
+                    onChange={(e) => handleChange("subjective", e.target.value)}
+                    placeholder="Keluhan yang dirasakan pasien..."
+                    rows={6}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-green-600">O - Objektif (Pemeriksaan)</Label>
+                  <Textarea
+                    value={formData.objective}
+                    onChange={(e) => handleChange("objective", e.target.value)}
+                    placeholder="Hasil pemeriksaan fisik, vital sign, lab..."
+                    rows={6}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-orange-600">A - Asesmen (Diagnosis)</Label>
+                  <Textarea
+                    value={formData.assessment}
+                    onChange={(e) => handleChange("assessment", e.target.value)}
+                    placeholder="Diagnosis atau masalah keperawatan..."
+                    rows={6}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-purple-600">P - Plan (Rencana)</Label>
+                  <Textarea
+                    value={formData.plan}
+                    onChange={(e) => handleChange("plan", e.target.value)}
+                    placeholder="Rencana tindakan atau terapi..."
+                    rows={6}
+                  />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label className="text-green-600">O - Objektif (Pemeriksaan)</Label>
-                <Textarea
-                  value={formData.objective}
-                  onChange={(e) => handleChange("objective", e.target.value)}
-                  placeholder="Hasil pemeriksaan fisik, vital sign, lab..."
-                  rows={4}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-orange-600">A - Asesmen (Diagnosis)</Label>
-                <Textarea
-                  value={formData.assessment}
-                  onChange={(e) => handleChange("assessment", e.target.value)}
-                  placeholder="Diagnosis atau masalah keperawatan..."
-                  rows={4}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-purple-600">P - Plan (Rencana)</Label>
-                <Textarea
-                  value={formData.plan}
-                  onChange={(e) => handleChange("plan", e.target.value)}
-                  placeholder="Rencana tindakan atau terapi..."
-                  rows={4}
-                />
-              </div>
-            </div>
 
             {/* Vital Signs */}
             <div className="border rounded-lg p-4 bg-muted/30">
@@ -614,8 +691,9 @@ export function CPPTForm({ visitId, readOnly = false }: CPPTFormProps) {
               />
             </div>
           </div>
+          </ScrollArea>
 
-          <DialogFooter>
+          <DialogFooter className="px-6 py-4 border-t bg-muted/50 shrink-0">
             <Button variant="outline" onClick={() => setIsModalOpen(false)}>
               Batal
             </Button>
@@ -653,7 +731,6 @@ export function CPPTForm({ visitId, readOnly = false }: CPPTFormProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      </fieldset>
     </>
   );
 }

@@ -85,6 +85,9 @@ func SetupRoutes(r *gin.Engine) {
 
 		// Inpatient Routes (CPPT, Fluid Balance)
 		RegisterInpatientRoutes(api)
+
+		// ICD Routes (ICD-10, ICD-9-CM, ICD-O) - Public access for search
+		SetupICDRoutes(api)
 	}
 
 	// Health check
