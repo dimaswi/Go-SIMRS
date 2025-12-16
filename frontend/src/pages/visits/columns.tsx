@@ -88,17 +88,6 @@ const getStatusBadge = (status: string) => {
   return <Badge variant={config.variant}>{config.label}</Badge>;
 };
 
-const getPriorityBadge = (priority?: string) => {
-  if (!priority) return null;
-  const variants: Record<string, { variant: any; label: string }> = {
-    normal: { variant: "outline", label: "Normal" },
-    urgent: { variant: "default", label: "Mendesak" },
-    emergency: { variant: "destructive", label: "Darurat" },
-  };
-  const config = variants[priority] || { variant: "outline", label: priority };
-  return <Badge variant={config.variant} className="ml-2">{config.label}</Badge>;
-};
-
 const getQueueStatusBadge = (status: string) => {
   const variants: Record<string, { variant: any; label: string }> = {
     waiting: { variant: "secondary", label: "Menunggu" },

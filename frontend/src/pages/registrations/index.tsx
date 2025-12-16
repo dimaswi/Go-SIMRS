@@ -19,7 +19,6 @@ import { setPageTitle } from "@/lib/page-title";
 import {
   Loader2,
   Plus,
-  UserRound,
   RefreshCcw,
   Check,
   ChevronsUpDown,
@@ -48,7 +47,7 @@ import {
 } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api/client";
-import { format, addDays } from "date-fns";
+import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import { useReactToPrint } from "react-to-print";
 
@@ -57,15 +56,6 @@ interface Room {
   code: string;
   name: string;
 }
-
-// Format tanggal ke string yyyy-MM-dd (dari browser timezone lokal)
-const getTodayString = (): string => {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-};
 
 export default function RegistrationIndex() {
   const navigate = useNavigate();

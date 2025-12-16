@@ -51,8 +51,6 @@ import {
   CheckCircle,
   ClipboardCheck,
   User,
-  Calendar,
-  Clock,
   Heart,
   Thermometer,
   Activity,

@@ -19,11 +19,7 @@ import { RegistrationDialog } from "./registration-dialog";
 import { setPageTitle } from "@/lib/page-title";
 import {
   Loader2,
-  Plus,
-  Phone,
-  ClipboardList,
   RefreshCcw,
-  Calendar,
 } from "lucide-react";
 import {
   Select,
@@ -37,7 +33,6 @@ import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 
 export default function QueueIndex() {
-  const navigate = useNavigate();
   const { hasPermission } = usePermission();
   const { toast } = useToast();
   const [queues, setQueues] = useState<Queue[]>([]);
@@ -47,7 +42,6 @@ export default function QueueIndex() {
   const [selectedCounter, setSelectedCounter] = useState<string>("all");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
   const [selectedDate, setSelectedDate] = useState<string>(""); // Empty = show all data
-  const [calling, setCalling] = useState(false);
   const [skipId, setSkipId] = useState<number | null>(null);
   const [cancelId, setCancelId] = useState<number | null>(null);
   const [registerQueue, setRegisterQueue] = useState<{
@@ -110,37 +104,6 @@ export default function QueueIndex() {
     const interval = setInterval(loadData, 30000);
     return () => clearInterval(interval);
   }, [loadData, registerQueue]);
-
-  const handleCallNext = async () => {
-    if (selectedCounter === "all") {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Pilih loket terlebih dahulu untuk memanggil antrean.",
-      });
-      return;
-    }
-
-    setCalling(true);
-    try {
-      const response = await queueApi.callNext({
-        counter_id: parseInt(selectedCounter),
-      });
-      toast({
-        title: "Antrean Dipanggil",
-        description: `Nomor ${response.data.data.queue_number} berhasil dipanggil.`,
-      });
-      loadData();
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.response?.data?.error || "Gagal memanggil antrean.",
-      });
-    } finally {
-      setCalling(false);
-    }
-  };
 
   const handleCall = async (id: number) => {
     try {

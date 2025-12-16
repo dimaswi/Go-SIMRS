@@ -47,8 +47,6 @@ import {
   OUTCOME_TARGETS,
   PROBLEM_STATUS,
   getShiftTypeLabel,
-  getConsciousnessLevelLabel,
-  getFunctionalStatusLabel,
   getProblemStatusLabel,
   getProblemStatusColor,
 } from "@/lib/api";
@@ -62,7 +60,6 @@ import {
   HeartPulse,
   User,
   Calendar,
-  Clock,
   Heart,
   Thermometer,
   Activity,
@@ -72,7 +69,6 @@ import {
   Target,
   ClipboardList,
   Stethoscope,
-  MessageSquare,
   ChevronDown,
   ChevronRight,
 } from "lucide-react";

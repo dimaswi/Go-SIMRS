@@ -38,7 +38,6 @@ import {
   Loader2,
   Send,
   UserRound,
-  AlertCircle,
   CheckCircle2,
   Trash2,
   Clock,

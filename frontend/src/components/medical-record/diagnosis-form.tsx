@@ -26,7 +26,6 @@ import { medicalRecordsApi } from "@/lib/api";
 import { icd10Api, type ICD10 } from "@/lib/api/icd";
 import { useDebounce } from "@/hooks/use-debounce";
 import type { Diagnosis as DiagnosisData, DiagnosisItem } from "@/lib/api";
-import { cn } from "@/lib/utils";
 
 interface DiagnosisFormItem {
   id?: number;

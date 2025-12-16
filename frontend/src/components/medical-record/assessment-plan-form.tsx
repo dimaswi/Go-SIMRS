@@ -20,7 +20,6 @@ import {
 } from "lucide-react";
 import { medicalRecordsApi, type AssessmentPlan } from "@/lib/api/medical-records";
 import { useToast } from "@/hooks/use-toast";
-import { cn } from "@/lib/utils";
 
 interface AssessmentPlanFormProps {
   visitId: number;

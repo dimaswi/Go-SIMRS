@@ -239,7 +239,6 @@ export function VisitHistory({ patientId, currentVisitId, currentVisitType, curr
     <div className="space-y-2 max-h-[calc(100vh-400px)] overflow-y-auto pr-1">
       {visits.map((visit) => {
         const isActive = visit.id === currentVisitId;
-        const isCompleted = visit.status === "completed" || visit.status === "cancelled";
 
         return (
           <button

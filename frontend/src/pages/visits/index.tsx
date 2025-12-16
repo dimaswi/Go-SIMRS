@@ -36,12 +36,10 @@ import { usePermission } from "@/hooks/usePermission";
 import { setPageTitle } from "@/lib/page-title";
 import {
   Loader2,
-  Activity,
   RefreshCcw,
   Check,
   ChevronsUpDown,
   Tv,
-  Calendar,
 } from "lucide-react";
 import { roomQueuesApi, roomsApi, visitsApi } from "@/lib/api";
 import type { Room } from "@/lib/api";
@@ -49,15 +47,6 @@ import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/lib/store";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
-
-// Format tanggal ke string yyyy-MM-dd (dari browser timezone lokal)
-const getTodayString = (): string => {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-};
 
 interface Visit {
   id: number;

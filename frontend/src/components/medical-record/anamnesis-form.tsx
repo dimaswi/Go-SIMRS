@@ -6,10 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Save, Loader2, FileText, History, Users, Pill, AlertCircle } from "lucide-react";
+import { Save, Loader2, FileText, History, Pill, AlertCircle } from "lucide-react";
 import { medicalRecordsApi } from "@/lib/api";
 import type { Anamnesis } from "@/lib/api";
-import { cn } from "@/lib/utils";
 
 interface AnamnesisFormProps {
   visitId: number;

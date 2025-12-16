@@ -37,7 +37,6 @@ import {
   Printer,
   ChevronDown,
   ChevronRight,
-  AlertTriangle,
 } from "lucide-react";
 import {
   Collapsible,
