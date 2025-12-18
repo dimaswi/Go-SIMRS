@@ -1434,18 +1434,43 @@ func SaveConsultation(c *gin.Context) {
 }
 
 // GetConsultation gets consultation result for a visit
+// Returns consultation data if exists, or just the procedure order info if consultation not yet answered
 func GetConsultation(c *gin.Context) {
 	visitID := c.Param("id")
 
 	var consultation models.Consultation
-	if err := database.DB.
+	err := database.DB.
 		Preload("Consultant").
 		Preload("CreatedBy").
-		Preload("ProcedureOrder").
+		Preload("ProcedureOrder.OrderedBy").
+		Preload("ProcedureOrder.SourceRoom").
 		Where("visit_id = ?", visitID).
-		First(&consultation).Error; err != nil {
+		First(&consultation).Error
+
+	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Consultation not found"})
+			// Consultation not found yet, try to get the procedure order info
+			var procedureOrder models.ProcedureOrder
+			err := database.DB.
+				Preload("OrderedBy").
+				Preload("SourceRoom").
+				Where("target_visit_id = ? AND order_type = ?", visitID, "consultation").
+				First(&procedureOrder).Error
+
+			if err != nil {
+				// No procedure order either, return empty data
+				c.JSON(http.StatusOK, gin.H{
+					"visit_id":        visitID,
+					"procedure_order": nil,
+				})
+				return
+			}
+
+			// Return procedure order info without consultation data
+			c.JSON(http.StatusOK, gin.H{
+				"visit_id":        visitID,
+				"procedure_order": procedureOrder,
+			})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

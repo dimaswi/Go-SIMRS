@@ -1457,10 +1457,27 @@ func CancelBilling(c *gin.Context) {
 	billing.Status = models.BillingStatusCancelled
 	billing.Notes = input.Reason
 
-	if err := database.DB.Save(&billing).Error; err != nil {
+	tx := database.DB.Begin()
+
+	if err := tx.Save(&billing).Error; err != nil {
+		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to cancel billing: " + err.Error()})
 		return
 	}
+
+	// Revert registration status back to completed (active)
+	if err := tx.Model(&models.Registration{}).
+		Where("id = ?", billing.RegistrationID).
+		Updates(map[string]interface{}{
+			"status":        "completed",
+			"discharged_at": nil,
+		}).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to revert registration status: " + err.Error()})
+		return
+	}
+
+	tx.Commit()
 
 	c.JSON(http.StatusOK, billing)
 }

@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Save, FileText, CheckCircle2, User } from "lucide-react";
+import { Loader2, Save, FileText, CheckCircle2, User, Stethoscope } from "lucide-react";
 import { medicalRecordsApi } from "@/lib/api";
 
 interface ConsultationFormProps {
@@ -40,14 +40,17 @@ export function ConsultationForm({ visitId, readOnly = false }: ConsultationForm
       const response = await medicalRecordsApi.getConsultation(visitId);
       if (response.data) {
         setExistingData(response.data);
-        setFormData({
-          subjective: response.data.subjective || "",
-          objective: response.data.objective || "",
-          assessment: response.data.assessment || "",
-          plan: response.data.plan || "",
-          recommendation: response.data.recommendation || "",
-          notes: response.data.notes || "",
-        });
+        // If there's consultation data (already answered)
+        if (response.data.subjective !== undefined) {
+          setFormData({
+            subjective: response.data.subjective || "",
+            objective: response.data.objective || "",
+            assessment: response.data.assessment || "",
+            plan: response.data.plan || "",
+            recommendation: response.data.recommendation || "",
+            notes: response.data.notes || "",
+          });
+        }
       }
     } catch (error: any) {
       // If 404, it's okay - no existing data
@@ -117,7 +120,7 @@ export function ConsultationForm({ visitId, readOnly = false }: ConsultationForm
             <CardTitle className="text-base font-semibold flex items-center gap-2">
               <FileText className="h-4 w-4" />
               Form Jawaban Konsultasi
-              {existingData && (
+              {existingData?.subjective && (
                 <Badge variant="default" className="ml-2">
                   <CheckCircle2 className="h-3 w-3 mr-1" />
                   Sudah Dijawab
@@ -128,7 +131,7 @@ export function ConsultationForm({ visitId, readOnly = false }: ConsultationForm
               Jawaban konsultasi dari dokter spesialis untuk kasus yang dikonsultasikan
             </CardDescription>
           </div>
-          {!readOnly && !existingData && (
+          {!readOnly && !existingData?.subjective && (
             <Button onClick={handleSave} disabled={saving}>
               {saving ? (
                 <>
@@ -148,7 +151,51 @@ export function ConsultationForm({ visitId, readOnly = false }: ConsultationForm
       <CardContent className="p-0">
         <ScrollArea className="h-[calc(100vh-300px)] min-h-[400px]">
           <div className="p-6">
-        {existingData && (
+        {/* Indikasi Konsultasi - Info from Order - Show always if procedure_order exists */}
+        {existingData?.procedure_order && (
+          <>
+            <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 rounded-lg p-4 mb-6">
+              <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300 font-medium mb-3">
+                <Stethoscope className="h-5 w-5" />
+                Indikasi Konsultasi
+              </div>
+              <div className="space-y-2 text-sm">
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="text-muted-foreground">No. Order:</div>
+                  <div className="col-span-2 font-medium">{existingData.procedure_order.order_number}</div>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="text-muted-foreground">Dokter Pengirim:</div>
+                  <div className="col-span-2 font-medium">{existingData.procedure_order.ordered_by?.nama_lengkap || "-"}</div>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="text-muted-foreground">Diagnosis:</div>
+                  <div className="col-span-2">{existingData.procedure_order.diagnosis || "-"}</div>
+                </div>
+                {existingData.procedure_order.clinical_notes && (
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="text-muted-foreground">Alasan Konsultasi:</div>
+                    <div className="col-span-2 font-medium bg-blue-100 dark:bg-blue-900 p-2 rounded whitespace-pre-wrap">
+                      {existingData.procedure_order.clinical_notes}
+                    </div>
+                  </div>
+                )}
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="text-muted-foreground">Prioritas:</div>
+                  <div className="col-span-2">
+                    <Badge variant={existingData.procedure_order.priority === "urgent" || existingData.procedure_order.priority === "cito" ? "destructive" : "outline"}>
+                      {existingData.procedure_order.priority === "urgent" || existingData.procedure_order.priority === "cito" ? existingData.procedure_order.priority.toUpperCase() : "Normal"}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <Separator className="my-4" />
+          </>
+        )}
+        
+        {/* Show this badge only if consultation has been answered (has subjective field) */}
+        {existingData?.subjective && (
           <>
             <div className="bg-green-50 dark:bg-green-950 border border-green-200 rounded-lg p-4 mb-6">
               <div className="flex items-center gap-2 text-green-700 dark:text-green-300 font-medium mb-2">
@@ -181,7 +228,7 @@ export function ConsultationForm({ visitId, readOnly = false }: ConsultationForm
               placeholder="Keluhan atau anamnesis pasien yang dikonsultasikan..."
               value={formData.subjective}
               onChange={(e) => setFormData({ ...formData, subjective: e.target.value })}
-              disabled={readOnly || !!existingData}
+              disabled={readOnly || !!existingData?.subjective}
               rows={4}
               className="resize-none"
             />
@@ -197,7 +244,7 @@ export function ConsultationForm({ visitId, readOnly = false }: ConsultationForm
               placeholder="Hasil pemeriksaan objektif, tanda vital, pemeriksaan penunjang yang relevan..."
               value={formData.objective}
               onChange={(e) => setFormData({ ...formData, objective: e.target.value })}
-              disabled={readOnly || !!existingData}
+              disabled={readOnly || !!existingData?.subjective}
               rows={4}
               className="resize-none"
             />
@@ -213,7 +260,7 @@ export function ConsultationForm({ visitId, readOnly = false }: ConsultationForm
               placeholder="Penilaian klinis, diagnosis, interpretasi hasil konsultasi..."
               value={formData.assessment}
               onChange={(e) => setFormData({ ...formData, assessment: e.target.value })}
-              disabled={readOnly || !!existingData}
+              disabled={readOnly || !!existingData?.subjective}
               rows={4}
               className="resize-none"
             />
@@ -229,7 +276,7 @@ export function ConsultationForm({ visitId, readOnly = false }: ConsultationForm
               placeholder="Rencana terapi, tindakan, atau anjuran dari hasil konsultasi..."
               value={formData.plan}
               onChange={(e) => setFormData({ ...formData, plan: e.target.value })}
-              disabled={readOnly || !!existingData}
+              disabled={readOnly || !!existingData?.subjective}
               rows={4}
               className="resize-none"
             />
@@ -245,7 +292,7 @@ export function ConsultationForm({ visitId, readOnly = false }: ConsultationForm
               placeholder="Rekomendasi atau saran khusus dari konsultan..."
               value={formData.recommendation}
               onChange={(e) => setFormData({ ...formData, recommendation: e.target.value })}
-              disabled={readOnly || !!existingData}
+              disabled={readOnly || !!existingData?.subjective}
               rows={3}
               className="resize-none"
             />
@@ -261,13 +308,13 @@ export function ConsultationForm({ visitId, readOnly = false }: ConsultationForm
               placeholder="Catatan tambahan jika diperlukan..."
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              disabled={readOnly || !!existingData}
+              disabled={readOnly || !!existingData?.subjective}
               rows={2}
               className="resize-none"
             />
           </div>
 
-          {(readOnly || existingData) && (
+          {(readOnly || existingData?.subjective) && (
             <div className="bg-muted/50 border border-muted rounded-md p-3 text-sm text-muted-foreground">
               <p>Mode baca saja - Hasil konsultasi tidak dapat diubah</p>
             </div>

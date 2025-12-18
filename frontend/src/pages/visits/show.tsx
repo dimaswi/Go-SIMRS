@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { usePermission } from "@/hooks/usePermission";
 import { setPageTitle } from "@/lib/page-title";
-import { Loader2, ChevronDown, ChevronUp } from "lucide-react";
+import { Loader2, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from "lucide-react";
 import { visitsApi, medicalRecordsApi } from "@/lib/api";
 import { PatientInfo } from "@/components/medical-record/patient-info";
 import { MedicalRecordTabs } from "@/components/medical-record/medical-record-tabs";
@@ -58,6 +58,10 @@ export default function VisitShow() {
     const saved = localStorage.getItem('visitHistoryCollapsed');
     return saved ? JSON.parse(saved) : true;
   });
+  const [sidebarHidden, setSidebarHidden] = useState(() => {
+    const saved = localStorage.getItem('medicalRecordSidebarHidden');
+    return saved ? JSON.parse(saved) : false;
+  });
   const [patientId, setPatientId] = useState<number | null>(null);
 
   // Refresh tab content when switching tabs
@@ -74,6 +78,10 @@ export default function VisitShow() {
   useEffect(() => {
     localStorage.setItem('visitHistoryCollapsed', JSON.stringify(historySidebarCollapsed));
   }, [historySidebarCollapsed]);
+  
+  useEffect(() => {
+    localStorage.setItem('medicalRecordSidebarHidden', JSON.stringify(sidebarHidden));
+  }, [sidebarHidden]);
 
   // Reset states and load visit when ID changes (navigating to different visit)
   // This ensures the correct default tab is shown for each visit type
@@ -740,21 +748,50 @@ export default function VisitShow() {
 
       {/* Main Content Area with Tabs and Form */}
       <div className="flex-1 min-h-0 px-6 pb-6 pt-4">
-        <div className="grid grid-cols-1 lg:grid-cols-[200px_1fr] gap-4">
-          {/* Left Sidebar: Tabs Navigation & Visit History - Sticky */}
-          <div className="self-start sticky top-[120px] z-30 space-y-4">
+        <div className="flex gap-4">
+          {/* Left Sidebar: Tabs Navigation & Visit History - Sticky with slide animation */}
+          <div className={`self-start sticky top-[120px] z-30 transition-all duration-300 ease-in-out ${
+            sidebarHidden ? 'w-0 overflow-hidden opacity-0' : 'w-[200px] opacity-100'
+          } flex-shrink-0`}>
+            <div className="w-[200px] space-y-4">
             {/* Medical Record Tabs */}
             <Card className="border-none shadow-sm">
-              <CardHeader className="border-b bg-muted/30 px-3 py-2.5 cursor-pointer hover:bg-muted/40 transition-colors" onClick={() => {
-                const newState = !sidebarCollapsed;
-                setSidebarCollapsed(newState);
-                if (!newState) {
-                  setHistorySidebarCollapsed(true);
-                }
-              }}>
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-semibold text-muted-foreground uppercase">Menu Rekam Medis</h3>
-                  {sidebarCollapsed ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronUp className="h-4 w-4 text-muted-foreground" />}
+              <CardHeader className="border-b bg-muted/30 px-3 py-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <h3 
+                    className="text-xs font-semibold text-muted-foreground uppercase cursor-pointer flex-1"
+                    onClick={() => {
+                      const newState = !sidebarCollapsed;
+                      setSidebarCollapsed(newState);
+                      if (!newState) {
+                        setHistorySidebarCollapsed(true);
+                      }
+                    }}
+                  >
+                    Menu Rekam Medis
+                  </h3>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => {
+                        const newState = !sidebarCollapsed;
+                        setSidebarCollapsed(newState);
+                        if (!newState) {
+                          setHistorySidebarCollapsed(true);
+                        }
+                      }}
+                      className="hover:bg-muted rounded p-1 transition-colors"
+                      title={sidebarCollapsed ? "Buka menu" : "Tutup menu"}
+                    >
+                      {sidebarCollapsed ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronUp className="h-4 w-4 text-muted-foreground" />}
+                    </button>
+                    <button
+                      onClick={() => setSidebarHidden(true)}
+                      className="hover:bg-muted rounded p-1 transition-colors"
+                      title="Sembunyikan sidebar"
+                    >
+                      <ChevronLeft className="h-4 w-4 text-muted-foreground" />
+                    </button>
+                  </div>
                 </div>
               </CardHeader>
               {!sidebarCollapsed && (
@@ -777,16 +814,32 @@ export default function VisitShow() {
             {/* Visit History Sidebar */}
             {patientId && (
               <Card className="border-none shadow-sm">
-                <CardHeader className="border-b bg-muted/30 px-3 py-2.5 cursor-pointer hover:bg-muted/40 transition-colors" onClick={() => {
-                  const newState = !historySidebarCollapsed;
-                  setHistorySidebarCollapsed(newState);
-                  if (!newState) {
-                    setSidebarCollapsed(true);
-                  }
-                }}>
+                <CardHeader className="border-b bg-muted/30 px-3 py-2.5">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-xs font-semibold text-muted-foreground uppercase">Riwayat Kunjungan</h3>
-                    {historySidebarCollapsed ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronUp className="h-4 w-4 text-muted-foreground" />}
+                    <h3 
+                      className="text-xs font-semibold text-muted-foreground uppercase cursor-pointer flex-1"
+                      onClick={() => {
+                        const newState = !historySidebarCollapsed;
+                        setHistorySidebarCollapsed(newState);
+                        if (!newState) {
+                          setSidebarCollapsed(true);
+                        }
+                      }}
+                    >
+                      Riwayat Kunjungan
+                    </h3>
+                    <button
+                      onClick={() => {
+                        const newState = !historySidebarCollapsed;
+                        setHistorySidebarCollapsed(newState);
+                        if (!newState) {
+                          setSidebarCollapsed(true);
+                        }
+                      }}
+                      className="hover:bg-muted rounded p-1 transition-colors"
+                    >
+                      {historySidebarCollapsed ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronUp className="h-4 w-4 text-muted-foreground" />}
+                    </button>
                   </div>
                 </CardHeader>
                 {!historySidebarCollapsed && (
@@ -803,10 +856,22 @@ export default function VisitShow() {
                 )}
               </Card>
             )}
+            </div>
           </div>
 
+          {/* Toggle Button to Show Sidebar - Attached to left edge */}
+          {sidebarHidden && (
+            <button
+              onClick={() => setSidebarHidden(false)}
+              className="self-start sticky top-[120px] -ml-6 bg-background hover:bg-muted border border-l-0 rounded-r-md py-4 px-1 shadow-sm transition-colors z-30"
+              title="Tampilkan sidebar"
+            >
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            </button>
+          )}
+
           {/* Right Content: Active Tab Form */}
-          <div>
+          <div className="flex-1 min-w-0">
             {renderActiveTabContent()}
           </div>
         </div>
