@@ -42,7 +42,7 @@ export function BillingTabs({
       icon: <Receipt />,
       permission: "billing.view",
     }] : []),
-    ...(hasBilling && billingStatus !== 'cancelled' ? [{
+    ...(hasBilling && billingStatus !== 'cancelled' && billingStatus !== 'paid' ? [{
       id: "payment",
       label: "Pembayaran",
       icon: <CreditCard />,
