@@ -154,7 +154,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const connectSSE = useCallback(() => {
     if (!token || eventSourceRef.current) return;
 
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080/api";
+    const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:8080/api";
     const sseUrl = `${baseUrl}/sse/notifications`;
 
     // Create EventSource with authorization
