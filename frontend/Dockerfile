@@ -2,16 +2,17 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+# Copy only package.json (without lock file to regenerate fresh dependencies)
+COPY package.json ./
 
-# Clean npm cache and install with clean slate
-RUN npm cache clean --force && \
-    rm -f package-lock.json && \
-    npm install
+# Install dependencies
+RUN npm install
 
-# Copy source code
+# Copy source code (excluding package-lock.json via .dockerignore or overwrite)
 COPY . .
+
+# Remove any package-lock.json that might have been copied
+RUN rm -f package-lock.json
 
 # Build argument for API URL
 ARG VITE_API_URL=http://localhost:8899/api

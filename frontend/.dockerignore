@@ -1,0 +1,10 @@
+node_modules
+package-lock.json
+dist
+.git
+.gitignore
+README.md
+*.log
+.env
+.env.local
+.env.*.local
