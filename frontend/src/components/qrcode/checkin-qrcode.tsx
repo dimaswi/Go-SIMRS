@@ -21,7 +21,6 @@ interface CheckInQRCodeProps {
 }
 
 export function CheckInQRCode({
-  registrationId,
   registrationNumber,
   patientName,
   scheduledDate,

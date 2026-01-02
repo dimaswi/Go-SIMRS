@@ -315,7 +315,7 @@ export function RegistrationDialog({
       setSelectedMedicines(prev => [...prev, {
         medicine_id: medicine.medicine_id,
         quantity: 1,
-        unit: medicine.medicine.unit || "",
+        unit: medicine.medicine?.unit || "",
         dosage: "",
         frequency: "",
         route: "",

@@ -261,7 +261,7 @@ export function DoctorScheduleFormDialog({
 
             {/* Warning for duplicate doctor on same day */}
             {duplicateWarning && (
-              <Alert variant="warning" className="border-yellow-500 bg-yellow-50">
+              <Alert variant="destructive" className="border-yellow-500 bg-yellow-50">
                 <AlertTriangle className="h-4 w-4 text-yellow-600" />
                 <AlertDescription className="text-yellow-700">
                   {duplicateWarning}
