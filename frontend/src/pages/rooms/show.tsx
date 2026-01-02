@@ -33,6 +33,7 @@ import {
   Calendar,
   Clock,
   Trash2,
+  Monitor,
 } from "lucide-react";
 import { createUnitColumns } from "./components/kamar/unit-columns";
 import { createBedColumns } from "./components/bed/bed-columns";
@@ -518,6 +519,16 @@ export default function RoomShow() {
               <Badge variant={room.is_active ? "default" : "secondary"}>
                 {room.is_active ? "Aktif" : "Tidak Aktif"}
               </Badge>
+              {room.has_bed && (
+                <Button 
+                  onClick={() => navigate(`/bed-monitoring/${room.id}`)} 
+                  size="sm"
+                  variant="outline"
+                >
+                  <Monitor className="mr-2 h-4 w-4" />
+                  Monitoring
+                </Button>
+              )}
               {hasPermission("rooms.update") && (
                 <Button onClick={() => navigate(`/rooms/${room.id}/edit`)} size="sm">
                   <Pencil className="mr-2 h-4 w-4" />

@@ -14,10 +14,13 @@ import { Combobox } from "@/components/ui/combobox";
 import { DatePickerDropdown } from "@/components/ui/date-picker-dropdown";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 import { masterDataApi, regionsApi, patientsApi, roomsApi, registrationApi } from "@/lib/api";
+import { roomProceduresApi, type RoomProcedure } from "@/lib/api/procedures";
+import { roomMedicinesApi, type RoomMedicine } from "@/lib/api/medicines";
 import type { PatientRequest, MasterData, Province, Regency, District, Village, Patient, Room, RoomStaff } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, UserPlus, User, MapPin, Search } from "lucide-react";
+import { Loader2, UserPlus, User, MapPin, Search, Plus, Minus, X } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -80,6 +83,23 @@ export function RegistrationDialog({
   const [rooms, setRooms] = useState<Room[]>([]);
   const [roomStaff, setRoomStaff] = useState<RoomStaff[]>([]);
 
+  // Room procedures and medicines for supporting services
+  const [roomProcedures, setRoomProcedures] = useState<RoomProcedure[]>([]);
+  const [roomMedicines, setRoomMedicines] = useState<RoomMedicine[]>([]);
+  const [selectedProcedures, setSelectedProcedures] = useState<{ procedure_id: number; notes: string }[]>([]);
+  const [selectedMedicines, setSelectedMedicines] = useState<{ 
+    medicine_id: number; 
+    quantity: number; 
+    unit: string;
+    dosage: string;
+    frequency: string;
+    route: string;
+    duration: string;
+    instructions: string;
+    notes: string;
+  }[]>([]);
+  const [loadingRoomItems, setLoadingRoomItems] = useState(false);
+
   // Region data state
   const [provinces, setProvinces] = useState<Province[]>([]);
   const [regenciesKTP, setRegenciesKTP] = useState<Regency[]>([]);
@@ -109,6 +129,10 @@ export function RegistrationDialog({
       setPriority("normal");
       setSelectedServiceType("");
       setRoomStaff([]);
+      setRoomProcedures([]);
+      setRoomMedicines([]);
+      setSelectedProcedures([]);
+      setSelectedMedicines([]);
     }
   }, [open]);
 
@@ -218,6 +242,10 @@ export function RegistrationDialog({
     setDestinationRoomId(id);
     setDoctorId(null);
     setRoomStaff([]);
+    setRoomProcedures([]);
+    setRoomMedicines([]);
+    setSelectedProcedures([]);
+    setSelectedMedicines([]);
     
     // Load doctors/staff from selected room
     if (id) {
@@ -235,7 +263,80 @@ export function RegistrationDialog({
       } catch (error) {
         console.error("Failed to load room staff:", error);
       }
+
+      // Load room procedures for penunjang_medis (lab/radiologi)
+      const selectedRoom = rooms.find(r => r.id === id);
+      if (selectedRoom && selectedRoom.service_type === "penunjang_medis") {
+        setLoadingRoomItems(true);
+        try {
+          const proceduresRes = await roomProceduresApi.getByRoom(id);
+          setRoomProcedures(proceduresRes.data.data || []);
+        } catch (error) {
+          console.error("Failed to load room procedures:", error);
+          setRoomProcedures([]);
+        } finally {
+          setLoadingRoomItems(false);
+        }
+      }
+
+      // Load room medicines for farmasi
+      if (selectedRoom && selectedRoom.service_type === "farmasi") {
+        setLoadingRoomItems(true);
+        try {
+          const medicinesRes = await roomMedicinesApi.getByRoom(id, { limit: 1000 });
+          setRoomMedicines(medicinesRes.data.data || []);
+        } catch (error) {
+          console.error("Failed to load room medicines:", error);
+          setRoomMedicines([]);
+        } finally {
+          setLoadingRoomItems(false);
+        }
+      }
     }
+  };
+
+  // Toggle procedure selection
+  const toggleProcedure = (procedureId: number) => {
+    setSelectedProcedures(prev => {
+      const exists = prev.find(p => p.procedure_id === procedureId);
+      if (exists) {
+        return prev.filter(p => p.procedure_id !== procedureId);
+      } else {
+        return [...prev, { procedure_id: procedureId, notes: "" }];
+      }
+    });
+  };
+
+  // Add medicine to selection
+  const addMedicine = (medicine: RoomMedicine) => {
+    if (!medicine.medicine) return;
+    const exists = selectedMedicines.find(m => m.medicine_id === medicine.medicine_id);
+    if (!exists) {
+      setSelectedMedicines(prev => [...prev, {
+        medicine_id: medicine.medicine_id,
+        quantity: 1,
+        unit: medicine.medicine.unit || "",
+        dosage: "",
+        frequency: "",
+        route: "",
+        duration: "",
+        instructions: "",
+        notes: ""
+      }]);
+    }
+  };
+
+  // Remove medicine from selection
+  const removeMedicine = (medicineId: number) => {
+    setSelectedMedicines(prev => prev.filter(m => m.medicine_id !== medicineId));
+  };
+
+  // Update medicine quantity
+  const updateMedicineQuantity = (medicineId: number, quantity: number) => {
+    if (quantity < 1) return;
+    setSelectedMedicines(prev => prev.map(m => 
+      m.medicine_id === medicineId ? { ...m, quantity } : m
+    ));
   };
 
   const handleUseExistingPatient = async () => {
@@ -498,7 +599,8 @@ export function RegistrationDialog({
 
     setLoading(true);
     try {
-      const response = await registrationApi.create({
+      // Prepare registration data
+      const registrationData: any = {
         queue_id: queueId,
         patient_id: existingPatient.id,
         registration_type: "outpatient",
@@ -512,7 +614,19 @@ export function RegistrationDialog({
         create_visit: true,
         create_room_queue: true,
         queue_priority: priority,
-      });
+      };
+
+      // Add procedure items for penunjang_medis (lab/radiologi)
+      if (selectedServiceType === "penunjang_medis" && selectedProcedures.length > 0) {
+        registrationData.procedure_items = selectedProcedures;
+      }
+
+      // Add medicine items for farmasi
+      if (selectedServiceType === "farmasi" && selectedMedicines.length > 0) {
+        registrationData.medicine_items = selectedMedicines;
+      }
+
+      const response = await registrationApi.create(registrationData);
 
       const registration = response.data.data;
       
@@ -1096,10 +1210,8 @@ export function RegistrationDialog({
                   <Combobox
                     options={[
                       { value: "rawat_jalan", label: "Rawat Jalan" },
-                      { value: "gawat_darurat", label: "UGD" },
                       { value: "penunjang_medis", label: "Penunjang Medis" },
                       { value: "farmasi", label: "Farmasi" },
-                      { value: "rawat_inap", label: "Rawat Inap" },
                     ]}
                     value={selectedServiceType}
                     onValueChange={(value) => {
@@ -1107,6 +1219,10 @@ export function RegistrationDialog({
                       setDestinationRoomId(null);
                       setDoctorId(null);
                       setRoomStaff([]);
+                      setRoomProcedures([]);
+                      setRoomMedicines([]);
+                      setSelectedProcedures([]);
+                      setSelectedMedicines([]);
                     }}
                     placeholder="Pilih tipe layanan"
                   />
@@ -1240,6 +1356,175 @@ export function RegistrationDialog({
                     className="text-sm"
                   />
                 </div>
+
+                {/* Procedure Selection for Penunjang Medis (Lab/Radiologi) */}
+                {selectedServiceType === "penunjang_medis" && destinationRoomId && (
+                  <div className="col-span-3 space-y-3 border-t pt-4">
+                    <Label className="text-sm font-medium">Pilih Tindakan *</Label>
+                    {loadingRoomItems ? (
+                      <div className="flex items-center justify-center py-4">
+                        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                        <span className="ml-2 text-sm text-muted-foreground">Memuat tindakan...</span>
+                      </div>
+                    ) : roomProcedures.length > 0 ? (
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto border rounded-lg p-3">
+                          {roomProcedures.filter(rp => rp.is_available && rp.procedure).map((rp) => {
+                            const isSelected = selectedProcedures.some(p => p.procedure_id === rp.procedure_id);
+                            return (
+                              <div
+                                key={rp.id}
+                                className={`flex items-center gap-2 p-2 border rounded cursor-pointer transition-colors ${
+                                  isSelected
+                                    ? "bg-primary/10 border-primary"
+                                    : "hover:bg-muted"
+                                }`}
+                                onClick={() => toggleProcedure(rp.procedure_id)}
+                              >
+                                <div className={`h-4 w-4 rounded-sm border flex items-center justify-center ${
+                                  isSelected ? "bg-primary border-primary text-primary-foreground" : "border-input"
+                                }`}>
+                                  {isSelected && (
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3">
+                                      <polyline points="20 6 9 17 4 12"></polyline>
+                                    </svg>
+                                  )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium truncate">{rp.procedure?.name}</p>
+                                  <p className="text-xs text-muted-foreground truncate">{rp.procedure?.code}</p>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        {selectedProcedures.length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            <span className="text-xs text-muted-foreground">Terpilih:</span>
+                            {selectedProcedures.map(sp => {
+                              const proc = roomProcedures.find(rp => rp.procedure_id === sp.procedure_id)?.procedure;
+                              return proc ? (
+                                <Badge key={sp.procedure_id} variant="secondary" className="text-xs">
+                                  {proc.name}
+                                  <X 
+                                    className="ml-1 h-3 w-3 cursor-pointer" 
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleProcedure(sp.procedure_id);
+                                    }}
+                                  />
+                                </Badge>
+                              ) : null;
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground py-2">
+                        Tidak ada tindakan yang tersedia di ruangan ini. Silakan hubungi administrator untuk menambahkan tindakan.
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Medicine Selection for Farmasi */}
+                {selectedServiceType === "farmasi" && destinationRoomId && (
+                  <div className="col-span-3 space-y-3 border-t pt-4">
+                    <Label className="text-sm font-medium">Pilih Obat *</Label>
+                    {loadingRoomItems ? (
+                      <div className="flex items-center justify-center py-4">
+                        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                        <span className="ml-2 text-sm text-muted-foreground">Memuat obat...</span>
+                      </div>
+                    ) : roomMedicines.length > 0 ? (
+                      <div className="space-y-3">
+                        {/* Available Medicines */}
+                        <div className="space-y-2">
+                          <Label className="text-xs text-muted-foreground">Obat Tersedia</Label>
+                          <div className="grid grid-cols-2 gap-2 max-h-36 overflow-y-auto border rounded-lg p-3">
+                            {roomMedicines.filter(rm => rm.medicine && rm.quantity > 0).map((rm) => (
+                              <div
+                                key={rm.id}
+                                className={`flex items-center justify-between gap-2 p-2 border rounded cursor-pointer transition-colors ${
+                                  selectedMedicines.some(m => m.medicine_id === rm.medicine_id)
+                                    ? "bg-green-50 border-green-300"
+                                    : "hover:bg-muted"
+                                }`}
+                                onClick={() => addMedicine(rm)}
+                              >
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium truncate">{rm.medicine?.name}</p>
+                                  <p className="text-xs text-muted-foreground">Stok: {rm.quantity} {rm.medicine?.unit}</p>
+                                </div>
+                                <Plus className="h-4 w-4 text-muted-foreground" />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Selected Medicines */}
+                        {selectedMedicines.length > 0 && (
+                          <div className="space-y-2">
+                            <Label className="text-xs text-muted-foreground">Obat Dipilih ({selectedMedicines.length})</Label>
+                            <div className="border rounded-lg divide-y max-h-36 overflow-y-auto">
+                              {selectedMedicines.map((sm) => {
+                                const med = roomMedicines.find(rm => rm.medicine_id === sm.medicine_id)?.medicine;
+                                return med ? (
+                                  <div key={sm.medicine_id} className="flex items-center gap-3 p-2">
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-sm font-medium truncate">{med.name}</p>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="icon"
+                                        className="h-6 w-6"
+                                        onClick={() => updateMedicineQuantity(sm.medicine_id, sm.quantity - 1)}
+                                      >
+                                        <Minus className="h-3 w-3" />
+                                      </Button>
+                                      <Input
+                                        type="number"
+                                        value={sm.quantity}
+                                        onChange={(e) => updateMedicineQuantity(sm.medicine_id, parseInt(e.target.value) || 1)}
+                                        className="w-14 h-6 text-center text-sm"
+                                        min={1}
+                                      />
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="icon"
+                                        className="h-6 w-6"
+                                        onClick={() => updateMedicineQuantity(sm.medicine_id, sm.quantity + 1)}
+                                      >
+                                        <Plus className="h-3 w-3" />
+                                      </Button>
+                                      <span className="text-xs text-muted-foreground w-12">{med.unit}</span>
+                                    </div>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-6 w-6 text-destructive"
+                                      onClick={() => removeMedicine(sm.medicine_id)}
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                ) : null;
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground py-2">
+                        Tidak ada obat yang tersedia di ruangan ini. Silakan hubungi administrator untuk menambahkan stok obat.
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 

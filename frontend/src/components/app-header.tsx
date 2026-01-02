@@ -5,6 +5,8 @@ import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
 import { Moon, Sun, UserPlus } from 'lucide-react';
 import { usePermission } from '@/hooks/usePermission';
+import { PatientSearch } from '@/components/patient-search';
+import { NotificationBell } from '@/components/notification-bell';
 import {
   Tooltip,
   TooltipContent,
@@ -133,6 +135,11 @@ export function AppHeader() {
         </Breadcrumb>
       </div>
       
+      {/* Patient Search */}
+      <div className="hidden md:flex items-center">
+        <PatientSearch />
+      </div>
+      
       {/* Quick Actions */}
       <div className="flex items-center gap-1">
         {hasPermission('patients.create') && (
@@ -155,6 +162,9 @@ export function AppHeader() {
             </Tooltip>
           </TooltipProvider>
         )}
+        
+        {/* Notification Bell */}
+        <NotificationBell />
         
         {/* Theme Toggle */}
         <Button

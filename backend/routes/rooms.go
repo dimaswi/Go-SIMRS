@@ -54,6 +54,7 @@ func setupRoomRoutes(rg *gin.RouterGroup) {
 	// Schedules (general endpoints)
 	rg.GET("/schedules", middleware.RequirePermission("rooms.view"), handlers.GetSchedules)
 	rg.GET("/doctor-schedules", middleware.RequirePermission("rooms.view"), handlers.GetDoctorSchedules)
+	rg.GET("/schedules/available-doctors", middleware.RequirePermission("rooms.view"), handlers.GetAvailableDoctorsByDate)
 
 	// Schedule Exceptions
 	rg.GET("/schedule-exceptions", middleware.RequirePermission("rooms.view"), handlers.GetScheduleExceptions)

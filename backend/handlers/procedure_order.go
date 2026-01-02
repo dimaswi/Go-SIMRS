@@ -369,6 +369,50 @@ func CreateProcedureOrder(c *gin.Context) {
 		Preload("Items.Procedure").
 		First(&order, order.ID)
 
+	// Send notification to target room users
+	if NotifService != nil {
+		var notifTitle string
+		var notifType models.NotificationType
+		patientName := ""
+		if order.Registration.Patient.NamaLengkap != "" {
+			patientName = order.Registration.Patient.NamaLengkap
+		}
+
+		switch input.OrderType {
+		case models.ProcedureOrderTypeRadiology:
+			notifTitle = "Order Radiologi Baru"
+			notifType = models.NotificationTypeProcedureOrder
+		case models.ProcedureOrderTypeLaboratory:
+			notifTitle = "Order Laboratorium Baru"
+			notifType = models.NotificationTypeProcedureOrder
+		case models.ProcedureOrderTypeConsultation:
+			notifTitle = "Konsultasi Baru"
+			notifType = models.NotificationTypeProcedureOrder
+		default:
+			notifTitle = "Order Baru"
+			notifType = models.NotificationTypeProcedureOrder
+		}
+
+		notifMessage := fmt.Sprintf("Order %s untuk pasien %s dari %s",
+			order.OrderNumber, patientName, order.SourceRoom.Name)
+
+		NotifService.NotifyRoomUsers(
+			input.TargetRoomID,
+			notifType,
+			notifTitle,
+			notifMessage,
+			map[string]interface{}{
+				"order_id":        order.ID,
+				"order_number":    order.OrderNumber,
+				"order_type":      input.OrderType,
+				"patient_name":    patientName,
+				"source_room":     order.SourceRoom.Name,
+				"target_room":     order.TargetRoom.Name,
+				"target_visit_id": targetVisit.ID,
+			},
+		)
+	}
+
 	c.JSON(http.StatusCreated, order)
 }
 

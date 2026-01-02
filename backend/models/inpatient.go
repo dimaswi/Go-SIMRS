@@ -328,3 +328,88 @@ const (
 	TransferTypeRequest   = "request"   // Permintaan pasien
 	TransferTypeOther     = "other"     // Lainnya
 )
+
+// ===========================================================================
+// ADMISSION REQUEST - Permintaan Rawat Inap
+// Request dari dokter/perawat untuk memasukkan pasien ke rawat inap
+// Diproses oleh bagian Pendaftaran/Admisi
+// ===========================================================================
+
+// AdmissionRequestStatus represents the status of admission request
+type AdmissionRequestStatus string
+
+const (
+	AdmissionRequestStatusPending   AdmissionRequestStatus = "pending"   // Menunggu diproses
+	AdmissionRequestStatusApproved  AdmissionRequestStatus = "approved"  // Disetujui dan diproses
+	AdmissionRequestStatusRejected  AdmissionRequestStatus = "rejected"  // Ditolak
+	AdmissionRequestStatusCancelled AdmissionRequestStatus = "cancelled" // Dibatalkan
+)
+
+// AdmissionRequest represents a request to admit patient to inpatient
+type AdmissionRequest struct {
+	ID        uint           `gorm:"primarykey" json:"id"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
+
+	// Request Number - auto generated
+	RequestNumber string `gorm:"size:50;uniqueIndex;not null" json:"request_number"`
+
+	// Source Visit - kunjungan asal (UGD/Poli)
+	SourceVisitID uint   `gorm:"not null;index" json:"source_visit_id"`
+	SourceVisit   *Visit `gorm:"foreignKey:SourceVisitID" json:"source_visit,omitempty"`
+
+	// Registration - tetap menggunakan registrasi yang sama
+	RegistrationID uint          `gorm:"not null;index" json:"registration_id"`
+	Registration   *Registration `gorm:"foreignKey:RegistrationID" json:"registration,omitempty"`
+
+	// Request Details from Doctor/Nurse
+	AdmissionType   string `gorm:"size:30;not null" json:"admission_type"`   // elektif, emergency
+	AdmissionReason string `gorm:"type:text" json:"admission_reason"`        // Alasan rawat inap
+	Diagnosis       string `gorm:"type:text" json:"diagnosis,omitempty"`     // Diagnosis sementara
+	Priority        string `gorm:"size:20;default:'normal'" json:"priority"` // normal, urgent, emergency
+	PreferredClass  string `gorm:"size:30" json:"preferred_class,omitempty"` // Kelas yang diminta (vvip, vip, 1, 2, 3)
+	SpecialNotes    string `gorm:"type:text" json:"special_notes,omitempty"` // Catatan khusus (isolasi, dll)
+
+	// Status
+	Status AdmissionRequestStatus `gorm:"size:20;default:'pending';index" json:"status"`
+
+	// Requested By (Doctor/Nurse who made the request)
+	RequestedByID uint      `gorm:"not null;index" json:"requested_by_id"`
+	RequestedBy   *User     `gorm:"foreignKey:RequestedByID" json:"requested_by,omitempty"`
+	RequestedAt   time.Time `gorm:"not null" json:"requested_at"`
+
+	// ========== Filled by Admission Staff ==========
+
+	// Approved Room and Bed (filled by admission staff)
+	ApprovedRoomID *uint `gorm:"index" json:"approved_room_id,omitempty"`
+	ApprovedRoom   *Room `gorm:"foreignKey:ApprovedRoomID" json:"approved_room,omitempty"`
+	ApprovedBedID  *uint `gorm:"index" json:"approved_bed_id,omitempty"`
+	ApprovedBed    *Bed  `gorm:"foreignKey:ApprovedBedID" json:"approved_bed,omitempty"`
+
+	// DPJP - Dokter Penanggung Jawab Pasien (filled by admission staff)
+	DoctorID *uint     `gorm:"index" json:"doctor_id,omitempty"`
+	Doctor   *Employee `gorm:"foreignKey:DoctorID" json:"doctor,omitempty"`
+
+	// Inpatient Class (from selected room)
+	InpatientClass string `gorm:"size:30" json:"inpatient_class,omitempty"`
+
+	// Created Inpatient Visit (after approved)
+	InpatientVisitID *uint  `gorm:"index" json:"inpatient_visit_id,omitempty"`
+	InpatientVisit   *Visit `gorm:"foreignKey:InpatientVisitID" json:"inpatient_visit,omitempty"`
+
+	// Processed By (Admission staff who processed the request)
+	ProcessedByID *uint      `gorm:"index" json:"processed_by_id,omitempty"`
+	ProcessedBy   *User      `gorm:"foreignKey:ProcessedByID" json:"processed_by,omitempty"`
+	ProcessedAt   *time.Time `json:"processed_at,omitempty"`
+
+	// Rejection/Cancellation
+	RejectionReason string `gorm:"type:text" json:"rejection_reason,omitempty"`
+
+	// Notes
+	AdminNotes string `gorm:"type:text" json:"admin_notes,omitempty"` // Catatan dari admin pendaftaran
+}
+
+func (AdmissionRequest) TableName() string {
+	return "admission_requests"
+}

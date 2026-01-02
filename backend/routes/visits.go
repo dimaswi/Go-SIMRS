@@ -29,6 +29,9 @@ func SetupVisitRoutes(r *gin.Engine) {
 		// Complete visit (finalize)
 		visits.PUT("/:id/complete", handlers.CompleteVisit)
 
+		// Cancel visit
+		visits.POST("/:id/cancel", middleware.RequirePermission("visits.delete"), handlers.CancelVisit)
+
 		// Cancel complete visit (revert finalization)
 		visits.PUT("/:id/cancel-complete", handlers.CancelCompleteVisit)
 

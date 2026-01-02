@@ -1,7 +1,7 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Eye, PhoneCall, Loader2, UserCheck } from "lucide-react";
+import { Eye, PhoneCall, Loader2, UserCheck, XCircle } from "lucide-react";
 
 interface Visit {
   id: number;
@@ -38,6 +38,7 @@ interface Visit {
     code: string;
     name: string;
     service_type?: string;
+    room_type?: string;
   };
   doctor?: {
     id: number;
@@ -55,13 +56,16 @@ interface CreateColumnsProps {
   onCallQueue: (visit: Visit) => void;
   onRecallQueue: (visit: Visit) => void;
   onAcceptPatient: (visit: Visit) => void;
+  onCancelVisit: (visit: Visit) => void;
   onViewDetail: (id: number) => void;
   callingId: number | null;
   recallingId: number | null;
   acceptingId: number | null;
+  cancellingId: number | null;
   hasCallPermission: boolean;
   hasAcceptPermission: boolean;
   hasViewPermission: boolean;
+  hasCancelPermission: boolean;
 }
 
 // Calculate age from birth date
@@ -140,6 +144,29 @@ const getVisitCategoryBadge = (visit: Visit) => {
       </Badge>
     );
   }
+
+  // Direct visit to penunjang (lab/radiologi/farmasi) - tanpa referral
+  if (visit.visit_type === "lab" || serviceType === "penunjang_medis" && visit.room?.room_type?.includes("laboratorium")) {
+    return (
+      <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 text-xs">
+        🔬 Lab
+      </Badge>
+    );
+  }
+  if (visit.visit_type === "radiology" || serviceType === "penunjang_medis" && visit.room?.room_type === "radiologi") {
+    return (
+      <Badge className="bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200 text-xs">
+        📷 Radiologi
+      </Badge>
+    );
+  }
+  if (visit.visit_type === "pharmacy" || serviceType === "farmasi") {
+    return (
+      <Badge className="bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200 text-xs">
+        💊 Farmasi
+      </Badge>
+    );
+  }
   
   return (
     <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 text-xs">
@@ -152,13 +179,16 @@ export const createVisitColumns = ({
   onCallQueue,
   onRecallQueue,
   onAcceptPatient,
+  onCancelVisit,
   onViewDetail,
   callingId,
   recallingId,
   acceptingId,
+  cancellingId,
   hasCallPermission,
   hasAcceptPermission,
   hasViewPermission,
+  hasCancelPermission,
 }: CreateColumnsProps): ColumnDef<Visit>[] => [
   {
     accessorKey: "room_queue.queue_number",
@@ -326,6 +356,14 @@ export const createVisitColumns = ({
       const canViewDetail = hasViewPermission && 
         (visit.status === "in_progress" || visit.status === "completed");
       
+      // Can cancel if:
+      // - Has cancel permission
+      // - Visit is not yet completed or cancelled
+      const canCancel = hasCancelPermission && 
+        visit.status !== "completed" && 
+        visit.status !== "discharged" &&
+        visit.status !== "cancelled";
+      
       return (
         <div className="flex justify-end gap-2">
           {canCall && (
@@ -388,6 +426,23 @@ export const createVisitColumns = ({
             >
               <Eye className="h-4 w-4 mr-1" />
               Detail
+            </Button>
+          )}
+          {canCancel && (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => onCancelVisit(visit)}
+              disabled={cancellingId === visit.id}
+            >
+              {cancellingId === visit.id ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  <XCircle className="h-4 w-4 mr-1" />
+                  Batalkan
+                </>
+              )}
             </Button>
           )}
         </div>

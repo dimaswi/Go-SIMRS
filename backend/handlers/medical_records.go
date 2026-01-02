@@ -863,6 +863,7 @@ func SaveDisposition(c *gin.Context) {
 		FollowUpDate        string `json:"follow_up_date"`
 		FollowUpInstruction string `json:"follow_up_instruction"`
 		FollowUpRoomID      *uint  `json:"follow_up_room_id"`
+		FollowUpDoctorID    *uint  `json:"follow_up_doctor_id"` // Dokter untuk kontrol
 		// Referral
 		ReferralFacility string `json:"referral_facility"`
 		ReferralReason   string `json:"referral_reason"`
@@ -986,7 +987,7 @@ func SaveDisposition(c *gin.Context) {
 
 	// Handle kontrol/follow-up registration
 	if input.CreateFollowUp && followUpDate != nil && input.FollowUpRoomID != nil {
-		followUpReg, err := createFollowUpRegistration(tx, &visit, followUpDate, input.FollowUpRoomID)
+		followUpReg, err := createFollowUpRegistration(tx, &visit, followUpDate, input.FollowUpRoomID, input.FollowUpDoctorID, userID)
 		if err != nil {
 			tx.Rollback()
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat jadwal kontrol: " + err.Error()})
@@ -1051,6 +1052,86 @@ func SaveDisposition(c *gin.Context) {
 		Preload("AdmissionBed").
 		First(&disposition)
 
+	// Send notifications based on disposition type
+	if NotifService != nil {
+		// Get patient info
+		var visitWithPatient models.Visit
+		database.DB.Preload("Registration.Patient").Preload("Room").First(&visitWithPatient, visitID)
+		patientName := ""
+		if visitWithPatient.Registration != nil && visitWithPatient.Registration.Patient != nil {
+			patientName = visitWithPatient.Registration.Patient.NamaLengkap
+		}
+		roomName := ""
+		if visitWithPatient.Room != nil {
+			roomName = visitWithPatient.Room.Name
+		}
+
+		switch input.DispositionType {
+		case "pulang":
+			// Notify current room about patient discharge
+			go NotifService.NotifyRoomUsers(
+				visitWithPatient.RoomID,
+				models.NotificationTypeDischarge,
+				"Pasien Pulang",
+				fmt.Sprintf("Pasien %s telah pulang dari %s", patientName, roomName),
+				map[string]interface{}{
+					"visit_id":         visit.ID,
+					"patient_name":     patientName,
+					"room_name":        roomName,
+					"disposition_type": "pulang",
+				},
+			)
+		case "rawat_inap":
+			// Notify admission room about new inpatient
+			if disposition.InpatientVisitID != nil && input.AdmissionRoomID != nil {
+				var admissionRoom models.Room
+				database.DB.First(&admissionRoom, *input.AdmissionRoomID)
+
+				go NotifService.NotifyRoomUsers(
+					*input.AdmissionRoomID,
+					models.NotificationTypeAdmissionApproved,
+					"Pasien Rawat Inap Baru",
+					fmt.Sprintf("Pasien %s akan dirawat di %s", patientName, admissionRoom.Name),
+					map[string]interface{}{
+						"visit_id":           visit.ID,
+						"inpatient_visit_id": *disposition.InpatientVisitID,
+						"patient_name":       patientName,
+						"admission_room":     admissionRoom.Name,
+					},
+				)
+			}
+		case "meninggal", "dod":
+			// Notify about patient death
+			go NotifService.NotifyRoomUsers(
+				visitWithPatient.RoomID,
+				models.NotificationTypeDischarge,
+				"Pasien Meninggal",
+				fmt.Sprintf("Pasien %s telah meninggal di %s", patientName, roomName),
+				map[string]interface{}{
+					"visit_id":         visit.ID,
+					"patient_name":     patientName,
+					"room_name":        roomName,
+					"disposition_type": input.DispositionType,
+				},
+			)
+		case "rujuk":
+			// Notify about patient referral
+			go NotifService.NotifyRoomUsers(
+				visitWithPatient.RoomID,
+				models.NotificationTypeDischarge,
+				"Pasien Dirujuk",
+				fmt.Sprintf("Pasien %s dirujuk ke %s", patientName, input.ReferralFacility),
+				map[string]interface{}{
+					"visit_id":          visit.ID,
+					"patient_name":      patientName,
+					"room_name":         roomName,
+					"referral_facility": input.ReferralFacility,
+					"disposition_type":  "rujuk",
+				},
+			)
+		}
+	}
+
 	c.JSON(http.StatusOK, disposition)
 }
 
@@ -1111,7 +1192,8 @@ func createInpatientVisit(tx *gorm.DB, sourceVisit *models.Visit, roomID *uint, 
 }
 
 // createFollowUpRegistration creates a scheduled follow-up registration with Visit and RoomQueue
-func createFollowUpRegistration(tx *gorm.DB, sourceVisit *models.Visit, followUpDate *time.Time, roomID *uint) (*models.Registration, error) {
+// The queue number is reserved immediately but status is "reserved" until patient checks in
+func createFollowUpRegistration(tx *gorm.DB, sourceVisit *models.Visit, followUpDate *time.Time, roomID *uint, doctorID *uint, registeredByID uint) (*models.Registration, error) {
 	// Get patient ID from source registration
 	var sourceReg models.Registration
 	if err := tx.First(&sourceReg, sourceVisit.RegistrationID).Error; err != nil {
@@ -1122,6 +1204,30 @@ func createFollowUpRegistration(tx *gorm.DB, sourceVisit *models.Visit, followUp
 	var room models.Room
 	if err := tx.First(&room, *roomID).Error; err != nil {
 		return nil, fmt.Errorf("room not found: %w", err)
+	}
+
+	// Validate room is outpatient/poli
+	if room.ServiceType != "rawat_jalan" && !strings.Contains(strings.ToLower(room.RoomType), "poli") {
+		return nil, fmt.Errorf("ruangan kontrol harus berupa poli/rawat jalan")
+	}
+
+	// Determine the doctor ID to use
+	followUpDoctorID := doctorID
+	if followUpDoctorID == nil {
+		// Fallback to source visit doctor if not specified
+		followUpDoctorID = sourceVisit.DoctorID
+	}
+
+	// Validate doctor has schedule on the selected date and room
+	if followUpDoctorID != nil {
+		dayOfWeek := int(followUpDate.Weekday())
+		var doctorSchedule models.DoctorSchedule
+		err := tx.Where("room_id = ? AND employee_id = ? AND day_of_week = ? AND is_active = ?",
+			*roomID, *followUpDoctorID, dayOfWeek, true).
+			First(&doctorSchedule).Error
+		if err != nil {
+			return nil, fmt.Errorf("dokter tidak memiliki jadwal praktik di ruangan ini pada hari tersebut")
+		}
 	}
 
 	// Generate registration number
@@ -1145,7 +1251,7 @@ func createFollowUpRegistration(tx *gorm.DB, sourceVisit *models.Visit, followUp
 		RegistrationType:   "outpatient",
 		PatientID:          sourceReg.PatientID,
 		DestinationRoomID:  *roomID,
-		DoctorID:           sourceVisit.DoctorID,
+		DoctorID:           followUpDoctorID,
 		PaymentMethod:      sourceReg.PaymentMethod,
 		BPJSNumber:         sourceReg.BPJSNumber,
 		InsuranceName:      sourceReg.InsuranceName,
@@ -1153,6 +1259,7 @@ func createFollowUpRegistration(tx *gorm.DB, sourceVisit *models.Visit, followUp
 		Status:             models.RegistrationStatusScheduled,
 		Notes:              fmt.Sprintf("Kontrol dari kunjungan %s", sourceVisit.VisitNumber),
 		VisitNumber:        int(visitCount) + 1,
+		RegisteredByID:     registeredByID,
 		// Follow-up specific fields
 		IsFollowUp:    true,
 		SourceVisitID: &sourceVisit.ID,
@@ -1181,15 +1288,15 @@ func createFollowUpRegistration(tx *gorm.DB, sourceVisit *models.Visit, followUp
 
 	visitNumber := fmt.Sprintf("VIS%s%04d", todayStr, visitNum)
 
-	// Create Visit for follow-up (status waiting, no check-in time yet)
+	// Create Visit for follow-up (status scheduled, no check-in time yet)
 	followUpVisit := models.Visit{
 		VisitNumber:    visitNumber,
 		RegistrationID: followUpReg.ID,
 		RoomID:         *roomID,
-		DoctorID:       sourceVisit.DoctorID,
+		DoctorID:       followUpDoctorID,
 		VisitType:      models.VisitTypeOutpatient,
 		VisitPurpose:   "Kontrol",
-		Status:         models.VisitStatusWaiting,
+		Status:         models.VisitStatusScheduled, // Scheduled, not active yet
 		Complaint:      fmt.Sprintf("Kontrol dari kunjungan %s", sourceVisit.VisitNumber),
 		Notes:          followUpReg.Notes,
 	}
@@ -1199,6 +1306,7 @@ func createFollowUpRegistration(tx *gorm.DB, sourceVisit *models.Visit, followUp
 	}
 
 	// Generate room queue number for follow-up date
+	// This reserves the queue number immediately
 	queueCode := room.QueueCode
 	if queueCode == "" {
 		queueCode = "Q"
@@ -1207,6 +1315,7 @@ func createFollowUpRegistration(tx *gorm.DB, sourceVisit *models.Visit, followUp
 	var lastQueue models.RoomQueue
 	var queueNum int
 
+	// Get the highest queue number for this room and date (including reserved ones)
 	err = tx.Where("room_id = ? AND queue_date = ?", *roomID, *followUpDate).
 		Order("queue_number DESC").First(&lastQueue).Error
 
@@ -1220,25 +1329,21 @@ func createFollowUpRegistration(tx *gorm.DB, sourceVisit *models.Visit, followUp
 
 	queueNumber := fmt.Sprintf("%s%03d", queueCode, queueNum)
 
-	// Create RoomQueue for follow-up (already has queue number, waiting for check-in)
+	// Create RoomQueue for follow-up with RESERVED status
+	// Queue number is allocated but not active until check-in
 	roomQueue := models.RoomQueue{
 		QueueNumber: queueNumber,
 		QueueCode:   queueCode,
 		QueueDate:   *followUpDate,
 		VisitID:     followUpVisit.ID,
 		RoomID:      *roomID,
-		Priority:    models.PriorityNormal, // No special priority for follow-up
-		Status:      models.RoomQueueStatusWaiting,
+		Priority:    models.PriorityNormal,
+		Status:      models.RoomQueueStatusReserved, // Reserved, not active yet
+		Notes:       "Jadwal kontrol - menunggu check-in",
 	}
 
 	if err := tx.Create(&roomQueue).Error; err != nil {
 		return nil, fmt.Errorf("failed to create follow-up room queue: %w", err)
-	}
-
-	// Update visit status to in_queue
-	followUpVisit.Status = models.VisitStatusInQueue
-	if err := tx.Save(&followUpVisit).Error; err != nil {
-		return nil, fmt.Errorf("failed to update visit status: %w", err)
 	}
 
 	return &followUpReg, nil

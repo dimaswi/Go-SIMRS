@@ -69,8 +69,10 @@ func AuthMiddleware() gin.HandlerFunc {
 		}
 
 		c.Set("userID", claims.UserID)
+		c.Set("user_id", claims.UserID) // Also set snake_case for compatibility
 		c.Set("email", claims.Email)
 		c.Set("roleID", claims.RoleID)
+		c.Set("role_id", claims.RoleID) // Also set snake_case for compatibility
 		c.Next()
 	}
 }

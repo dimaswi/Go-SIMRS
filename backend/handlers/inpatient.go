@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -1251,6 +1252,64 @@ func CreateBedTransfer(c *gin.Context) {
 		Preload("ToBed").
 		Preload("CreatedBy").
 		First(&transfer, transfer.ID)
+
+	// Send notifications for bed transfer/mutasi
+	if NotifService != nil {
+		// Get patient info
+		var visitWithPatient models.Visit
+		database.DB.Preload("Registration.Patient").First(&visitWithPatient, visit.ID)
+		patientName := ""
+		if visitWithPatient.Registration != nil && visitWithPatient.Registration.Patient != nil {
+			patientName = visitWithPatient.Registration.Patient.NamaLengkap
+		}
+
+		fromRoomName := ""
+		if transfer.FromRoom != nil {
+			fromRoomName = transfer.FromRoom.Name
+		}
+		toRoomName := ""
+		if transfer.ToRoom != nil {
+			toRoomName = transfer.ToRoom.Name
+		}
+
+		// Notify previous room (FromRoom) - only if not initial placement
+		if !isInitialPlacement && transfer.FromRoomID > 0 {
+			go NotifService.NotifyRoomUsers(
+				transfer.FromRoomID,
+				models.NotificationTypeBedTransfer,
+				"Pasien Pindah Ruangan",
+				fmt.Sprintf("Pasien %s telah dipindahkan dari %s ke %s", patientName, fromRoomName, toRoomName),
+				map[string]interface{}{
+					"visit_id":      visit.ID,
+					"transfer_id":   transfer.ID,
+					"patient_name":  patientName,
+					"from_room":     fromRoomName,
+					"to_room":       toRoomName,
+					"transfer_type": "out",
+				},
+			)
+		}
+
+		// Notify target room (ToRoom)
+		notifTitle := "Pasien Baru Masuk"
+		if !isInitialPlacement {
+			notifTitle = "Pasien Pindahan Masuk"
+		}
+		go NotifService.NotifyRoomUsers(
+			input.ToRoomID,
+			models.NotificationTypeBedTransfer,
+			notifTitle,
+			fmt.Sprintf("Pasien %s telah masuk ke %s", patientName, toRoomName),
+			map[string]interface{}{
+				"visit_id":      visit.ID,
+				"transfer_id":   transfer.ID,
+				"patient_name":  patientName,
+				"from_room":     fromRoomName,
+				"to_room":       toRoomName,
+				"transfer_type": "in",
+			},
+		)
+	}
 
 	message := "Mutasi pasien berhasil"
 	if isInitialPlacement {

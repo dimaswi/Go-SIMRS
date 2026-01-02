@@ -119,12 +119,25 @@ type Bed struct {
 	CurrentPatient *BedPatient    `gorm:"-" json:"current_patient,omitempty"` // Virtual field: patient currently occupying this bed
 }
 
-// BedPatient represents basic patient info for bed occupancy display
+// BedPatient represents patient info for bed occupancy display
 type BedPatient struct {
 	Name                string     `json:"name"`
 	MedicalRecordNumber string     `json:"medical_record_number"`
+	NIK                 string     `json:"nik,omitempty"`
+	Gender              string     `json:"gender,omitempty"`
+	BirthDate           *time.Time `json:"birth_date,omitempty"`
+	Age                 int        `json:"age,omitempty"`
+	Address             string     `json:"address,omitempty"`
+	Phone               string     `json:"phone,omitempty"`
+	InsuranceType       string     `json:"insurance_type,omitempty"`
+	InsuranceNumber     string     `json:"insurance_number,omitempty"`
 	AdmissionDate       *time.Time `json:"admission_date,omitempty"`
+	Diagnosis           string     `json:"diagnosis,omitempty"`
+	DoctorName          string     `json:"doctor_name,omitempty"`
+	RoomName            string     `json:"room_name,omitempty"`
+	UnitName            string     `json:"unit_name,omitempty"`
 	VisitID             uint       `json:"visit_id"`
+	PatientID           uint       `json:"patient_id,omitempty"`
 }
 
 // TableName sets the table name for Bed

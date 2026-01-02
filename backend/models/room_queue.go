@@ -61,7 +61,8 @@ const (
 
 // RoomQueueStatus constants
 const (
-	RoomQueueStatusWaiting   = "waiting"   // Menunggu dipanggil
+	RoomQueueStatusReserved  = "reserved"  // Antrian dipesan (kontrol/jadwal - belum check-in)
+	RoomQueueStatusWaiting   = "waiting"   // Menunggu dipanggil (sudah check-in/aktif)
 	RoomQueueStatusCalled    = "called"    // Sedang dipanggil
 	RoomQueueStatusServing   = "serving"   // Sedang dilayani
 	RoomQueueStatusCompleted = "completed" // Selesai

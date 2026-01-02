@@ -92,11 +92,16 @@ export default function RoomsPage() {
     navigate(`/room-queue/room/${id}`);
   };
 
+  const handleViewMonitoring = (id: number) => {
+    navigate(`/bed-monitoring/${id}`);
+  };
+
   const columns = createRoomColumns({
     onView: handleView,
     onEdit: handleEdit,
     onDelete: handleDeleteRoom,
     onViewQueue: handleViewQueue,
+    onViewMonitoring: handleViewMonitoring,
     hasViewPermission: hasPermission('rooms.view'),
     hasEditPermission: hasPermission('rooms.update'),
     hasDeletePermission: hasPermission('rooms.delete'),

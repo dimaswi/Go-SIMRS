@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
 	"starter/backend/database"
 	"starter/backend/models"
@@ -718,6 +719,137 @@ func DeleteScheduleException(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Pengecualian jadwal berhasil dihapus"})
+}
+
+// GetAvailableDoctorsByDate godoc
+// @Summary Get available doctors for a room on a specific date
+// @Description Get list of doctors who have schedule at the specified room on the given date
+// @Tags Schedule
+// @Accept json
+// @Produce json
+// @Param room_id query int true "Room ID"
+// @Param date query string true "Date in YYYY-MM-DD format"
+// @Success 200 {object} map[string]interface{}
+// @Router /schedules/available-doctors [get]
+func GetAvailableDoctorsByDate(c *gin.Context) {
+	roomIDStr := c.Query("room_id")
+	dateStr := c.Query("date")
+
+	if roomIDStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "room_id wajib diisi"})
+		return
+	}
+
+	if dateStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "date wajib diisi"})
+		return
+	}
+
+	roomID, err := strconv.ParseUint(roomIDStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "room_id tidak valid"})
+		return
+	}
+
+	// Parse the date
+	date, err := time.Parse("2006-01-02", dateStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Format tanggal tidak valid (gunakan YYYY-MM-DD)"})
+		return
+	}
+
+	// Get day of week for the date
+	dayOfWeek := int(date.Weekday())
+
+	// Debug logging
+	log.Printf("[DEBUG] GetAvailableDoctorsByDate: room_id=%d, date=%s, dayOfWeek=%d", roomID, dateStr, dayOfWeek)
+
+	// Check if room exists
+	var room models.Room
+	if err := database.DB.First(&room, roomID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Ruangan tidak ditemukan"})
+		return
+	}
+
+	// Get doctor schedules for this room on the day of week
+	var schedules []models.DoctorSchedule
+	query := database.DB.Where("room_id = ? AND day_of_week = ? AND is_active = ?", roomID, dayOfWeek, true).
+		Preload("Employee")
+
+	// Check effective date range - use date string for comparison to avoid timezone issues
+	query = query.Where("(effective_from IS NULL OR DATE(effective_from) <= ?) AND (effective_to IS NULL OR DATE(effective_to) >= ?)", dateStr, dateStr)
+
+	if err := query.Find(&schedules).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengambil jadwal dokter"})
+		return
+	}
+
+	// Debug logging
+	log.Printf("[DEBUG] Found %d doctor schedules for room %d on day %d", len(schedules), roomID, dayOfWeek)
+
+	// Check for schedule exceptions (holidays, doctor leave, etc.)
+	var exceptions []models.ScheduleException
+	database.DB.Where("exception_date = ? AND is_active = ?", date, true).
+		Where("(room_id IS NULL OR room_id = ?) AND exception_type = 'closed'", roomID).
+		Find(&exceptions)
+
+	// Filter out doctors with exceptions
+	exceptedEmployeeIDs := make(map[uint]bool)
+	roomClosed := false
+	for _, exc := range exceptions {
+		if exc.EmployeeID != nil {
+			exceptedEmployeeIDs[*exc.EmployeeID] = true
+		}
+		if exc.RoomID != nil && exc.EmployeeID == nil {
+			roomClosed = true
+		}
+	}
+
+	// Build response
+	type DoctorAvailability struct {
+		EmployeeID   uint    `json:"employee_id"`
+		EmployeeName string  `json:"employee_name"`
+		StartTime    string  `json:"start_time"`
+		EndTime      string  `json:"end_time"`
+		MaxPatients  int     `json:"max_patients"`
+		ConsultFee   float64 `json:"consult_fee"`
+	}
+
+	var availableDoctors []DoctorAvailability
+
+	if !roomClosed {
+		for _, schedule := range schedules {
+			if exceptedEmployeeIDs[schedule.EmployeeID] {
+				continue // Skip doctors with exception on this date
+			}
+
+			employeeName := ""
+			if schedule.Employee != nil {
+				employeeName = schedule.Employee.NamaLengkap
+			}
+
+			availableDoctors = append(availableDoctors, DoctorAvailability{
+				EmployeeID:   schedule.EmployeeID,
+				EmployeeName: employeeName,
+				StartTime:    schedule.StartTime,
+				EndTime:      schedule.EndTime,
+				MaxPatients:  schedule.MaxPatients,
+				ConsultFee:   schedule.ConsultFee,
+			})
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"data": availableDoctors,
+		"room": gin.H{
+			"id":   room.ID,
+			"name": room.Name,
+			"code": room.Code,
+		},
+		"date":        dateStr,
+		"day_of_week": dayOfWeek,
+		"room_closed": roomClosed,
+	})
 }
 
 // ==============================

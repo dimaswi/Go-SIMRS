@@ -8,37 +8,30 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { 
   Save, 
   LogOut, 
   Loader2, 
   AlertTriangle, 
-  Building, 
-  Bed, 
   Calendar, 
   CheckCircle2, 
-  Check, 
-  UserRound,
   Home,
   Ambulance,
   Hospital,
   FileText,
   ClipboardList,
-  ExternalLink
+  ExternalLink,
+  Send,
+  QrCode
 } from "lucide-react";
 import { useMasterData } from "@/hooks/useMasterData";
 import { medicalRecordsApi, type Disposition } from "@/lib/api/medical-records";
-import { roomsApi, type Room, type Bed as BedType, type RoomUnit, type RoomStaff } from "@/lib/api/rooms";
-import { type Employee } from "@/lib/api/employees";
+import { roomsApi, schedulesApi, type Room } from "@/lib/api/rooms";
+import { admissionRequestApi } from "@/lib/api/admission-request";
 import { useToast } from "@/hooks/use-toast";
 import { Combobox } from "@/components/ui/combobox";
 import { cn } from "@/lib/utils";
+import { CheckInQRCode } from "@/components/qrcode/checkin-qrcode";
 
 interface DispositionFormProps {
   visitId: number;
@@ -79,30 +72,43 @@ interface PendingOrdersInfo {
   registration_type: string;
 }
 
+// Type for available doctor from schedule
+interface AvailableDoctor {
+  employee_id: number;
+  employee_name: string;
+  start_time: string;
+  end_time: string;
+  max_patients: number;
+  consult_fee: number;
+}
+
 export function DispositionForm({ visitId, initialData, onSave, isEmergency: _isEmergency = false, readOnly = false }: DispositionFormProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [pendingOrdersInfo, setPendingOrdersInfo] = useState<PendingOrdersInfo | null>(null);
   
-  // Rooms and beds for rawat inap
-  const [inpatientRooms, setInpatientRooms] = useState<Room[]>([]);
-  const [availableBeds, setAvailableBeds] = useState<BedType[]>([]);
-  const [loadingBeds, setLoadingBeds] = useState(false);
-  
   // Rooms for follow-up (poli)
   const [poliRooms, setPoliRooms] = useState<Room[]>([]);
   
-  // Doctors for DPJP (rawat inap)
-  const [doctors, setDoctors] = useState<Employee[]>([]);
+  // Available doctors based on selected room and date
+  const [availableDoctors, setAvailableDoctors] = useState<AvailableDoctor[]>([]);
   const [loadingDoctors, setLoadingDoctors] = useState(false);
+  const [roomClosed, setRoomClosed] = useState(false);
+  
+  // Follow-up registration data for QR code
+  const [followUpRegData, setFollowUpRegData] = useState<{
+    id: number;
+    registration_number: string;
+    scheduled_date?: string;
+    room_name?: string;
+    doctor_name?: string;
+    queue_number?: string;
+    patient_name?: string;
+  } | null>(null);
   
   // Check if form is disabled (already saved)
   const isDisabled = !!initialData?.disposition_type;
-  
-  // Selected room units with beds for cinema-style selector
-  const [roomUnits, setRoomUnits] = useState<RoomUnit[]>([]);
-  const [selectedUnitId, setSelectedUnitId] = useState<number | null>(null);
   
   // Checkbox states for follow-up options
   const [wantsFollowUp, setWantsFollowUp] = useState(false);
@@ -110,6 +116,9 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
   // Fetch disposition options from master data
   const { data: dispositionData } = useMasterData('disposition_type');
   const { data: dischargeConditionData } = useMasterData('discharge_condition');
+  
+  // Inpatient class options for preferred class
+  const { data: inpatientClassData } = useMasterData('inpatient_class');
   
   const dispositionOptions = dispositionData
     // Filter out "rawat_inap" option if patient is already inpatient
@@ -125,6 +134,11 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
     value: item.code,
     label: item.name,
   }));
+  
+  const inpatientClassOptions = inpatientClassData.map(item => ({
+    value: item.code,
+    label: item.name,
+  }));
 
   const [formData, setFormData] = useState({
     disposition_type: initialData?.disposition_type || "",
@@ -134,25 +148,55 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
     referral_facility: initialData?.referral_facility || "",
     referral_reason: initialData?.referral_reason || "",
     referral_urgency: initialData?.referral_urgency || "",
+    // Admission request fields (simplified - no room/bed/doctor selection)
     admission_type: initialData?.admission_type || "",
-    admission_ward: initialData?.admission_ward || "",
     admission_reason: initialData?.admission_reason || "",
-    admission_room_id: initialData?.admission_room_id || undefined as number | undefined,
-    admission_bed_id: initialData?.admission_bed_id || undefined as number | undefined,
-    admission_doctor_id: undefined as number | undefined,
+    admission_priority: "normal" as string,
+    preferred_class: "" as string,
+    special_notes: "" as string,
     death_time: initialData?.death_time || "",
     death_cause: initialData?.death_cause || "",
     follow_up_date: initialData?.follow_up_date || "",
     follow_up_instruction: initialData?.follow_up_instruction || "",
     follow_up_room_id: initialData?.follow_up_room_id || undefined as number | undefined,
+    follow_up_doctor_id: undefined as number | undefined, // Doctor for follow-up
     discharge_medication: initialData?.discharge_medication || "",
     discharge_instruction: initialData?.discharge_instruction || "",
   });
 
-  // Load rooms for inpatient and poli
+  // Load available doctors when room and date change
+  const loadAvailableDoctors = async (roomId: number, date: string) => {
+    if (!roomId || !date) {
+      setAvailableDoctors([]);
+      return;
+    }
+    
+    setLoadingDoctors(true);
+    try {
+      const response = await schedulesApi.getAvailableDoctorsByDate(roomId, date);
+      setAvailableDoctors(response.data.data || []);
+      setRoomClosed(response.data.room_closed || false);
+      
+      // Reset doctor selection if current doctor is not available
+      if (formData.follow_up_doctor_id) {
+        const isAvailable = (response.data.data || []).some(
+          d => d.employee_id === formData.follow_up_doctor_id
+        );
+        if (!isAvailable) {
+          setFormData(prev => ({ ...prev, follow_up_doctor_id: undefined }));
+        }
+      }
+    } catch (err) {
+      console.error("Failed to load available doctors:", err);
+      setAvailableDoctors([]);
+    } finally {
+      setLoadingDoctors(false);
+    }
+  };
+
+  // Load rooms for poli (follow-up only)
   const loadRooms = async () => {
     try {
-      // Use high limit to get all rooms for dropdown selection
       const roomsResponse = await roomsApi.getAll({ limit: 1000, is_active: 'true' });
       const allRooms = roomsResponse.data.data || [];
       
@@ -160,30 +204,9 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
         (r.room_type?.toLowerCase().includes('poli') || r.service_type === 'rawat_jalan') && r.is_active
       );
       
-      setInpatientRooms(allRooms.filter(r => r.has_bed && r.is_active));
       setPoliRooms(filteredPoliRooms);
     } catch (err) {
       console.error("Failed to load rooms:", err);
-    }
-  };
-  
-  // Load doctors assigned to selected inpatient room
-  const loadDoctorsByRoom = async (roomId: number) => {
-    setLoadingDoctors(true);
-    setDoctors([]);
-    try {
-      const response = await roomsApi.getStaff(roomId);
-      const roomStaff: RoomStaff[] = response.data.data || [];
-      const doctorsInRoom = roomStaff
-        .filter((staff) => staff.employee?.tipe_karyawan === 'dokter')
-        .map((staff) => staff.employee!)
-        .filter((emp): emp is Employee => !!emp);
-      setDoctors(doctorsInRoom);
-    } catch (err) {
-      console.error("Failed to load doctors:", err);
-      setDoctors([]);
-    } finally {
-      setLoadingDoctors(false);
     }
   };
 
@@ -204,22 +227,44 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
             referral_reason: response.data.referral_reason || "",
             referral_urgency: response.data.referral_urgency || "",
             admission_type: response.data.admission_type || "",
-            admission_ward: response.data.admission_ward || "",
             admission_reason: response.data.admission_reason || "",
-            admission_room_id: response.data.admission_room_id,
-            admission_bed_id: response.data.admission_bed_id,
-            admission_doctor_id: undefined,
+            admission_priority: "normal",
+            preferred_class: "",
+            special_notes: "",
             death_time: response.data.death_time || "",
             death_cause: response.data.death_cause || "",
             follow_up_date: response.data.follow_up_date ? response.data.follow_up_date.split('T')[0] : "",
             follow_up_instruction: response.data.follow_up_instruction || "",
             follow_up_room_id: response.data.follow_up_room_id,
+            follow_up_doctor_id: undefined, // Will be loaded from available doctors
             discharge_medication: response.data.discharge_medication || "",
             discharge_instruction: response.data.discharge_instruction || "",
           });
           
           if (response.data.follow_up_date && response.data.follow_up_room_id) {
             setWantsFollowUp(true);
+          }
+          
+          // Load follow-up registration data for QR code if available
+          if (response.data.follow_up_registration_id) {
+            try {
+              const { registrationApi } = await import("@/lib/api/queue");
+              const regResponse = await registrationApi.getById(response.data.follow_up_registration_id);
+              if (regResponse.data.data) {
+                const reg = regResponse.data.data;
+                setFollowUpRegData({
+                  id: reg.id || reg.ID || response.data.follow_up_registration_id,
+                  registration_number: reg.registration_number,
+                  scheduled_date: response.data.follow_up_date,
+                  room_name: response.data.follow_up_room?.name || reg.destination_room?.name,
+                  doctor_name: reg.doctor?.nama_lengkap || reg.doctor?.name,
+                  queue_number: reg.visit?.room_queue?.queue_number,
+                  patient_name: reg.patient?.nama_lengkap || reg.patient?.name,
+                });
+              }
+            } catch (err) {
+              console.error("Failed to load follow-up registration:", err);
+            }
           }
         }
         
@@ -234,50 +279,16 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
     };
     loadData();
   }, [visitId]);
-
-  // Load beds and doctors when room is selected
+  
+  // Load available doctors when room and date change
   useEffect(() => {
-    const loadBeds = async () => {
-      if (!formData.admission_room_id) {
-        setRoomUnits([]);
-        setAvailableBeds([]);
-        setSelectedUnitId(null);
-        setDoctors([]);
-        return;
-      }
-      
-      setLoadingBeds(true);
-      try {
-        const roomResponse = await roomsApi.getById(formData.admission_room_id);
-        const roomData = roomResponse.data.data;
-        console.log('Room data with beds:', roomData);
-        setRoomUnits(roomData.units || []);
-        
-        const allBeds: BedType[] = [];
-        roomData.units?.forEach(unit => {
-          unit.beds?.forEach(bed => {
-            if (bed.current_patient) {
-              console.log(`Bed ${bed.bed_number} occupied by:`, bed.current_patient);
-            }
-            allBeds.push({ ...bed, room_unit: unit });
-          });
-        });
-        setAvailableBeds(allBeds);
-        
-        if (roomData.units && roomData.units.length > 0) {
-          setSelectedUnitId(roomData.units[0].id);
-        }
-        
-        await loadDoctorsByRoom(formData.admission_room_id);
-      } catch (err) {
-        console.error("Failed to load beds:", err);
-      } finally {
-        setLoadingBeds(false);
-      }
-    };
-    
-    loadBeds();
-  }, [formData.admission_room_id]);
+    if (formData.follow_up_room_id && formData.follow_up_date && wantsFollowUp) {
+      loadAvailableDoctors(formData.follow_up_room_id, formData.follow_up_date);
+    } else {
+      setAvailableDoctors([]);
+      setRoomClosed(false);
+    }
+  }, [formData.follow_up_room_id, formData.follow_up_date, wantsFollowUp]);
   
   // Reset follow-up when disposition type changes
   useEffect(() => {
@@ -302,22 +313,96 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
       return;
     }
     
+    // Validate follow-up fields including doctor
+    if (["pulang", "aps"].includes(formData.disposition_type) && wantsFollowUp) {
+      if (!formData.follow_up_date || !formData.follow_up_room_id || !formData.follow_up_doctor_id) {
+        toast({
+          title: "Data tidak lengkap",
+          description: "Untuk jadwal kontrol, silakan pilih tanggal, poli, dan dokter.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      if (roomClosed) {
+        toast({
+          title: "Poli tutup",
+          description: "Poli tutup pada tanggal yang dipilih. Silakan pilih tanggal lain.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+    
     setSaving(true);
     try {
+      // For rawat_inap, create admission request instead of direct admission
+      if (formData.disposition_type === "rawat_inap") {
+        // Create admission request
+        const admissionResponse = await admissionRequestApi.create({
+          source_visit_id: visitId,
+          admission_type: formData.admission_type,
+          admission_reason: formData.admission_reason,
+          priority: formData.admission_priority,
+          preferred_class: formData.preferred_class,
+          special_notes: formData.special_notes,
+        });
+        
+        // Also save disposition (without creating visit)
+        const payload = {
+          ...formData,
+          create_admission: false, // Don't create visit directly
+          create_follow_up: false,
+        };
+        
+        await medicalRecordsApi.saveDisposition(visitId, payload);
+        
+        toast({
+          title: "Berhasil",
+          description: `Permintaan rawat inap berhasil dibuat (${admissionResponse.data.data.request_number}). Menunggu proses dari bagian pendaftaran.`,
+        });
+        onSave?.(payload as any);
+        return;
+      }
+      
+      // For other disposition types, use existing logic
+      const shouldCreateFollowUp = ["pulang", "aps"].includes(formData.disposition_type) && 
+        wantsFollowUp && 
+        !!formData.follow_up_date && 
+        !!formData.follow_up_room_id && 
+        !!formData.follow_up_doctor_id;
+        
       const payload = {
         ...formData,
-        create_admission: formData.disposition_type === "rawat_inap" && !!formData.admission_room_id,
-        create_follow_up: ["pulang", "aps"].includes(formData.disposition_type) && wantsFollowUp && !!formData.follow_up_date && !!formData.follow_up_room_id,
+        create_admission: false,
+        create_follow_up: shouldCreateFollowUp,
       };
       
       const response = await medicalRecordsApi.saveDisposition(visitId, payload);
       
       let successMessage = "Disposisi berhasil disimpan";
-      if (response.data.inpatient_visit_id) {
-        successMessage += ". Kunjungan rawat inap telah dibuat.";
-      }
       if (response.data.follow_up_registration_id) {
-        successMessage += ". Jadwal kontrol telah dibuat.";
+        successMessage += ". Jadwal kontrol telah dibuat dengan nomor antrian yang sudah dipesan.";
+        
+        // Set follow-up registration data for QR code display
+        try {
+          const { registrationApi } = await import("@/lib/api/queue");
+          const regResponse = await registrationApi.getById(response.data.follow_up_registration_id);
+          if (regResponse.data.data) {
+            const reg = regResponse.data.data;
+            setFollowUpRegData({
+              id: reg.id || reg.ID || response.data.follow_up_registration_id,
+              registration_number: reg.registration_number,
+              scheduled_date: formData.follow_up_date,
+              room_name: reg.destination_room?.name || poliRooms.find(r => r.id === formData.follow_up_room_id)?.name,
+              doctor_name: reg.doctor?.nama_lengkap || reg.doctor?.name || availableDoctors.find(d => d.employee_id === formData.follow_up_doctor_id)?.employee_name,
+              queue_number: reg.visit?.room_queue?.queue_number,
+              patient_name: reg.patient?.nama_lengkap || reg.patient?.name,
+            });
+          }
+        } catch (err) {
+          console.error("Failed to load follow-up registration for QR:", err);
+        }
       }
       
       toast({
@@ -343,9 +428,6 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
   const showDeathFields = ["meninggal", "dod"].includes(formData.disposition_type);
   const showFollowUpFields = showDischargeForm && wantsFollowUp;
   const showDischargeCondition = showDischargeForm && !wantsFollowUp;
-  
-  const selectedUnit = roomUnits.find(u => u.id === selectedUnitId);
-  const bedsInUnit = selectedUnit?.beds || [];
 
   if (loading) {
     return (
@@ -525,13 +607,77 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
                                 <Combobox
                                   options={poliRooms.map(r => ({ value: r.id.toString(), label: r.name }))}
                                   value={formData.follow_up_room_id?.toString() || ""}
-                                  onValueChange={(value) => handleChange("follow_up_room_id", value ? parseInt(value) : undefined)}
+                                  onValueChange={(value) => {
+                                    handleChange("follow_up_room_id", value ? parseInt(value) : undefined);
+                                    // Reset doctor when room changes
+                                    handleChange("follow_up_doctor_id", undefined);
+                                  }}
                                   placeholder="Pilih poli..."
                                   searchPlaceholder="Cari poli..."
                                   emptyText="Poli tidak ditemukan"
                                   disabled={isDisabled}
                                 />
                               </div>
+                              
+                              {/* Doctor Selection - based on schedule */}
+                              <div className="space-y-2 md:col-span-2">
+                                <Label htmlFor="follow_up_doctor_id" className="text-sm">Dokter <span className="text-destructive">*</span></Label>
+                                {loadingDoctors ? (
+                                  <div className="flex items-center gap-2 text-sm text-muted-foreground p-2">
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                    <span>Memuat jadwal dokter...</span>
+                                  </div>
+                                ) : roomClosed ? (
+                                  <Alert variant="destructive" className="bg-red-50">
+                                    <AlertTriangle className="h-4 w-4" />
+                                    <AlertDescription>
+                                      Poli tutup pada tanggal ini. Silakan pilih tanggal lain.
+                                    </AlertDescription>
+                                  </Alert>
+                                ) : availableDoctors.length === 0 && formData.follow_up_room_id && formData.follow_up_date ? (
+                                  <Alert className="bg-amber-50 border-amber-200">
+                                    <AlertTriangle className="h-4 w-4 text-amber-600" />
+                                    <AlertDescription className="text-amber-700">
+                                      Tidak ada dokter yang praktik pada tanggal ini. Silakan pilih tanggal lain atau hubungi administrasi.
+                                    </AlertDescription>
+                                  </Alert>
+                                ) : (
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    {availableDoctors.map((doctor) => (
+                                      <button
+                                        key={doctor.employee_id}
+                                        type="button"
+                                        onClick={() => handleChange("follow_up_doctor_id", doctor.employee_id)}
+                                        disabled={isDisabled}
+                                        className={cn(
+                                          "p-3 rounded-lg border-2 text-left transition-all",
+                                          formData.follow_up_doctor_id === doctor.employee_id
+                                            ? "border-primary bg-primary/10 ring-2 ring-primary/20"
+                                            : isDisabled
+                                            ? "border-muted bg-muted/50 opacity-50 cursor-not-allowed"
+                                            : "border-muted hover:border-primary/50 hover:bg-muted/30"
+                                        )}
+                                      >
+                                        <div className="font-medium text-sm">{doctor.employee_name}</div>
+                                        <div className="text-xs text-muted-foreground mt-1">
+                                          Jam praktik: {doctor.start_time} - {doctor.end_time}
+                                        </div>
+                                        {doctor.max_patients > 0 && (
+                                          <div className="text-xs text-muted-foreground">
+                                            Maks. {doctor.max_patients} pasien
+                                          </div>
+                                        )}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                                {!formData.follow_up_room_id || !formData.follow_up_date ? (
+                                  <p className="text-xs text-muted-foreground">
+                                    Pilih poli dan tanggal terlebih dahulu untuk melihat dokter yang tersedia.
+                                  </p>
+                                ) : null}
+                              </div>
+                              
                               <div className="space-y-2 md:col-span-2">
                                 <Label htmlFor="follow_up_instruction" className="text-sm">Instruksi Kontrol</Label>
                                 <Textarea
@@ -544,12 +690,53 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
                                 />
                               </div>
                             </div>
-                            {formData.follow_up_date && formData.follow_up_room_id && (
+                            {formData.follow_up_date && formData.follow_up_room_id && formData.follow_up_doctor_id && !roomClosed && (
                               <Alert className="bg-green-100 border-green-300">
                                 <CheckCircle2 className="h-4 w-4 text-green-600" />
                                 <AlertDescription className="text-green-700">
-                                  Jadwal kontrol akan otomatis dibuat untuk tanggal <strong>{formData.follow_up_date}</strong> di{' '}
-                                  <strong>{poliRooms.find(r => r.id === formData.follow_up_room_id)?.name || 'poli terpilih'}</strong>.
+                                  Jadwal kontrol akan dibuat untuk tanggal <strong>{formData.follow_up_date}</strong> di{' '}
+                                  <strong>{poliRooms.find(r => r.id === formData.follow_up_room_id)?.name || 'poli terpilih'}</strong> dengan{' '}
+                                  <strong>{availableDoctors.find(d => d.employee_id === formData.follow_up_doctor_id)?.employee_name || 'dokter terpilih'}</strong>.
+                                  Nomor antrian akan langsung diberikan saat ini.
+                                </AlertDescription>
+                              </Alert>
+                            )}
+                            
+                            {/* Show QR Code if follow-up registration already created */}
+                            {followUpRegData && (
+                              <Alert className="bg-blue-50 border-blue-300">
+                                <QrCode className="h-4 w-4 text-blue-600" />
+                                <AlertTitle className="text-blue-700">Jadwal Kontrol Terdaftar</AlertTitle>
+                                <AlertDescription className="text-blue-700">
+                                  <div className="flex items-start gap-4 mt-2">
+                                    {/* Info */}
+                                    <div className="space-y-1 flex-1">
+                                      <p>No. Registrasi: <strong>{followUpRegData.registration_number}</strong></p>
+                                      {followUpRegData.scheduled_date && (
+                                        <p>Tanggal: <strong>{new Date(followUpRegData.scheduled_date).toLocaleDateString("id-ID", {
+                                          weekday: "long",
+                                          year: "numeric",
+                                          month: "long",
+                                          day: "numeric",
+                                        })}</strong></p>
+                                      )}
+                                      {followUpRegData.room_name && <p>Poli: <strong>{followUpRegData.room_name}</strong></p>}
+                                      {followUpRegData.doctor_name && <p>Dokter: <strong>{followUpRegData.doctor_name}</strong></p>}
+                                    </div>
+                                    {/* QR Code - clickable */}
+                                    <div className="flex-shrink-0">
+                                      <CheckInQRCode
+                                        registrationId={followUpRegData.id}
+                                        registrationNumber={followUpRegData.registration_number}
+                                        patientName={followUpRegData.patient_name || "Pasien"}
+                                        scheduledDate={followUpRegData.scheduled_date}
+                                        roomName={followUpRegData.room_name}
+                                        doctorName={followUpRegData.doctor_name}
+                                        queueNumber={followUpRegData.queue_number}
+                                      />
+                                      <p className="text-xs text-blue-500 mt-1 text-center">Klik untuk cetak</p>
+                                    </div>
+                                  </div>
                                 </AlertDescription>
                               </Alert>
                             )}
@@ -612,17 +799,24 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
                       </div>
                     )}
 
-                    {/* RAWAT INAP Form */}
+                    {/* RAWAT INAP Form - Request Admission */}
                     {showAdmissionFields && (
                       <div className="space-y-6">
                         <div className="flex items-center gap-2">
                           <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold">2</div>
-                          <Label className="text-sm font-semibold">Informasi Rawat Inap</Label>
+                          <Label className="text-sm font-semibold">Permintaan Rawat Inap</Label>
                         </div>
+                        
+                        <Alert className="bg-blue-50 border-blue-200">
+                          <Send className="h-4 w-4 text-blue-600" />
+                          <AlertDescription className="text-blue-700">
+                            Permintaan rawat inap akan dikirim ke bagian <strong>Pendaftaran/Admisi</strong> untuk pemilihan kamar, bed, dan DPJP.
+                          </AlertDescription>
+                        </Alert>
                         
                         {/* Admission Type Selection */}
                         <div className="space-y-2">
-                          <Label className="text-sm">Tipe Rawat Inap</Label>
+                          <Label className="text-sm">Tipe Rawat Inap <span className="text-destructive">*</span></Label>
                           <div className="grid grid-cols-2 gap-3">
                             {[
                               { value: "elektif", label: "Elektif", desc: "Rawat inap terencana" },
@@ -649,309 +843,78 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
                           </div>
                         </div>
 
-                        {/* Room Selection - Ticket Style */}
-                        <div className="space-y-3">
-                          <Label className="text-sm font-semibold flex items-center gap-2">
-                            <Building className="h-4 w-4" />
-                            Pilih Ruangan <span className="text-destructive">*</span>
-                          </Label>
-                          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                            {inpatientRooms.map(room => {
-                              const isSelected = formData.admission_room_id === room.id;
-                              const availableBedCount = room.available_beds || 0;
-                              const totalBedCount = room.total_beds || 0;
-                              
-                              return (
-                                <button
-                                  key={room.id}
-                                  type="button"
-                                  onClick={() => {
-                                    handleChange("admission_room_id", room.id);
-                                    handleChange("admission_bed_id", undefined);
-                                    handleChange("admission_doctor_id", undefined);
-                                    setSelectedUnitId(null);
-                                  }}
-                                  disabled={isDisabled || availableBedCount === 0}
-                                  className={cn(
-                                    "p-4 rounded-lg border-2 text-left transition-all relative",
-                                    isSelected
-                                      ? "border-primary bg-primary/10 ring-2 ring-primary/20"
-                                      : availableBedCount === 0
-                                      ? "border-muted bg-muted/30 opacity-50 cursor-not-allowed"
-                                      : isDisabled
-                                      ? "border-muted bg-muted/50 opacity-50 cursor-not-allowed"
-                                      : "border-muted hover:border-primary/50 hover:bg-muted/30"
-                                  )}
-                                >
-                                  {isSelected && (
-                                    <div className="absolute top-2 right-2">
-                                      <CheckCircle2 className="h-5 w-5 text-primary" />
-                                    </div>
-                                  )}
-                                  <div className="font-semibold text-sm mb-1">{room.name}</div>
-                                  <div className="text-xs text-muted-foreground">{room.code}</div>
-                                  <div className={cn(
-                                    "text-xs font-medium mt-2 flex items-center gap-1",
-                                    availableBedCount > 0 ? "text-green-600" : "text-red-600"
-                                  )}>
-                                    <Bed className="h-3 w-3" />
-                                    {availableBedCount} / {totalBedCount} tersedia
-                                  </div>
-                                  {room.room_class && (
-                                    <div className="text-xs text-muted-foreground mt-1 capitalize">
-                                      {room.room_class.replace(/_/g, ' ')}
-                                    </div>
-                                  )}
-                                </button>
-                              );
-                            })}
-                          </div>
-                          {inpatientRooms.length === 0 && (
-                            <Alert variant="destructive">
-                              <AlertDescription>Tidak ada ruangan rawat inap yang tersedia</AlertDescription>
-                            </Alert>
-                          )}
-                        </div>
-                        
-                        {/* Doctor Selection - Ticket Style */}
-                        <div className="space-y-3">
-                          <Label className="text-sm font-semibold flex items-center gap-2">
-                            <UserRound className="h-4 w-4" />
-                            DPJP (Dokter Penanggung Jawab Pasien) <span className="text-destructive">*</span>
-                          </Label>
-                          {loadingDoctors ? (
-                            <div className="flex items-center justify-center py-8 border-2 border-dashed rounded-lg">
-                              <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                              <span className="ml-2 text-sm text-muted-foreground">Memuat daftar dokter...</span>
-                            </div>
-                          ) : doctors.length > 0 ? (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                              {doctors.map(doctor => {
-                                const isSelected = formData.admission_doctor_id === doctor.id;
-                                
-                                return (
-                                  <button
-                                    key={doctor.id}
-                                    type="button"
-                                    onClick={() => handleChange("admission_doctor_id", doctor.id)}
-                                    disabled={isDisabled}
-                                    className={cn(
-                                      "p-4 rounded-lg border-2 text-left transition-all relative",
-                                      isSelected
-                                        ? "border-primary bg-primary/10 ring-2 ring-primary/20"
-                                        : isDisabled
-                                        ? "border-muted bg-muted/50 opacity-50 cursor-not-allowed"
-                                        : "border-muted hover:border-primary/50 hover:bg-muted/30"
-                                    )}
-                                  >
-                                    {isSelected && (
-                                      <div className="absolute top-2 right-2">
-                                        <CheckCircle2 className="h-5 w-5 text-primary" />
-                                      </div>
-                                    )}
-                                    <div className="flex items-center gap-2 mb-2">
-                                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                                        <UserRound className="h-5 w-5 text-primary" />
-                                      </div>
-                                      <div className="flex-1 min-w-0">
-                                        <div className="font-semibold text-sm truncate">{doctor.nama_lengkap}</div>
-                                        <div className="text-xs text-muted-foreground">{doctor.nip || 'Dokter'}</div>
-                                      </div>
-                                    </div>
-                                    {doctor.spesialisasi && (
-                                      <div className="text-xs text-muted-foreground mt-1">
-                                        {doctor.spesialisasi}
-                                      </div>
-                                    )}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          ) : formData.admission_room_id ? (
-                            <Alert variant="destructive">
-                              <AlertDescription>Tidak ada dokter yang ditugaskan di ruangan ini</AlertDescription>
-                            </Alert>
-                          ) : (
-                            <Alert className="bg-blue-50 border-blue-200">
-                              <AlertDescription className="text-blue-700">
-                                Pilih ruangan terlebih dahulu untuk melihat daftar dokter
-                              </AlertDescription>
-                            </Alert>
-                          )}
-                        </div>
-                        
-                        {/* Bed Selection - Cinema Style */}
-                        {formData.admission_room_id && (
-                          <div className="space-y-4 border rounded-lg p-4 bg-muted/30">
-                            <div className="flex items-center justify-between">
-                              <Label className="text-sm font-semibold flex items-center gap-2">
-                                <Bed className="h-4 w-4" />
-                                Pilih Tempat Tidur <span className="text-destructive">*</span>
-                              </Label>
-                              <div className="flex items-center gap-4 text-xs">
-                                <div className="flex items-center gap-1">
-                                  <div className="w-4 h-4 rounded bg-green-500"></div>
-                                  <span>Tersedia</span>
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <div className="w-4 h-4 rounded bg-red-400"></div>
-                                  <span>Terisi</span>
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <div className="w-4 h-4 rounded bg-primary ring-2 ring-primary ring-offset-2"></div>
-                                  <span>Dipilih</span>
-                                </div>
-                              </div>
-                            </div>
-                            
-                            {loadingBeds ? (
-                              <div className="flex items-center justify-center py-8">
-                                <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                                <span className="ml-2 text-sm text-muted-foreground">Memuat data bed...</span>
-                              </div>
-                            ) : roomUnits.length > 0 ? (
-                              <div className="space-y-4">
-                                {/* Unit/Kamar Tabs - Ticket Style */}
-                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                                  {roomUnits.map(unit => {
-                                    const availableCount = unit.beds?.filter(b => b.status === 'available').length || 0;
-                                    const totalCount = unit.beds?.length || 0;
-                                    const isSelected = selectedUnitId === unit.id;
-                                    
-                                    return (
-                                      <button
-                                        key={unit.id}
-                                        type="button"
-                                        onClick={() => setSelectedUnitId(unit.id)}
-                                        disabled={isDisabled || availableCount === 0}
-                                        className={cn(
-                                          "p-3 rounded-lg border-2 text-left transition-all",
-                                          isSelected
-                                            ? "border-primary bg-primary/10 ring-2 ring-primary/20"
-                                            : availableCount === 0
-                                            ? "border-muted bg-muted/30 opacity-50 cursor-not-allowed"
-                                            : isDisabled
-                                            ? "border-muted bg-muted/50 opacity-50 cursor-not-allowed"
-                                            : "border-muted hover:border-primary/50 hover:bg-muted/30"
-                                        )}
-                                      >
-                                        <div className="font-semibold text-sm mb-1">{unit.name}</div>
-                                        <div className="text-xs text-muted-foreground">Lantai {unit.floor || 1}</div>
-                                        <div className={cn(
-                                          "text-xs font-medium mt-1.5",
-                                          availableCount > 0 ? "text-green-600" : "text-red-600"
-                                        )}>
-                                          {availableCount} / {totalCount} bed
-                                        </div>
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                                
-                                {/* Bed Grid */}
-                                {selectedUnit && (
-                                  <div className="bg-background rounded-lg p-4 border">
-                                    <div className="text-center text-xs text-muted-foreground mb-4 pb-2 border-b">
-                                      {selectedUnit.name} - Lantai {selectedUnit.floor || 1}
-                                    </div>
-                                    <TooltipProvider delayDuration={200}>
-                                      <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
-                                        {bedsInUnit.map(bed => {
-                                          const isAvailable = bed.status === 'available';
-                                          const isSelected = formData.admission_bed_id === bed.id;
-                                          const canSelect = isAvailable && !isDisabled;
-                                          
-                                          return (
-                                            <Tooltip key={bed.id}>
-                                              <TooltipTrigger asChild>
-                                                <button
-                                                  type="button"
-                                                  onClick={() => {
-                                                    if (canSelect) {
-                                                      handleChange("admission_bed_id", isSelected ? undefined : bed.id);
-                                                    }
-                                                  }}
-                                                  className={cn(
-                                                    "aspect-square rounded-lg flex flex-col items-center justify-center text-xs font-medium transition-all",
-                                                    isSelected
-                                                      ? "bg-primary text-primary-foreground ring-2 ring-primary ring-offset-2 cursor-pointer"
-                                                      : canSelect
-                                                      ? "bg-green-500 text-white hover:bg-green-600 cursor-pointer"
-                                                      : "bg-red-400 text-white cursor-not-allowed"
-                                                  )}
-                                                >
-                                                  <Bed className="h-4 w-4 mb-0.5" />
-                                                  <span>{bed.bed_number}</span>
-                                                  {isSelected && <Check className="h-3 w-3 mt-0.5" />}
-                                                </button>
-                                              </TooltipTrigger>
-                                              <TooltipContent side="top" className="max-w-xs">
-                                                <div className="space-y-1">
-                                                  <p className="font-semibold">Bed {bed.bed_number}</p>
-                                                  {isAvailable ? (
-                                                    <p className="text-green-600 dark:text-green-400">✓ Tersedia</p>
-                                                  ) : (
-                                                    <>
-                                                      <p className="text-red-600 dark:text-red-400">✗ Terisi</p>
-                                                      {bed.current_patient && (
-                                                        <div className="text-sm space-y-0.5 pt-1 border-t mt-1">
-                                                          <p><span className="font-medium">Pasien:</span> {bed.current_patient.name || 'N/A'}</p>
-                                                          <p><span className="font-medium">RM:</span> {bed.current_patient.medical_record_number || 'N/A'}</p>
-                                                          {bed.current_patient.admission_date && (
-                                                            <p><span className="font-medium">Masuk:</span> {new Date(bed.current_patient.admission_date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
-                                                          )}
-                                                        </div>
-                                                      )}
-                                                    </>
-                                                  )}
-                                                </div>
-                                              </TooltipContent>
-                                            </Tooltip>
-                                          );
-                                        })}
-                                      </div>
-                                    </TooltipProvider>
-                                    {bedsInUnit.length === 0 && (
-                                      <p className="text-center text-sm text-muted-foreground py-4">
-                                        Tidak ada bed di kamar ini
-                                      </p>
-                                    )}
-                                  </div>
+                        {/* Priority Selection */}
+                        <div className="space-y-2">
+                          <Label className="text-sm">Prioritas <span className="text-destructive">*</span></Label>
+                          <div className="grid grid-cols-3 gap-3">
+                            {[
+                              { value: "normal", label: "Normal", desc: "Prioritas standar", color: "text-green-600" },
+                              { value: "urgent", label: "Urgent", desc: "Perlu segera", color: "text-orange-600" },
+                              { value: "emergency", label: "Emergency", desc: "Sangat mendesak", color: "text-red-600" },
+                            ].map(opt => (
+                              <button
+                                key={opt.value}
+                                type="button"
+                                onClick={() => handleChange("admission_priority", opt.value)}
+                                disabled={isDisabled}
+                                className={cn(
+                                  "p-4 rounded-lg border-2 text-left transition-all",
+                                  formData.admission_priority === opt.value
+                                    ? "border-primary bg-primary/10 ring-2 ring-primary/20"
+                                    : isDisabled
+                                    ? "border-muted bg-muted/50 opacity-50 cursor-not-allowed"
+                                    : "border-muted hover:border-primary/50 hover:bg-muted/30"
                                 )}
-                              </div>
-                            ) : (
-                              <Alert variant="destructive" className="py-2">
-                                <AlertDescription>
-                                  Tidak ada unit/kamar di ruangan ini
-                                </AlertDescription>
-                              </Alert>
-                            )}
+                              >
+                                <div className={cn("font-semibold text-sm", opt.color)}>{opt.label}</div>
+                                <div className="text-xs text-muted-foreground mt-1">{opt.desc}</div>
+                              </button>
+                            ))}
                           </div>
-                        )}
+                        </div>
+
+                        {/* Preferred Class */}
+                        <div className="space-y-2">
+                          <Label htmlFor="preferred_class" className="text-sm">Kelas Kamar yang Diinginkan</Label>
+                          <Combobox
+                            options={inpatientClassOptions}
+                            value={formData.preferred_class || ""}
+                            onValueChange={(value) => handleChange("preferred_class", value)}
+                            placeholder="Pilih kelas kamar..."
+                            searchPlaceholder="Cari kelas..."
+                            emptyText="Tidak ada kelas"
+                            disabled={isDisabled}
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Opsional. Bagian admisi akan menyesuaikan dengan ketersediaan kamar.
+                          </p>
+                        </div>
                         
                         <div className="space-y-2">
-                          <Label htmlFor="admission_reason" className="text-sm">Alasan Rawat Inap</Label>
+                          <Label htmlFor="admission_reason" className="text-sm">
+                            Alasan/Indikasi Rawat Inap <span className="text-destructive">*</span>
+                          </Label>
                           <Textarea
                             id="admission_reason"
-                            placeholder="Alasan pasien perlu dirawat inap..."
+                            placeholder="Jelaskan alasan klinis pasien perlu dirawat inap..."
                             value={formData.admission_reason}
                             onChange={(e) => handleChange("admission_reason", e.target.value)}
+                            className="min-h-[100px] resize-none"
+                            disabled={isDisabled}
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="special_notes" className="text-sm">Catatan Khusus</Label>
+                          <Textarea
+                            id="special_notes"
+                            placeholder="Catatan khusus untuk bagian admisi (misal: perlu ruang isolasi, pasien bariatrik, dll)..."
+                            value={formData.special_notes || ""}
+                            onChange={(e) => handleChange("special_notes", e.target.value)}
                             className="min-h-[80px] resize-none"
                             disabled={isDisabled}
                           />
                         </div>
-                        
-                        {formData.admission_room_id && formData.admission_bed_id && formData.admission_doctor_id && (
-                          <Alert className="bg-blue-50 border-blue-200">
-                            <Building className="h-4 w-4 text-blue-600" />
-                            <AlertDescription className="text-blue-700">
-                              Kunjungan rawat inap akan dibuat di{' '}
-                              <strong>{inpatientRooms.find(r => r.id === formData.admission_room_id)?.name}</strong>
-                              {' '}- Bed <strong>{availableBeds.find(b => b.id === formData.admission_bed_id)?.bed_number}</strong>
-                              {' '}dengan DPJP <strong>{doctors.find(d => d.id === formData.admission_doctor_id)?.nama_lengkap}</strong>.
-                            </AlertDescription>
-                          </Alert>
-                        )}
                       </div>
                     )}
 

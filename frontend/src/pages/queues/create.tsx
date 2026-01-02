@@ -34,7 +34,7 @@ import { counterApi, type Counter } from "@/lib/api/counters";
 import { ArrowLeft, Loader2, Ticket } from "lucide-react";
 
 const formSchema = z.object({
-  queue_type: z.enum(["general", "bpjs", "emergency"]),
+  queue_type: z.enum(["general", "bpjs"]),
   counter_id: z.number().min(1, "Loket wajib dipilih"),
   notes: z.string().optional(),
 });
@@ -157,9 +157,6 @@ export default function QueueCreate() {
                         </SelectItem>
                         <SelectItem value="bpjs" className="text-lg py-3">
                           {queueTypeLabels.bpjs} (B)
-                        </SelectItem>
-                        <SelectItem value="emergency" className="text-lg py-3">
-                          {queueTypeLabels.emergency} (E)
                         </SelectItem>
                       </SelectContent>
                     </Select>

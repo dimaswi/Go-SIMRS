@@ -117,6 +117,7 @@ export default function VisitsIndex() {
   const [callingId, setCallingId] = useState<number | null>(null);
   const [recallingId, setRecallingId] = useState<number | null>(null);
   const [acceptingId, setAcceptingId] = useState<number | null>(null);
+  const [cancellingId, setCancellingId] = useState<number | null>(null);
   const [roomPopoverOpen, setRoomPopoverOpen] = useState(false);
 
   // Check if user is admin
@@ -304,17 +305,46 @@ export default function VisitsIndex() {
     navigate(`/visits/${id}`);
   };
 
+  const handleCancelVisit = async (visit: Visit) => {
+    if (!confirm(`Apakah Anda yakin ingin membatalkan kunjungan ${visit.registration?.patient?.nama_lengkap}?`)) {
+      return;
+    }
+
+    setCancellingId(visit.id);
+    try {
+      await visitsApi.cancelVisit(visit.id);
+
+      toast({
+        title: "Kunjungan Dibatalkan",
+        description: `Kunjungan ${visit.registration?.patient?.nama_lengkap} berhasil dibatalkan`,
+      });
+
+      loadVisits();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.response?.data?.error || "Gagal membatalkan kunjungan",
+      });
+    } finally {
+      setCancellingId(null);
+    }
+  };
+
   const columns = createVisitColumns({
     onCallQueue: handleCallQueue,
     onRecallQueue: handleRecallQueue,
     onAcceptPatient: handleAcceptPatient,
+    onCancelVisit: handleCancelVisit,
     onViewDetail: handleViewDetail,
     callingId,
     recallingId,
     acceptingId,
+    cancellingId,
     hasCallPermission: hasPermission("room_queues.call"),
     hasAcceptPermission: hasPermission("visits.update"),
     hasViewPermission: hasPermission("medical_records.view"),
+    hasCancelPermission: hasPermission("visits.delete"),
   });
 
   if (loading && visits.length === 0) {

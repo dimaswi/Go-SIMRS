@@ -216,10 +216,11 @@ func Migrate() error {
 		&models.VisitProcedure{},       // Visit Procedures (Tindakan di Ruangan)
 		&models.VisitProcedureResult{}, // Visit Procedure Results (Hasil Tindakan)
 		// Inpatient Records (Rawat Inap)
-		&models.CPPT{},         // CPPT - Catatan Perkembangan Pasien Terintegrasi
-		&models.FluidBalance{}, // Fluid Balance - Balance Cairan
-		&models.NursingCare{},  // Nursing Care - Asuhan Keperawatan
-		&models.BedTransfer{},  // Bed Transfer - Mutasi Pasien (Pindah Kamar/Bed)
+		&models.CPPT{},             // CPPT - Catatan Perkembangan Pasien Terintegrasi
+		&models.FluidBalance{},     // Fluid Balance - Balance Cairan
+		&models.NursingCare{},      // Nursing Care - Asuhan Keperawatan
+		&models.BedTransfer{},      // Bed Transfer - Mutasi Pasien (Pindah Kamar/Bed)
+		&models.AdmissionRequest{}, // Admission Request - Permintaan Rawat Inap
 		// Consultation (Jawaban Konsultasi)
 		&models.Consultation{}, // Consultation - Jawaban/Hasil Konsultasi
 		// Billing & Payment
@@ -231,6 +232,9 @@ func Migrate() error {
 		&models.ICD10{},          // ICD-10 Diagnosis Codes (Indonesia Modified)
 		&models.ICD9CM{},         // ICD-9-CM Procedure Codes (Indonesia Modified)
 		&models.ICDOMorphology{}, // ICD-O Morphology Codes (Tumor)
+		// Notifications
+		&models.Notification{},       // User Notifications
+		&models.UserRoomAssignment{}, // User Room Assignments (for targeted notifications)
 	)
 
 	if err != nil {
@@ -495,6 +499,7 @@ func SeedData() error {
 		{Name: "registrations.create", Module: "Registration Management", Category: "Front Office", Description: "Register patient from queue", Actions: `["create"]`},
 		{Name: "registrations.update", Module: "Registration Management", Category: "Front Office", Description: "Update registration data", Actions: `["update"]`},
 		{Name: "registrations.delete", Module: "Registration Management", Category: "Front Office", Description: "Cancel registrations", Actions: `["delete"]`},
+		{Name: "registrations.checkin", Module: "Registration Management", Category: "Front Office", Description: "Check-in scheduled patients (scan QR/manual)", Actions: `["checkin"]`},
 
 		// Room Queue Management (Antrian Ruangan)
 		{Name: "room_queues.view", Module: "Room Queue Management", Category: "Front Office", Description: "View room queue list and details", Actions: `["read"]`},

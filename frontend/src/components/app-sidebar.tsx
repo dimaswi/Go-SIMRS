@@ -28,7 +28,9 @@ import {
   Activity,
   Receipt,
   CalendarClock,
-  BookMarked
+  BookMarked,
+  Hotel,
+  QrCode
 } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
 import { usePermission } from '@/hooks/usePermission';
@@ -77,12 +79,15 @@ const menuItems = [
       { path: '/queues', label: 'Antrean', icon: ClipboardList, permission: 'queues.view' },
       { path: '/kiosk', label: 'Kiosk Antrean', icon: Monitor }, // Public - no permission needed
       { path: '/queue-display', label: 'Display Antrean', icon: Tv }, // Public - no permission needed
+      { path: '/checkin', label: 'Check-In Scanner', icon: QrCode, permission: 'registrations.checkin' },
       { path: '/registrations', label: 'Pendaftaran', icon: UserRound, permission: 'registrations.view' },
       { path: '/registrations/scheduled', label: 'Jadwal Kontrol', icon: CalendarClock, permission: 'registrations.view' },
+      { path: '/admisi', label: 'Permintaan Rawat Inap', icon: BedDouble, permission: 'registrations.view' },
       { path: '/visits', label: 'Kunjungan', icon: Activity, permission: 'visits.view' },
       { path: '/billing', label: 'Kasir & Billing', icon: Receipt, permission: 'billing.view' },
     ]
   },
+  { path: '/bed-monitoring', label: 'Monitoring Bed', icon: Hotel, permission: 'rooms.view' },
   { 
     path: '/master', 
     label: 'Master Data', 

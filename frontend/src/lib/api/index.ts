@@ -260,3 +260,12 @@ export type {
   RegistrationTariff,
   CreatePaymentRequest
 } from './billing';
+
+// Admission Request (Permintaan Rawat Inap)
+export { admissionRequestApi } from './admission-request';
+export type {
+  AdmissionRequest,
+  CreateAdmissionRequestInput,
+  ProcessAdmissionRequestInput,
+  RejectAdmissionRequestInput
+} from './admission-request';

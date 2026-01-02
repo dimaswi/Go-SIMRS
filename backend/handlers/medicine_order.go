@@ -370,6 +370,37 @@ func CreateMedicineOrder(c *gin.Context) {
 		Preload("Items.Medicine").
 		First(&order, order.ID)
 
+	// Send notification to pharmacy room users
+	if NotifService != nil {
+		patientName := ""
+		if order.SourceVisit.Registration.Patient.NamaLengkap != "" {
+			patientName = order.SourceVisit.Registration.Patient.NamaLengkap
+		}
+		sourceRoomName := ""
+		if order.SourceRoom != nil {
+			sourceRoomName = order.SourceRoom.Name
+		}
+		pharmacyRoomName := ""
+		if order.PharmacyRoom != nil {
+			pharmacyRoomName = order.PharmacyRoom.Name
+		}
+
+		go NotifService.NotifyRoomUsers(
+			input.PharmacyRoomID,
+			models.NotificationTypeMedicineOrder,
+			"Order Obat Baru",
+			fmt.Sprintf("Order obat %s untuk pasien %s dari %s", order.OrderNumber, patientName, sourceRoomName),
+			map[string]interface{}{
+				"order_id":          order.ID,
+				"order_number":      order.OrderNumber,
+				"patient_name":      patientName,
+				"source_room":       sourceRoomName,
+				"pharmacy_room":     pharmacyRoomName,
+				"pharmacy_visit_id": pharmacyVisit.ID,
+			},
+		)
+	}
+
 	c.JSON(http.StatusCreated, order)
 }
 

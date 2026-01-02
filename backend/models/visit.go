@@ -71,6 +71,7 @@ const (
 
 // VisitStatus constants
 const (
+	VisitStatusScheduled  = "scheduled"   // Terjadwal (kontrol - belum check-in)
 	VisitStatusWaiting    = "waiting"     // Menunggu
 	VisitStatusInQueue    = "in_queue"    // Dalam antrian
 	VisitStatusInProgress = "in_progress" // Sedang dilayani

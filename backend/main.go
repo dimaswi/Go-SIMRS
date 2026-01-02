@@ -4,6 +4,7 @@ import (
 	"log"
 	"starter/backend/config"
 	"starter/backend/database"
+	"starter/backend/handlers"
 	"starter/backend/middleware"
 	"starter/backend/routes"
 
@@ -33,6 +34,11 @@ func main() {
 	if err := database.Migrate(); err != nil {
 		log.Fatal("Failed to migrate database:", err)
 	}
+
+	// Initialize SSE Hub for real-time notifications
+	handlers.InitSSEHub()
+	handlers.InitNotificationService()
+	log.Println("SSE Hub initialized for real-time notifications")
 
 	// Setup Gin router
 	r := gin.Default()

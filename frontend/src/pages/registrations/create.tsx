@@ -1,8 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Card,
   CardContent,
@@ -11,411 +8,389 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Combobox } from "@/components/ui/combobox";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { Separator } from "@/components/ui/separator";
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { setPageTitle } from "@/lib/page-title";
-import {
-  registrationApi,
-  queueApi,
-  type Queue,
-  paymentMethodLabels,
-  registrationTypeLabels,
-  queueTypeLabels,
-} from "@/lib/api/queue";
-import { api } from "@/lib/api/client";
-import {
-  ArrowLeft,
-  Loader2,
-  UserPlus,
-  Check,
-  ChevronsUpDown,
-  User,
-  Calendar,
-  Phone,
-} from "lucide-react";
-import { cn } from "@/lib/utils";
-
-interface Room {
-  id: number;
-  code: string;
-  name: string;
-}
-
-interface Patient {
-  id: number;
-  name: string;
-  medical_record_number: string;
-  nik?: string;
-  gender?: string;
-  date_of_birth?: string;
-  phone?: string;
-  address?: string;
-  bpjs_number?: string;
-  insurance_name?: string;
-  insurance_number?: string;
-}
-
-interface Doctor {
-  id: number;
-  name: string;
-  specialization?: string;
-}
-
-const formSchema = z.object({
-  patient_id: z.number().min(1, "Pasien wajib dipilih"),
-  registration_type: z.enum(["outpatient", "pharmacy", "radiology", "laboratory", "emergency"]),
-  destination_room_id: z.number().min(1, "Poli tujuan wajib dipilih"),
-  doctor_id: z.number().optional(),
-  payment_method: z.enum(["cash", "bpjs", "insurance"]),
-  bpjs_number: z.string().optional(),
-  insurance_name: z.string().optional(),
-  insurance_number: z.string().optional(),
-  complaint: z.string().optional(),
-  notes: z.string().optional(),
-});
-
-type FormValues = z.infer<typeof formSchema>;
+import { patientsApi, roomsApi, registrationApi } from "@/lib/api";
+import { roomProceduresApi, type RoomProcedure } from "@/lib/api/procedures";
+import { roomMedicinesApi, type RoomMedicine } from "@/lib/api/medicines";
+import type { Patient, Room, RoomStaff } from "@/lib/api";
+import { ArrowLeft, Loader2, UserPlus, User, Search, Plus, Minus, X } from "lucide-react";
 
 export default function RegistrationCreate() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const queueIdParam = searchParams.get("queue_id");
   const { toast } = useToast();
 
-  const [submitting, setSubmitting] = useState(false);
+  // Step: search or registration
+  const [step, setStep] = useState<"search" | "registration">("search");
+  const [existingPatient, setExistingPatient] = useState<Patient | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchAddress, setSearchAddress] = useState("");
+  const [searchBirthDate, setSearchBirthDate] = useState("");
+  const [searchResults, setSearchResults] = useState<Patient[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+
+  // Registration data
+  const [destinationRoomId, setDestinationRoomId] = useState<number | null>(null);
+  const [doctorId, setDoctorId] = useState<number | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "bpjs" | "insurance">("cash");
+  const [bpjsNumber, setBpjsNumber] = useState("");
+  const [insuranceName, setInsuranceName] = useState("");
+  const [insuranceNumber, setInsuranceNumber] = useState("");
+  const [complaint, setComplaint] = useState("");
+  const [priority, setPriority] = useState<"normal" | "urgent" | "emergency">("normal");
+  const [selectedServiceType, setSelectedServiceType] = useState<string>("");
+
+  // Master data
   const [rooms, setRooms] = useState<Room[]>([]);
-  const [doctors, setDoctors] = useState<Doctor[]>([]);
-  const [queue, setQueue] = useState<Queue | null>(null);
-  const [loadingQueue, setLoadingQueue] = useState(false);
+  const [roomStaff, setRoomStaff] = useState<RoomStaff[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [loadingRooms, setLoadingRooms] = useState(false);
 
-  // Patient search
-  const [patientSearch, setPatientSearch] = useState("");
-  const [patients, setPatients] = useState<Patient[]>([]);
-  const [searchingPatients, setSearchingPatients] = useState(false);
-  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
-  const [patientPopoverOpen, setPatientPopoverOpen] = useState(false);
-  const [roomPopoverOpen, setRoomPopoverOpen] = useState(false);
+  // Room procedures and medicines for supporting services
+  const [roomProcedures, setRoomProcedures] = useState<RoomProcedure[]>([]);
+  const [roomMedicines, setRoomMedicines] = useState<RoomMedicine[]>([]);
+  const [selectedProcedures, setSelectedProcedures] = useState<{ procedure_id: number; notes: string }[]>([]);
+  const [selectedMedicines, setSelectedMedicines] = useState<{ 
+    medicine_id: number; 
+    quantity: number; 
+    unit: string;
+    dosage: string;
+    frequency: string;
+    route: string;
+    duration: string;
+    instructions: string;
+    notes: string;
+  }[]>([]);
+  const [loadingRoomItems, setLoadingRoomItems] = useState(false);
 
-  const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      patient_id: 0,
-      registration_type: "outpatient",
-      destination_room_id: 0,
-      payment_method: "cash",
-      bpjs_number: "",
-      insurance_name: "",
-      insurance_number: "",
-      complaint: "",
-      notes: "",
-    },
-  });
-
-  const watchPaymentMethod = form.watch("payment_method");
-  const watchRegistrationType = form.watch("registration_type");
-  const watchDestinationRoomId = form.watch("destination_room_id");
-
-  // Watch for payment method changes and auto-fill if patient data exists
   useEffect(() => {
-    if (selectedPatient) {
-      if (watchPaymentMethod === "bpjs" && selectedPatient.bpjs_number) {
-        form.setValue("bpjs_number", selectedPatient.bpjs_number);
-      } else if (watchPaymentMethod === "insurance") {
-        if (selectedPatient.insurance_name) {
-          form.setValue("insurance_name", selectedPatient.insurance_name);
-        }
-        if (selectedPatient.insurance_number) {
-          form.setValue("insurance_number", selectedPatient.insurance_number);
-        }
-      }
-    }
-  }, [watchPaymentMethod, selectedPatient, form]);
+    setPageTitle("Pendaftaran Baru");
+  }, []);
 
-  // Load queue if queue_id is provided
-  const loadQueue = useCallback(async () => {
-    if (!queueIdParam) return;
-    setLoadingQueue(true);
-    try {
-      const response = await queueApi.getById(parseInt(queueIdParam));
-      const queueData = response.data.data;
-      setQueue(queueData);
-
-      // Set payment method based on queue type
-      if (queueData.queue_type === "bpjs") {
-        form.setValue("payment_method", "bpjs");
-      }
-    } catch (error) {
+  const handleSearch = async () => {
+    if (!searchQuery || searchQuery.length < 2) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Gagal memuat data antrean.",
+        description: "Masukkan minimal 2 karakter untuk mencari",
       });
-    } finally {
-      setLoadingQueue(false);
+      return;
     }
-  }, [queueIdParam, form, toast]);
 
-  // Load rooms
-  const loadRooms = useCallback(async () => {
+    setSearchLoading(true);
     try {
-      const response = await api.get("/rooms", {
-        params: { limit: 100 },
+      const response = await patientsApi.search(
+        searchQuery,
+        50,
+        searchAddress || undefined,
+        searchBirthDate || undefined
+      );
+      const data = response.data?.data || response.data || [];
+      setSearchResults(Array.isArray(data) ? data : []);
+
+      if (Array.isArray(data) && data.length === 0) {
+        toast({
+          title: "Tidak Ada Hasil",
+          description: "Tidak ada pasien yang ditemukan dengan kata kunci tersebut",
+        });
+      }
+    } catch (error) {
+      console.error("Failed to search patients:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Gagal mencari pasien",
       });
-      // Filter untuk pendaftaran: rawat jalan, gawat darurat (UGD), penunjang medis, dan farmasi
-      // Exclude: rawat inap dan depo farmasi
-      const filteredRooms = (response.data.data || []).filter(
-        (room: Room & { service_type?: string; room_type?: string }) => 
-          room.service_type && 
-          ['rawat_jalan', 'gawat_darurat', 'penunjang_medis', 'farmasi'].includes(room.service_type) &&
-          room.room_type !== 'depo_farmasi' // Exclude depo farmasi
+      setSearchResults([]);
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  const handleSelectPatient = (patient: Patient) => {
+    setExistingPatient(patient);
+  };
+
+  const loadRooms = async () => {
+    setLoadingRooms(true);
+    try {
+      const response = await roomsApi.getAll({ limit: 1000, is_active: "true" });
+      const allRooms = response.data.data || [];
+      const filteredRooms = allRooms.filter(
+        (room: Room) =>
+          room.room_type !== "depo_farmasi" &&
+          room.room_type !== "gudang_farmasi" &&
+          room.is_active === true
       );
       setRooms(filteredRooms);
     } catch (error) {
       console.error("Failed to load rooms:", error);
+    } finally {
+      setLoadingRooms(false);
+    }
+  };
+
+  const handleUseExistingPatient = async () => {
+    if (!existingPatient) return;
+
+    // Check if patient has active registrations
+    setLoading(true);
+    try {
+      const response = await registrationApi.getAll({
+        patient_id: existingPatient.id,
+        limit: 10,
+      });
+
+      const registrations = response.data.data || [];
+      const hasActiveRegistration = registrations.some((reg: any) => {
+        return reg.status !== "completed" &&
+          reg.status !== "discharged" &&
+          reg.status !== "cancelled";
+      });
+
+      if (hasActiveRegistration) {
+        toast({
+          variant: "destructive",
+          title: "Tidak Dapat Mendaftar",
+          description: "Pasien masih memiliki pendaftaran aktif yang belum diselesaikan.",
+        });
+        setLoading(false);
+        return;
+      }
+
+      setStep("registration");
+      loadRooms();
+    } catch (error: any) {
+      console.error("Error checking patient registrations:", error);
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Gagal memuat data ruangan",
+        description: "Gagal memeriksa status pendaftaran pasien",
       });
-    }
-  }, [toast]);
-
-  // Filter rooms based on registration type
-  const getFilteredRooms = useCallback(() => {
-    const registrationType = watchRegistrationType;
-    
-    if (!registrationType || !rooms.length) return rooms;
-    
-    return rooms.filter((room: Room & { service_type?: string; room_type?: string }) => {
-      switch (registrationType) {
-        case 'outpatient':
-          // Rawat jalan: hanya ruangan dengan service_type rawat_jalan
-          return room.service_type === 'rawat_jalan';
-        case 'pharmacy':
-          // Farmasi: hanya ruangan dengan service_type farmasi (exclude depo_farmasi)
-          return room.service_type === 'farmasi' && room.room_type !== 'depo_farmasi';
-        case 'radiology':
-          // Radiologi: ruangan penunjang medis dengan room_type radiologi, ct_scan, mri, usg
-          return room.service_type === 'penunjang_medis' && 
-                 ['radiologi', 'ct_scan', 'mri', 'usg'].includes(room.room_type || '');
-        case 'laboratory':
-          // Laboratorium: ruangan penunjang medis dengan room_type laboratorium
-          return room.service_type === 'penunjang_medis' && 
-                 ['laboratorium', 'laboratorium_pk', 'laboratorium_pa'].includes(room.room_type || '');
-        case 'emergency':
-          // UGD: hanya ruangan dengan service_type gawat_darurat
-          return room.service_type === 'gawat_darurat';
-        default:
-          return true;
-      }
-    });
-  }, [rooms, watchRegistrationType]);
-
-  // Load doctors
-  const loadDoctors = useCallback(async (roomId?: number) => {
-    if (!roomId) {
-      setDoctors([]);
-      return;
-    }
-    
-    try {
-      // Get room staff (doctors assigned to the selected room)
-      const response = await api.get(`/rooms/${roomId}/staff`);
-      const roomStaff = response.data.data || [];
-      
-      // Filter only doctors (tipe_karyawan = 'dokter')
-      const doctorsInRoom = roomStaff
-        .filter((staff: any) => staff.employee?.tipe_karyawan === 'dokter')
-        .map((staff: any) => ({
-          id: staff.employee.id,
-          name: staff.employee.nama_lengkap,
-          specialization: staff.employee.spesialisasi || staff.role,
-        }));
-      
-      setDoctors(doctorsInRoom);
-    } catch (error) {
-      console.error("Failed to load doctors:", error);
-      setDoctors([]);
-    }
-  }, []);
-
-  // Search patients
-  const searchPatients = useCallback(async (query: string) => {
-    if (query.length < 2) {
-      setPatients([]);
-      return;
-    }
-    setSearchingPatients(true);
-    try {
-      const response = await registrationApi.searchPatient(query);
-      setPatients(response.data.data || []);
-    } catch (error) {
-      console.error("Failed to search patients:", error);
     } finally {
-      setSearchingPatients(false);
+      setLoading(false);
     }
-  }, []);
+  };
 
-  useEffect(() => {
-    setPageTitle("Pendaftaran Baru");
-    loadRooms();
-    loadQueue();
-  }, [loadRooms, loadQueue]);
+  const handleRoomChange = async (roomId: string) => {
+    const id = Number(roomId);
+    setDestinationRoomId(id);
+    setDoctorId(null);
+    setRoomStaff([]);
+    setRoomProcedures([]);
+    setRoomMedicines([]);
+    setSelectedProcedures([]);
+    setSelectedMedicines([]);
 
-  useEffect(() => {
-    const delaySearch = setTimeout(() => {
-      if (patientSearch) {
-        searchPatients(patientSearch);
+    if (id) {
+      try {
+        const response = await roomsApi.getStaff(id);
+        const doctors = (response.data.data || []).filter(
+          (staff: RoomStaff) =>
+            staff.employee?.tipe_karyawan === "dokter" &&
+            (!staff.end_date || new Date(staff.end_date) >= new Date())
+        );
+        setRoomStaff(doctors);
+      } catch (error) {
+        console.error("Failed to load room staff:", error);
       }
-    }, 300);
-    return () => clearTimeout(delaySearch);
-  }, [patientSearch, searchPatients]);
 
-  const handleSelectPatient = (patient: Patient) => {
-    setSelectedPatient(patient);
-    form.setValue("patient_id", patient.id);
-    setPatientPopoverOpen(false);
-    setPatientSearch("");
-    
-    // Auto-load payment data based on current payment method
-    const currentPaymentMethod = form.getValues("payment_method");
-    if (currentPaymentMethod === "bpjs" && patient.bpjs_number) {
-      form.setValue("bpjs_number", patient.bpjs_number);
-    } else if (currentPaymentMethod === "insurance") {
-      if (patient.insurance_name) {
-        form.setValue("insurance_name", patient.insurance_name);
+      // Load room procedures for penunjang_medis (lab/radiologi)
+      const selectedRoom = rooms.find(r => r.id === id);
+      if (selectedRoom && selectedRoom.service_type === "penunjang_medis") {
+        setLoadingRoomItems(true);
+        try {
+          const proceduresRes = await roomProceduresApi.getByRoom(id);
+          setRoomProcedures(proceduresRes.data.data || []);
+        } catch (error) {
+          console.error("Failed to load room procedures:", error);
+          setRoomProcedures([]);
+        } finally {
+          setLoadingRoomItems(false);
+        }
       }
-      if (patient.insurance_number) {
-        form.setValue("insurance_number", patient.insurance_number);
+
+      // Load room medicines for farmasi
+      if (selectedRoom && selectedRoom.service_type === "farmasi") {
+        setLoadingRoomItems(true);
+        try {
+          const medicinesRes = await roomMedicinesApi.getByRoom(id, { limit: 1000 });
+          setRoomMedicines(medicinesRes.data.data || []);
+        } catch (error) {
+          console.error("Failed to load room medicines:", error);
+          setRoomMedicines([]);
+        } finally {
+          setLoadingRoomItems(false);
+        }
       }
     }
   };
 
-  // Reset destination room when registration type changes
-  useEffect(() => {
-    // Reset room selection when registration type changes
-    form.setValue("destination_room_id", 0);
-  }, [watchRegistrationType, form]);
+  // Toggle procedure selection
+  const toggleProcedure = (procedureId: number) => {
+    setSelectedProcedures(prev => {
+      const exists = prev.find(p => p.procedure_id === procedureId);
+      if (exists) {
+        return prev.filter(p => p.procedure_id !== procedureId);
+      } else {
+        return [...prev, { procedure_id: procedureId, notes: "" }];
+      }
+    });
+  };
 
-  // Load doctors when room changes
-  useEffect(() => {
-    if (watchDestinationRoomId && watchDestinationRoomId > 0) {
-      loadDoctors(watchDestinationRoomId);
-      // Reset doctor selection when room changes
-      form.setValue("doctor_id", undefined);
-    } else {
-      setDoctors([]);
-      form.setValue("doctor_id", undefined);
+  // Add medicine to selection
+  const addMedicine = (medicine: RoomMedicine) => {
+    if (!medicine.medicine) return;
+    const exists = selectedMedicines.find(m => m.medicine_id === medicine.medicine_id);
+    if (!exists) {
+      setSelectedMedicines(prev => [...prev, {
+        medicine_id: medicine.medicine_id,
+        quantity: 1,
+        unit: medicine.medicine?.unit || "",
+        dosage: "",
+        frequency: "",
+        route: "",
+        duration: "",
+        instructions: "",
+        notes: ""
+      }]);
     }
-  }, [watchDestinationRoomId, loadDoctors, form]);
+  };
 
-  const onSubmit = async (values: FormValues) => {
-    // Validate BPJS number
-    if (values.payment_method === "bpjs" && !values.bpjs_number) {
-      form.setError("bpjs_number", { message: "Nomor BPJS wajib diisi" });
+  // Remove medicine from selection
+  const removeMedicine = (medicineId: number) => {
+    setSelectedMedicines(prev => prev.filter(m => m.medicine_id !== medicineId));
+  };
+
+  // Update medicine quantity
+  const updateMedicineQuantity = (medicineId: number, quantity: number) => {
+    if (quantity < 1) return;
+    setSelectedMedicines(prev => prev.map(m => 
+      m.medicine_id === medicineId ? { ...m, quantity } : m
+    ));
+  };
+
+  // Auto-load BPJS data when payment method is BPJS
+  useEffect(() => {
+    if (paymentMethod === "bpjs" && existingPatient) {
+      if (existingPatient.no_bpjs) {
+        setBpjsNumber(existingPatient.no_bpjs);
+      }
+    }
+  }, [paymentMethod, existingPatient]);
+
+  const handleRegistration = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!existingPatient) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Pasien tidak ditemukan",
+      });
       return;
     }
-    // Validate insurance
-    if (values.payment_method === "insurance" && (!values.insurance_name || !values.insurance_number)) {
-      if (!values.insurance_name) {
-        form.setError("insurance_name", { message: "Nama asuransi wajib diisi" });
-      }
-      if (!values.insurance_number) {
-        form.setError("insurance_number", { message: "Nomor polis wajib diisi" });
-      }
+
+    if (!destinationRoomId) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Pilih ruangan tujuan",
+      });
       return;
     }
 
-    setSubmitting(true);
+    if (paymentMethod === "bpjs" && !bpjsNumber) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Nomor BPJS harus diisi",
+      });
+      return;
+    }
+
+    if (paymentMethod === "insurance" && (!insuranceName || !insuranceNumber)) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Nama dan nomor asuransi harus diisi",
+      });
+      return;
+    }
+
+    setLoading(true);
     try {
-      // Determine if room queue should be created
-      // UGD/Emergency patients do NOT get room queue numbers
-      // Other patients (rawat jalan, farmasi, radiologi, laboratorium) DO get room queue numbers
-      const isEmergency = values.registration_type === "emergency";
+      // UGD dan Rawat Inap tidak perlu antrian ruangan
+      const needsRoomQueue = selectedServiceType !== "gawat_darurat" && selectedServiceType !== "rawat_inap";
       
-      // Create registration with visit and room queue
-      const payload: any = {
-        patient_id: values.patient_id,
-        registration_type: values.registration_type,
-        destination_room_id: values.destination_room_id,
-        doctor_id: values.doctor_id,
-        payment_method: values.payment_method,
-        bpjs_number: values.bpjs_number,
-        insurance_name: values.insurance_name,
-        insurance_number: values.insurance_number,
-        complaint: values.complaint,
-        notes: values.notes,
-        // Auto-create visit for direct registration (without queue)
+      // Prepare registration data
+      const registrationData: any = {
+        patient_id: existingPatient.id,
+        registration_type: selectedServiceType === "rawat_inap" ? "inpatient" : "outpatient",
+        destination_room_id: destinationRoomId,
+        doctor_id: doctorId || undefined,
+        payment_method: paymentMethod,
+        bpjs_number: paymentMethod === "bpjs" ? bpjsNumber : undefined,
+        insurance_name: paymentMethod === "insurance" ? insuranceName : undefined,
+        insurance_number: paymentMethod === "insurance" ? insuranceNumber : undefined,
+        complaint: complaint || undefined,
         create_visit: true,
-        // Only create room queue for non-emergency patients
-        create_room_queue: !isEmergency,
-        // Set priority based on registration type
-        queue_priority: isEmergency ? "emergency" : "normal",
+        create_room_queue: needsRoomQueue,
+        queue_priority: priority,
       };
-      
-      // Only add queue_id if coming from queue flow
-      if (queueIdParam) {
-        payload.queue_id = parseInt(queueIdParam);
+
+      // Add procedure items for penunjang_medis (lab/radiologi)
+      if (selectedServiceType === "penunjang_medis" && selectedProcedures.length > 0) {
+        registrationData.procedure_items = selectedProcedures;
       }
-      
-      const response = await registrationApi.create(payload);
+
+      // Add medicine items for farmasi
+      if (selectedServiceType === "farmasi" && selectedMedicines.length > 0) {
+        registrationData.medicine_items = selectedMedicines;
+      }
+
+      const response = await registrationApi.create(registrationData);
+
       const registration = response.data.data;
-      
-      // Get room queue number from response (if exists)
       const regData = registration as any;
-      let roomQueueNumber = null;
-      const visit = regData.visits?.[0] || regData.visit;
-      if (visit?.room_queue?.queue_number) {
+      let visit = null;
+
+      if (regData.visits && Array.isArray(regData.visits) && regData.visits.length > 0) {
+        visit = regData.visits[0];
+      } else if (regData.visit) {
+        visit = regData.visit;
+      }
+
+      let roomQueueNumber = "";
+      if (needsRoomQueue && visit?.room_queue?.queue_number) {
         roomQueueNumber = visit.room_queue.queue_number;
       }
+
+      const roomName = registration.destination_room?.name || "";
 
       toast({
         title: "Pendaftaran Berhasil!",
         description: (
           <div className="space-y-1">
-            <p className="font-semibold">
-              {isEmergency ? "Pasien UGD" : "Pasien"}: {selectedPatient?.name}
-            </p>
-            <p>No. RM: {selectedPatient?.medical_record_number}</p>
-            <p>Ruangan: {rooms.find(r => r.id === values.destination_room_id)?.name}</p>
+            <p className="font-semibold">Pasien: {existingPatient.nama_lengkap}</p>
+            <p>No. RM: {existingPatient.no_rm}</p>
+            <p>Ruangan: {roomName}</p>
             {roomQueueNumber && (
               <p className="text-lg font-bold">Nomor Antrian Ruangan: {roomQueueNumber}</p>
-            )}
-            {isEmergency && (
-              <p className="text-sm text-muted-foreground italic">
-                Pasien UGD langsung ditangani tanpa nomor antrian
-              </p>
             )}
           </div>
         ),
@@ -427,31 +402,22 @@ export default function RegistrationCreate() {
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.response?.data?.error || "Gagal membuat pendaftaran.",
+        description: error.response?.data?.error || "Gagal membuat pendaftaran",
       });
     } finally {
-      setSubmitting(false);
+      setLoading(false);
     }
-  };
-
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return "-";
-    return new Date(dateString).toLocaleDateString("id-ID", {
-      day: "2-digit",
-      month: "long",
-      year: "numeric",
-    });
   };
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      <Card className="shadow-md max-w-full mx-auto w-full">
+      <Card className="shadow-md w-full">
         <CardHeader className="border-b bg-muted/50">
           <div className="flex items-center gap-4">
             <Button
               variant="outline"
               size="icon"
-              onClick={() => navigate(queueIdParam ? "/queues" : "/registrations")}
+              onClick={() => step === "registration" ? setStep("search") : navigate("/registrations")}
               className="h-9 w-9"
             >
               <ArrowLeft className="h-4 w-4" />
@@ -462,487 +428,526 @@ export default function RegistrationCreate() {
                 Pendaftaran Pasien
               </CardTitle>
               <CardDescription>
-                {queue
-                  ? `Dari antrean ${queue.queue_number}`
-                  : "Pendaftaran langsung (tanpa antrean)"}
+                {step === "search"
+                  ? "Cari pasien berdasarkan Nama, NIK, No. RM, atau No. BPJS"
+                  : "Lengkapi data pendaftaran"}
               </CardDescription>
             </div>
           </div>
         </CardHeader>
         <CardContent className="pt-6">
-          {loadingQueue ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin" />
-            </div>
-          ) : (
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                {/* Queue Info */}
-                {queue && (
-                  <div className="p-4 bg-muted rounded-lg">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-muted-foreground">No. Antrean</p>
-                        <p className="text-2xl font-bold">{queue.queue_number}</p>
-                      </div>
-                      <Badge>{queueTypeLabels[queue.queue_type]}</Badge>
-                    </div>
+          {step === "search" && (
+            <div className="space-y-4">
+              {/* Search Bar */}
+              <div className="space-y-2">
+                <Label>Cari Pasien</Label>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Cari Nama, NIK, No. RM, BPJS..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        handleSearch();
+                      }
+                    }}
+                    className="flex-1"
+                  />
+                  <Input
+                    placeholder="Filter Alamat..."
+                    value={searchAddress}
+                    onChange={(e) => setSearchAddress(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        handleSearch();
+                      }
+                    }}
+                    className="flex-1"
+                  />
+                  <Input
+                    type="date"
+                    placeholder="Tanggal Lahir..."
+                    value={searchBirthDate}
+                    onChange={(e) => setSearchBirthDate(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        handleSearch();
+                      }
+                    }}
+                    className="w-[180px]"
+                  />
+                  {(searchAddress || searchBirthDate) && (
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setSearchAddress("");
+                        setSearchBirthDate("");
+                      }}
+                    >
+                      Reset
+                    </Button>
+                  )}
+                  <Button onClick={handleSearch} disabled={searchLoading}>
+                    {searchLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Search className="h-4 w-4" />
+                    )}
+                    <span className="ml-2">Cari</span>
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Ketik minimal 2 karakter pada pencarian, gunakan filter alamat dan tanggal lahir untuk hasil lebih spesifik
+                </p>
+              </div>
+
+              {/* Table Results */}
+              <div className="border rounded-lg overflow-hidden">
+                {searchLoading ? (
+                  <div className="flex items-center justify-center h-64">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  </div>
+                ) : searchResults.length > 0 ? (
+                  <div className="overflow-auto max-h-[400px]">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-[50px]">Pilih</TableHead>
+                          <TableHead>No. RM</TableHead>
+                          <TableHead>Nama Lengkap</TableHead>
+                          <TableHead>NIK</TableHead>
+                          <TableHead>No. BPJS</TableHead>
+                          <TableHead>Jenis Kelamin</TableHead>
+                          <TableHead>Tanggal Lahir</TableHead>
+                          <TableHead>Alamat</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {searchResults.map((patient) => (
+                          <TableRow
+                            key={patient.id}
+                            className={existingPatient?.id === patient.id ? "bg-primary/10" : "cursor-pointer hover:bg-muted/50"}
+                            onClick={() => handleSelectPatient(patient)}
+                          >
+                            <TableCell className="text-center">
+                              <input
+                                type="radio"
+                                name="patient-select"
+                                checked={existingPatient?.id === patient.id}
+                                onChange={() => handleSelectPatient(patient)}
+                                className="cursor-pointer"
+                              />
+                            </TableCell>
+                            <TableCell className="font-medium">{patient.no_rm}</TableCell>
+                            <TableCell className="font-medium">{patient.nama_lengkap}</TableCell>
+                            <TableCell>{patient.nik || "-"}</TableCell>
+                            <TableCell>{patient.no_bpjs || "-"}</TableCell>
+                            <TableCell>{patient.jenis_kelamin === "L" ? "Laki-laki" : "Perempuan"}</TableCell>
+                            <TableCell>{patient.tanggal_lahir || "-"}</TableCell>
+                            <TableCell className="max-w-[200px] truncate">
+                              {patient.alamat_domisili || patient.alamat_ktp || "-"}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
+                    <User className="h-12 w-12 mb-2" />
+                    <p>Gunakan pencarian untuk menemukan pasien</p>
+                    <p className="text-sm">atau klik tombol "Pasien Baru" di bawah</p>
                   </div>
                 )}
+              </div>
 
-                {/* Patient Selection */}
-                <div className="space-y-4">
-                  <h3 className="font-medium text-lg">Data Pasien</h3>
-                  
-                  <FormField
-                    control={form.control}
-                    name="patient_id"
-                    render={() => (
-                      <FormItem className="flex flex-col">
-                        <FormLabel className="text-base">Cari Pasien</FormLabel>
-                        <Popover open={patientPopoverOpen} onOpenChange={setPatientPopoverOpen}>
-                          <PopoverTrigger asChild>
-                            <FormControl>
-                              <Button
-                                variant="outline"
-                                role="combobox"
-                                className={cn(
-                                  "w-full h-11 justify-between",
-                                  !selectedPatient && "text-muted-foreground"
-                                )}
-                              >
-                                <span className="truncate">
-                                  {selectedPatient
-                                    ? `${selectedPatient.name} (${selectedPatient.medical_record_number})`
-                                    : "Cari pasien..."}
-                                </span>
-                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                              </Button>
-                            </FormControl>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
-                            <Command shouldFilter={false}>
-                              <CommandInput
-                                placeholder="Ketik nama, nomor rekam medis, atau NIK..."
-                                value={patientSearch}
-                                onValueChange={setPatientSearch}
-                              />
-                              <CommandList>
-                                {searchingPatients ? (
-                                  <div className="p-8 text-center">
-                                    <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
-                                    <p className="text-sm text-muted-foreground">Mencari pasien...</p>
-                                  </div>
-                                ) : patients.length === 0 ? (
-                                  <CommandEmpty>
-                                    <div className="p-4 text-center">
-                                      {patientSearch.length < 2
-                                        ? "Ketik minimal 2 karakter untuk mencari..."
-                                        : "Pasien tidak ditemukan. Periksa kembali kata kunci pencarian."}
-                                    </div>
-                                  </CommandEmpty>
-                                ) : (
-                                  <CommandGroup heading="Hasil Pencarian">
-                                    {patients.map((patient) => (
-                                      <CommandItem
-                                        key={patient.id}
-                                        value={patient.id.toString()}
-                                        onSelect={() => handleSelectPatient(patient)}
-                                        className="py-3"
-                                      >
-                                        <Check
-                                          className={cn(
-                                            "mr-2 h-4 w-4",
-                                            selectedPatient?.id === patient.id
-                                              ? "opacity-100"
-                                              : "opacity-0"
-                                          )}
-                                        />
-                                        <div className="flex-1">
-                                          <div className="font-medium">{patient.name}</div>
-                                          <div className="text-xs text-muted-foreground mt-0.5">
-                                            No. RM: {patient.medical_record_number}
-                                            {patient.nik && ` • NIK: ${patient.nik}`}
-                                          </div>
-                                        </div>
-                                      </CommandItem>
-                                    ))}
-                                  </CommandGroup>
-                                )}
-                              </CommandList>
-                            </Command>
-                          </PopoverContent>
-                        </Popover>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  {/* Selected Patient Info */}
-                  {selectedPatient && (
-                    <div className="p-5 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950 dark:to-emerald-950 rounded-lg border border-green-200 dark:border-green-800 space-y-3">
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center">
-                            <User className="h-5 w-5 text-green-600 dark:text-green-400" />
-                          </div>
-                          <div>
-                            <p className="font-semibold text-base">{selectedPatient.name}</p>
-                            <p className="text-sm text-muted-foreground">No. RM: {selectedPatient.medical_record_number}</p>
-                          </div>
-                        </div>
-                        {selectedPatient.gender && (
-                          <Badge variant="outline" className="bg-white dark:bg-gray-900">
-                            {selectedPatient.gender === "male" ? "Laki-laki" : "Perempuan"}
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="grid grid-cols-2 gap-3 pt-2 border-t border-green-200 dark:border-green-800">
-                        {selectedPatient.date_of_birth && (
-                          <div className="flex items-center gap-2 text-sm">
-                            <Calendar className="h-4 w-4 text-muted-foreground" />
-                            <span>{formatDate(selectedPatient.date_of_birth)}</span>
-                          </div>
-                        )}
-                        {selectedPatient.phone && (
-                          <div className="flex items-center gap-2 text-sm">
-                            <Phone className="h-4 w-4 text-muted-foreground" />
-                            <span>{selectedPatient.phone}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <Separator />
-
-                {/* Registration Details */}
-                <div className="space-y-4">
-                  <h3 className="font-medium text-lg">Detail Pendaftaran</h3>
-
-                  <FormField
-                    control={form.control}
-                    name="registration_type"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-base">Jenis Kunjungan</FormLabel>
-                        <Select
-                          onValueChange={field.onChange}
-                          defaultValue={field.value}
-                        >
-                          <FormControl>
-                            <SelectTrigger className="w-full h-11">
-                              <SelectValue placeholder="Pilih jenis kunjungan" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="outpatient">
-                              <div className="flex flex-col items-start">
-                                <span className="font-medium">{registrationTypeLabels.outpatient}</span>
-                                <span className="text-xs text-muted-foreground">Pasien berobat jalan, mendapat nomor antrian</span>
-                              </div>
-                            </SelectItem>
-                            <SelectItem value="pharmacy">
-                              <div className="flex flex-col items-start">
-                                <span className="font-medium">{registrationTypeLabels.pharmacy || 'Farmasi'}</span>
-                                <span className="text-xs text-muted-foreground">Pasien ke farmasi, mendapat nomor antrian</span>
-                              </div>
-                            </SelectItem>
-                            <SelectItem value="radiology">
-                              <div className="flex flex-col items-start">
-                                <span className="font-medium">{registrationTypeLabels.radiology || 'Radiologi'}</span>
-                                <span className="text-xs text-muted-foreground">Pasien ke radiologi, mendapat nomor antrian</span>
-                              </div>
-                            </SelectItem>
-                            <SelectItem value="laboratory">
-                              <div className="flex flex-col items-start">
-                                <span className="font-medium">{registrationTypeLabels.laboratory || 'Laboratorium'}</span>
-                                <span className="text-xs text-muted-foreground">Pasien ke laboratorium, mendapat nomor antrian</span>
-                              </div>
-                            </SelectItem>
-                            <SelectItem value="emergency">
-                              <div className="flex flex-col items-start">
-                                <span className="font-medium">{registrationTypeLabels.emergency}</span>
-                                <span className="text-xs text-muted-foreground">Pasien gawat darurat, langsung ditangani</span>
-                              </div>
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="destination_room_id"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-col">
-                        <FormLabel className="text-base">Ruangan Tujuan</FormLabel>
-                        <Popover open={roomPopoverOpen} onOpenChange={setRoomPopoverOpen}>
-                          <PopoverTrigger asChild>
-                            <FormControl>
-                              <Button
-                                variant="outline"
-                                role="combobox"
-                                className={cn(
-                                  "w-full h-11 justify-between",
-                                  !field.value && "text-muted-foreground"
-                                )}
-                              >
-                                <span className="truncate">
-                                  {field.value
-                                    ? rooms.find((room) => room.id === field.value)?.name
-                                    : "Pilih ruangan tujuan"}
-                                </span>
-                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                              </Button>
-                            </FormControl>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
-                            <Command>
-                              <CommandInput placeholder="Cari ruangan..." />
-                              <CommandList>
-                                <CommandEmpty>Ruangan tidak ditemukan.</CommandEmpty>
-                                <CommandGroup>
-                                  {getFilteredRooms().map((room) => (
-                                    <CommandItem
-                                      key={room.id}
-                                      value={`${room.code} ${room.name}`}
-                                      onSelect={() => {
-                                        field.onChange(room.id);
-                                        setRoomPopoverOpen(false);
-                                      }}
-                                    >
-                                      <Check
-                                        className={cn(
-                                          "mr-2 h-4 w-4",
-                                          room.id === field.value
-                                            ? "opacity-100"
-                                            : "opacity-0"
-                                        )}
-                                      />
-                                      <div className="flex flex-col">
-                                        <span className="font-medium">{room.name}</span>
-                                        <span className="text-xs text-muted-foreground">Kode: {room.code}</span>
-                                      </div>
-                                    </CommandItem>
-                                  ))}
-                                </CommandGroup>
-                              </CommandList>
-                            </Command>
-                          </PopoverContent>
-                        </Popover>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="doctor_id"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-base">
-                          Dokter <span className="text-xs text-muted-foreground font-normal">(Opsional)</span>
-                        </FormLabel>
-                        <Select
-                          onValueChange={(val) => field.onChange(val ? parseInt(val) : undefined)}
-                          value={field.value?.toString() || ""}
-                        >
-                          <FormControl>
-                            <SelectTrigger className="w-full h-11">
-                              <SelectValue placeholder="Pilih dokter jika sudah ditentukan" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="0">
-                              <span className="text-muted-foreground">Belum ditentukan</span>
-                            </SelectItem>
-                            {doctors.map((doctor) => (
-                              <SelectItem key={doctor.id} value={doctor.id.toString()}>
-                                <div className="flex flex-col items-start">
-                                  <span className="font-medium">{doctor.name}</span>
-                                  {doctor.specialization && (
-                                    <span className="text-xs text-muted-foreground">{doctor.specialization}</span>
-                                  )}
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="complaint"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-base">Keluhan Utama</FormLabel>
-                        <FormControl>
-                          <Textarea
-                            placeholder="Tuliskan keluhan utama pasien..."
-                            className="w-full min-h-[100px] resize-none"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <Separator />
-
-                {/* Payment Details */}
-                <div className="space-y-4">
-                  <h3 className="font-medium text-lg">Informasi Pembayaran</h3>
-
-                  <FormField
-                    control={form.control}
-                    name="payment_method"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-base">Metode Pembayaran</FormLabel>
-                        <Select
-                          onValueChange={field.onChange}
-                          defaultValue={field.value}
-                        >
-                          <FormControl>
-                            <SelectTrigger className="w-full h-11">
-                              <SelectValue placeholder="Pilih metode pembayaran" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="cash">
-                              <div className="flex flex-col items-start">
-                                <span className="font-medium">{paymentMethodLabels.cash}</span>
-                                <span className="text-xs text-muted-foreground">Pembayaran tunai/mandiri</span>
-                              </div>
-                            </SelectItem>
-                            <SelectItem value="bpjs">
-                              <div className="flex flex-col items-start">
-                                <span className="font-medium">{paymentMethodLabels.bpjs}</span>
-                                <span className="text-xs text-muted-foreground">BPJS Kesehatan</span>
-                              </div>
-                            </SelectItem>
-                            <SelectItem value="insurance">
-                              <div className="flex flex-col items-start">
-                                <span className="font-medium">{paymentMethodLabels.insurance}</span>
-                                <span className="text-xs text-muted-foreground">Asuransi swasta</span>
-                              </div>
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  {watchPaymentMethod === "bpjs" && (
-                    <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
-                      <FormField
-                        control={form.control}
-                        name="bpjs_number"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-base">Nomor Kartu BPJS</FormLabel>
-                            <FormControl>
-                              <Input 
-                                placeholder="Masukkan 13 digit nomor BPJS" 
-                                className="w-full h-11"
-                                maxLength={13}
-                                {...field} 
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                  )}
-
-                  {watchPaymentMethod === "insurance" && (
-                    <div className="p-4 bg-purple-50 dark:bg-purple-950 rounded-lg border border-purple-200 dark:border-purple-800 space-y-4">
-                      <FormField
-                        control={form.control}
-                        name="insurance_name"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-base">Nama Perusahaan Asuransi</FormLabel>
-                            <FormControl>
-                              <Input 
-                                placeholder="Contoh: Allianz, Prudential, AXA" 
-                                className="w-full h-11"
-                                {...field} 
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="insurance_number"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-base">Nomor Polis Asuransi</FormLabel>
-                            <FormControl>
-                              <Input 
-                                placeholder="Masukkan nomor polis asuransi" 
-                                className="w-full h-11"
-                                {...field} 
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                  )}
-                </div>
-
-                <FormField
-                  control={form.control}
-                  name="notes"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-base">
-                        Catatan Tambahan <span className="text-xs text-muted-foreground font-normal">(Opsional)</span>
-                      </FormLabel>
-                      <FormControl>
-                        <Textarea 
-                          placeholder="Catatan atau informasi tambahan yang perlu disampaikan..."
-                          className="w-full min-h-[80px] resize-none"
-                          {...field} 
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <div className="flex justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => navigate(queueIdParam ? "/queues" : "/registrations")}
-                  >
-                    Batal
-                  </Button>
-                  <Button type="submit" disabled={submitting}>
-                    {submitting && (
+              {/* Action Buttons */}
+              <div className="flex justify-end gap-2 pt-2 border-t">
+                <Button onClick={() => navigate("/patients/create")} variant="outline">
+                  <UserPlus className="mr-2 h-4 w-4" />
+                  Pasien Baru
+                </Button>
+                {existingPatient && (
+                  <Button onClick={handleUseExistingPatient} disabled={loading}>
+                    {loading ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <UserPlus className="mr-2 h-4 w-4" />
                     )}
-                    Daftarkan
+                    Gunakan Pasien: {existingPatient.nama_lengkap}
                   </Button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {step === "registration" && existingPatient && (
+            <form onSubmit={handleRegistration} className="space-y-4">
+              {/* Patient Info Summary */}
+              <div className="p-3 border rounded-lg bg-muted/50">
+                <div className="grid grid-cols-4 gap-2 text-sm">
+                  <div>
+                    <span className="text-xs text-muted-foreground">Nama:</span>
+                    <p className="font-medium text-sm">{existingPatient.nama_lengkap}</p>
+                  </div>
+                  <div>
+                    <span className="text-xs text-muted-foreground">No. RM:</span>
+                    <p className="font-medium text-sm">{existingPatient.no_rm}</p>
+                  </div>
+                  <div>
+                    <span className="text-xs text-muted-foreground">NIK:</span>
+                    <p className="font-medium text-sm">{existingPatient.nik || "-"}</p>
+                  </div>
+                  <div>
+                    <span className="text-xs text-muted-foreground">Tgl Lahir:</span>
+                    <p className="font-medium text-sm">{existingPatient.tanggal_lahir || "-"}</p>
+                  </div>
                 </div>
-              </form>
-            </Form>
+              </div>
+
+              {/* Registration Form - 3 columns */}
+              <div className="space-y-4">
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="service_type" className="text-sm">Tipe Layanan *</Label>
+                    <Combobox
+                      options={[
+                        { value: "rawat_jalan", label: "Rawat Jalan" },
+                        { value: "gawat_darurat", label: "UGD" },
+                        { value: "rawat_inap", label: "Rawat Inap" },
+                        { value: "penunjang_medis", label: "Penunjang Medis" },
+                        { value: "farmasi", label: "Farmasi" },
+                      ]}
+                      value={selectedServiceType}
+                      onValueChange={(value) => {
+                        setSelectedServiceType(value || "");
+                        setDestinationRoomId(null);
+                        setDoctorId(null);
+                        setRoomStaff([]);
+                        setRoomProcedures([]);
+                        setRoomMedicines([]);
+                        setSelectedProcedures([]);
+                        setSelectedMedicines([]);
+                      }}
+                      placeholder="Pilih tipe layanan"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="destination_room" className="text-sm">Ruangan Tujuan *</Label>
+                    <Combobox
+                      options={!selectedServiceType ? [] : (rooms || [])
+                        .filter(room => room.service_type === selectedServiceType)
+                        .map(room => ({
+                          value: room.id.toString(),
+                          label: `${room.code} - ${room.name}`,
+                        }))}
+                      value={destinationRoomId?.toString() || ""}
+                      onValueChange={handleRoomChange}
+                      placeholder={!selectedServiceType ? "Pilih tipe layanan dulu" : "Pilih ruangan"}
+                      disabled={!selectedServiceType}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="payment_method" className="text-sm">Metode Pembayaran *</Label>
+                    <Combobox
+                      options={[
+                        { value: "cash", label: "Tunai" },
+                        { value: "bpjs", label: "BPJS" },
+                        { value: "insurance", label: "Asuransi" },
+                      ]}
+                      value={paymentMethod}
+                      onValueChange={(value) => setPaymentMethod(value as any)}
+                      placeholder="Pilih metode"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="priority" className="text-sm">Prioritas</Label>
+                    <Combobox
+                      options={[
+                        { value: "normal", label: "Normal" },
+                        { value: "urgent", label: "Mendesak" },
+                        { value: "emergency", label: "Darurat" },
+                      ]}
+                      value={priority}
+                      onValueChange={(value) => setPriority(value as any)}
+                      placeholder="Pilih prioritas"
+                    />
+                  </div>
+
+                  {destinationRoomId && (
+                    <div className="col-span-2 space-y-2">
+                      <Label htmlFor="doctor" className="text-sm">Dokter (Opsional)</Label>
+                      {roomStaff.length > 0 ? (
+                        <Combobox
+                          options={roomStaff.map(staff => ({
+                            value: staff.employee_id.toString(),
+                            label: staff.employee?.nama_lengkap || "Unknown",
+                          }))}
+                          value={doctorId?.toString() || ""}
+                          onValueChange={(value) => setDoctorId(value ? Number(value) : null)}
+                          placeholder="Pilih dokter"
+                        />
+                      ) : (
+                        <Input
+                          disabled
+                          placeholder="Tidak ada dokter"
+                          className="bg-muted text-sm"
+                        />
+                      )}
+                    </div>
+                  )}
+
+                  {paymentMethod === "bpjs" && (
+                    <div className="col-span-3 grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <Label htmlFor="bpjs_number" className="text-sm">Nomor BPJS *</Label>
+                        <Input
+                          id="bpjs_number"
+                          value={bpjsNumber}
+                          onChange={(e) => setBpjsNumber(e.target.value)}
+                          placeholder={existingPatient?.no_bpjs || "Nomor BPJS"}
+                          className="text-sm"
+                        />
+                      </div>
+                      {existingPatient?.kelas_bpjs && (
+                        <div className="space-y-2">
+                          <Label htmlFor="bpjs_class" className="text-sm">Kelas</Label>
+                          <Input
+                            id="bpjs_class"
+                            value={existingPatient.kelas_bpjs}
+                            disabled
+                            className="bg-muted text-sm"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {paymentMethod === "insurance" && (
+                    <div className="col-span-3 grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <Label htmlFor="insurance_name" className="text-sm">Nama Asuransi *</Label>
+                        <Input
+                          id="insurance_name"
+                          value={insuranceName}
+                          onChange={(e) => setInsuranceName(e.target.value)}
+                          placeholder="Nama asuransi"
+                          className="text-sm"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="insurance_number" className="text-sm">Nomor Polis *</Label>
+                        <Input
+                          id="insurance_number"
+                          value={insuranceNumber}
+                          onChange={(e) => setInsuranceNumber(e.target.value)}
+                          placeholder="Nomor polis"
+                          className="text-sm"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="col-span-3 space-y-2">
+                    <Label htmlFor="complaint" className="text-sm">Keluhan (Opsional)</Label>
+                    <Textarea
+                      id="complaint"
+                      value={complaint}
+                      onChange={(e) => setComplaint(e.target.value)}
+                      placeholder="Keluhan pasien"
+                      rows={2}
+                      className="text-sm"
+                    />
+                  </div>
+
+                  {/* Procedure Selection for Penunjang Medis (Lab/Radiologi) */}
+                  {selectedServiceType === "penunjang_medis" && destinationRoomId && (
+                    <div className="col-span-3 space-y-3 border-t pt-4">
+                      <Label className="text-sm font-medium">Pilih Tindakan *</Label>
+                      {loadingRoomItems ? (
+                        <div className="flex items-center justify-center py-4">
+                          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                          <span className="ml-2 text-sm text-muted-foreground">Memuat tindakan...</span>
+                        </div>
+                      ) : roomProcedures.length > 0 ? (
+                        <div className="space-y-3">
+                          <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto border rounded-lg p-3">
+                            {roomProcedures.filter(rp => rp.is_available && rp.procedure).map((rp) => {
+                              const isSelected = selectedProcedures.some(p => p.procedure_id === rp.procedure_id);
+                              return (
+                                <div
+                                  key={rp.id}
+                                  className={`flex items-center gap-2 p-2 border rounded cursor-pointer transition-colors ${
+                                    isSelected
+                                      ? "bg-primary/10 border-primary"
+                                      : "hover:bg-muted"
+                                  }`}
+                                  onClick={() => toggleProcedure(rp.procedure_id)}
+                                >
+                                  <div className={`h-4 w-4 rounded-sm border flex items-center justify-center ${
+                                    isSelected ? "bg-primary border-primary text-primary-foreground" : "border-input"
+                                  }`}>
+                                    {isSelected && (
+                                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3">
+                                        <polyline points="20 6 9 17 4 12"></polyline>
+                                      </svg>
+                                    )}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium truncate">{rp.procedure?.name}</p>
+                                    <p className="text-xs text-muted-foreground truncate">{rp.procedure?.code}</p>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          {selectedProcedures.length > 0 && (
+                            <div className="flex flex-wrap gap-1">
+                              <span className="text-xs text-muted-foreground">Terpilih:</span>
+                              {selectedProcedures.map(sp => {
+                                const proc = roomProcedures.find(rp => rp.procedure_id === sp.procedure_id)?.procedure;
+                                return proc ? (
+                                  <Badge key={sp.procedure_id} variant="secondary" className="text-xs">
+                                    {proc.name}
+                                    <X 
+                                      className="ml-1 h-3 w-3 cursor-pointer" 
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        toggleProcedure(sp.procedure_id);
+                                      }}
+                                    />
+                                  </Badge>
+                                ) : null;
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground py-2">
+                          Tidak ada tindakan yang tersedia di ruangan ini. Silakan hubungi administrator untuk menambahkan tindakan.
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Medicine Selection for Farmasi */}
+                  {selectedServiceType === "farmasi" && destinationRoomId && (
+                    <div className="col-span-3 space-y-3 border-t pt-4">
+                      <Label className="text-sm font-medium">Pilih Obat *</Label>
+                      {loadingRoomItems ? (
+                        <div className="flex items-center justify-center py-4">
+                          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                          <span className="ml-2 text-sm text-muted-foreground">Memuat obat...</span>
+                        </div>
+                      ) : roomMedicines.length > 0 ? (
+                        <div className="space-y-3">
+                          {/* Available Medicines */}
+                          <div className="space-y-2">
+                            <Label className="text-xs text-muted-foreground">Obat Tersedia</Label>
+                            <div className="grid grid-cols-2 gap-2 max-h-36 overflow-y-auto border rounded-lg p-3">
+                              {roomMedicines.filter(rm => rm.medicine && rm.quantity > 0).map((rm) => (
+                                <div
+                                  key={rm.id}
+                                  className={`flex items-center justify-between gap-2 p-2 border rounded cursor-pointer transition-colors ${
+                                    selectedMedicines.some(m => m.medicine_id === rm.medicine_id)
+                                      ? "bg-green-50 border-green-300"
+                                      : "hover:bg-muted"
+                                  }`}
+                                  onClick={() => addMedicine(rm)}
+                                >
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium truncate">{rm.medicine?.name}</p>
+                                    <p className="text-xs text-muted-foreground">Stok: {rm.quantity} {rm.medicine?.unit}</p>
+                                  </div>
+                                  <Plus className="h-4 w-4 text-muted-foreground" />
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Selected Medicines */}
+                          {selectedMedicines.length > 0 && (
+                            <div className="space-y-2">
+                              <Label className="text-xs text-muted-foreground">Obat Dipilih ({selectedMedicines.length})</Label>
+                              <div className="border rounded-lg divide-y max-h-36 overflow-y-auto">
+                                {selectedMedicines.map((sm) => {
+                                  const med = roomMedicines.find(rm => rm.medicine_id === sm.medicine_id)?.medicine;
+                                  return med ? (
+                                    <div key={sm.medicine_id} className="flex items-center gap-3 p-2">
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium truncate">{med.name}</p>
+                                      </div>
+                                      <div className="flex items-center gap-1">
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          size="icon"
+                                          className="h-6 w-6"
+                                          onClick={() => updateMedicineQuantity(sm.medicine_id, sm.quantity - 1)}
+                                        >
+                                          <Minus className="h-3 w-3" />
+                                        </Button>
+                                        <Input
+                                          type="number"
+                                          value={sm.quantity}
+                                          onChange={(e) => updateMedicineQuantity(sm.medicine_id, parseInt(e.target.value) || 1)}
+                                          className="w-14 h-6 text-center text-sm"
+                                          min={1}
+                                        />
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          size="icon"
+                                          className="h-6 w-6"
+                                          onClick={() => updateMedicineQuantity(sm.medicine_id, sm.quantity + 1)}
+                                        >
+                                          <Plus className="h-3 w-3" />
+                                        </Button>
+                                        <span className="text-xs text-muted-foreground w-12">{med.unit}</span>
+                                      </div>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-6 w-6 text-destructive"
+                                        onClick={() => removeMedicine(sm.medicine_id)}
+                                      >
+                                        <X className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  ) : null;
+                                })}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground py-2">
+                          Tidak ada obat yang tersedia di ruangan ini. Silakan hubungi administrator untuk menambahkan stok obat.
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t">
+                <Button type="button" variant="outline" onClick={() => setStep("search")} size="sm">
+                  Kembali
+                </Button>
+                <Button type="submit" disabled={loading || loadingRooms} size="sm">
+                  {loading ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <UserPlus className="mr-2 h-4 w-4" />
+                  )}
+                  Simpan Pendaftaran
+                </Button>
+              </div>
+            </form>
           )}
         </CardContent>
       </Card>

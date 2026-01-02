@@ -230,6 +230,31 @@ func CreateVisit(c *gin.Context) {
 		Preload("Room").Preload("Doctor").Preload("RoomQueue").
 		First(&visit, visit.ID)
 
+	// Send real-time notification to room users
+	if NotifService != nil {
+		patientName := ""
+		if visit.Registration != nil && visit.Registration.Patient != nil {
+			patientName = visit.Registration.Patient.NamaLengkap
+		}
+		roomName := ""
+		if visit.Room != nil {
+			roomName = visit.Room.Name
+		}
+
+		go NotifService.NotifyRoomUsers(
+			input.RoomID,
+			models.NotificationTypeVisitCreated,
+			"Pasien Baru",
+			fmt.Sprintf("Pasien %s telah terdaftar ke %s", patientName, roomName),
+			map[string]interface{}{
+				"visit_id":   visit.ID,
+				"patient_id": visit.Registration.PatientID,
+				"room_id":    visit.RoomID,
+				"visit_type": visit.VisitType,
+			},
+		)
+	}
+
 	response := gin.H{
 		"visit": visit,
 	}
@@ -451,6 +476,77 @@ func CompleteVisit(c *gin.Context) {
 		First(&visit, visit.ID)
 
 	c.JSON(http.StatusOK, visit)
+}
+
+// CancelVisit cancels a visit and its related queues
+// @Summary Cancel a visit
+// @Description Cancel a visit and its room queue
+// @Tags Visits
+// @Accept json
+// @Produce json
+// @Param id path int true "Visit ID"
+// @Success 200 {object} map[string]interface{}
+// @Router /visits/{id}/cancel [post]
+func CancelVisit(c *gin.Context) {
+	id := c.Param("id")
+	var visit models.Visit
+
+	if err := database.DB.Preload("Registration").Preload("Room").First(&visit, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Kunjungan tidak ditemukan"})
+		return
+	}
+
+	if visit.Status == "completed" || visit.Status == "discharged" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Kunjungan yang sudah selesai tidak bisa dibatalkan"})
+		return
+	}
+
+	if visit.Status == "cancelled" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Kunjungan sudah dibatalkan"})
+		return
+	}
+
+	tx := database.DB.Begin()
+
+	// Cancel room queue if exists
+	tx.Model(&models.RoomQueue{}).
+		Where("visit_id = ?", visit.ID).
+		Update("status", "cancelled")
+
+	// Release bed if this is an inpatient visit with a bed assigned
+	if visit.BedID != nil && *visit.BedID > 0 {
+		tx.Model(&models.Bed{}).Where("id = ?", *visit.BedID).Update("status", "available")
+	}
+
+	// Cancel any pending medicine orders from this visit
+	tx.Model(&models.MedicineOrder{}).
+		Where("source_visit_id = ? AND status = ?", visit.ID, models.OrderStatusPending).
+		Update("status", models.OrderStatusCancelled)
+
+	// Cancel any pending procedure orders from this visit
+	tx.Model(&models.ProcedureOrder{}).
+		Where("source_visit_id = ? AND status = ?", visit.ID, models.OrderStatusPending).
+		Update("status", models.OrderStatusCancelled)
+
+	// Cancel the visit
+	visit.Status = "cancelled"
+	tx.Save(&visit)
+
+	if err := tx.Commit().Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membatalkan kunjungan"})
+		return
+	}
+
+	// Reload with associations
+	database.DB.Preload("Registration").Preload("Registration.Patient").
+		Preload("Room").Preload("Doctor").Preload("RoomQueue").
+		First(&visit, visit.ID)
+
+	c.JSON(http.StatusOK, gin.H{
+		"data":    visit,
+		"message": "Kunjungan berhasil dibatalkan",
+	})
 }
 
 // CancelCompleteVisit reverts a completed visit back to in_progress

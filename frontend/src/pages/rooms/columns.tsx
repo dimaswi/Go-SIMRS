@@ -7,7 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Eye, Pencil, Trash2, BedDouble, Calendar, ArrowUpDown, ListOrdered } from "lucide-react";
+import { MoreHorizontal, Eye, Pencil, Trash2, BedDouble, Calendar, ArrowUpDown, ListOrdered, Monitor } from "lucide-react";
 import type { Room } from "@/lib/api";
 
 interface ColumnOptions {
@@ -15,6 +15,7 @@ interface ColumnOptions {
   onEdit: (id: number) => void;
   onDelete: (id: number) => void;
   onViewQueue: (id: number) => void;
+  onViewMonitoring: (id: number) => void;
   hasViewPermission: boolean;
   hasEditPermission: boolean;
   hasDeletePermission: boolean;
@@ -22,7 +23,7 @@ interface ColumnOptions {
 }
 
 export function createRoomColumns(options: ColumnOptions): ColumnDef<Room>[] {
-  const { onView, onEdit, onDelete, onViewQueue, hasViewPermission, hasEditPermission, hasDeletePermission, getMasterDataName } = options;
+  const { onView, onEdit, onDelete, onViewQueue, onViewMonitoring, hasViewPermission, hasEditPermission, hasDeletePermission, getMasterDataName } = options;
 
   return [
     {
@@ -232,6 +233,12 @@ export function createRoomColumns(options: ColumnOptions): ColumnDef<Room>[] {
                 <DropdownMenuItem onClick={() => onViewQueue(room.id)}>
                   <ListOrdered className="mr-2 h-4 w-4" />
                   Kelola Antrian
+                </DropdownMenuItem>
+              )}
+              {hasViewPermission && room.has_bed && (
+                <DropdownMenuItem onClick={() => onViewMonitoring(room.id)}>
+                  <Monitor className="mr-2 h-4 w-4" />
+                  Monitoring Bed
                 </DropdownMenuItem>
               )}
               {hasEditPermission && (

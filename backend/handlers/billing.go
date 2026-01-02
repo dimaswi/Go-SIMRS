@@ -51,12 +51,12 @@ func GetBillings(c *gin.Context) {
 		query = query.Where("registration_id = ?", registrationID)
 	}
 
-	// Search by billing number or patient name
+	// Search by billing number, patient name, or no_rm
 	if search := c.Query("search"); search != "" {
 		query = query.Joins("LEFT JOIN registrations ON registrations.id = billings.registration_id").
 			Joins("LEFT JOIN patients ON patients.id = registrations.patient_id").
-			Where("billings.billing_number LIKE ? OR patients.nama_lengkap LIKE ?",
-				"%"+search+"%", "%"+search+"%")
+			Where("billings.billing_number LIKE ? OR patients.nama_lengkap LIKE ? OR patients.no_rm LIKE ?",
+				"%"+search+"%", "%"+search+"%", "%"+search+"%")
 	}
 
 	// Order by created_at descending

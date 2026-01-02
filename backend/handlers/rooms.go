@@ -5,6 +5,7 @@ import (
 	"starter/backend/database"
 	"starter/backend/models"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -108,16 +109,15 @@ func loadBedPatientInfo(db *gorm.DB, room *models.Room) {
 				var visit models.Visit
 				err := db.
 					Preload("Registration.Patient").
+					Preload("Doctor").
+					Preload("Room").
 					Where("bed_id = ? AND status IN (?, ?)", bed.ID, "in_progress", "waiting").
 					First(&visit).Error
 
 				if err == nil && visit.Registration != nil && visit.Registration.Patient != nil {
-					bed.CurrentPatient = &models.BedPatient{
-						Name:                visit.Registration.Patient.NamaLengkap,
-						MedicalRecordNumber: visit.Registration.Patient.NoRM,
-						AdmissionDate:       visit.AdmissionTime,
-						VisitID:             visit.ID,
-					}
+					patient := visit.Registration.Patient
+					bedPatient := buildBedPatientInfo(patient, &visit, room.Units[i].Name, room.Name)
+					bed.CurrentPatient = bedPatient
 				} else {
 					// Fallback: If bed is occupied but no visit found with bed_id,
 					// try to find visit by room_id for inpatient rooms (legacy data)
@@ -131,17 +131,16 @@ func loadBedPatientInfo(db *gorm.DB, room *models.Room) {
 							var inpatientVisit models.Visit
 							err := db.
 								Preload("Registration.Patient").
+								Preload("Doctor").
+								Preload("Room").
 								Where("room_id = ? AND status IN (?, ?) AND (bed_id IS NULL OR bed_id = 0)",
 									unit.RoomID, "in_progress", "waiting").
 								First(&inpatientVisit).Error
 
 							if err == nil && inpatientVisit.Registration != nil && inpatientVisit.Registration.Patient != nil {
-								bed.CurrentPatient = &models.BedPatient{
-									Name:                inpatientVisit.Registration.Patient.NamaLengkap,
-									MedicalRecordNumber: inpatientVisit.Registration.Patient.NoRM,
-									AdmissionDate:       inpatientVisit.AdmissionTime,
-									VisitID:             inpatientVisit.ID,
-								}
+								patient := inpatientVisit.Registration.Patient
+								bedPatient := buildBedPatientInfo(patient, &inpatientVisit, room.Units[i].Name, room.Name)
+								bed.CurrentPatient = bedPatient
 							}
 						}
 					}
@@ -149,6 +148,70 @@ func loadBedPatientInfo(db *gorm.DB, room *models.Room) {
 			}
 		}
 	}
+}
+
+// buildBedPatientInfo creates a BedPatient struct with full patient information
+func buildBedPatientInfo(patient *models.Patient, visit *models.Visit, unitName, roomName string) *models.BedPatient {
+	// Get address (prefer domisili, fallback to KTP)
+	address := patient.AlamatDomisili
+	if address == "" {
+		address = patient.AlamatKTP
+	}
+
+	// Get insurance number (BPJS or private insurance policy)
+	insuranceNumber := patient.NoBPJS
+	if insuranceNumber == "" {
+		insuranceNumber = patient.NoPolisAsuransi
+	}
+
+	bedPatient := &models.BedPatient{
+		Name:                patient.NamaLengkap,
+		MedicalRecordNumber: patient.NoRM,
+		NIK:                 patient.NIK,
+		Gender:              string(patient.JenisKelamin),
+		Address:             address,
+		Phone:               patient.NoTelepon,
+		InsuranceType:       string(patient.JenisJaminan),
+		InsuranceNumber:     insuranceNumber,
+		UnitName:            unitName,
+		RoomName:            roomName,
+		VisitID:             visit.ID,
+		PatientID:           patient.ID,
+	}
+
+	// Set birth date and calculate age
+	if patient.TanggalLahir != nil && !patient.TanggalLahir.IsZero() {
+		birthDate := patient.TanggalLahir.Time
+		bedPatient.BirthDate = &birthDate
+		bedPatient.Age = calculateAge(birthDate)
+	}
+
+	// Set admission date
+	if visit.AdmissionTime != nil {
+		bedPatient.AdmissionDate = visit.AdmissionTime
+	}
+
+	// Set diagnosis from visit
+	if visit.Diagnosis != "" {
+		bedPatient.Diagnosis = visit.Diagnosis
+	}
+
+	// Set doctor name
+	if visit.Doctor != nil {
+		bedPatient.DoctorName = visit.Doctor.NamaLengkap
+	}
+
+	return bedPatient
+}
+
+// calculateAge calculates age from birth date
+func calculateAge(birthDate time.Time) int {
+	now := time.Now()
+	years := now.Year() - birthDate.Year()
+	if now.YearDay() < birthDate.YearDay() {
+		years--
+	}
+	return years
 }
 
 // CreateRoomRequest represents the request to create a room

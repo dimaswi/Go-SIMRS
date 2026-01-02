@@ -90,6 +90,11 @@ export const visitsApi = {
     return api.put<Visit>(`/visits/${id}/complete`, {});
   },
 
+  // Cancel visit
+  cancelVisit: async (id: number) => {
+    return api.post<{ data: Visit; message: string }>(`/visits/${id}/cancel`, {});
+  },
+
   // Cancel complete visit (revert to in_progress)
   cancelCompleteVisit: async (id: number) => {
     return api.put<Visit>(`/visits/${id}/cancel-complete`, {});

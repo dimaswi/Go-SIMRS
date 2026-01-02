@@ -86,8 +86,21 @@ export interface Bed {
   current_patient?: {
     name: string;
     medical_record_number: string;
+    nik?: string;
+    gender?: string;
+    birth_date?: string;
+    age?: number;
+    address?: string;
+    phone?: string;
+    insurance_type?: string;
+    insurance_number?: string;
     admission_date?: string;
+    diagnosis?: string;
+    doctor_name?: string;
+    room_name?: string;
+    unit_name?: string;
     visit_id: number;
+    patient_id?: number;
   };
   created_at: string;
   updated_at: string;
@@ -420,6 +433,23 @@ export const schedulesApi = {
     const queryString = searchParams.toString();
     return api.get<{ data: DoctorSchedule[] }>(`/doctor-schedules${queryString ? `?${queryString}` : ''}`);
   },
+
+  // Get available doctors for a room on a specific date
+  getAvailableDoctorsByDate: (roomId: number, date: string) =>
+    api.get<{
+      data: Array<{
+        employee_id: number;
+        employee_name: string;
+        start_time: string;
+        end_time: string;
+        max_patients: number;
+        consult_fee: number;
+      }>;
+      room: { id: number; name: string; code: string };
+      date: string;
+      day_of_week: number;
+      room_closed: boolean;
+    }>(`/schedules/available-doctors?room_id=${roomId}&date=${date}`),
 
   // Schedule exceptions
   getExceptions: (params?: { room_id?: number; employee_id?: number; start_date?: string; end_date?: string }) => {
