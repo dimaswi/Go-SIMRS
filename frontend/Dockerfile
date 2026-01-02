@@ -4,7 +4,11 @@ WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
-RUN npm install
+
+# Clean npm cache and install with clean slate
+RUN npm cache clean --force && \
+    rm -f package-lock.json && \
+    npm install
 
 # Copy source code
 COPY . .
