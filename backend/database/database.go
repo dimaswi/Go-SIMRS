@@ -5,21 +5,46 @@ import (
 	"log"
 	"starter/backend/migrations"
 	"starter/backend/models"
+	"time"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+	"gorm.io/gorm/logger"
 )
 
 var DB *gorm.DB
 
 func Connect(dsn string) error {
 	var err error
-	DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
+
+	// Configure GORM with performance optimizations
+	gormConfig := &gorm.Config{
+		// Disable default transaction for single operations (improves performance)
+		SkipDefaultTransaction: true,
+		// Prepare statements for faster repeated queries
+		PrepareStmt: true,
+		// Use silent logger in production (reduce overhead)
+		Logger: logger.Default.LogMode(logger.Silent),
+	}
+
+	DB, err = gorm.Open(postgres.Open(dsn), gormConfig)
 	if err != nil {
 		return err
 	}
 
-	log.Println("Database connected successfully")
+	// Configure connection pool for better performance
+	sqlDB, err := DB.DB()
+	if err != nil {
+		return err
+	}
+
+	// Connection pool settings
+	sqlDB.SetMaxIdleConns(10)           // Minimum idle connections
+	sqlDB.SetMaxOpenConns(100)          // Maximum open connections
+	sqlDB.SetConnMaxLifetime(time.Hour) // Connection lifetime
+
+	log.Println("Database connected successfully with connection pooling")
 	return nil
 }
 
@@ -247,42 +272,103 @@ func Migrate() error {
 	// These indexes only apply to non-deleted records (WHERE deleted_at IS NULL)
 	createPartialUniqueIndexes()
 
-	// Seed default data
+	// Create additional performance indexes
+	createPerformanceIndexes()
+
+	// Seed default data (with optimized checks)
 	if err := SeedData(); err != nil {
 		return err
 	}
 
-	// Seed master data
-	if err := migrations.SeedMasterData(DB); err != nil {
-		return err
+	// Check if seed data already exists to skip unnecessary seeding
+	var permCount, masterDataCount int64
+	DB.Model(&models.Permission{}).Count(&permCount)
+	DB.Model(&models.MasterData{}).Count(&masterDataCount)
+
+	// Only seed if tables are empty (first run)
+	if masterDataCount == 0 {
+		log.Println("Seeding master data (first run)...")
+		if err := migrations.SeedMasterData(DB); err != nil {
+			return err
+		}
+	} else {
+		log.Println("Skipping master data seed - data already exists")
 	}
 
-	// Seed inventory, medicine, and supplier data
-	if err := migrations.SeedInventoryMedicineSupplier(DB); err != nil {
-		return err
+	// Check inventory/medicine/supplier data
+	var supplierCount int64
+	DB.Model(&models.Supplier{}).Count(&supplierCount)
+	if supplierCount == 0 {
+		log.Println("Seeding inventory/medicine/supplier data (first run)...")
+		if err := migrations.SeedInventoryMedicineSupplier(DB); err != nil {
+			return err
+		}
+	} else {
+		log.Println("Skipping inventory/medicine/supplier seed - data already exists")
 	}
 
-	// Seed core data (roles, admin user, counters, employees, patients)
-	// if err := migrations.SeedCoreData(DB); err != nil {
-	// 	return err
-	// }
-
-	// Seed rooms data (rooms, units, beds, schedules)
-	// if err := migrations.SeedRooms(DB); err != nil {
-	// 	return err
-	// }
-
-	// Seed procedures data (procedures with tariffs and parameters)
-	if err := migrations.SeedProcedures(DB); err != nil {
-		return err
+	// Check procedures data
+	var procedureCount int64
+	DB.Model(&models.Procedure{}).Count(&procedureCount)
+	if procedureCount == 0 {
+		log.Println("Seeding procedures data (first run)...")
+		if err := migrations.SeedProcedures(DB); err != nil {
+			return err
+		}
+	} else {
+		log.Println("Skipping procedures seed - data already exists")
 	}
 
-	// Seed billing data (registration tariffs)
-	if err := migrations.SeedBillingData(DB); err != nil {
-		return err
+	// Check billing data
+	var tariffCount int64
+	DB.Model(&models.RegistrationTariff{}).Count(&tariffCount)
+	if tariffCount == 0 {
+		log.Println("Seeding billing data (first run)...")
+		if err := migrations.SeedBillingData(DB); err != nil {
+			return err
+		}
+	} else {
+		log.Println("Skipping billing seed - data already exists")
 	}
 
 	return nil
+}
+
+// createPerformanceIndexes creates indexes for frequently queried columns
+func createPerformanceIndexes() {
+	// Visits table - frequently filtered by status, room, and date
+	DB.Exec("CREATE INDEX IF NOT EXISTS idx_visits_status ON visits(status)")
+	DB.Exec("CREATE INDEX IF NOT EXISTS idx_visits_room_id ON visits(room_id)")
+	DB.Exec("CREATE INDEX IF NOT EXISTS idx_visits_check_in_time ON visits(check_in_time)")
+	DB.Exec("CREATE INDEX IF NOT EXISTS idx_visits_registration_id ON visits(registration_id)")
+
+	// Registrations table
+	DB.Exec("CREATE INDEX IF NOT EXISTS idx_registrations_patient_id ON registrations(patient_id)")
+	DB.Exec("CREATE INDEX IF NOT EXISTS idx_registrations_status ON registrations(status)")
+	DB.Exec("CREATE INDEX IF NOT EXISTS idx_registrations_date ON registrations(registration_date)")
+
+	// Queues table
+	DB.Exec("CREATE INDEX IF NOT EXISTS idx_queues_status ON queues(status)")
+	DB.Exec("CREATE INDEX IF NOT EXISTS idx_queues_counter_id ON queues(counter_id)")
+	DB.Exec("CREATE INDEX IF NOT EXISTS idx_queues_created_at ON queues(created_at)")
+
+	// Room Queue table
+	DB.Exec("CREATE INDEX IF NOT EXISTS idx_room_queues_status ON room_queues(status)")
+	DB.Exec("CREATE INDEX IF NOT EXISTS idx_room_queues_room_id ON room_queues(room_id)")
+
+	// Notifications table
+	DB.Exec("CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id)")
+	DB.Exec("CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications(is_read)")
+
+	// Medicine Orders
+	DB.Exec("CREATE INDEX IF NOT EXISTS idx_medicine_orders_status ON medicine_orders(status)")
+	DB.Exec("CREATE INDEX IF NOT EXISTS idx_medicine_orders_visit_id ON medicine_orders(visit_id)")
+
+	// Procedure Orders
+	DB.Exec("CREATE INDEX IF NOT EXISTS idx_procedure_orders_status ON procedure_orders(status)")
+	DB.Exec("CREATE INDEX IF NOT EXISTS idx_procedure_orders_visit_id ON procedure_orders(visit_id)")
+
+	log.Println("Performance indexes created")
 }
 
 // createPartialUniqueIndexes creates partial unique indexes for soft delete support
@@ -363,6 +449,16 @@ func CleanMigrate() error {
 }
 
 func SeedData() error {
+	// Check if permissions already seeded (quick check)
+	var permCount int64
+	DB.Model(&models.Permission{}).Count(&permCount)
+	if permCount > 50 {
+		log.Println("Permissions already seeded, skipping permission seed")
+		return seedRolesAndAdmin()
+	}
+
+	log.Println("Seeding permissions (first run)...")
+
 	// Seed granular permissions that match frontend permission checks
 	permissions := []models.Permission{
 		// Users Management
@@ -573,9 +669,25 @@ func SeedData() error {
 		{Name: "profile.update", Module: "Profile Management", Category: "Account", Description: "Update own profile", Actions: `["update"]`},
 	}
 
-	for _, perm := range permissions {
-		DB.Where(models.Permission{Name: perm.Name}).FirstOrCreate(&perm)
+	// Batch insert permissions using CreateInBatches for better performance
+	// Use Clauses to handle conflicts (skip if already exists)
+	if err := DB.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "name"}},
+		DoNothing: true,
+	}).CreateInBatches(permissions, 50).Error; err != nil {
+		log.Printf("Warning: batch permission insert had issues: %v", err)
+		// Fallback to individual inserts if batch fails
+		for _, perm := range permissions {
+			DB.Where(models.Permission{Name: perm.Name}).FirstOrCreate(&perm)
+		}
 	}
+
+	log.Println("Permissions seeded successfully")
+	return seedRolesAndAdmin()
+}
+
+// seedRolesAndAdmin creates default roles and admin user
+func seedRolesAndAdmin() error {
 
 	// Create default roles
 	var adminRole models.Role

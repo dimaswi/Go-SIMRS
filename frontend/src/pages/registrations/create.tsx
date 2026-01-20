@@ -143,14 +143,20 @@ export default function RegistrationCreate() {
     }
   };
 
-  const handleUseExistingPatient = async () => {
-    if (!existingPatient) return;
+  const handleUseExistingPatient = async (patientToUse?: Patient) => {
+    const patient = patientToUse || existingPatient;
+    if (!patient) return;
+
+    // Set the patient if passed directly (for double-click)
+    if (patientToUse) {
+      setExistingPatient(patientToUse);
+    }
 
     // Check if patient has active registrations
     setLoading(true);
     try {
       const response = await registrationApi.getAll({
-        patient_id: existingPatient.id,
+        patient_id: patient.id,
         limit: 10,
       });
 
@@ -527,6 +533,7 @@ export default function RegistrationCreate() {
                             key={patient.id}
                             className={existingPatient?.id === patient.id ? "bg-primary/10" : "cursor-pointer hover:bg-muted/50"}
                             onClick={() => handleSelectPatient(patient)}
+                            onDoubleClick={() => handleUseExistingPatient(patient)}
                           >
                             <TableCell className="text-center">
                               <input
@@ -567,7 +574,7 @@ export default function RegistrationCreate() {
                   Pasien Baru
                 </Button>
                 {existingPatient && (
-                  <Button onClick={handleUseExistingPatient} disabled={loading}>
+                  <Button onClick={() => handleUseExistingPatient()} disabled={loading}>
                     {loading ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     ) : (

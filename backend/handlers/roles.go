@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 	"starter/backend/database"
+	"starter/backend/middleware"
 	"starter/backend/models"
 
 	"github.com/gin-gonic/gin"
@@ -59,6 +60,9 @@ func CreateRole(c *gin.Context) {
 		database.DB.Model(&role).Association("Permissions").Append(permissions)
 	}
 
+	// Invalidate permission cache when role is created
+	middleware.InvalidatePermissionCache()
+
 	database.DB.Preload("Permissions").First(&role, role.ID)
 	c.JSON(http.StatusCreated, gin.H{"data": role})
 }
@@ -91,6 +95,9 @@ func UpdateRole(c *gin.Context) {
 		database.DB.Find(&permissions, req.PermissionIDs)
 		database.DB.Model(&role).Association("Permissions").Replace(permissions)
 	}
+
+	// Invalidate permission cache when role is updated
+	middleware.InvalidatePermissionCache()
 
 	database.DB.Preload("Permissions").First(&role, role.ID)
 	c.JSON(http.StatusOK, gin.H{"data": role})

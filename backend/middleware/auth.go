@@ -5,6 +5,7 @@ import (
 	"starter/backend/database"
 	"starter/backend/models"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -13,8 +14,64 @@ import (
 
 var jwtSecret []byte
 
+// Role permission cache to avoid repeated database queries
+type rolePermissionCache struct {
+	permissions map[uint]map[string]bool
+	mutex       sync.RWMutex
+	expireAt    time.Time
+}
+
+var permCache = &rolePermissionCache{
+	permissions: make(map[uint]map[string]bool),
+}
+
+// Cache duration - refresh every 5 minutes
+const cacheDuration = 5 * time.Minute
+
 func SetJWTSecret(secret string) {
 	jwtSecret = []byte(secret)
+}
+
+// InvalidatePermissionCache clears the permission cache
+// Call this when roles or permissions are updated
+func InvalidatePermissionCache() {
+	permCache.mutex.Lock()
+	defer permCache.mutex.Unlock()
+	permCache.permissions = make(map[uint]map[string]bool)
+	permCache.expireAt = time.Time{}
+}
+
+// getRolePermissions gets permissions from cache or database
+func getRolePermissions(roleID uint) (map[string]bool, error) {
+	permCache.mutex.RLock()
+	if time.Now().Before(permCache.expireAt) {
+		if perms, ok := permCache.permissions[roleID]; ok {
+			permCache.mutex.RUnlock()
+			return perms, nil
+		}
+	}
+	permCache.mutex.RUnlock()
+
+	// Cache miss or expired - load from database
+	var role models.Role
+	if err := database.DB.Preload("Permissions").First(&role, roleID).Error; err != nil {
+		return nil, err
+	}
+
+	perms := make(map[string]bool)
+	for _, perm := range role.Permissions {
+		perms[perm.Name] = true
+	}
+
+	// Update cache
+	permCache.mutex.Lock()
+	permCache.permissions[roleID] = perms
+	if time.Now().After(permCache.expireAt) {
+		permCache.expireAt = time.Now().Add(cacheDuration)
+	}
+	permCache.mutex.Unlock()
+
+	return perms, nil
 }
 
 type Claims struct {
@@ -86,22 +143,15 @@ func RequirePermission(permission string) gin.HandlerFunc {
 			return
 		}
 
-		var role models.Role
-		if err := database.DB.Preload("Permissions").First(&role, roleID).Error; err != nil {
+		// Use cached permissions for better performance
+		perms, err := getRolePermissions(roleID.(uint))
+		if err != nil {
 			c.JSON(http.StatusForbidden, gin.H{"error": "Role not found"})
 			c.Abort()
 			return
 		}
 
-		hasPermission := false
-		for _, perm := range role.Permissions {
-			if perm.Name == permission {
-				hasPermission = true
-				break
-			}
-		}
-
-		if !hasPermission {
+		if !perms[permission] {
 			c.JSON(http.StatusForbidden, gin.H{"error": "Insufficient permissions"})
 			c.Abort()
 			return

@@ -34,6 +34,7 @@ interface ComboboxProps {
   disabled?: boolean
   loading?: boolean
   className?: string
+  tabIndex?: number
 }
 
 export function Combobox({
@@ -46,6 +47,7 @@ export function Combobox({
   disabled = false,
   loading = false,
   className,
+  tabIndex,
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false)
 
@@ -59,6 +61,7 @@ export function Combobox({
           role="combobox"
           aria-expanded={open}
           disabled={disabled || loading}
+          tabIndex={tabIndex}
           className={cn(
             "w-full justify-between font-normal h-9 text-sm",
             !value && "text-muted-foreground",

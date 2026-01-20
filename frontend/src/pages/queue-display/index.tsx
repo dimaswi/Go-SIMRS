@@ -1,41 +1,84 @@
 import { useEffect, useState, useCallback } from "react";
-import { Card } from "@/components/ui/card";
 import { queueApi, type Queue } from "@/lib/api/queue";
 import { counterApi, type Counter } from "@/lib/api/counters";
+import { roomQueuesApi, type RoomQueue } from "@/lib/api/room-queues";
+import { roomsApi, type Room } from "@/lib/api/rooms";
 import { settingsApi } from "@/lib/api";
-import { Users, Clock, CheckCircle, Hourglass } from "lucide-react";
+import { Users, Clock, CheckCircle, Volume2, Building2, ClipboardList } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function QueueDisplay() {
-  const [queues, setQueues] = useState<Queue[]>([]);
-  const [allQueues, setAllQueues] = useState<Queue[]>([]);
+  // Registration Queue State
+  const [registrationQueues, setRegistrationQueues] = useState<Queue[]>([]);
+  const [allRegistrationQueues, setAllRegistrationQueues] = useState<Queue[]>([]);
   const [counters, setCounters] = useState<Counter[]>([]);
-  const [hospitalName, setHospitalName] = useState("RUMAH SAKIT");
 
-  const loadQueues = useCallback(async () => {
+  // Room Queue State
+  const [roomQueues, setRoomQueues] = useState<RoomQueue[]>([]);
+  const [allRoomQueues, setAllRoomQueues] = useState<RoomQueue[]>([]);
+  const [rooms, setRooms] = useState<Room[]>([]);
+
+  // Selection filters from localStorage
+  const [selectedRoomIds, setSelectedRoomIds] = useState<number[]>([]);
+  const [selectedCounterIds, setSelectedCounterIds] = useState<number[]>([]);
+
+  const [hospitalName, setHospitalName] = useState("RUMAH SAKIT");
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  // Update time every second
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Load selections from localStorage
+  useEffect(() => {
+    try {
+      const savedRooms = localStorage.getItem("queueDisplay_selectedRooms");
+      const savedCounters = localStorage.getItem("queueDisplay_selectedCounters");
+      
+      if (savedRooms) {
+        setSelectedRoomIds(JSON.parse(savedRooms));
+      }
+      if (savedCounters) {
+        setSelectedCounterIds(JSON.parse(savedCounters));
+      }
+    } catch (error) {
+      console.error("Failed to load selections from localStorage:", error);
+    }
+  }, []);
+
+  // Load Registration Queues
+  const loadRegistrationQueues = useCallback(async () => {
     try {
       const today = new Date().toISOString().split("T")[0];
       const response = await queueApi.getAll({ date: today });
       const allData = response.data.data || [];
-      
-      // Filter untuk status called dan serving saja untuk grid
+
       const filteredData = allData.filter(
         (q) => q.status === "called" || q.status === "serving"
       );
-      setQueues(filteredData);
+      setRegistrationQueues(filteredData);
+      setAllRegistrationQueues(allData);
     } catch (error) {
-      console.error("Failed to load queues:", error);
+      console.error("Failed to load registration queues:", error);
     }
   }, []);
 
-  const loadAllQueues = useCallback(async () => {
+  // Load Room Queues
+  const loadRoomQueues = useCallback(async () => {
     try {
       const today = new Date().toISOString().split("T")[0];
-      const response = await queueApi.getAll({ date: today });
-      const data = response.data.data || [];
-      setAllQueues(data);
+      const response = await roomQueuesApi.getAll({ date: today });
+      const allData = response.data || [];
+
+      const filteredData = allData.filter(
+        (q) => q.status === "called" || q.status === "serving"
+      );
+      setRoomQueues(filteredData);
+      setAllRoomQueues(allData);
     } catch (error) {
-      console.error("Failed to load all queues:", error);
+      console.error("Failed to load room queues:", error);
     }
   }, []);
 
@@ -56,185 +99,497 @@ export default function QueueDisplay() {
     const loadCounters = async () => {
       try {
         const data = await counterApi.getActiveCounters();
-        setCounters(data);
+        // Filter counters based on selection from localStorage
+        const savedCounters = localStorage.getItem("queueDisplay_selectedCounters");
+        if (savedCounters) {
+          const selectedIds = JSON.parse(savedCounters) as number[];
+          if (selectedIds.length > 0) {
+            setCounters(data.filter((c) => selectedIds.includes(c.id)));
+          } else {
+            setCounters(data);
+          }
+        } else {
+          setCounters(data);
+        }
       } catch (error) {
         console.error("Failed to load counters:", error);
       }
     };
     loadCounters();
+
+    const loadRooms = async () => {
+      try {
+        const response = await roomsApi.getAll({ is_active: "true", limit: 100 });
+        const allRoomsData = response.data.data || [];
+        // Filter rooms based on selection from localStorage
+        const savedRooms = localStorage.getItem("queueDisplay_selectedRooms");
+        if (savedRooms) {
+          const selectedIds = JSON.parse(savedRooms) as number[];
+          if (selectedIds.length > 0) {
+            setRooms(allRoomsData.filter((r) => selectedIds.includes(r.id)));
+          } else {
+            setRooms(allRoomsData);
+          }
+        } else {
+          setRooms(allRoomsData);
+        }
+      } catch (error) {
+        console.error("Failed to load rooms:", error);
+      }
+    };
+    loadRooms();
   }, []);
 
   useEffect(() => {
-    loadQueues();
-    loadAllQueues();
+    loadRegistrationQueues();
+    loadRoomQueues();
     const interval = setInterval(() => {
-      loadQueues();
-      loadAllQueues();
-    }, 3000); // Refresh every 3 seconds - optimal balance between responsiveness and server load
+      loadRegistrationQueues();
+      loadRoomQueues();
+    }, 3000);
     return () => clearInterval(interval);
-  }, [loadQueues, loadAllQueues]);
+  }, [loadRegistrationQueues, loadRoomQueues]);
 
-  // Calculate statistics
-  const totalQueues = allQueues.length;
-  const waitingQueues = allQueues.filter((q) => q.status === "waiting").length;
-  const servingQueues = allQueues.filter((q) => q.status === "serving").length;
-  const completedQueues = allQueues.filter((q) => q.status === "completed").length;
+  // Calculate Registration Statistics (filtered by selected counters)
+  const filteredRegQueues = selectedCounterIds.length > 0
+    ? allRegistrationQueues.filter((q) => selectedCounterIds.includes(q.counter_id || 0))
+    : allRegistrationQueues;
+  const regTotalQueues = filteredRegQueues.length;
+  const regWaitingQueues = filteredRegQueues.filter((q) => q.status === "waiting").length;
+  const regServingQueues = filteredRegQueues.filter(
+    (q) => q.status === "serving" || q.status === "called"
+  ).length;
+  const regCompletedQueues = filteredRegQueues.filter(
+    (q) => q.status === "completed"
+  ).length;
+
+  // Calculate Room Statistics (filtered by selected rooms)
+  const filteredRoomQueues = selectedRoomIds.length > 0
+    ? allRoomQueues.filter((q) => selectedRoomIds.includes(q.room_id))
+    : allRoomQueues;
+  const roomTotalQueues = filteredRoomQueues.length;
+  const roomWaitingQueues = filteredRoomQueues.filter((q) => q.status === "waiting").length;
+  const roomServingQueues = filteredRoomQueues.filter(
+    (q) => q.status === "serving" || q.status === "called"
+  ).length;
+  const roomCompletedQueues = filteredRoomQueues.filter(
+    (q) => q.status === "completed"
+  ).length;
+
+  // Get unique rooms that have queues today (filtered)
+  const activeRoomIds = [...new Set(filteredRoomQueues.map((q) => q.room_id))];
+  const activeRooms = rooms.filter((r) => activeRoomIds.includes(r.id));
+
+  // Determine layout based on what's selected
+  const showRooms = selectedRoomIds.length > 0 || rooms.length > 0;
+  const showCounters = selectedCounterIds.length > 0 || counters.length > 0;
 
   return (
-    <div className="h-screen overflow-hidden bg-gradient-to-br from-gray-900 to-gray-800 text-white">
+    <div className="h-screen overflow-hidden bg-white text-gray-900 flex flex-col">
       {/* Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 shadow-2xl">
-        <div className="max-w-7xl mx-auto">
-          <h1 className="text-4xl font-bold text-center mb-2">
-            {hospitalName}
-          </h1>
-          <p className="text-xl text-center text-blue-100">
-            SISTEM ANTREAN PENDAFTARAN
-          </p>
-          <p className="text-lg text-center text-blue-200 mt-1">
-            Semua Loket
-          </p>
+      <div className="bg-black text-white py-3 px-6 flex-shrink-0">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold tracking-wide">{hospitalName}</h1>
+            <p className="text-gray-400 text-xs uppercase tracking-wider">
+              Sistem Antrean Universal
+            </p>
+          </div>
+          <div className="text-right">
+            <div className="text-3xl font-mono font-bold">
+              {currentTime.toLocaleTimeString("id-ID", {
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit",
+              })}
+            </div>
+            <div className="text-gray-400 text-xs">
+              {currentTime.toLocaleDateString("id-ID", {
+                weekday: "long",
+                day: "numeric",
+                month: "long",
+                year: "numeric",
+              })}
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto p-6 space-y-6">
-        {/* Statistics Cards */}
-        <div className="grid grid-cols-4 gap-4">
-          <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white p-4">
-            <div className="flex items-center gap-3">
-              <div className="bg-white/20 p-3 rounded-lg">
-                <Users className="h-6 w-6" />
+      {/* Main Content - Split View */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Left Side - Room Queue */}
+        {showRooms && (
+        <div className={cn("flex flex-col border-r-2 border-gray-300", showCounters ? "w-1/2" : "w-full")}>
+          {/* Room Queue Header */}
+          <div className="bg-gray-100 px-4 py-2 border-b-2 border-gray-200 flex-shrink-0">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Building2 className="h-5 w-5 text-gray-700" />
+                <h2 className="text-lg font-bold text-gray-900">Antrean Poli</h2>
               </div>
-              <div>
-                <div className="text-3xl font-bold">{totalQueues}</div>
-                <div className="text-sm text-blue-100">Total Antrean</div>
-              </div>
-            </div>
-          </Card>
-          
-          <Card className="bg-gradient-to-br from-yellow-500 to-yellow-600 text-white p-4">
-            <div className="flex items-center gap-3">
-              <div className="bg-white/20 p-3 rounded-lg">
-                <Hourglass className="h-6 w-6" />
-              </div>
-              <div>
-                <div className="text-3xl font-bold">{waitingQueues}</div>
-                <div className="text-sm text-yellow-100">Menunggu</div>
-              </div>
-            </div>
-          </Card>
-          
-          <Card className="bg-gradient-to-br from-purple-500 to-purple-600 text-white p-4">
-            <div className="flex items-center gap-3">
-              <div className="bg-white/20 p-3 rounded-lg">
-                <Clock className="h-6 w-6" />
-              </div>
-              <div>
-                <div className="text-3xl font-bold">{servingQueues}</div>
-                <div className="text-sm text-purple-100">Sedang Dilayani</div>
+              <div className="flex items-center gap-4 text-xs">
+                <div className="flex items-center gap-1">
+                  <Users className="h-3 w-3 text-gray-400" />
+                  <span className="text-gray-500">Total</span>
+                  <span className="font-bold">{roomTotalQueues}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Clock className="h-3 w-3 text-gray-400" />
+                  <span className="text-gray-500">Tunggu</span>
+                  <span className="font-bold">{roomWaitingQueues}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Volume2 className="h-3 w-3 text-gray-400" />
+                  <span className="text-gray-500">Layani</span>
+                  <span className="font-bold">{roomServingQueues}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <CheckCircle className="h-3 w-3 text-gray-400" />
+                  <span className="text-gray-500">Selesai</span>
+                  <span className="font-bold">{roomCompletedQueues}</span>
+                </div>
               </div>
             </div>
-          </Card>
-          
-          <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white p-4">
-            <div className="flex items-center gap-3">
-              <div className="bg-white/20 p-3 rounded-lg">
-                <CheckCircle className="h-6 w-6" />
-              </div>
-              <div>
-                <div className="text-3xl font-bold">{completedQueues}</div>
-                <div className="text-sm text-green-100">Selesai</div>
-              </div>
-            </div>
-          </Card>
-        </div>
+          </div>
 
-        {/* Waiting Queues Grid - Display Utama hanya tampilkan grid loket */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {counters.map((counter) => {
-            const counterQueues = queues.filter(
-              (q) => q.counter_id === counter.id
-            );
-            
-            // Sort by called_at DESC to get the most recently called
-            counterQueues.sort((a, b) => {
-              if (!a.called_at || !b.called_at) return 0;
-              return new Date(b.called_at).getTime() - new Date(a.called_at).getTime();
-            });
-            
-            const latestQueue = counterQueues[0];
-            
-            // Statistics per counter
-            const counterAllQueues = allQueues.filter((q) => q.counter_id === counter.id);
-            const counterWaiting = counterAllQueues.filter((q) => q.status === "waiting").length;
-            const counterServing = counterAllQueues.filter((q) => q.status === "serving").length;
-            const counterCompleted = counterAllQueues.filter((q) => q.status === "completed").length;
+          {/* Room Queue Grid */}
+          <div className="flex-1 overflow-auto p-3">
+            {activeRooms.length === 0 && rooms.length === 0 ? (
+              <div className="flex items-center justify-center h-full">
+                <p className="text-gray-400">Tidak ada ruangan yang tersedia</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
+                {(activeRooms.length > 0 ? activeRooms : rooms.slice(0, 20)).map((room) => {
+                  const roomQueueList = roomQueues.filter((q) => q.room_id === room.id);
 
-            return (
-              <Card
-                key={counter.id}
-                className={cn(
-                  "p-6 border-2 transition-all",
-                  latestQueue
-                    ? "bg-blue-50 border-blue-200"
-                    : "bg-gray-50 border-gray-200"
-                )}
-              >
-                <div className="text-center">
-                  <div className="text-lg font-semibold text-gray-600 mb-2">
-                    {counter.name}
-                  </div>
-                  <div className="text-sm text-gray-500 mb-3">
-                    {counter.code}
-                  </div>
-                  {latestQueue ? (
-                    <>
-                      <div className="text-5xl font-bold mb-2 bg-gradient-to-r from-blue-500 to-indigo-600 bg-clip-text text-transparent">
-                        {latestQueue.queue_number}
+                  roomQueueList.sort((a, b) => {
+                    if (!a.called_at || !b.called_at) return 0;
+                    return new Date(b.called_at).getTime() - new Date(a.called_at).getTime();
+                  });
+
+                  const latestQueue = roomQueueList[0];
+
+                  const roomAllQueues = allRoomQueues.filter((q) => q.room_id === room.id);
+                  const roomWaiting = roomAllQueues.filter((q) => q.status === "waiting").length;
+                  const roomServing = roomAllQueues.filter(
+                    (q) => q.status === "serving" || q.status === "called"
+                  ).length;
+
+                  const isActive = !!latestQueue;
+
+                  return (
+                    <div
+                      key={room.id}
+                      className={cn(
+                        "border-2 transition-all duration-300 h-[160px] flex flex-col",
+                        isActive
+                          ? "border-black bg-black text-white"
+                          : "border-gray-200 bg-gray-50"
+                      )}
+                    >
+                      {/* Room Header */}
+                      <div
+                        className={cn(
+                          "px-2 py-1.5 border-b flex-shrink-0",
+                          isActive ? "border-gray-700" : "border-gray-200"
+                        )}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div
+                            className={cn(
+                              "text-sm font-bold truncate",
+                              isActive ? "text-white" : "text-gray-900"
+                            )}
+                          >
+                            {room.name}
+                          </div>
+                          {isActive && (
+                            <Volume2 className="h-3 w-3 text-white animate-pulse flex-shrink-0" />
+                          )}
+                        </div>
+                        <div
+                          className={cn(
+                            "text-xs truncate",
+                            isActive ? "text-gray-400" : "text-gray-500"
+                          )}
+                          >
+                          {room.queue_code || room.code}
+                        </div>
                       </div>
-                      <div className="text-xs text-gray-500 mt-1">
-                        {new Date(latestQueue.called_at!).toLocaleTimeString(
-                          "id-ID",
-                          {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          }
+
+                      {/* Queue Number Display */}
+                      <div className="flex-1 flex flex-col items-center justify-center px-2">
+                        {latestQueue ? (
+                          <>
+                            <div className="text-3xl font-black tracking-wide">
+                              {latestQueue.queue_number}
+                            </div>
+                            <div
+                              className={cn(
+                                "text-xs",
+                                isActive ? "text-gray-400" : "text-gray-500"
+                              )}
+                            >
+                              {latestQueue.called_at &&
+                                new Date(latestQueue.called_at).toLocaleTimeString(
+                                  "id-ID",
+                                  { hour: "2-digit", minute: "2-digit" }
+                                )}
+                            </div>
+                          </>
+                        ) : (
+                          <div className="text-2xl text-gray-300">---</div>
                         )}
                       </div>
-                    </>
-                  ) : (
-                    <div className="text-3xl text-gray-400 py-4">-</div>
-                  )}
-                  
-                  {/* Counter Statistics */}
-                  <div className="mt-4 pt-3 border-t border-gray-200">
-                    <div className="grid grid-cols-3 gap-2 text-xs">
-                      <div>
-                        <div className="text-yellow-600 font-bold">{counterWaiting}</div>
-                        <div className="text-gray-500">Tunggu</div>
-                      </div>
-                      <div>
-                        <div className="text-purple-600 font-bold">{counterServing}</div>
-                        <div className="text-gray-500">Layani</div>
-                      </div>
-                      <div>
-                        <div className="text-green-600 font-bold">{counterCompleted}</div>
-                        <div className="text-gray-500">Selesai</div>
+
+                      {/* Room Statistics */}
+                      <div
+                        className={cn(
+                          "px-2 py-1.5 border-t flex-shrink-0",
+                          isActive ? "border-gray-700" : "border-gray-200"
+                        )}
+                      >
+                        <div className="flex justify-between text-xs">
+                          <div className="text-center">
+                            <div
+                              className={cn(
+                                "font-bold",
+                                isActive ? "text-white" : "text-gray-900"
+                              )}
+                            >
+                              {roomWaiting}
+                            </div>
+                            <div
+                              className={cn(
+                                "text-[10px]",
+                                isActive ? "text-gray-500" : "text-gray-400"
+                              )}
+                            >
+                              Tunggu
+                            </div>
+                          </div>
+                          <div className="text-center">
+                            <div
+                              className={cn(
+                                "font-bold",
+                                isActive ? "text-white" : "text-gray-900"
+                              )}
+                            >
+                              {roomServing}
+                            </div>
+                            <div
+                              className={cn(
+                                "text-[10px]",
+                                isActive ? "text-gray-500" : "text-gray-400"
+                              )}
+                            >
+                              Layani
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </div>
-              </Card>
-            );
-          })}
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
+        )}
+
+        {/* Right Side - Registration Queue */}
+        {showCounters && (
+        <div className={cn("flex flex-col", showRooms ? "w-1/2" : "w-full")}>
+          {/* Registration Queue Header */}
+          <div className="bg-gray-100 px-4 py-2 border-b-2 border-gray-200 flex-shrink-0">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ClipboardList className="h-5 w-5 text-gray-700" />
+                <h2 className="text-lg font-bold text-gray-900">Antrean Pendaftaran</h2>
+              </div>
+              <div className="flex items-center gap-4 text-xs">
+                <div className="flex items-center gap-1">
+                  <Users className="h-3 w-3 text-gray-400" />
+                  <span className="text-gray-500">Total</span>
+                  <span className="font-bold">{regTotalQueues}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Clock className="h-3 w-3 text-gray-400" />
+                  <span className="text-gray-500">Tunggu</span>
+                  <span className="font-bold">{regWaitingQueues}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Volume2 className="h-3 w-3 text-gray-400" />
+                  <span className="text-gray-500">Layani</span>
+                  <span className="font-bold">{regServingQueues}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <CheckCircle className="h-3 w-3 text-gray-400" />
+                  <span className="text-gray-500">Selesai</span>
+                  <span className="font-bold">{regCompletedQueues}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Registration Queue Grid */}
+          <div className="flex-1 overflow-auto p-3">
+            {counters.length === 0 ? (
+              <div className="flex items-center justify-center h-full">
+                <p className="text-gray-400">Tidak ada loket yang tersedia</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
+                {counters.map((counter) => {
+                  const counterQueues = registrationQueues.filter(
+                    (q) => q.counter_id === counter.id
+                  );
+
+                  counterQueues.sort((a, b) => {
+                    if (!a.called_at || !b.called_at) return 0;
+                    return new Date(b.called_at).getTime() - new Date(a.called_at).getTime();
+                  });
+
+                  const latestQueue = counterQueues[0];
+
+                  const counterAllQueues = allRegistrationQueues.filter(
+                    (q) => q.counter_id === counter.id
+                  );
+                  const counterWaiting = counterAllQueues.filter(
+                    (q) => q.status === "waiting"
+                  ).length;
+                  const counterServing = counterAllQueues.filter(
+                    (q) => q.status === "serving" || q.status === "called"
+                  ).length;
+
+                  const isActive = !!latestQueue;
+
+                  return (
+                    <div
+                      key={counter.id}
+                      className={cn(
+                        "border-2 transition-all duration-300 h-[160px] flex flex-col",
+                        isActive
+                          ? "border-black bg-black text-white"
+                          : "border-gray-200 bg-gray-50"
+                      )}
+                    >
+                      {/* Counter Header */}
+                      <div
+                        className={cn(
+                          "px-2 py-1.5 border-b flex-shrink-0",
+                          isActive ? "border-gray-700" : "border-gray-200"
+                        )}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div
+                            className={cn(
+                              "text-sm font-bold",
+                              isActive ? "text-white" : "text-gray-900"
+                            )}
+                          >
+                            {counter.name}
+                          </div>
+                          {isActive && (
+                            <Volume2 className="h-3 w-3 text-white animate-pulse" />
+                          )}
+                        </div>
+                        <div
+                          className={cn(
+                            "text-xs truncate",
+                            isActive ? "text-gray-400" : "text-gray-500"
+                          )}
+                        >
+                          {counter.code}
+                        </div>
+                      </div>
+
+                      {/* Queue Number Display */}
+                      <div className="flex-1 flex flex-col items-center justify-center px-2">
+                        {latestQueue ? (
+                          <>
+                            <div className="text-3xl font-black tracking-wide">
+                              {latestQueue.queue_number}
+                            </div>
+                            <div
+                              className={cn(
+                                "text-xs",
+                                isActive ? "text-gray-400" : "text-gray-500"
+                              )}
+                            >
+                              {latestQueue.called_at &&
+                                new Date(latestQueue.called_at).toLocaleTimeString(
+                                  "id-ID",
+                                  { hour: "2-digit", minute: "2-digit" }
+                                )}
+                            </div>
+                          </>
+                        ) : (
+                          <div className="text-2xl text-gray-300">---</div>
+                        )}
+                      </div>
+
+                      {/* Counter Statistics */}
+                      <div
+                        className={cn(
+                          "px-2 py-1.5 border-t flex-shrink-0",
+                          isActive ? "border-gray-700" : "border-gray-200"
+                        )}
+                      >
+                        <div className="flex justify-between text-xs">
+                          <div className="text-center">
+                            <div
+                              className={cn(
+                                "font-bold",
+                                isActive ? "text-white" : "text-gray-900"
+                              )}
+                            >
+                              {counterWaiting}
+                            </div>
+                            <div
+                              className={cn(
+                                "text-[10px]",
+                                isActive ? "text-gray-500" : "text-gray-400"
+                              )}
+                            >
+                              Tunggu
+                            </div>
+                          </div>
+                          <div className="text-center">
+                            <div
+                              className={cn(
+                                "font-bold",
+                                isActive ? "text-white" : "text-gray-900"
+                              )}
+                            >
+                              {counterServing}
+                            </div>
+                            <div
+                              className={cn(
+                                "text-[10px]",
+                                isActive ? "text-gray-500" : "text-gray-400"
+                              )}
+                            >
+                              Layani
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+        )}
       </div>
 
       {/* Footer */}
-      <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-r from-gray-800 to-gray-900 p-4 text-center">
-        <p className="text-lg text-gray-400">
-          Harap perhatikan nomor antrean Anda - Terima kasih atas kesabaran
-          Anda
+      <div className="border-t-2 border-gray-200 py-2 px-6 text-center bg-gray-50 flex-shrink-0">
+        <p className="text-gray-500 text-xs">
+          Perhatikan nomor antrean Anda pada layar di atas
         </p>
       </div>
     </div>

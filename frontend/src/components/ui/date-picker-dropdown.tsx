@@ -17,6 +17,7 @@ interface DatePickerDropdownProps {
   maxYear?: number;
   disabled?: boolean;
   disableFuture?: boolean;
+  tabIndex?: number;
 }
 
 const months = [
@@ -46,6 +47,7 @@ export function DatePickerDropdown({
   maxYear,
   disabled = false,
   disableFuture = false,
+  tabIndex,
 }: DatePickerDropdownProps) {
   const currentYear = new Date().getFullYear();
   const currentMonth = new Date().getMonth() + 1;
@@ -174,7 +176,7 @@ export function DatePickerDropdown({
       <CalendarIcon className="h-4 w-4 text-muted-foreground shrink-0" />
       <div className="flex items-center gap-1 flex-1">
         <Select value={selectedDay} onValueChange={handleDayChange} disabled={disabled}>
-          <SelectTrigger className="h-9 w-[70px] text-sm">
+          <SelectTrigger tabIndex={tabIndex} className="h-9 w-[70px] text-sm">
             <SelectValue placeholder="Tgl" />
           </SelectTrigger>
           <SelectContent>
@@ -187,7 +189,7 @@ export function DatePickerDropdown({
         </Select>
 
         <Select value={selectedMonth} onValueChange={handleMonthChange} disabled={disabled}>
-          <SelectTrigger className="h-9 flex-1 min-w-[100px] text-sm">
+          <SelectTrigger tabIndex={tabIndex ? tabIndex + 1 : undefined} className="h-9 flex-1 min-w-[100px] text-sm">
             <SelectValue placeholder="Bulan" />
           </SelectTrigger>
           <SelectContent>
@@ -200,7 +202,7 @@ export function DatePickerDropdown({
         </Select>
 
         <Select value={selectedYear} onValueChange={handleYearChange} disabled={disabled}>
-          <SelectTrigger className="h-9 w-[85px] text-sm">
+          <SelectTrigger tabIndex={tabIndex ? tabIndex + 2 : undefined} className="h-9 w-[85px] text-sm">
             <SelectValue placeholder="Tahun" />
           </SelectTrigger>
           <SelectContent className="max-h-[300px]">
