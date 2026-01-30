@@ -6,7 +6,7 @@ export interface Visit {
   registration_id: number;
   room_id: number;
   doctor_id?: number;
-  visit_type: 'consultation' | 'procedure' | 'lab' | 'radiology' | 'pharmacy' | 'inpatient' | 'outpatient' | 'emergency';
+  visit_type: 'consultation' | 'procedure' | 'lab' | 'radiology' | 'pharmacy' | 'inpatient' | 'outpatient' | 'emergency' | 'surgery';
   visit_purpose?: string;
   referral_from?: number;
   status: 'waiting' | 'in_queue' | 'in_progress' | 'completed' | 'cancelled';
