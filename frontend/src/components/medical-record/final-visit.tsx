@@ -19,7 +19,7 @@ import type { MedicineOrder, ProcedureOrder } from "@/lib/api";
 
 interface FinalVisitProps {
   visitId: number;
-  type: "pharmacy" | "radiology" | "laboratory" | "consultation";
+  type: "pharmacy" | "radiology" | "laboratory" | "consultation" | "surgery";
   onVisitUpdate?: () => void;
 }
 
