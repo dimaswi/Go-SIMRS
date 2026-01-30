@@ -28,6 +28,31 @@ export type { Province, Regency, District, Village, RegionStats } from './region
 // Settings
 export { settingsApi } from './settings';
 
+// BPJS (Legacy - use integrationsApi for new code)
+export { bpjsApi } from './bpjs';
+export type { 
+  BPJSConfigValue, 
+  BPJSConfigMap, 
+  BPJSConnectionTestResult,
+  BPJSSyncLog,
+  BPJSSyncStats,
+  BPJSPoliMapping,
+  CreatePoliMappingRequest,
+  UpdatePoliMappingRequest
+} from './bpjs';
+
+// Integrations (General - BPJS, SatuSehat, etc)
+export { integrationsApi, bpjsBridgingApi, BPJS_SERVICE_TYPES, isBPJSType, getBPJSServiceName } from './integrations';
+export type {
+  IntegrationType,
+  IntegrationConfigValue,
+  IntegrationConfigMap,
+  IntegrationConnectionTestResult,
+  IntegrationSyncLog,
+  IntegrationSyncStats,
+  IntegrationInfo
+} from './integrations';
+
 // Master Data
 export { masterDataApi } from './master-data';
 export type { MasterData, MasterDataRequest, MasterDataCategory } from './master-data';
@@ -269,3 +294,19 @@ export type {
   ProcessAdmissionRequestInput,
   RejectAdmissionRequestInput
 } from './admission-request';
+
+// Patient Allergy (with SNOMED CT for SatuSehat)
+export { 
+  patientAllergyApi,
+  ALLERGY_CATEGORY_LABELS,
+  ALLERGY_CRITICALITY_LABELS,
+  ALLERGY_CRITICALITY_COLORS
+} from './patient-allergy';
+export type {
+  PatientAllergy,
+  AllergyCategory,
+  AllergyCriticality,
+  AllergyOptions,
+  CreateAllergyInput,
+  BulkCreateAllergiesInput
+} from './patient-allergy';

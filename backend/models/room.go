@@ -15,6 +15,7 @@ type Room struct {
 	DeletedAt       gorm.DeletedAt `gorm:"index" json:"-"`
 	Code            string         `gorm:"not null;size:20" json:"code"`
 	Name            string         `gorm:"not null;size:100" json:"name"`
+	SatuSehatID     string         `gorm:"size:100;index" json:"satusehat_id,omitempty"`         // IHS Number Location dari SatuSehat
 	QueueCode       string         `gorm:"size:5" json:"queue_code"`                             // kode antrean ruangan (A, B, L, R, dll)
 	ServiceType     string         `gorm:"not null;size:50" json:"service_type"`                 // service_type from master data (rawat_jalan, rawat_inap, penunjang, administrasi)
 	RoomType        string         `gorm:"not null;size:50" json:"room_type"`                    // room_type from master data (rawat_inap, icu, poliklinik, laboratorium, etc)

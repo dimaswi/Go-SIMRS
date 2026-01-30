@@ -35,6 +35,13 @@ type VisitProcedure struct {
 	// Notes
 	Notes string `gorm:"type:text" json:"notes,omitempty"` // Catatan tambahan
 
+	// SatuSehat Integration
+	SatusehatProcedureID        string `gorm:"size:100" json:"satusehat_procedure_id"`        // FHIR Procedure ID
+	SatusehatServiceRequestID   string `gorm:"size:100" json:"satusehat_servicerequest_id"`   // FHIR ServiceRequest ID
+	SatusehatSpecimenID         string `gorm:"size:100" json:"satusehat_specimen_id"`         // FHIR Specimen ID
+	SatusehatDiagnosticReportID string `gorm:"size:100" json:"satusehat_diagnosticreport_id"` // FHIR DiagnosticReport ID
+	SatusehatObservationIDs     string `gorm:"type:text" json:"satusehat_observation_ids"`    // JSON array of Observation IDs
+
 	// Audit Trail - siapa yang membuat dan mengisi
 	CreatedByID *uint `gorm:"index" json:"created_by_id,omitempty"` // User yang membuat record
 	CreatedBy   *User `gorm:"foreignKey:CreatedByID" json:"created_by,omitempty"`

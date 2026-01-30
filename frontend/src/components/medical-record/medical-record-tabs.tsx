@@ -37,18 +37,20 @@ interface MedicalRecordTabsProps {
   isRadiology?: boolean;
   isLaboratory?: boolean;
   isConsultation?: boolean; // Show simplified tabs for consultation visits
+  isSurgery?: boolean; // Show surgery workstation tabs for surgery visits
   showProcedureTab?: boolean; // Show procedure tab for rawat_jalan, rawat_inap, gawat_darurat
   isInpatient?: boolean; // Show inpatient tabs (CPPT, Fluid Balance) for rawat_inap
 }
 
-export function MedicalRecordTabs({ 
-  activeTab, 
-  onTabChange, 
-  isEmergency = false, 
+export function MedicalRecordTabs({
+  activeTab,
+  onTabChange,
+  isEmergency = false,
   isPharmacy = false,
   isRadiology = false,
   isLaboratory = false,
   isConsultation = false,
+  isSurgery = false,
   showProcedureTab = false,
   isInpatient = false,
 }: MedicalRecordTabsProps) {
@@ -108,6 +110,22 @@ export function MedicalRecordTabs({
     },
     {
       id: "laboratory-final",
+      label: "Final Kunjungan",
+      icon: <CheckCircle />,
+      permission: "procedure_orders.final",
+    },
+  ];
+
+  // Tabs for surgery visits (workstation)
+  const surgeryTabs: Tab[] = [
+    {
+      id: "surgery-workstation",
+      label: "Pengerjaan Operasi",
+      icon: <Scissors />,
+      permission: "procedure_orders.perform",
+    },
+    {
+      id: "surgery-final",
       label: "Final Kunjungan",
       icon: <CheckCircle />,
       permission: "procedure_orders.final",
@@ -222,6 +240,12 @@ export function MedicalRecordTabs({
       permission: "medical_records.consultation_order",
     },
     {
+      id: "surgery-order",
+      label: "Order Operasi",
+      icon: <Scissors />,
+      permission: "medical_records.surgery_order",
+    },
+    {
       id: "disposition",
       label: "Pasien Pulang",
       icon: <LogOut />,
@@ -229,14 +253,16 @@ export function MedicalRecordTabs({
     },
   ];
 
-  const allTabs = isPharmacy 
-    ? pharmacyTabs 
-    : isRadiology 
-    ? radiologyTabs 
-    : isLaboratory 
-    ? laboratoryTabs 
+  const allTabs = isPharmacy
+    ? pharmacyTabs
+    : isRadiology
+    ? radiologyTabs
+    : isLaboratory
+    ? laboratoryTabs
     : isConsultation
     ? consultationTabs
+    : isSurgery
+    ? surgeryTabs
     : clinicalTabs;
 
   // Filter tabs based on permissions

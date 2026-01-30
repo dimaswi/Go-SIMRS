@@ -91,6 +91,22 @@ func SetupRoutes(r *gin.Engine) {
 
 		// ICD Routes (ICD-10, ICD-9-CM, ICD-O) - Public access for search
 		SetupICDRoutes(api)
+
+		// Integrations Routes (BPJS, SatuSehat, etc)
+		IntegrationsRoutes(api)
+
+		// KFA Routes (Kode Farmasi Indonesia for SatuSehat MedicationRequest)
+		KFARoutes(api)
+
+		// LOINC/SNOMED Routes (for SatuSehat ServiceRequest - Lab/Radiology)
+		LoincRoutes(api)
+
+		// Patient Allergy Routes (with SNOMED CT codes for SatuSehat AllergyIntolerance)
+		SetupPatientAllergyRoutes(api)
+
+		// BPJS Bridging Routes (legacy, for specific BPJS operations)
+		SetupBPJSRoutes(api)
+
 	}
 
 	// Notification Routes (with SSE)

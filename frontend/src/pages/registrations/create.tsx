@@ -319,6 +319,16 @@ export default function RegistrationCreate() {
       return;
     }
 
+    // Validate Doctor - REQUIRED for SatuSehat
+    if (!doctorId) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Dokter harus dipilih (wajib untuk SatuSehat)",
+      });
+      return;
+    }
+
     if (paymentMethod === "bpjs" && !bpjsNumber) {
       toast({
         variant: "destructive",
@@ -347,7 +357,7 @@ export default function RegistrationCreate() {
         patient_id: existingPatient.id,
         registration_type: selectedServiceType === "rawat_inap" ? "inpatient" : "outpatient",
         destination_room_id: destinationRoomId,
-        doctor_id: doctorId || undefined,
+        doctor_id: doctorId,
         payment_method: paymentMethod,
         bpjs_number: paymentMethod === "bpjs" ? bpjsNumber : undefined,
         insurance_name: paymentMethod === "insurance" ? insuranceName : undefined,
@@ -685,7 +695,7 @@ export default function RegistrationCreate() {
 
                   {destinationRoomId && (
                     <div className="col-span-2 space-y-2">
-                      <Label htmlFor="doctor" className="text-sm">Dokter (Opsional)</Label>
+                      <Label htmlFor="doctor" className="text-sm">Dokter *</Label>
                       {roomStaff.length > 0 ? (
                         <Combobox
                           options={roomStaff.map(staff => ({

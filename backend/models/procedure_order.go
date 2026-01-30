@@ -19,6 +19,7 @@ const (
 	ProcedureOrderTypeRadiology    = "radiology"    // Order Radiologi
 	ProcedureOrderTypeLaboratory   = "laboratory"   // Order Laboratorium
 	ProcedureOrderTypeConsultation = "consultation" // Order Konsultasi
+	ProcedureOrderTypeSurgery      = "surgery"      // Order Operasi/Bedah
 )
 
 // ProcedureOrder represents an order for radiology or laboratory procedure
@@ -57,6 +58,11 @@ type ProcedureOrder struct {
 	// Ordering Doctor
 	OrderedByID uint      `gorm:"not null;index" json:"ordered_by_id"`
 	OrderedBy   *Employee `gorm:"foreignKey:OrderedByID" json:"ordered_by,omitempty"`
+
+	// Surgery-specific fields
+	SurgeonDoctorID *uint      `gorm:"index" json:"surgeon_doctor_id"`                // Dokter Bedah yang dituju
+	SurgeonDoctor   *Employee  `gorm:"foreignKey:SurgeonDoctorID" json:"surgeon_doctor,omitempty"`
+	ScheduledDate   *time.Time `json:"scheduled_date,omitempty"` // Tanggal/waktu jadwal operasi
 
 	// Order Details
 	Priority      string `gorm:"size:20;default:'normal'" json:"priority"` // urgent, cito, normal
@@ -124,6 +130,11 @@ type ProcedureOrderItem struct {
 
 	// Notes
 	Notes string `gorm:"type:text" json:"notes"`
+
+	// SatuSehat Integration IDs
+	SatusehatServiceRequestID   string `gorm:"size:100" json:"satusehat_servicerequest_id"`   // FHIR ServiceRequest ID
+	SatusehatSpecimenID         string `gorm:"size:100" json:"satusehat_specimen_id"`         // FHIR Specimen ID
+	SatusehatDiagnosticReportID string `gorm:"size:100" json:"satusehat_diagnosticreport_id"` // FHIR DiagnosticReport ID
 
 	// Results (for this specific procedure)
 	Results []ProcedureOrderResult `gorm:"foreignKey:ProcedureOrderItemID" json:"results,omitempty"`

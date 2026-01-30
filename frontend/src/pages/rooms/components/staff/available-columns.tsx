@@ -1,7 +1,8 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import type { Employee, MasterData } from "@/lib/api";
-import { Loader2, PlusCircle } from "lucide-react";
+import { Loader2, PlusCircle, Check } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -17,6 +18,7 @@ interface CreateAvailableStaffColumnsProps {
   masterData: Record<string, MasterData[]>;
   roleSelections: Record<number, string>;
   onRoleChange: (employeeId: number, roleType: string) => void;
+  assignedEmployeeIds: number[]; // Add this to track assigned employees
 }
 
 export const createAvailableStaffColumns = ({
@@ -26,12 +28,24 @@ export const createAvailableStaffColumns = ({
   masterData,
   roleSelections,
   onRoleChange,
+  assignedEmployeeIds,
 }: CreateAvailableStaffColumnsProps): ColumnDef<Employee>[] => [
   {
     accessorKey: "nama_lengkap",
     header: "Nama Pegawai",
     cell: ({ row }) => {
-      return <div className="font-medium">{row.original.nama_lengkap}</div>;
+      const isAssigned = assignedEmployeeIds.includes(row.original.id);
+      return (
+        <div className="flex items-center gap-2">
+          <span className="font-medium">{row.original.nama_lengkap}</span>
+          {isAssigned && (
+            <Badge variant="secondary" className="text-xs">
+              <Check className="h-3 w-3 mr-1" />
+              Ditugaskan
+            </Badge>
+          )}
+        </div>
+      );
     },
   },
   {
@@ -83,6 +97,7 @@ export const createAvailableStaffColumns = ({
     cell: ({ row }) => {
       const employee = row.original;
       const selectedRole = roleSelections[employee.id] || "";
+      const isAssigned = assignedEmployeeIds.includes(employee.id);
       
       if (!hasPermission) return null;
 
@@ -91,8 +106,9 @@ export const createAvailableStaffColumns = ({
           size="sm"
           variant="ghost"
           onClick={() => onAdd(employee.id, selectedRole)}
-          disabled={addingId === employee.id || !selectedRole}
+          disabled={addingId === employee.id || !selectedRole || isAssigned}
           className="h-8"
+          title={isAssigned ? "Pegawai sudah ditugaskan" : ""}
         >
           {addingId === employee.id ? (
             <>

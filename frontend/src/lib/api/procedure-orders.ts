@@ -79,7 +79,7 @@ export interface ProcedureOrderItem {
 export interface ProcedureOrder {
   id: number;
   order_number: string;
-  order_type: "radiology" | "laboratory" | "consultation";
+  order_type: "radiology" | "laboratory" | "consultation" | "surgery";
   source_visit_id: number;
   source_visit?: {
     id: number;
@@ -107,6 +107,9 @@ export interface ProcedureOrder {
   };
   ordered_by_id: number;
   ordered_by?: { id: number; nama_lengkap: string };
+  surgeon_doctor_id?: number;
+  surgeon_doctor?: { id: number; nama_lengkap: string };
+  scheduled_date?: string;
   priority: string;
   clinical_notes?: string;
   diagnosis?: string;
@@ -147,13 +150,15 @@ export interface ProcedureOrder {
 }
 
 export interface CreateProcedureOrderInput {
-  order_type: "radiology" | "laboratory" | "consultation";
+  order_type: "radiology" | "laboratory" | "consultation" | "surgery";
   source_visit_id: number;
   target_room_id: number;
   priority?: string;
   clinical_notes?: string;
   diagnosis?: string;
   notes?: string;
+  surgeon_doctor_id?: number;
+  scheduled_date?: string;
   items: {
     procedure_id: number;
     notes?: string;
@@ -271,6 +276,34 @@ export const procedureOrdersApi = {
     api.get<Procedure[]>(
       `/procedure-orders/procedures/consultation/${roomId}`
     ),
+
+  // Get surgery rooms (operating rooms)
+  getSurgeryRooms: () =>
+    api.get<{ id: number; name: string; code: string }[]>(
+      "/procedure-orders/rooms/surgery"
+    ),
+
+  // Get surgical procedures, optionally filtered by room
+  getSurgicalProcedures: (roomId?: number) =>
+    api.get<Procedure[]>(
+      "/procedure-orders/procedures/surgical",
+      { params: roomId ? { room_id: roomId } : undefined }
+    ),
+
+  // Get available doctors for a room on a specific date (uses schedule system)
+  getAvailableDoctors: (roomId: number, date: string) =>
+    api.get<{
+      data: {
+        employee_id: number;
+        employee_name: string;
+        start_time: string;
+        end_time: string;
+        max_patients: number;
+      }[];
+      room_closed: boolean;
+    }>("/schedules/available-doctors", {
+      params: { room_id: roomId, date },
+    }),
 
   // Print result
   print: (id: number) => api.get<ProcedureOrder>(`/procedure-orders/${id}/print`),

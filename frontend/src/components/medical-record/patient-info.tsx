@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Alert } from "@/components/ui/alert";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   User,
   Calendar,
@@ -16,7 +16,10 @@ import {
   ChevronUp,
   MessageSquare,
   ArrowLeft,
+  Loader2,
 } from "lucide-react";
+import { patientAllergyApi, ALLERGY_CATEGORY_LABELS, ALLERGY_CRITICALITY_LABELS } from "@/lib/api";
+import type { PatientAllergy } from "@/lib/api";
 
 interface PatientInfoProps {
   visit: {
@@ -28,12 +31,6 @@ interface PatientInfoProps {
     admission_time?: string;
     discharge_time?: string;
     referral_from?: number; // For consultation orders
-    bed_id?: number;
-    bed?: {
-      id: number;
-      bed_number: string;
-      status: string;
-    };
     registration?: {
       registration_number: string;
       status?: string;
@@ -42,6 +39,7 @@ interface PatientInfoProps {
       insurance_name?: string;
       complaint?: string;
       patient?: {
+        id: number;
         no_rm: string;
         nama_lengkap: string;
         jenis_kelamin: string;
@@ -142,6 +140,13 @@ const getVisitCategoryBadge = (visit: PatientInfoProps["visit"]) => {
       </Badge>
     );
   }
+  if (visitType === "surgery") {
+    return (
+      <Badge className="bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200 border-orange-300">
+        🔪 Operasi
+      </Badge>
+    );
+  }
 
   // Clinical visits based on service_type
   if (serviceType === "gawat_darurat" || visitType === "emergency") {
@@ -186,8 +191,36 @@ export function PatientInfo({ visit }: PatientInfoProps) {
   const navigate = useNavigate();
   
   const patient = visit.registration?.patient;
-  const hasAllergies =
-    patient?.alergi_obat || patient?.alergi_makanan || patient?.alergi_lainnya;
+  const patientId = patient?.id;
+  
+  // Patient allergies from dedicated allergy table
+  const [patientAllergies, setPatientAllergies] = useState<PatientAllergy[]>([]);
+  const [loadingAllergies, setLoadingAllergies] = useState(false);
+  
+  // Load patient allergies from database
+  useEffect(() => {
+    const loadAllergies = async () => {
+      if (!patientId) return;
+      
+      setLoadingAllergies(true);
+      try {
+        const response = await patientAllergyApi.getByPatient(patientId);
+        setPatientAllergies(response.data.data || []);
+      } catch (error) {
+        console.error("Failed to load patient allergies:", error);
+      } finally {
+        setLoadingAllergies(false);
+      }
+    };
+
+    loadAllergies();
+  }, [patientId]);
+  
+  // Check if patient has allergies - prefer allergies from database, fallback to master data
+  const hasAllergyRecords = patientAllergies.length > 0;
+  const hasLegacyAllergies = patient?.alergi_obat || patient?.alergi_makanan || patient?.alergi_lainnya;
+  const hasAllergies = hasAllergyRecords || hasLegacyAllergies;
+  
   const [isOpen, setIsOpen] = useState(false);
   
   // Check if this is inpatient visit
@@ -199,7 +232,7 @@ export function PatientInfo({ visit }: PatientInfoProps) {
                               visit.status === "completed";
 
   return (
-    <Card className="border-none shadow-none relative">
+    <Card className="border-none shadow-none">
       <CardHeader className="border-b bg-muted/30 px-4 py-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -224,7 +257,7 @@ export function PatientInfo({ visit }: PatientInfoProps) {
               <h3 className="text-base font-semibold">
                 {patient?.nama_lengkap || "-"}
               </h3>
-              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+              <div className="flex items-center gap-2 mt-0.5">
                 <span className="text-xs text-muted-foreground">Kunjungan #{visit.visit_number}</span>
                 <span className="text-muted-foreground">•</span>
                 <Badge variant="outline" className="font-mono text-xs">
@@ -242,20 +275,6 @@ export function PatientInfo({ visit }: PatientInfoProps) {
                     ? "Perempuan"
                     : "-"}
                 </Badge>
-                {/* Room and Bed Info for Inpatient */}
-                {isInpatient && visit.room && (
-                  <>
-                    <span className="text-muted-foreground">•</span>
-                    <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-blue-200">
-                      🏥 {visit.room.name}
-                    </Badge>
-                    {visit.bed && (
-                      <Badge variant="outline" className="text-xs bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300 border-green-200">
-                        🛏️ Bed {visit.bed.bed_number}
-                      </Badge>
-                    )}
-                  </>
-                )}
               </div>
             </div>
           </div>
@@ -291,70 +310,73 @@ export function PatientInfo({ visit }: PatientInfoProps) {
         </div>
       </CardHeader>
       {isOpen && (
-        <CardContent className="p-3 absolute left-0 right-0 top-full z-50 bg-background border-b shadow-lg">
-          {hasAllergies && (
-            <Alert variant="destructive" className="mb-3 bg-red-50 dark:bg-red-950/20 border-red-300 dark:border-red-800">
-              <div className="flex items-start gap-3">
-                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-red-500 text-white flex-shrink-0">
-                  <AlertTriangle className="h-5 w-5" />
+        <CardContent className="p-3">
+          {/* Allergy Alert Section */}
+          {loadingAllergies ? (
+            <div className="flex items-center gap-2 py-2 text-muted-foreground mb-3">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span className="text-xs">Memuat data alergi...</span>
+            </div>
+          ) : hasAllergies && (
+            <Alert variant="destructive" className="mb-3">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription className="text-sm">
+                <div className="font-semibold mb-1">
+                  Perhatian: Pasien Memiliki Alergi
                 </div>
-                <div className="flex-1 space-y-2">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-red-900 dark:text-red-100 text-sm">
-                      ⚠️ PERHATIAN: PASIEN MEMILIKI ALERGI
-                    </span>
-                    <Badge variant="destructive" className="text-xs animate-pulse">
-                      {[patient?.alergi_obat, patient?.alergi_makanan, patient?.alergi_lainnya].filter(Boolean).length} Alergi
-                    </Badge>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                    {patient?.alergi_obat && (
-                      <div className="bg-white dark:bg-red-950/50 border-2 border-red-200 dark:border-red-800 rounded-lg p-2.5">
-                        <div className="flex items-center gap-2 mb-1.5">
-                          <div className="flex items-center justify-center w-7 h-7 rounded-full bg-red-100 dark:bg-red-900">
-                            <Pill className="h-4 w-4 text-red-600 dark:text-red-300" />
-                          </div>
-                          <span className="font-semibold text-xs text-red-800 dark:text-red-200">ALERGI OBAT</span>
+                <div className="space-y-1.5 text-xs">
+                  {/* Allergies from database (SNOMED CT coded) */}
+                  {hasAllergyRecords && (
+                    <div className="space-y-1">
+                      {patientAllergies.map((allergy) => (
+                        <div key={allergy.id} className="flex gap-1.5 items-start">
+                          <Badge 
+                            variant={allergy.criticality === 'high' ? 'destructive' : 'secondary'}
+                            className="text-[10px] px-1.5 py-0 h-4 flex-shrink-0"
+                          >
+                            {ALLERGY_CRITICALITY_LABELS[allergy.criticality]}
+                          </Badge>
+                          <span>
+                            <strong>{ALLERGY_CATEGORY_LABELS[allergy.category]}:</strong>{" "}
+                            {allergy.snomed_display}
+                            {allergy.notes && <span className="text-muted-foreground"> ({allergy.notes})</span>}
+                          </span>
                         </div>
-                        <p className="text-xs font-medium text-red-900 dark:text-red-100 leading-relaxed">
-                          {patient.alergi_obat}
-                        </p>
-                      </div>
-                    )}
-                    {patient?.alergi_makanan && (
-                      <div className="bg-white dark:bg-red-950/50 border-2 border-red-200 dark:border-red-800 rounded-lg p-2.5">
-                        <div className="flex items-center gap-2 mb-1.5">
-                          <div className="flex items-center justify-center w-7 h-7 rounded-full bg-red-100 dark:bg-red-900">
-                            <span className="text-base">🍽️</span>
-                          </div>
-                          <span className="font-semibold text-xs text-red-800 dark:text-red-200">ALERGI MAKANAN</span>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {/* Legacy allergies from master data (fallback, show only if no records from DB) */}
+                  {!hasAllergyRecords && hasLegacyAllergies && (
+                    <>
+                      {patient?.alergi_obat && (
+                        <div className="flex gap-1.5">
+                          <Pill className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+                          <span>
+                            <strong>Obat:</strong> {patient.alergi_obat}
+                          </span>
                         </div>
-                        <p className="text-xs font-medium text-red-900 dark:text-red-100 leading-relaxed">
-                          {patient.alergi_makanan}
-                        </p>
-                      </div>
-                    )}
-                    {patient?.alergi_lainnya && (
-                      <div className="bg-white dark:bg-red-950/50 border-2 border-red-200 dark:border-red-800 rounded-lg p-2.5">
-                        <div className="flex items-center gap-2 mb-1.5">
-                          <div className="flex items-center justify-center w-7 h-7 rounded-full bg-red-100 dark:bg-red-900">
-                            <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-300" />
-                          </div>
-                          <span className="font-semibold text-xs text-red-800 dark:text-red-200">ALERGI LAINNYA</span>
+                      )}
+                      {patient?.alergi_makanan && (
+                        <div className="flex gap-1.5">
+                          <span className="text-sm mt-0.5">🍽️</span>
+                          <span>
+                            <strong>Makanan:</strong> {patient.alergi_makanan}
+                          </span>
                         </div>
-                        <p className="text-xs font-medium text-red-900 dark:text-red-100 leading-relaxed">
-                          {patient.alergi_lainnya}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                  <div className="bg-red-100 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded px-2.5 py-1.5">
-                    <p className="text-xs text-red-800 dark:text-red-200 font-medium">
-                      💊 Pastikan untuk memeriksa riwayat alergi sebelum memberikan obat atau tindakan medis
-                    </p>
-                  </div>
+                      )}
+                      {patient?.alergi_lainnya && (
+                        <div className="flex gap-1.5">
+                          <AlertTriangle className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+                          <span>
+                            <strong>Lainnya:</strong> {patient.alergi_lainnya}
+                          </span>
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
-              </div>
+              </AlertDescription>
             </Alert>
           )}
 

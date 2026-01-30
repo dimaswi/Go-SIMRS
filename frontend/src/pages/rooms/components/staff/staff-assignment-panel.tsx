@@ -54,12 +54,21 @@ export function StaffAssignmentPanel({
     loadEmployees();
   }, [loadEmployees]);
 
+  // Show all employees, not just unassigned ones
   const assignedEmployeeIds = staff.map((s) => s.employee_id);
-  const availableEmployees = employees.filter(
-    (emp) => !assignedEmployeeIds.includes(emp.id)
-  );
+  const availableEmployees = employees; // Changed: show all employees
 
   const handleAdd = async (employeeId: number, roleType: string) => {
+    // Check if already assigned
+    if (assignedEmployeeIds.includes(employeeId)) {
+      toast({
+        variant: "destructive",
+        title: "Sudah ditugaskan",
+        description: "Pegawai ini sudah ditugaskan di ruangan ini",
+      });
+      return;
+    }
+
     if (!roleType) {
       toast({
         variant: "destructive",
@@ -131,6 +140,7 @@ export function StaffAssignmentPanel({
     masterData,
     roleSelections,
     onRoleChange: handleRoleChange,
+    assignedEmployeeIds,
   });
 
   if (loadingEmployees) {
@@ -157,7 +167,7 @@ export function StaffAssignmentPanel({
                   Tersedia ({availableEmployees.length})
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  Pegawai yang belum ditugaskan
+                  Semua pegawai
                 </CardDescription>
               </div>
             </div>

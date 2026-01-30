@@ -151,6 +151,9 @@ type Patient struct {
 	// NIK (Nomor Induk Kependudukan) - 16 digits
 	NIK string `gorm:"size:16" json:"nik"`
 
+	// SatuSehat IHS Number - ID pasien dari SatuSehat (hasil lookup by NIK)
+	SatuSehatID string `gorm:"size:50;index" json:"satusehat_id,omitempty"`
+
 	// Nama Lengkap sesuai KTP/Akta
 	NamaLengkap string `gorm:"size:150;not null" json:"nama_lengkap"`
 

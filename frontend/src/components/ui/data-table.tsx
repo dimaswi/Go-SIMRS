@@ -94,6 +94,10 @@ interface DataTableProps<TData, TValue> {
   meta?: Record<string, unknown>
   // ID untuk persist pagination - jika diberikan, pagination akan disimpan ke localStorage
   tableId?: string
+  // Initial sorting state
+  initialSorting?: SortingState
+  // Initial column visibility
+  initialColumnVisibility?: VisibilityState
   // Legacy props untuk backward compatibility
   pageIndex?: number
   onPageIndexChange?: (pageIndex: number) => void
@@ -109,12 +113,14 @@ export function DataTable<TData, TValue>({
   pageSize: defaultPageSize = 10,
   meta,
   tableId,
+  initialSorting = [],
+  initialColumnVisibility = {},
   pageIndex: controlledPageIndex,
   onPageIndexChange,
 }: DataTableProps<TData, TValue>) {
-  const [sorting, setSorting] = React.useState<SortingState>([])
+  const [sorting, setSorting] = React.useState<SortingState>(initialSorting)
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
-  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
+  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>(initialColumnVisibility)
   const [rowSelection, setRowSelection] = React.useState({})
   
   // State untuk globalFilter - initialize dari localStorage jika ada tableId

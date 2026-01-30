@@ -260,6 +260,24 @@ func Migrate() error {
 		// Notifications
 		&models.Notification{},       // User Notifications
 		&models.UserRoomAssignment{}, // User Room Assignments (for targeted notifications)
+		// External System Integrations (BPJS, SatuSehat, etc)
+		&models.IntegrationConfig{},  // Integration Configuration (General)
+		&models.IntegrationSyncLog{}, // Integration Sync Logs (General)
+		// BPJS Bridging (BPJS-specific data)
+		&models.BPJSConfig{},        // BPJS Configuration (Legacy)
+		&models.BPJSQueue{},         // BPJS Online Queue
+		&models.BPJSSyncLog{},       // BPJS Sync Logs (Legacy)
+		&models.BPJSPoliMapping{},   // BPJS Poli Mapping
+		&models.BPJSDoctorMapping{}, // BPJS Doctor Mapping
+		// KFA (Kode Farmasi Indonesia) for SatuSehat
+		&models.KFAMaster{},          // KFA Master Data (Katalog Obat SatuSehat)
+		&models.MedicineKFAMapping{}, // Medicine to KFA Code Mapping
+		// LOINC & SNOMED CT for SatuSehat ServiceRequest (Lab/Radiology)
+		&models.LoincMaster{},           // Table: loinc
+		&models.SnomedMaster{},          // Table: snomed_ct
+		&models.ProcedureLoincMapping{}, // Procedure to LOINC/SNOMED Mapping
+		// Patient Allergies (with SNOMED CT codes for SatuSehat AllergyIntolerance)
+		&models.PatientAllergy{}, // Patient Allergies with SNOMED CT codes
 	)
 
 	if err != nil {
@@ -331,6 +349,16 @@ func Migrate() error {
 		log.Println("Skipping billing seed - data already exists")
 	}
 
+	// Note: LOINC & SNOMED master data diimport manual oleh user
+	// Gunakan file SQL yang sudah disiapkan untuk mengisi tabel loinc_terminologi dan snomed_masters
+	var loincCount int64
+	DB.Model(&models.LoincMaster{}).Count(&loincCount)
+	log.Printf("LOINC master data: %d rows", loincCount)
+
+	var snomedCount int64
+	DB.Model(&models.SnomedMaster{}).Count(&snomedCount)
+	log.Printf("SNOMED master data: %d rows", snomedCount)
+
 	return nil
 }
 
@@ -367,6 +395,13 @@ func createPerformanceIndexes() {
 	// Procedure Orders
 	DB.Exec("CREATE INDEX IF NOT EXISTS idx_procedure_orders_status ON procedure_orders(status)")
 	DB.Exec("CREATE INDEX IF NOT EXISTS idx_procedure_orders_visit_id ON procedure_orders(visit_id)")
+
+	// Surgery Bookings
+	DB.Exec("CREATE INDEX IF NOT EXISTS idx_surgery_bookings_status ON surgery_bookings(status)")
+	DB.Exec("CREATE INDEX IF NOT EXISTS idx_surgery_bookings_scheduled_date ON surgery_bookings(scheduled_date)")
+	DB.Exec("CREATE INDEX IF NOT EXISTS idx_surgery_bookings_surgeon_id ON surgery_bookings(surgeon_id)")
+	DB.Exec("CREATE INDEX IF NOT EXISTS idx_surgery_bookings_operating_room_id ON surgery_bookings(operating_room_id)")
+	DB.Exec("CREATE INDEX IF NOT EXISTS idx_surgery_bookings_priority ON surgery_bookings(priority)")
 
 	log.Println("Performance indexes created")
 }
@@ -449,15 +484,8 @@ func CleanMigrate() error {
 }
 
 func SeedData() error {
-	// Check if permissions already seeded (quick check)
-	var permCount int64
-	DB.Model(&models.Permission{}).Count(&permCount)
-	if permCount > 50 {
-		log.Println("Permissions already seeded, skipping permission seed")
-		return seedRolesAndAdmin()
-	}
-
-	log.Println("Seeding permissions (first run)...")
+	// Always ensure all permissions exist (use upsert logic)
+	log.Println("Ensuring all permissions exist...")
 
 	// Seed granular permissions that match frontend permission checks
 	permissions := []models.Permission{
@@ -629,6 +657,7 @@ func SeedData() error {
 		{Name: "medical_records.radiology_order", Module: "Medical Record Management", Category: "Medical", Description: "Create and view radiology orders from medical record", Actions: `["create", "read"]`},
 		{Name: "medical_records.laboratory_order", Module: "Medical Record Management", Category: "Medical", Description: "Create and view laboratory orders from medical record", Actions: `["create", "read"]`},
 		{Name: "medical_records.consultation_order", Module: "Medical Record Management", Category: "Medical", Description: "Create and view consultation orders from medical record", Actions: `["create", "read"]`},
+		{Name: "medical_records.surgery_order", Module: "Medical Record Management", Category: "Medical", Description: "Create and view surgery orders from medical record", Actions: `["create", "read"]`},
 
 		// Medicine Orders (Order Obat)
 		{Name: "medicine_orders.view", Module: "Medicine Order Management", Category: "Pharmacy", Description: "View medicine orders", Actions: `["read"]`},
@@ -667,6 +696,12 @@ func SeedData() error {
 		{Name: "settings.update", Module: "System Settings", Category: "Settings", Description: "Update system settings", Actions: `["update"]`},
 		{Name: "profile.view", Module: "Profile Management", Category: "Account", Description: "View own profile", Actions: `["read"]`},
 		{Name: "profile.update", Module: "Profile Management", Category: "Account", Description: "Update own profile", Actions: `["update"]`},
+
+		// System Integrations
+		{Name: "integrations.view", Module: "System Integrations", Category: "Integrations", Description: "View system integrations configuration", Actions: `["read"]`},
+		{Name: "integrations.manage", Module: "System Integrations", Category: "Integrations", Description: "Manage system integrations (BPJS, SatuSehat, etc)", Actions: `["read", "create", "update", "delete"]`},
+		{Name: "integrations.sync", Module: "System Integrations", Category: "Integrations", Description: "Sync data with external systems", Actions: `["sync"]`},
+
 	}
 
 	// Batch insert permissions using CreateInBatches for better performance

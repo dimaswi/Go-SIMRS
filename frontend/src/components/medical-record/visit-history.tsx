@@ -40,6 +40,7 @@ const visitTypeLabels: Record<string, string> = {
   inpatient: "Rawat Inap",
   outpatient: "Rawat Jalan", // Kunjungan biasa ke Poli
   emergency: "Gawat Darurat", // Kunjungan biasa ke UGD
+  surgery: "Operasi",
   other: "Lainnya",
 };
 

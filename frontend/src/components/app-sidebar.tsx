@@ -19,6 +19,7 @@ import {
   Package,
   Pill,
   FileText,
+  FileSearch,
   Send,
   ShoppingCart,
   ClipboardList,
@@ -30,7 +31,8 @@ import {
   CalendarClock,
   BookMarked,
   Hotel,
-  QrCode
+  QrCode,
+  Stethoscope,
 } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
 import { usePermission } from '@/hooks/usePermission';
@@ -128,6 +130,22 @@ const menuItems = [
       { path: '/users', label: 'Users', icon: Users, permission: 'users.view' },
       { path: '/roles', label: 'Roles', icon: Shield, permission: 'roles.view' },
       { path: '/permissions', label: 'Permissions', icon: Lock, permission: 'permissions.view' },
+    ]
+  },
+  { 
+    path: '/integrations', 
+    label: 'Integrasi', 
+    icon: Stethoscope,
+    permission: 'integrations.view',
+    submenu: [
+      { path: '/integrations/config', label: 'Konfigurasi', icon: Settings, permission: 'integrations.view' },
+      { path: '/bpjs/mapping/poli', label: 'Mapping Poli BPJS', icon: Building2, permission: 'integrations.view' },
+      { path: '/bpjs/mapping/dokter', label: 'Mapping Dokter BPJS', icon: UserRound, permission: 'integrations.view' },
+      { path: '/bpjs/logs', label: 'Log BPJS', icon: FileSearch, permission: 'integrations.view' },
+      { path: '/bpjs/api-tester', label: 'API Tester BPJS', icon: Send, permission: 'integrations.view' },
+      { path: '/integrations/satusehat', label: 'Monitoring SatuSehat', icon: Activity, permission: 'integrations.view' },
+      { path: '/integrations/satusehat/send', label: 'Kirim Data SatuSehat', icon: Send, permission: 'integrations.manage' },
+      { path: '/integrations/satusehat/logs', label: 'Log SatuSehat', icon: FileSearch, permission: 'integrations.view' },
     ]
   },
 ];

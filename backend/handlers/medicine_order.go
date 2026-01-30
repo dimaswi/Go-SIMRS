@@ -727,6 +727,11 @@ func DispenseMedicine(c *gin.Context) {
 			"medicine_batch_id": itemInput.MedicineBatchID,
 		}
 
+		// Set dispensed by (petugas farmasi yang menyerahkan)
+		if user.EmployeeID != nil {
+			updates["dispensed_by_id"] = *user.EmployeeID
+		}
+
 		if newDispensedQty >= item.Quantity {
 			updates["status"] = models.ItemStatusDelivered
 		} else {

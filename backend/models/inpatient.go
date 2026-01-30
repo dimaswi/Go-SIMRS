@@ -54,6 +54,10 @@ type CPPT struct {
 	// Audit
 	CreatedByID *uint `gorm:"index" json:"created_by_id,omitempty"`
 	CreatedBy   *User `gorm:"foreignKey:CreatedByID" json:"created_by,omitempty"`
+
+	// SatuSehat Integration - CarePlan (Plan/Instruction dari CPPT)
+	SatusehatCarePlanID string     `gorm:"size:100" json:"satusehat_careplan_id,omitempty"`
+	SatusehatCarePlanAt *time.Time `json:"satusehat_careplan_at,omitempty"`
 }
 
 func (CPPT) TableName() string {

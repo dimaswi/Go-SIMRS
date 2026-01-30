@@ -48,9 +48,15 @@ func main() {
 
 	// CORS middleware
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:5173", "http://localhost:3000", "http://147.93.104.139:3232"},
-		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
+		AllowOrigins: []string{
+			"http://localhost:5173",
+			"http://localhost:3000",
+			"http://147.93.104.139:3232",
+			"https://bpjs_dev.dimaswysnu.com",
+			"http://bpjs_dev.dimaswysnu.com",
+		},
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "X-Requested-With"},
 		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: true,
 	}))

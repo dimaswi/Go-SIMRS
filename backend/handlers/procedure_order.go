@@ -27,6 +27,7 @@ func GetProcedureOrders(c *gin.Context) {
 		Preload("TargetRoom").
 		Preload("Registration.Patient").
 		Preload("OrderedBy").
+		Preload("SurgeonDoctor").
 		Preload("PerformedBy").
 		Preload("ValidatedBy").
 		Preload("Items.Procedure.Parameters", func(db *gorm.DB) *gorm.DB {
@@ -116,6 +117,7 @@ func GetProcedureOrder(c *gin.Context) {
 		Preload("TargetRoom").
 		Preload("Registration.Patient").
 		Preload("OrderedBy").
+		Preload("SurgeonDoctor").
 		Preload("PerformedBy").
 		Preload("ValidatedBy").
 		Preload("Items.Procedure.Parameters", func(db *gorm.DB) *gorm.DB {
@@ -142,14 +144,16 @@ func CreateProcedureOrder(c *gin.Context) {
 	userID := userIDVal.(uint)
 
 	var input struct {
-		OrderType     string `json:"order_type" binding:"required"` // radiology or laboratory
-		SourceVisitID uint   `json:"source_visit_id" binding:"required"`
-		TargetRoomID  uint   `json:"target_room_id" binding:"required"`
-		Priority      string `json:"priority"`
-		ClinicalNotes string `json:"clinical_notes"`
-		Diagnosis     string `json:"diagnosis"`
-		Notes         string `json:"notes"`
-		Items         []struct {
+		OrderType       string `json:"order_type" binding:"required"` // radiology, laboratory, consultation, surgery
+		SourceVisitID   uint   `json:"source_visit_id" binding:"required"`
+		TargetRoomID    uint   `json:"target_room_id" binding:"required"`
+		Priority        string `json:"priority"`
+		ClinicalNotes   string `json:"clinical_notes"`
+		Diagnosis       string `json:"diagnosis"`
+		Notes           string `json:"notes"`
+		SurgeonDoctorID *uint  `json:"surgeon_doctor_id"` // Dokter bedah (for surgery orders)
+		ScheduledDate   string `json:"scheduled_date"`    // Tanggal jadwal operasi (for surgery orders)
+		Items           []struct {
 			ProcedureID uint   `json:"procedure_id" binding:"required"`
 			Notes       string `json:"notes"`
 		} `json:"items" binding:"required,min=1"`
@@ -163,8 +167,9 @@ func CreateProcedureOrder(c *gin.Context) {
 	// Validate order type
 	if input.OrderType != models.ProcedureOrderTypeRadiology &&
 		input.OrderType != models.ProcedureOrderTypeLaboratory &&
-		input.OrderType != models.ProcedureOrderTypeConsultation {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid order type. Must be 'radiology', 'laboratory', or 'consultation'"})
+		input.OrderType != models.ProcedureOrderTypeConsultation &&
+		input.OrderType != models.ProcedureOrderTypeSurgery {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid order type. Must be 'radiology', 'laboratory', 'consultation', or 'surgery'"})
 		return
 	}
 
@@ -205,6 +210,8 @@ func CreateProcedureOrder(c *gin.Context) {
 		prefix = "LAB"
 	case models.ProcedureOrderTypeConsultation:
 		prefix = "CONS"
+	case models.ProcedureOrderTypeSurgery:
+		prefix = "SRG"
 	default:
 		prefix = "ORD"
 	}
@@ -236,6 +243,9 @@ func CreateProcedureOrder(c *gin.Context) {
 	case models.ProcedureOrderTypeConsultation:
 		visitType = models.VisitTypeConsultation
 		visitPurpose = "Konsultasi ke " + targetRoom.Name
+	case models.ProcedureOrderTypeSurgery:
+		visitType = models.VisitTypeSurgery
+		visitPurpose = "Operasi/Bedah di " + targetRoom.Name
 	default:
 		visitType = "other"
 		visitPurpose = "Pemeriksaan"
@@ -257,8 +267,8 @@ func CreateProcedureOrder(c *gin.Context) {
 		return
 	}
 
-	// Create room queue HANYA untuk radiology dan laboratory (TIDAK untuk consultation)
-	if input.OrderType == models.ProcedureOrderTypeRadiology || input.OrderType == models.ProcedureOrderTypeLaboratory {
+	// Create room queue untuk radiology, laboratory, dan surgery (TIDAK untuk consultation)
+	if input.OrderType == models.ProcedureOrderTypeRadiology || input.OrderType == models.ProcedureOrderTypeLaboratory || input.OrderType == models.ProcedureOrderTypeSurgery {
 		queueNumber := generateProcedureQueueNumber(tx, input.TargetRoomID)
 
 		// Get room for queue code
@@ -303,21 +313,67 @@ func CreateProcedureOrder(c *gin.Context) {
 		priority = "normal"
 	}
 
+	// Parse scheduled date if provided (for surgery orders)
+	var scheduledDate *time.Time
+	if input.ScheduledDate != "" {
+		// Try parsing with time
+		parsed, err := time.Parse("2006-01-02T15:04", input.ScheduledDate)
+		if err != nil {
+			// Try parsing date only
+			parsed, err = time.Parse("2006-01-02", input.ScheduledDate)
+			if err != nil {
+				tx.Rollback()
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid scheduled_date format. Use YYYY-MM-DD or YYYY-MM-DDTHH:MM"})
+				return
+			}
+		}
+		scheduledDate = &parsed
+	}
+
+	// Validate surgery schedule: check doctor's schedule matches the selected date/time
+	if input.OrderType == models.ProcedureOrderTypeSurgery && scheduledDate != nil && input.SurgeonDoctorID != nil {
+		dayOfWeek := int(scheduledDate.Weekday())
+		dateStr := scheduledDate.Format("2006-01-02")
+		scheduledTime := scheduledDate.Format("15:04")
+
+		// Find doctor schedule for this room, day, and within effective dates
+		var schedule models.DoctorSchedule
+		err := tx.Where("room_id = ? AND employee_id = ? AND day_of_week = ?",
+			input.TargetRoomID, *input.SurgeonDoctorID, dayOfWeek).
+			Where("(effective_from IS NULL OR DATE(effective_from) <= ?) AND (effective_to IS NULL OR DATE(effective_to) >= ?)", dateStr, dateStr).
+			First(&schedule).Error
+
+		if err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Dokter bedah tidak memiliki jadwal di hari tersebut"})
+			return
+		}
+
+		// Validate time is within doctor's schedule
+		if scheduledTime < schedule.StartTime || scheduledTime > schedule.EndTime {
+			tx.Rollback()
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Jam operasi (%s) di luar jadwal dokter (%s - %s)", scheduledTime, schedule.StartTime, schedule.EndTime)})
+			return
+		}
+	}
+
 	// Create procedure order
 	order := models.ProcedureOrder{
-		OrderNumber:    orderNumber,
-		OrderType:      input.OrderType,
-		SourceVisitID:  input.SourceVisitID,
-		TargetVisitID:  &targetVisit.ID,
-		SourceRoomID:   sourceVisit.RoomID,
-		TargetRoomID:   input.TargetRoomID,
-		RegistrationID: sourceVisit.RegistrationID,
-		OrderedByID:    *user.EmployeeID,
-		Priority:       priority,
-		ClinicalNotes:  input.ClinicalNotes,
-		Diagnosis:      input.Diagnosis,
-		Notes:          input.Notes,
-		Status:         models.ProcedureOrderStatusPending,
+		OrderNumber:     orderNumber,
+		OrderType:       input.OrderType,
+		SourceVisitID:   input.SourceVisitID,
+		TargetVisitID:   &targetVisit.ID,
+		SourceRoomID:    sourceVisit.RoomID,
+		TargetRoomID:    input.TargetRoomID,
+		RegistrationID:  sourceVisit.RegistrationID,
+		OrderedByID:     *user.EmployeeID,
+		SurgeonDoctorID: input.SurgeonDoctorID,
+		ScheduledDate:   scheduledDate,
+		Priority:        priority,
+		ClinicalNotes:   input.ClinicalNotes,
+		Diagnosis:       input.Diagnosis,
+		Notes:           input.Notes,
+		Status:          models.ProcedureOrderStatusPending,
 	}
 
 	if err := tx.Create(&order).Error; err != nil {
@@ -328,7 +384,7 @@ func CreateProcedureOrder(c *gin.Context) {
 
 	// Create order items
 	for _, itemInput := range input.Items {
-		// Validate procedure exists and matches order type
+		// Validate procedure exists
 		var procedure models.Procedure
 		if err := tx.First(&procedure, itemInput.ProcedureID).Error; err != nil {
 			tx.Rollback()
@@ -336,10 +392,23 @@ func CreateProcedureOrder(c *gin.Context) {
 			return
 		}
 
-		if procedure.ProcedureType != input.OrderType {
-			tx.Rollback()
-			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Procedure '%s' is not a %s procedure", procedure.Name, input.OrderType)})
-			return
+		if input.OrderType == models.ProcedureOrderTypeSurgery {
+			// For surgery: validate that procedure is assigned to the target OR room
+			var roomProcedure models.RoomProcedure
+			if err := tx.Where("room_id = ? AND procedure_id = ? AND is_available = ?",
+				input.TargetRoomID, itemInput.ProcedureID, true).
+				First(&roomProcedure).Error; err != nil {
+				tx.Rollback()
+				c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Tindakan '%s' tidak tersedia di kamar operasi yang dipilih", procedure.Name)})
+				return
+			}
+		} else {
+			// For radiology/laboratory/consultation: validate procedure_type matches
+			if procedure.ProcedureType != input.OrderType {
+				tx.Rollback()
+				c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Procedure '%s' is not a %s procedure", procedure.Name, input.OrderType)})
+				return
+			}
 		}
 
 		item := models.ProcedureOrderItem{
@@ -366,6 +435,7 @@ func CreateProcedureOrder(c *gin.Context) {
 		Preload("TargetRoom").
 		Preload("Registration.Patient").
 		Preload("OrderedBy").
+		Preload("SurgeonDoctor").
 		Preload("Items.Procedure").
 		First(&order, order.ID)
 
@@ -1110,6 +1180,7 @@ func GetOrdersBySourceVisit(c *gin.Context) {
 		Preload("TargetRoom").
 		Preload("Registration.Patient").
 		Preload("OrderedBy").
+		Preload("SurgeonDoctor").
 		Preload("PerformedBy").
 		Preload("ValidatedBy").
 		Preload("Items.Procedure.Parameters", func(db *gorm.DB) *gorm.DB {
@@ -1142,6 +1213,7 @@ func PrintProcedureOrderResult(c *gin.Context) {
 		Preload("TargetRoom").
 		Preload("Registration.Patient").
 		Preload("OrderedBy").
+		Preload("SurgeonDoctor").
 		Preload("PerformedBy").
 		Preload("ValidatedBy").
 		Preload("Items.Procedure.Parameters", func(db *gorm.DB) *gorm.DB {
@@ -1246,3 +1318,47 @@ func GetProcedureOrderHistory(c *gin.Context) {
 
 	c.JSON(http.StatusOK, orders)
 }
+
+// GetSurgeryRooms gets all surgery/operating rooms
+func GetSurgeryRooms(c *gin.Context) {
+	var rooms []models.Room
+	if err := database.DB.Where("room_type IN ? AND is_active = ?", []string{"ok", "kamar_operasi"}, true).Find(&rooms).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, rooms)
+}
+
+// GetSurgicalProcedures gets all surgical procedures (is_surgical = true)
+func GetSurgicalProcedures(c *gin.Context) {
+	roomID := c.Query("room_id")
+
+	var procedures []models.Procedure
+
+	if roomID != "" {
+		// When room_id is provided, get all procedures assigned to that room
+		// (the room is already an OR room, so all its procedures are surgical)
+		query := database.DB.
+			Joins("JOIN room_procedures ON room_procedures.procedure_id = procedures.id").
+			Where("room_procedures.room_id = ? AND room_procedures.is_available = ?", roomID, true).
+			Where("procedures.is_active = ?", true).
+			Preload("Tariffs")
+
+		if err := query.Order("procedures.name ASC").Find(&procedures).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	} else {
+		// Without room_id, return all active surgical procedures
+		query := database.DB.Where("is_active = ? AND is_surgical = ?", true, true).
+			Preload("Tariffs")
+
+		if err := query.Order("name ASC").Find(&procedures).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	}
+
+	c.JSON(http.StatusOK, procedures)
+}
+

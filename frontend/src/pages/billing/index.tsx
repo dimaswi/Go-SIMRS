@@ -81,6 +81,7 @@ const visitTypeLabels: Record<string, string> = {
   outpatient: 'Rawat Jalan',
   inpatient: 'Rawat Inap',
   emergency: 'UGD',
+  surgery: 'Operasi',
 };
 
 export default function BillingIndex() {

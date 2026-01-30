@@ -127,7 +127,7 @@ type CreateRegistrationInput struct {
 	PatientID         uint   `json:"patient_id" binding:"required"`          // Patient is required
 	RegistrationType  string `json:"registration_type"`                      // outpatient, inpatient, emergency
 	DestinationRoomID uint   `json:"destination_room_id" binding:"required"` // Destination room
-	DoctorID          *uint  `json:"doctor_id"`                              // Doctor
+	DoctorID          uint   `json:"doctor_id" binding:"required"`           // Doctor - REQUIRED for SatuSehat
 	PaymentMethod     string `json:"payment_method" binding:"required"`      // cash, bpjs, insurance
 	BPJSNumber        string `json:"bpjs_number"`                            // BPJS number if applicable
 	InsuranceName     string `json:"insurance_name"`                         // Insurance name
@@ -182,29 +182,27 @@ func CreateRegistration(c *gin.Context) {
 		return
 	}
 
-	// Validate doctor if provided
-	if input.DoctorID != nil {
-		var doctor models.Employee
-		if err := database.DB.First(&doctor, *input.DoctorID).Error; err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Dokter tidak ditemukan"})
-			return
-		}
+	// Validate doctor (now required)
+	var doctor models.Employee
+	if err := database.DB.First(&doctor, input.DoctorID).Error; err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Dokter tidak ditemukan"})
+		return
+	}
 
-		// Check if doctor is assigned to the selected room
-		var roomStaff models.RoomStaff
-		err := database.DB.Where("room_id = ? AND employee_id = ?", input.DestinationRoomID, *input.DoctorID).
-			Where("end_date IS NULL OR end_date >= ?", time.Now()).
-			First(&roomStaff).Error
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Dokter tidak terdaftar di ruangan yang dipilih"})
-			return
-		}
+	// Check if doctor is assigned to the selected room
+	var roomStaff models.RoomStaff
+	err := database.DB.Where("room_id = ? AND employee_id = ?", input.DestinationRoomID, input.DoctorID).
+		Where("end_date IS NULL OR end_date >= ?", time.Now()).
+		First(&roomStaff).Error
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Dokter tidak terdaftar di ruangan yang dipilih"})
+		return
+	}
 
-		// Verify doctor is actually a doctor
-		if doctor.TipeKaryawan != "dokter" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Karyawan yang dipilih bukan dokter"})
-			return
-		}
+	// Verify doctor is actually a doctor
+	if doctor.TipeKaryawan != "dokter" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Karyawan yang dipilih bukan dokter"})
+		return
 	}
 
 	// Validate BPJS number if payment method is BPJS
@@ -232,7 +230,7 @@ func CreateRegistration(c *gin.Context) {
 		models.RegistrationStatusDischarged,
 		models.RegistrationStatusCancelled,
 	}
-	err := database.DB.Where(
+	err = database.DB.Where(
 		"patient_id = ? AND destination_room_id = ? AND registration_date >= ? AND registration_date < ? AND status NOT IN ?",
 		input.PatientID, input.DestinationRoomID, startOfDay, endOfDay, finishedStatuses,
 	).First(&existingRegistration).Error
@@ -265,7 +263,7 @@ func CreateRegistration(c *gin.Context) {
 		PatientID:          input.PatientID,
 		QueueID:            input.QueueID,
 		DestinationRoomID:  input.DestinationRoomID,
-		DoctorID:           input.DoctorID,
+		DoctorID:           &input.DoctorID,
 		PaymentMethod:      input.PaymentMethod,
 		BPJSNumber:         input.BPJSNumber,
 		InsuranceName:      input.InsuranceName,
@@ -346,7 +344,7 @@ func CreateRegistration(c *gin.Context) {
 			VisitNumber:    visitNumber,
 			RegistrationID: registration.ID,
 			RoomID:         input.DestinationRoomID,
-			DoctorID:       input.DoctorID,
+			DoctorID:       &input.DoctorID,
 			VisitType:      visitType,
 			VisitPurpose:   "Pemeriksaan",
 			Status:         models.VisitStatusWaiting,
@@ -450,9 +448,7 @@ func CreateRegistration(c *gin.Context) {
 				orderedByID = *user.EmployeeID
 			} else {
 				// Use doctor if provided, or create without specific orderer
-				if input.DoctorID != nil {
-					orderedByID = *input.DoctorID
-				}
+				orderedByID = input.DoctorID
 			}
 
 			priority := input.QueuePriority
@@ -535,8 +531,8 @@ func CreateRegistration(c *gin.Context) {
 			var prescriberID uint
 			if user.EmployeeID != nil {
 				prescriberID = *user.EmployeeID
-			} else if input.DoctorID != nil {
-				prescriberID = *input.DoctorID
+			} else {
+				prescriberID = input.DoctorID
 			}
 
 			priority := input.QueuePriority
@@ -739,13 +735,43 @@ func UpdateRegistration(c *gin.Context) {
 		return
 	}
 
+	// Validate doctor if provided
+	if input.DoctorID != nil {
+		var doctor models.Employee
+		if err := database.DB.First(&doctor, *input.DoctorID).Error; err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Dokter tidak ditemukan"})
+			return
+		}
+
+		// Verify doctor is actually a doctor
+		if doctor.TipeKaryawan != "dokter" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Karyawan yang dipilih bukan dokter"})
+			return
+		}
+
+		// Check if doctor is assigned to the destination room (if room is also being updated)
+		roomID := registration.DestinationRoomID
+		if input.DestinationRoomID != nil {
+			roomID = *input.DestinationRoomID
+		}
+
+		var roomStaff models.RoomStaff
+		err := database.DB.Where("room_id = ? AND employee_id = ?", roomID, *input.DoctorID).
+			Where("end_date IS NULL OR end_date >= ?", time.Now()).
+			First(&roomStaff).Error
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Dokter tidak terdaftar di ruangan yang dipilih"})
+			return
+		}
+	}
+
 	updates := make(map[string]interface{})
 
 	if input.DestinationRoomID != nil {
 		updates["destination_room_id"] = *input.DestinationRoomID
 	}
 	if input.DoctorID != nil {
-		updates["doctor_id"] = *input.DoctorID
+		updates["doctor_id"] = input.DoctorID
 	}
 	if input.PaymentMethod != nil {
 		updates["payment_method"] = *input.PaymentMethod
@@ -1060,7 +1086,7 @@ func CreateRegistrationFromQueue(c *gin.Context) {
 		PatientID:          input.PatientID,
 		QueueID:            input.QueueID,
 		DestinationRoomID:  input.DestinationRoomID,
-		DoctorID:           input.DoctorID,
+		DoctorID:           &input.DoctorID,
 		PaymentMethod:      input.PaymentMethod,
 		BPJSNumber:         input.BPJSNumber,
 		InsuranceName:      input.InsuranceName,

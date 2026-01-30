@@ -55,6 +55,14 @@ type Triage struct {
 	// Audit
 	TriagedByID *uint `gorm:"index" json:"triaged_by_id,omitempty"`
 	TriagedBy   *User `gorm:"foreignKey:TriagedByID" json:"triaged_by,omitempty"`
+
+	// SatuSehat Integration
+	SatusehatVitalSignsSent bool       `gorm:"default:false" json:"satusehat_vital_signs_sent"` // Flag jika vital signs sudah dikirim
+	SatusehatSentAt         *time.Time `json:"satusehat_sent_at,omitempty"`                     // Waktu kirim
+
+	// SatuSehat ClinicalImpression - Asesmen Triage (khusus IGD)
+	SatusehatClinicalImpressionTriageID string     `gorm:"size:100" json:"satusehat_ci_triage_id,omitempty"`
+	SatusehatClinicalImpressionTriageAt *time.Time `json:"satusehat_ci_triage_at,omitempty"`
 }
 
 func (Triage) TableName() string {
@@ -98,6 +106,10 @@ type Anamnesis struct {
 	// Audit
 	RecordedByID *uint `gorm:"index" json:"recorded_by_id,omitempty"`
 	RecordedBy   *User `gorm:"foreignKey:RecordedByID" json:"recorded_by,omitempty"`
+
+	// SatuSehat Integration - MedicationStatement (riwayat obat yang sedang dikonsumsi)
+	SatusehatMedicationStatementID string     `gorm:"size:100" json:"satusehat_medication_statement_id,omitempty"`
+	SatusehatMedicationStatementAt *time.Time `json:"satusehat_medication_statement_at,omitempty"`
 }
 
 func (Anamnesis) TableName() string {
@@ -169,6 +181,10 @@ type PhysicalExamination struct {
 	ECGInterpretation string `gorm:"size:100" json:"ecg_interpretation,omitempty"` // Interpretasi (Normal/Abnormal)
 	ECGNotes          string `gorm:"type:text" json:"ecg_notes,omitempty"`         // Catatan detail EKG
 
+	// SatuSehat Integration
+	SatusehatVitalSignsSent bool       `gorm:"default:false" json:"satusehat_vital_signs_sent"`
+	SatusehatSentAt         *time.Time `gorm:"index" json:"satusehat_sent_at,omitempty"`
+
 	// Audit
 	ExaminedByID *uint `gorm:"index" json:"examined_by_id,omitempty"`
 	ExaminedBy   *User `gorm:"foreignKey:ExaminedByID" json:"examined_by,omitempty"`
@@ -210,6 +226,10 @@ type Diagnosis struct {
 	OnsetNote string     `gorm:"size:200" json:"onset_note,omitempty"`
 	Note      string     `gorm:"type:text" json:"note,omitempty"`
 
+	// SatuSehat Integration
+	SatuSehatConditionID string     `gorm:"size:100" json:"satusehat_condition_id,omitempty"` // Condition ID dari SatuSehat
+	SatuSehatSentAt      *time.Time `json:"satusehat_sent_at,omitempty"`                      // Waktu berhasil dikirim ke SatuSehat
+
 	// Audit
 	DiagnosedByID *uint `gorm:"index" json:"diagnosed_by_id,omitempty"`
 	DiagnosedBy   *User `gorm:"foreignKey:DiagnosedByID" json:"diagnosed_by,omitempty"`
@@ -231,6 +251,10 @@ type DiagnosisSummary struct {
 
 	ClinicalImpression    string `gorm:"type:text" json:"clinical_impression,omitempty"`
 	DifferentialDiagnosis string `gorm:"type:text" json:"differential_diagnosis,omitempty"`
+
+	// SatuSehat Integration - Riwayat Perjalanan Penyakit
+	SatusehatClinicalImpressionHistoryID string     `gorm:"size:100" json:"satusehat_ci_history_id,omitempty"`
+	SatusehatClinicalImpressionHistoryAt *time.Time `json:"satusehat_ci_history_at,omitempty"`
 
 	// Audit
 	CreatedByID *uint `gorm:"index" json:"created_by_id,omitempty"`
@@ -268,6 +292,16 @@ type AssessmentPlan struct {
 	MonitoringPlan   string `gorm:"type:text" json:"monitoring_plan,omitempty"`   // Rencana monitoring
 	ProcedurePlan    string `gorm:"type:text" json:"procedure_plan,omitempty"`    // Rencana tindakan
 	ConsultationPlan string `gorm:"type:text" json:"consultation_plan,omitempty"` // Rencana konsultasi
+
+	// SatuSehat Integration - Rasional Klinis & Prognosis
+	SatusehatClinicalImpressionRationaleID string     `gorm:"size:100" json:"satusehat_ci_rationale_id,omitempty"`
+	SatusehatClinicalImpressionRationaleAt *time.Time `json:"satusehat_ci_rationale_at,omitempty"`
+	SatusehatClinicalImpressionPrognosisID string     `gorm:"size:100" json:"satusehat_ci_prognosis_id,omitempty"`
+	SatusehatClinicalImpressionPrognosisAt *time.Time `json:"satusehat_ci_prognosis_at,omitempty"`
+
+	// SatuSehat Integration - CarePlan (Rencana Pengobatan)
+	SatusehatCarePlanID string     `gorm:"size:100" json:"satusehat_careplan_id,omitempty"`
+	SatusehatCarePlanAt *time.Time `json:"satusehat_careplan_at,omitempty"`
 
 	// Audit
 	AssessedByID *uint `gorm:"index" json:"assessed_by_id,omitempty"`
@@ -337,6 +371,10 @@ type Disposition struct {
 	// Audit
 	DischargedByID *uint `gorm:"index" json:"discharged_by_id,omitempty"`
 	DischargedBy   *User `gorm:"foreignKey:DischargedByID" json:"discharged_by,omitempty"`
+
+	// SatuSehat Integration - CarePlan (Rencana Tindak Lanjut / Discharge)
+	SatusehatCarePlanID string     `gorm:"size:100" json:"satusehat_careplan_id,omitempty"`
+	SatusehatCarePlanAt *time.Time `json:"satusehat_careplan_at,omitempty"`
 }
 
 func (Disposition) TableName() string {
