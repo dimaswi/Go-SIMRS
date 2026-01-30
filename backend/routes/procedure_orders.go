@@ -65,5 +65,11 @@ func SetupProcedureOrderRoutes(r *gin.RouterGroup) {
 
 		// Get consultation procedures by room
 		procedureOrders.GET("/procedures/consultation/:room_id", middleware.RequirePermission("procedure_orders.view"), handlers.GetConsultationProcedures)
+
+		// Get surgery rooms (operating rooms)
+		procedureOrders.GET("/rooms/surgery", middleware.RequirePermission("procedure_orders.view"), handlers.GetSurgeryRooms)
+
+		// Get surgical procedures, optionally filtered by room_id
+		procedureOrders.GET("/procedures/surgical", middleware.RequirePermission("procedure_orders.view"), handlers.GetSurgicalProcedures)
 	}
 }

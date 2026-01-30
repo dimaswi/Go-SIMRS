@@ -107,12 +107,6 @@ export default function LoginPage() {
               {loading ? 'Signing in...' : 'Sign In'}
             </Button>
           </form>
-          <div className="mt-4 text-xs text-center text-muted-foreground border-t pt-4">
-            <p className="mb-1.5">Demo credentials</p>
-            <div className="font-mono bg-muted/30 p-2 rounded text-[11px]">
-              admin@simrs.com / admin123
-            </div>
-          </div>
         </CardContent>
       </Card>
     </div>

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"starter/backend/database"
 	"starter/backend/models"
+	"strconv"
 	"strings"
 	"time"
 
@@ -34,9 +35,14 @@ func GetVisits(c *gin.Context) {
 			Where("registrations.patient_id = ?", patientID)
 	}
 
-	// Filter by visit_type
+	// Filter by visit_type (support comma-separated values for multiple types)
 	if visitType := c.Query("visit_type"); visitType != "" {
-		query = query.Where("visit_type = ?", visitType)
+		if strings.Contains(visitType, ",") {
+			types := strings.Split(visitType, ",")
+			query = query.Where("visit_type IN ?", types)
+		} else {
+			query = query.Where("visit_type = ?", visitType)
+		}
 	}
 
 	// Filter by status (support comma-separated values for multiple statuses)
@@ -58,8 +64,21 @@ func GetVisits(c *gin.Context) {
 		query = query.Where("DATE(check_in_time) <= ?", endDate)
 	}
 
-	// Order by check-in time descending (newest first)
-	query = query.Order("check_in_time DESC")
+	// Filter to exclude supporting visits (lab, pharmacy, radiology) - only show main encounters
+	if excludeSupporting := c.Query("exclude_supporting"); excludeSupporting == "true" {
+		query = query.Where("room_id NOT IN (SELECT id FROM rooms WHERE room_type IN (?, ?, ?))", "laboratorium", "farmasi", "radiologi")
+	}
+
+	// Order by ID descending (newest first) - ID is auto-increment so this ensures latest records
+	// Use ID instead of check_in_time to handle cases where check_in_time might be null or have same value
+	query = query.Order("id DESC")
+
+	// Handle limit parameter
+	if limitStr := c.Query("limit"); limitStr != "" {
+		if limit, err := strconv.Atoi(limitStr); err == nil {
+			query = query.Limit(limit)
+		}
+	}
 
 	if err := query.Find(&visits).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -291,6 +310,31 @@ func UpdateVisit(c *gin.Context) {
 	if err := database.DB.Preload("Room").First(&visit, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Visit not found"})
 		return
+	}
+
+	// Validate doctor if being updated
+	if input.DoctorID != nil {
+		var doctor models.Employee
+		if err := database.DB.First(&doctor, *input.DoctorID).Error; err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Dokter tidak ditemukan"})
+			return
+		}
+
+		// Verify doctor is actually a doctor
+		if doctor.TipeKaryawan != "dokter" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Karyawan yang dipilih bukan dokter"})
+			return
+		}
+
+		// Check if doctor is assigned to the visit's room
+		var roomStaff models.RoomStaff
+		err := database.DB.Where("room_id = ? AND employee_id = ?", visit.RoomID, *input.DoctorID).
+			Where("end_date IS NULL OR end_date >= ?", time.Now()).
+			First(&roomStaff).Error
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Dokter tidak terdaftar di ruangan kunjungan ini"})
+			return
+		}
 	}
 
 	// Validate status if provided

@@ -39,6 +39,12 @@ type Visit struct {
 	Treatment string `gorm:"type:text" json:"treatment"` // Tindakan/treatment
 	Notes     string `gorm:"type:text" json:"notes"`
 
+	// SatuSehat Integration
+	SatuSehatEncounterID   string     `gorm:"size:100;index" json:"satusehat_encounter_id,omitempty"`   // Encounter ID dari SatuSehat
+	SatuSehatSentAt        *time.Time `json:"satusehat_sent_at,omitempty"`                              // Waktu terakhir dikirim ke SatuSehat
+	SatuSehatSyncStatus    string     `gorm:"size:20" json:"satusehat_sync_status,omitempty"`           // pending, sent, failed
+	SatuSehatCompositionID string     `gorm:"size:100;index" json:"satusehat_composition_id,omitempty"` // Composition (Resume Medis) ID dari SatuSehat
+
 	// Inpatient Fields (Rawat Inap)
 	BedID          *uint      `gorm:"index" json:"bed_id,omitempty"`            // Bed assignment untuk rawat inap
 	Bed            *Bed       `gorm:"foreignKey:BedID" json:"bed,omitempty"`    // Relasi ke bed
@@ -66,6 +72,7 @@ const (
 	VisitTypeInpatient    = "inpatient"    // Rawat Inap
 	VisitTypeOutpatient   = "outpatient"   // Rawat Jalan (kunjungan Poli biasa)
 	VisitTypeEmergency    = "emergency"    // Gawat Darurat (kunjungan UGD biasa)
+	VisitTypeSurgery      = "surgery"      // Operasi/Bedah
 	VisitTypeOther        = "other"        // Lainnya
 )
 

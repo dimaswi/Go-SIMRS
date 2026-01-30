@@ -208,6 +208,7 @@ export function BillingDetail({
                          v.visit_type === 'emergency' ? 'UGD' :
                          v.visit_type === 'lab' ? 'Laboratorium' :
                          v.visit_type === 'radiology' ? 'Radiologi' :
+                         v.visit_type === 'surgery' ? 'Operasi' :
                          v.visit_type}
                       </Badge>
                     </TableCell>

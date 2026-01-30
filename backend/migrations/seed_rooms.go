@@ -171,9 +171,9 @@ func SeedRooms(db *gorm.DB) error {
 			Description: "Apotek / Instalasi Farmasi",
 		},
 		{
-			Code: "OK-001", Name: "Kamar Operasi", QueueCode: "",
-			ServiceType: "penunjang_medis", RoomType: "kamar_operasi",
-			HasBed: false, HasSchedule: false, IsActive: true,
+			Code: "OK-001", Name: "Kamar Operasi", QueueCode: "OK",
+			ServiceType: "penunjang_medis", RoomType: "ok",
+			HasBed: false, HasSchedule: true, IsActive: true,
 			Description: "Kamar Operasi (OK)",
 		},
 		{

@@ -30,6 +30,8 @@ import { NursingCareForm } from "@/components/medical-record/nursing-care-form";
 import { BedTransferForm } from "@/components/medical-record/bed-transfer-form";
 import { FinalVisit } from "@/components/medical-record/final-visit";
 import { ConsultationForm } from "@/components/medical-record/consultation-form";
+import { SurgeryOrderForm } from "@/components/medical-record/surgery-order-form";
+import { SurgeryWorkstation } from "@/components/medical-record/surgery-workstation";
 import { VisitHistory } from "@/components/medical-record/visit-history";
 
 export default function VisitShow() {
@@ -47,6 +49,7 @@ export default function VisitShow() {
   const [isRadiology, setIsRadiology] = useState(false);
   const [isLaboratory, setIsLaboratory] = useState(false);
   const [isConsultation, setIsConsultation] = useState(false);
+  const [isSurgery, setIsSurgery] = useState(false);
   const [showProcedureTab, setShowProcedureTab] = useState(false);
   const [isInpatient, setIsInpatient] = useState(false);
   const [isPatientDischarged, setIsPatientDischarged] = useState(false);
@@ -96,6 +99,7 @@ export default function VisitShow() {
       setIsRadiology(false);
       setIsLaboratory(false);
       setIsConsultation(false);
+      setIsSurgery(false);
       setShowProcedureTab(false);
       setIsInpatient(false);
       setIsPatientDischarged(false);
@@ -141,7 +145,11 @@ export default function VisitShow() {
       // Visit order konsultasi memiliki referral_from (rujukan dari visit lain)
       const consultation = visitData.visit_type === "consultation" && !!visitData.referral_from;
       setIsConsultation(consultation);
-      
+
+      // Check if surgery visit
+      const surgery = visitData.visit_type === "surgery";
+      setIsSurgery(surgery);
+
       console.log("Current visit data:", {
         id: visitData.id,
         visit_type: visitData.visit_type,
@@ -193,6 +201,13 @@ export default function VisitShow() {
             setActiveTab("laboratory-workstation");
           } else {
             setActiveTab("laboratory-workstation"); // fallback even without permission
+          }
+        } else if (surgery) {
+          // Surgery visit tabs - langsung ke pengerjaan
+          if (hasPermission("procedure_orders.perform")) {
+            setActiveTab("surgery-workstation");
+          } else {
+            setActiveTab("surgery-workstation");
           }
         } else if (consultation) {
           // Consultation visit tabs - langsung ke form konsultasi
@@ -314,9 +329,10 @@ export default function VisitShow() {
     const visitIsLaboratory = visit.visit_type === "lab";
     const visitIsPharmacy = visit.visit_type === "pharmacy";
     const visitIsConsultation = visit.visit_type === "consultation" && !!visit.referral_from;
+    const visitIsSurgery = visit.visit_type === "surgery";
 
-    // Helper: Check if current visit is a support visit (pharmacy, radiology, lab, consultation order)
-    const isSupportVisit = visitIsPharmacy || visitIsRadiology || visitIsLaboratory || visitIsConsultation;
+    // Helper: Check if current visit is a support visit (pharmacy, radiology, lab, consultation order, surgery)
+    const isSupportVisit = visitIsPharmacy || visitIsRadiology || visitIsLaboratory || visitIsConsultation || visitIsSurgery;
     
     // Helper: Render message for wrong visit type
     const renderWrongVisitTypeMessage = (expectedType: string) => (
@@ -358,7 +374,7 @@ export default function VisitShow() {
             </Card>
           );
         }
-        return <AnamnesisForm visitId={visit.id} onSave={handleSaveAnamnesis} readOnly={isPatientDischarged} />;
+        return <AnamnesisForm visitId={visit.id} patientId={patientId || undefined} onSave={handleSaveAnamnesis} readOnly={isPatientDischarged} />;
       case "physical-exam":
         // Physical exam only for clinical visits (not support visits)
         if (isSupportVisit) {
@@ -584,6 +600,54 @@ export default function VisitShow() {
           />
         );
       
+      case "surgery-order":
+        // Surgery order only for clinical visits (not support visits)
+        if (isSupportVisit) {
+          return renderWrongVisitTypeMessage("klinis (Rawat Jalan/Rawat Inap/UGD)");
+        }
+        if (!hasPermission("medical_records.surgery_order")) {
+          return (
+            <Card className="p-6">
+              <p className="text-center text-muted-foreground">
+                Anda tidak memiliki akses untuk Order Operasi
+              </p>
+            </Card>
+          );
+        }
+        return (
+          <SurgeryOrderForm
+            visitId={visit.id}
+            registrationId={visit.registration_id}
+            sourceRoomId={visit.room_id}
+            readOnly={isPatientDischarged}
+          />
+        );
+
+      // Surgery workstation tab - ONLY for surgery visits
+      case "surgery-workstation":
+        if (!hasPermission("procedure_orders.perform")) {
+          return (
+            <Card className="p-6">
+              <p className="text-center text-muted-foreground">
+                Anda tidak memiliki akses untuk Pengerjaan Operasi
+              </p>
+            </Card>
+          );
+        }
+        return <SurgeryWorkstation key={`surgery-ws-${visit.id}-${tabRefreshKey}`} visitId={visit.id} readOnly={visit.status === "completed"} />;
+
+      case "surgery-final":
+        if (!hasPermission("procedure_orders.final")) {
+          return (
+            <Card className="p-6">
+              <p className="text-center text-muted-foreground">
+                Anda tidak memiliki akses untuk Final Kunjungan Operasi
+              </p>
+            </Card>
+          );
+        }
+        return <FinalVisit key={`surgery-final-${visit.id}-${tabRefreshKey}`} visitId={visit.id} type="surgery" onVisitUpdate={handleVisitUpdate} />;
+
       // Consultation tab - form jawaban konsultasi (ONLY for consultation order visits)
       case "consultation":
         if (!hasPermission("medical_records.cppt")) {
@@ -804,6 +868,7 @@ export default function VisitShow() {
                     isRadiology={isRadiology}
                     isLaboratory={isLaboratory}
                     isConsultation={isConsultation}
+                    isSurgery={isSurgery}
                     showProcedureTab={showProcedureTab}
                     isInpatient={isInpatient}
                   />

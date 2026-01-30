@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(powershell -Command:*)",
+      "Bash(ls -la \"e:\\\\Golang\\\\Go-SIMRS\\\\frontend\\\\src\\\\pages\\\\integrations\"\" 2>/dev/null || echo \"Directory not found or listing failed \")",
+      "Bash(grep:*)",
+      "Bash(npx tsc:*)",
+      "Bash(go build:*)"
+    ]
+  }
+}

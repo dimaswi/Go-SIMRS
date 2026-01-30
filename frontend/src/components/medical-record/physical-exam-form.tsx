@@ -315,8 +315,9 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
                   </h4>
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
                     <div className="space-y-1">
-                      <Label htmlFor="blood_pressure_systolic" className="text-xs">
+                      <Label htmlFor="blood_pressure_systolic" className="text-xs flex items-center gap-1.5">
                         Sistolik {isEmergency && <span className="text-destructive">*</span>}
+                        <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-blue-50 text-blue-700 border-blue-200">SatuSehat</Badge>
                       </Label>
                       <div className="relative">
                         <Input
@@ -332,8 +333,9 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
                       </div>
                     </div>
                     <div className="space-y-1">
-                      <Label htmlFor="blood_pressure_diastolic" className="text-xs">
+                      <Label htmlFor="blood_pressure_diastolic" className="text-xs flex items-center gap-1.5">
                         Diastolik {isEmergency && <span className="text-destructive">*</span>}
+                        <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-blue-50 text-blue-700 border-blue-200">SatuSehat</Badge>
                       </Label>
                       <div className="relative">
                         <Input
@@ -349,8 +351,9 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
                       </div>
                     </div>
                     <div className="space-y-1">
-                      <Label htmlFor="heart_rate" className="text-xs">
+                      <Label htmlFor="heart_rate" className="text-xs flex items-center gap-1.5">
                         Nadi {isEmergency && <span className="text-destructive">*</span>}
+                        <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-blue-50 text-blue-700 border-blue-200">SatuSehat</Badge>
                       </Label>
                       <div className="relative">
                         <Input
@@ -366,8 +369,9 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
                       </div>
                     </div>
                     <div className="space-y-1">
-                      <Label htmlFor="respiratory_rate" className="text-xs">
+                      <Label htmlFor="respiratory_rate" className="text-xs flex items-center gap-1.5">
                         Napas {isEmergency && <span className="text-destructive">*</span>}
+                        <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-blue-50 text-blue-700 border-blue-200">SatuSehat</Badge>
                       </Label>
                       <div className="relative">
                         <Input
@@ -383,8 +387,9 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
                       </div>
                     </div>
                     <div className="space-y-1">
-                      <Label htmlFor="temperature" className="text-xs">
+                      <Label htmlFor="temperature" className="text-xs flex items-center gap-1.5">
                         Suhu {isEmergency && <span className="text-destructive">*</span>}
+                        <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-blue-50 text-blue-700 border-blue-200">SatuSehat</Badge>
                       </Label>
                       <div className="relative">
                         <Input
@@ -401,8 +406,9 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
                       </div>
                     </div>
                     <div className="space-y-1">
-                      <Label htmlFor="oxygen_saturation" className="text-xs">
+                      <Label htmlFor="oxygen_saturation" className="text-xs flex items-center gap-1.5">
                         SpO2 {isEmergency && <span className="text-destructive">*</span>}
+                        <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-blue-50 text-blue-700 border-blue-200">SatuSehat</Badge>
                       </Label>
                       <div className="relative">
                         <Input
@@ -425,7 +431,10 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
                   <h4 className="text-sm font-medium text-muted-foreground mb-3">Antropometri</h4>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     <div className="space-y-1">
-                      <Label htmlFor="weight" className="text-xs">Berat Badan</Label>
+                      <Label htmlFor="weight" className="text-xs flex items-center gap-1.5">
+                        Berat Badan
+                        <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-blue-50 text-blue-700 border-blue-200">SatuSehat</Badge>
+                      </Label>
                       <div className="relative">
                         <Input
                           id="weight"
@@ -440,7 +449,10 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
                       </div>
                     </div>
                     <div className="space-y-1">
-                      <Label htmlFor="height" className="text-xs">Tinggi Badan</Label>
+                      <Label htmlFor="height" className="text-xs flex items-center gap-1.5">
+                        Tinggi Badan
+                        <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-blue-50 text-blue-700 border-blue-200">SatuSehat</Badge>
+                      </Label>
                       <div className="relative">
                         <Input
                           id="height"

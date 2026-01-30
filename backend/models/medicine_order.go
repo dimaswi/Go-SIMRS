@@ -82,6 +82,9 @@ type MedicineOrder struct {
 	DeliveredBy   *Employee  `gorm:"foreignKey:DeliveredByID" json:"delivered_by,omitempty"`
 	DeliveredAt   *time.Time `json:"delivered_at,omitempty"`
 
+	// SatuSehat Integration
+	SatusehatQuestionnaireResponseID string `gorm:"size:100" json:"satusehat_questionnaire_response_id"` // FHIR QuestionnaireResponse ID
+
 	// Relation to Items
 	Items []MedicineOrderItem `gorm:"foreignKey:MedicineOrderID" json:"items,omitempty"`
 }
@@ -124,6 +127,8 @@ type MedicineOrderItem struct {
 	DispensedQty    int            `gorm:"default:0" json:"dispensed_qty"` // Jumlah yang diserahkan
 	MedicineBatchID *uint          `gorm:"index" json:"medicine_batch_id"` // Batch yang digunakan
 	MedicineBatch   *MedicineBatch `gorm:"foreignKey:MedicineBatchID" json:"medicine_batch,omitempty"`
+	DispensedByID   *uint          `gorm:"index" json:"dispensed_by_id"` // Petugas farmasi yang menyerahkan
+	DispensedBy     *Employee      `gorm:"foreignKey:DispensedByID" json:"dispensed_by,omitempty"`
 	DispensedAt     *time.Time     `json:"dispensed_at,omitempty"`
 
 	// Return Info
@@ -135,6 +140,11 @@ type MedicineOrderItem struct {
 	IsSubstituted       bool   `gorm:"default:false" json:"is_substituted"`
 	SubstitutedMedicine string `gorm:"size:200" json:"substituted_medicine"` // Nama obat pengganti
 	SubstitutionReason  string `gorm:"type:text" json:"substitution_reason"`
+
+	// SatuSehat Integration
+	SatusehatMedicationRequestID        string `gorm:"size:100" json:"satusehat_medication_request_id"`        // FHIR MedicationRequest ID
+	SatusehatMedicationDispenseID       string `gorm:"size:100" json:"satusehat_medication_dispense_id"`       // FHIR MedicationDispense ID
+	SatusehatMedicationAdministrationID string `gorm:"size:100" json:"satusehat_medication_administration_id"` // FHIR MedicationAdministration ID
 
 	// Notes
 	Notes string `gorm:"type:text" json:"notes"`

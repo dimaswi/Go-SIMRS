@@ -121,18 +121,8 @@ export default function QueueDisplay() {
       try {
         const response = await roomsApi.getAll({ is_active: "true", limit: 100 });
         const allRoomsData = response.data.data || [];
-        // Filter rooms based on selection from localStorage
-        const savedRooms = localStorage.getItem("queueDisplay_selectedRooms");
-        if (savedRooms) {
-          const selectedIds = JSON.parse(savedRooms) as number[];
-          if (selectedIds.length > 0) {
-            setRooms(allRoomsData.filter((r) => selectedIds.includes(r.id)));
-          } else {
-            setRooms(allRoomsData);
-          }
-        } else {
-          setRooms(allRoomsData);
-        }
+        // Keep all rooms in state, filtering will be done during display
+        setRooms(allRoomsData);
       } catch (error) {
         console.error("Failed to load rooms:", error);
       }
@@ -178,7 +168,16 @@ export default function QueueDisplay() {
 
   // Get unique rooms that have queues today (filtered)
   const activeRoomIds = [...new Set(filteredRoomQueues.map((q) => q.room_id))];
-  const activeRooms = rooms.filter((r) => activeRoomIds.includes(r.id));
+  
+  // Determine which rooms to display:
+  // 1. If specific rooms are selected, show those
+  // 2. Otherwise, show rooms with active queues
+  // 3. Fallback to all rooms (limited)
+  const displayRooms = selectedRoomIds.length > 0
+    ? rooms.filter((r) => selectedRoomIds.includes(r.id))
+    : activeRoomIds.length > 0
+    ? rooms.filter((r) => activeRoomIds.includes(r.id))
+    : rooms.slice(0, 20);
 
   // Determine layout based on what's selected
   const showRooms = selectedRoomIds.length > 0 || rooms.length > 0;
@@ -254,13 +253,13 @@ export default function QueueDisplay() {
 
           {/* Room Queue Grid */}
           <div className="flex-1 overflow-auto p-3">
-            {activeRooms.length === 0 && rooms.length === 0 ? (
+            {displayRooms.length === 0 ? (
               <div className="flex items-center justify-center h-full">
                 <p className="text-gray-400">Tidak ada ruangan yang tersedia</p>
               </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
-                {(activeRooms.length > 0 ? activeRooms : rooms.slice(0, 20)).map((room) => {
+                {displayRooms.map((room) => {
                   const roomQueueList = roomQueues.filter((q) => q.room_id === room.id);
 
                   roomQueueList.sort((a, b) => {

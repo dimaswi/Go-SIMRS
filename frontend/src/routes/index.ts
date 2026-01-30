@@ -18,6 +18,7 @@ import SupplierRoutes from './SupplierRoutes';
 import { RoomStockRoutes } from './RoomStockRoutes';
 import { QueueRoutes } from './QueueRoutes';
 import { RegistrationRoutes } from './RegistrationRoutes';
+import { IntegrationsRoutes } from './IntegrationsRoutes';
 
 export {
   UserRoutes,
@@ -40,4 +41,5 @@ export {
   RoomStockRoutes,
   QueueRoutes,
   RegistrationRoutes,
+  IntegrationsRoutes,
 };

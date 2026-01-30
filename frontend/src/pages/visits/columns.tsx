@@ -109,17 +109,18 @@ const getQueueStatusBadge = (status: string) => {
 // HANYA support visit (lab/rad/pharmacy/consultation) yang punya referral_from yang dianggap order
 // Inpatient/rawat jalan/UGD BUKAN order meskipun punya referral_from
 const getVisitCategoryBadge = (visit: Visit) => {
-  const supportVisitTypes = ["lab", "radiology", "pharmacy", "consultation"];
-  const isOrder = visit.referral_from !== null && 
-                  visit.referral_from !== undefined && 
+  const supportVisitTypes = ["lab", "radiology", "pharmacy", "consultation", "surgery"];
+  const isOrder = visit.referral_from !== null &&
+                  visit.referral_from !== undefined &&
                   supportVisitTypes.includes(visit.visit_type);
-  
+
   if (isOrder) {
     const orderLabels: Record<string, string> = {
       lab: "Order Lab",
       radiology: "Order Radiologi",
       consultation: "Order Konsultasi",
       pharmacy: "Order Farmasi",
+      surgery: "Order Operasi",
     };
     return (
       <Badge variant="outline" className="bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300 border-amber-300 text-xs">
@@ -167,7 +168,14 @@ const getVisitCategoryBadge = (visit: Visit) => {
       </Badge>
     );
   }
-  
+  if (visit.visit_type === "surgery" || visit.room?.room_type === "ok") {
+    return (
+      <Badge className="bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200 text-xs">
+        🔪 Operasi
+      </Badge>
+    );
+  }
+
   return (
     <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 text-xs">
       🏃 Rajal

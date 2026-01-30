@@ -55,6 +55,7 @@ type Employee struct {
 	// Personal Information
 	NIK              string     `gorm:"size:16" json:"nik"`
 	NIP              string     `gorm:"size:18" json:"nip,omitempty"`
+	SatuSehatID      string     `gorm:"size:50;index" json:"satusehat_id,omitempty"` // IHS Number Practitioner dari SatuSehat
 	NamaLengkap      string     `gorm:"not null;size:150" json:"nama_lengkap"`
 	TempatLahir      string     `gorm:"size:100" json:"tempat_lahir"`
 	TanggalLahir     *time.Time `json:"tanggal_lahir"`

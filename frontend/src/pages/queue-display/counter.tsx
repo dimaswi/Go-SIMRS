@@ -12,7 +12,6 @@ export default function CounterQueueDisplay() {
   const [allQueues, setAllQueues] = useState<Queue[]>([]);
   const [counter, setCounter] = useState<Counter | null>(null);
   const [currentQueue, setCurrentQueue] = useState<Queue | null>(null);
-  const [lastAnnouncedId, setLastAnnouncedId] = useState<string | null>(null);
   const [hospitalName, setHospitalName] = useState("RUMAH SAKIT");
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -71,7 +70,6 @@ export default function CounterQueueDisplay() {
         // Track by both queue ID and called_at to prevent re-announcements
         if (uniqueId !== announcementRef.current) {
           announcementRef.current = uniqueId;
-          setLastAnnouncedId(uniqueId);
           setCurrentQueue(latest);
 
           // Only play sound if not initial load
