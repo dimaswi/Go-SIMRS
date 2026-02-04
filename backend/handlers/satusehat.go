@@ -48,14 +48,8 @@ func getSatuSehatConfig() (map[string]string, error) {
 
 	configMap := make(map[string]string)
 	for _, cfg := range configs {
-		value := cfg.Value
-		if cfg.IsEncrypted && value != "" {
-			decrypted, err := decryptValue(value)
-			if err == nil {
-				value = decrypted
-			}
-		}
-		configMap[cfg.Key] = value
+		// Langsung ambil nilai TANPA dekripsi
+		configMap[cfg.Key] = cfg.Value
 	}
 
 	return configMap, nil
@@ -85,12 +79,22 @@ func GetSatuSehatToken() (string, error) {
 	clientID := configMap["client_id"]
 	clientSecret := configMap["client_secret"]
 
+	// Trim whitespace yang mungkin tidak sengaja masuk
+	clientID = strings.TrimSpace(clientID)
+	clientSecret = strings.TrimSpace(clientSecret)
+
 	if clientID == "" || clientSecret == "" {
 		return "", fmt.Errorf("SatuSehat credentials not configured")
 	}
 
 	baseURL := getSatuSehatBaseURL(configMap)
+	// Pastikan base URL tidak ada trailing slash
+	baseURL = strings.TrimSuffix(baseURL, "/")
 	tokenURL := baseURL + "/oauth2/v1/accesstoken?grant_type=client_credentials"
+
+	// Debug log
+	fmt.Printf("[SatuSehat] Token URL: %s\n", tokenURL)
+	fmt.Printf("[SatuSehat] Client ID length: %d, Client Secret length: %d\n", len(clientID), len(clientSecret))
 
 	// Create form data
 	data := url.Values{}
@@ -171,35 +175,57 @@ func TestSatuSehatConnection(c *gin.Context) {
 		return
 	}
 
-	clientID := configMap["client_id"]
-	clientSecret := configMap["client_secret"]
+	clientID := strings.TrimSpace(configMap["client_id"])
+	clientSecret := strings.TrimSpace(configMap["client_secret"])
 	environment := configMap["environment"]
+	baseURL := getSatuSehatBaseURL(configMap)
+
+	// Debug info
+	debugInfo := gin.H{
+		"client_id_length":     len(clientID),
+		"client_secret_length": len(clientSecret),
+		"environment":          environment,
+		"base_url":             baseURL,
+	}
 
 	if clientID == "" || clientSecret == "" {
 		c.JSON(http.StatusOK, gin.H{
 			"success":     false,
 			"error":       "Kredensial SatuSehat belum lengkap. Silakan isi Client ID dan Client Secret.",
 			"environment": environment,
+			"debug":       debugInfo,
 		})
 		return
 	}
+
+	// Clear cached token to force re-authentication
+	satuSehatToken = ""
+	satuSehatTokenExpiry = time.Time{}
 
 	// Try to get token
 	token, err := GetSatuSehatToken()
 	duration := time.Since(startTime)
 
 	if err != nil {
+		// Provide more helpful error message
+		errorMsg := err.Error()
+		hint := ""
+		if strings.Contains(errorMsg, "client_id or client_secret") {
+			hint = "Pastikan Client ID dan Client Secret sesuai dengan environment (" + environment + "). Credential staging tidak bisa digunakan di production dan sebaliknya."
+		}
+
 		c.JSON(http.StatusOK, gin.H{
 			"success":       false,
-			"error":         "Gagal mendapatkan access token: " + err.Error(),
+			"error":         "Gagal mendapatkan access token: " + errorMsg,
+			"hint":          hint,
 			"environment":   environment,
 			"response_time": duration.String(),
+			"debug":         debugInfo,
 		})
 		return
 	}
 
 	// Token obtained successfully, try to get organization info
-	baseURL := getSatuSehatBaseURL(configMap)
 	orgID := configMap["organization_id"]
 
 	if orgID != "" {

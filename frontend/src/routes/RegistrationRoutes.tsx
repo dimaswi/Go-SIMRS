@@ -31,6 +31,13 @@ export function RegistrationRoutes(ProtectedRoute: React.ComponentType<{ childre
           </PermissionGuard>
         </ProtectedRoute>
       } />
+      <Route path="/registrations/:id" element={
+        <ProtectedRoute>
+          <PermissionGuard permission="registrations.view">
+            <RegistrationShow />
+          </PermissionGuard>
+        </ProtectedRoute>
+      } />
       <Route path="/registrations/scheduled" element={
         <ProtectedRoute>
           <PermissionGuard permission="registrations.view">

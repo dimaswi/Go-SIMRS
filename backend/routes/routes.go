@@ -107,10 +107,29 @@ func SetupRoutes(r *gin.Engine) {
 		// BPJS Bridging Routes (legacy, for specific BPJS operations)
 		SetupBPJSRoutes(api)
 
+		// Archive Routes (Medical Record Archive Management)
+		SetupArchiveRoutes(api)
+
+		// Print PDF Routes (Medical Record Document Printing)
+		SetupPrintRoutes(api)
+
+		// Dashboard Routes (Statistics, Charts, Summary)
+		SetupDashboardRoutes(api)
+
+		// Quality Control & Cost Management Routes (Kendali Mutu & Biaya)
+		SetupQualityCostRoutes(api)
+
+		// E-Klaim Routes (iDRG & INACBG Grouping per 25 Kriteria KEMENKES)
+		RegisterEKlaimRoutes(api)
+
 	}
 
 	// Notification Routes (with SSE)
 	SetupNotificationRoutes(r)
+
+	// BPJS Webhook Routes (public endpoints that BPJS calls to RS)
+	// These are outside /api group as they have their own auth mechanism
+	SetupBPJSWebhookRoutes(r)
 
 	// Health check
 	r.GET("/health", func(c *gin.Context) {

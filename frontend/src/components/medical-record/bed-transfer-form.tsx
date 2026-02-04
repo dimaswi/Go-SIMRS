@@ -157,6 +157,10 @@ export function BedTransferForm({
       const transfersResponse = await bedTransferApi.getAll(visitId);
       setTransfers(transfersResponse.data.data || []);
       
+      // Trigger refresh print options dan final visit
+      window.dispatchEvent(new CustomEvent("refresh-print-options"));
+      window.dispatchEvent(new CustomEvent("refresh-final-visit"));
+      
       onTransferComplete?.();
     } catch (error: any) {
       toast({

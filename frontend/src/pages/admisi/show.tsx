@@ -52,6 +52,8 @@ import {
   type Bed as RoomBed,
 } from "@/lib/api/rooms";
 import { employeesApi } from "@/lib/api/employees";
+import { patientsApi, type Patient, api } from "@/lib/api";
+import { SEPFormSheet } from "@/components/sep/sep-form-sheet";
 
 interface RoomWithBeds extends Room {
   available_beds?: number;
@@ -98,6 +100,13 @@ export default function AdmissionRequestShowPage() {
   const [rejectReason, setRejectReason] = useState("");
   const [rejecting, setRejecting] = useState(false);
 
+  // SEP Form
+  const [sepSheetOpen, setSepSheetOpen] = useState(false);
+  const [sepNumber, setSepNumber] = useState("");
+  const [patientDetail, setPatientDetail] = useState<Patient | null>(null);
+  const [loadingPatient, setLoadingPatient] = useState(false);
+  const [inpatientVisitId, setInpatientVisitId] = useState<number | null>(null);
+
   useEffect(() => {
     if (id) {
       fetchRequest();
@@ -108,6 +117,11 @@ export default function AdmissionRequestShowPage() {
     if (request?.status === "pending") {
       fetchInpatientRooms();
       fetchDoctors();
+      // Fetch patient detail for SEP form
+      const patientId = getPatient(request)?.id;
+      if (patientId) {
+        fetchPatientDetail(patientId);
+      }
     }
   }, [request?.status]);
 
@@ -140,6 +154,26 @@ export default function AdmissionRequestShowPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchPatientDetail = async (patientId: number) => {
+    try {
+      setLoadingPatient(true);
+      const response = await patientsApi.getById(patientId);
+      setPatientDetail(response.data);
+    } catch (error) {
+      console.error("Failed to fetch patient detail:", error);
+    } finally {
+      setLoadingPatient(false);
+    }
+  };
+
+  const getPatient = (req: AdmissionRequest) => {
+    return (
+      req.patient ||
+      req.registration?.patient ||
+      req.source_visit?.registration?.patient
+    );
   };
 
   const fetchInpatientRooms = async () => {
@@ -248,14 +282,48 @@ export default function AdmissionRequestShowPage() {
       return;
     }
 
+    // Validasi: harus ada SEP terlebih dahulu
+    if (!sepNumber) {
+      toast({
+        variant: "destructive",
+        title: "Validasi Gagal",
+        description: "Buat SEP terlebih dahulu sebelum memproses admisi",
+      });
+      return;
+    }
+
     try {
       setProcessing(true);
-      await admissionRequestApi.process(request.id, {
+      const response = await admissionRequestApi.process(request.id, {
         room_id: selectedRoomId,
         bed_id: selectedBedId,
         doctor_id: selectedDoctorId,
         admin_notes: processNotes,
       });
+
+      // Get updated request with inpatient_visit_id from response
+      const updatedRequest = response.data?.data;
+      let newVisitId: number | null = null;
+      
+      if (updatedRequest) {
+        setRequest(updatedRequest);
+        if (updatedRequest.inpatient_visit_id) {
+          newVisitId = updatedRequest.inpatient_visit_id;
+          setInpatientVisitId(newVisitId);
+        }
+      }
+
+      // Auto-update SEP dengan visit_id baru
+      if (sepNumber && newVisitId) {
+        try {
+          await api.patch(`/bpjs/vclaim/sep/${sepNumber}/visit`, {
+            visit_id: newVisitId,
+          });
+        } catch (sepError) {
+          console.error("Failed to update SEP visit_id:", sepError);
+          // Don't fail the whole process, just log warning
+        }
+      }
 
       toast({
         title: "Berhasil",
@@ -263,7 +331,8 @@ export default function AdmissionRequestShowPage() {
           "Permintaan rawat inap berhasil diproses. Kunjungan rawat inap telah dibuat.",
       });
 
-      navigate("/admisi");
+      // Navigate to inpatient list or the new visit
+      navigate("/rawat-inap");
     } catch (error) {
       console.error("Failed to process request:", error);
       toast({
@@ -309,14 +378,6 @@ export default function AdmissionRequestShowPage() {
     } finally {
       setRejecting(false);
     }
-  };
-
-  const getPatient = (req: AdmissionRequest) => {
-    return (
-      req.patient ||
-      req.registration?.patient ||
-      req.source_visit?.registration?.patient
-    );
   };
 
   const getStatusBadge = (status: string) => {
@@ -504,7 +565,45 @@ export default function AdmissionRequestShowPage() {
                   </span>
                 </div>
               )}
+
+              {/* SEP Section - Only show for BPJS patients */}
+              {patientDetail && (patientDetail.jenis_jaminan === "BPJS" || patientDetail.jenis_jaminan === "JKN") && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">SEP</span>
+                  {sepNumber ? (
+                    <span className="font-medium font-mono text-green-600">{sepNumber}</span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setSepSheetOpen(true)}
+                      className="text-blue-600 underline hover:text-blue-800 font-medium"
+                    >
+                      Buat SEP
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
+
+            {/* SEP Created Info */}
+            {sepNumber && (
+              <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                <div className="flex items-center gap-2 text-green-700 mb-2">
+                  <CheckCircle className="h-4 w-4" />
+                  <span className="font-medium text-sm">SEP Berhasil Dibuat</span>
+                </div>
+                <div className="text-sm space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-green-600">No. SEP</span>
+                    <span className="font-mono font-medium text-green-800">{sepNumber}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-green-600">No. Kartu BPJS</span>
+                    <span className="font-mono text-green-800">{patientDetail?.no_bpjs || "-"}</span>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Reason & Notes */}
             {(request.admission_reason ||
@@ -916,37 +1015,59 @@ export default function AdmissionRequestShowPage() {
                   </Alert>
                 )}
 
+                {/* SEP Created Info */}
+                {sepNumber && (
+                  <Alert className="border-green-200 bg-green-50">
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <AlertDescription className="text-green-800">
+                      <p className="font-medium">SEP berhasil dibuat: {sepNumber}</p>
+                      <p className="text-sm mt-1">
+                        Klik "Proses Admisi" untuk membuat kunjungan rawat inap.
+                      </p>
+                    </AlertDescription>
+                  </Alert>
+                )}
+
                 {/* Action Buttons */}
                 <div className="flex justify-end gap-3 pt-4 border-t">
-                  <Button
-                    variant="outline"
-                    onClick={() => setRejectDialogOpen(true)}
-                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                  >
-                    <XCircle className="h-4 w-4 mr-2" />
-                    Tolak
-                  </Button>
-                  <Button
-                    onClick={handleProcess}
-                    disabled={
-                      processing ||
-                      !selectedRoomId ||
-                      !selectedBedId ||
-                      !selectedDoctorId
-                    }
-                  >
-                    {processing ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Memproses...
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle className="h-4 w-4 mr-2" />
-                        Proses Admisi
-                      </>
-                    )}
-                  </Button>
+                  {request.status === "pending" && (
+                    <>
+                      <Button
+                        variant="outline"
+                        onClick={() => setRejectDialogOpen(true)}
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      >
+                        <XCircle className="h-4 w-4 mr-2" />
+                        Tolak
+                      </Button>
+                      {!sepNumber ? (
+                        <Button
+                          onClick={() => setSepSheetOpen(true)}
+                          disabled={!selectedRoomId || !selectedBedId || !selectedDoctorId}
+                        >
+                          <FileText className="h-4 w-4 mr-2" />
+                          Buat SEP Rawat Inap
+                        </Button>
+                      ) : (
+                        <Button
+                          onClick={handleProcess}
+                          disabled={processing}
+                        >
+                          {processing ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Memproses...
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle className="h-4 w-4 mr-2" />
+                              Proses Admisi
+                            </>
+                          )}
+                        </Button>
+                      )}
+                    </>
+                  )}
                 </div>
               </div>
             ) : (
@@ -1050,6 +1171,37 @@ export default function AdmissionRequestShowPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* SEP Form Sheet */}
+      {patientDetail && (
+        <SEPFormSheet
+          open={sepSheetOpen}
+          onOpenChange={setSepSheetOpen}
+          patient={{
+            id: patientDetail.id,
+            no_rm: patientDetail.no_rm,
+            nama_lengkap: patientDetail.nama_lengkap,
+            nik: patientDetail.nik,
+            no_bpjs: patientDetail.no_bpjs,
+            tanggal_lahir: patientDetail.tanggal_lahir,
+            jenis_kelamin: patientDetail.jenis_kelamin,
+            no_telepon: patientDetail.no_telepon,
+            kelas_bpjs: patientDetail.kelas_bpjs,
+          }}
+          visitId={inpatientVisitId || undefined}
+          registrationId={request?.registration_id}
+          initialValues={{
+            jenisPelayanan: "1", // Rawat Inap
+          }}
+          onSEPCreated={(noSEP) => {
+            setSepNumber(noSEP);
+            toast({
+              title: "Berhasil",
+              description: `SEP berhasil dibuat dengan nomor: ${noSEP}`,
+            });
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -520,6 +520,9 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
       }
       setIsModalOpen(false);
       loadData();
+      // Trigger refresh print options dan final visit
+      window.dispatchEvent(new CustomEvent("refresh-print-options"));
+      window.dispatchEvent(new CustomEvent("refresh-final-visit"));
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -540,6 +543,9 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
         description: "Asuhan keperawatan berhasil diverifikasi",
       });
       loadData();
+      // Trigger refresh print options dan final visit
+      window.dispatchEvent(new CustomEvent("refresh-print-options"));
+      window.dispatchEvent(new CustomEvent("refresh-final-visit"));
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -562,6 +568,9 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
       setDeleteDialogOpen(false);
       setRecordToDelete(null);
       loadData();
+      // Trigger refresh print options dan final visit
+      window.dispatchEvent(new CustomEvent("refresh-print-options"));
+      window.dispatchEvent(new CustomEvent("refresh-final-visit"));
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -618,7 +627,7 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
           </CardHeader>
           <CardContent className="p-0">
             {records.length > 0 ? (
-              <ScrollArea className="h-[calc(100vh-400px)] min-h-[300px]">
+              <ScrollArea className="h-[calc(110vh-400px)] min-h-[300px]">
                 {/* Table Header */}
                 <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-muted/50 text-xs font-medium text-muted-foreground border-b sticky top-0">
                   <div className="col-span-1"></div>

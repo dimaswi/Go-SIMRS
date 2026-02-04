@@ -19,7 +19,7 @@ import type { MedicineOrder, ProcedureOrder } from "@/lib/api";
 
 interface FinalVisitProps {
   visitId: number;
-  type: "pharmacy" | "radiology" | "laboratory" | "consultation";
+  type: "pharmacy" | "radiology" | "laboratory" | "consultation" | "surgery";
   onVisitUpdate?: () => void;
 }
 
@@ -48,6 +48,20 @@ export function FinalVisit({ visitId, type, onVisitUpdate }: FinalVisitProps) {
     loadData();
   }, [visitId, type]);
 
+  // Listen for refresh events from other components
+  useEffect(() => {
+    const handleRefresh = () => {
+      loadData();
+    };
+    
+    window.addEventListener("refresh-print-options", handleRefresh);
+    window.addEventListener("refresh-final-visit", handleRefresh);
+    return () => {
+      window.removeEventListener("refresh-print-options", handleRefresh);
+      window.removeEventListener("refresh-final-visit", handleRefresh);
+    };
+  }, [visitId, type]);
+
   const loadData = async () => {
     setLoading(true);
     try {
@@ -65,11 +79,22 @@ export function FinalVisit({ visitId, type, onVisitUpdate }: FinalVisitProps) {
         const ordersData = ordersRes.data || [];
         setOrders(ordersData);
         
-        // Can finalize if all orders are delivered
+        // Can finalize if all orders are delivered/cancelled/returned
+        // OR if all items in each order are cancelled/delivered
         const allDelivered = ordersData.length > 0 && 
-          ordersData.every((o: MedicineOrder) => 
-            o.status === "delivered" || o.status === "cancelled" || o.status === "returned"
-          );
+          ordersData.every((o: MedicineOrder) => {
+            // Order sudah delivered/cancelled/returned
+            if (o.status === "delivered" || o.status === "cancelled" || o.status === "returned") {
+              return true;
+            }
+            // Cek jika semua item sudah cancelled atau delivered
+            if (o.items && o.items.length > 0) {
+              return o.items.every((item: any) => 
+                item.status === "cancelled" || item.status === "delivered"
+              );
+            }
+            return false;
+          });
         setCanFinalize(allDelivered);
       } else if (type === "consultation") {
         // Consultation - cek apakah ada jawaban konsultasi yang sudah disimpan
@@ -137,6 +162,8 @@ export function FinalVisit({ visitId, type, onVisitUpdate }: FinalVisitProps) {
       });
       
       loadData();
+      // Trigger refresh print options
+      window.dispatchEvent(new CustomEvent("refresh-print-options"));
       // Notify parent to refresh visit status badge
       if (onVisitUpdate) {
         onVisitUpdate();
@@ -182,6 +209,8 @@ export function FinalVisit({ visitId, type, onVisitUpdate }: FinalVisitProps) {
       });
       
       loadData();
+      // Trigger refresh print options
+      window.dispatchEvent(new CustomEvent("refresh-print-options"));
       // Notify parent to refresh visit status badge
       if (onVisitUpdate) {
         onVisitUpdate();

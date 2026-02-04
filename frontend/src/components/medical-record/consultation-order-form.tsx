@@ -48,7 +48,7 @@ import {
   ChevronsUpDown,
   Check,
 } from "lucide-react";
-import { procedureOrdersApi, PROCEDURE_ORDER_STATUS } from "@/lib/api";
+import { procedureOrdersApi, PROCEDURE_ORDER_STATUS, printApi } from "@/lib/api";
 import type { ProcedureOrder, Procedure as ProcedureType } from "@/lib/api/procedure-orders";
 
 interface ConsultationOrderFormProps {
@@ -68,41 +68,35 @@ interface OrderItem {
 // Collapsible Order History Component
 function OrderCollapsible({ order, onCancel, canCancel }: { order: ProcedureOrder; onCancel: (id: number) => void; canCancel: boolean }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [isPrinting, setIsPrinting] = useState(false);
+  const { toast } = useToast();
   
   // Get patient info from registration or source_visit.registration
   const patient = order.registration?.patient || order.source_visit?.registration?.patient;
   
-  const handlePrintQueue = () => {
-    const printWindow = window.open("", "_blank", "width=400,height=600");
-    if (printWindow) {
-      printWindow.document.write(`
-        <html>
-          <head>
-            <title>Tiket Antrian Konsultasi</title>
-            <style>
-              body { font-family: Arial, sans-serif; text-align: center; padding: 20px; }
-              .queue-number { font-size: 72px; font-weight: bold; margin: 20px 0; }
-              .info { margin: 10px 0; font-size: 14px; }
-              .header { font-size: 18px; font-weight: bold; margin-bottom: 10px; }
-              .divider { border-top: 1px dashed #ccc; margin: 15px 0; }
-            </style>
-          </head>
-          <body>
-            <div class="header">ANTRIAN KONSULTASI</div>
-            <div class="info">${order.target_room?.name || "Konsultasi"}</div>
-            <div class="divider"></div>
-            <div class="queue-number">${order.target_visit?.room_queue?.queue_number || "-"}</div>
-            <div class="divider"></div>
-            <div class="info"><strong>${patient?.nama_lengkap || "-"}</strong></div>
-            <div class="info">No. RM: ${patient?.no_rm || "-"}</div>
-            <div class="info">Order: ${order.order_number}</div>
-            <div class="divider"></div>
-            <div class="info">${new Date().toLocaleString("id-ID")}</div>
-            <script>window.print(); window.close();</script>
-          </body>
-        </html>
-      `);
-      printWindow.document.close();
+  const handlePrintQueue = async () => {
+    const queueId = order.target_visit?.room_queue?.id;
+    if (!queueId) {
+      toast({
+        title: "Error",
+        description: "Nomor antrian tidak tersedia",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setIsPrinting(true);
+    try {
+      const url = await printApi.queueTicket(queueId);
+      window.open(url, "_blank");
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.response?.data?.error || "Gagal mencetak tiket antrian",
+        variant: "destructive",
+      });
+    } finally {
+      setIsPrinting(false);
     }
   };
 
@@ -135,8 +129,12 @@ function OrderCollapsible({ order, onCancel, canCancel }: { order: ProcedureOrde
             </div>
           </CollapsibleTrigger>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={handlePrintQueue}>
-              <Printer className="h-4 w-4 mr-1" />
+            <Button variant="outline" size="sm" onClick={handlePrintQueue} disabled={isPrinting}>
+              {isPrinting ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <Printer className="h-4 w-4 mr-1" />
+              )}
               Cetak Antrian
             </Button>
             {order.status === "pending" && canCancel && (
@@ -415,6 +413,9 @@ export function ConsultationOrderForm({ visitId, sourceRoomId, readOnly = false 
         description: "Order konsultasi berhasil dibatalkan",
       });
       loadData();
+      // Trigger refresh print options dan final visit
+      window.dispatchEvent(new CustomEvent("refresh-print-options"));
+      window.dispatchEvent(new CustomEvent("refresh-final-visit"));
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -481,6 +482,10 @@ export function ConsultationOrderForm({ visitId, sourceRoomId, readOnly = false 
 
       // Reload orders
       loadData();
+      
+      // Trigger refresh print options dan final visit
+      window.dispatchEvent(new CustomEvent("refresh-print-options"));
+      window.dispatchEvent(new CustomEvent("refresh-final-visit"));
     } catch (error: any) {
       toast({
         variant: "destructive",

@@ -9,6 +9,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Save, Loader2, FileText, History, Pill, AlertCircle, Search, X, Plus, AlertTriangle } from "lucide-react";
 import { medicalRecordsApi, patientAllergyApi, ALLERGY_CATEGORY_LABELS, ALLERGY_CRITICALITY_LABELS, ALLERGY_CRITICALITY_COLORS } from "@/lib/api";
+import { medicalRecordEditLogApi } from "@/lib/api/visits";
+import { useEditMode, EditModeBanner, EditConfirmDialog } from "./edit-mode-controller";
 import type { Anamnesis, PatientAllergy, AllergyCategory, AllergyCriticality } from "@/lib/api";
 import type { SnomedMaster } from "@/lib/api/loinc";
 import { useDebounce } from "@/hooks/use-debounce";
@@ -18,6 +20,7 @@ interface AnamnesisFormProps {
   patientId?: number;
   onSave?: (data: any) => void;
   readOnly?: boolean;
+  isPatientDischarged?: boolean;
 }
 
 interface NewAllergyInput {
@@ -46,9 +49,28 @@ const defaultNewAllergy: NewAllergyInput = {
   notes: "",
 };
 
-export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false }: AnamnesisFormProps) {
+export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false, isPatientDischarged = false }: AnamnesisFormProps) {
   const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState(defaultFormData);
+  const [anamnesisId, setAnamnesisId] = useState<number | undefined>();
+
+  // Edit mode controller for post-discharge edits
+  const {
+    isEditing,
+    editReason,
+    showEditDialog,
+    setShowEditDialog,
+    setEditReason,
+    handleRequestEdit,
+    handleConfirmEdit,
+    resetEditMode,
+  } = useEditMode({
+    isPatientDischarged,
+    recordType: "anamnesis",
+  });
+
+  // Determine if form should be disabled
+  const isFormDisabled = readOnly || (isPatientDischarged && !isEditing);
   
   // Allergy states
   const [patientAllergies, setPatientAllergies] = useState<PatientAllergy[]>([]);
@@ -83,6 +105,7 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false }: 
             allergies: data.allergies || "",
             current_medications: data.current_medications || "",
           });
+          setAnamnesisId(data.id);
         }
       } catch {
         // No existing data, use defaults
@@ -212,9 +235,25 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false }: 
     setFormData(prev => ({ ...prev, allergies: summary }));
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Log edit if patient is discharged
+    if (isPatientDischarged && anamnesisId) {
+      try {
+        await medicalRecordEditLogApi.create(visitId, {
+          record_type: "anamnesis",
+          record_id: anamnesisId,
+          action: "edit",
+          reason: editReason || "Edit setelah pasien pulang",
+        });
+      } catch (error) {
+        console.error("Failed to log edit:", error);
+      }
+    }
+    
     onSave?.(formData);
+    resetEditMode();
   };
 
   const filledFields = Object.values(formData).filter(v => v && v.trim() !== "").length;
@@ -257,8 +296,16 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false }: 
       <CardContent className="p-0">
         <ScrollArea className="h-[calc(100vh-300px)] min-h-[400px]">
           <div className="p-4">
+          {/* Edit Mode Banner for discharged patients */}
+          <EditModeBanner
+            isPatientDischarged={isPatientDischarged}
+            isEditing={isEditing}
+            onRequestEdit={handleRequestEdit}
+            recordTypeLabel="Anamnesis"
+          />
+          
         <form onSubmit={handleSubmit}>
-          <fieldset disabled={readOnly} className="space-y-6">
+          <fieldset disabled={isFormDisabled} className="space-y-6">
           
           {/* Section 1: Keluhan Utama & Riwayat Penyakit Sekarang */}
           <Card className="border-red-200 dark:border-red-800">
@@ -646,7 +693,7 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false }: 
           </Card>
 
           {/* Submit Button */}
-          {!readOnly && (
+          {!isFormDisabled && (
             <div className="flex justify-end gap-3 pt-4 border-t">
               <Button type="submit" className="gap-2">
                 <Save className="h-4 w-4" />
@@ -659,6 +706,15 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false }: 
           </div>
         </ScrollArea>
       </CardContent>
+      
+      {/* Edit Confirmation Dialog */}
+      <EditConfirmDialog
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
+        editReason={editReason}
+        onEditReasonChange={setEditReason}
+        onConfirm={handleConfirmEdit}
+      />
     </Card>
   );
 }

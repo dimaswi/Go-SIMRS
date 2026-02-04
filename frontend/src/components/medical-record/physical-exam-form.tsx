@@ -21,14 +21,17 @@ import {
   X,
 } from "lucide-react";
 import { medicalRecordsApi } from "@/lib/api";
+import { medicalRecordEditLogApi } from "@/lib/api/visits";
 import type { PhysicalExam } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useEditMode, EditModeBanner, EditConfirmDialog } from "./edit-mode-controller";
 
 interface PhysicalExamFormProps {
   visitId: number;
   onSave?: (data: any) => void;
   isEmergency?: boolean;
   readOnly?: boolean;
+  isPatientDischarged?: boolean;
 }
 
 // Physical exam sections
@@ -96,11 +99,30 @@ const defaultFormData = {
   ecg_notes: "",
 };
 
-export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnly = false }: PhysicalExamFormProps) {
+export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnly = false, isPatientDischarged = false }: PhysicalExamFormProps) {
   const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState(defaultFormData);
   const [checkedSections, setCheckedSections] = useState<Record<string, boolean>>({});
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
+  const [physicalExamId, setPhysicalExamId] = useState<number | undefined>();
+
+  // Edit mode controller for post-discharge edits
+  const {
+    isEditing,
+    editReason,
+    showEditDialog,
+    setShowEditDialog,
+    setEditReason,
+    handleRequestEdit,
+    handleConfirmEdit,
+    resetEditMode,
+  } = useEditMode({
+    isPatientDischarged,
+    recordType: "physical_exam",
+  });
+
+  // Determine if form should be disabled
+  const isFormDisabled = readOnly || (isPatientDischarged && !isEditing);
 
   useEffect(() => {
     const loadPhysicalExam = async () => {
@@ -153,6 +175,7 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
           };
           
           setFormData(loadedData);
+          setPhysicalExamId(data.id);
           
           // Set checked state for sections that have data
           const checked: Record<string, boolean> = {};
@@ -228,9 +251,25 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Log edit if patient is discharged
+    if (isPatientDischarged && physicalExamId) {
+      try {
+        await medicalRecordEditLogApi.create(visitId, {
+          record_type: "physical_exam",
+          record_id: physicalExamId,
+          action: "edit",
+          reason: editReason || "Edit setelah pasien pulang",
+        });
+      } catch (error) {
+        console.error("Failed to log edit:", error);
+      }
+    }
+    
     onSave?.(formData);
+    resetEditMode();
   };
 
   const bmiCategory = getBMICategory(formData.bmi);
@@ -267,8 +306,14 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
       <CardContent className="p-0">
         <ScrollArea className="h-[calc(100vh-300px)] min-h-[400px]">
           <div className="p-4">
+            <EditModeBanner
+              isPatientDischarged={isPatientDischarged}
+              isEditing={isEditing}
+              onRequestEdit={handleRequestEdit}
+              recordTypeLabel="Pemeriksaan Fisik"
+            />
             <form onSubmit={handleSubmit}>
-              <fieldset disabled={readOnly} className="space-y-6">
+              <fieldset disabled={isFormDisabled} className="space-y-6">
             
             {/* Section 1: Kondisi Umum & Tanda Vital */}
             <Card className="border-red-200 dark:border-red-800">
@@ -501,7 +546,7 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
                     variant="outline"
                     size="sm"
                     onClick={handleSetAllNormal}
-                    disabled={readOnly}
+                    disabled={isFormDisabled}
                     className="gap-2"
                   >
                     {allPhysicalChecked ? (
@@ -551,7 +596,7 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
                                     id={`check-${section.id}`}
                                     checked={isChecked}
                                     onCheckedChange={(checked) => handleCheckSection(section.id, checked as boolean)}
-                                    disabled={readOnly}
+                                    disabled={isFormDisabled}
                                   />
                                 </td>
                                 <td className="p-4 align-middle font-medium">{section.label}</td>
@@ -599,7 +644,7 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
                                         value={value || ""}
                                         onChange={(e) => handleChange(section.id, e.target.value)}
                                         className="min-h-[80px] resize-none text-sm"
-                                        disabled={readOnly}
+                                        disabled={isFormDisabled}
                                       />
                                     </div>
                                   </td>
@@ -678,7 +723,7 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
                                     handleChange("ecg_notes", "");
                                   }
                                 }}
-                                disabled={readOnly}
+                                disabled={isFormDisabled}
                               />
                             </td>
                             <td className="p-4 align-middle">
@@ -751,7 +796,7 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
                                       placeholder="Sinus rhythm, HR 80x/menit..."
                                       value={formData.ecg_result}
                                       onChange={(e) => handleChange("ecg_result", e.target.value)}
-                                      disabled={readOnly}
+                                      disabled={isFormDisabled}
                                       className="text-sm"
                                     />
                                   </div>
@@ -762,7 +807,7 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
                                       placeholder="Normal / Abnormal"
                                       value={formData.ecg_interpretation}
                                       onChange={(e) => handleChange("ecg_interpretation", e.target.value)}
-                                      disabled={readOnly}
+                                      disabled={isFormDisabled}
                                       className="text-sm"
                                     />
                                   </div>
@@ -785,7 +830,7 @@ Kesimpulan: EKG dalam batas normal`}
                                       value={formData.ecg_notes}
                                       onChange={(e) => handleChange("ecg_notes", e.target.value)}
                                       className="min-h-[120px] resize-none font-mono text-sm"
-                                      disabled={readOnly}
+                                      disabled={isFormDisabled}
                                     />
                                   </div>
                                 </div>
@@ -807,17 +852,26 @@ Kesimpulan: EKG dalam batas normal`}
             </Card>
 
             {/* Submit Button */}
-            <div className="flex justify-end gap-3 pt-4 border-t">
-              <Button type="submit" className="gap-2">
-                <Save className="h-4 w-4" />
-                Simpan Pemeriksaan Fisik
-              </Button>
-            </div>
+            {!isFormDisabled && (
+              <div className="flex justify-end gap-3 pt-4 border-t">
+                <Button type="submit" className="gap-2">
+                  <Save className="h-4 w-4" />
+                  Simpan Pemeriksaan Fisik
+                </Button>
+              </div>
+            )}
           </fieldset>
         </form>
           </div>
         </ScrollArea>
       </CardContent>
+      <EditConfirmDialog
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
+        editReason={editReason}
+        onEditReasonChange={setEditReason}
+        onConfirm={handleConfirmEdit}
+      />
     </Card>
   );
 }

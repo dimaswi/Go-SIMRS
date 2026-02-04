@@ -220,4 +220,131 @@ export const bpjsApi = {
   
   syncDoctorFromReferensi: () =>
     api.post<{ message: string; data: Record<string, unknown> }>('/bpjs/mapping/dokter/sync'),
+
+  // BPJS Queue (Antrian MJKN)
+  getQueues: (params?: { date?: string; status?: string; kode_poli?: string; limit?: number }) =>
+    api.get<{ data: BPJSQueue[] }>('/bpjs/queue', { params }),
+  
+  getQueueByRegistration: (registrationId: number) =>
+    api.get<{ data: BPJSQueue }>(`/bpjs/queue/registration/${registrationId}`),
+  
+  getQueueByVisit: (visitId: number) =>
+    api.get<{ data: BPJSQueue }>(`/bpjs/queue/visit/${visitId}`),
+  
+  activateQueueCheckin: (queueId: number) =>
+    api.post<{ message: string; data: BPJSQueue }>(`/bpjs/queue/${queueId}/checkin`),
+  
+  // Manual send task to BPJS (for monitoring page)
+  // waktu: timestamp in milliseconds
+  sendTaskManual: (queueId: number, taskId: number, waktu: number) =>
+    api.post<{ 
+      success: boolean; 
+      message: string; 
+      response_code: number; 
+      response_msg: string;
+      waktu_sent: number;
+    }>(`/bpjs/queue/${queueId}/send-task`, { task_id: taskId, waktu }),
+  
+  // Retry AddAntrean to BPJS
+  retryAddAntrean: (queueId: number) =>
+    api.post<{
+      success: boolean;
+      response_code: number;
+      response_msg: string;
+      data: BPJSQueue;
+    }>(`/bpjs/queue/${queueId}/retry-add`),
+
+  // Cancel BPJS queue (from internal system)
+  cancelQueue: (queueId: number) =>
+    api.post<{ message: string; data: BPJSQueue }>(`/bpjs/queue/${queueId}/cancel`),
 };
+
+// BPJS Queue Types (Antrian MJKN)
+export interface BPJSQueue {
+  id: number;
+  kode_booking: string;
+  nomor_antrean: string;
+  angka_antrean: number;
+  tanggal_periksa: string;
+  jam_praktek: string;
+  kode_poli: string;
+  nama_poli: string;
+  kode_dokter: string;
+  nama_dokter: string;
+  jenis_pasien: string;
+  no_kartu: string;
+  nik: string;
+  no_hp: string;
+  no_rm: string;
+  nama_pasien: string;
+  jenis_kunjungan: number;
+  nomor_referensi: string;
+  estimasi_dilayani: number;
+  status: string;
+  keterangan: string;
+  waktu_checkin?: string;
+  waktu_batal?: string;
+  
+  // Farmasi
+  nomor_antrean_farmasi: number;
+  status_farmasi: string;
+  
+  // Task tracking
+  task1_at?: string;
+  task2_at?: string;
+  task3_at?: string;
+  task4_at?: string;
+  task5_at?: string;
+  task6_at?: string;
+  task7_at?: string;
+  
+  // SIMRS Relations
+  patient_id?: number;
+  registration_id?: number;
+  visit_id?: number;
+  room_queue_id?: number;
+  room_id?: number;
+  poli_mapping_id?: number;
+  doctor_mapping_id?: number;
+  
+  // Sync
+  sync_status: string;
+  sync_error?: string;
+  last_sync_at?: string;
+  
+  // AddAntrean tracking
+  add_antrean_sent: boolean;
+  add_antrean_code: number;
+  add_antrean_msg?: string;
+  
+  // Relations
+  patient?: {
+    id: number;
+    no_rm: string;
+    nama_lengkap: string;
+    nik: string;
+  };
+  registration?: {
+    id: number;
+    registration_number: string;
+    status: string;
+  };
+  visit?: {
+    id: number;
+    visit_number: string;
+    status: string;
+  };
+  room_queue?: {
+    id: number;
+    queue_number: string;
+    status: string;
+  };
+  room?: {
+    id: number;
+    name: string;
+    code: string;
+  };
+  
+  created_at: string;
+  updated_at: string;
+}

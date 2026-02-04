@@ -264,6 +264,12 @@ export const medicineOrdersApi = {
     return response;
   },
 
+  // Recalculate order status (fix inconsistent status)
+  recalculate: async (id: number) => {
+    const response = await api.post<{ message: string; new_status: string }>(`/medicine-orders/${id}/recalculate`, {});
+    return response;
+  },
+
   // Get prescription review
   getReview: async (orderId: number) => {
     const response = await api.get<PrescriptionReview>(`/medicine-orders/${orderId}/review`);
@@ -291,6 +297,43 @@ export const medicineOrdersApi = {
   // Create medicine return
   createReturn: async (orderId: number, data: CreateMedicineReturnInput) => {
     const response = await api.post<MedicineReturn>(`/medicine-orders/${orderId}/returns`, data);
+    return response;
+  },
+
+  // Add item to medicine order (pharmacy edit)
+  addItem: async (orderId: number, data: {
+    medicine_id: number;
+    quantity: number;
+    unit?: string;
+    dosage?: string;
+    frequency?: string;
+    route?: string;
+    duration?: string;
+    instructions?: string;
+    notes?: string;
+  }) => {
+    const response = await api.post<MedicineOrderItem>(`/medicine-orders/${orderId}/items`, data);
+    return response;
+  },
+
+  // Update item in medicine order (pharmacy edit)
+  updateItem: async (orderId: number, itemId: number, data: {
+    quantity?: number;
+    unit?: string;
+    dosage?: string;
+    frequency?: string;
+    route?: string;
+    duration?: string;
+    instructions?: string;
+    notes?: string;
+  }) => {
+    const response = await api.put<MedicineOrderItem>(`/medicine-orders/${orderId}/items/${itemId}`, data);
+    return response;
+  },
+
+  // Delete item from medicine order (pharmacy edit)
+  deleteItem: async (orderId: number, itemId: number) => {
+    const response = await api.delete<{ message: string }>(`/medicine-orders/${orderId}/items/${itemId}`);
     return response;
   },
 };

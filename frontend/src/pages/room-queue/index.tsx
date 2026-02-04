@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Phone, Clock, CheckCircle, XCircle, Pause, AlertCircle } from 'lucide-react';
+import { Phone, Clock, CheckCircle, XCircle, Pause, AlertCircle, Smartphone } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 
@@ -126,6 +126,7 @@ export default function RoomQueueManagement() {
 
   const getStatusBadge = (status: string) => {
     const variants: Record<string, { variant: any; icon: any; label: string }> = {
+      reserved: { variant: 'outline', icon: Smartphone, label: 'Reserved (MJKN)' },
       waiting: { variant: 'secondary', icon: Clock, label: 'Waiting' },
       called: { variant: 'default', icon: Phone, label: 'Called' },
       serving: { variant: 'default', icon: AlertCircle, label: 'Serving' },
@@ -300,14 +301,24 @@ export default function RoomQueueManagement() {
             <TableBody>
               {queues.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center text-muted-foreground">
+                  <TableCell colSpan={9} className="text-center text-muted-foreground">
                     No queues found
                   </TableCell>
                 </TableRow>
               ) : (
                 queues.map((queue) => (
                   <TableRow key={queue.id}>
-                    <TableCell className="font-bold text-lg">{queue.queue_number}</TableCell>
+                    <TableCell className="font-bold text-lg">
+                      <div className="flex items-center gap-2">
+                        {queue.queue_number}
+                        {queue.is_mjkn && (
+                          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 flex items-center gap-1">
+                            <Smartphone className="h-3 w-3" />
+                            MJKN
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell>{queue.visit?.registration?.patient?.nama_lengkap || '-'}</TableCell>
                     <TableCell>{queue.visit?.registration?.patient?.no_rm || '-'}</TableCell>
                     <TableCell>{getPriorityBadge(queue.priority)}</TableCell>

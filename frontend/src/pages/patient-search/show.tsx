@@ -13,10 +13,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { patientsApi, type Patient } from "@/lib/api";
+import { patientsApi, registrationApi, type Patient, type Registration } from "@/lib/api";
 import { visitsApi, type Visit } from "@/lib/api/visits";
 import { billingApi, type Billing } from "@/lib/api/billing";
+import { vclaimApi, type SEPLocal } from "@/lib/api/vclaim";
+import { printApi } from "@/lib/api/print";
+import { admissionRequestApi, type AdmissionRequest } from "@/lib/api/admission-request";
 import { setPageTitle } from "@/lib/page-title";
+import { RegistrationSheet } from "@/components/registration/registration-sheet";
+import { RegistrationDetailSheet } from "@/components/registration/registration-detail-sheet";
+import { SEPDetailSheet } from "@/components/sep/sep-detail-sheet";
 import {
   User,
   Loader2,
@@ -32,14 +38,52 @@ import {
   CreditCard,
   Eye,
   Pencil,
+  UserPlus,
+  ClipboardList,
+  FileCheck,
+  Printer,
+  Trash2,
+  MoreHorizontal,
+  BedDouble,
+  Clock,
+  CheckCircle,
+  XCircle,
+  ArrowRight,
+  ExternalLink,
 } from "lucide-react";
 import { format, parseISO, differenceInYears } from "date-fns";
 import { id } from "date-fns/locale";
+import { useToast } from "@/hooks/use-toast";
+import { api } from "@/lib/api";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function PatientSearchShow() {
   const { id: patientId } = useParams<{ id: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { toast } = useToast();
   const query = searchParams.get("q") || "";
   const activeTab = searchParams.get("tab") || "detail";
 
@@ -54,8 +98,21 @@ export default function PatientSearchShow() {
   const [loading, setLoading] = useState(true);
   const [visits, setVisits] = useState<Visit[]>([]);
   const [billings, setBillings] = useState<Billing[]>([]);
+  const [registrations, setRegistrations] = useState<Registration[]>([]);
+  const [seps, setSeps] = useState<SEPLocal[]>([]);
   const [loadingVisits, setLoadingVisits] = useState(false);
   const [loadingBillings, setLoadingBillings] = useState(false);
+  const [loadingRegistrations, setLoadingRegistrations] = useState(false);
+  const [loadingSeps, setLoadingSeps] = useState(false);
+  const [admissionRequests, setAdmissionRequests] = useState<AdmissionRequest[]>([]);
+  const [loadingAdmissionRequests, setLoadingAdmissionRequests] = useState(false);
+  const [registrationSheetOpen, setRegistrationSheetOpen] = useState(false);
+  const [deleteSepId, setDeleteSepId] = useState<SEPLocal | null>(null);
+  const [deletingSep, setDeletingSep] = useState(false);
+  const [selectedRegistrationId, setSelectedRegistrationId] = useState<number | null>(null);
+  const [registrationDetailOpen, setRegistrationDetailOpen] = useState(false);
+  const [selectedSep, setSelectedSep] = useState<SEPLocal | null>(null);
+  const [sepDetailOpen, setSepDetailOpen] = useState(false);
 
   useEffect(() => {
     setPageTitle("Detail Pasien");
@@ -72,6 +129,9 @@ export default function PatientSearchShow() {
       setPatient(patientData);
       // Load visits and billings after patient is loaded
       loadVisits(Number(patientId));
+      loadRegistrations(Number(patientId));
+      loadSeps(Number(patientId));
+      loadAdmissionRequests(Number(patientId));
       if (patientData?.no_rm) {
         loadBillings(patientData.no_rm);
       }
@@ -112,6 +172,48 @@ export default function PatientSearchShow() {
       setBillings([]);
     } finally {
       setLoadingBillings(false);
+    }
+  };
+
+  const loadRegistrations = async (patientIdNum: number) => {
+    setLoadingRegistrations(true);
+    try {
+      const response = await registrationApi.getAll({ patient_id: patientIdNum, limit: 100 });
+      const registrationsData = response?.data?.data || [];
+      setRegistrations(Array.isArray(registrationsData) ? registrationsData : []);
+    } catch (error) {
+      console.error("Error loading registrations:", error);
+      setRegistrations([]);
+    } finally {
+      setLoadingRegistrations(false);
+    }
+  };
+
+  const loadSeps = async (patientIdNum: number) => {
+    setLoadingSeps(true);
+    try {
+      const response = await vclaimApi.getSEPList({ patient_id: patientIdNum, limit: 100 });
+      const sepsData = response?.data?.data || [];
+      setSeps(Array.isArray(sepsData) ? sepsData : []);
+    } catch (error) {
+      console.error("Error loading SEPs:", error);
+      setSeps([]);
+    } finally {
+      setLoadingSeps(false);
+    }
+  };
+
+  const loadAdmissionRequests = async (patientIdNum: number) => {
+    setLoadingAdmissionRequests(true);
+    try {
+      const response = await admissionRequestApi.getAll({ patient_id: patientIdNum, limit: 100 });
+      const admissionData = response?.data?.data || [];
+      setAdmissionRequests(Array.isArray(admissionData) ? admissionData : []);
+    } catch (error) {
+      console.error("Error loading admission requests:", error);
+      setAdmissionRequests([]);
+    } finally {
+      setLoadingAdmissionRequests(false);
     }
   };
 
@@ -244,6 +346,132 @@ export default function PatientSearchShow() {
     }
   };
 
+  const getRegistrationStatusVariant = (status: string) => {
+    switch (status) {
+      case "completed":
+        return "default";
+      case "in_progress":
+        return "secondary";
+      case "registered":
+      case "in_queue":
+        return "outline";
+      case "cancelled":
+        return "destructive";
+      default:
+        return "outline";
+    }
+  };
+
+  const getRegistrationStatusLabel = (status: string) => {
+    switch (status) {
+      case "completed":
+        return "Selesai";
+      case "in_progress":
+        return "Sedang Berlangsung";
+      case "registered":
+        return "Terdaftar";
+      case "in_queue":
+        return "Dalam Antrian";
+      case "cancelled":
+        return "Dibatalkan";
+      case "scheduled":
+        return "Terjadwal";
+      case "no_show":
+        return "Tidak Hadir";
+      default:
+        return status;
+    }
+  };
+
+  const getSepStatusVariant = (status: string) => {
+    switch (status) {
+      case "active":
+        return "default";
+      case "deleted":
+        return "destructive";
+      default:
+        return "outline";
+    }
+  };
+
+  const getSepStatusLabel = (status: string) => {
+    switch (status) {
+      case "active":
+        return "Aktif";
+      case "deleted":
+        return "Dihapus";
+      default:
+        return status;
+    }
+  };
+
+  const getJenisPelayanan = (jns: string) => {
+    return jns === "1" ? "Rawat Inap" : "Rawat Jalan";
+  };
+
+  const handleDeleteSep = async () => {
+    if (!deleteSepId?.no_sep) return;
+
+    setDeletingSep(true);
+    try {
+      await api.delete(`/bpjs/vclaim/sep/${deleteSepId.no_sep}`);
+      toast({
+        title: "Berhasil",
+        description: "SEP berhasil dihapus",
+      });
+      setDeleteSepId(null);
+      loadSeps(Number(patientId));
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.response?.data?.error || "Gagal menghapus SEP",
+      });
+    } finally {
+      setDeletingSep(false);
+    }
+  };
+
+  const handlePrintLabel = async () => {
+    if (!patient) return;
+    try {
+      await printApi.patientLabel(patient.id, 4);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.response?.data?.error || "Gagal mencetak label pasien",
+      });
+    }
+  };
+
+  const handlePrintQueue = async (registration: Registration) => {
+    const regId = registration.ID || registration.id;
+    if (!regId) return;
+    try {
+      await printApi.registrationTicket(regId);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.response?.data?.error || "Gagal mencetak tiket antrian",
+      });
+    }
+  };
+
+  const handleViewRegistration = (registration: Registration) => {
+    const regId = registration.ID || registration.id;
+    if (regId) {
+      setSelectedRegistrationId(regId);
+      setRegistrationDetailOpen(true);
+    }
+  };
+
+  const handleViewSep = (sep: SEPLocal) => {
+    setSelectedSep(sep);
+    setSepDetailOpen(true);
+  };
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("id-ID", {
       style: "currency",
@@ -318,14 +546,52 @@ export default function PatientSearchShow() {
                 </p>
               </div>
             </div>
-            <div>
-              <Button
-                variant="outline"
-                onClick={() => navigate(`/patients/${patient.id}/edit`)}
-                className="mr-2 text-white bg-yellow-600 hover:bg-yellow-700 focus:ring-yellow-300 hover:text-blue-800"
-              >
-                <Pencil /> Edit
-              </Button>
+            <div className="flex items-center gap-2">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={handlePrintLabel}
+                    >
+                      <Printer className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Print Label Pasien</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => navigate(`/patients/${patient.id}/edit`)}
+                      className="text-white bg-yellow-600 hover:bg-yellow-700"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Edit Pasien</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              {patient.status === "Aktif" && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="icon"
+                        onClick={() => setRegistrationSheetOpen(true)}
+                        className="bg-primary hover:bg-primary/90"
+                      >
+                        <UserPlus className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Daftarkan Pasien</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
             </div>
           </div>
         </CardHeader>
@@ -354,6 +620,32 @@ export default function PatientSearchShow() {
               >
                 <CreditCard className="mr-2 h-4 w-4" />
                 Riwayat Pembayaran
+              </TabsTrigger>
+              <TabsTrigger
+                value="pendaftaran"
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2"
+              >
+                <ClipboardList className="mr-2 h-4 w-4" />
+                Riwayat Pendaftaran
+              </TabsTrigger>
+              <TabsTrigger
+                value="sep"
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2"
+              >
+                <FileCheck className="mr-2 h-4 w-4" />
+                Riwayat SEP
+              </TabsTrigger>
+              <TabsTrigger
+                value="rawat-inap"
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2"
+              >
+                <BedDouble className="mr-2 h-4 w-4" />
+                Permintaan Rawat Inap
+                {admissionRequests.filter(r => r.status === 'pending').length > 0 && (
+                  <Badge variant="destructive" className="ml-2 h-5 min-w-5 px-1">
+                    {admissionRequests.filter(r => r.status === 'pending').length}
+                  </Badge>
+                )}
               </TabsTrigger>
             </TabsList>
 
@@ -915,9 +1207,377 @@ export default function PatientSearchShow() {
                 </Table>
               )}
             </TabsContent>
+
+            {/* Riwayat Pendaftaran Tab */}
+            <TabsContent value="pendaftaran" className="mt-6">
+              {loadingRegistrations ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              ) : registrations.length === 0 ? (
+                <div className="text-center py-12">
+                  <ClipboardList className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
+                  <h3 className="text-lg font-semibold mb-2">
+                    Riwayat Pendaftaran
+                  </h3>
+                  <p className="text-muted-foreground mb-4">
+                    Belum ada data riwayat pendaftaran untuk pasien ini
+                  </p>
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={() => setRegistrationSheetOpen(true)}
+                  >
+                    <UserPlus className="mr-2 h-4 w-4" />
+                    Buat Pendaftaran Baru
+                  </Button>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[140px]">No. Registrasi</TableHead>
+                      <TableHead className="w-[160px]">Tanggal</TableHead>
+                      <TableHead>Ruangan</TableHead>
+                      <TableHead>Dokter</TableHead>
+                      <TableHead className="w-[100px]">Pembayaran</TableHead>
+                      <TableHead className="w-[120px]">No. SEP</TableHead>
+                      <TableHead className="w-[120px]">Status</TableHead>
+                      <TableHead className="w-[80px] text-center">
+                        Aksi
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {registrations.map((reg) => (
+                      <TableRow key={reg.id || reg.ID}>
+                        <TableCell className="font-mono font-medium">
+                          {reg.registration_number}
+                        </TableCell>
+                        <TableCell>
+                          {formatDateTime(reg.created_at)}
+                        </TableCell>
+                        <TableCell>{reg.destination_room?.name || "-"}</TableCell>
+                        <TableCell>
+                          {reg.doctor?.nama_lengkap || reg.doctor?.name || "-"}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="uppercase">
+                            {reg.payment_method}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">
+                          {reg.sep_number || "-"}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={getRegistrationStatusVariant(reg.status)}>
+                            {getRegistrationStatusLabel(reg.status)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={() => handleViewRegistration(reg)}
+                              >
+                                <Eye className="mr-2 h-4 w-4" />
+                                Lihat Detail
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => handlePrintQueue(reg)}
+                              >
+                                <Printer className="mr-2 h-4 w-4" />
+                                Cetak Antrian
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </TabsContent>
+
+            {/* Riwayat SEP Tab */}
+            <TabsContent value="sep" className="mt-6">
+              {loadingSeps ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              ) : seps.length === 0 ? (
+                <div className="text-center py-12">
+                  <FileCheck className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
+                  <h3 className="text-lg font-semibold mb-2">
+                    Riwayat SEP
+                  </h3>
+                  <p className="text-muted-foreground">
+                    Belum ada data SEP untuk pasien ini
+                  </p>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[160px]">No. SEP</TableHead>
+                      <TableHead className="w-[120px]">Tgl SEP</TableHead>
+                      <TableHead className="w-[100px]">Jns Pelayanan</TableHead>
+                      <TableHead>Poli</TableHead>
+                      <TableHead>Dokter DPJP</TableHead>
+                      <TableHead>Diagnosa</TableHead>
+                      <TableHead className="w-[100px]">Status</TableHead>
+                      <TableHead className="w-[80px] text-center">
+                        Aksi
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {seps.map((sep) => (
+                      <TableRow key={sep.id}>
+                        <TableCell className="font-mono font-medium">
+                          {sep.no_sep}
+                        </TableCell>
+                        <TableCell>
+                          {sep.tgl_sep ? new Date(sep.tgl_sep).toLocaleDateString("id-ID") : "-"}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">
+                            {getJenisPelayanan(sep.jns_pelayanan)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{sep.nama_poli || "-"}</TableCell>
+                        <TableCell>{sep.nama_dpjp || "-"}</TableCell>
+                        <TableCell className="max-w-[200px] truncate" title={sep.nama_diagnosa}>
+                          {sep.nama_diagnosa || "-"}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={getSepStatusVariant(sep.status)}>
+                            {getSepStatusLabel(sep.status)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={() => handleViewSep(sep)}
+                              >
+                                <Eye className="mr-2 h-4 w-4" />
+                                Lihat Detail
+                              </DropdownMenuItem>
+                              {sep.status === "active" && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    className="text-destructive focus:text-destructive"
+                                    onClick={() => setDeleteSepId(sep)}
+                                  >
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    Hapus SEP
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </TabsContent>
+
+            {/* Permintaan Rawat Inap Tab */}
+            <TabsContent value="rawat-inap" className="mt-6">
+              {loadingAdmissionRequests ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              ) : admissionRequests.length === 0 ? (
+                <div className="text-center py-12">
+                  <BedDouble className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
+                  <h3 className="text-lg font-semibold mb-2">
+                    Permintaan Rawat Inap
+                  </h3>
+                  <p className="text-muted-foreground">
+                    Belum ada permintaan rawat inap untuk pasien ini
+                  </p>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[140px]">No. Request</TableHead>
+                      <TableHead className="w-[120px]">Prioritas</TableHead>
+                      <TableHead className="w-[100px]">Tipe</TableHead>
+                      <TableHead>Asal Unit</TableHead>
+                      <TableHead>Kelas Pilihan</TableHead>
+                      <TableHead className="w-[160px]">Tanggal Request</TableHead>
+                      <TableHead className="w-[120px]">Status</TableHead>
+                      <TableHead className="w-[80px] text-center">
+                        Aksi
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {admissionRequests.map((request) => (
+                      <TableRow key={request.id}>
+                        <TableCell className="font-mono font-medium">
+                          {request.request_number}
+                        </TableCell>
+                        <TableCell>
+                          {request.priority === "emergency" ? (
+                            <Badge variant="destructive">Emergency</Badge>
+                          ) : request.priority === "urgent" ? (
+                            <Badge className="bg-orange-500 hover:bg-orange-600">Urgent</Badge>
+                          ) : (
+                            <Badge variant="secondary">Normal</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="capitalize">
+                          {request.admission_type}
+                        </TableCell>
+                        <TableCell>
+                          {request.source_visit?.id ? (
+                            <Button
+                              variant="link"
+                              className="p-0 h-auto font-normal"
+                              onClick={() => navigate(`/visits/${request.source_visit?.id}`)}
+                            >
+                              {request.source_visit?.room?.name || 'N/A'}
+                              <ExternalLink className="h-3 w-3 ml-1" />
+                            </Button>
+                          ) : (
+                            <span>{request.source_visit?.room?.name || 'N/A'}</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="capitalize">
+                          {request.preferred_class?.replace(/_/g, ' ') || '-'}
+                        </TableCell>
+                        <TableCell>
+                          {request.requested_at
+                            ? formatDateTime(request.requested_at)
+                            : 'N/A'}
+                        </TableCell>
+                        <TableCell>
+                          {request.status === "pending" ? (
+                            <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-300">
+                              <Clock className="h-3 w-3 mr-1" /> Menunggu
+                            </Badge>
+                          ) : request.status === "approved" ? (
+                            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300">
+                              <CheckCircle className="h-3 w-3 mr-1" /> Disetujui
+                            </Badge>
+                          ) : request.status === "rejected" ? (
+                            <Badge variant="outline" className="bg-red-50 text-red-700 border-red-300">
+                              <XCircle className="h-3 w-3 mr-1" /> Ditolak
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-300">
+                              Dibatalkan
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {request.status === "pending" ? (
+                            <Button size="sm" onClick={() => navigate(`/admisi/${request.id}`)}>
+                              <ArrowRight className="h-4 w-4 mr-1" />
+                              Proses
+                            </Button>
+                          ) : request.inpatient_visit_id ? (
+                            <Button variant="ghost" size="sm" onClick={() => navigate(`/visits/${request.inpatient_visit_id}`)}>
+                              <Eye className="h-4 w-4 mr-1" />
+                              Lihat
+                            </Button>
+                          ) : (
+                            <Button variant="ghost" size="sm" onClick={() => navigate(`/admisi/${request.id}`)}>
+                              <Eye className="h-4 w-4 mr-1" />
+                              Detail
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </TabsContent>
           </Tabs>
         </CardContent>
       </Card>
+
+      {/* Delete SEP Dialog */}
+      <AlertDialog open={!!deleteSepId} onOpenChange={(open) => !open && setDeleteSepId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus SEP</AlertDialogTitle>
+            <AlertDialogDescription>
+              Apakah Anda yakin ingin menghapus SEP <strong>{deleteSepId?.no_sep}</strong>?
+              <br />
+              Tindakan ini akan menghapus data SEP dari BPJS dan tidak dapat dibatalkan.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingSep}>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteSep}
+              disabled={deletingSep}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deletingSep ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Menghapus...
+                </>
+              ) : (
+                "Hapus SEP"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Registration Sheet */}
+      {patient && (
+        <RegistrationSheet
+          open={registrationSheetOpen}
+          onOpenChange={setRegistrationSheetOpen}
+          patient={patient}
+          onSuccess={() => {
+            // Reload data after registration
+            loadVisits(Number(patientId));
+            loadRegistrations(Number(patientId));
+            loadSeps(Number(patientId));
+          }}
+          onSEPCreated={() => loadSeps(Number(patientId))}
+        />
+      )}
+
+      {/* Registration Detail Sheet */}
+      <RegistrationDetailSheet
+        open={registrationDetailOpen}
+        onOpenChange={setRegistrationDetailOpen}
+        registrationId={selectedRegistrationId}
+        onViewSEP={handleViewSep}
+      />
+
+      {/* SEP Detail Sheet */}
+      <SEPDetailSheet
+        open={sepDetailOpen}
+        onOpenChange={setSepDetailOpen}
+        sep={selectedSep}
+        onUpdate={() => loadSeps(Number(patientId))}
+        onDelete={() => loadSeps(Number(patientId))}
+      />
     </div>
   );
 }

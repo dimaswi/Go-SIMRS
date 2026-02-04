@@ -38,7 +38,7 @@ import {
   CalendarIcon,
   User,
 } from "lucide-react";
-import { procedureOrdersApi, PROCEDURE_ORDER_STATUS } from "@/lib/api";
+import { procedureOrdersApi, PROCEDURE_ORDER_STATUS, printApi } from "@/lib/api";
 import type { ProcedureOrder, Procedure as ProcedureType } from "@/lib/api/procedure-orders";
 
 interface SurgeryOrderFormProps {
@@ -55,43 +55,210 @@ interface OrderItem {
   notes: string;
 }
 
+// Anesthesia & wound classification labels (shared with surgery-workstation)
+const ANESTHESIA_LABELS: Record<string, string> = {
+  general: "General Anesthesia (GA)",
+  regional_spinal: "Regional - Spinal",
+  regional_epidural: "Regional - Epidural",
+  regional_cse: "Regional - CSE (Combined)",
+  regional_block: "Regional - Nerve Block",
+  local: "Local Anesthesia",
+  sedation: "Sedasi",
+  none: "Tanpa Anestesi",
+};
+
+const WOUND_CLASS_LABELS: Record<string, string> = {
+  clean: "Bersih (Clean)",
+  clean_contaminated: "Bersih Terkontaminasi (Clean-Contaminated)",
+  contaminated: "Terkontaminasi (Contaminated)",
+  dirty: "Kotor/Infeksi (Dirty/Infected)",
+};
+
+// Completed results display for surgery orders
+function SurgeryCompletedResults({ order }: { order: ProcedureOrder }) {
+  const summary = order.result_summary || "";
+  const isStructured = summary.startsWith("{{STRUCTURED}}");
+
+  let data: Record<string, string> | null = null;
+  if (isStructured) {
+    try {
+      data = JSON.parse(summary.replace("{{STRUCTURED}}", ""));
+    } catch {
+      data = null;
+    }
+  }
+
+  return (
+    <div className="bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg p-3 space-y-3">
+      <p className="font-medium text-green-700 dark:text-green-300 flex items-center gap-2">
+        <CheckCircle2 className="h-4 w-4" />
+        Operasi Selesai
+      </p>
+      {order.completed_at && (
+        <p className="text-xs text-green-600 dark:text-green-400">
+          Selesai: {new Date(order.completed_at).toLocaleString("id-ID")}
+          {order.performed_by && ` • Oleh: ${order.performed_by.nama_lengkap}`}
+        </p>
+      )}
+
+      {data ? (
+        <div className="space-y-3">
+          {/* Structured display */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+            {data.diagnosis_pre_op && (
+              <div>
+                <span className="text-xs font-medium text-muted-foreground">Diagnosis Pre-Operasi</span>
+                <p>{data.diagnosis_pre_op}</p>
+              </div>
+            )}
+            {data.diagnosis_post_op && (
+              <div>
+                <span className="text-xs font-medium text-muted-foreground">Diagnosis Post-Operasi</span>
+                <p>{data.diagnosis_post_op}</p>
+              </div>
+            )}
+            {data.anesthesia_type && (
+              <div>
+                <span className="text-xs font-medium text-muted-foreground">Jenis Anestesi</span>
+                <p>{ANESTHESIA_LABELS[data.anesthesia_type] || data.anesthesia_type}</p>
+              </div>
+            )}
+            {data.wound_classification && (
+              <div>
+                <span className="text-xs font-medium text-muted-foreground">Klasifikasi Luka</span>
+                <p>{WOUND_CLASS_LABELS[data.wound_classification] || data.wound_classification}</p>
+              </div>
+            )}
+          </div>
+
+          {data.surgical_procedure && (
+            <div className="text-sm">
+              <span className="text-xs font-medium text-muted-foreground">Uraian Tindakan Operasi</span>
+              <p className="whitespace-pre-wrap">{data.surgical_procedure}</p>
+            </div>
+          )}
+          {data.surgical_findings && (
+            <div className="text-sm">
+              <span className="text-xs font-medium text-muted-foreground">Temuan Intra-Operatif</span>
+              <p className="whitespace-pre-wrap">{data.surgical_findings}</p>
+            </div>
+          )}
+          {data.blood_loss && (
+            <div className="text-sm">
+              <span className="text-xs font-medium text-muted-foreground">Estimasi Perdarahan</span>
+              <p>{data.blood_loss} ml</p>
+            </div>
+          )}
+          {data.complications && (
+            <div className="text-sm bg-red-100 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded p-2">
+              <span className="text-xs font-medium text-red-700 dark:text-red-400">Komplikasi</span>
+              <p className="whitespace-pre-wrap">{data.complications}</p>
+            </div>
+          )}
+          {data.specimen && (
+            <div className="text-sm">
+              <span className="text-xs font-medium text-muted-foreground">Spesimen Patologi</span>
+              <p className="whitespace-pre-wrap">{data.specimen}</p>
+            </div>
+          )}
+          {order.suggestion && (
+            <div className="text-sm">
+              <span className="text-xs font-medium text-muted-foreground">Instruksi Post-Operasi</span>
+              <p className="whitespace-pre-wrap">{order.suggestion}</p>
+            </div>
+          )}
+        </div>
+      ) : (
+        /* Fallback: plain text display for non-structured data */
+        <div className="space-y-2">
+          {order.result_summary && (
+            <div className="text-sm">
+              <span className="text-xs font-medium text-muted-foreground">Hasil</span>
+              <p className="whitespace-pre-wrap">{order.result_summary}</p>
+            </div>
+          )}
+          {order.conclusion && (
+            <div className="text-sm">
+              <span className="text-xs font-medium text-muted-foreground">Kesan</span>
+              <p className="whitespace-pre-wrap">{order.conclusion}</p>
+            </div>
+          )}
+          {order.suggestion && (
+            <div className="text-sm">
+              <span className="text-xs font-medium text-muted-foreground">Saran</span>
+              <p className="whitespace-pre-wrap">{order.suggestion}</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Per-item parameter results */}
+      {order.items?.some((item) => item.status !== "cancelled" && item.results && item.results.length > 0) && (
+        <div className="space-y-2 border-t border-green-200 dark:border-green-800 pt-2">
+          <span className="text-xs font-medium text-muted-foreground">Parameter Tambahan</span>
+          {order.items?.filter(item => item.status !== "cancelled").map((item) => {
+            if (!item.results || item.results.length === 0) return null;
+            return (
+              <div key={item.id} className="text-sm space-y-1">
+                <p className="font-medium text-xs text-muted-foreground">{item.procedure?.name}</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-1 pl-2">
+                  {item.results.map((result) => (
+                    <div key={result.id} className="flex gap-2">
+                      <span className="text-muted-foreground">{result.procedure_parameter?.name}:</span>
+                      <span>{result.value || "-"}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {order.is_critical && (
+        <div className="p-2 bg-red-100 dark:bg-red-900 rounded text-sm">
+          <span className="text-red-700 dark:text-red-300 font-bold flex items-center gap-1">
+            <AlertCircle className="h-4 w-4" />
+            CATATAN PENTING
+          </span>
+          <p className="mt-1">{order.critical_notes}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Collapsible Order History Component
 function OrderCollapsible({ order, onCancel, canCancel }: { order: ProcedureOrder; onCancel: (id: number) => void; canCancel: boolean }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [isPrinting, setIsPrinting] = useState(false);
+  const { toast } = useToast();
 
   const patient = order.registration?.patient || order.source_visit?.registration?.patient;
 
-  const handlePrintQueue = () => {
-    const printWindow = window.open("", "_blank", "width=400,height=600");
-    if (printWindow) {
-      printWindow.document.write(`
-        <html>
-          <head>
-            <title>Tiket Antrian Operasi</title>
-            <style>
-              body { font-family: Arial, sans-serif; text-align: center; padding: 20px; }
-              .queue-number { font-size: 72px; font-weight: bold; margin: 20px 0; }
-              .info { margin: 10px 0; font-size: 14px; }
-              .header { font-size: 18px; font-weight: bold; margin-bottom: 10px; }
-              .divider { border-top: 1px dashed #ccc; margin: 15px 0; }
-            </style>
-          </head>
-          <body>
-            <div class="header">ANTRIAN OPERASI</div>
-            <div class="info">${order.target_room?.name || "Kamar Operasi"}</div>
-            <div class="divider"></div>
-            <div class="queue-number">${order.target_visit?.room_queue?.queue_number || "-"}</div>
-            <div class="divider"></div>
-            <div class="info"><strong>${patient?.nama_lengkap || "-"}</strong></div>
-            <div class="info">No. RM: ${patient?.no_rm || "-"}</div>
-            <div class="info">Order: ${order.order_number}</div>
-            <div class="divider"></div>
-            <div class="info">${new Date().toLocaleString("id-ID")}</div>
-            <script>window.print(); window.close();</script>
-          </body>
-        </html>
-      `);
-      printWindow.document.close();
+  const handlePrintQueue = async () => {
+    const queueId = order.target_visit?.room_queue?.id;
+    if (!queueId) {
+      toast({
+        title: "Error",
+        description: "Nomor antrian tidak tersedia",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setIsPrinting(true);
+    try {
+      const url = await printApi.queueTicket(queueId);
+      window.open(url, "_blank");
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.response?.data?.error || "Gagal mencetak tiket antrian",
+        variant: "destructive",
+      });
+    } finally {
+      setIsPrinting(false);
     }
   };
 
@@ -119,13 +286,17 @@ function OrderCollapsible({ order, onCancel, canCancel }: { order: ProcedureOrde
                 </Badge>
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                {new Date(order.created_at).toLocaleString("id-ID")} • {order.target_room?.name} • {order.items?.length || 0} tindakan
+                {new Date(order.created_at).toLocaleString("id-ID")} • {order.target_room?.name} • {order.items?.filter(i => i.status !== "cancelled").length || 0} tindakan
               </p>
             </div>
           </CollapsibleTrigger>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={handlePrintQueue}>
-              <Printer className="h-4 w-4 mr-1" />
+            <Button variant="outline" size="sm" onClick={handlePrintQueue} disabled={isPrinting}>
+              {isPrinting ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <Printer className="h-4 w-4 mr-1" />
+              )}
               Cetak Antrian
             </Button>
             {order.status === "pending" && canCancel && (
@@ -205,7 +376,7 @@ function OrderCollapsible({ order, onCancel, canCancel }: { order: ProcedureOrde
                     </tr>
                   </thead>
                   <tbody>
-                    {order.items.map((item, idx) => (
+                    {order.items.filter(item => item.status !== "cancelled").map((item, idx) => (
                       <tr key={idx} className="border-t">
                         <td className="py-2 px-3">
                           <p className="font-medium">{item.procedure?.name}</p>
@@ -215,7 +386,7 @@ function OrderCollapsible({ order, onCancel, canCancel }: { order: ProcedureOrde
                         </td>
                         <td className="py-2 px-3">
                           <Badge variant={item.status === "completed" ? "default" : "secondary"} className="text-xs">
-                            {item.status === "completed" ? "Selesai" : "Menunggu"}
+                            {item.status === "completed" ? "Selesai" : item.status === "in_progress" ? "Dikerjakan" : "Menunggu"}
                           </Badge>
                         </td>
                       </tr>
@@ -227,39 +398,7 @@ function OrderCollapsible({ order, onCancel, canCancel }: { order: ProcedureOrde
 
             {/* Results if completed */}
             {order.status === "completed" && (
-              <div className="bg-green-50 dark:bg-green-950 border border-green-200 rounded-lg p-3 space-y-2">
-                <p className="font-medium text-green-700 dark:text-green-300 flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4" />
-                  Operasi Selesai
-                </p>
-                {order.result_summary && (
-                  <div>
-                    <span className="text-xs font-medium">Hasil:</span>
-                    <p className="text-sm whitespace-pre-wrap">{order.result_summary}</p>
-                  </div>
-                )}
-                {order.conclusion && (
-                  <div>
-                    <span className="text-xs font-medium">Kesan:</span>
-                    <p className="text-sm whitespace-pre-wrap">{order.conclusion}</p>
-                  </div>
-                )}
-                {order.suggestion && (
-                  <div>
-                    <span className="text-xs font-medium">Saran:</span>
-                    <p className="text-sm whitespace-pre-wrap">{order.suggestion}</p>
-                  </div>
-                )}
-                {order.is_critical && (
-                  <div className="mt-2 p-2 bg-red-100 dark:bg-red-900 rounded text-sm">
-                    <span className="text-red-700 dark:text-red-300 font-bold flex items-center gap-1">
-                      <AlertCircle className="h-4 w-4" />
-                      CATATAN PENTING
-                    </span>
-                    <p className="mt-1">{order.critical_notes}</p>
-                  </div>
-                )}
-              </div>
+              <SurgeryCompletedResults order={order} />
             )}
           </div>
         </CollapsibleContent>
@@ -341,7 +480,22 @@ export function SurgeryOrderForm({ visitId, readOnly = false }: SurgeryOrderForm
         procedureOrdersApi.getBySourceVisit(visitId, "surgery"),
         procedureOrdersApi.getSurgeryRooms(),
       ]);
-      setExistingOrders(ordersRes.data || []);
+      const orders = ordersRes.data || [];
+      
+      // Recalculate status for orders that might have inconsistent status
+      for (const order of orders) {
+        if (order.status !== "completed" && order.status !== "cancelled") {
+          try {
+            await procedureOrdersApi.recalculate(order.id);
+          } catch {
+            // Ignore recalculate errors
+          }
+        }
+      }
+      
+      // Reload orders after recalculation
+      const updatedOrdersRes = await procedureOrdersApi.getBySourceVisit(visitId, "surgery");
+      setExistingOrders(updatedOrdersRes.data || []);
       setSurgeryRooms(roomsRes.data || []);
 
       // Auto-select first room
@@ -420,6 +574,9 @@ export function SurgeryOrderForm({ visitId, readOnly = false }: SurgeryOrderForm
         description: "Order operasi berhasil dibatalkan",
       });
       loadData();
+      // Trigger refresh print options dan final visit
+      window.dispatchEvent(new CustomEvent("refresh-print-options"));
+      window.dispatchEvent(new CustomEvent("refresh-final-visit"));
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -494,6 +651,10 @@ export function SurgeryOrderForm({ visitId, readOnly = false }: SurgeryOrderForm
 
       // Reload orders
       loadData();
+      
+      // Trigger refresh print options dan final visit
+      window.dispatchEvent(new CustomEvent("refresh-print-options"));
+      window.dispatchEvent(new CustomEvent("refresh-final-visit"));
     } catch (error: any) {
       toast({
         variant: "destructive",

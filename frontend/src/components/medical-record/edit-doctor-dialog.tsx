@@ -80,6 +80,10 @@ export function EditDoctorDialog({
         description: "Dokter berhasil diubah",
       });
 
+      // Trigger refresh print options dan final visit
+      window.dispatchEvent(new CustomEvent("refresh-print-options"));
+      window.dispatchEvent(new CustomEvent("refresh-final-visit"));
+
       onOpenChange(false);
       if (onSuccess) {
         onSuccess();

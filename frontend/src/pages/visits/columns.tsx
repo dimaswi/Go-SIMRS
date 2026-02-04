@@ -22,9 +22,20 @@ interface Visit {
     bed_number: string;
     status: string;
   };
+  // SEP linked to this visit (by visit_id)
+  sep?: {
+    id: number;
+    no_sep: string;
+  };
   registration?: {
     id: number;
     registration_number: string;
+    payment_method?: string;
+    sep_number?: string;
+    sep?: {
+      id: number;
+      no_sep: string;
+    };
     patient?: {
       id: number;
       no_rm: string;
@@ -278,6 +289,25 @@ export const createVisitColumns = ({
     cell: ({ row }) => (
       <div className="text-sm">{row.original.doctor?.nama_lengkap || "-"}</div>
     ),
+  },
+  {
+    id: "sep_number",
+    header: "No. SEP",
+    cell: ({ row }) => {
+      const registration = row.original.registration;
+      // Hanya tampilkan untuk pasien BPJS
+      if (registration?.payment_method !== "bpjs") {
+        return <span className="text-muted-foreground text-xs">-</span>;
+      }
+      // Prioritas: SEP dari visit (by visit_id) → SEP dari registration (legacy)
+      const sepNumber = row.original.sep?.no_sep || registration?.sep_number || registration?.sep?.no_sep;
+      if (!sepNumber) {
+        return <span className="text-muted-foreground text-xs italic">Belum ada</span>;
+      }
+      return (
+        <span className="font-mono text-xs">{sepNumber}</span>
+      );
+    },
   },
   {
     accessorKey: "check_in_time",

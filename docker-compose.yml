@@ -37,6 +37,8 @@ services:
       APP_ENV: "production"
     ports:
       - "8899:8080"
+    volumes:
+      - backend_uploads:/root/uploads
     depends_on:
       postgres:
         condition: service_healthy
@@ -62,6 +64,7 @@ services:
 
 volumes:
   postgres_data:
+  backend_uploads:
 
 networks:
   simrs-network:

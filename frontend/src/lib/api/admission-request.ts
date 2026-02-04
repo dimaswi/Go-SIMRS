@@ -99,6 +99,7 @@ export const admissionRequestApi = {
     start_date?: string;
     end_date?: string;
     search?: string;
+    patient_id?: number;
     page?: number;
     limit?: number;
   }) => {

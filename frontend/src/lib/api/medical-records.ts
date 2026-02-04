@@ -12,14 +12,15 @@ export interface Triage {
   airway_note?: string;
   breathing?: string;
   breathing_note?: string;
+  breathing_rate?: string; // Backend field name
   circulation?: string;
   circulation_note?: string;
   // Vital Signs for Triage
   blood_pressure?: string;
-  heart_rate?: number;
-  respiratory_rate?: number;
-  temperature?: number;
-  oxygen_saturation?: number;
+  heart_rate?: number | string;
+  respiratory_rate?: number; // Frontend field name (alias)
+  temperature?: number | string;
+  oxygen_saturation?: number | string;
   // Consciousness
   gcs_e?: number;
   gcs_v?: number;
@@ -187,10 +188,17 @@ export interface Disposition {
   // Discharge instructions
   discharge_instruction?: string;
   discharge_medication?: string;
-  // For referral
+  // For referral (Surat Rujukan)
   referral_facility?: string;
+  referral_address?: string;
+  referral_phone?: string;
+  referral_specialist?: string;
   referral_reason?: string;
   referral_urgency?: string;
+  referral_diagnosis?: string;
+  referral_therapy?: string;
+  referral_lab_result?: string;
+  referral_notes?: string;
   // For admission / rawat inap
   admission_type?: string;
   admission_ward?: string;
@@ -213,6 +221,56 @@ export interface Disposition {
   // Audit
   discharged_by_id?: number;
   discharged_by?: { id: number; name: string };
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface SickLetter {
+  id: number;
+  visit_id: number;
+  letter_number?: string;
+  start_date: string;
+  end_date: string;
+  days: number;
+  reason?: string;
+  purpose?: string;
+  institution?: string;
+  notes?: string;
+  status?: string;
+  issued_by_id?: number;
+  issued_by?: { id: number; nama_lengkap: string };
+  issued_at?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface DeathCertificate {
+  id: number;
+  visit_id: number;
+  certificate_number?: string;
+  death_type: string; // doa, dod, inpatient_death
+  death_datetime: string;
+  death_location?: string;
+  primary_cause_code?: string;
+  primary_cause_name?: string;
+  secondary_cause_code?: string;
+  secondary_cause_name?: string;
+  underlying_cause_code?: string;
+  underlying_cause_name?: string;
+  manner_of_death?: string; // natural, accident, suicide, homicide, undetermined, pending
+  duration_of_illness?: string;
+  autopsy_performed?: boolean;
+  autopsy_findings?: string;
+  declaring_doctor_id?: number;
+  declaring_doctor?: { id: number; nama_lengkap: string };
+  declaring_doctor_name?: string;
+  witness_name?: string;
+  witness_relation?: string;
+  notes?: string;
+  status?: string;
+  issued_by_id?: number;
+  issued_by?: { id: number; nama_lengkap: string };
+  issued_at?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -329,6 +387,12 @@ export const medicalRecordsApi = {
   saveDisposition: async (visitId: number, data: Partial<Disposition>) => {
     return api.post<Disposition>(`/visits/${visitId}/disposition`, data);
   },
+  cancelDisposition: async (visitId: number) => {
+    return api.delete<{ message: string }>(`/visits/${visitId}/disposition`);
+  },
+  cancelFollowUpRegistration: async (visitId: number) => {
+    return api.delete<{ message: string }>(`/visits/${visitId}/follow-up-registration`);
+  },
   checkPendingOrders: async (visitId: number) => {
     return api.get<{
       has_pending_orders: boolean;
@@ -355,5 +419,33 @@ export const medicalRecordsApi = {
     notes?: string;
   }) => {
     return api.post(`/visits/${visitId}/consultation`, data);
+  },
+
+  // Sick Letter endpoints - Surat Keterangan Sakit
+  getSickLetter: async (visitId: number) => {
+    return api.get<SickLetter>(`/visits/${visitId}/sick-letter`);
+  },
+  getSickLetters: async (visitId: number) => {
+    return api.get<SickLetter[]>(`/visits/${visitId}/sick-letters`);
+  },
+  saveSickLetter: async (visitId: number, data: Partial<SickLetter>) => {
+    return api.post<SickLetter>(`/visits/${visitId}/sick-letter`, data);
+  },
+  deleteSickLetter: async (visitId: number, letterId: number) => {
+    return api.delete(`/visits/${visitId}/sick-letter/${letterId}`);
+  },
+
+  // Death Certificate - Surat Kematian
+  getDeathCertificate: async (visitId: number) => {
+    return api.get<DeathCertificate>(`/visits/${visitId}/death-certificate`);
+  },
+  getDeathCertificates: async (visitId: number) => {
+    return api.get<DeathCertificate[]>(`/visits/${visitId}/death-certificates`);
+  },
+  saveDeathCertificate: async (visitId: number, data: Partial<DeathCertificate>) => {
+    return api.post<DeathCertificate>(`/visits/${visitId}/death-certificate`, data);
+  },
+  deleteDeathCertificate: async (visitId: number, certId: number) => {
+    return api.delete(`/visits/${visitId}/death-certificate/${certId}`);
   },
 };

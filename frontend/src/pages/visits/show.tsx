@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { usePermission } from "@/hooks/usePermission";
 import { setPageTitle } from "@/lib/page-title";
-import { Loader2, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from "lucide-react";
+import { Loader2, History, PanelLeftClose, PanelLeft } from "lucide-react";
 import { visitsApi, medicalRecordsApi } from "@/lib/api";
 import { PatientInfo } from "@/components/medical-record/patient-info";
 import { MedicalRecordTabs } from "@/components/medical-record/medical-record-tabs";
@@ -20,6 +21,7 @@ import { LaboratoryOrderForm } from "@/components/medical-record/laboratory-orde
 import { ConsultationOrderForm } from "@/components/medical-record/consultation-order-form";
 import { RadiologyWorkstation } from "@/components/medical-record/radiology-workstation";
 import { LaboratoryWorkstation } from "@/components/medical-record/laboratory-workstation";
+import { PharmacyEditPrescription } from "@/components/medical-record/pharmacy-edit-prescription";
 import { PharmacyReview } from "@/components/medical-record/pharmacy-review";
 import { PharmacyDispense } from "@/components/medical-record/pharmacy-dispense";
 import { PharmacyReturn } from "@/components/medical-record/pharmacy-return";
@@ -32,7 +34,10 @@ import { FinalVisit } from "@/components/medical-record/final-visit";
 import { ConsultationForm } from "@/components/medical-record/consultation-form";
 import { SurgeryOrderForm } from "@/components/medical-record/surgery-order-form";
 import { SurgeryWorkstation } from "@/components/medical-record/surgery-workstation";
-import { VisitHistory } from "@/components/medical-record/visit-history";
+import { ProcedureEditOrder } from "@/components/medical-record/procedure-edit-order";
+import { SickLetterForm } from "@/components/medical-record/sick-letter-form";
+import { DeathCertificateForm } from "@/components/medical-record/death-certificate-form";
+import { VisitHistoryDrawer } from "@/components/medical-record/visit-history-drawer";
 
 export default function VisitShow() {
   const { id } = useParams<{ id: string }>();
@@ -53,19 +58,13 @@ export default function VisitShow() {
   const [showProcedureTab, setShowProcedureTab] = useState(false);
   const [isInpatient, setIsInpatient] = useState(false);
   const [isPatientDischarged, setIsPatientDischarged] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-    const saved = localStorage.getItem('medicalRecordTabsCollapsed');
-    return saved ? JSON.parse(saved) : true;
-  });
-  const [historySidebarCollapsed, setHistorySidebarCollapsed] = useState(() => {
-    const saved = localStorage.getItem('visitHistoryCollapsed');
-    return saved ? JSON.parse(saved) : true;
-  });
   const [sidebarHidden, setSidebarHidden] = useState(() => {
     const saved = localStorage.getItem('medicalRecordSidebarHidden');
     return saved ? JSON.parse(saved) : false;
   });
+  const [historyDrawerOpen, setHistoryDrawerOpen] = useState(false);
   const [patientId, setPatientId] = useState<number | null>(null);
+  const [patientName, setPatientName] = useState<string>("");
 
   // Refresh tab content when switching tabs
   const handleTabChange = (tab: string) => {
@@ -73,15 +72,7 @@ export default function VisitShow() {
     setTabRefreshKey(prev => prev + 1);
   };
   
-  // Save state to localStorage when it changes
-  useEffect(() => {
-    localStorage.setItem('medicalRecordTabsCollapsed', JSON.stringify(sidebarCollapsed));
-  }, [sidebarCollapsed]);
-  
-  useEffect(() => {
-    localStorage.setItem('visitHistoryCollapsed', JSON.stringify(historySidebarCollapsed));
-  }, [historySidebarCollapsed]);
-  
+  // Save sidebar state to localStorage when it changes
   useEffect(() => {
     localStorage.setItem('medicalRecordSidebarHidden', JSON.stringify(sidebarHidden));
   }, [sidebarHidden]);
@@ -121,6 +112,7 @@ export default function VisitShow() {
       // Extract patient ID from visit data
       if (visitData.registration?.patient?.id) {
         setPatientId(visitData.registration.patient.id);
+        setPatientName(visitData.registration.patient.nama_lengkap || "");
       } else if (visitData.registration?.patient_id) {
         setPatientId(visitData.registration.patient_id);
       }
@@ -178,36 +170,44 @@ export default function VisitShow() {
       // Set default active tab based on visit type and permissions (only on first load)
       if (!activeTab) {
         if (pharmacy) {
-          // Pharmacy visit tabs - langsung ke penyerahan obat
-          if (hasPermission("pharmacy.dispense")) {
+          // Pharmacy visit tabs - mulai dari edit resep
+          if (hasPermission("pharmacy.edit")) {
+            setActiveTab("prescription-edit");
+          } else if (hasPermission("pharmacy.dispense")) {
             setActiveTab("medicine-dispense");
           } else if (hasPermission("pharmacy.review")) {
             setActiveTab("prescription-review");
           } else if (hasPermission("pharmacy.return")) {
             setActiveTab("medicine-return");
           } else {
-            setActiveTab("medicine-dispense");
+            setActiveTab("prescription-edit");
           }
         } else if (radiology) {
-          // Radiology visit tabs - langsung ke pengerjaan
-          if (hasPermission("procedure_orders.perform")) {
+          // Radiology visit tabs - mulai dari edit order
+          if (hasPermission("procedure_orders.edit")) {
+            setActiveTab("radiology-edit");
+          } else if (hasPermission("procedure_orders.perform")) {
             setActiveTab("radiology-workstation");
           } else {
-            setActiveTab("radiology-workstation"); // fallback even without permission
+            setActiveTab("radiology-edit"); // fallback
           }
         } else if (laboratory) {
-          // Laboratory visit tabs - langsung ke pengerjaan
-          if (hasPermission("procedure_orders.perform")) {
+          // Laboratory visit tabs - mulai dari edit order
+          if (hasPermission("procedure_orders.edit")) {
+            setActiveTab("laboratory-edit");
+          } else if (hasPermission("procedure_orders.perform")) {
             setActiveTab("laboratory-workstation");
           } else {
-            setActiveTab("laboratory-workstation"); // fallback even without permission
+            setActiveTab("laboratory-edit"); // fallback
           }
         } else if (surgery) {
-          // Surgery visit tabs - langsung ke pengerjaan
-          if (hasPermission("procedure_orders.perform")) {
+          // Surgery visit tabs - mulai dari edit order
+          if (hasPermission("procedure_orders.edit")) {
+            setActiveTab("surgery-edit");
+          } else if (hasPermission("procedure_orders.perform")) {
             setActiveTab("surgery-workstation");
           } else {
-            setActiveTab("surgery-workstation");
+            setActiveTab("surgery-edit");
           }
         } else if (consultation) {
           // Consultation visit tabs - langsung ke form konsultasi
@@ -264,6 +264,9 @@ export default function VisitShow() {
         title: "Berhasil",
         description: "Data triase berhasil disimpan",
       });
+      // Trigger refresh print options dan final visit
+      window.dispatchEvent(new CustomEvent("refresh-print-options"));
+      window.dispatchEvent(new CustomEvent("refresh-final-visit"));
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -280,6 +283,9 @@ export default function VisitShow() {
         title: "Berhasil",
         description: "Data anamnesis berhasil disimpan",
       });
+      // Trigger refresh print options dan final visit
+      window.dispatchEvent(new CustomEvent("refresh-print-options"));
+      window.dispatchEvent(new CustomEvent("refresh-final-visit"));
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -296,6 +302,9 @@ export default function VisitShow() {
         title: "Berhasil",
         description: "Data pemeriksaan fisik berhasil disimpan",
       });
+      // Trigger refresh print options dan final visit
+      window.dispatchEvent(new CustomEvent("refresh-print-options"));
+      window.dispatchEvent(new CustomEvent("refresh-final-visit"));
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -312,6 +321,9 @@ export default function VisitShow() {
         title: "Berhasil",
         description: "Data diagnosis berhasil disimpan",
       });
+      // Trigger refresh print options dan final visit
+      window.dispatchEvent(new CustomEvent("refresh-print-options"));
+      window.dispatchEvent(new CustomEvent("refresh-final-visit"));
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -359,7 +371,7 @@ export default function VisitShow() {
             </Card>
           );
         }
-        return <TriageForm visitId={visit.id} onSave={handleSaveTriage} readOnly={isPatientDischarged} />;
+        return <TriageForm visitId={visit.id} onSave={handleSaveTriage} isPatientDischarged={isPatientDischarged} />;
       case "anamnesis":
         // Anamnesis only for clinical visits (not support visits)
         if (isSupportVisit) {
@@ -374,7 +386,7 @@ export default function VisitShow() {
             </Card>
           );
         }
-        return <AnamnesisForm visitId={visit.id} patientId={patientId || undefined} onSave={handleSaveAnamnesis} readOnly={isPatientDischarged} />;
+        return <AnamnesisForm visitId={visit.id} patientId={patientId || undefined} onSave={handleSaveAnamnesis} isPatientDischarged={isPatientDischarged} />;
       case "physical-exam":
         // Physical exam only for clinical visits (not support visits)
         if (isSupportVisit) {
@@ -394,7 +406,7 @@ export default function VisitShow() {
             visitId={visit.id}
             onSave={handleSavePhysicalExam}
             isEmergency={isEmergency}
-            readOnly={isPatientDischarged}
+            isPatientDischarged={isPatientDischarged}
           />
         );
       case "diagnosis":
@@ -411,7 +423,7 @@ export default function VisitShow() {
             </Card>
           );
         }
-        return <DiagnosisForm visitId={visit.id} onSave={handleSaveDiagnosis} readOnly={isPatientDischarged} />;
+        return <DiagnosisForm visitId={visit.id} onSave={handleSaveDiagnosis} isPatientDischarged={isPatientDischarged} />;
       case "assessment-plan":
         // Assessment plan only for clinical visits (not support visits)
         if (isSupportVisit) {
@@ -426,7 +438,7 @@ export default function VisitShow() {
             </Card>
           );
         }
-        return <AssessmentPlanForm visitId={visit.id} readOnly={isPatientDischarged} />;
+        return <AssessmentPlanForm visitId={visit.id} isPatientDischarged={isPatientDischarged} />;
       case "procedure":
         // Procedure only for clinical visits (not support visits)
         if (isSupportVisit) {
@@ -623,6 +635,19 @@ export default function VisitShow() {
           />
         );
 
+      // Surgery edit order tab - ONLY for surgery visits
+      case "surgery-edit":
+        if (!hasPermission("procedure_orders.edit")) {
+          return (
+            <Card className="p-6">
+              <p className="text-center text-muted-foreground">
+                Anda tidak memiliki akses untuk Edit Order Operasi
+              </p>
+            </Card>
+          );
+        }
+        return <ProcedureEditOrder key={`surgery-edit-${visit.id}-${tabRefreshKey}`} visitId={visit.id} orderType="surgery" readOnly={visit.status === "completed"} />;
+
       // Surgery workstation tab - ONLY for surgery visits
       case "surgery-workstation":
         if (!hasPermission("procedure_orders.perform")) {
@@ -673,6 +698,38 @@ export default function VisitShow() {
         }
         return <FinalVisit key={`consultation-final-${visit.id}-${tabRefreshKey}`} visitId={visit.id} type="consultation" onVisitUpdate={handleVisitUpdate} />;
 
+      case "sick-letter":
+        // Sick letter only for clinical visits (not support visits)
+        if (isSupportVisit) {
+          return renderWrongVisitTypeMessage("klinis (Rawat Jalan/Rawat Inap/UGD)");
+        }
+        if (!hasPermission("medical_records.sick_letter")) {
+          return (
+            <Card className="p-6">
+              <p className="text-center text-muted-foreground">
+                Anda tidak memiliki akses untuk Surat Keterangan Sakit
+              </p>
+            </Card>
+          );
+        }
+        return <SickLetterForm key={`sick-letter-${visit.id}-${tabRefreshKey}`} visitId={visit.id} readOnly={isPatientDischarged} />;
+
+      case "death-certificate":
+        // Death certificate only for clinical visits (not support visits)
+        if (isSupportVisit) {
+          return renderWrongVisitTypeMessage("klinis (Rawat Jalan/Rawat Inap/UGD)");
+        }
+        if (!hasPermission("medical_records.death_certificate")) {
+          return (
+            <Card className="p-6">
+              <p className="text-center text-muted-foreground">
+                Anda tidak memiliki akses untuk Surat Kematian
+              </p>
+            </Card>
+          );
+        }
+        return <DeathCertificateForm key={`death-certificate-${visit.id}-${tabRefreshKey}`} visitId={visit.id} readOnly={isPatientDischarged} />;
+
       case "disposition":
         // Disposition only for clinical visits (not support visits)
         if (isSupportVisit) {
@@ -690,6 +747,17 @@ export default function VisitShow() {
         return <DispositionForm visitId={visit.id} isEmergency={isEmergency} readOnly={isPatientDischarged} onSave={handleVisitUpdate} />;
       
       // Pharmacy tabs - ONLY for pharmacy visits
+      case "prescription-edit":
+        if (!hasPermission("pharmacy.edit")) {
+          return (
+            <Card className="p-6">
+              <p className="text-center text-muted-foreground">
+                Anda tidak memiliki akses untuk Edit Resep
+              </p>
+            </Card>
+          );
+        }
+        return <PharmacyEditPrescription key={`edit-${visit.id}-${tabRefreshKey}`} visitId={visit.id} readOnly={visit.status === "completed"} />;
       case "prescription-review":
         if (!hasPermission("pharmacy.review")) {
           return (
@@ -736,6 +804,19 @@ export default function VisitShow() {
         }
         return <FinalVisit key={`pharmacy-final-${visit.id}-${tabRefreshKey}`} visitId={visit.id} type="pharmacy" onVisitUpdate={handleVisitUpdate} />;
       
+      // Radiology edit order tab - ONLY for radiology visits
+      case "radiology-edit":
+        if (!hasPermission("procedure_orders.edit")) {
+          return (
+            <Card className="p-6">
+              <p className="text-center text-muted-foreground">
+                Anda tidak memiliki akses untuk Edit Order Radiologi
+              </p>
+            </Card>
+          );
+        }
+        return <ProcedureEditOrder key={`radiology-edit-${visit.id}-${tabRefreshKey}`} visitId={visit.id} orderType="radiology" readOnly={visit.status === "completed"} />;
+
       // Radiology workstation tab - ONLY for radiology visits
       case "radiology-workstation":
         if (!hasPermission("procedure_orders.perform")) {
@@ -761,6 +842,19 @@ export default function VisitShow() {
         }
         return <FinalVisit key={`radiology-final-${visit.id}-${tabRefreshKey}`} visitId={visit.id} type="radiology" onVisitUpdate={handleVisitUpdate} />;
       
+      // Laboratory edit order tab - ONLY for laboratory visits
+      case "laboratory-edit":
+        if (!hasPermission("procedure_orders.edit")) {
+          return (
+            <Card className="p-6">
+              <p className="text-center text-muted-foreground">
+                Anda tidak memiliki akses untuk Edit Order Laboratorium
+              </p>
+            </Card>
+          );
+        }
+        return <ProcedureEditOrder key={`laboratory-edit-${visit.id}-${tabRefreshKey}`} visitId={visit.id} orderType="laboratory" readOnly={visit.status === "completed"} />;
+
       // Laboratory workstation tab - ONLY for laboratory visits
       case "laboratory-workstation":
         if (!hasPermission("procedure_orders.perform")) {
@@ -813,126 +907,71 @@ export default function VisitShow() {
       {/* Main Content Area with Tabs and Form */}
       <div className="flex-1 min-h-0 px-6 pb-6 pt-4">
         <div className="flex gap-4">
-          {/* Left Sidebar: Tabs Navigation & Visit History - Sticky with slide animation */}
+          {/* Left Sidebar: Menu Navigation - Clean without Card */}
           <div className={`self-start sticky top-[120px] z-30 transition-all duration-300 ease-in-out ${
             sidebarHidden ? 'w-0 overflow-hidden opacity-0' : 'w-[200px] opacity-100'
           } flex-shrink-0`}>
-            <div className="w-[200px] space-y-4">
-            {/* Medical Record Tabs */}
-            <Card className="border-none shadow-sm">
-              <CardHeader className="border-b bg-muted/30 px-3 py-2.5">
-                <div className="flex items-center justify-between gap-2">
-                  <h3 
-                    className="text-xs font-semibold text-muted-foreground uppercase cursor-pointer flex-1"
-                    onClick={() => {
-                      const newState = !sidebarCollapsed;
-                      setSidebarCollapsed(newState);
-                      if (!newState) {
-                        setHistorySidebarCollapsed(true);
-                      }
-                    }}
+            <div className="w-[200px]">
+              {/* Sidebar Header */}
+              <div className="flex items-center justify-between mb-3 px-1">
+                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  Menu
+                </h3>
+                <div className="flex items-center gap-0.5">
+                  {/* History Button */}
+                  {patientId && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0"
+                      onClick={() => setHistoryDrawerOpen(true)}
+                      title="Riwayat Kunjungan"
+                    >
+                      <History className="h-4 w-4 text-muted-foreground" />
+                    </Button>
+                  )}
+                  {/* Hide Sidebar Button */}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 w-7 p-0"
+                    onClick={() => setSidebarHidden(true)}
+                    title="Sembunyikan sidebar"
                   >
-                    Menu Rekam Medis
-                  </h3>
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => {
-                        const newState = !sidebarCollapsed;
-                        setSidebarCollapsed(newState);
-                        if (!newState) {
-                          setHistorySidebarCollapsed(true);
-                        }
-                      }}
-                      className="hover:bg-muted rounded p-1 transition-colors"
-                      title={sidebarCollapsed ? "Buka menu" : "Tutup menu"}
-                    >
-                      {sidebarCollapsed ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronUp className="h-4 w-4 text-muted-foreground" />}
-                    </button>
-                    <button
-                      onClick={() => setSidebarHidden(true)}
-                      className="hover:bg-muted rounded p-1 transition-colors"
-                      title="Sembunyikan sidebar"
-                    >
-                      <ChevronLeft className="h-4 w-4 text-muted-foreground" />
-                    </button>
-                  </div>
+                    <PanelLeftClose className="h-4 w-4 text-muted-foreground" />
+                  </Button>
                 </div>
-              </CardHeader>
-              {!sidebarCollapsed && (
-                <CardContent className="p-2.5">
-                  <MedicalRecordTabs
-                    activeTab={activeTab}
-                    onTabChange={handleTabChange}
-                    isEmergency={isEmergency}
-                    isPharmacy={isPharmacy}
-                    isRadiology={isRadiology}
-                    isLaboratory={isLaboratory}
-                    isConsultation={isConsultation}
-                    isSurgery={isSurgery}
-                    showProcedureTab={showProcedureTab}
-                    isInpatient={isInpatient}
-                  />
-                </CardContent>
-              )}
-            </Card>
-
-            {/* Visit History Sidebar */}
-            {patientId && (
-              <Card className="border-none shadow-sm">
-                <CardHeader className="border-b bg-muted/30 px-3 py-2.5">
-                  <div className="flex items-center justify-between">
-                    <h3 
-                      className="text-xs font-semibold text-muted-foreground uppercase cursor-pointer flex-1"
-                      onClick={() => {
-                        const newState = !historySidebarCollapsed;
-                        setHistorySidebarCollapsed(newState);
-                        if (!newState) {
-                          setSidebarCollapsed(true);
-                        }
-                      }}
-                    >
-                      Riwayat Kunjungan
-                    </h3>
-                    <button
-                      onClick={() => {
-                        const newState = !historySidebarCollapsed;
-                        setHistorySidebarCollapsed(newState);
-                        if (!newState) {
-                          setSidebarCollapsed(true);
-                        }
-                      }}
-                      className="hover:bg-muted rounded p-1 transition-colors"
-                    >
-                      {historySidebarCollapsed ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronUp className="h-4 w-4 text-muted-foreground" />}
-                    </button>
-                  </div>
-                </CardHeader>
-                {!historySidebarCollapsed && (
-                  <CardContent className="p-2.5">
-                    <VisitHistory
-                      patientId={patientId}
-                      currentVisitId={Number(id)}
-                      currentVisitType={visit?.visit_type || "consultation"}
-                      currentServiceType={visit?.room?.service_type}
-                      isConsultationOrder={isConsultation}
-                      onVisitSelect={handleVisitSelect}
-                    />
-                  </CardContent>
-                )}
-              </Card>
-            )}
+              </div>
+              
+              {/* Menu Tabs - Direct without Card wrapper */}
+              <div className="bg-muted/30 rounded-lg p-2 border border-border/50">
+                <MedicalRecordTabs
+                  activeTab={activeTab}
+                  onTabChange={handleTabChange}
+                  isEmergency={isEmergency}
+                  isPharmacy={isPharmacy}
+                  isRadiology={isRadiology}
+                  isLaboratory={isLaboratory}
+                  isConsultation={isConsultation}
+                  isSurgery={isSurgery}
+                  showProcedureTab={showProcedureTab}
+                  isInpatient={isInpatient}
+                />
+              </div>
             </div>
           </div>
 
           {/* Toggle Button to Show Sidebar - Attached to left edge */}
           {sidebarHidden && (
-            <button
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => setSidebarHidden(false)}
-              className="self-start sticky top-[120px] -ml-6 bg-background hover:bg-muted border border-l-0 rounded-r-md py-4 px-1 shadow-sm transition-colors z-30"
+              className="self-start sticky top-[120px] -ml-6 h-auto py-3 px-1.5 rounded-l-none border-l-0 z-30"
               title="Tampilkan sidebar"
             >
-              <ChevronRight className="h-4 w-4 text-muted-foreground" />
-            </button>
+              <PanelLeft className="h-4 w-4" />
+            </Button>
           )}
 
           {/* Right Content: Active Tab Form */}
@@ -941,6 +980,20 @@ export default function VisitShow() {
           </div>
         </div>
       </div>
+
+      {/* Visit History Drawer */}
+      {patientId && (
+        <VisitHistoryDrawer
+          open={historyDrawerOpen}
+          onOpenChange={setHistoryDrawerOpen}
+          patientId={patientId}
+          currentVisitId={Number(id)}
+          currentVisitType={visit?.visit_type}
+          currentServiceType={visit?.room?.service_type}
+          patientName={patientName}
+          onVisitSelect={handleVisitSelect}
+        />
+      )}
     </div>
   );
 }

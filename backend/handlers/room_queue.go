@@ -5,10 +5,18 @@ import (
 	"net/http"
 	"starter/backend/database"
 	"starter/backend/models"
+	bpjsService "starter/backend/services/bpjs"
 	"time"
 
 	"github.com/gin-gonic/gin"
 )
+
+// RoomQueueResponse extends RoomQueue with MJKN info
+type RoomQueueResponse struct {
+	models.RoomQueue
+	IsMJKN    bool              `json:"is_mjkn"`
+	BPJSQueue *models.BPJSQueue `json:"bpjs_queue,omitempty"`
+}
 
 // GetRoomQueues returns all room queues with filters
 func GetRoomQueues(c *gin.Context) {
@@ -44,7 +52,40 @@ func GetRoomQueues(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, queues)
+	// Get all queue IDs
+	queueIDs := make([]uint, len(queues))
+	for i, q := range queues {
+		queueIDs[i] = q.ID
+	}
+
+	// Fetch BPJS queue info in one query
+	var bpjsQueues []models.BPJSQueue
+	if len(queueIDs) > 0 {
+		database.DB.Where("room_queue_id IN ?", queueIDs).Find(&bpjsQueues)
+	}
+
+	// Create map for quick lookup
+	bpjsQueueMap := make(map[uint]*models.BPJSQueue)
+	for i := range bpjsQueues {
+		if bpjsQueues[i].RoomQueueID != nil {
+			bpjsQueueMap[*bpjsQueues[i].RoomQueueID] = &bpjsQueues[i]
+		}
+	}
+
+	// Build response with MJKN info
+	response := make([]RoomQueueResponse, len(queues))
+	for i, q := range queues {
+		response[i] = RoomQueueResponse{
+			RoomQueue: q,
+			IsMJKN:    false,
+		}
+		if bq, ok := bpjsQueueMap[q.ID]; ok {
+			response[i].IsMJKN = true
+			response[i].BPJSQueue = bq
+		}
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
 // GetRoomQueue returns a single room queue by ID
@@ -185,6 +226,11 @@ func CallNextRoomQueue(c *gin.Context) {
 		return
 	}
 
+	// Trigger Task 4 ke BPJS jika pasien MJKN (async)
+	go func() {
+		bpjsService.UpdateBPJSQueueFromRoomQueueStatus(queue.ID, models.RoomQueueStatusCalled, &now)
+	}()
+
 	// Load relationships
 	database.DB.Preload("Visit").Preload("Visit.Registration").Preload("Visit.Registration.Patient").
 		Preload("Visit.Room").Preload("Visit.Doctor").Preload("CalledBy").Preload("Room").
@@ -232,6 +278,11 @@ func CallSpecificQueue(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+
+	// Trigger Task 4 ke BPJS jika pasien MJKN (async)
+	go func() {
+		bpjsService.UpdateBPJSQueueFromRoomQueueStatus(queue.ID, models.RoomQueueStatusCalled, &now)
+	}()
 
 	// Load relationships
 	database.DB.Preload("Visit").Preload("Visit.Registration").Preload("Visit.Registration.Patient").
@@ -302,6 +353,7 @@ func UpdateQueueStatus(c *gin.Context) {
 
 	// Update status and timestamps
 	now := time.Now()
+	previousStatus := queue.Status
 	queue.Status = input.Status
 	if input.Notes != "" {
 		queue.Notes = input.Notes
@@ -338,6 +390,13 @@ func UpdateQueueStatus(c *gin.Context) {
 	if err := database.DB.Save(&queue).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
+	}
+
+	// Trigger BPJS Task update jika status berubah (async)
+	if input.Status != previousStatus {
+		go func() {
+			bpjsService.UpdateBPJSQueueFromRoomQueueStatus(queue.ID, input.Status, &now)
+		}()
 	}
 
 	// Load relationships

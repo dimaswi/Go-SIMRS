@@ -3,6 +3,7 @@ package handlers
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -37,33 +38,56 @@ func SaveTriage(c *gin.Context) {
 	userID := c.GetUint("user_id")
 
 	var input struct {
-		ArrivalMode      string `json:"arrival_mode"`
-		TriageComplaint  string `json:"chief_complaint"`
-		TriageLevel      string `json:"triage_level"`
-		Consciousness    string `json:"consciousness"`
-		Airway           string `json:"airway"`
-		Breathing        string `json:"breathing"`
-		BreathingRate    string `json:"breathing_rate"`
-		Circulation      string `json:"circulation"`
-		Akral            string `json:"akral"`
-		CRT              string `json:"crt"`
-		PupilLeft        string `json:"pupil_left"`
-		PupilRight       string `json:"pupil_right"`
-		BloodPressure    string `json:"blood_pressure"`
-		HeartRate        string `json:"heart_rate"`
-		Temperature      string `json:"temperature"`
-		OxygenSaturation string `json:"oxygen_saturation"`
-		PainScale        int    `json:"pain_scale"`
-		GCSE             int    `json:"gcs_e"`
-		GCSV             int    `json:"gcs_v"`
-		GCSM             int    `json:"gcs_m"`
-		TriageAssessment string `json:"initial_assessment"`
-		ImmediateActions string `json:"immediate_actions"`
+		ArrivalMode       string      `json:"arrival_mode"`
+		TriageComplaint   string      `json:"triage_complaint"` // Match frontend field name
+		ChiefComplaint    string      `json:"chief_complaint"`  // Legacy support
+		TriageLevel       string      `json:"triage_level"`
+		Consciousness     string      `json:"consciousness"`
+		Airway            string      `json:"airway"`
+		AirwayNote        string      `json:"airway_note"`
+		Breathing         string      `json:"breathing"`
+		BreathingNote     string      `json:"breathing_note"`
+		BreathingRate     interface{} `json:"breathing_rate"`
+		RespiratoryRate   interface{} `json:"respiratory_rate"`
+		Circulation       string      `json:"circulation"`
+		CirculationNote   string      `json:"circulation_note"`
+		Akral             string      `json:"akral"`
+		CRT               string      `json:"crt"`
+		PupilLeft         string      `json:"pupil_left"`
+		PupilRight        string      `json:"pupil_right"`
+		BloodPressure     string      `json:"blood_pressure"`
+		HeartRate         interface{} `json:"heart_rate"`
+		Temperature       interface{} `json:"temperature"`
+		OxygenSaturation  interface{} `json:"oxygen_saturation"`
+		PainScale         int         `json:"pain_scale"`
+		GCSE              int         `json:"gcs_e"`
+		GCSV              int         `json:"gcs_v"`
+		GCSM              int         `json:"gcs_m"`
+		TriageAssessment  string      `json:"triage_assessment"`
+		InitialAssessment string      `json:"initial_assessment"` // Legacy support
+		ImmediateActions  string      `json:"immediate_actions"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
+	}
+
+	// Helper to convert interface to string
+	toString := func(v interface{}) string {
+		if v == nil {
+			return ""
+		}
+		switch val := v.(type) {
+		case string:
+			return val
+		case float64:
+			return fmt.Sprintf("%.0f", val)
+		case int:
+			return fmt.Sprintf("%d", val)
+		default:
+			return fmt.Sprintf("%v", val)
+		}
 	}
 
 	// Verify visit exists
@@ -92,23 +116,44 @@ func SaveTriage(c *gin.Context) {
 		triage.TriagedByID = triagerID
 	}
 
+	// Use triage_complaint or chief_complaint (legacy)
+	complaint := input.TriageComplaint
+	if complaint == "" {
+		complaint = input.ChiefComplaint
+	}
+
+	// Use triage_assessment or initial_assessment (legacy)
+	assessment := input.TriageAssessment
+	if assessment == "" {
+		assessment = input.InitialAssessment
+	}
+
+	// Use breathing_rate or respiratory_rate
+	breathingRate := toString(input.BreathingRate)
+	if breathingRate == "" || breathingRate == "0" {
+		breathingRate = toString(input.RespiratoryRate)
+	}
+
 	// Update fields
 	triage.ArrivalMode = input.ArrivalMode
-	triage.TriageComplaint = input.TriageComplaint
+	triage.TriageComplaint = complaint
 	triage.TriageLevel = input.TriageLevel
 	triage.Consciousness = input.Consciousness
 	triage.Airway = input.Airway
+	triage.AirwayNote = input.AirwayNote
 	triage.Breathing = input.Breathing
-	triage.BreathingRate = input.BreathingRate
+	triage.BreathingNote = input.BreathingNote
+	triage.BreathingRate = breathingRate
 	triage.Circulation = input.Circulation
+	triage.CirculationNote = input.CirculationNote
 	triage.Akral = input.Akral
 	triage.CRT = input.CRT
 	triage.PupilLeft = input.PupilLeft
 	triage.PupilRight = input.PupilRight
 	triage.BloodPressure = input.BloodPressure
-	triage.HeartRate = input.HeartRate
-	triage.Temperature = input.Temperature
-	triage.OxygenSaturation = input.OxygenSaturation
+	triage.HeartRate = toString(input.HeartRate)
+	triage.Temperature = toString(input.Temperature)
+	triage.OxygenSaturation = toString(input.OxygenSaturation)
 	triage.PainScale = input.PainScale
 	triage.GCSE = input.GCSE
 	triage.GCSV = input.GCSV
@@ -791,6 +836,88 @@ func CheckPendingOrders(c *gin.Context) {
 			Count(&pendingMedicineOrders)
 	} else {
 		// For clinical visits (poli, ugd, rawat_inap):
+		// First, recalculate status for all orders from this visit to ensure consistency
+		var ordersToRecalculate []models.MedicineOrder
+		database.DB.Where("source_visit_id = ?", visitID).Preload("Items").Find(&ordersToRecalculate)
+
+		for _, order := range ordersToRecalculate {
+			if order.Status == models.OrderStatusDelivered || order.Status == models.OrderStatusCancelled {
+				continue
+			}
+
+			// Count item statuses
+			var deliveredCount, cancelledCount, totalCount int
+			for _, item := range order.Items {
+				totalCount++
+				if item.Status == models.ItemStatusDelivered {
+					deliveredCount++
+				} else if item.Status == models.ItemStatusCancelled {
+					cancelledCount++
+				}
+			}
+
+			// Determine correct order status
+			activeItems := totalCount - cancelledCount
+			var newStatus string
+
+			if activeItems == 0 {
+				newStatus = models.OrderStatusCancelled
+			} else if deliveredCount == activeItems {
+				newStatus = models.OrderStatusDelivered
+			} else if deliveredCount > 0 {
+				newStatus = models.OrderStatusPartial
+			} else {
+				continue // Keep current status
+			}
+
+			// Update if different
+			if order.Status != newStatus {
+				database.DB.Model(&order).Update("status", newStatus)
+			}
+		}
+
+		// Also recalculate procedure orders status
+		var procedureOrdersToRecalculate []models.ProcedureOrder
+		database.DB.Where("source_visit_id = ?", visitID).Preload("Items").Find(&procedureOrdersToRecalculate)
+
+		for _, order := range procedureOrdersToRecalculate {
+			if order.Status == models.ProcedureOrderStatusCompleted || order.Status == models.ProcedureOrderStatusCancelled {
+				continue
+			}
+
+			// Count item statuses
+			var completedCount, cancelledCount, inProgressCount, totalCount int
+			for _, item := range order.Items {
+				totalCount++
+				if item.Status == models.ProcedureOrderStatusCompleted {
+					completedCount++
+				} else if item.Status == models.ProcedureOrderStatusCancelled {
+					cancelledCount++
+				} else if item.Status == models.ProcedureOrderStatusInProgress {
+					inProgressCount++
+				}
+			}
+
+			// Determine correct order status
+			activeItems := totalCount - cancelledCount
+			var newStatus string
+
+			if activeItems == 0 {
+				newStatus = models.ProcedureOrderStatusCancelled
+			} else if completedCount == activeItems {
+				newStatus = models.ProcedureOrderStatusCompleted
+			} else if completedCount > 0 || inProgressCount > 0 {
+				newStatus = models.ProcedureOrderStatusInProgress
+			} else {
+				continue // Keep current status
+			}
+
+			// Update if different
+			if order.Status != newStatus {
+				database.DB.Model(&order).Update("status", newStatus)
+			}
+		}
+
 		// 1. Check procedure orders (lab/radiology) that should be completed
 		database.DB.Model(&models.ProcedureOrder{}).
 			Where("source_visit_id = ? AND status NOT IN ('completed', 'cancelled')", visitID).
@@ -852,6 +979,8 @@ func SaveDisposition(c *gin.Context) {
 	visitID := c.Param("id")
 	userID := c.GetUint("user_id")
 
+	fmt.Printf("DEBUG SaveDisposition ENTRY: visitID=%s, userID=%d\n", visitID, userID)
+
 	var input struct {
 		DispositionType      string `json:"disposition_type"`
 		DispositionNote      string `json:"disposition_note"`
@@ -864,10 +993,17 @@ func SaveDisposition(c *gin.Context) {
 		FollowUpInstruction string `json:"follow_up_instruction"`
 		FollowUpRoomID      *uint  `json:"follow_up_room_id"`
 		FollowUpDoctorID    *uint  `json:"follow_up_doctor_id"` // Dokter untuk kontrol
-		// Referral
-		ReferralFacility string `json:"referral_facility"`
-		ReferralReason   string `json:"referral_reason"`
-		ReferralUrgency  string `json:"referral_urgency"`
+		// Referral (Surat Rujukan)
+		ReferralFacility   string `json:"referral_facility"`
+		ReferralAddress    string `json:"referral_address"`
+		ReferralPhone      string `json:"referral_phone"`
+		ReferralSpecialist string `json:"referral_specialist"`
+		ReferralReason     string `json:"referral_reason"`
+		ReferralUrgency    string `json:"referral_urgency"`
+		ReferralDiagnosis  string `json:"referral_diagnosis"`
+		ReferralTherapy    string `json:"referral_therapy"`
+		ReferralLabResult  string `json:"referral_lab_result"`
+		ReferralNotes      string `json:"referral_notes"`
 		// Admission
 		AdmissionType     string `json:"admission_type"`
 		AdmissionWard     string `json:"admission_ward"`
@@ -881,12 +1017,25 @@ func SaveDisposition(c *gin.Context) {
 		// Flags
 		CreateAdmission bool `json:"create_admission"` // Create inpatient visit
 		CreateFollowUp  bool `json:"create_follow_up"` // Create follow-up registration
+		// BPJS Info - jika sudah ada SPRI/Surat Kontrol, validasi lebih fleksibel
+		BPJSSuratKontrol *struct {
+			NoSuratKontrol string `json:"no_surat_kontrol"`
+			TanggalKontrol string `json:"tanggal_kontrol"`
+			DokterTujuan   string `json:"dokter_tujuan"`
+		} `json:"bpjs_surat_kontrol"`
+		BPJSSPRI *struct {
+			NoSPRI            string `json:"no_spri"`
+			TglRencanaKontrol string `json:"tgl_rencana_kontrol"`
+		} `json:"bpjs_spri"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
+	fmt.Printf("DEBUG SaveDisposition AFTER BIND: DispositionType='%s', CreateAdmission=%v, CreateFollowUp=%v\n",
+		input.DispositionType, input.CreateAdmission, input.CreateFollowUp)
 
 	var visit models.Visit
 	if err := database.DB.Preload("Registration").First(&visit, visitID).Error; err != nil {
@@ -917,7 +1066,8 @@ func SaveDisposition(c *gin.Context) {
 	}
 
 	var disposition models.Disposition
-	err := database.DB.Where("visit_id = ?", visitID).First(&disposition).Error
+	// Use Unscoped to find soft-deleted records too
+	err := database.DB.Unscoped().Where("visit_id = ?", visitID).First(&disposition).Error
 
 	var dischargerID *uint
 	if userID > 0 {
@@ -925,12 +1075,18 @@ func SaveDisposition(c *gin.Context) {
 	}
 
 	if err != nil {
+		// No existing disposition, create new
 		disposition = models.Disposition{
 			VisitID:        visit.ID,
 			DischargedByID: dischargerID,
 		}
-	} else if dischargerID != nil {
-		disposition.DischargedByID = dischargerID
+	} else {
+		// Found existing disposition (might be soft-deleted)
+		// Clear soft-delete flag to reuse
+		disposition.DeletedAt = gorm.DeletedAt{}
+		if dischargerID != nil {
+			disposition.DischargedByID = dischargerID
+		}
 	}
 
 	// Parse dates
@@ -961,8 +1117,15 @@ func SaveDisposition(c *gin.Context) {
 	disposition.FollowUpInstruction = input.FollowUpInstruction
 	disposition.FollowUpRoomID = input.FollowUpRoomID
 	disposition.ReferralFacility = input.ReferralFacility
+	disposition.ReferralAddress = input.ReferralAddress
+	disposition.ReferralPhone = input.ReferralPhone
+	disposition.ReferralSpecialist = input.ReferralSpecialist
 	disposition.ReferralReason = input.ReferralReason
 	disposition.ReferralUrgency = input.ReferralUrgency
+	disposition.ReferralDiagnosis = input.ReferralDiagnosis
+	disposition.ReferralTherapy = input.ReferralTherapy
+	disposition.ReferralLabResult = input.ReferralLabResult
+	disposition.ReferralNotes = input.ReferralNotes
 	disposition.AdmissionType = input.AdmissionType
 	disposition.AdmissionWard = input.AdmissionWard
 	disposition.AdmissionReason = input.AdmissionReason
@@ -971,14 +1134,10 @@ func SaveDisposition(c *gin.Context) {
 	disposition.DeathTime = deathTime
 	disposition.DeathCause = input.DeathCause
 
-	// Start transaction
-	tx := database.DB.Begin()
-
 	// Handle rawat inap admission
 	if input.DispositionType == "rawat_inap" && input.CreateAdmission && input.AdmissionRoomID != nil {
-		inpatientVisit, err := createInpatientVisit(tx, &visit, input.AdmissionRoomID, input.AdmissionBedID, input.AdmissionDoctorID)
+		inpatientVisit, err := createInpatientVisit(database.DB, &visit, input.AdmissionRoomID, input.AdmissionBedID, input.AdmissionDoctorID)
 		if err != nil {
-			tx.Rollback()
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat kunjungan rawat inap: " + err.Error()})
 			return
 		}
@@ -987,20 +1146,21 @@ func SaveDisposition(c *gin.Context) {
 
 	// Handle kontrol/follow-up registration
 	if input.CreateFollowUp && followUpDate != nil && input.FollowUpRoomID != nil {
-		followUpReg, err := createFollowUpRegistration(tx, &visit, followUpDate, input.FollowUpRoomID, input.FollowUpDoctorID, userID)
+		followUpReg, err := createFollowUpRegistration(database.DB, &visit, followUpDate, input.FollowUpRoomID, input.FollowUpDoctorID, userID)
 		if err != nil {
-			tx.Rollback()
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat jadwal kontrol: " + err.Error()})
 			return
 		}
 		disposition.FollowUpRegistrationID = &followUpReg.ID
 	}
 
-	if err := tx.Save(&disposition).Error; err != nil {
-		tx.Rollback()
+	// Use Unscoped to properly save previously soft-deleted records
+	if err := database.DB.Unscoped().Save(&disposition).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+
+	fmt.Printf("DEBUG SaveDisposition: DispositionType=%s, VisitID=%d\n", input.DispositionType, visit.ID)
 
 	// All disposition types complete the current visit and queue
 	// (pulang, rujuk, rawat_inap, meninggal, dod)
@@ -1017,32 +1177,43 @@ func SaveDisposition(c *gin.Context) {
 			} else {
 				// Fallback: find the latest bed transfer for this visit
 				var latestTransfer models.BedTransfer
-				if err := tx.Where("visit_id = ?", visit.ID).Order("created_at DESC").First(&latestTransfer).Error; err == nil {
+				if err := database.DB.Where("visit_id = ?", visit.ID).Order("created_at DESC").First(&latestTransfer).Error; err == nil {
 					bedIDToRelease = &latestTransfer.ToBedID
 				}
 			}
 
 			// Release the bed if found
 			if bedIDToRelease != nil {
-				tx.Model(&models.Bed{}).Where("id = ?", *bedIDToRelease).Update("status", "available")
+				database.DB.Exec(`UPDATE beds SET status = 'available', updated_at = ? WHERE id = ?`, now, *bedIDToRelease)
 			}
 		}
 
-		// Complete the visit
-		tx.Model(&models.Visit{}).Where("id = ?", visit.ID).Updates(map[string]interface{}{
-			"status":         models.VisitStatusCompleted,
-			"end_time":       now,
-			"discharge_time": now, // Set discharge time for inpatient
-		})
+		fmt.Printf("DEBUG: Updating visit %d to completed\n", visit.ID)
+
+		// Complete the visit - use raw SQL to ensure it works
+		result := database.DB.Exec(`UPDATE visits SET status = ?, end_time = ?, discharge_time = ?, updated_at = ? WHERE id = ?`,
+			models.VisitStatusCompleted, now, now, now, visit.ID)
+		if result.Error != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal update status visit: " + result.Error.Error()})
+			return
+		}
+		fmt.Printf("DEBUG: Visit update rows affected: %d\n", result.RowsAffected)
 
 		// Complete the room queue if exists
-		tx.Model(&models.RoomQueue{}).Where("visit_id = ?", visit.ID).Updates(map[string]interface{}{
-			"status":       models.RoomQueueStatusCompleted,
-			"completed_at": now,
-		})
+		database.DB.Exec(`UPDATE room_queues SET status = ?, completed_at = ?, updated_at = ? WHERE visit_id = ?`,
+			models.RoomQueueStatusCompleted, now, now, visit.ID)
+
+		// Update SEP status to 'deleted' (visit is now discharged)
+		database.DB.Exec(`UPDATE seps SET status = 'deleted', updated_at = ? WHERE visit_id = ?`, now, visit.ID)
+
+		// Update registration status to completed
+		if visit.RegistrationID != 0 {
+			database.DB.Exec(`UPDATE registrations SET status = ?, updated_at = ? WHERE id = ?`,
+				models.RegistrationStatusCompleted, now, visit.RegistrationID)
+		}
 	}
 
-	tx.Commit()
+	fmt.Printf("DEBUG SaveDisposition: completed successfully\n")
 
 	// Reload with relations
 	database.DB.Where("id = ?", disposition.ID).
@@ -1132,7 +1303,175 @@ func SaveDisposition(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, disposition)
+	// Build response with BPJS info
+	response := gin.H{
+		"id":                        disposition.ID,
+		"visit_id":                  disposition.VisitID,
+		"disposition_type":          disposition.DispositionType,
+		"disposition_note":          disposition.DispositionNote,
+		"discharge_status":          disposition.DischargeStatus,
+		"discharge_condition":       disposition.DischargeCondition,
+		"discharge_instruction":     disposition.DischargeInstruction,
+		"discharge_medication":      disposition.DischargeMedication,
+		"follow_up_date":            disposition.FollowUpDate,
+		"follow_up_instruction":     disposition.FollowUpInstruction,
+		"follow_up_room_id":         disposition.FollowUpRoomID,
+		"follow_up_registration_id": disposition.FollowUpRegistrationID,
+		"referral_facility":         disposition.ReferralFacility,
+		"referral_reason":           disposition.ReferralReason,
+		"admission_type":            disposition.AdmissionType,
+		"admission_reason":          disposition.AdmissionReason,
+		"inpatient_visit_id":        disposition.InpatientVisitID,
+		"death_time":                disposition.DeathTime,
+		"death_cause":               disposition.DeathCause,
+		"discharged_by":             disposition.DischargedBy,
+		"follow_up_room":            disposition.FollowUpRoom,
+		"admission_room":            disposition.AdmissionRoom,
+		"created_at":                disposition.CreatedAt,
+		"updated_at":                disposition.UpdatedAt,
+	}
+
+	// Add BPJS info if provided
+	if input.BPJSSuratKontrol != nil {
+		response["bpjs_surat_kontrol"] = input.BPJSSuratKontrol
+	}
+	if input.BPJSSPRI != nil {
+		response["bpjs_spri"] = input.BPJSSPRI
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
+// CancelDisposition cancels/resets the disposition and reactivates the visit
+func CancelDisposition(c *gin.Context) {
+	visitID := c.Param("id")
+
+	var visit models.Visit
+	if err := database.DB.First(&visit, visitID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Visit tidak ditemukan"})
+		return
+	}
+
+	var disposition models.Disposition
+	if err := database.DB.Where("visit_id = ?", visitID).First(&disposition).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Disposisi tidak ditemukan"})
+		return
+	}
+
+	now := time.Now()
+
+	// Cancel follow-up registration if exists (SIMRS jadwal kontrol)
+	if disposition.FollowUpRegistrationID != nil {
+		// Get the follow-up visit first
+		var followUpVisit models.Visit
+		if err := database.DB.Where("registration_id = ?", *disposition.FollowUpRegistrationID).First(&followUpVisit).Error; err == nil {
+			// Delete room queue for follow-up visit
+			database.DB.Where("visit_id = ?", followUpVisit.ID).Delete(&models.RoomQueue{})
+			// Delete the follow-up visit
+			database.DB.Delete(&followUpVisit)
+		}
+		// Cancel the follow-up registration
+		database.DB.Model(&models.Registration{}).Where("id = ?", *disposition.FollowUpRegistrationID).
+			Update("status", models.RegistrationStatusCancelled)
+	}
+
+	// Reset disposition (soft delete)
+	if err := database.DB.Delete(&disposition).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menghapus disposisi: " + err.Error()})
+		return
+	}
+
+	// Reactivate the visit - use raw SQL for nil values
+	if err := database.DB.Exec(`UPDATE visits SET status = ?, end_time = NULL, discharge_time = NULL, updated_at = ? WHERE id = ?`,
+		models.VisitStatusInProgress, now, visitID).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengaktifkan kembali visit: " + err.Error()})
+		return
+	}
+
+	// Reactivate the registration status (frontend checks this)
+	if visit.RegistrationID != 0 {
+		database.DB.Exec(`UPDATE registrations SET status = ?, updated_at = ? WHERE id = ?`,
+			models.RegistrationStatusInProgress, now, visit.RegistrationID)
+	}
+
+	// Reactivate SEP if exists (set status back to active)
+	database.DB.Exec(`UPDATE seps SET status = 'active', updated_at = ? WHERE visit_id = ?`, now, visitID)
+
+	// Reactivate the room queue if exists - use raw SQL for nil values
+	database.DB.Exec(`UPDATE room_queues SET status = ?, completed_at = NULL, updated_at = ? WHERE visit_id = ?`,
+		models.RoomQueueStatusServing, now, visitID)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":        "Disposisi berhasil dibatalkan",
+		"reactivated":    true,
+		"reactivated_at": now,
+	})
+}
+
+// CancelFollowUpRegistration cancels the follow-up registration created from disposition
+func CancelFollowUpRegistration(c *gin.Context) {
+	visitID := c.Param("id")
+
+	var disposition models.Disposition
+	if err := database.DB.Where("visit_id = ?", visitID).First(&disposition).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Disposisi tidak ditemukan"})
+		return
+	}
+
+	if disposition.FollowUpRegistrationID == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Tidak ada jadwal kontrol untuk dibatalkan"})
+		return
+	}
+
+	tx := database.DB.Begin()
+
+	// Get the follow-up registration
+	var followUpReg models.Registration
+	if err := tx.First(&followUpReg, *disposition.FollowUpRegistrationID).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusNotFound, gin.H{"error": "Jadwal kontrol tidak ditemukan"})
+		return
+	}
+
+	// Check if registration has been used (status is not scheduled/reserved)
+	if followUpReg.Status != models.RegistrationStatusScheduled {
+		tx.Rollback()
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Jadwal kontrol sudah digunakan dan tidak dapat dibatalkan"})
+		return
+	}
+
+	// Find and delete the reserved visit and room queue
+	var followUpVisit models.Visit
+	if err := tx.Where("registration_id = ? AND status IN ?", followUpReg.ID,
+		[]string{string(models.VisitStatusScheduled), string(models.VisitStatusWaiting)}).
+		First(&followUpVisit).Error; err == nil {
+		// Delete room queue
+		tx.Where("visit_id = ?", followUpVisit.ID).Delete(&models.RoomQueue{})
+		// Delete visit
+		tx.Delete(&followUpVisit)
+	}
+
+	// Cancel the registration
+	followUpReg.Status = models.RegistrationStatusCancelled
+	if err := tx.Save(&followUpReg).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membatalkan jadwal kontrol: " + err.Error()})
+		return
+	}
+
+	// Clear the reference in disposition
+	disposition.FollowUpRegistrationID = nil
+	if err := tx.Save(&disposition).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengupdate disposisi: " + err.Error()})
+		return
+	}
+
+	tx.Commit()
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Jadwal kontrol berhasil dibatalkan",
+	})
 }
 
 // createInpatientVisit creates a new visit for inpatient admission
@@ -1193,16 +1532,17 @@ func createInpatientVisit(tx *gorm.DB, sourceVisit *models.Visit, roomID *uint, 
 
 // createFollowUpRegistration creates a scheduled follow-up registration with Visit and RoomQueue
 // The queue number is reserved immediately but status is "reserved" until patient checks in
-func createFollowUpRegistration(tx *gorm.DB, sourceVisit *models.Visit, followUpDate *time.Time, roomID *uint, doctorID *uint, registeredByID uint) (*models.Registration, error) {
+func createFollowUpRegistration(db *gorm.DB, sourceVisit *models.Visit, followUpDate *time.Time, roomID *uint, doctorID *uint, registeredByID uint) (*models.Registration, error) {
 	// Get patient ID from source registration
 	var sourceReg models.Registration
-	if err := tx.First(&sourceReg, sourceVisit.RegistrationID).Error; err != nil {
-		return nil, err
+	// Use database.DB instead of tx to read existing data
+	if err := database.DB.First(&sourceReg, sourceVisit.RegistrationID).Error; err != nil {
+		return nil, fmt.Errorf("source registration not found: %w", err)
 	}
 
 	// Get destination room for queue code
 	var room models.Room
-	if err := tx.First(&room, *roomID).Error; err != nil {
+	if err := database.DB.First(&room, *roomID).Error; err != nil {
 		return nil, fmt.Errorf("room not found: %w", err)
 	}
 
@@ -1222,7 +1562,7 @@ func createFollowUpRegistration(tx *gorm.DB, sourceVisit *models.Visit, followUp
 	if followUpDoctorID != nil {
 		dayOfWeek := int(followUpDate.Weekday())
 		var doctorSchedule models.DoctorSchedule
-		err := tx.Where("room_id = ? AND employee_id = ? AND day_of_week = ? AND is_active = ?",
+		err := database.DB.Where("room_id = ? AND employee_id = ? AND day_of_week = ? AND is_active = ?",
 			*roomID, *followUpDoctorID, dayOfWeek, true).
 			First(&doctorSchedule).Error
 		if err != nil {
@@ -1233,7 +1573,7 @@ func createFollowUpRegistration(tx *gorm.DB, sourceVisit *models.Visit, followUp
 	// Generate registration number
 	var lastReg models.Registration
 	regNumber := fmt.Sprintf("REG%s0001", followUpDate.Format("20060102"))
-	if err := tx.Order("id DESC").First(&lastReg).Error; err == nil {
+	if err := database.DB.Order("id DESC").First(&lastReg).Error; err == nil {
 		if strings.HasPrefix(lastReg.RegistrationNumber, "REG"+followUpDate.Format("20060102")) {
 			num := 1
 			fmt.Sscanf(lastReg.RegistrationNumber, "REG"+followUpDate.Format("20060102")+"%d", &num)
@@ -1243,7 +1583,7 @@ func createFollowUpRegistration(tx *gorm.DB, sourceVisit *models.Visit, followUp
 
 	// Count patient visits
 	var visitCount int64
-	tx.Model(&models.Registration{}).Where("patient_id = ?", sourceReg.PatientID).Count(&visitCount)
+	database.DB.Model(&models.Registration{}).Where("patient_id = ?", sourceReg.PatientID).Count(&visitCount)
 
 	followUpReg := models.Registration{
 		RegistrationNumber: regNumber,
@@ -1266,7 +1606,7 @@ func createFollowUpRegistration(tx *gorm.DB, sourceVisit *models.Visit, followUp
 		ScheduledDate: followUpDate,
 	}
 
-	if err := tx.Create(&followUpReg).Error; err != nil {
+	if err := db.Create(&followUpReg).Error; err != nil {
 		return nil, err
 	}
 
@@ -1275,7 +1615,7 @@ func createFollowUpRegistration(tx *gorm.DB, sourceVisit *models.Visit, followUp
 	var lastVisit models.Visit
 	var visitNum int
 
-	err := tx.Where("visit_number LIKE ?", "VIS"+todayStr+"%").
+	err := database.DB.Where("visit_number LIKE ?", "VIS"+todayStr+"%").
 		Order("visit_number DESC").First(&lastVisit).Error
 
 	if err != nil {
@@ -1301,7 +1641,7 @@ func createFollowUpRegistration(tx *gorm.DB, sourceVisit *models.Visit, followUp
 		Notes:          followUpReg.Notes,
 	}
 
-	if err := tx.Create(&followUpVisit).Error; err != nil {
+	if err := db.Create(&followUpVisit).Error; err != nil {
 		return nil, fmt.Errorf("failed to create follow-up visit: %w", err)
 	}
 
@@ -1316,7 +1656,7 @@ func createFollowUpRegistration(tx *gorm.DB, sourceVisit *models.Visit, followUp
 	var queueNum int
 
 	// Get the highest queue number for this room and date (including reserved ones)
-	err = tx.Where("room_id = ? AND queue_date = ?", *roomID, *followUpDate).
+	err = database.DB.Where("room_id = ? AND queue_date = ?", *roomID, *followUpDate).
 		Order("queue_number DESC").First(&lastQueue).Error
 
 	if err != nil {
@@ -1342,7 +1682,7 @@ func createFollowUpRegistration(tx *gorm.DB, sourceVisit *models.Visit, followUp
 		Notes:       "Jadwal kontrol - menunggu check-in",
 	}
 
-	if err := tx.Create(&roomQueue).Error; err != nil {
+	if err := db.Create(&roomQueue).Error; err != nil {
 		return nil, fmt.Errorf("failed to create follow-up room queue: %w", err)
 	}
 
@@ -1382,14 +1722,35 @@ func GetMedicalRecordSummary(c *gin.Context) {
 	var disposition models.Disposition
 	database.DB.Where("visit_id = ?", visitID).Preload("DischargedBy").First(&disposition)
 
+	// Rawat Inap data counts (for print availability)
+	var cpptCount int64
+	database.DB.Model(&models.CPPT{}).Where("visit_id = ?", visitID).Count(&cpptCount)
+
+	var nursingCareCount int64
+	database.DB.Model(&models.NursingCare{}).Where("visit_id = ?", visitID).Count(&nursingCareCount)
+
+	var fluidBalanceCount int64
+	database.DB.Model(&models.FluidBalance{}).Where("visit_id = ?", visitID).Count(&fluidBalanceCount)
+
+	var bedTransferCount int64
+	database.DB.Model(&models.BedTransfer{}).Where("visit_id = ?", visitID).Count(&bedTransferCount)
+
+	var vitalSignCount int64
+	database.DB.Model(&models.VitalSign{}).Where("visit_id = ?", visitID).Count(&vitalSignCount)
+
 	c.JSON(http.StatusOK, gin.H{
-		"visit_id":        visit.ID,
-		"triage":          triage,
-		"anamnesis":       anamnesis,
-		"physical_exam":   physExam,
-		"diagnoses":       diagnoses,
-		"assessment_plan": assessmentPlan,
-		"disposition":     disposition,
+		"visit_id":            visit.ID,
+		"triage":              triage,
+		"anamnesis":           anamnesis,
+		"physical_exam":       physExam,
+		"diagnoses":           diagnoses,
+		"assessment_plan":     assessmentPlan,
+		"disposition":         disposition,
+		"cppt_count":          cpptCount,
+		"nursing_care_count":  nursingCareCount,
+		"fluid_balance_count": fluidBalanceCount,
+		"bed_transfer_count":  bedTransferCount,
+		"vital_sign_count":    vitalSignCount,
 	})
 }
 
@@ -1583,4 +1944,430 @@ func GetConsultation(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, consultation)
+}
+
+// ===========================================================================
+// SICK LETTER HANDLERS
+// ===========================================================================
+
+// GetSickLetter retrieves sick letter data for a visit
+func GetSickLetter(c *gin.Context) {
+	visitID := c.Param("id")
+
+	var sickLetter models.SickLetter
+	if err := database.DB.
+		Where("visit_id = ?", visitID).
+		Preload("IssuedBy").
+		First(&sickLetter).Error; err != nil {
+		// Return empty object if not found
+		c.JSON(http.StatusOK, gin.H{"visit_id": visitID})
+		return
+	}
+
+	c.JSON(http.StatusOK, sickLetter)
+}
+
+// GetSickLetters retrieves all sick letters for a visit
+func GetSickLetters(c *gin.Context) {
+	visitID := c.Param("id")
+
+	var sickLetters []models.SickLetter
+	if err := database.DB.
+		Where("visit_id = ?", visitID).
+		Preload("IssuedBy").
+		Order("created_at DESC").
+		Find(&sickLetters).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, sickLetters)
+}
+
+// SaveSickLetter saves or updates sick letter data
+func SaveSickLetter(c *gin.Context) {
+	visitID := c.Param("id")
+	userID := c.GetUint("user_id")
+
+	var input struct {
+		ID          uint   `json:"id"`
+		StartDate   string `json:"start_date"`
+		EndDate     string `json:"end_date"`
+		Days        int    `json:"days"`
+		Reason      string `json:"reason"`
+		Purpose     string `json:"purpose"`
+		Institution string `json:"institution"`
+		Notes       string `json:"notes"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Parse dates
+	startDate, err := time.Parse("2006-01-02", input.StartDate)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Format tanggal mulai tidak valid"})
+		return
+	}
+
+	endDate, err := time.Parse("2006-01-02", input.EndDate)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Format tanggal selesai tidak valid"})
+		return
+	}
+
+	// Calculate days if not provided
+	days := input.Days
+	if days <= 0 {
+		days = int(endDate.Sub(startDate).Hours()/24) + 1
+	}
+
+	// Get employee ID from user
+	var employeeID *uint
+	var user models.User
+	if err := database.DB.Preload("Employee").First(&user, userID).Error; err == nil {
+		if user.Employee != nil {
+			employeeID = &user.Employee.ID
+		}
+	}
+
+	// Generate letter number
+	letterNumber := generateSickLetterNumber()
+
+	var sickLetter models.SickLetter
+
+	// Check if updating existing or creating new
+	if input.ID > 0 {
+		if err := database.DB.First(&sickLetter, input.ID).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Surat keterangan sakit tidak ditemukan"})
+			return
+		}
+		// Update existing
+		sickLetter.StartDate = startDate
+		sickLetter.EndDate = endDate
+		sickLetter.Days = days
+		sickLetter.Reason = input.Reason
+		sickLetter.Purpose = input.Purpose
+		sickLetter.Institution = input.Institution
+		sickLetter.Notes = input.Notes
+	} else {
+		// Create new
+		var visitIDUint uint
+		fmt.Sscanf(visitID, "%d", &visitIDUint)
+
+		sickLetter = models.SickLetter{
+			VisitID:      visitIDUint,
+			LetterNumber: letterNumber,
+			StartDate:    startDate,
+			EndDate:      endDate,
+			Days:         days,
+			Reason:       input.Reason,
+			Purpose:      input.Purpose,
+			Institution:  input.Institution,
+			Notes:        input.Notes,
+			Status:       "active",
+			IssuedByID:   employeeID,
+			IssuedAt:     time.Now(),
+		}
+	}
+
+	if err := database.DB.Save(&sickLetter).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Reload with relations
+	database.DB.Preload("IssuedBy").First(&sickLetter, sickLetter.ID)
+
+	c.JSON(http.StatusOK, sickLetter)
+}
+
+// DeleteSickLetter deletes a sick letter
+func DeleteSickLetter(c *gin.Context) {
+	letterID := c.Param("letterId")
+
+	var sickLetter models.SickLetter
+	if err := database.DB.First(&sickLetter, letterID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Surat keterangan sakit tidak ditemukan"})
+		return
+	}
+
+	if err := database.DB.Delete(&sickLetter).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Surat keterangan sakit berhasil dihapus"})
+}
+
+// generateSickLetterNumber generates a unique letter number
+func generateSickLetterNumber() string {
+	now := time.Now()
+
+	// Count letters today
+	var count int64
+	database.DB.Model(&models.SickLetter{}).
+		Where("DATE(created_at) = DATE(?)", now).
+		Count(&count)
+
+	return fmt.Sprintf("SKS/%s/%04d", now.Format("20060102"), count+1)
+}
+
+// ============================================
+// DEATH CERTIFICATE (SURAT KEMATIAN) HANDLERS
+// ============================================
+
+// GetDeathCertificate retrieves death certificate for a visit
+func GetDeathCertificate(c *gin.Context) {
+	visitID := c.Param("id")
+
+	var deathCert models.DeathCertificate
+	if err := database.DB.
+		Preload("DeclaringDoctor").
+		Preload("IssuedBy").
+		Where("visit_id = ?", visitID).
+		First(&deathCert).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Surat kematian tidak ditemukan"})
+		return
+	}
+
+	c.JSON(http.StatusOK, deathCert)
+}
+
+// GetDeathCertificates retrieves all death certificates for a visit
+func GetDeathCertificates(c *gin.Context) {
+	visitID := c.Param("id")
+
+	var deathCerts []models.DeathCertificate
+	database.DB.
+		Preload("DeclaringDoctor").
+		Preload("IssuedBy").
+		Where("visit_id = ?", visitID).
+		Order("created_at DESC").
+		Find(&deathCerts)
+
+	c.JSON(http.StatusOK, deathCerts)
+}
+
+// SaveDeathCertificate creates or updates a death certificate
+func SaveDeathCertificate(c *gin.Context) {
+	visitID := c.Param("id")
+
+	var input struct {
+		ID                  uint      `json:"id"`
+		DeathType           string    `json:"death_type"`
+		DeathDateTime       time.Time `json:"death_datetime"`
+		DeathLocation       string    `json:"death_location"`
+		PrimaryCauseCode    string    `json:"primary_cause_code"`
+		PrimaryCauseName    string    `json:"primary_cause_name"`
+		SecondaryCauseCode  string    `json:"secondary_cause_code"`
+		SecondaryCauseName  string    `json:"secondary_cause_name"`
+		UnderlyingCauseCode string    `json:"underlying_cause_code"`
+		UnderlyingCauseName string    `json:"underlying_cause_name"`
+		MannerOfDeath       string    `json:"manner_of_death"`
+		DurationOfIllness   string    `json:"duration_of_illness"`
+		AutopsyPerformed    bool      `json:"autopsy_performed"`
+		AutopsyFindings     string    `json:"autopsy_findings"`
+		DeclaringDoctorID   *uint     `json:"declaring_doctor_id"`
+		DeclaringDoctorName string    `json:"declaring_doctor_name"`
+		WitnessName         string    `json:"witness_name"`
+		WitnessRelation     string    `json:"witness_relation"`
+		Notes               string    `json:"notes"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Validate required fields
+	if input.DeathType == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Jenis kematian wajib diisi"})
+		return
+	}
+	if input.DeathDateTime.IsZero() {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Waktu kematian wajib diisi"})
+		return
+	}
+
+	// Get user ID from context
+	userID, _ := c.Get("user_id")
+	var userIDUint uint
+	switch v := userID.(type) {
+	case uint:
+		userIDUint = v
+	case float64:
+		userIDUint = uint(v)
+	case int:
+		userIDUint = uint(v)
+	}
+
+	var deathCert models.DeathCertificate
+	isUpdate := input.ID > 0
+
+	if isUpdate {
+		if err := database.DB.First(&deathCert, input.ID).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Surat kematian tidak ditemukan"})
+			return
+		}
+	} else {
+		// Parse visit ID
+		vid, err := strconv.ParseUint(visitID, 10, 32)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid visit ID"})
+			return
+		}
+		deathCert.VisitID = uint(vid)
+		deathCert.CertificateNumber = generateDeathCertificateNumber()
+		deathCert.IssuedAt = time.Now()
+		deathCert.IssuedByID = &userIDUint
+	}
+
+	// Update fields
+	deathCert.DeathType = input.DeathType
+	deathCert.DeathDateTime = input.DeathDateTime
+	deathCert.DeathLocation = input.DeathLocation
+	deathCert.PrimaryCauseCode = input.PrimaryCauseCode
+	deathCert.PrimaryCauseName = input.PrimaryCauseName
+	deathCert.SecondaryCauseCode = input.SecondaryCauseCode
+	deathCert.SecondaryCauseName = input.SecondaryCauseName
+	deathCert.UnderlyingCauseCode = input.UnderlyingCauseCode
+	deathCert.UnderlyingCauseName = input.UnderlyingCauseName
+	deathCert.MannerOfDeath = input.MannerOfDeath
+	deathCert.DurationOfIllness = input.DurationOfIllness
+	deathCert.AutopsyPerformed = input.AutopsyPerformed
+	deathCert.AutopsyFindings = input.AutopsyFindings
+	deathCert.DeclaringDoctorID = input.DeclaringDoctorID
+	deathCert.DeclaringDoctorName = input.DeclaringDoctorName
+	deathCert.WitnessName = input.WitnessName
+	deathCert.WitnessRelation = input.WitnessRelation
+	deathCert.Notes = input.Notes
+
+	if err := database.DB.Save(&deathCert).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Reload with relations
+	database.DB.Preload("DeclaringDoctor").Preload("IssuedBy").First(&deathCert, deathCert.ID)
+
+	c.JSON(http.StatusOK, deathCert)
+}
+
+// DeleteDeathCertificate deletes a death certificate
+func DeleteDeathCertificate(c *gin.Context) {
+	certID := c.Param("certId")
+
+	var deathCert models.DeathCertificate
+	if err := database.DB.First(&deathCert, certID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Surat kematian tidak ditemukan"})
+		return
+	}
+
+	if err := database.DB.Delete(&deathCert).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Surat kematian berhasil dihapus"})
+}
+
+// generateDeathCertificateNumber generates a unique certificate number
+func generateDeathCertificateNumber() string {
+	now := time.Now()
+
+	// Count certificates this month
+	var count int64
+	database.DB.Model(&models.DeathCertificate{}).
+		Where("EXTRACT(YEAR FROM created_at) = ? AND EXTRACT(MONTH FROM created_at) = ?", now.Year(), int(now.Month())).
+		Count(&count)
+
+	return fmt.Sprintf("SKM/%d-%02d/%05d", now.Year(), int(now.Month()), count+1)
+}
+
+// ===========================================================================
+// MEDICAL RECORD EDIT LOG HANDLERS
+// ===========================================================================
+
+// CreateMedicalRecordEditLog creates a new edit log entry
+// This should be called when someone edits a medical record after patient discharge
+func CreateMedicalRecordEditLog(c *gin.Context) {
+	visitID := c.Param("id")
+	userID := c.GetUint("user_id")
+
+	var input struct {
+		RecordType string `json:"record_type" binding:"required"` // triage, anamnesis, physical_exam, etc.
+		RecordID   uint   `json:"record_id" binding:"required"`
+		Action     string `json:"action" binding:"required"` // edit, create, delete
+		FieldsJSON string `json:"fields_json,omitempty"`
+		Reason     string `json:"reason,omitempty"`
+		Notes      string `json:"notes,omitempty"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Verify visit exists
+	var visit models.Visit
+	if err := database.DB.First(&visit, visitID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Visit not found"})
+		return
+	}
+
+	// Parse visit ID
+	visitIDUint, err := strconv.ParseUint(visitID, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid visit ID"})
+		return
+	}
+
+	// Create edit log
+	editLog := models.MedicalRecordEditLog{
+		VisitID:    uint(visitIDUint),
+		RecordType: input.RecordType,
+		RecordID:   input.RecordID,
+		Action:     input.Action,
+		FieldsJSON: input.FieldsJSON,
+		Reason:     input.Reason,
+		Notes:      input.Notes,
+		EditedByID: userID,
+		EditedAt:   time.Now(),
+		IPAddress:  c.ClientIP(),
+	}
+
+	if err := database.DB.Create(&editLog).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Reload with relations
+	database.DB.Preload("EditedBy").First(&editLog, editLog.ID)
+
+	c.JSON(http.StatusOK, editLog)
+}
+
+// GetMedicalRecordEditLogs retrieves edit logs for a visit
+func GetMedicalRecordEditLogs(c *gin.Context) {
+	visitID := c.Param("id")
+
+	var logs []models.MedicalRecordEditLog
+	query := database.DB.Where("visit_id = ?", visitID).
+		Preload("EditedBy").
+		Order("created_at DESC")
+
+	// Optional filter by record type
+	if recordType := c.Query("record_type"); recordType != "" {
+		query = query.Where("record_type = ?", recordType)
+	}
+
+	if err := query.Find(&logs).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, logs)
 }

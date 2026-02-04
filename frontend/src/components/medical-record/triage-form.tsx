@@ -10,12 +10,15 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Save, AlertTriangle, Loader2, FileText, Heart, Activity } from "lucide-react";
 import { useMultipleMasterData } from "@/hooks/useMasterData";
 import { medicalRecordsApi } from "@/lib/api";
+import { medicalRecordEditLogApi } from "@/lib/api/visits";
+import { useEditMode, EditModeBanner, EditConfirmDialog } from "./edit-mode-controller";
 import type { Triage } from "@/lib/api";
 
 interface TriageFormProps {
   visitId: number;
   onSave?: (data: any) => void;
   readOnly?: boolean;
+  isPatientDischarged?: boolean;
 }
 
 // Triage level dengan warna khusus (tidak dari master data karena butuh warna)
@@ -51,9 +54,28 @@ const defaultFormData = {
   immediate_actions: "",
 };
 
-export function TriageForm({ visitId, onSave, readOnly = false }: TriageFormProps) {
+export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischarged = false }: TriageFormProps) {
   const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState(defaultFormData);
+  const [triageId, setTriageId] = useState<number | undefined>();
+
+  // Edit mode controller for post-discharge edits
+  const {
+    isEditing,
+    editReason,
+    showEditDialog,
+    setShowEditDialog,
+    setEditReason,
+    handleRequestEdit,
+    handleConfirmEdit,
+    resetEditMode,
+  } = useEditMode({
+    isPatientDischarged,
+    recordType: "triage",
+  });
+
+  // Determine if form should be disabled
+  const isFormDisabled = readOnly || (isPatientDischarged && !isEditing);
 
   // Fetch master data untuk semua kategori yang dibutuhkan
   const { getOptions, loading: masterDataLoading } = useMultipleMasterData([
@@ -72,6 +94,12 @@ export function TriageForm({ visitId, onSave, readOnly = false }: TriageFormProp
         const response = await medicalRecordsApi.getTriage(visitId);
         const data = response.data as Triage;
         if (data && data.id) {
+          // Parse breathing_rate from backend (string) to number for respiratory_rate
+          const respRate = data.breathing_rate ? parseInt(String(data.breathing_rate)) : (data.respiratory_rate || 0);
+          const heartRate = typeof data.heart_rate === 'string' ? parseInt(data.heart_rate) : (data.heart_rate || 0);
+          const temp = typeof data.temperature === 'string' ? parseFloat(data.temperature) : (data.temperature || 0);
+          const spo2 = typeof data.oxygen_saturation === 'string' ? parseInt(data.oxygen_saturation) : (data.oxygen_saturation || 0);
+          
           setFormData({
             arrival_mode: data.arrival_mode || "",
             triage_complaint: data.triage_complaint || "",
@@ -83,10 +111,10 @@ export function TriageForm({ visitId, onSave, readOnly = false }: TriageFormProp
             circulation: data.circulation || "",
             circulation_note: data.circulation_note || "",
             blood_pressure: data.blood_pressure || "",
-            heart_rate: data.heart_rate || 0,
-            respiratory_rate: data.respiratory_rate || 0,
-            temperature: data.temperature || 0,
-            oxygen_saturation: data.oxygen_saturation || 0,
+            heart_rate: heartRate,
+            respiratory_rate: respRate,
+            temperature: temp,
+            oxygen_saturation: spo2,
             pain_scale: data.pain_scale || 0,
             gcs_e: data.gcs_e || 4,
             gcs_v: data.gcs_v || 5,
@@ -94,6 +122,7 @@ export function TriageForm({ visitId, onSave, readOnly = false }: TriageFormProp
             triage_assessment: data.triage_assessment || "",
             immediate_actions: data.immediate_actions || "",
           });
+          setTriageId(data.id);
         }
       } catch {
         // No existing data, use defaults
@@ -109,9 +138,25 @@ export function TriageForm({ visitId, onSave, readOnly = false }: TriageFormProp
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Log edit if patient is discharged
+    if (isPatientDischarged && triageId) {
+      try {
+        await medicalRecordEditLogApi.create(visitId, {
+          record_type: "triage",
+          record_id: triageId,
+          action: "edit",
+          reason: editReason || "Edit setelah pasien pulang",
+        });
+      } catch (error) {
+        console.error("Failed to log edit:", error);
+      }
+    }
+    
     onSave?.(formData);
+    resetEditMode();
   };
 
   const gcsTotal = formData.gcs_e + formData.gcs_v + formData.gcs_m;
@@ -159,8 +204,16 @@ export function TriageForm({ visitId, onSave, readOnly = false }: TriageFormProp
       <CardContent className="p-0">
         <ScrollArea className="h-[calc(100vh-300px)] min-h-[400px]">
           <div className="p-4">
+          {/* Edit Mode Banner for discharged patients */}
+          <EditModeBanner
+            isPatientDischarged={isPatientDischarged}
+            isEditing={isEditing}
+            onRequestEdit={handleRequestEdit}
+            recordTypeLabel="Triase"
+          />
+          
         <form onSubmit={handleSubmit} className="space-y-6">
-          <fieldset disabled={readOnly} className="space-y-6">
+          <fieldset disabled={isFormDisabled} className="space-y-6">
           
           {/* Section 1: Informasi Kedatangan */}
           <Card className="border-red-200 dark:border-red-800">
@@ -492,17 +545,29 @@ export function TriageForm({ visitId, onSave, readOnly = false }: TriageFormProp
             </CardContent>
           </Card>
 
-          <div className="flex justify-end gap-3 pt-4 border-t">
-            <Button type="submit" className="gap-2">
-              <Save className="h-4 w-4" />
-              Simpan Triase
-            </Button>
-          </div>
+          {/* Submit Button - only show when can edit */}
+          {!isFormDisabled && (
+            <div className="flex justify-end gap-3 pt-4 border-t">
+              <Button type="submit" className="gap-2">
+                <Save className="h-4 w-4" />
+                Simpan Triase
+              </Button>
+            </div>
+          )}
           </fieldset>
         </form>
           </div>
         </ScrollArea>
       </CardContent>
+      
+      {/* Edit Confirmation Dialog */}
+      <EditConfirmDialog
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
+        editReason={editReason}
+        onEditReasonChange={setEditReason}
+        onConfirm={handleConfirmEdit}
+      />
     </Card>
   );
 }

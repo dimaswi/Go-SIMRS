@@ -454,14 +454,14 @@ export default function BPJSLogsPage() {
                 </TabsList>
                 <TabsContent value="request">
                   <ScrollArea className="h-[300px] rounded-md border">
-                    <pre className="p-4 text-xs font-mono whitespace-pre-wrap bg-slate-950 text-slate-50">
+                    <pre className="p-4 text-xs font-mono whitespace-pre-wrap break-all bg-slate-950 text-slate-50">
                       {formatJSON(selectedLog.request_body) || "(kosong)"}
                     </pre>
                   </ScrollArea>
                 </TabsContent>
                 <TabsContent value="response">
                   <ScrollArea className="h-[300px] rounded-md border">
-                    <pre className="p-4 text-xs font-mono whitespace-pre-wrap bg-slate-950 text-slate-50">
+                    <pre className="p-4 text-xs font-mono whitespace-pre-wrap break-all bg-slate-950 text-slate-50">
                       {formatJSON(selectedLog.response_body) || "(kosong)"}
                     </pre>
                   </ScrollArea>

@@ -248,6 +248,12 @@ func Migrate() error {
 		&models.AdmissionRequest{}, // Admission Request - Permintaan Rawat Inap
 		// Consultation (Jawaban Konsultasi)
 		&models.Consultation{}, // Consultation - Jawaban/Hasil Konsultasi
+		// Sick Letters (Surat Keterangan Sakit)
+		&models.SickLetter{}, // Sick Letter - Surat Keterangan Sakit
+		// Death Certificates (Surat Kematian)
+		&models.DeathCertificate{}, // Death Certificate - Surat Kematian
+		// Medical Record Edit Logs (Audit Trail for edits after discharge)
+		&models.MedicalRecordEditLog{}, // Medical Record Edit Log - Log Edit RM setelah pulang
 		// Billing & Payment
 		&models.RegistrationTariff{}, // Registration Tariffs (Tarif Pendaftaran)
 		&models.Billing{},            // Billings (Tagihan)
@@ -269,6 +275,10 @@ func Migrate() error {
 		&models.BPJSSyncLog{},       // BPJS Sync Logs (Legacy)
 		&models.BPJSPoliMapping{},   // BPJS Poli Mapping
 		&models.BPJSDoctorMapping{}, // BPJS Doctor Mapping
+		// SEP (Surat Eligibilitas Peserta) untuk BPJS VClaim
+		&models.SEP{},          // SEP (Surat Eligibilitas Peserta)
+		&models.SPRI{},         // SPRI (Surat Perintah Rawat Inap)
+		&models.SuratKontrol{}, // Surat Kontrol (SKDP Rawat Jalan)
 		// KFA (Kode Farmasi Indonesia) for SatuSehat
 		&models.KFAMaster{},          // KFA Master Data (Katalog Obat SatuSehat)
 		&models.MedicineKFAMapping{}, // Medicine to KFA Code Mapping
@@ -278,6 +288,17 @@ func Migrate() error {
 		&models.ProcedureLoincMapping{}, // Procedure to LOINC/SNOMED Mapping
 		// Patient Allergies (with SNOMED CT codes for SatuSehat AllergyIntolerance)
 		&models.PatientAllergy{}, // Patient Allergies with SNOMED CT codes
+		// Medical Record Archives (Arsip Rekam Medis)
+		&models.MedicalRecordArchive{},   // Archive Master
+		&models.ArchiveMovement{},        // Archive Movement History (Borrow/Return/Transfer)
+		&models.ArchiveDestruction{},     // Archive Destruction Batch
+		&models.ArchiveDestructionItem{}, // Archive Destruction Items
+		&models.ArchiveSetting{},         // Archive Settings
+		// E-Klaim (iDRG & INACBG Grouping per 25 Kriteria KEMENKES)
+		&models.EKlaim{},          // E-Klaim Master
+		&models.EKlaimDiagnosis{}, // E-Klaim Diagnoses (ICD-10)
+		&models.EKlaimProcedure{}, // E-Klaim Procedures (ICD-9-CM)
+		&models.EKlaimLog{},       // E-Klaim Activity Logs
 	)
 
 	if err != nil {
@@ -647,6 +668,8 @@ func SeedData() error {
 		{Name: "medical_records.diagnosis", Module: "Medical Record Management", Category: "Medical", Description: "Create and update diagnosis", Actions: `["create", "update"]`},
 		{Name: "medical_records.assessment_plan", Module: "Medical Record Management", Category: "Medical", Description: "Create and update assessment & plan", Actions: `["create", "update"]`},
 		{Name: "medical_records.disposition", Module: "Medical Record Management", Category: "Medical", Description: "Create and update disposition", Actions: `["create", "update"]`},
+		{Name: "medical_records.sick_letter", Module: "Medical Record Management", Category: "Medical", Description: "Create and manage sick letters (surat keterangan sakit)", Actions: `["create", "update", "delete"]`},
+		{Name: "medical_records.death_certificate", Module: "Medical Record Management", Category: "Medical", Description: "Create and manage death certificates (surat kematian)", Actions: `["create", "update", "delete"]`},
 		{Name: "medical_records.procedure", Module: "Medical Record Management", Category: "Medical", Description: "Perform and record procedures during visit", Actions: `["create", "update", "delete"]`},
 		{Name: "medical_records.inpatient", Module: "Medical Record Management", Category: "Medical", Description: "Manage inpatient records (CPPT, Fluid Balance)", Actions: `["create", "update", "delete"]`},
 		{Name: "medical_records.cppt", Module: "Medical Record Management", Category: "Medical", Description: "Create and manage CPPT records", Actions: `["create", "update", "delete"]`},
@@ -668,11 +691,13 @@ func SeedData() error {
 		// Procedure Orders (Order Radiologi & Laboratorium)
 		{Name: "procedure_orders.view", Module: "Procedure Order Management", Category: "Penunjang", Description: "View procedure orders", Actions: `["read"]`},
 		{Name: "procedure_orders.create", Module: "Procedure Order Management", Category: "Penunjang", Description: "Create procedure orders", Actions: `["create"]`},
+		{Name: "procedure_orders.edit", Module: "Procedure Order Management", Category: "Penunjang", Description: "Edit procedure order items (add/update/delete procedures)", Actions: `["create", "update", "delete"]`},
 		{Name: "procedure_orders.perform", Module: "Procedure Order Management", Category: "Penunjang", Description: "Perform and input procedure results", Actions: `["update"]`},
 		{Name: "procedure_orders.validate", Module: "Procedure Order Management", Category: "Penunjang", Description: "Validate procedure results", Actions: `["update"]`},
 
 		// Pharmacy (Farmasi)
 		{Name: "pharmacy.view", Module: "Pharmacy Management", Category: "Pharmacy", Description: "View pharmacy orders and queue", Actions: `["read"]`},
+		{Name: "pharmacy.edit", Module: "Pharmacy Management", Category: "Pharmacy", Description: "Edit prescription items (add/update/delete medicines)", Actions: `["create", "update", "delete"]`},
 		{Name: "pharmacy.review", Module: "Pharmacy Management", Category: "Pharmacy", Description: "Review prescriptions (telaah resep)", Actions: `["create", "update"]`},
 		{Name: "pharmacy.dispense", Module: "Pharmacy Management", Category: "Pharmacy", Description: "Dispense medicines to patients", Actions: `["create", "update"]`},
 		{Name: "pharmacy.return", Module: "Pharmacy Management", Category: "Pharmacy", Description: "Process medicine returns", Actions: `["create"]`},
@@ -702,6 +727,22 @@ func SeedData() error {
 		{Name: "integrations.manage", Module: "System Integrations", Category: "Integrations", Description: "Manage system integrations (BPJS, SatuSehat, etc)", Actions: `["read", "create", "update", "delete"]`},
 		{Name: "integrations.sync", Module: "System Integrations", Category: "Integrations", Description: "Sync data with external systems", Actions: `["sync"]`},
 
+		// Medical Record Archives (Arsip Rekam Medis)
+		{Name: "archives.view", Module: "Archive Management", Category: "Archives", Description: "View medical record archives", Actions: `["read"]`},
+		{Name: "archives.manage", Module: "Archive Management", Category: "Archives", Description: "Manage archive locations and status", Actions: `["create", "update"]`},
+		{Name: "archives.borrow", Module: "Archive Management", Category: "Archives", Description: "Borrow and return medical record archives", Actions: `["create", "update"]`},
+		{Name: "archives.destruction", Module: "Archive Management", Category: "Archives", Description: "Propose archive destruction", Actions: `["create"]`},
+		{Name: "archives.destruction.approve", Module: "Archive Management", Category: "Archives", Description: "Approve archive destruction proposals", Actions: `["update"]`},
+		{Name: "archives.destruction.execute", Module: "Archive Management", Category: "Archives", Description: "Execute archive destruction", Actions: `["delete"]`},
+
+		// E-Klaim Management (iDRG & INACBG per 25 Kriteria KEMENKES)
+		{Name: "eklaim.view", Module: "E-Klaim Management", Category: "Billing", Description: "View E-Klaim list and details", Actions: `["read"]`},
+		{Name: "eklaim.create", Module: "E-Klaim Management", Category: "Billing", Description: "Create E-Klaim from visit", Actions: `["create"]`},
+		{Name: "eklaim.edit", Module: "E-Klaim Management", Category: "Billing", Description: "Edit E-Klaim data and diagnoses/procedures", Actions: `["update"]`},
+		{Name: "eklaim.grouping", Module: "E-Klaim Management", Category: "Billing", Description: "Perform iDRG and INACBG grouping", Actions: `["update"]`},
+		{Name: "eklaim.final", Module: "E-Klaim Management", Category: "Billing", Description: "Finalize iDRG, INACBG, and Claim", Actions: `["update"]`},
+		{Name: "eklaim.send", Module: "E-Klaim Management", Category: "Billing", Description: "Send claim to BPJS", Actions: `["create"]`},
+		{Name: "eklaim.delete", Module: "E-Klaim Management", Category: "Billing", Description: "Delete E-Klaim records", Actions: `["delete"]`},
 	}
 
 	// Batch insert permissions using CreateInBatches for better performance
@@ -767,14 +808,32 @@ func seedRolesAndAdmin() error {
 		log.Println("Default admin user created: admin@simrs.com / admin123")
 	}
 
-	// Create default settings
+	// Create default settings - only if key doesn't exist
+	// Uses Unscoped to also check soft-deleted records
 	defaultSettings := []models.Setting{
 		{Key: "app_name", Value: "StarterKits"},
 		{Key: "app_subtitle", Value: "Hospital System"},
+		// Hospital / Facility info (untuk kop cetakan)
+		{Key: "hospital_name", Value: "RS Contoh Sejahtera"},
+		{Key: "hospital_type", Value: "RSU Tipe C"},
+		{Key: "hospital_address", Value: "Jl. Kesehatan No. 123"},
+		{Key: "hospital_city", Value: "Kota Contoh, Jawa Tengah 12345"},
+		{Key: "hospital_phone", Value: "(021) 1234567"},
+		{Key: "hospital_fax", Value: "(021) 1234568"},
+		{Key: "hospital_email", Value: "info@rscontoh.co.id"},
+		{Key: "hospital_website", Value: "www.rscontoh.co.id"},
 	}
 
 	for _, setting := range defaultSettings {
-		DB.Where(models.Setting{Key: setting.Key}).FirstOrCreate(&setting)
+		var existing models.Setting
+		// Check if setting exists (including soft-deleted)
+		result := DB.Unscoped().Where("key = ?", setting.Key).First(&existing)
+		if result.RowsAffected == 0 {
+			// Only create if truly doesn't exist
+			DB.Create(&setting)
+			log.Printf("Created default setting: %s", setting.Key)
+		}
+		// If exists, don't touch it - preserve user's value
 	}
 
 	return nil

@@ -99,6 +99,7 @@ export interface Registration {
     tanggal_lahir?: string;
     telepon?: string;
     alamat?: string;
+    foto?: string;
     // English fallbacks
     name?: string;
     medical_record_number?: string;
@@ -128,6 +129,7 @@ export interface Registration {
   };
   payment_method: "cash" | "bpjs" | "insurance";
   bpjs_number?: string;
+  sep_number?: string; // SEP Number for BPJS
   insurance_name?: string;
   insurance_number?: string;
   complaint?: string;
@@ -155,8 +157,11 @@ export interface Registration {
       status: string;
     };
   };
-  created_at: string;
-  updated_at: string;
+  // GORM fields - both cases supported
+  created_at?: string;
+  updated_at?: string;
+  CreatedAt?: string;
+  UpdatedAt?: string;
 }
 
 export interface RegistrationSummary {

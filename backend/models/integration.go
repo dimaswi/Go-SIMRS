@@ -110,8 +110,8 @@ type IntegrationConfigKey struct {
 func createBPJSConfigKeys(integrationType IntegrationType, serviceName string) []IntegrationConfigKey {
 	return []IntegrationConfigKey{
 		{Integration: integrationType, Key: "cons_id", Description: "Consumer ID " + serviceName, IsEncrypted: false, IsSecret: false, Default: ""},
-		{Integration: integrationType, Key: "secret_key", Description: "Secret Key " + serviceName, IsEncrypted: true, IsSecret: true, Default: ""},
-		{Integration: integrationType, Key: "user_key", Description: "User Key " + serviceName, IsEncrypted: true, IsSecret: true, Default: ""},
+		{Integration: integrationType, Key: "secret_key", Description: "Secret Key " + serviceName, IsEncrypted: false, IsSecret: true, Default: ""},
+		{Integration: integrationType, Key: "user_key", Description: "User Key " + serviceName, IsEncrypted: false, IsSecret: true, Default: ""},
 		{Integration: integrationType, Key: "kode_ppk", Description: "Kode Faskes/PPK", IsEncrypted: false, IsSecret: false, Default: ""},
 		{Integration: integrationType, Key: "nama_ppk", Description: "Nama Faskes", IsEncrypted: false, IsSecret: false, Default: ""},
 		{Integration: integrationType, Key: "environment", Description: "Environment: development atau production", IsEncrypted: false, IsSecret: false, Default: "development"},
@@ -119,14 +119,17 @@ func createBPJSConfigKeys(integrationType IntegrationType, serviceName string) [
 		{Integration: integrationType, Key: "base_url_prod", Description: "Base URL Production", IsEncrypted: false, IsSecret: false, Default: "https://apijkn.bpjs-kesehatan.go.id"},
 		{Integration: integrationType, Key: "sync_interval_minutes", Description: "Interval sinkronisasi dalam menit", IsEncrypted: false, IsSecret: false, Default: "5"},
 		{Integration: integrationType, Key: "auto_sync_enabled", Description: "Enable auto sync", IsEncrypted: false, IsSecret: false, Default: "false"},
+		// Webhook credentials - BPJS uses these to authenticate when calling our endpoints
+		{Integration: integrationType, Key: "webhook_username", Description: "Username untuk BPJS webhook ke RS", IsEncrypted: false, IsSecret: false, Default: ""},
+		{Integration: integrationType, Key: "webhook_password", Description: "Password untuk BPJS webhook ke RS", IsEncrypted: false, IsSecret: true, Default: ""},
 	}
 }
 
 // BPJS Config Keys (Legacy - for backward compatibility)
 var BPJSConfigKeys = []IntegrationConfigKey{
 	{Integration: IntegrationTypeBPJS, Key: "cons_id", Description: "Consumer ID dari BPJS", IsEncrypted: false, IsSecret: false, Default: ""},
-	{Integration: IntegrationTypeBPJS, Key: "secret_key", Description: "Secret Key dari BPJS", IsEncrypted: true, IsSecret: true, Default: ""},
-	{Integration: IntegrationTypeBPJS, Key: "user_key", Description: "User Key dari BPJS", IsEncrypted: true, IsSecret: true, Default: ""},
+	{Integration: IntegrationTypeBPJS, Key: "secret_key", Description: "Secret Key dari BPJS", IsEncrypted: false, IsSecret: true, Default: ""},
+	{Integration: IntegrationTypeBPJS, Key: "user_key", Description: "User Key dari BPJS", IsEncrypted: false, IsSecret: true, Default: ""},
 	{Integration: IntegrationTypeBPJS, Key: "kode_ppk", Description: "Kode Faskes/PPK", IsEncrypted: false, IsSecret: false, Default: ""},
 	{Integration: IntegrationTypeBPJS, Key: "nama_ppk", Description: "Nama Faskes", IsEncrypted: false, IsSecret: false, Default: ""},
 	{Integration: IntegrationTypeBPJS, Key: "environment", Description: "Environment: development atau production", IsEncrypted: false, IsSecret: false, Default: "development"},
@@ -134,6 +137,8 @@ var BPJSConfigKeys = []IntegrationConfigKey{
 	{Integration: IntegrationTypeBPJS, Key: "base_url_prod", Description: "Base URL Production", IsEncrypted: false, IsSecret: false, Default: "https://apijkn.bpjs-kesehatan.go.id"},
 	{Integration: IntegrationTypeBPJS, Key: "sync_interval_minutes", Description: "Interval sinkronisasi dalam menit", IsEncrypted: false, IsSecret: false, Default: "5"},
 	{Integration: IntegrationTypeBPJS, Key: "auto_sync_enabled", Description: "Enable auto sync", IsEncrypted: false, IsSecret: false, Default: "false"},
+	{Integration: IntegrationTypeBPJS, Key: "webhook_username", Description: "Username untuk BPJS webhook ke RS", IsEncrypted: false, IsSecret: false, Default: ""},
+	{Integration: IntegrationTypeBPJS, Key: "webhook_password", Description: "Password untuk BPJS webhook ke RS", IsEncrypted: false, IsSecret: true, Default: ""},
 }
 
 // Per-service BPJS Config Keys
@@ -143,10 +148,10 @@ var BPJSICareConfigKeys = createBPJSConfigKeys(IntegrationTypeBPJSICare, "I-Care
 var BPJSApotekConfigKeys = createBPJSConfigKeys(IntegrationTypeBPJSApotek, "Apotek Online")
 var BPJSRMEConfigKeys = createBPJSConfigKeys(IntegrationTypeBPJSRME, "RME")
 
-// SatuSehat Config Keys
+// SatuSehat Config Keys - TANPA enkripsi, simpan plain text
 var SatuSehatConfigKeys = []IntegrationConfigKey{
 	{Integration: IntegrationTypeSatuSehat, Key: "client_id", Description: "Client ID dari SatuSehat", IsEncrypted: false, IsSecret: false, Default: ""},
-	{Integration: IntegrationTypeSatuSehat, Key: "client_secret", Description: "Client Secret dari SatuSehat", IsEncrypted: true, IsSecret: true, Default: ""},
+	{Integration: IntegrationTypeSatuSehat, Key: "client_secret", Description: "Client Secret dari SatuSehat", IsEncrypted: false, IsSecret: true, Default: ""},
 	{Integration: IntegrationTypeSatuSehat, Key: "organization_id", Description: "Organization ID SatuSehat", IsEncrypted: false, IsSecret: false, Default: ""},
 	{Integration: IntegrationTypeSatuSehat, Key: "environment", Description: "Environment: development atau production", IsEncrypted: false, IsSecret: false, Default: "development"},
 	{Integration: IntegrationTypeSatuSehat, Key: "base_url_dev", Description: "Base URL Development", IsEncrypted: false, IsSecret: false, Default: "https://api-satusehat-stg.dto.kemkes.go.id"},

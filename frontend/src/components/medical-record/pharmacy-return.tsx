@@ -167,6 +167,9 @@ export function PharmacyReturn({ visitId, readOnly = false }: PharmacyReturnProp
       });
       setShowReturnDialog(false);
       loadOrders();
+      // Trigger refresh print options dan final visit
+      window.dispatchEvent(new CustomEvent("refresh-print-options"));
+      window.dispatchEvent(new CustomEvent("refresh-final-visit"));
     } catch (error: any) {
       toast({
         variant: "destructive",

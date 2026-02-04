@@ -1,97 +1,23 @@
 package handlers
 
 import (
-	"crypto/aes"
-	"crypto/cipher"
 	"crypto/hmac"
-	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"starter/backend/database"
 	"starter/backend/models"
 	"starter/backend/services/bpjs"
+	bpjsService "starter/backend/services/bpjs"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 )
-
-// getEncryptionKey returns a 32-byte key for AES-256
-func getEncryptionKey() []byte {
-	key := os.Getenv("BPJS_ENCRYPTION_KEY")
-	if key == "" {
-		key = "simrs-bpjs-default-encryption-key-32b"
-	}
-	// Ensure 32 bytes for AES-256
-	hash := sha256.Sum256([]byte(key))
-	return hash[:]
-}
-
-// encryptValue encrypts a string using AES-256-GCM
-func encryptValue(plaintext string) (string, error) {
-	if plaintext == "" {
-		return "", nil
-	}
-
-	block, err := aes.NewCipher(getEncryptionKey())
-	if err != nil {
-		return "", err
-	}
-
-	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return "", err
-	}
-
-	nonce := make([]byte, gcm.NonceSize())
-	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
-		return "", err
-	}
-
-	ciphertext := gcm.Seal(nonce, nonce, []byte(plaintext), nil)
-	return base64.StdEncoding.EncodeToString(ciphertext), nil
-}
-
-// decryptValue decrypts a string using AES-256-GCM
-func decryptValue(ciphertext string) (string, error) {
-	if ciphertext == "" {
-		return "", nil
-	}
-
-	data, err := base64.StdEncoding.DecodeString(ciphertext)
-	if err != nil {
-		return "", err
-	}
-
-	block, err := aes.NewCipher(getEncryptionKey())
-	if err != nil {
-		return "", err
-	}
-
-	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return "", err
-	}
-
-	nonceSize := gcm.NonceSize()
-	if len(data) < nonceSize {
-		return "", fmt.Errorf("ciphertext too short")
-	}
-
-	nonce, cipherData := data[:nonceSize], data[nonceSize:]
-	plaintext, err := gcm.Open(nil, nonce, cipherData, nil)
-	if err != nil {
-		return "", err
-	}
-
-	return string(plaintext), nil
-}
 
 // maskSecret returns a masked version of secret value
 func maskSecret(value string) string {
@@ -104,7 +30,7 @@ func maskSecret(value string) string {
 // GetBPJSConfig returns all BPJS configuration
 func GetBPJSConfig(c *gin.Context) {
 	var configs []models.IntegrationConfig
-	if err := database.DB.Where("integration = ?", models.IntegrationTypeBPJS).Find(&configs).Error; err != nil {
+	if err := database.DB.Where("integration = ?", models.IntegrationTypeBPJSAntrian).Find(&configs).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengambil konfigurasi BPJS"})
 		return
 	}
@@ -118,33 +44,23 @@ func GetBPJSConfig(c *gin.Context) {
 	// Convert to map for easier frontend consumption
 	configMap := make(map[string]interface{})
 	for _, config := range configs {
-		value := config.Value
+		value := config.Value // Langsung ambil nilai TANPA dekripsi
 		def := configDefs[config.Key]
 
-		// Decrypt if encrypted
-		if config.IsEncrypted && value != "" {
-			decrypted, err := decryptValue(value)
-			if err == nil {
-				value = decrypted
-			}
-		}
-
-		// Mask secret values
+		// Mask secret values for display
 		if config.IsSecret && value != "" {
 			configMap["bpjs_"+config.Key] = gin.H{
-				"value":        maskSecret(value),
-				"has_value":    true,
-				"description":  def.Description,
-				"is_secret":    true,
-				"is_encrypted": config.IsEncrypted,
+				"value":       maskSecret(value),
+				"has_value":   true,
+				"description": def.Description,
+				"is_secret":   true,
 			}
 		} else {
 			configMap["bpjs_"+config.Key] = gin.H{
-				"value":        value,
-				"has_value":    value != "",
-				"description":  def.Description,
-				"is_secret":    false,
-				"is_encrypted": config.IsEncrypted,
+				"value":       value,
+				"has_value":   value != "",
+				"description": def.Description,
+				"is_secret":   false,
 			}
 		}
 	}
@@ -166,7 +82,7 @@ func UpdateBPJSConfig(c *gin.Context) {
 		configDefs[def.Key] = def
 	}
 
-	// Update or create each config
+	// Update or create each config (TANPA ENKRIPSI - simpan plain text)
 	for key, value := range input {
 		// Remove bpjs_ prefix if present
 		actualKey := strings.TrimPrefix(key, "bpjs_")
@@ -176,26 +92,18 @@ func UpdateBPJSConfig(c *gin.Context) {
 		}
 
 		var config models.IntegrationConfig
-		result := database.DB.Where("integration = ? AND key = ?", models.IntegrationTypeBPJS, actualKey).First(&config)
+		result := database.DB.Where("integration = ? AND key = ?", models.IntegrationTypeBPJSAntrian, actualKey).First(&config)
 
-		// Encrypt if needed
+		// Simpan langsung tanpa enkripsi
 		valueToSave := value
-		if def.IsEncrypted && value != "" {
-			encrypted, err := encryptValue(value)
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengenkripsi nilai"})
-				return
-			}
-			valueToSave = encrypted
-		}
 
 		if result.Error != nil {
 			// Create new config
 			config = models.IntegrationConfig{
-				Integration: models.IntegrationTypeBPJS,
+				Integration: models.IntegrationTypeBPJSAntrian,
 				Key:         actualKey,
 				Value:       valueToSave,
-				IsEncrypted: def.IsEncrypted,
+				IsEncrypted: false, // TIDAK PERNAH enkripsi
 				IsSecret:    def.IsSecret,
 			}
 			if err := database.DB.Create(&config).Error; err != nil {
@@ -205,6 +113,7 @@ func UpdateBPJSConfig(c *gin.Context) {
 		} else {
 			// Update existing config
 			config.Value = valueToSave
+			config.IsEncrypted = false // Set ke false juga untuk data lama
 			if err := database.DB.Save(&config).Error; err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengupdate konfigurasi"})
 				return
@@ -219,14 +128,14 @@ func UpdateBPJSConfig(c *gin.Context) {
 func InitBPJSConfig(c *gin.Context) {
 	for _, def := range models.BPJSConfigKeys {
 		var existing models.IntegrationConfig
-		result := database.DB.Where("integration = ? AND key = ?", models.IntegrationTypeBPJS, def.Key).First(&existing)
+		result := database.DB.Where("integration = ? AND key = ?", models.IntegrationTypeBPJSAntrian, def.Key).First(&existing)
 		if result.Error != nil {
 			// Create if not exists
 			newConfig := models.IntegrationConfig{
-				Integration: models.IntegrationTypeBPJS,
+				Integration: models.IntegrationTypeBPJSAntrian,
 				Key:         def.Key,
 				Value:       def.Default,
-				IsEncrypted: def.IsEncrypted,
+				IsEncrypted: false, // TIDAK PERNAH enkripsi
 				IsSecret:    def.IsSecret,
 			}
 			database.DB.Create(&newConfig)
@@ -247,8 +156,12 @@ func GetBPJSSyncLogs(c *gin.Context) {
 		limit = l
 	}
 
-	query := database.DB.Where("integration = ?", models.IntegrationTypeBPJS).
-		Order("created_at DESC").Limit(limit)
+	// Query untuk semua integration type BPJS (termasuk legacy "bpjs" dan "bpjs-antrian")
+	query := database.DB.Where("integration IN ?", []string{
+		string(models.IntegrationTypeBPJS),
+		string(models.IntegrationTypeBPJSAntrian),
+		string(models.IntegrationTypeBPJSVClaim),
+	}).Order("created_at DESC").Limit(limit)
 
 	// Filter by status if provided
 	status := c.Query("status")
@@ -273,13 +186,7 @@ func GetBPJSSyncLogs(c *gin.Context) {
 		return
 	}
 
-	// Mask sensitive data in logs
-	for i := range logs {
-		// Mask request body if contains sensitive data
-		if strings.Contains(logs[i].RequestBody, "secret") || strings.Contains(logs[i].RequestBody, "key") {
-			logs[i].RequestBody = "[MASKED]"
-		}
-	}
+	// Note: No masking - all request/response bodies are shown for debugging
 
 	c.JSON(http.StatusOK, gin.H{"data": logs})
 }
@@ -295,26 +202,31 @@ func GetBPJSSyncStats(c *gin.Context) {
 
 	var stats Stats
 
-	// Get today's stats for BPJS integration
+	// Get today's stats for BPJS integration (semua type)
 	today := time.Now().Format("2006-01-02")
+	bpjsTypes := []string{
+		string(models.IntegrationTypeBPJS),
+		string(models.IntegrationTypeBPJSAntrian),
+		string(models.IntegrationTypeBPJSVClaim),
+	}
 
 	database.DB.Model(&models.IntegrationSyncLog{}).
-		Where("integration = ? AND DATE(request_at) = ?", models.IntegrationTypeBPJS, today).
+		Where("integration IN ? AND DATE(request_at) = ?", bpjsTypes, today).
 		Count(&stats.TotalRequests)
 
 	database.DB.Model(&models.IntegrationSyncLog{}).
-		Where("integration = ? AND DATE(request_at) = ? AND status = ?", models.IntegrationTypeBPJS, today, "success").
+		Where("integration IN ? AND DATE(request_at) = ? AND status = ?", bpjsTypes, today, "success").
 		Count(&stats.SuccessRequests)
 
 	database.DB.Model(&models.IntegrationSyncLog{}).
-		Where("integration = ? AND DATE(request_at) = ? AND status = ?", models.IntegrationTypeBPJS, today, "failed").
+		Where("integration IN ? AND DATE(request_at) = ? AND status = ?", bpjsTypes, today, "failed").
 		Count(&stats.FailedRequests)
 
 	var avgDuration struct {
 		Avg float64
 	}
 	database.DB.Model(&models.IntegrationSyncLog{}).
-		Where("integration = ? AND DATE(request_at) = ?", models.IntegrationTypeBPJS, today).
+		Where("integration IN ? AND DATE(request_at) = ?", bpjsTypes, today).
 		Select("COALESCE(AVG(duration_ms), 0) as avg").
 		Scan(&avgDuration)
 	stats.AvgDurationMs = avgDuration.Avg
@@ -484,9 +396,14 @@ func GetBPJSDoctorMappings(c *gin.Context) {
 func CreateBPJSDoctorMapping(c *gin.Context) {
 	var input models.BPJSDoctorMapping
 	if err := c.ShouldBindJSON(&input); err != nil {
+		fmt.Printf("[BPJS CreateDoctorMapping] BindJSON Error: %v\n", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
+	// Debug log
+	fmt.Printf("[BPJS CreateDoctorMapping] Input: PoliMappingID=%d, EmployeeID=%d, KodeDokter=%s\n",
+		input.PoliMappingID, input.EmployeeID, input.KodeDokterBPJS)
 
 	// Validate poli mapping exists
 	var poliMapping models.BPJSPoliMapping
@@ -504,12 +421,15 @@ func CreateBPJSDoctorMapping(c *gin.Context) {
 	input.EmployeeName = employee.NamaLengkap
 
 	// Validate doctor schedule if provided
-	if input.DoctorScheduleID != 0 {
+	if input.DoctorScheduleID != nil && *input.DoctorScheduleID != 0 {
 		var schedule models.DoctorSchedule
-		if err := database.DB.First(&schedule, input.DoctorScheduleID).Error; err != nil {
+		if err := database.DB.First(&schedule, *input.DoctorScheduleID).Error; err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Jadwal dokter tidak ditemukan"})
 			return
 		}
+	} else {
+		// Set to nil if 0 or not provided
+		input.DoctorScheduleID = nil
 	}
 
 	// Check duplicate: same poli + employee + kode dokter
@@ -521,7 +441,8 @@ func CreateBPJSDoctorMapping(c *gin.Context) {
 	}
 
 	if err := database.DB.Create(&input).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat mapping dokter"})
+		fmt.Printf("[BPJS CreateDoctorMapping] Error: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat mapping dokter: " + err.Error()})
 		return
 	}
 
@@ -657,22 +578,15 @@ func GenerateBPJSSignature(consID, secretKey, timestamp string) string {
 func DebugBPJSSignature(c *gin.Context) {
 	// Get BPJS config
 	var configs []models.IntegrationConfig
-	if err := database.DB.Where("integration = ?", models.IntegrationTypeBPJS).Find(&configs).Error; err != nil {
+	if err := database.DB.Where("integration = ?", models.IntegrationTypeBPJSAntrian).Find(&configs).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengambil konfigurasi BPJS"})
 		return
 	}
 
 	configMap := make(map[string]string)
 	for _, cfg := range configs {
-		value := cfg.Value
-		// Decrypt if encrypted
-		if cfg.IsEncrypted && value != "" {
-			decrypted, err := decryptValue(value)
-			if err == nil {
-				value = decrypted
-			}
-		}
-		configMap[cfg.Key] = value
+		// Langsung ambil nilai TANPA dekripsi
+		configMap[cfg.Key] = cfg.Value
 	}
 
 	consID := configMap["cons_id"]
@@ -714,17 +628,17 @@ func DebugBPJSSignature(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"debug_info": gin.H{
-			"cons_id":          consID,
-			"secret_key":       maskSecret(secretKey),
-			"secret_key_len":   len(secretKey),
-			"user_key":         maskSecret(userKey),
-			"timestamp":        timestamp,
-			"signature_data":   signatureData,
-			"signature":        signature,
-			"signature_hex":    hex.EncodeToString(signatureBytes),
-			"environment":      environment,
-			"base_url":         baseURL,
-			"sample_full_url":  baseURL + "/ref/poli",
+			"cons_id":         consID,
+			"secret_key":      maskSecret(secretKey),
+			"secret_key_len":  len(secretKey),
+			"user_key":        maskSecret(userKey),
+			"timestamp":       timestamp,
+			"signature_data":  signatureData,
+			"signature":       signature,
+			"signature_hex":   hex.EncodeToString(signatureBytes),
+			"environment":     environment,
+			"base_url":        baseURL,
+			"sample_full_url": baseURL + "/ref/poli",
 		},
 		"headers_to_use": gin.H{
 			"X-cons-id":    consID,
@@ -753,21 +667,15 @@ func getBPJSDecryptionKey(consID, secretKey, timestamp string) string {
 func TestBPJSRaw(c *gin.Context) {
 	// Get BPJS config
 	var configs []models.IntegrationConfig
-	if err := database.DB.Where("integration = ?", models.IntegrationTypeBPJS).Find(&configs).Error; err != nil {
+	if err := database.DB.Where("integration = ?", models.IntegrationTypeBPJSAntrian).Find(&configs).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengambil konfigurasi BPJS"})
 		return
 	}
 
 	configMap := make(map[string]string)
 	for _, cfg := range configs {
-		value := cfg.Value
-		if cfg.IsEncrypted && value != "" {
-			decrypted, err := decryptValue(value)
-			if err == nil {
-				value = decrypted
-			}
-		}
-		configMap[cfg.Key] = value
+		// Langsung ambil nilai TANPA dekripsi
+		configMap[cfg.Key] = cfg.Value
 	}
 
 	consID := configMap["cons_id"]
@@ -1048,7 +956,7 @@ func BPJSAPITester(c *gin.Context) {
 
 	// Get BPJS config
 	var configs []models.IntegrationConfig
-	if err := database.DB.Where("integration = ?", models.IntegrationTypeBPJS).Find(&configs).Error; err != nil {
+	if err := database.DB.Where("integration = ?", models.IntegrationTypeBPJSAntrian).Find(&configs).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengambil konfigurasi BPJS"})
 		return
 	}
@@ -1203,4 +1111,392 @@ func BPJSAPITester(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, result)
+}
+
+// ================================================
+// BPJS QUEUE MANAGEMENT
+// ================================================
+
+// GetBPJSQueueByRegistration returns BPJS Queue info by registration ID
+// GET /api/bpjs/queue/registration/:id
+func GetBPJSQueueByRegistration(c *gin.Context) {
+	registrationID := c.Param("id")
+
+	var queue models.BPJSQueue
+	if err := database.DB.Where("registration_id = ?", registrationID).
+		Preload("Patient").
+		Preload("PoliMapping").
+		Preload("DoctorMapping").
+		Preload("Room").
+		First(&queue).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Data BPJS tidak ditemukan untuk pendaftaran ini"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": queue})
+}
+
+// GetBPJSQueueByVisit returns BPJS Queue info by visit ID
+// GET /api/bpjs/queue/visit/:id
+func GetBPJSQueueByVisit(c *gin.Context) {
+	visitID := c.Param("id")
+
+	var queue models.BPJSQueue
+	if err := database.DB.Where("visit_id = ?", visitID).
+		Preload("Patient").
+		Preload("PoliMapping").
+		Preload("DoctorMapping").
+		Preload("Room").
+		First(&queue).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Data BPJS tidak ditemukan untuk kunjungan ini"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": queue})
+}
+
+// GetBPJSQueues returns all BPJS Queues with filters
+// GET /api/bpjs/queues
+func GetBPJSQueues(c *gin.Context) {
+	var queues []models.BPJSQueue
+
+	query := database.DB.Preload("Patient").
+		Preload("PoliMapping").
+		Preload("DoctorMapping").
+		Preload("Room").
+		Preload("Registration").
+		Preload("Visit").
+		Preload("RoomQueue")
+
+	// Filter by date
+	if date := c.Query("date"); date != "" {
+		query = query.Where("DATE(tanggal_periksa) = ?", date)
+	}
+
+	// Filter by status
+	if status := c.Query("status"); status != "" {
+		query = query.Where("status = ?", status)
+	}
+
+	// Filter by poli
+	if kodePoli := c.Query("kode_poli"); kodePoli != "" {
+		query = query.Where("kode_poli = ?", kodePoli)
+	}
+
+	// Order by created_at desc
+	query = query.Order("created_at DESC")
+
+	// Limit
+	if limit := c.Query("limit"); limit != "" {
+		query = query.Limit(100)
+	}
+
+	if err := query.Find(&queues).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": queues})
+}
+
+// ActivateBPJSQueueCheckin activates BPJS queue (check-in by registration staff)
+// POST /api/bpjs/queue/:id/checkin
+func ActivateBPJSQueueCheckin(c *gin.Context) {
+	queueID := c.Param("id")
+
+	var queue models.BPJSQueue
+	if err := database.DB.First(&queue, queueID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Antrian BPJS tidak ditemukan"})
+		return
+	}
+
+	// Validate status
+	if queue.Status != "booking" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Status antrian bukan 'booking', tidak dapat diaktifkan"})
+		return
+	}
+
+	now := time.Now()
+
+	// Start transaction
+	tx := database.DB.Begin()
+
+	// 1. Update BPJSQueue status
+	queue.Status = "checkin"
+	queue.WaktuCheckin = &now
+	queue.Task3At = &now // Task 3: Tunggu di poli
+
+	if err := tx.Save(&queue).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal update status checkin: " + err.Error()})
+		return
+	}
+
+	// 2. Update Registration status dari scheduled ke in_queue
+	if queue.RegistrationID != nil {
+		if err := tx.Model(&models.Registration{}).Where("id = ?", *queue.RegistrationID).
+			Updates(map[string]interface{}{
+				"status":     models.RegistrationStatusInQueue,
+				"updated_at": now,
+			}).Error; err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal update status pendaftaran: " + err.Error()})
+			return
+		}
+	}
+
+	// 3. Update Visit status dari scheduled ke in_queue
+	if queue.VisitID != nil {
+		if err := tx.Model(&models.Visit{}).Where("id = ?", *queue.VisitID).
+			Updates(map[string]interface{}{
+				"status":     models.VisitStatusInQueue,
+				"updated_at": now,
+			}).Error; err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal update status kunjungan: " + err.Error()})
+			return
+		}
+	}
+
+	// 4. Update RoomQueue status dari reserved ke waiting (aktivasi di layar antrian)
+	if queue.RoomQueueID != nil {
+		if err := tx.Model(&models.RoomQueue{}).Where("id = ?", *queue.RoomQueueID).
+			Updates(map[string]interface{}{
+				"status":     models.RoomQueueStatusWaiting,
+				"updated_at": now,
+			}).Error; err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal update status antrian: " + err.Error()})
+			return
+		}
+	}
+
+	// 5. Daftarkan antrean ke BPJS dulu (harus sebelum commit dan update task)
+	// PENTING: Jika AddAntrean gagal (metadata.code != 200), BATALKAN check-in, JANGAN update DB
+	addSuccess, addCode, addMsg := bpjs.AddAntrean(&queue)
+
+	if !addSuccess {
+		// AddAntrean gagal, rollback semua perubahan, TIDAK update database apapun
+		tx.Rollback()
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":            fmt.Sprintf("Gagal mendaftarkan antrean ke BPJS: [%d] %s", addCode, addMsg),
+			"add_antrean_code": addCode,
+			"add_antrean_msg":  addMsg,
+		})
+		return
+	}
+
+	// AddAntrean SUKSES (metadata.code = 200), baru save queue dengan data sync
+	if err := tx.Save(&queue).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal update data antrean: " + err.Error()})
+		return
+	}
+
+	// Commit transaction
+	if err := tx.Commit().Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal commit transaksi: " + err.Error()})
+		return
+	}
+
+	// Kirim Task 3 (tunggu di poli) secara async
+	go func() {
+		bpjsService.UpdateTaskAsync(queue.KodeBooking, 3, now, nil)
+	}()
+
+	// Reload queue untuk dapat data terbaru
+	database.DB.Preload("Patient").
+		Preload("PoliMapping").
+		Preload("DoctorMapping").
+		Preload("Room").
+		Preload("Registration").
+		Preload("Visit").
+		Preload("RoomQueue").
+		First(&queue, queueID)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":             "Check-in berhasil. Antrian telah diaktifkan dan terdaftar di BPJS.",
+		"data":                queue,
+		"add_antrean_sent":    true,
+		"add_antrean_code":    addCode,
+		"add_antrean_msg":     addMsg,
+		"add_antrean_success": addSuccess,
+	})
+}
+
+// SendBPJSTaskManual sends a task update to BPJS manually without updating database
+// POST /api/bpjs/queue/:id/send-task
+func SendBPJSTaskManual(c *gin.Context) {
+	queueID := c.Param("id")
+
+	var req struct {
+		TaskID int   `json:"task_id" binding:"required"`
+		Waktu  int64 `json:"waktu" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Task ID dan Waktu wajib diisi"})
+		return
+	}
+
+	// Validate task ID (3-7)
+	if req.TaskID < 3 || req.TaskID > 7 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Task ID harus antara 3-7"})
+		return
+	}
+
+	// Validate waktu (must be reasonable - not 0, not in far future)
+	if req.Waktu <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Waktu tidak valid"})
+		return
+	}
+
+	var queue models.BPJSQueue
+	if err := database.DB.First(&queue, queueID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Antrian BPJS tidak ditemukan"})
+		return
+	}
+
+	// Waktu dari request (sudah dalam milliseconds)
+	waktu := req.Waktu
+
+	success, responseCode, responseMsg := bpjs.SendTaskManual(queue.KodeBooking, req.TaskID, waktu)
+
+	if !success {
+		c.JSON(http.StatusOK, gin.H{
+			"success":       false,
+			"message":       "Gagal mengirim task ke BPJS",
+			"response_code": responseCode,
+			"response_msg":  responseMsg,
+			"waktu_sent":    waktu,
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":       true,
+		"message":       fmt.Sprintf("Task %d berhasil dikirim ke BPJS", req.TaskID),
+		"response_code": responseCode,
+		"response_msg":  responseMsg,
+		"waktu_sent":    waktu,
+	})
+}
+
+// RetryAddAntrean retry sending /antrean/add to BPJS
+// POST /api/bpjs/queue/:id/retry-add
+// CancelBPJSQueue cancels a BPJS queue from the internal system
+// POST /api/bpjs/queue/:id/cancel
+func CancelBPJSQueue(c *gin.Context) {
+	queueID := c.Param("id")
+
+	var queue models.BPJSQueue
+	if err := database.DB.First(&queue, queueID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Antrian BPJS tidak ditemukan"})
+		return
+	}
+
+	// Validate status - cannot cancel if already checked in or beyond
+	if queue.Status == "checkin" || queue.Status == "dipanggil" || queue.Status == "dilayani" || queue.Status == "selesai" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Antrean tidak dapat dibatalkan karena pasien sudah hadir"})
+		return
+	}
+
+	if queue.Status == "batal" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Antrean sudah dibatalkan sebelumnya"})
+		return
+	}
+
+	now := time.Now()
+
+	// Start transaction
+	tx := database.DB.Begin()
+
+	// 1. Update BPJSQueue status
+	queue.Status = "batal"
+	queue.Keterangan = "Dibatalkan oleh petugas pendaftaran"
+	queue.WaktuBatal = &now
+
+	if err := tx.Save(&queue).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membatalkan antrean: " + err.Error()})
+		return
+	}
+
+	// 2. Update Registration status to cancelled
+	if queue.RegistrationID != nil {
+		if err := tx.Model(&models.Registration{}).Where("id = ?", *queue.RegistrationID).
+			Updates(map[string]interface{}{
+				"status":     models.RegistrationStatusCancelled,
+				"notes":      "Dibatalkan oleh petugas pendaftaran (antrian MJKN)",
+				"updated_at": now,
+			}).Error; err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membatalkan pendaftaran: " + err.Error()})
+			return
+		}
+	}
+
+	// 3. Update Visit status to cancelled
+	if queue.VisitID != nil {
+		if err := tx.Model(&models.Visit{}).Where("id = ?", *queue.VisitID).
+			Updates(map[string]interface{}{
+				"status":     models.VisitStatusCancelled,
+				"notes":      "Dibatalkan oleh petugas pendaftaran (antrian MJKN)",
+				"updated_at": now,
+			}).Error; err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membatalkan kunjungan: " + err.Error()})
+			return
+		}
+	}
+
+	// 4. Update RoomQueue status to cancelled
+	if queue.RoomQueueID != nil {
+		if err := tx.Model(&models.RoomQueue{}).Where("id = ?", *queue.RoomQueueID).
+			Updates(map[string]interface{}{
+				"status":     models.RoomQueueStatusCancelled,
+				"notes":      "Dibatalkan oleh petugas pendaftaran (antrian MJKN)",
+				"updated_at": now,
+			}).Error; err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membatalkan antrian: " + err.Error()})
+			return
+		}
+	}
+
+	// Commit transaction
+	if err := tx.Commit().Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal commit transaksi: " + err.Error()})
+		return
+	}
+
+	// Reload with relations
+	database.DB.Preload("Patient").Preload("Registration").Preload("Visit").Preload("RoomQueue").First(&queue, queueID)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Antrian MJKN berhasil dibatalkan",
+		"data":    queue,
+	})
+}
+
+func RetryAddAntrean(c *gin.Context) {
+	queueID := c.Param("id")
+
+	var queue models.BPJSQueue
+	if err := database.DB.First(&queue, queueID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Antrian BPJS tidak ditemukan"})
+		return
+	}
+
+	// Call AddAntrean
+	success, code, msg := bpjs.AddAntrean(&queue)
+
+	// Reload queue
+	database.DB.First(&queue, queueID)
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":       success,
+		"response_code": code,
+		"response_msg":  msg,
+		"data":          queue,
+	})
 }

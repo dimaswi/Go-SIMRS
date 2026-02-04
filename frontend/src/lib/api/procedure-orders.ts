@@ -224,6 +224,10 @@ export const procedureOrdersApi = {
   cancel: (id: number, reason?: string) =>
     api.post<ProcedureOrder>(`/procedure-orders/${id}/cancel`, { reason }),
 
+  // Recalculate order status (fix inconsistent status)
+  recalculate: (id: number) =>
+    api.post<{ message: string; new_status: string }>(`/procedure-orders/${id}/recalculate`, {}),
+
   // Validate result
   validate: (id: number) =>
     api.post<ProcedureOrder>(`/procedure-orders/${id}/validate`),
@@ -307,6 +311,19 @@ export const procedureOrdersApi = {
 
   // Print result
   print: (id: number) => api.get<ProcedureOrder>(`/procedure-orders/${id}/print`),
+
+  // === PROCEDURE ORDER ITEM CRUD ===
+  // Add item to order
+  addItem: (orderId: number, data: { procedure_id: number; notes?: string }) =>
+    api.post<ProcedureOrderItem>(`/procedure-orders/${orderId}/items`, data),
+
+  // Update item in order
+  updateItem: (orderId: number, itemId: number, data: { notes?: string }) =>
+    api.put<ProcedureOrderItem>(`/procedure-orders/${orderId}/items/${itemId}`, data),
+
+  // Delete item from order
+  deleteItem: (orderId: number, itemId: number) =>
+    api.delete(`/procedure-orders/${orderId}/items/${itemId}`),
 };
 
 export default procedureOrdersApi;

@@ -36,11 +36,26 @@ func SetupProcedureOrderRoutes(r *gin.RouterGroup) {
 		// Cancel order
 		procedureOrders.POST("/:id/cancel", middleware.RequirePermission("procedure_orders.create"), handlers.CancelProcedureOrder)
 
+		// Recalculate order status (fix inconsistent status)
+		procedureOrders.POST("/:id/recalculate", middleware.RequirePermission("procedure_orders.perform"), handlers.RecalculateProcedureOrderStatus)
+
 		// Validate result (by doctor)
 		procedureOrders.POST("/:id/validate", middleware.RequirePermission("procedure_orders.validate"), handlers.ValidateProcedureResult)
 
 		// Print result
 		procedureOrders.GET("/:id/print", middleware.RequirePermission("procedure_orders.view"), handlers.PrintProcedureOrderResult)
+
+		// Print laboratory result (all items)
+		procedureOrders.GET("/:id/print-lab", middleware.RequirePermission("procedure_orders.view"), handlers.PrintLaboratoryResult)
+
+		// Print radiology result (all items)
+		procedureOrders.GET("/:id/print-radiology", middleware.RequirePermission("procedure_orders.view"), handlers.PrintRadiologyResult)
+
+		// Print single laboratory result item
+		procedureOrders.GET("/items/:itemId/print-lab", middleware.RequirePermission("procedure_orders.view"), handlers.PrintLaboratoryResultItem)
+
+		// Print single radiology result item
+		procedureOrders.GET("/items/:itemId/print-radiology", middleware.RequirePermission("procedure_orders.view"), handlers.PrintRadiologyResultItem)
 
 		// Get orders by source visit
 		procedureOrders.GET("/by-visit/:visit_id", middleware.RequirePermission("procedure_orders.view"), handlers.GetOrdersBySourceVisit)
@@ -71,5 +86,15 @@ func SetupProcedureOrderRoutes(r *gin.RouterGroup) {
 
 		// Get surgical procedures, optionally filtered by room_id
 		procedureOrders.GET("/procedures/surgical", middleware.RequirePermission("procedure_orders.view"), handlers.GetSurgicalProcedures)
+
+		// === PROCEDURE ORDER ITEM CRUD ===
+		// Add item to order
+		procedureOrders.POST("/:id/items", middleware.RequirePermission("procedure_orders.edit"), handlers.AddProcedureOrderItem)
+
+		// Update item in order
+		procedureOrders.PUT("/:id/items/:itemId", middleware.RequirePermission("procedure_orders.edit"), handlers.UpdateProcedureOrderItem)
+
+		// Delete item from order
+		procedureOrders.DELETE("/:id/items/:itemId", middleware.RequirePermission("procedure_orders.edit"), handlers.DeleteProcedureOrderItem)
 	}
 }

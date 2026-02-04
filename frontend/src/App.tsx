@@ -7,7 +7,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { Toaster as SonnerToaster } from '@/components/ui/sonner';
 import { NotificationProvider } from '@/contexts/notification-context';
 import { Loader2 } from 'lucide-react';
-import { EmployeeRoutes, RegionRoutes, MasterDataRoutes, RoomRoutes, ProcedureRoutes, PatientRoutes, InventoryRoutes, MedicineRoutes, StockRequestRoutes, DistributionRoutes, PurchaseRoutes, StockOpnameRoutes, SupplierRoutes, RoomStockRoutes, QueueRoutes, RegistrationRoutes, IntegrationsRoutes } from './routes';
+import { EmployeeRoutes, RegionRoutes, MasterDataRoutes, RoomRoutes, ProcedureRoutes, PatientRoutes, InventoryRoutes, MedicineRoutes, StockRequestRoutes, DistributionRoutes, PurchaseRoutes, StockOpnameRoutes, SupplierRoutes, RoomStockRoutes, QueueRoutes, RegistrationRoutes, IntegrationsRoutes, ArchiveRoutes } from './routes';
 import { KioskRoutes } from './routes/KioskRoutes';
 import { QueueDisplayRoutes } from './routes/QueueDisplayRoutes';
 import { CounterRoutes } from './routes/CounterRoutes';
@@ -15,6 +15,7 @@ import { RoomQueueRoutes } from './routes/RoomQueueRoutes';
 import VisitRoutes from './routes/VisitRoutes';
 import BillingRoutes from './routes/BillingRoutes';
 import { ICDRoutes } from './routes/ICDRoutes';
+import EKlaimRoutes from './routes/EKlaimRoutes';
 
 // Lazy load pages
 const LoginPage = lazy(() => import('./pages/auth/login'));
@@ -57,6 +58,9 @@ const AdmissionRequestsShow = lazy(() => import('./pages/admisi/show'));
 
 // Check-in Scanner
 const CheckInScannerPage = lazy(() => import('./pages/checkin/scanner'));
+
+// Quality Control & Cost Management
+const QualityCostPage = lazy(() => import('./pages/quality-cost/index'));
 
 function LoadingFallback() {
   return (
@@ -244,6 +248,9 @@ function App() {
           {/* Billing & Kasir */}
           <Route path="/billing/*" element={<ProtectedRoute><BillingRoutes /></ProtectedRoute>} />
           
+          {/* E-Klaim BPJS */}
+          <Route path="/eklaim/*" element={<ProtectedRoute><EKlaimRoutes /></ProtectedRoute>} />
+          
           {/* Room Stock */}
           {RoomStockRoutes(ProtectedRoute)}
           
@@ -252,6 +259,12 @@ function App() {
           
           {/* BPJS */}
           {IntegrationsRoutes(ProtectedRoute)}
+          
+          {/* Archives */}
+          {ArchiveRoutes(ProtectedRoute)}
+          
+          {/* Quality Control & Cost Management */}
+          <Route path="/quality-cost" element={<ProtectedRoute><QualityCostPage /></ProtectedRoute>} />
 
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
         </Routes>

@@ -324,6 +324,11 @@ export default function QueueDisplay() {
                             <div className="text-3xl font-black tracking-wide">
                               {latestQueue.queue_number}
                             </div>
+                            {latestQueue.is_mjkn && (
+                              <div className="text-xs bg-green-500 text-white px-1.5 py-0.5 rounded mt-0.5 font-medium">
+                                MJKN
+                              </div>
+                            )}
                             <div
                               className={cn(
                                 "text-xs",

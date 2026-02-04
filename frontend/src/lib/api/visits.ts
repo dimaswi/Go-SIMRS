@@ -6,7 +6,7 @@ export interface Visit {
   registration_id: number;
   room_id: number;
   doctor_id?: number;
-  visit_type: 'consultation' | 'procedure' | 'lab' | 'radiology' | 'pharmacy' | 'inpatient' | 'outpatient' | 'emergency';
+  visit_type: 'consultation' | 'procedure' | 'lab' | 'radiology' | 'pharmacy' | 'inpatient' | 'outpatient' | 'emergency' | 'surgery';
   visit_purpose?: string;
   referral_from?: number;
   status: 'waiting' | 'in_queue' | 'in_progress' | 'completed' | 'cancelled';
@@ -124,5 +124,49 @@ export const visitsApi = {
         end_date: string;
       };
     }>('/visits/stats/summary', { params });
+  },
+};
+
+// Medical Record Edit Log interface
+export interface MedicalRecordEditLog {
+  id: number;
+  visit_id: number;
+  record_type: string; // triage, anamnesis, physical_exam, diagnosis, assessment_plan, etc.
+  record_id: number;
+  action: string; // edit, create, delete
+  fields_json?: string;
+  reason?: string;
+  notes?: string;
+  edited_by_id: number;
+  edited_by?: {
+    id: number;
+    name: string;
+    username: string;
+  };
+  edited_at: string;
+  ip_address?: string;
+  created_at: string;
+}
+
+export interface CreateEditLogRequest {
+  record_type: string;
+  record_id: number;
+  action: string;
+  fields_json?: string;
+  reason?: string;
+  notes?: string;
+}
+
+// Medical Record Edit Log API
+export const medicalRecordEditLogApi = {
+  // Get edit logs for a visit
+  getByVisit: async (visitId: number, recordType?: string) => {
+    const params = recordType ? { record_type: recordType } : undefined;
+    return api.get<MedicalRecordEditLog[]>(`/visits/${visitId}/edit-logs`, { params });
+  },
+
+  // Create an edit log entry
+  create: async (visitId: number, data: CreateEditLogRequest) => {
+    return api.post<MedicalRecordEditLog>(`/visits/${visitId}/edit-logs`, data);
   },
 };

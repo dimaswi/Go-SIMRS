@@ -306,7 +306,7 @@ export function PharmacyReview({ visitId, readOnly = false }: PharmacyReviewProp
             <div className="p-3 border-b bg-muted/30">
               <Label className="text-sm font-semibold flex items-center gap-2">
                 <Pill className="h-4 w-4" />
-                Daftar Obat ({selectedOrder.items?.length || 0} item)
+                Daftar Obat ({selectedOrder.items?.filter(i => i.status !== 'cancelled').length || 0} item)
               </Label>
             </div>
             <div className="p-0">
@@ -322,7 +322,7 @@ export function PharmacyReview({ visitId, readOnly = false }: PharmacyReviewProp
                   </tr>
                 </thead>
                 <tbody>
-                  {selectedOrder.items?.map((item, index) => (
+                  {selectedOrder.items?.filter(i => i.status !== 'cancelled').map((item, index) => (
                     <tr key={item.id || index} className="border-b last:border-0">
                       <td className="py-3 px-3">
                         <p className="font-medium">{item.medicine?.name || "Obat"}</p>
@@ -545,6 +545,9 @@ export function PharmacyReview({ visitId, readOnly = false }: PharmacyReviewProp
                           description: "Telaah resep disetujui",
                         });
                         loadOrders();
+                        // Trigger refresh on final visit
+                        window.dispatchEvent(new CustomEvent("refresh-print-options"));
+                        window.dispatchEvent(new CustomEvent("refresh-final-visit"));
                       } catch (error: any) {
                         toast({
                           variant: "destructive",
@@ -581,6 +584,9 @@ export function PharmacyReview({ visitId, readOnly = false }: PharmacyReviewProp
                           description: "Telaah resep tidak disetujui",
                         });
                         loadOrders();
+                        // Trigger refresh on final visit
+                        window.dispatchEvent(new CustomEvent("refresh-print-options"));
+                        window.dispatchEvent(new CustomEvent("refresh-final-visit"));
                       } catch (error: any) {
                         toast({
                           variant: "destructive",

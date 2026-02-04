@@ -19,6 +19,7 @@ import { RoomStockRoutes } from './RoomStockRoutes';
 import { QueueRoutes } from './QueueRoutes';
 import { RegistrationRoutes } from './RegistrationRoutes';
 import { IntegrationsRoutes } from './IntegrationsRoutes';
+import { ArchiveRoutes } from './ArchiveRoutes';
 
 export {
   UserRoutes,
@@ -42,4 +43,5 @@ export {
   QueueRoutes,
   RegistrationRoutes,
   IntegrationsRoutes,
+  ArchiveRoutes,
 };
