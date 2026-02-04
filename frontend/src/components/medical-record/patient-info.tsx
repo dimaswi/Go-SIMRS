@@ -205,7 +205,7 @@ export function PatientInfo({ visit }: PatientInfoProps) {
   
   const patient = visit.registration?.patient;
   const patientId = patient?.id;
-  const registrationId = visit.registration?.registration_number ? visit.id : null;
+  // const registrationId = visit.registration?.registration_number ? visit.id : null;
   
   // Patient allergies from dedicated allergy table
   const [patientAllergies, setPatientAllergies] = useState<PatientAllergy[]>([]);
