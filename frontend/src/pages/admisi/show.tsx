@@ -104,7 +104,7 @@ export default function AdmissionRequestShowPage() {
   const [sepSheetOpen, setSepSheetOpen] = useState(false);
   const [sepNumber, setSepNumber] = useState("");
   const [patientDetail, setPatientDetail] = useState<Patient | null>(null);
-  const [loadingPatient, setLoadingPatient] = useState(false);
+  // const [loadingPatient, setLoadingPatient] = useState(false);
   const [inpatientVisitId, setInpatientVisitId] = useState<number | null>(null);
 
   useEffect(() => {
