@@ -22,7 +22,8 @@ import {
   User,
   FileText
 } from "lucide-react";
-import { medicalRecordEditLogApi, MedicalRecordEditLog } from "@/lib/api/visits";
+import { medicalRecordEditLogApi } from "@/lib/api/visits";
+import type { MedicalRecordEditLog } from "@/lib/api/visits";
 import { useToast } from "@/hooks/use-toast";
 
 interface EditableFormWrapperProps {
