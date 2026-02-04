@@ -26,6 +26,14 @@ func setupMedicineOrderRoutes(router *gin.RouterGroup) {
 		// Cancel medicine order
 		orders.POST("/:id/cancel", middleware.RequirePermission("medicine_orders.cancel"), handlers.CancelMedicineOrder)
 
+		// Recalculate order status (fix inconsistent status)
+		orders.POST("/:id/recalculate", middleware.RequirePermission("pharmacy.edit"), handlers.RecalculateOrderStatus)
+
+		// Pharmacy item management (for pharmacists to edit prescriptions)
+		orders.POST("/:id/items", middleware.RequirePermission("pharmacy.edit"), handlers.AddMedicineOrderItem)
+		orders.PUT("/:id/items/:itemId", middleware.RequirePermission("pharmacy.edit"), handlers.UpdateMedicineOrderItem)
+		orders.DELETE("/:id/items/:itemId", middleware.RequirePermission("pharmacy.edit"), handlers.DeleteMedicineOrderItem)
+
 		// Prescription Review (by pharmacist)
 		orders.GET("/:id/review", handlers.GetPrescriptionReview)
 		orders.POST("/:id/review", middleware.RequirePermission("pharmacy.review"), handlers.ReviewPrescription)

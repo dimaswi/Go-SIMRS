@@ -43,7 +43,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { roomsApi, medicineOrdersApi, getPharmacyRoomMedicines } from "@/lib/api";
+import { roomsApi, medicineOrdersApi, getPharmacyRoomMedicines, printApi } from "@/lib/api";
 import type { MedicineOrder, CreateMedicineOrderInput } from "@/lib/api";
 
 interface MedicineOrderFormProps {
@@ -99,40 +99,32 @@ const ORDER_STATUS_LABELS: Record<string, { label: string; variant: "default" | 
 // Collapsible Order Item Component
 function OrderCollapsible({ order }: { order: MedicineOrder }) {
   const [isOpen, setIsOpen] = useState(false);
-  // Try to get patient from registration directly, fallback to source_visit.registration
-  const patient = order.registration?.patient || order.source_visit?.registration?.patient;
+  const [isPrinting, setIsPrinting] = useState(false);
+  const { toast } = useToast();
 
-  const handlePrintQueue = () => {
-    const printWindow = window.open("", "_blank", "width=400,height=600");
-    if (printWindow) {
-      printWindow.document.write(`
-        <html>
-          <head>
-            <title>Tiket Antrian Farmasi</title>
-            <style>
-              body { font-family: Arial, sans-serif; text-align: center; padding: 20px; }
-              .queue-number { font-size: 72px; font-weight: bold; margin: 20px 0; }
-              .info { margin: 10px 0; font-size: 14px; }
-              .header { font-size: 18px; font-weight: bold; margin-bottom: 10px; }
-              .divider { border-top: 1px dashed #ccc; margin: 15px 0; }
-            </style>
-          </head>
-          <body>
-            <div class="header">ANTRIAN FARMASI</div>
-            <div class="info">${order.pharmacy_visit?.room?.name || order.pharmacy_room?.name || "Farmasi"}</div>
-            <div class="divider"></div>
-            <div class="queue-number">${order.pharmacy_visit?.room_queue?.queue_number || "-"}</div>
-            <div class="divider"></div>
-            <div class="info"><strong>${patient?.nama_lengkap || "-"}</strong></div>
-            <div class="info">No. RM: ${patient?.no_rm || "-"}</div></div>
-            <div class="info">Order: ${order.order_number}</div>
-            <div class="divider"></div>
-            <div class="info">${new Date().toLocaleString("id-ID")}</div>
-            <script>window.print(); window.close();</script>
-          </body>
-        </html>
-      `);
-      printWindow.document.close();
+  const handlePrintQueue = async () => {
+    const queueId = order.pharmacy_visit?.room_queue?.id;
+    if (!queueId) {
+      toast({
+        title: "Error",
+        description: "Nomor antrian tidak tersedia",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setIsPrinting(true);
+    try {
+      const url = await printApi.queueTicket(queueId);
+      window.open(url, "_blank");
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.response?.data?.error || "Gagal mencetak tiket antrian",
+        variant: "destructive",
+      });
+    } finally {
+      setIsPrinting(false);
     }
   };
 
@@ -162,13 +154,17 @@ function OrderCollapsible({ order }: { order: MedicineOrder }) {
                 )}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                {new Date(order.created_at).toLocaleString("id-ID")} • {order.pharmacy_room?.name} • {order.items?.length || 0} item
+                {new Date(order.created_at).toLocaleString("id-ID")} • {order.pharmacy_room?.name} • {order.items?.filter(i => i.status !== "cancelled").length || 0} item
               </p>
             </div>
           </CollapsibleTrigger>
           {order.pharmacy_visit?.room_queue && (
-            <Button variant="outline" size="sm" onClick={handlePrintQueue}>
-              <Printer className="h-4 w-4 mr-1" />
+            <Button variant="outline" size="sm" onClick={handlePrintQueue} disabled={isPrinting}>
+              {isPrinting ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <Printer className="h-4 w-4 mr-1" />
+              )}
               Cetak Antrian
             </Button>
           )}
@@ -216,7 +212,9 @@ function OrderCollapsible({ order }: { order: MedicineOrder }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {order.items.map((item, idx) => (
+                    {order.items
+                      .filter((item) => item.status !== "cancelled")
+                      .map((item, idx) => (
                       <tr key={idx} className="border-t">
                         <td className="py-2 px-3">
                           <p className="font-medium">{item.medicine?.name}</p>
@@ -288,7 +286,23 @@ export function MedicineOrderForm({ visitId, readOnly = false }: MedicineOrderFo
     try {
       // Load existing orders for this visit
       const ordersRes = await medicineOrdersApi.getAll({ source_visit_id: visitId });
-      setExistingOrders(ordersRes.data || []);
+      const orders = ordersRes.data || [];
+      
+      // Recalculate status for orders that might have inconsistent status
+      // This ensures order status matches item statuses
+      for (const order of orders) {
+        if (order.status !== "delivered" && order.status !== "cancelled") {
+          try {
+            await medicineOrdersApi.recalculate(order.id);
+          } catch {
+            // Ignore recalculate errors, just continue
+          }
+        }
+      }
+      
+      // Reload orders after recalculation
+      const updatedOrdersRes = await medicineOrdersApi.getAll({ source_visit_id: visitId });
+      setExistingOrders(updatedOrdersRes.data || []);
 
       // Load pharmacy rooms - use high limit to get all rooms
       const roomsRes = await roomsApi.getAll({ limit: 1000, is_active: 'true' });
@@ -432,6 +446,10 @@ export function MedicineOrderForm({ visitId, readOnly = false }: MedicineOrderFo
 
       // Reload orders
       loadData();
+      
+      // Trigger refresh print options dan final visit
+      window.dispatchEvent(new CustomEvent("refresh-print-options"));
+      window.dispatchEvent(new CustomEvent("refresh-final-visit"));
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -662,6 +680,10 @@ export function MedicineOrderForm({ visitId, readOnly = false }: MedicineOrderFo
                               <SelectValue placeholder="Pilih frekuensi" />
                             </SelectTrigger>
                             <SelectContent>
+                              <SelectItem value="1x1">1x1</SelectItem>
+                              <SelectItem value="2x1">2x1</SelectItem>
+                              <SelectItem value="3x1">3x1</SelectItem>
+                              <SelectItem value="4x1">4x1</SelectItem>
                               <SelectItem value="1x sehari">1x sehari</SelectItem>
                               <SelectItem value="2x sehari">2x sehari</SelectItem>
                               <SelectItem value="3x sehari">3x sehari</SelectItem>

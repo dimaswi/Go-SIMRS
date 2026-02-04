@@ -20,3 +20,10 @@ export const getAppName = () => {
 export const getAppSubtitle = () => {
   return localStorage.getItem('appSubtitle') || 'Your Application Subtitle';
 };
+
+/**
+ * Get application logo URL from localStorage
+ */
+export const getAppLogo = () => {
+  return localStorage.getItem('appLogo') || '';
+};

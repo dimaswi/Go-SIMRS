@@ -92,6 +92,12 @@ type Billing struct {
 	// Notes
 	Notes string `gorm:"type:text" json:"notes"`
 
+	// BPJS/INA-CBG Fields
+	InaCBGCode        string  `gorm:"size:20" json:"inacbg_code"`                            // Kode INA-CBG
+	InaCBGDescription string  `gorm:"size:255" json:"inacbg_description"`                    // Deskripsi INA-CBG
+	InaCBGTariff      float64 `gorm:"type:decimal(15,2);default:0" json:"inacbg_tariff"`     // Tarif INA-CBG
+	BPJSClaimAmount   float64 `gorm:"type:decimal(15,2);default:0" json:"bpjs_claim_amount"` // Klaim BPJS yang diajukan
+
 	// Relations
 	Items    []BillingItem    `gorm:"foreignKey:BillingID" json:"items,omitempty"`
 	Payments []BillingPayment `gorm:"foreignKey:BillingID" json:"payments,omitempty"`

@@ -17,16 +17,17 @@ func GetVisits(c *gin.Context) {
 	var visits []models.Visit
 
 	query := database.DB.Preload("Registration").Preload("Registration.Patient").
+		Preload("SEP"). // Preload SEP by visit_id (not registration_id)
 		Preload("Room").Preload("Doctor").Preload("RoomQueue").Preload("Bed")
 
 	// Filter by registration_id
 	if registrationID := c.Query("registration_id"); registrationID != "" {
-		query = query.Where("registration_id = ?", registrationID)
+		query = query.Where("visits.registration_id = ?", registrationID)
 	}
 
 	// Filter by room_id
 	if roomID := c.Query("room_id"); roomID != "" {
-		query = query.Where("room_id = ?", roomID)
+		query = query.Where("visits.room_id = ?", roomID)
 	}
 
 	// Filter by patient_id (through registration)
@@ -39,9 +40,9 @@ func GetVisits(c *gin.Context) {
 	if visitType := c.Query("visit_type"); visitType != "" {
 		if strings.Contains(visitType, ",") {
 			types := strings.Split(visitType, ",")
-			query = query.Where("visit_type IN ?", types)
+			query = query.Where("visits.visit_type IN ?", types)
 		} else {
-			query = query.Where("visit_type = ?", visitType)
+			query = query.Where("visits.visit_type = ?", visitType)
 		}
 	}
 
@@ -50,9 +51,9 @@ func GetVisits(c *gin.Context) {
 		// Check if status contains comma (multiple statuses)
 		if strings.Contains(status, ",") {
 			statuses := strings.Split(status, ",")
-			query = query.Where("status IN ?", statuses)
+			query = query.Where("visits.status IN ?", statuses)
 		} else {
-			query = query.Where("status = ?", status)
+			query = query.Where("visits.status = ?", status)
 		}
 	}
 
@@ -66,12 +67,12 @@ func GetVisits(c *gin.Context) {
 
 	// Filter to exclude supporting visits (lab, pharmacy, radiology) - only show main encounters
 	if excludeSupporting := c.Query("exclude_supporting"); excludeSupporting == "true" {
-		query = query.Where("room_id NOT IN (SELECT id FROM rooms WHERE room_type IN (?, ?, ?))", "laboratorium", "farmasi", "radiologi")
+		query = query.Where("visits.room_id NOT IN (SELECT id FROM rooms WHERE room_type IN (?, ?, ?))", "laboratorium", "farmasi", "radiologi")
 	}
 
 	// Order by ID descending (newest first) - ID is auto-increment so this ensures latest records
 	// Use ID instead of check_in_time to handle cases where check_in_time might be null or have same value
-	query = query.Order("id DESC")
+	query = query.Order("visits.id DESC")
 
 	// Handle limit parameter
 	if limitStr := c.Query("limit"); limitStr != "" {
@@ -94,6 +95,7 @@ func GetVisit(c *gin.Context) {
 	var visit models.Visit
 
 	if err := database.DB.Preload("Registration").Preload("Registration.Patient").
+		Preload("SEP"). // Preload SEP by visit_id
 		Preload("Room").Preload("Doctor").Preload("RoomQueue").Preload("Bed").
 		First(&visit, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Visit not found"})

@@ -3,10 +3,8 @@ import { usePermission } from "@/hooks/usePermission";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
@@ -16,25 +14,25 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import {
   Loader2,
   FileImage,
   Play,
   Save,
-  CheckCircle2,
-  AlertCircle,
-  User,
   Clock,
+  User,
+  Printer,
 } from "lucide-react";
-import { procedureOrdersApi, PROCEDURE_ORDER_STATUS } from "@/lib/api";
-import type { ProcedureOrder } from "@/lib/api/procedure-orders";
+import { procedureOrdersApi, PROCEDURE_ORDER_STATUS, printApi } from "@/lib/api";
+import type { ProcedureOrder, ProcedureOrderItem, ProcedureParameter } from "@/lib/api/procedure-orders";
 
 interface RadiologyWorkstationProps {
   visitId: number;
@@ -48,21 +46,43 @@ export function RadiologyWorkstation({ visitId, readOnly: _readOnly = false }: R
   const [submitting, setSubmitting] = useState(false);
   const [orders, setOrders] = useState<ProcedureOrder[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<ProcedureOrder | null>(null);
-  const [showResultDialog, setShowResultDialog] = useState(false);
+  
+  // Inline results state - keyed by item.id -> param.id -> value
+  const [inlineResults, setInlineResults] = useState<Record<number, Record<number, string>>>({});
 
-  // Result form state
+  // Result summary form
   const [resultSummary, setResultSummary] = useState("");
   const [conclusion, setConclusion] = useState("");
   const [suggestion, setSuggestion] = useState("");
   const [isCritical, setIsCritical] = useState(false);
   const [criticalNotes, setCriticalNotes] = useState("");
-  const [itemResults, setItemResults] = useState<Record<number, Record<number, string>>>({});
 
   const canPerform = hasPermission("procedure_orders.perform");
 
   useEffect(() => {
     loadOrders();
   }, [visitId]);
+
+  useEffect(() => {
+    if (selectedOrder) {
+      setResultSummary(selectedOrder.result_summary || "");
+      setConclusion(selectedOrder.conclusion || "");
+      setSuggestion(selectedOrder.suggestion || "");
+      setIsCritical(selectedOrder.is_critical || false);
+      setCriticalNotes(selectedOrder.critical_notes || "");
+      
+      // Initialize inline results from existing data
+      const results: Record<number, Record<number, string>> = {};
+      selectedOrder.items?.forEach((item) => {
+        results[item.id!] = {};
+        item.procedure?.parameters?.forEach((param) => {
+          const existing = item.results?.find((r) => r.procedure_parameter_id === param.id);
+          results[item.id!][param.id] = existing?.value || "";
+        });
+      });
+      setInlineResults(results);
+    }
+  }, [selectedOrder]);
 
   const loadOrders = async () => {
     setLoading(true);
@@ -72,78 +92,55 @@ export function RadiologyWorkstation({ visitId, readOnly: _readOnly = false }: R
         order_type: "radiology",
       });
       setOrders(res.data || []);
-      
-      // Select first pending/in_progress order, or fallback to first order (including completed)
       const activeOrder = (res.data || []).find(
         (o: ProcedureOrder) => o.status === "pending" || o.status === "in_progress"
       );
-      const orderToSelect = activeOrder || (res.data && res.data.length > 0 ? res.data[0] : null);
-      
-      if (orderToSelect) {
-        setSelectedOrder(orderToSelect);
-        initializeResults(orderToSelect);
+      if (activeOrder) {
+        setSelectedOrder(activeOrder);
+      } else if (res.data?.length > 0) {
+        setSelectedOrder(res.data[0]);
       }
     } catch (error) {
       console.error("Error loading orders:", error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Gagal memuat data order",
-      });
+      toast({ variant: "destructive", title: "Error", description: "Gagal memuat data order" });
     } finally {
       setLoading(false);
     }
   };
 
-  const initializeResults = (order: ProcedureOrder) => {
-    // Initialize item results from existing data or empty
-    const results: Record<number, Record<number, string>> = {};
-    order.items?.forEach((item) => {
-      results[item.id!] = {};
-      item.procedure?.parameters?.forEach((param) => {
-        const existingResult = item.results?.find(
-          (r) => r.procedure_parameter_id === param.id
-        );
-        results[item.id!][param.id] = existingResult?.value || "";
-      });
-    });
-    setItemResults(results);
-    setResultSummary(order.result_summary || "");
-    setConclusion(order.conclusion || "");
-    setSuggestion(order.suggestion || "");
-    setIsCritical(order.is_critical || false);
-    setCriticalNotes(order.critical_notes || "");
-  };
-
   const handleStartOrder = async () => {
     if (!selectedOrder) return;
-
+    setSubmitting(true);
     try {
       const res = await procedureOrdersApi.start(selectedOrder.id);
       setSelectedOrder(res.data);
-      toast({
-        title: "Berhasil",
-        description: "Pemeriksaan dimulai",
-      });
+      toast({ title: "Berhasil", description: "Pemeriksaan dimulai" });
       loadOrders();
+      // Trigger refresh print options dan final visit
+      window.dispatchEvent(new CustomEvent("refresh-print-options"));
+      window.dispatchEvent(new CustomEvent("refresh-final-visit"));
     } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.response?.data?.error || "Gagal memulai pemeriksaan",
-      });
+      toast({ variant: "destructive", title: "Error", description: error.response?.data?.error || "Gagal memulai pemeriksaan" });
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const handleSaveResults = async () => {
-    if (!selectedOrder) return;
+  const updateInlineResult = (itemId: number, paramId: number, value: string) => {
+    setInlineResults((prev) => ({
+      ...prev,
+      [itemId]: { ...prev[itemId], [paramId]: value },
+    }));
+  };
 
+  const handleSaveAllResults = async () => {
+    if (!selectedOrder) return;
     setSubmitting(true);
     try {
       const items = selectedOrder.items?.map((item) => ({
         item_id: item.id!,
         notes: "",
-        results: Object.entries(itemResults[item.id!] || {}).map(([paramId, value]) => ({
+        results: Object.entries(inlineResults[item.id!] || {}).map(([paramId, value]) => ({
           parameter_id: Number(paramId),
           value: value,
         })),
@@ -159,69 +156,79 @@ export function RadiologyWorkstation({ visitId, readOnly: _readOnly = false }: R
       });
 
       setSelectedOrder(res.data);
-      toast({
-        title: "Berhasil",
-        description: "Hasil pemeriksaan berhasil disimpan",
-      });
-
-      setShowResultDialog(false);
+      toast({ title: "Berhasil", description: "Hasil pemeriksaan berhasil disimpan" });
       loadOrders();
+      // Trigger refresh on print options dropdown and final visit
+      window.dispatchEvent(new CustomEvent("refresh-print-options"));
+      window.dispatchEvent(new CustomEvent("refresh-final-visit"));
     } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.response?.data?.error || "Gagal menyimpan hasil",
-      });
+      toast({ variant: "destructive", title: "Error", description: error.response?.data?.error || "Gagal menyimpan hasil" });
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleCompleteOrder = async () => {
-    if (!selectedOrder) return;
+  const renderInlineInput = (item: ProcedureOrderItem, param: ProcedureParameter) => {
+    const value = inlineResults[item.id!]?.[param.id] || "";
+    const isEditable = selectedOrder?.status === "in_progress" && canPerform;
 
-    setSubmitting(true);
-    try {
-      await procedureOrdersApi.complete(selectedOrder.id);
-
-      toast({
-        title: "Berhasil",
-        description: "Order selesai",
-      });
-
-      loadOrders();
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.response?.data?.error || "Gagal menyelesaikan order",
-      });
-    } finally {
-      setSubmitting(false);
+    if (!isEditable) {
+      return <span className="text-sm">{value || "-"}</span>;
     }
-  };
 
-  const updateItemResult = (itemId: number, paramId: number, value: string) => {
-    setItemResults((prev) => ({
-      ...prev,
-      [itemId]: {
-        ...prev[itemId],
-        [paramId]: value,
-      },
-    }));
+    if (param.input_type === "textarea") {
+      return (
+        <Textarea
+          value={value}
+          onChange={(e) => updateInlineResult(item.id!, param.id, e.target.value)}
+          placeholder={param.description || "..."}
+          rows={2}
+          className="min-w-[150px] text-sm"
+        />
+      );
+    }
+    if (param.input_type === "select" && param.options) {
+      let options: string[] = [];
+      try { options = JSON.parse(param.options); } catch { options = param.options.split(",").map((o) => o.trim()); }
+      return (
+        <Select value={value} onValueChange={(v) => updateInlineResult(item.id!, param.id, v)}>
+          <SelectTrigger className="min-w-[120px] h-8 text-sm">
+            <SelectValue placeholder="Pilih..." />
+          </SelectTrigger>
+          <SelectContent>
+            {options.map((opt) => (
+              <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      );
+    }
+    return (
+      <Input
+        type={param.input_type === "number" ? "number" : "text"}
+        value={value}
+        onChange={(e) => updateInlineResult(item.id!, param.id, e.target.value)}
+        placeholder={param.description || "..."}
+        className="min-w-[120px] h-8 text-sm"
+        step={param.input_type === "number" ? "any" : undefined}
+      />
+    );
   };
 
   const getStatusBadge = (status: string) => {
-    const config = PROCEDURE_ORDER_STATUS[status as keyof typeof PROCEDURE_ORDER_STATUS] || {
-      label: status,
-      variant: "secondary" as const,
-    };
+    const config = PROCEDURE_ORDER_STATUS[status as keyof typeof PROCEDURE_ORDER_STATUS] || { label: status, variant: "secondary" as const };
     return <Badge variant={config.variant}>{config.label}</Badge>;
+  };
+
+  const getItemStatusBadge = (status: string) => {
+    if (status === "completed") return <Badge className="bg-green-100 text-green-800 text-xs">Selesai</Badge>;
+    if (status === "in_progress") return <Badge variant="outline" className="text-xs">Dikerjakan</Badge>;
+    return <Badge variant="secondary" className="text-xs">Menunggu</Badge>;
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
+      <div className="flex items-center justify-center h-48">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
@@ -230,9 +237,9 @@ export function RadiologyWorkstation({ visitId, readOnly: _readOnly = false }: R
   if (orders.length === 0) {
     return (
       <Card>
-        <CardContent className="py-12">
+        <CardContent className="py-8">
           <div className="text-center text-muted-foreground">
-            <FileImage className="h-12 w-12 mx-auto mb-4 opacity-50" />
+            <FileImage className="h-10 w-10 mx-auto mb-3 opacity-50" />
             <p>Tidak ada order radiologi untuk dikerjakan</p>
           </div>
         </CardContent>
@@ -241,22 +248,16 @@ export function RadiologyWorkstation({ visitId, readOnly: _readOnly = false }: R
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {/* Order Selection */}
       {orders.length > 1 && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Pilih Order</CardTitle>
-          </CardHeader>
-          <CardContent>
+        <Card className="shadow-sm">
+          <CardContent className="py-3">
             <Select
               value={selectedOrder?.id.toString()}
               onValueChange={(val) => {
                 const order = orders.find((o) => o.id === Number(val));
-                if (order) {
-                  setSelectedOrder(order);
-                  initializeResults(order);
-                }
+                if (order) setSelectedOrder(order);
               }}
             >
               <SelectTrigger>
@@ -274,17 +275,17 @@ export function RadiologyWorkstation({ visitId, readOnly: _readOnly = false }: R
         </Card>
       )}
 
-      {/* Selected Order Details */}
+      {/* Selected Order */}
       {selectedOrder && (
-        <Card>
-          <CardHeader>
+        <Card className="shadow-sm">
+          <CardHeader className="py-3 px-4">
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <FileImage className="h-5 w-5" />
+                <CardTitle className="text-base flex items-center gap-2">
+                  <FileImage className="h-4 w-4" />
                   {selectedOrder.order_number}
                 </CardTitle>
-                <CardDescription>
+                <CardDescription className="text-xs">
                   Order dari {selectedOrder.source_room?.name}
                 </CardDescription>
               </div>
@@ -292,282 +293,151 @@ export function RadiologyWorkstation({ visitId, readOnly: _readOnly = false }: R
             </div>
           </CardHeader>
           <CardContent className="p-0">
-            <ScrollArea className="h-[calc(100vh-450px)] min-h-[570px]">
-              <div className="p-4 space-y-4">
-            {/* Patient Info */}
-            <div className="grid grid-cols-2 gap-4 text-sm p-3 bg-muted/50 rounded-lg">
-              <div className="flex items-center gap-2">
-                <User className="h-4 w-4 text-muted-foreground" />
-                <span className="font-medium">
-                  {selectedOrder.source_visit?.registration?.patient?.nama_lengkap || 
-                   selectedOrder.registration?.patient?.nama_lengkap || "-"}
-                </span>
-              </div>
-              <div>
-                <span className="text-muted-foreground">No. RM:</span>{" "}
-                {selectedOrder.source_visit?.registration?.patient?.no_rm || 
-                 selectedOrder.registration?.patient?.no_rm || "-"}
-              </div>
-              <div>
-                <span className="text-muted-foreground">Dokter:</span>{" "}
-                {selectedOrder.ordered_by?.nama_lengkap || "-"}
-              </div>
-              <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4 text-muted-foreground" />
-                {new Date(selectedOrder.created_at).toLocaleString("id-ID")}
-              </div>
-            </div>
-
-            {/* Clinical Notes */}
-            {selectedOrder.clinical_notes && (
-              <div className="p-3 bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 rounded-lg">
-                <p className="text-sm font-medium text-yellow-800 dark:text-yellow-200 mb-1">
-                  Catatan Klinis:
-                </p>
-                <p className="text-sm">{selectedOrder.clinical_notes}</p>
-              </div>
-            )}
-
-            {/* Procedures List */}
-            <div>
-              <p className="text-sm font-medium mb-2">Pemeriksaan:</p>
-              <div className="space-y-2">
-                {selectedOrder.items?.map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex items-center justify-between p-3 rounded-lg border bg-card"
-                  >
-                    <div>
-                      <p className="font-medium">{item.procedure?.name}</p>
-                      {item.procedure?.description && (
-                        <p className="text-sm text-muted-foreground">
-                          {item.procedure.description}
-                        </p>
-                      )}
-                    </div>
-                    <Badge
-                      variant={item.status === "completed" ? "default" : "secondary"}
-                    >
-                      {item.status === "completed" ? "Selesai" : "Menunggu"}
-                    </Badge>
+            <ScrollArea className="h-[calc(110vh-380px)] min-h-[350px]">
+              <div className="p-4 space-y-3">
+                {/* Patient Info */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs p-2 bg-muted/50 rounded">
+                  <div className="flex items-center gap-1">
+                    <User className="h-3 w-3 text-muted-foreground" />
+                    <span className="font-medium truncate">
+                      {selectedOrder.source_visit?.registration?.patient?.nama_lengkap ||
+                        selectedOrder.registration?.patient?.nama_lengkap || "-"}
+                    </span>
                   </div>
-                ))}
-              </div>
-            </div>
+                  <div>
+                    <span className="text-muted-foreground">RM:</span>{" "}
+                    {selectedOrder.source_visit?.registration?.patient?.no_rm ||
+                      selectedOrder.registration?.patient?.no_rm || "-"}
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Dokter:</span>{" "}
+                    {selectedOrder.ordered_by?.nama_lengkap || "-"}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Clock className="h-3 w-3 text-muted-foreground" />
+                    <span>{new Date(selectedOrder.created_at).toLocaleString("id-ID")}</span>
+                    {selectedOrder.priority !== "normal" && (
+                      <Badge variant="destructive" className="text-xs ml-1">{selectedOrder.priority.toUpperCase()}</Badge>
+                    )}
+                  </div>
+                </div>
 
-            {/* Action Buttons */}
-            {canPerform && selectedOrder.status !== "completed" && (
-              <div className="flex gap-2 pt-4 border-t">
-                {selectedOrder.status === "pending" && (
-                  <Button onClick={handleStartOrder}>
-                    <Play className="h-4 w-4 mr-2" />
+                {/* Clinical Notes */}
+                {selectedOrder.clinical_notes && (
+                  <div className="p-2 bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 rounded text-xs">
+                    <span className="font-medium text-yellow-800 dark:text-yellow-200">Catatan Klinis:</span>
+                    <span className="ml-1">{selectedOrder.clinical_notes}</span>
+                  </div>
+                )}
+
+                {/* Start Button */}
+                {canPerform && selectedOrder.status === "pending" && (
+                  <Button onClick={handleStartOrder} disabled={submitting} size="sm">
+                    {submitting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Play className="h-4 w-4 mr-1" />}
                     Mulai Pemeriksaan
                   </Button>
                 )}
-                {(selectedOrder.status === "in_progress" || selectedOrder.status === "pending") && (
-                  <>
-                    <Button variant="outline" onClick={() => setShowResultDialog(true)}>
-                      <Save className="h-4 w-4 mr-2" />
-                      Input/Edit Hasil
-                    </Button>
-                    <Button onClick={handleCompleteOrder} disabled={submitting}>
-                      {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                      <CheckCircle2 className="h-4 w-4 mr-2" />
-                      Selesaikan
-                    </Button>
-                  </>
-                )}
-              </div>
-            )}
 
-            {/* Completed Results */}
-            {selectedOrder.status === "completed" && (
-              <div className="p-4 bg-green-50 dark:bg-green-950 border border-green-200 rounded-lg">
-                <p className="font-medium text-green-700 dark:text-green-300 flex items-center gap-2 mb-3">
-                  <CheckCircle2 className="h-5 w-5" />
-                  Hasil Pemeriksaan
-                </p>
-                
-                {/* Detail Results per Item */}
-                {selectedOrder.items?.map((item) => (
-                  <div key={item.id} className="mb-4 border-b pb-4 last:border-0">
-                    <h4 className="font-semibold mb-2">{item.procedure?.name}</h4>
-                    {item.results && item.results.length > 0 ? (
-                      <div className="space-y-2">
-                        {item.results.map((result) => (
-                          <div key={result.id} className="grid grid-cols-[150px_1fr] gap-2">
-                            <span className="text-sm font-medium text-muted-foreground">
-                              {result.procedure_parameter?.name}:
-                            </span>
-                            <span className="text-sm whitespace-pre-wrap">{result.value}</span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground italic">Tidak ada hasil parameter</p>
-                    )}
-                  </div>
-                ))}
-                
-                {selectedOrder.result_summary && (
-                  <div className="mb-3">
-                    <span className="text-sm font-medium">Hasil:</span>
-                    <p className="whitespace-pre-wrap">{selectedOrder.result_summary}</p>
-                  </div>
+                {/* Results Table - Inline Edit */}
+                <div className="border rounded overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/50">
+                        <TableHead className="w-10 text-xs">No</TableHead>
+                        <TableHead className="text-xs">Pemeriksaan</TableHead>
+                        <TableHead className="text-xs">Parameter</TableHead>
+                        <TableHead className="text-xs">Hasil</TableHead>
+                        <TableHead className="w-20 text-xs">Status</TableHead>
+                        <TableHead className="w-16 text-xs">Cetak</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {selectedOrder.items?.map((item, itemIdx) => {
+                        const parameters = item.procedure?.parameters || [];
+                        const rowSpan = Math.max(parameters.length, 1);
+
+                        return parameters.length > 0 ? (
+                          parameters.map((param, paramIdx) => (
+                            <TableRow key={`${item.id}-${param.id}`}>
+                              {paramIdx === 0 && (
+                                <>
+                                  <TableCell rowSpan={rowSpan} className="align-top border-r text-xs font-medium">
+                                    {itemIdx + 1}
+                                  </TableCell>
+                                  <TableCell rowSpan={rowSpan} className="align-top border-r">
+                                    <div className="text-sm font-medium">{item.procedure?.name}</div>
+                                    <div className="text-xs text-muted-foreground font-mono">{item.procedure?.code}</div>
+                                  </TableCell>
+                                </>
+                              )}
+                              <TableCell className="text-xs py-1">{param.name}</TableCell>
+                              <TableCell className="py-1">{renderInlineInput(item, param)}</TableCell>
+                              {paramIdx === 0 && (
+                                <>
+                                  <TableCell rowSpan={rowSpan} className="align-top border-l">
+                                    {getItemStatusBadge(item.status)}
+                                  </TableCell>
+                                  <TableCell rowSpan={rowSpan} className="align-top text-center">
+                                    {item.status === "completed" && item.id && (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 w-6 p-0"
+                                        onClick={() => printApi.radiologyResultItem(item.id!)}
+                                        title="Cetak hasil"
+                                      >
+                                        <Printer className="h-3 w-3" />
+                                      </Button>
+                                    )}
+                                  </TableCell>
+                                </>
+                              )}
+                            </TableRow>
+                          ))
+                        ) : (
+                          <TableRow key={item.id}>
+                            <TableCell className="text-xs font-medium">{itemIdx + 1}</TableCell>
+                            <TableCell>
+                              <div className="text-sm font-medium">{item.procedure?.name}</div>
+                              <div className="text-xs text-muted-foreground font-mono">{item.procedure?.code}</div>
+                            </TableCell>
+                            <TableCell colSpan={2} className="text-xs text-muted-foreground italic">
+                              Tidak ada parameter
+                            </TableCell>
+                            <TableCell>{getItemStatusBadge(item.status)}</TableCell>
+                            <TableCell className="text-center">
+                              {item.status === "completed" && item.id && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 w-6 p-0"
+                                  onClick={() => printApi.radiologyResultItem(item.id!)}
+                                  title="Cetak hasil"
+                                >
+                                  <Printer className="h-3 w-3" />
+                                </Button>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                {/* Save Button - Only when in progress */}
+                {selectedOrder.status === "in_progress" && canPerform && (
+                  <Button onClick={handleSaveAllResults} disabled={submitting} className="w-full" size="sm">
+                    {submitting && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+                    <Save className="h-4 w-4 mr-1" />
+                    Simpan Semua Hasil
+                  </Button>
                 )}
-                {selectedOrder.conclusion && (
-                  <div className="mb-3">
-                    <span className="text-sm font-medium">Kesan:</span>
-                    <p className="whitespace-pre-wrap">{selectedOrder.conclusion}</p>
-                  </div>
-                )}
-                {selectedOrder.suggestion && (
-                  <div>
-                    <span className="text-sm font-medium">Saran:</span>
-                    <p className="whitespace-pre-wrap">{selectedOrder.suggestion}</p>
-                  </div>
-                )}
-                {selectedOrder.is_critical && (
-                  <div className="mt-3 p-3 bg-red-100 dark:bg-red-900 rounded">
-                    <span className="text-red-700 dark:text-red-300 font-bold flex items-center gap-2">
-                      <AlertCircle className="h-5 w-5" />
-                      NILAI KRITIS
-                    </span>
-                    <p className="text-sm mt-1">{selectedOrder.critical_notes}</p>
-                  </div>
-                )}
-              </div>
-            )}
               </div>
             </ScrollArea>
           </CardContent>
         </Card>
       )}
-
-      {/* Result Input Dialog */}
-      <Dialog open={showResultDialog} onOpenChange={setShowResultDialog}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Input Hasil Radiologi</DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-6">
-            {/* Per-Item Parameters */}
-            {selectedOrder?.items?.map((item) => (
-              <div key={item.id} className="border rounded-lg p-4">
-                <h4 className="font-medium mb-3">{item.procedure?.name}</h4>
-                <div className="space-y-3">
-                  {item.procedure?.parameters?.map((param) => (
-                    <div key={param.id}>
-                      <Label>
-                        {param.name}
-                        {param.is_required && <span className="text-red-500">*</span>}
-                      </Label>
-                      {param.input_type === "textarea" ? (
-                        <Textarea
-                          value={itemResults[item.id!]?.[param.id] || ""}
-                          onChange={(e) =>
-                            updateItemResult(item.id!, param.id, e.target.value)
-                          }
-                          placeholder={param.description}
-                          rows={3}
-                        />
-                      ) : param.input_type === "checkbox" ? (
-                        <div className="flex items-center gap-2 mt-1">
-                          <Checkbox
-                            checked={itemResults[item.id!]?.[param.id] === "true"}
-                            onCheckedChange={(checked) =>
-                              updateItemResult(item.id!, param.id, checked ? "true" : "false")
-                            }
-                          />
-                          <span className="text-sm">{param.description || param.name}</span>
-                        </div>
-                      ) : (
-                        <Input
-                          type={param.input_type === "number" ? "number" : "text"}
-                          value={itemResults[item.id!]?.[param.id] || ""}
-                          onChange={(e) =>
-                            updateItemResult(item.id!, param.id, e.target.value)
-                          }
-                          placeholder={param.description}
-                        />
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-
-            {/* General Results */}
-            <div className="border-t pt-4 space-y-4">
-              <div>
-                <Label>Hasil Pemeriksaan</Label>
-                <Textarea
-                  value={resultSummary}
-                  onChange={(e) => setResultSummary(e.target.value)}
-                  placeholder="Deskripsi hasil pemeriksaan..."
-                  rows={4}
-                />
-              </div>
-
-              <div>
-                <Label>Kesan</Label>
-                <Textarea
-                  value={conclusion}
-                  onChange={(e) => setConclusion(e.target.value)}
-                  placeholder="Kesan/kesimpulan..."
-                  rows={3}
-                />
-              </div>
-
-              <div>
-                <Label>Saran</Label>
-                <Textarea
-                  value={suggestion}
-                  onChange={(e) => setSuggestion(e.target.value)}
-                  placeholder="Saran untuk dokter pengirim..."
-                  rows={2}
-                />
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  checked={isCritical}
-                  onCheckedChange={(checked) => setIsCritical(checked as boolean)}
-                />
-                <Label className="text-red-600 font-medium">
-                  <AlertCircle className="h-4 w-4 inline mr-1" />
-                  Nilai Kritis
-                </Label>
-              </div>
-
-              {isCritical && (
-                <div>
-                  <Label>Catatan Nilai Kritis</Label>
-                  <Textarea
-                    value={criticalNotes}
-                    onChange={(e) => setCriticalNotes(e.target.value)}
-                    placeholder="Jelaskan temuan kritis..."
-                    rows={2}
-                    className="border-red-300"
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowResultDialog(false)}>
-              Batal
-            </Button>
-            <Button onClick={handleSaveResults} disabled={submitting}>
-              {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              <Save className="h-4 w-4 mr-2" />
-              Simpan Hasil
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

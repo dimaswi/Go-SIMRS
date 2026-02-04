@@ -1,37 +1,46 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Separator } from "@/components/ui/separator";
-import { 
-  Save, 
-  LogOut, 
-  Loader2, 
-  AlertTriangle, 
-  Calendar, 
-  CheckCircle2, 
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  LogOut,
+  Loader2,
+  AlertTriangle,
+  CheckCircle2,
   Home,
   Ambulance,
   Hospital,
   FileText,
-  ClipboardList,
   ExternalLink,
-  Send,
-  QrCode
+  ArrowRight,
+  XCircle,
+  Trash2,
 } from "lucide-react";
 import { useMasterData } from "@/hooks/useMasterData";
 import { medicalRecordsApi, type Disposition } from "@/lib/api/medical-records";
 import { roomsApi, schedulesApi, type Room } from "@/lib/api/rooms";
 import { admissionRequestApi } from "@/lib/api/admission-request";
+import { vclaimApi, type SEPLocal, type VClaimSPRIResponse, type SuratKontrolResponse } from "@/lib/api/vclaim";
+import { visitsApi } from "@/lib/api/visits";
 import { useToast } from "@/hooks/use-toast";
-import { Combobox } from "@/components/ui/combobox";
 import { cn } from "@/lib/utils";
-import { CheckInQRCode } from "@/components/qrcode/checkin-qrcode";
+import {
+  DischargeDrawer,
+  AdmissionDrawer,
+  ReferralDrawer,
+  DeathDrawer,
+  type DispositionFormData,
+} from "./disposition-drawers";
 
 interface DispositionFormProps {
   visitId: number;
@@ -48,7 +57,6 @@ const dispositionIcons: Record<string, React.ReactNode> = {
   rujuk: <Ambulance className="h-5 w-5" />,
   meninggal: <FileText className="h-5 w-5" />,
   aps: <ExternalLink className="h-5 w-5" />,
-  dod: <FileText className="h-5 w-5" />,
 };
 
 // Description mapping for disposition options
@@ -58,7 +66,6 @@ const dispositionDescriptions: Record<string, string> = {
   rujuk: "Pasien dirujuk ke fasilitas lain",
   meninggal: "Pasien meninggal dunia",
   aps: "Pasien pulang atas permintaan sendiri",
-  dod: "Meninggal saat tiba di IGD",
 };
 
 interface PendingOrdersInfo {
@@ -86,6 +93,8 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [canceling, setCanceling] = useState(false);
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [pendingOrdersInfo, setPendingOrdersInfo] = useState<PendingOrdersInfo | null>(null);
   
   // Rooms for follow-up (poli)
@@ -107,11 +116,38 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
     patient_name?: string;
   } | null>(null);
   
-  // Check if form is disabled (already saved)
-  const isDisabled = !!initialData?.disposition_type;
+  // ===== BPJS Control State =====
+  const [activeSEP, setActiveSEP] = useState<SEPLocal | null>(null);
+  const [_loadingSEP, setLoadingSEP] = useState(false);
+  const [spriResult, setSpriResult] = useState<VClaimSPRIResponse | null>(null);
+  const [suratKontrolResult, setSuratKontrolResult] = useState<SuratKontrolResponse | null>(null);
   
-  // Checkbox states for follow-up options
-  const [wantsFollowUp, setWantsFollowUp] = useState(false);
+  const [patientNoBpjs, setPatientNoBpjs] = useState<string | null>(null);
+  const [patientData, setPatientData] = useState<{
+    id: number;
+    no_rm: string;
+    nama_lengkap: string;
+    nik?: string;
+    no_bpjs?: string;
+    tanggal_lahir?: string;
+    jenis_kelamin?: string;
+  } | null>(null);
+
+  // Drawer states
+  const [dischargeDrawerOpen, setDischargeDrawerOpen] = useState(false);
+  const [admissionDrawerOpen, setAdmissionDrawerOpen] = useState(false);
+  const [referralDrawerOpen, setReferralDrawerOpen] = useState(false);
+  const [deathDrawerOpen, setDeathDrawerOpen] = useState(false);
+
+  // Loaded disposition data from API
+  const [loadedDispositionData, setLoadedDispositionData] = useState<Disposition | null>(null);
+
+  // Check if form is disabled (already saved) - check both initialData and loaded data
+  const isDisabled = !!(initialData?.disposition_type || loadedDispositionData?.disposition_type);
+
+  // Control and SPRI type selection
+  const [kontrolType, setKontrolType] = useState<"none" | "simrs" | "bpjs">("none");
+  const [spriType, setSpriType] = useState<"simrs" | "bpjs">("simrs");
   
   // Fetch disposition options from master data
   const { data: dispositionData } = useMasterData('disposition_type');
@@ -121,8 +157,8 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
   const { data: inpatientClassData } = useMasterData('inpatient_class');
   
   const dispositionOptions = dispositionData
-    // Filter out "rawat_inap" option if patient is already inpatient
     .filter(item => !(item.code === 'rawat_inap' && pendingOrdersInfo?.is_inpatient))
+    .filter(item => !['dod', 'doa'].includes(item.code))
     .map(item => ({
       value: item.code,
       label: item.name,
@@ -140,26 +176,32 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
     label: item.name,
   }));
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<DispositionFormData>({
     disposition_type: initialData?.disposition_type || "",
     disposition_note: initialData?.disposition_note || "",
     discharge_status: initialData?.discharge_status || "",
     discharge_condition: initialData?.discharge_condition || "",
     referral_facility: initialData?.referral_facility || "",
+    referral_address: initialData?.referral_address || "",
+    referral_phone: initialData?.referral_phone || "",
+    referral_specialist: initialData?.referral_specialist || "",
     referral_reason: initialData?.referral_reason || "",
     referral_urgency: initialData?.referral_urgency || "",
-    // Admission request fields (simplified - no room/bed/doctor selection)
+    referral_diagnosis: initialData?.referral_diagnosis || "",
+    referral_therapy: initialData?.referral_therapy || "",
+    referral_lab_result: initialData?.referral_lab_result || "",
+    referral_notes: initialData?.referral_notes || "",
     admission_type: initialData?.admission_type || "",
     admission_reason: initialData?.admission_reason || "",
-    admission_priority: "normal" as string,
-    preferred_class: "" as string,
-    special_notes: "" as string,
+    admission_priority: "normal",
+    preferred_class: "",
+    special_notes: "",
     death_time: initialData?.death_time || "",
     death_cause: initialData?.death_cause || "",
     follow_up_date: initialData?.follow_up_date || "",
     follow_up_instruction: initialData?.follow_up_instruction || "",
-    follow_up_room_id: initialData?.follow_up_room_id || undefined as number | undefined,
-    follow_up_doctor_id: undefined as number | undefined, // Doctor for follow-up
+    follow_up_room_id: initialData?.follow_up_room_id,
+    follow_up_doctor_id: undefined,
     discharge_medication: initialData?.discharge_medication || "",
     discharge_instruction: initialData?.discharge_instruction || "",
   });
@@ -177,7 +219,6 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
       setAvailableDoctors(response.data.data || []);
       setRoomClosed(response.data.room_closed || false);
       
-      // Reset doctor selection if current doctor is not available
       if (formData.follow_up_doctor_id) {
         const isAvailable = (response.data.data || []).some(
           d => d.employee_id === formData.follow_up_doctor_id
@@ -194,7 +235,7 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
     }
   };
 
-  // Load rooms for poli (follow-up only)
+  // Load rooms for poli
   const loadRooms = async () => {
     try {
       const roomsResponse = await roomsApi.getAll({ limit: 1000, is_active: 'true' });
@@ -218,14 +259,24 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
       try {
         const response = await medicalRecordsApi.getDisposition(visitId);
         if (response.data) {
+          // Store loaded disposition data for isDisabled check
+          setLoadedDispositionData(response.data);
+          
           setFormData({
             disposition_type: response.data.disposition_type || "",
             disposition_note: response.data.disposition_note || "",
             discharge_status: response.data.discharge_status || "",
             discharge_condition: response.data.discharge_condition || "",
             referral_facility: response.data.referral_facility || "",
+            referral_address: response.data.referral_address || "",
+            referral_phone: response.data.referral_phone || "",
+            referral_specialist: response.data.referral_specialist || "",
             referral_reason: response.data.referral_reason || "",
             referral_urgency: response.data.referral_urgency || "",
+            referral_diagnosis: response.data.referral_diagnosis || "",
+            referral_therapy: response.data.referral_therapy || "",
+            referral_lab_result: response.data.referral_lab_result || "",
+            referral_notes: response.data.referral_notes || "",
             admission_type: response.data.admission_type || "",
             admission_reason: response.data.admission_reason || "",
             admission_priority: "normal",
@@ -236,94 +287,394 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
             follow_up_date: response.data.follow_up_date ? response.data.follow_up_date.split('T')[0] : "",
             follow_up_instruction: response.data.follow_up_instruction || "",
             follow_up_room_id: response.data.follow_up_room_id,
-            follow_up_doctor_id: undefined, // Will be loaded from available doctors
+            follow_up_doctor_id: undefined,
             discharge_medication: response.data.discharge_medication || "",
             discharge_instruction: response.data.discharge_instruction || "",
           });
           
-          if (response.data.follow_up_date && response.data.follow_up_room_id) {
-            setWantsFollowUp(true);
+          if (response.data.follow_up_date) {
+            setKontrolType("simrs");
           }
           
-          // Load follow-up registration data for QR code if available
-          if (response.data.follow_up_registration_id) {
+          // Load SPRI data if exists (for rawat_inap disposition)
+          if (response.data.disposition_type === "rawat_inap") {
             try {
-              const { registrationApi } = await import("@/lib/api/queue");
-              const regResponse = await registrationApi.getById(response.data.follow_up_registration_id);
-              if (regResponse.data.data) {
-                const reg = regResponse.data.data;
-                setFollowUpRegData({
-                  id: reg.id || reg.ID || response.data.follow_up_registration_id,
-                  registration_number: reg.registration_number,
-                  scheduled_date: response.data.follow_up_date,
-                  room_name: response.data.follow_up_room?.name || reg.destination_room?.name,
-                  doctor_name: reg.doctor?.nama_lengkap || reg.doctor?.name,
-                  queue_number: reg.visit?.room_queue?.queue_number,
-                  patient_name: reg.patient?.nama_lengkap || reg.patient?.name,
+              const spriResponse = await vclaimApi.getSPRIByVisit(visitId);
+              if (spriResponse.data?.data) {
+                const spriData = spriResponse.data.data;
+                setSpriResult({
+                  noSPRI: spriData.no_spri,
+                  tglRencanaKontrol: spriData.tgl_rencana_kontrol,
+                  namaDokter: spriData.nama_dokter,
+                  noKartu: spriData.no_kartu,
+                  nama: spriData.nama,
+                  kelamin: spriData.kelamin,
+                  tglLahir: spriData.tgl_lahir,
+                  namaDiagnosa: spriData.nama_diagnosa,
                 });
               }
             } catch (err) {
-              console.error("Failed to load follow-up registration:", err);
+              console.log("No SPRI found for this visit:", err);
+            }
+          }
+          
+          // Load Surat Kontrol data if exists (for pulang disposition)
+          if (response.data.disposition_type === "pulang") {
+            try {
+              const skResponse = await vclaimApi.getSuratKontrolByVisit(visitId);
+              if (skResponse.data?.data) {
+                const skData = skResponse.data.data;
+                setSuratKontrolResult({
+                  noSuratKontrol: skData.no_surat_kontrol,
+                  tglRencanaKontrol: skData.tgl_rencana_kontrol,
+                  namaDokter: skData.nama_dokter,
+                  noKartu: skData.no_kartu,
+                  nama: skData.nama,
+                  kelamin: skData.kelamin,
+                  tglLahir: skData.tgl_lahir,
+                  namaDiagnosa: skData.nama_diagnosa,
+                });
+              }
+            } catch (err) {
+              console.log("No Surat Kontrol found for this visit:", err);
             }
           }
         }
         
-        const pendingResponse = await medicalRecordsApi.checkPendingOrders(visitId);
-        setPendingOrdersInfo(pendingResponse.data);
-        await loadRooms();
-      } catch {
-        await loadRooms();
+        // Check pending orders
+        try {
+          const pendingResponse = await medicalRecordsApi.checkPendingOrders(visitId);
+          setPendingOrdersInfo(pendingResponse.data);
+        } catch (err) {
+          console.error("Failed to check pending orders:", err);
+        }
+      } catch (err) {
+        console.error("Failed to load disposition:", err);
       } finally {
         setLoading(false);
       }
     };
+    
     loadData();
+    loadRooms();
   }, [visitId]);
-  
-  // Load available doctors when room and date change
-  useEffect(() => {
-    if (formData.follow_up_room_id && formData.follow_up_date && wantsFollowUp) {
-      loadAvailableDoctors(formData.follow_up_room_id, formData.follow_up_date);
-    } else {
-      setAvailableDoctors([]);
-      setRoomClosed(false);
-    }
-  }, [formData.follow_up_room_id, formData.follow_up_date, wantsFollowUp]);
-  
-  // Reset follow-up when disposition type changes
-  useEffect(() => {
-    if (!["pulang", "aps"].includes(formData.disposition_type)) {
-      setWantsFollowUp(false);
-    }
-  }, [formData.disposition_type]);
 
-  const handleChange = (field: string, value: string | number | undefined) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
+  // Load available doctors when room and date change (for both SIMRS and BPJS sync)
+  useEffect(() => {
+    const shouldLoadDoctors = formData.follow_up_room_id && formData.follow_up_date && 
+      (kontrolType === "simrs" || (kontrolType === "bpjs" && !!suratKontrolResult));
+    
+    if (shouldLoadDoctors) {
+      loadAvailableDoctors(formData.follow_up_room_id!, formData.follow_up_date);
+    }
+  }, [formData.follow_up_room_id, formData.follow_up_date, kontrolType, suratKontrolResult]);
+
+  // Load active SEP and patient data
+  const loadBPJSData = async () => {
+    if (!visitId) return;
+    
+    setLoadingSEP(true);
+    try {
+      // First get visit to get registration_id
+      const visitResponse = await visitsApi.getById(visitId);
+      const visitData = visitResponse.data;
+      
+      // Get registration to get patient data
+      if (visitData?.registration_id) {
+        try {
+          const { registrationApi } = await import("@/lib/api/queue");
+          const regResponse = await registrationApi.getById(visitData.registration_id);
+          const registration = regResponse.data?.data;
+          
+          if (registration?.patient) {
+            const patient = registration.patient as Record<string, unknown>;
+            // Get bpjs_number from registration first, then fallback to patient data
+            const bpjsNumber = registration.bpjs_number ||
+              (patient.no_bpjs as string) ||
+              (patient.bpjs_number as string);
+
+            setPatientData({
+              id: (patient.id as number) || (patient.ID as number) || 0,
+              no_rm: (patient.no_rm as string) || (patient.medical_record_number as string) || "",
+              nama_lengkap: (patient.nama_lengkap as string) || (patient.name as string) || "",
+              nik: patient.nik as string,
+              no_bpjs: bpjsNumber,
+              tanggal_lahir: (patient.tanggal_lahir as string) || (patient.date_of_birth as string),
+              jenis_kelamin: (patient.jenis_kelamin as string) || (patient.gender as string),
+            });
+
+            if (bpjsNumber) {
+              setPatientNoBpjs(bpjsNumber);
+            }
+          }
+          
+          // Get active SEP - first try by visit (for kontrol visits), then by registration
+          try {
+            // Try getting SEP by current visit first (for kontrol visits that have their own SEP)
+            const sepByVisitResponse = await vclaimApi.getSEPByVisit(visitId);
+            if (sepByVisitResponse.data?.data) {
+              setActiveSEP(sepByVisitResponse.data.data);
+            } else {
+              // Fallback to SEP by registration (for initial visits)
+              const sepResponse = await vclaimApi.getSEPByRegistration(visitData.registration_id);
+              if (sepResponse.data?.data) {
+                setActiveSEP(sepResponse.data.data);
+              }
+            }
+          } catch (sepErr) {
+            // If visit SEP not found, try registration SEP as fallback
+            try {
+              const sepResponse = await vclaimApi.getSEPByRegistration(visitData.registration_id);
+              if (sepResponse.data?.data) {
+                setActiveSEP(sepResponse.data.data);
+              }
+            } catch (regSepErr) {
+              console.log("No SEP found for visit or registration");
+            }
+          }
+        } catch (regErr) {
+          console.error("Failed to load registration:", regErr);
+        }
+      }
+      
+      // Check for existing SPRI
+      try {
+        const spriRes = await vclaimApi.getSPRIByVisit(visitId);
+        if (spriRes.data?.data) {
+          const spriData = spriRes.data.data;
+          setSpriResult({
+            noSPRI: spriData.no_spri,
+            tglRencanaKontrol: spriData.tgl_rencana_kontrol,
+            namaDokter: spriData.nama_dokter,
+            noKartu: spriData.no_kartu,
+            nama: spriData.nama,
+            kelamin: spriData.kelamin,
+            tglLahir: spriData.tgl_lahir,
+            namaDiagnosa: spriData.nama_diagnosa,
+          });
+        }
+      } catch (spriErr) {
+        console.log("No SPRI found for this visit");
+      }
+      
+      // Check for existing Surat Kontrol
+      try {
+        const skRes = await vclaimApi.getSuratKontrolByVisit(visitId);
+        if (skRes.data?.data) {
+          const skLocal = skRes.data.data;
+          setSuratKontrolResult({
+            noSuratKontrol: skLocal.no_surat_kontrol,
+            tglRencanaKontrol: skLocal.tgl_rencana_kontrol,
+            namaDokter: skLocal.nama_dokter,
+            noKartu: skLocal.no_kartu,
+            nama: skLocal.nama,
+            kelamin: skLocal.kelamin,
+            tglLahir: skLocal.tgl_lahir,
+            namaDiagnosa: skLocal.nama_diagnosa,
+          });
+          // Sync follow_up_date from loaded Surat Kontrol
+          if (skLocal.tgl_rencana_kontrol) {
+            setFormData(prev => ({ ...prev, follow_up_date: skLocal.tgl_rencana_kontrol }));
+          }
+          // Set kontrolType to bpjs since we have an active Surat Kontrol
+          setKontrolType("bpjs");
+        }
+      } catch (skErr) {
+        console.log("No Surat Kontrol found for this visit");
+      }
+    } catch (err) {
+      console.log("No active SEP found for this visit");
+    } finally {
+      setLoadingSEP(false);
+    }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (formData.disposition_type === "pulang" && pendingOrdersInfo?.has_pending_orders) {
+  useEffect(() => {
+    loadBPJSData();
+  }, [visitId]);
+
+  // Handle cancel disposition
+  const handleCancelDisposition = async () => {
+    setCanceling(true);
+    try {
+      const canceledItems: string[] = [];
+      const failedItems: string[] = [];
+
+      // 1. Cancel Surat Kontrol BPJS (if exists)
+      if (suratKontrolResult?.noSuratKontrol) {
+        try {
+          await vclaimApi.deleteSuratKontrol(suratKontrolResult.noSuratKontrol);
+          canceledItems.push(`Surat Kontrol BPJS: ${suratKontrolResult.noSuratKontrol}`);
+          setSuratKontrolResult(null);
+        } catch (err) {
+          console.error("Failed to delete Surat Kontrol:", err);
+          failedItems.push(`Surat Kontrol BPJS: ${suratKontrolResult.noSuratKontrol}`);
+        }
+      }
+
+      // 2. Cancel SPRI (local only - BPJS doesn't provide delete API)
+      // Always try to cancel SPRI for this visit, regardless of disposition type
+      try {
+        console.log("Attempting to cancel SPRI for visit:", visitId);
+        await vclaimApi.cancelSPRILocal(visitId);
+        if (spriResult?.noSPRI) {
+          canceledItems.push(`SPRI: ${spriResult.noSPRI} (dibatalkan lokal)`);
+        } else {
+          canceledItems.push("SPRI (dibatalkan lokal)");
+        }
+        setSpriResult(null);
+      } catch (err: unknown) {
+        // 404 means no active SPRI found, which is fine
+        const error = err as { response?: { status?: number } };
+        if (error.response?.status !== 404) {
+          console.error("Failed to cancel SPRI:", err);
+        } else {
+          console.log("No active SPRI to cancel");
+        }
+      }
+
+      // 3. Cancel Admission Request (if pending)
+      const isRawatInap = formData.disposition_type === "rawat_inap" || 
+                          loadedDispositionData?.disposition_type === "rawat_inap";
+      if (isRawatInap) {
+        try {
+          // Find pending admission request for this visit
+          const admissionResponse = await admissionRequestApi.getAll({ 
+            source_visit_id: visitId,
+            status: "pending",
+            limit: 1 
+          } as { source_visit_id?: number; status?: string; limit?: number });
+          const admissions = admissionResponse.data?.data || [];
+          
+          if (admissions.length > 0) {
+            const pendingAdmission = admissions[0];
+            await admissionRequestApi.cancel(pendingAdmission.id);
+            canceledItems.push(`Permintaan Rawat Inap: ${pendingAdmission.request_number}`);
+          }
+        } catch (err) {
+          console.error("Failed to cancel admission request:", err);
+          failedItems.push("Permintaan Rawat Inap");
+        }
+      }
+
+      // 4. Cancel follow-up registration (if exists)
+      const hasFollowUpReg = loadedDispositionData?.follow_up_registration_id || initialData?.follow_up_registration_id;
+      if (hasFollowUpReg) {
+        try {
+          // Call API to cancel the follow-up registration
+          await medicalRecordsApi.cancelFollowUpRegistration(visitId);
+          canceledItems.push("Jadwal Kontrol SIMRS");
+        } catch (err) {
+          console.error("Failed to cancel follow-up registration:", err);
+          failedItems.push("Jadwal Kontrol SIMRS");
+        }
+      }
+
+      // 5. Reset disposition in database
+      try {
+        await medicalRecordsApi.cancelDisposition(visitId);
+        canceledItems.push("Data Disposisi");
+      } catch (err) {
+        console.error("Failed to reset disposition:", err);
+        failedItems.push("Data Disposisi");
+      }
+
+      // Show result
+      if (failedItems.length === 0) {
+        toast({
+          title: "Pembatalan Berhasil",
+          description: `Berhasil membatalkan: ${canceledItems.join(", ")}`,
+        });
+        // Refresh the page to reload data
+        window.location.reload();
+      } else {
+        toast({
+          title: "Pembatalan Sebagian Berhasil",
+          description: `Berhasil: ${canceledItems.join(", ")}. Gagal: ${failedItems.join(", ")}`,
+          variant: "destructive",
+        });
+      }
+
+      setShowCancelDialog(false);
+    } catch (err) {
       toast({
-        title: "Tidak dapat memulangkan",
+        title: "Gagal",
+        description: "Terjadi kesalahan saat membatalkan disposisi",
+        variant: "destructive",
+      });
+    } finally {
+      setCanceling(false);
+    }
+  };
+
+  const handleChange = (field: string, value: string | number | undefined) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  // Wrapper to also update follow_up_date when Surat Kontrol is created
+  const handleSuratKontrolCreated = (skData: SuratKontrolResponse) => {
+    setSuratKontrolResult(skData);
+    // Sync follow_up_date from BPJS Surat Kontrol
+    if (skData.tglRencanaKontrol) {
+      setFormData(prev => ({ ...prev, follow_up_date: skData.tglRencanaKontrol }));
+    }
+  };
+
+  const handleDispositionSelect = (type: string) => {
+    setFormData(prev => ({ ...prev, disposition_type: type }));
+
+    // Reset control types when opening new drawer
+    if (["pulang", "aps"].includes(type)) {
+      // Default to "none" for discharge, user can select SIMRS or BPJS
+      setKontrolType("none");
+    } else if (type === "rawat_inap") {
+      // Default to "simrs" for admission, but allow user to select BPJS if available
+      setSpriType(patientNoBpjs && activeSEP ? "simrs" : "simrs");
+    }
+
+    // Open appropriate drawer
+    switch (type) {
+      case "pulang":
+      case "aps":
+        setDischargeDrawerOpen(true);
+        break;
+      case "rawat_inap":
+        setAdmissionDrawerOpen(true);
+        break;
+      case "rujuk":
+        setReferralDrawerOpen(true);
+        break;
+      case "meninggal":
+        setDeathDrawerOpen(true);
+        break;
+    }
+  };
+
+  const handleSubmit = async () => {
+    // Block all discharge options when pending orders exist
+    if (pendingOrdersInfo?.has_pending_orders) {
+      toast({
+        title: "Tidak dapat memproses",
         description: "Masih ada order yang belum selesai. Selesaikan semua order terlebih dahulu.",
         variant: "destructive",
       });
       return;
     }
     
-    // Validate follow-up fields including doctor
-    if (["pulang", "aps"].includes(formData.disposition_type) && wantsFollowUp) {
+    // Validate follow-up fields (only if using internal follow-up, not BPJS)
+    const usingBPJSSuratKontrol = kontrolType === "bpjs" && !!suratKontrolResult;
+    const usingBPJSSPRI = spriType === "bpjs" && !!spriResult;
+
+    if (["pulang", "aps"].includes(formData.disposition_type) && kontrolType === "simrs") {
       if (!formData.follow_up_date || !formData.follow_up_room_id || !formData.follow_up_doctor_id) {
         toast({
           title: "Data tidak lengkap",
-          description: "Untuk jadwal kontrol, silakan pilih tanggal, poli, dan dokter.",
+          description: "Untuk jadwal kontrol SIMRS, silakan pilih tanggal, poli, dan dokter.",
           variant: "destructive",
         });
         return;
       }
-      
+
       if (roomClosed) {
         toast({
           title: "Poli tutup",
@@ -333,12 +684,62 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
         return;
       }
     }
-    
+
+    // Validate BPJS Surat Kontrol
+    if (["pulang", "aps"].includes(formData.disposition_type) && kontrolType === "bpjs" && !suratKontrolResult) {
+      toast({
+        title: "Data tidak lengkap",
+        description: "Silakan buat Surat Kontrol BPJS terlebih dahulu.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate BPJS Surat Kontrol MUST have SIMRS sync (wajib)
+    if (["pulang", "aps"].includes(formData.disposition_type) && kontrolType === "bpjs" && suratKontrolResult) {
+      if (!formData.follow_up_room_id || !formData.follow_up_doctor_id) {
+        toast({
+          title: "Sinkronisasi SIMRS Wajib",
+          description: "Surat Kontrol BPJS harus terhubung dengan jadwal kontrol SIMRS. Silakan pilih poli dan dokter SIMRS.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      if (roomClosed) {
+        toast({
+          title: "Poli tutup",
+          description: "Poli SIMRS tutup pada tanggal kontrol BPJS. Silakan pilih poli lain.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
+    // Validate BPJS SPRI
+    if (formData.disposition_type === "rawat_inap" && spriType === "bpjs" && !spriResult) {
+      toast({
+        title: "Data tidak lengkap",
+        description: "Silakan buat SPRI BPJS terlebih dahulu.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate admission_type for rawat_inap
+    if (formData.disposition_type === "rawat_inap" && !formData.admission_type) {
+      toast({
+        title: "Data tidak lengkap",
+        description: "Silakan pilih tipe rawat inap (Elektif atau Emergency).",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setSaving(true);
     try {
-      // For rawat_inap, create admission request instead of direct admission
-      if (formData.disposition_type === "rawat_inap") {
-        // Create admission request
+      // For rawat_inap SIMRS (without BPJS SPRI), create admission request
+      if (formData.disposition_type === "rawat_inap" && spriType === "simrs") {
         const admissionResponse = await admissionRequestApi.create({
           source_visit_id: visitId,
           admission_type: formData.admission_type,
@@ -348,10 +749,9 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
           special_notes: formData.special_notes,
         });
         
-        // Also save disposition (without creating visit)
         const payload = {
           ...formData,
-          create_admission: false, // Don't create visit directly
+          create_admission: false,
           create_follow_up: false,
         };
         
@@ -361,30 +761,84 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
           title: "Berhasil",
           description: `Permintaan rawat inap berhasil dibuat (${admissionResponse.data.data.request_number}). Menunggu proses dari bagian pendaftaran.`,
         });
+        
+        window.dispatchEvent(new CustomEvent("refresh-print-options"));
+        window.dispatchEvent(new CustomEvent("refresh-final-visit"));
+        
+        // Close drawer
+        setAdmissionDrawerOpen(false);
         onSave?.(payload as any);
         return;
       }
       
-      // For other disposition types, use existing logic
-      const shouldCreateFollowUp = ["pulang", "aps"].includes(formData.disposition_type) && 
-        wantsFollowUp && 
-        !!formData.follow_up_date && 
-        !!formData.follow_up_room_id && 
+      // For rawat_inap with BPJS SPRI - also need to create admission request
+      if (formData.disposition_type === "rawat_inap" && spriType === "bpjs" && usingBPJSSPRI) {
+        // Create admission request first
+        const admissionResponse = await admissionRequestApi.create({
+          source_visit_id: visitId,
+          admission_type: formData.admission_type,
+          admission_reason: formData.admission_reason,
+          priority: formData.admission_priority,
+          preferred_class: formData.preferred_class,
+          special_notes: formData.special_notes ? `${formData.special_notes}\nSPRI: ${spriResult.noSPRI}` : `SPRI: ${spriResult.noSPRI}`,
+        });
+        
+        const payload = {
+          ...formData,
+          create_admission: false,
+          create_follow_up: false,
+          bpjs_spri: {
+            no_spri: spriResult.noSPRI,
+            tgl_rencana_kontrol: spriResult.tglRencanaKontrol,
+          },
+        };
+        
+        await medicalRecordsApi.saveDisposition(visitId, payload);
+        
+        toast({
+          title: "Berhasil",
+          description: `Permintaan rawat inap berhasil dibuat (${admissionResponse.data.data.request_number}). SPRI: ${spriResult.noSPRI}`,
+        });
+        
+        window.dispatchEvent(new CustomEvent("refresh-print-options"));
+        window.dispatchEvent(new CustomEvent("refresh-final-visit"));
+        
+        setAdmissionDrawerOpen(false);
+        onSave?.(payload as any);
+        return;
+      }
+      
+      // For other disposition types
+      // Create follow-up for SIMRS or BPJS with SIMRS sync
+      const shouldCreateFollowUp = ["pulang", "aps"].includes(formData.disposition_type) &&
+        (kontrolType === "simrs" || (kontrolType === "bpjs" && usingBPJSSuratKontrol)) &&
+        !!formData.follow_up_date &&
+        !!formData.follow_up_room_id &&
         !!formData.follow_up_doctor_id;
         
       const payload = {
         ...formData,
         create_admission: false,
         create_follow_up: shouldCreateFollowUp,
+        bpjs_surat_kontrol: usingBPJSSuratKontrol ? {
+          no_surat_kontrol: suratKontrolResult.noSuratKontrol,
+          tanggal_kontrol: suratKontrolResult.tglRencanaKontrol,
+          dokter_tujuan: suratKontrolResult.namaDokter,
+        } : undefined,
       };
       
       const response = await medicalRecordsApi.saveDisposition(visitId, payload);
       
       let successMessage = "Disposisi berhasil disimpan";
+      
+      // Handle success message and QR data for both BPJS and SIMRS
       if (response.data.follow_up_registration_id) {
-        successMessage += ". Jadwal kontrol telah dibuat dengan nomor antrian yang sudah dipesan.";
+        if (usingBPJSSuratKontrol) {
+          successMessage += `. Surat Kontrol BPJS: ${suratKontrolResult.noSuratKontrol}. Jadwal kontrol SIMRS telah dibuat.`;
+        } else {
+          successMessage += ". Jadwal kontrol telah dibuat dengan nomor antrian.";
+        }
         
-        // Set follow-up registration data for QR code display
         try {
           const { registrationApi } = await import("@/lib/api/queue");
           const regResponse = await registrationApi.getById(response.data.follow_up_registration_id);
@@ -393,7 +847,7 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
             setFollowUpRegData({
               id: reg.id || reg.ID || response.data.follow_up_registration_id,
               registration_number: reg.registration_number,
-              scheduled_date: formData.follow_up_date,
+              scheduled_date: formData.follow_up_date || suratKontrolResult?.tglRencanaKontrol,
               room_name: reg.destination_room?.name || poliRooms.find(r => r.id === formData.follow_up_room_id)?.name,
               doctor_name: reg.doctor?.nama_lengkap || reg.doctor?.name || availableDoctors.find(d => d.employee_id === formData.follow_up_doctor_id)?.employee_name,
               queue_number: reg.visit?.room_queue?.queue_number,
@@ -409,7 +863,21 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
         title: "Berhasil",
         description: successMessage,
       });
+      
+      window.dispatchEvent(new CustomEvent("refresh-print-options"));
+      window.dispatchEvent(new CustomEvent("refresh-final-visit"));
+      
+      // Close all drawers
+      setDischargeDrawerOpen(false);
+      setReferralDrawerOpen(false);
+      setDeathDrawerOpen(false);
+      
       onSave?.(response.data);
+      
+      // Reload page to reflect new state (patient discharged)
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
     } catch (err) {
       const errorMessage = (err as { response?: { data?: { error?: string } } })?.response?.data?.error || "Gagal menyimpan disposisi";
       toast({
@@ -422,13 +890,6 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
     }
   };
 
-  // Show conditions
-  const showDischargeForm = ["pulang", "aps"].includes(formData.disposition_type);
-  const showAdmissionFields = formData.disposition_type === "rawat_inap";
-  const showDeathFields = ["meninggal", "dod"].includes(formData.disposition_type);
-  const showFollowUpFields = showDischargeForm && wantsFollowUp;
-  const showDischargeCondition = showDischargeForm && !wantsFollowUp;
-
   if (loading) {
     return (
       <Card className="shadow-md">
@@ -440,87 +901,159 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
   }
 
   return (
-    <Card className="shadow-md">
-      <CardHeader className="border-b bg-muted/30 py-3 px-4">
-        <CardTitle className="text-base font-semibold flex items-center gap-2">
-          <LogOut className="h-4 w-4" />
-          Pasien Pulang / Disposisi
-        </CardTitle>
-        <CardDescription>
-          Keputusan akhir terkait pemulangan, rawat inap, rujukan, atau tindakan lanjutan
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="p-0">
-        <ScrollArea className="h-[calc(100vh-300px)] min-h-[400px]">
-          <div className="p-4">
-            {/* Pending Orders Warning */}
-            {pendingOrdersInfo?.has_pending_orders && (
-              <Alert variant="destructive" className="mb-4">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>Perhatian: Ada Order yang Belum Selesai</AlertTitle>
-                <AlertDescription>
-                  <ul className="list-disc list-inside mt-2">
-                    {pendingOrdersInfo.pending_medicine_orders > 0 && (
-                      <li>{pendingOrdersInfo.pending_medicine_orders} order obat belum diserahkan</li>
-                    )}
-                    {pendingOrdersInfo.pending_procedure_orders > 0 && (
-                      <li>{pendingOrdersInfo.pending_procedure_orders} order tindakan belum selesai</li>
-                    )}
-                    {pendingOrdersInfo.pending_pharmacy_visits > 0 && (
-                      <li>{pendingOrdersInfo.pending_pharmacy_visits} kunjungan farmasi belum selesai</li>
-                    )}
-                  </ul>
-                  <p className="mt-2 text-sm">
-                    Pasien tidak dapat dipulangkan sampai semua order diselesaikan atau dibatalkan.
-                  </p>
-                </AlertDescription>
-              </Alert>
-            )}
-            
-            {/* Alert when form is already saved */}
-            {isDisabled && (
-              <Alert className="mb-4 bg-green-50 border-green-200">
-                <CheckCircle2 className="h-4 w-4 text-green-600" />
-                <AlertTitle className="text-green-700">Pasien Sudah Dipulangkan</AlertTitle>
-                <AlertDescription className="text-green-600">
-                  Data disposisi tidak dapat diubah karena sudah disimpan sebelumnya.
-                </AlertDescription>
-              </Alert>
-            )}
-            
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <fieldset disabled={readOnly}>
-                {/* Step 1: Select Disposition Type */}
+    <>
+      <Card className="shadow-md">
+        <CardHeader className="border-b bg-muted/30 py-3 px-4">
+          <CardTitle className="text-base font-semibold flex items-center gap-2">
+            <LogOut className="h-4 w-4" />
+            Pasien Pulang / Disposisi
+          </CardTitle>
+          <CardDescription>
+            Keputusan akhir terkait pemulangan, rawat inap, rujukan, atau tindakan lanjutan
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-0">
+          <ScrollArea className="h-[calc(100vh-300px)] min-h-[400px]">
+            <div className="p-4">
+              {/* Pending Orders Warning */}
+              {pendingOrdersInfo?.has_pending_orders && (
+                <Alert variant="destructive" className="mb-4">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>Perhatian: Ada Order yang Belum Selesai</AlertTitle>
+                  <AlertDescription>
+                    <ul className="list-disc list-inside mt-2">
+                      {pendingOrdersInfo.pending_medicine_orders > 0 && (
+                        <li>{pendingOrdersInfo.pending_medicine_orders} order obat belum diserahkan</li>
+                      )}
+                      {pendingOrdersInfo.pending_procedure_orders > 0 && (
+                        <li>{pendingOrdersInfo.pending_procedure_orders} order tindakan belum selesai</li>
+                      )}
+                      {pendingOrdersInfo.pending_pharmacy_visits > 0 && (
+                        <li>{pendingOrdersInfo.pending_pharmacy_visits} kunjungan farmasi belum selesai</li>
+                      )}
+                    </ul>
+                    <p className="mt-2 text-sm">
+                      Pasien tidak dapat dipulangkan sampai semua order diselesaikan atau dibatalkan.
+                    </p>
+                  </AlertDescription>
+                </Alert>
+              )}
+              
+              {/* Alert when form is already saved */}
+              {isDisabled && (
+                <Alert className="mb-4 bg-green-50 border-green-200">
+                  <CheckCircle2 className="h-4 w-4 text-green-600" />
+                  <AlertTitle className="text-green-700">Pasien Sudah Dipulangkan</AlertTitle>
+                  <AlertDescription className="text-green-600">
+                    <div className="mt-2 p-3 bg-white rounded-lg border space-y-2">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <span className="text-xs text-muted-foreground">Status Disposisi</span>
+                          <p className="font-medium">{dispositionOptions.find(o => o.value === formData.disposition_type)?.label || formData.disposition_type || "-"}</p>
+                        </div>
+                        {formData.discharge_condition && (
+                          <div>
+                            <span className="text-xs text-muted-foreground">Kondisi Pulang</span>
+                            <p className="font-medium">{formData.discharge_condition}</p>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Surat Kontrol BPJS */}
+                      {suratKontrolResult && (
+                        <div className="pt-2 border-t">
+                          <span className="text-xs text-muted-foreground">Surat Kontrol BPJS</span>
+                          <p className="font-medium">{suratKontrolResult.noSuratKontrol}</p>
+                          <p className="text-xs text-muted-foreground">
+                            Tanggal Kontrol: {suratKontrolResult.tglRencanaKontrol}
+                          </p>
+                        </div>
+                      )}
+                      
+                      {/* SPRI */}
+                      {spriResult && (
+                        <div className="pt-2 border-t">
+                          <span className="text-xs text-muted-foreground">SPRI (Surat Perintah Rawat Inap)</span>
+                          <p className="font-medium">{spriResult.noSPRI}</p>
+                          <p className="text-xs text-muted-foreground">
+                            Tanggal Rencana: {spriResult.tglRencanaKontrol}
+                          </p>
+                        </div>
+                      )}
+                      
+                      {/* Jadwal Kontrol SIMRS */}
+                      {(loadedDispositionData?.follow_up_registration_id || initialData?.follow_up_registration_id) && (
+                        <div className="pt-2 border-t">
+                          <span className="text-xs text-muted-foreground">Jadwal Kontrol SIMRS</span>
+                          <p className="font-medium text-green-700">✓ Sudah dibuat</p>
+                        </div>
+                      )}
+                      
+                      {/* Catatan Disposisi */}
+                      {formData.disposition_note && (
+                        <div className="pt-2 border-t">
+                          <span className="text-xs text-muted-foreground">Catatan</span>
+                          <p className="text-sm">{formData.disposition_note}</p>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Cancel Button - ALWAYS show, not dependent on readOnly */}
+                    <div className="mt-4 pt-3 border-t">
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => setShowCancelDialog(true)}
+                        className="gap-2"
+                      >
+                        <XCircle className="h-4 w-4" />
+                        Batalkan Disposisi
+                      </Button>
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Membatalkan disposisi akan menghapus Surat Kontrol, SPRI, jadwal kontrol, dan mengaktifkan kembali kunjungan ini.
+                      </p>
+                    </div>
+                  </AlertDescription>
+                </Alert>
+              )}
+              
+              {/* Disposition Type Selection */}
+              {!isDisabled && (
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
-                    <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold">1</div>
                     <Label className="text-sm font-semibold">Pilih Status Pemulangan</Label>
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                     {dispositionOptions.map((option) => {
-                      const isBlockedPulang = option.value === "pulang" && pendingOrdersInfo?.has_pending_orders;
+                      const isBlockedByPending = pendingOrdersInfo?.has_pending_orders;
                       
                       return (
                         <button
                           key={option.value}
                           type="button"
-                          onClick={() => handleChange("disposition_type", option.value)}
-                          disabled={isDisabled || isBlockedPulang}
+                          onClick={() => handleDispositionSelect(option.value)}
+                          disabled={isDisabled || isBlockedByPending || readOnly}
                           className={cn(
-                            "p-4 rounded-lg border-2 text-left transition-all flex flex-col gap-2",
+                            "p-4 rounded-lg border-2 text-left transition-all flex flex-col gap-2 group",
                             formData.disposition_type === option.value
                               ? "border-primary bg-primary/10 ring-2 ring-primary/20"
-                              : isDisabled || isBlockedPulang
+                              : isDisabled || isBlockedByPending
                               ? "border-muted bg-muted/50 opacity-50 cursor-not-allowed"
                               : "border-muted hover:border-primary/50 hover:bg-muted/30"
                           )}
                         >
                           <div className={cn(
-                            "flex items-center gap-2",
+                            "flex items-center justify-between",
                             formData.disposition_type === option.value ? "text-primary" : "text-muted-foreground"
                           )}>
-                            {option.icon}
-                            <span className="font-semibold text-sm">{option.label}</span>
+                            <div className="flex items-center gap-2">
+                              {option.icon}
+                              <span className="font-semibold text-sm">{option.label}</span>
+                            </div>
+                            <ArrowRight className={cn(
+                              "h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity",
+                              formData.disposition_type === option.value && "opacity-100"
+                            )} />
                           </div>
                           <p className="text-xs text-muted-foreground">{option.description}</p>
                         </button>
@@ -528,508 +1061,152 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
                     })}
                   </div>
                 </div>
+              )}
+            </div>
+          </ScrollArea>
+        </CardContent>
+      </Card>
 
-                {/* Step 2: Form based on selection */}
-                {formData.disposition_type && (
-                  <>
-                    <Separator className="my-6" />
-                    
-                    {/* PULANG / APS Form */}
-                    {showDischargeForm && (
-                      <div className="space-y-6">
-                        <div className="flex items-center gap-2">
-                          <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold">2</div>
-                          <Label className="text-sm font-semibold">Rencana Tindak Lanjut</Label>
-                        </div>
-                        
-                        {/* Checkbox Options - Only for Inpatient */}
-                        {pendingOrdersInfo?.is_inpatient ? (
-                          <label 
-                            htmlFor="wants_follow_up"
-                            className={cn(
-                              "flex items-start space-x-3 p-4 rounded-lg border-2 transition-all cursor-pointer",
-                              wantsFollowUp 
-                                ? "border-primary bg-primary/5" 
-                                : "border-muted hover:border-primary/50",
-                              isDisabled && "opacity-50 cursor-not-allowed"
-                            )}
-                          >
-                            <Checkbox 
-                              id="wants_follow_up"
-                              checked={wantsFollowUp} 
-                              onCheckedChange={(checked) => {
-                                setWantsFollowUp(checked === true);
-                              }}
-                              disabled={isDisabled}
-                              className="mt-0.5"
-                            />
-                            <div className="space-y-1">
-                              <span className="text-sm font-medium flex items-center gap-2">
-                                <Calendar className="h-4 w-4 text-primary" />
-                                Jadwalkan Kontrol
-                              </span>
-                              <p className="text-xs text-muted-foreground">
-                                Buat jadwal kunjungan ulang untuk pasien
-                              </p>
-                            </div>
-                          </label>
-                        ) : (
-                          <Alert className="bg-blue-50 border-blue-200">
-                            <AlertTriangle className="h-4 w-4 text-blue-600" />
-                            <AlertDescription className="text-blue-700">
-                              Tidak ada opsi tindak lanjut. Untuk rujukan, silakan pilih "Rujuk" di langkah 1.
-                            </AlertDescription>
-                          </Alert>
-                        )}
-                        
-                        {/* Follow Up Form */}
-                        {showFollowUpFields && (
-                          <div className="rounded-lg border bg-blue-50/50 dark:bg-blue-950/20 p-4 space-y-4">
-                            <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300">
-                              <Calendar className="h-4 w-4" />
-                              <span className="font-semibold text-sm">Jadwal Kontrol</span>
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <div className="space-y-2">
-                                <Label htmlFor="follow_up_date" className="text-sm">Tanggal Kontrol <span className="text-destructive">*</span></Label>
-                                <Input
-                                  id="follow_up_date"
-                                  type="date"
-                                  value={formData.follow_up_date}
-                                  onChange={(e) => handleChange("follow_up_date", e.target.value)}
-                                  className="h-10 bg-background"
-                                  min={new Date().toISOString().split('T')[0]}
-                                  disabled={isDisabled}
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label htmlFor="follow_up_room_id" className="text-sm">Poli Tujuan <span className="text-destructive">*</span></Label>
-                                <Combobox
-                                  options={poliRooms.map(r => ({ value: r.id.toString(), label: r.name }))}
-                                  value={formData.follow_up_room_id?.toString() || ""}
-                                  onValueChange={(value) => {
-                                    handleChange("follow_up_room_id", value ? parseInt(value) : undefined);
-                                    // Reset doctor when room changes
-                                    handleChange("follow_up_doctor_id", undefined);
-                                  }}
-                                  placeholder="Pilih poli..."
-                                  searchPlaceholder="Cari poli..."
-                                  emptyText="Poli tidak ditemukan"
-                                  disabled={isDisabled}
-                                />
-                              </div>
-                              
-                              {/* Doctor Selection - based on schedule */}
-                              <div className="space-y-2 md:col-span-2">
-                                <Label htmlFor="follow_up_doctor_id" className="text-sm">Dokter <span className="text-destructive">*</span></Label>
-                                {loadingDoctors ? (
-                                  <div className="flex items-center gap-2 text-sm text-muted-foreground p-2">
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                    <span>Memuat jadwal dokter...</span>
-                                  </div>
-                                ) : roomClosed ? (
-                                  <Alert variant="destructive" className="bg-red-50">
-                                    <AlertTriangle className="h-4 w-4" />
-                                    <AlertDescription>
-                                      Poli tutup pada tanggal ini. Silakan pilih tanggal lain.
-                                    </AlertDescription>
-                                  </Alert>
-                                ) : availableDoctors.length === 0 && formData.follow_up_room_id && formData.follow_up_date ? (
-                                  <Alert className="bg-amber-50 border-amber-200">
-                                    <AlertTriangle className="h-4 w-4 text-amber-600" />
-                                    <AlertDescription className="text-amber-700">
-                                      Tidak ada dokter yang praktik pada tanggal ini. Silakan pilih tanggal lain atau hubungi administrasi.
-                                    </AlertDescription>
-                                  </Alert>
-                                ) : (
-                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                    {availableDoctors.map((doctor) => (
-                                      <button
-                                        key={doctor.employee_id}
-                                        type="button"
-                                        onClick={() => handleChange("follow_up_doctor_id", doctor.employee_id)}
-                                        disabled={isDisabled}
-                                        className={cn(
-                                          "p-3 rounded-lg border-2 text-left transition-all",
-                                          formData.follow_up_doctor_id === doctor.employee_id
-                                            ? "border-primary bg-primary/10 ring-2 ring-primary/20"
-                                            : isDisabled
-                                            ? "border-muted bg-muted/50 opacity-50 cursor-not-allowed"
-                                            : "border-muted hover:border-primary/50 hover:bg-muted/30"
-                                        )}
-                                      >
-                                        <div className="font-medium text-sm">{doctor.employee_name}</div>
-                                        <div className="text-xs text-muted-foreground mt-1">
-                                          Jam praktik: {doctor.start_time} - {doctor.end_time}
-                                        </div>
-                                        {doctor.max_patients > 0 && (
-                                          <div className="text-xs text-muted-foreground">
-                                            Maks. {doctor.max_patients} pasien
-                                          </div>
-                                        )}
-                                      </button>
-                                    ))}
-                                  </div>
-                                )}
-                                {!formData.follow_up_room_id || !formData.follow_up_date ? (
-                                  <p className="text-xs text-muted-foreground">
-                                    Pilih poli dan tanggal terlebih dahulu untuk melihat dokter yang tersedia.
-                                  </p>
-                                ) : null}
-                              </div>
-                              
-                              <div className="space-y-2 md:col-span-2">
-                                <Label htmlFor="follow_up_instruction" className="text-sm">Instruksi Kontrol</Label>
-                                <Textarea
-                                  id="follow_up_instruction"
-                                  placeholder="Rencana pemeriksaan/tindakan saat kontrol..."
-                                  value={formData.follow_up_instruction}
-                                  onChange={(e) => handleChange("follow_up_instruction", e.target.value)}
-                                  className="min-h-[80px] resize-none bg-background"
-                                  disabled={isDisabled}
-                                />
-                              </div>
-                            </div>
-                            {formData.follow_up_date && formData.follow_up_room_id && formData.follow_up_doctor_id && !roomClosed && (
-                              <Alert className="bg-green-100 border-green-300">
-                                <CheckCircle2 className="h-4 w-4 text-green-600" />
-                                <AlertDescription className="text-green-700">
-                                  Jadwal kontrol akan dibuat untuk tanggal <strong>{formData.follow_up_date}</strong> di{' '}
-                                  <strong>{poliRooms.find(r => r.id === formData.follow_up_room_id)?.name || 'poli terpilih'}</strong> dengan{' '}
-                                  <strong>{availableDoctors.find(d => d.employee_id === formData.follow_up_doctor_id)?.employee_name || 'dokter terpilih'}</strong>.
-                                  Nomor antrian akan langsung diberikan saat ini.
-                                </AlertDescription>
-                              </Alert>
-                            )}
-                            
-                            {/* Show QR Code if follow-up registration already created */}
-                            {followUpRegData && (
-                              <Alert className="bg-blue-50 border-blue-300">
-                                <QrCode className="h-4 w-4 text-blue-600" />
-                                <AlertTitle className="text-blue-700">Jadwal Kontrol Terdaftar</AlertTitle>
-                                <AlertDescription className="text-blue-700">
-                                  <div className="flex items-start gap-4 mt-2">
-                                    {/* Info */}
-                                    <div className="space-y-1 flex-1">
-                                      <p>No. Registrasi: <strong>{followUpRegData.registration_number}</strong></p>
-                                      {followUpRegData.scheduled_date && (
-                                        <p>Tanggal: <strong>{new Date(followUpRegData.scheduled_date).toLocaleDateString("id-ID", {
-                                          weekday: "long",
-                                          year: "numeric",
-                                          month: "long",
-                                          day: "numeric",
-                                        })}</strong></p>
-                                      )}
-                                      {followUpRegData.room_name && <p>Poli: <strong>{followUpRegData.room_name}</strong></p>}
-                                      {followUpRegData.doctor_name && <p>Dokter: <strong>{followUpRegData.doctor_name}</strong></p>}
-                                    </div>
-                                    {/* QR Code - clickable */}
-                                    <div className="flex-shrink-0">
-                                      <CheckInQRCode
-                                        registrationId={followUpRegData.id}
-                                        registrationNumber={followUpRegData.registration_number}
-                                        patientName={followUpRegData.patient_name || "Pasien"}
-                                        scheduledDate={followUpRegData.scheduled_date}
-                                        roomName={followUpRegData.room_name}
-                                        doctorName={followUpRegData.doctor_name}
-                                        queueNumber={followUpRegData.queue_number}
-                                      />
-                                      <p className="text-xs text-blue-500 mt-1 text-center">Klik untuk cetak</p>
-                                    </div>
-                                  </div>
-                                </AlertDescription>
-                              </Alert>
-                            )}
-                          </div>
-                        )}
-                        
-                        {/* Discharge Condition (only if no follow-up) */}
-                        {showDischargeCondition && (
-                          <div className="space-y-2">
-                            <Label htmlFor="discharge_condition" className="text-sm font-semibold">
-                              Kondisi Keluar
-                            </Label>
-                            <Combobox
-                              options={dischargeConditionOptions}
-                              value={formData.discharge_condition}
-                              onValueChange={(value) => handleChange("discharge_condition", value)}
-                              placeholder="Pilih kondisi keluar..."
-                              searchPlaceholder="Cari kondisi..."
-                              emptyText="Kondisi tidak ditemukan"
-                              disabled={isDisabled}
-                            />
-                          </div>
-                        )}
-                        
-                        <Separator />
-                        
-                        {/* Discharge Instructions */}
-                        <div className="space-y-4">
-                          <div className="flex items-center gap-2">
-                            <ClipboardList className="h-4 w-4 text-primary" />
-                            <Label className="text-sm font-semibold">Instruksi Pemulangan</Label>
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="discharge_instruction" className="text-sm">
-                              Instruksi untuk Pasien
-                            </Label>
-                            <Textarea
-                              id="discharge_instruction"
-                              placeholder="Instruksi yang harus diikuti pasien setelah pulang (diet, aktivitas, minum obat, dll)..."
-                              value={formData.discharge_instruction}
-                              onChange={(e) => handleChange("discharge_instruction", e.target.value)}
-                              className="min-h-[100px] resize-none"
-                              disabled={isDisabled}
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="discharge_medication" className="text-sm">
-                              Obat Pulang
-                            </Label>
-                            <Textarea
-                              id="discharge_medication"
-                              placeholder="Daftar obat yang dibawa pulang beserta aturan pakai..."
-                              value={formData.discharge_medication}
-                              onChange={(e) => handleChange("discharge_medication", e.target.value)}
-                              className="min-h-[80px] resize-none"
-                              disabled={isDisabled}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    )}
+      {/* Discharge Drawer (Pulang / APS) */}
+      <DischargeDrawer
+        open={dischargeDrawerOpen}
+        onOpenChange={setDischargeDrawerOpen}
+        formData={formData}
+        onFormChange={handleChange}
+        onSubmit={handleSubmit}
+        saving={saving}
+        isDisabled={isDisabled || readOnly}
+        isInpatient={pendingOrdersInfo?.is_inpatient || false}
+        poliRooms={poliRooms}
+        availableDoctors={availableDoctors}
+        loadingDoctors={loadingDoctors}
+        roomClosed={roomClosed}
+        followUpRegData={followUpRegData}
+        patientNoBpjs={patientNoBpjs}
+        activeSEP={activeSEP}
+        patientData={patientData}
+        visitId={visitId}
+        suratKontrolResult={suratKontrolResult}
+        setSuratKontrolResult={handleSuratKontrolCreated}
+        dischargeConditionOptions={dischargeConditionOptions}
+        kontrolType={kontrolType}
+        setKontrolType={setKontrolType}
+      />
 
-                    {/* RAWAT INAP Form - Request Admission */}
-                    {showAdmissionFields && (
-                      <div className="space-y-6">
-                        <div className="flex items-center gap-2">
-                          <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold">2</div>
-                          <Label className="text-sm font-semibold">Permintaan Rawat Inap</Label>
-                        </div>
-                        
-                        <Alert className="bg-blue-50 border-blue-200">
-                          <Send className="h-4 w-4 text-blue-600" />
-                          <AlertDescription className="text-blue-700">
-                            Permintaan rawat inap akan dikirim ke bagian <strong>Pendaftaran/Admisi</strong> untuk pemilihan kamar, bed, dan DPJP.
-                          </AlertDescription>
-                        </Alert>
-                        
-                        {/* Admission Type Selection */}
-                        <div className="space-y-2">
-                          <Label className="text-sm">Tipe Rawat Inap <span className="text-destructive">*</span></Label>
-                          <div className="grid grid-cols-2 gap-3">
-                            {[
-                              { value: "elektif", label: "Elektif", desc: "Rawat inap terencana" },
-                              { value: "emergency", label: "Emergency", desc: "Rawat inap darurat" },
-                            ].map(opt => (
-                              <button
-                                key={opt.value}
-                                type="button"
-                                onClick={() => handleChange("admission_type", opt.value)}
-                                disabled={isDisabled}
-                                className={cn(
-                                  "p-4 rounded-lg border-2 text-left transition-all",
-                                  formData.admission_type === opt.value
-                                    ? "border-primary bg-primary/10 ring-2 ring-primary/20"
-                                    : isDisabled
-                                    ? "border-muted bg-muted/50 opacity-50 cursor-not-allowed"
-                                    : "border-muted hover:border-primary/50 hover:bg-muted/30"
-                                )}
-                              >
-                                <div className="font-semibold text-sm">{opt.label}</div>
-                                <div className="text-xs text-muted-foreground mt-1">{opt.desc}</div>
-                              </button>
-                            ))}
-                          </div>
-                        </div>
+      {/* Admission Drawer (Rawat Inap) */}
+      <AdmissionDrawer
+        open={admissionDrawerOpen}
+        onOpenChange={setAdmissionDrawerOpen}
+        formData={formData}
+        onFormChange={handleChange}
+        onSubmit={handleSubmit}
+        saving={saving}
+        isDisabled={isDisabled || readOnly}
+        patientNoBpjs={patientNoBpjs}
+        activeSEP={activeSEP}
+        patientData={patientData}
+        visitId={visitId}
+        spriResult={spriResult}
+        setSpriResult={setSpriResult}
+        inpatientClassOptions={inpatientClassOptions}
+        spriType={spriType}
+        setSpriType={setSpriType}
+      />
 
-                        {/* Priority Selection */}
-                        <div className="space-y-2">
-                          <Label className="text-sm">Prioritas <span className="text-destructive">*</span></Label>
-                          <div className="grid grid-cols-3 gap-3">
-                            {[
-                              { value: "normal", label: "Normal", desc: "Prioritas standar", color: "text-green-600" },
-                              { value: "urgent", label: "Urgent", desc: "Perlu segera", color: "text-orange-600" },
-                              { value: "emergency", label: "Emergency", desc: "Sangat mendesak", color: "text-red-600" },
-                            ].map(opt => (
-                              <button
-                                key={opt.value}
-                                type="button"
-                                onClick={() => handleChange("admission_priority", opt.value)}
-                                disabled={isDisabled}
-                                className={cn(
-                                  "p-4 rounded-lg border-2 text-left transition-all",
-                                  formData.admission_priority === opt.value
-                                    ? "border-primary bg-primary/10 ring-2 ring-primary/20"
-                                    : isDisabled
-                                    ? "border-muted bg-muted/50 opacity-50 cursor-not-allowed"
-                                    : "border-muted hover:border-primary/50 hover:bg-muted/30"
-                                )}
-                              >
-                                <div className={cn("font-semibold text-sm", opt.color)}>{opt.label}</div>
-                                <div className="text-xs text-muted-foreground mt-1">{opt.desc}</div>
-                              </button>
-                            ))}
-                          </div>
-                        </div>
+      {/* Referral Drawer (Rujuk) */}
+      <ReferralDrawer
+        open={referralDrawerOpen}
+        onOpenChange={setReferralDrawerOpen}
+        formData={formData}
+        onFormChange={handleChange}
+        onSubmit={handleSubmit}
+        saving={saving}
+        isDisabled={isDisabled || readOnly}
+      />
 
-                        {/* Preferred Class */}
-                        <div className="space-y-2">
-                          <Label htmlFor="preferred_class" className="text-sm">Kelas Kamar yang Diinginkan</Label>
-                          <Combobox
-                            options={inpatientClassOptions}
-                            value={formData.preferred_class || ""}
-                            onValueChange={(value) => handleChange("preferred_class", value)}
-                            placeholder="Pilih kelas kamar..."
-                            searchPlaceholder="Cari kelas..."
-                            emptyText="Tidak ada kelas"
-                            disabled={isDisabled}
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            Opsional. Bagian admisi akan menyesuaikan dengan ketersediaan kamar.
-                          </p>
-                        </div>
-                        
-                        <div className="space-y-2">
-                          <Label htmlFor="admission_reason" className="text-sm">
-                            Alasan/Indikasi Rawat Inap <span className="text-destructive">*</span>
-                          </Label>
-                          <Textarea
-                            id="admission_reason"
-                            placeholder="Jelaskan alasan klinis pasien perlu dirawat inap..."
-                            value={formData.admission_reason}
-                            onChange={(e) => handleChange("admission_reason", e.target.value)}
-                            className="min-h-[100px] resize-none"
-                            disabled={isDisabled}
-                          />
-                        </div>
+      {/* Death Drawer (Meninggal) */}
+      <DeathDrawer
+        open={deathDrawerOpen}
+        onOpenChange={setDeathDrawerOpen}
+        formData={formData}
+        onFormChange={handleChange}
+        onSubmit={handleSubmit}
+        saving={saving}
+        isDisabled={isDisabled || readOnly}
+      />
 
-                        <div className="space-y-2">
-                          <Label htmlFor="special_notes" className="text-sm">Catatan Khusus</Label>
-                          <Textarea
-                            id="special_notes"
-                            placeholder="Catatan khusus untuk bagian admisi (misal: perlu ruang isolasi, pasien bariatrik, dll)..."
-                            value={formData.special_notes || ""}
-                            onChange={(e) => handleChange("special_notes", e.target.value)}
-                            className="min-h-[80px] resize-none"
-                            disabled={isDisabled}
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    {/* RUJUK Form (standalone) */}
-                    {formData.disposition_type === "rujuk" && (
-                      <div className="space-y-6">
-                        <div className="flex items-center gap-2">
-                          <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold">2</div>
-                          <Label className="text-sm font-semibold">Informasi Rujukan</Label>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label htmlFor="referral_facility_main" className="text-sm">
-                              Fasilitas Tujuan Rujukan <span className="text-destructive">*</span>
-                            </Label>
-                            <Input
-                              id="referral_facility_main"
-                              placeholder="Nama rumah sakit/fasilitas kesehatan tujuan"
-                              value={formData.referral_facility}
-                              onChange={(e) => handleChange("referral_facility", e.target.value)}
-                              className="h-10"
-                              required
-                              disabled={isDisabled}
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="referral_urgency_main" className="text-sm">
-                              Urgensi Rujukan
-                            </Label>
-                            <Combobox
-                              options={[
-                                { value: "cito", label: "CITO" },
-                                { value: "urgent", label: "Urgent" },
-                                { value: "normal", label: "Normal" },
-                              ]}
-                              value={formData.referral_urgency}
-                              onValueChange={(value) => handleChange("referral_urgency", value)}
-                              placeholder="Pilih urgensi..."
-                              searchPlaceholder="Cari..."
-                              emptyText="Tidak ditemukan"
-                              disabled={isDisabled}
-                            />
-                          </div>
-                          <div className="space-y-2 md:col-span-2">
-                            <Label htmlFor="referral_reason_main" className="text-sm">
-                              Alasan Rujukan <span className="text-destructive">*</span>
-                            </Label>
-                            <Textarea
-                              id="referral_reason_main"
-                              placeholder="Alasan pasien dirujuk ke fasilitas lain..."
-                              value={formData.referral_reason}
-                              onChange={(e) => handleChange("referral_reason", e.target.value)}
-                              className="min-h-[80px] resize-none"
-                              required
-                              disabled={isDisabled}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* MENINGGAL / DOD Form */}
-                    {showDeathFields && (
-                      <div className="space-y-6">
-                        <div className="flex items-center gap-2">
-                          <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold">2</div>
-                          <Label className="text-sm font-semibold">Informasi Kematian</Label>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label htmlFor="death_time" className="text-sm">
-                              Waktu Kematian
-                            </Label>
-                            <Input
-                              id="death_time"
-                              type="datetime-local"
-                              value={formData.death_time}
-                              onChange={(e) => handleChange("death_time", e.target.value)}
-                              className="h-10"
-                              disabled={isDisabled}
-                            />
-                          </div>
-                          <div className="space-y-2 md:col-span-2">
-                            <Label htmlFor="death_cause" className="text-sm">
-                              Penyebab Kematian
-                            </Label>
-                            <Textarea
-                              id="death_cause"
-                              placeholder="Penyebab kematian pasien..."
-                              value={formData.death_cause}
-                              onChange={(e) => handleChange("death_cause", e.target.value)}
-                              className="min-h-[80px] resize-none"
-                              disabled={isDisabled}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </>
-                )}
-
-                {/* Submit Button */}
-                {!isDisabled && formData.disposition_type && (
-                  <div className="flex justify-end gap-3 pt-6 border-t">
-                    <Button type="submit" size="lg" className="gap-2" disabled={saving}>
-                      {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                      Simpan & Pulangkan Pasien
-                    </Button>
-                  </div>
-                )}
-              </fieldset>
-            </form>
+      {/* Cancel Disposition Dialog */}
+      <Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="h-5 w-5" />
+              Batalkan Disposisi
+            </DialogTitle>
+            <DialogDescription>
+              Apakah Anda yakin ingin membatalkan disposisi pasien ini?
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-3 py-4">
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Peringatan</AlertTitle>
+              <AlertDescription>
+                Tindakan ini akan:
+                <ul className="list-disc list-inside mt-2 space-y-1">
+                  {suratKontrolResult && (
+                    <li>Menghapus Surat Kontrol BPJS: <strong>{suratKontrolResult.noSuratKontrol}</strong></li>
+                  )}
+                  {spriResult && (
+                    <li>Membatalkan SPRI: <strong>{spriResult.noSPRI}</strong> (catatan lokal)</li>
+                  )}
+                  {(loadedDispositionData?.follow_up_registration_id || initialData?.follow_up_registration_id) && (
+                    <li>Menghapus jadwal kontrol SIMRS</li>
+                  )}
+                  {(loadedDispositionData?.disposition_type || formData.disposition_type) === "rawat_inap" && (
+                    <li>Membatalkan permintaan rawat inap (jika masih pending)</li>
+                  )}
+                  <li>Mengaktifkan kembali kunjungan pasien</li>
+                </ul>
+              </AlertDescription>
+            </Alert>
+            
+            <p className="text-sm text-muted-foreground">
+              <strong>Catatan:</strong> SPRI yang sudah terbit di BPJS tidak dapat dihapus melalui VClaim. 
+              Hanya status lokal yang akan diubah menjadi "cancelled".
+            </p>
           </div>
-        </ScrollArea>
-      </CardContent>
-    </Card>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowCancelDialog(false)}
+              disabled={canceling}
+            >
+              Batal
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleCancelDisposition}
+              disabled={canceling}
+              className="gap-2"
+            >
+              {canceling ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Membatalkan...
+                </>
+              ) : (
+                <>
+                  <XCircle className="h-4 w-4" />
+                  Ya, Batalkan
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

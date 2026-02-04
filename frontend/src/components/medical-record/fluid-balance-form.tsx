@@ -374,6 +374,9 @@ export function FluidBalanceForm({ visitId, readOnly = false }: FluidBalanceForm
       }
       setIsModalOpen(false);
       loadData();
+      // Trigger refresh print options dan final visit
+      window.dispatchEvent(new CustomEvent("refresh-print-options"));
+      window.dispatchEvent(new CustomEvent("refresh-final-visit"));
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -398,6 +401,9 @@ export function FluidBalanceForm({ visitId, readOnly = false }: FluidBalanceForm
       setDeleteDialogOpen(false);
       setBalanceToDelete(null);
       loadData();
+      // Trigger refresh print options dan final visit
+      window.dispatchEvent(new CustomEvent("refresh-print-options"));
+      window.dispatchEvent(new CustomEvent("refresh-final-visit"));
     } catch (error: any) {
       toast({
         variant: "destructive",

@@ -1,5 +1,16 @@
 import { api } from './client';
 
+export interface BPJSQueueInfo {
+  id: number;
+  kode_booking: string;
+  nomor_antrean: string;
+  nomor_kartu: string;
+  nama_pasien: string;
+  nama_poli: string;
+  nama_dokter: string;
+  status: string;
+}
+
 export interface RoomQueue {
   id: number;
   queue_number: string;
@@ -8,7 +19,7 @@ export interface RoomQueue {
   visit_id: number;
   room_id: number;
   priority: 'normal' | 'urgent' | 'emergency';
-  status: 'waiting' | 'called' | 'serving' | 'completed' | 'skipped' | 'cancelled';
+  status: 'waiting' | 'called' | 'serving' | 'completed' | 'skipped' | 'cancelled' | 'reserved';
   called_at?: string;
   called_by_id?: number;
   served_at?: string;
@@ -20,6 +31,9 @@ export interface RoomQueue {
   called_by?: any;
   created_at: string;
   updated_at: string;
+  // MJKN/BPJS info
+  is_mjkn?: boolean;
+  bpjs_queue?: BPJSQueueInfo;
 }
 
 export interface RoomQueueStats {

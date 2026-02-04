@@ -89,6 +89,10 @@ export function ConsultationForm({ visitId, readOnly = false }: ConsultationForm
         description: "Hasil konsultasi berhasil disimpan",
       });
       
+      // Trigger refresh print options dan final visit
+      window.dispatchEvent(new CustomEvent("refresh-print-options"));
+      window.dispatchEvent(new CustomEvent("refresh-final-visit"));
+      
       // Reload data
       await loadConsultation();
     } catch (error: any) {

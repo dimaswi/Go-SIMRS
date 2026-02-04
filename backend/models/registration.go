@@ -32,6 +32,12 @@ type Registration struct {
 	Notes              string     `json:"notes" gorm:"type:text"`
 	VisitNumber        int        `json:"visit_number"` // Kunjungan ke-N untuk pasien ini (lifetime count)
 
+	// SEP (Surat Eligibilitas Peserta) untuk BPJS
+	SEPNumber   string `json:"sep_number" gorm:"size:50;index"` // Nomor SEP dari VClaim
+	NoRujukan   string `json:"no_rujukan" gorm:"size:50"`       // Nomor rujukan BPJS
+	AsalRujukan string `json:"asal_rujukan" gorm:"size:5"`      // 1=Faskes 1, 2=Faskes 2
+	TglRujukan  string `json:"tgl_rujukan" gorm:"size:10"`      // Tanggal rujukan
+
 	// Follow-up / Scheduled Registration fields
 	IsFollowUp    bool       `json:"is_follow_up" gorm:"default:false"`                       // Flag untuk jadwal kontrol
 	SourceVisitID *uint      `json:"source_visit_id" gorm:"index"`                            // Visit ID asal yang order kontrol
@@ -46,6 +52,9 @@ type Registration struct {
 
 	// For easier access to primary visit
 	Visit *Visit `json:"visit,omitempty" gorm:"foreignKey:RegistrationID"`
+
+	// SEP relation
+	SEP *SEP `json:"sep,omitempty" gorm:"foreignKey:RegistrationID"`
 }
 
 // Registration Status constants

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,10 +11,11 @@ import {
 import { DataTable } from "@/components/ui/data-table";
 import { createRegistrationColumns } from "./columns";
 import { registrationApi, type Registration } from "@/lib/api/queue";
+import { bpjsApi, type BPJSQueue } from "@/lib/api/bpjs";
 import { usePermission } from "@/hooks/usePermission";
 import { useToast } from "@/hooks/use-toast";
 import { ConfirmDialog } from "@/components/confirm-dialog";
-import { QueueTicketPrint } from "@/components/queue-ticket-print";
+import { printApi } from "@/lib/api";
 import { setPageTitle } from "@/lib/page-title";
 import {
   Loader2,
@@ -49,7 +50,6 @@ import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api/client";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
-import { useReactToPrint } from "react-to-print";
 
 interface Room {
   id: number;
@@ -68,13 +68,78 @@ export default function RegistrationIndex() {
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
   const [selectedDate, setSelectedDate] = useState<string>(""); // Empty = show all data
   const [cancelId, setCancelId] = useState<number | null>(null);
-  const [printData, setPrintData] = useState<Registration | null>(null);
+  const [cancelMjknId, setCancelMjknId] = useState<number | null>(null);
+  const [printingType, setPrintingType] = useState<{ regId: number; type: 'queue' | 'label' } | null>(null);
   const [roomPopoverOpen, setRoomPopoverOpen] = useState(false);
-  const printRef = useRef<HTMLDivElement>(null);
+  const [mjknQueueMap, setMjknQueueMap] = useState<Map<number, BPJSQueue>>(new Map());
+  const [activatingCheckin, setActivatingCheckin] = useState<number | null>(null);
 
-  const handlePrint = useReactToPrint({
-    contentRef: printRef,
-  });
+  const loadMjknQueues = useCallback(async () => {
+    try {
+      // Load both booking and checkin MJKN queues to mark them in the table
+      const [bookingRes, checkinRes] = await Promise.all([
+        bpjsApi.getQueues({ status: "booking" }),
+        bpjsApi.getQueues({ status: "checkin" }),
+      ]);
+      const allQueues = [
+        ...(bookingRes.data.data || []),
+        ...(checkinRes.data.data || []),
+      ];
+      const map = new Map<number, BPJSQueue>();
+      for (const q of allQueues) {
+        if (q.registration_id) {
+          map.set(q.registration_id, q);
+        }
+      }
+      setMjknQueueMap(map);
+    } catch (error) {
+      console.error("Failed to load MJKN queues:", error);
+    }
+  }, []);
+
+  const handleActivateCheckin = async (queueId: number) => {
+    setActivatingCheckin(queueId);
+    try {
+      await bpjsApi.activateQueueCheckin(queueId);
+      toast({
+        title: "Berhasil!",
+        description: "Check-in MJKN berhasil diaktifkan",
+      });
+      loadMjknQueues();
+      loadData();
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Gagal mengaktifkan check-in";
+      toast({
+        variant: "destructive",
+        title: "Error!",
+        description: errorMessage,
+      });
+    } finally {
+      setActivatingCheckin(null);
+    }
+  };
+
+  const handleCancelMjkn = async () => {
+    if (!cancelMjknId) return;
+    try {
+      await bpjsApi.cancelQueue(cancelMjknId);
+      toast({
+        title: "Antrian MJKN Dibatalkan",
+        description: "Antrian MJKN berhasil dibatalkan.",
+      });
+      loadMjknQueues();
+      loadData();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description:
+          error.response?.data?.error || "Gagal membatalkan antrian MJKN.",
+      });
+    } finally {
+      setCancelMjknId(null);
+    }
+  };
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -82,12 +147,12 @@ export default function RegistrationIndex() {
       const params: Record<string, string | number> = {
         limit: 1000, // Get all records
       };
-      
+
       // Only add date filter if date is selected
       if (selectedDate) {
         params.date = selectedDate;
       }
-      
+
       if (selectedRoom !== "all")
         params.destination_room_id = parseInt(selectedRoom);
       if (selectedStatus !== "all") params.status = selectedStatus;
@@ -150,7 +215,8 @@ export default function RegistrationIndex() {
   useEffect(() => {
     setPageTitle("Pendaftaran");
     loadRooms();
-  }, [loadRooms]);
+    loadMjknQueues();
+  }, [loadRooms, loadMjknQueues]);
 
   useEffect(() => {
     loadData();
@@ -183,7 +249,7 @@ export default function RegistrationIndex() {
     navigate(`/registrations/show/${id}`);
   };
 
-  const handlePrintQueue = (registration: Registration) => {
+  const handlePrintQueueTicket = async (registration: Registration) => {
     if (!registration.visit?.room_queue) {
       toast({
         title: "Error",
@@ -192,19 +258,61 @@ export default function RegistrationIndex() {
       });
       return;
     }
-    setPrintData(registration);
-    // Trigger print after state is set
-    setTimeout(() => {
-      handlePrint();
-    }, 100);
+
+    const regId = registration.ID || registration.id || 0;
+    setPrintingType({ regId, type: 'queue' });
+    try {
+      const url = await printApi.queueTicket(registration.visit.room_queue.id);
+      window.open(url, "_blank");
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.response?.data?.error || "Gagal mencetak tiket antrian",
+        variant: "destructive",
+      });
+    } finally {
+      setPrintingType(null);
+    }
+  };
+
+  const handlePrintPatientLabel = async (registration: Registration) => {
+    if (!registration.patient?.id) {
+      toast({
+        title: "Error",
+        description: "Data pasien tidak tersedia",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const regId = registration.ID || registration.id || 0;
+    setPrintingType({ regId, type: 'label' });
+    try {
+      const url = await printApi.patientLabel(registration.patient.id, 4);
+      window.open(url, "_blank");
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.response?.data?.error || "Gagal mencetak label pasien",
+        variant: "destructive",
+      });
+    } finally {
+      setPrintingType(null);
+    }
   };
 
   const columns = createRegistrationColumns({
     onView: handleView,
-    onPrint: handlePrintQueue,
+    onPrintQueueTicket: handlePrintQueueTicket,
+    onPrintPatientLabel: handlePrintPatientLabel,
     onCancel: setCancelId,
+    onCancelMjkn: setCancelMjknId,
+    onActivateMjkn: handleActivateCheckin,
     hasViewPermission: hasPermission("registrations.view"),
     hasDeletePermission: hasPermission("registrations.delete"),
+    printingType,
+    mjknQueueMap,
+    activatingCheckin,
   });
 
   if (loading) {
@@ -345,6 +453,7 @@ export default function RegistrationIndex() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="all">Semua Status</SelectItem>
+                          <SelectItem value="scheduled">Terjadwal (MJKN)</SelectItem>
                           <SelectItem value="registered">Terdaftar</SelectItem>
                           <SelectItem value="in_queue">
                             Dalam Antrean
@@ -373,6 +482,7 @@ export default function RegistrationIndex() {
               </div>
             </div>
           </CardHeader>
+
           <CardContent className="pt-6">
             <DataTable
               columns={columns}
@@ -385,6 +495,7 @@ export default function RegistrationIndex() {
         </Card>
       </div>
 
+      {/* Confirm dialog for regular registration cancellation */}
       <ConfirmDialog
         open={cancelId !== null}
         onOpenChange={(open) => !open && setCancelId(null)}
@@ -396,26 +507,17 @@ export default function RegistrationIndex() {
         variant="destructive"
       />
 
-      {/* Hidden Print Component */}
-      {printData?.visit?.room_queue && (
-        <QueueTicketPrint
-          ref={printRef}
-          queueNumber={printData.visit.room_queue.queue_number}
-          patientName={
-            printData.patient?.nama_lengkap || printData.patient?.name || ""
-          }
-          noRM={
-            printData.patient?.no_rm ||
-            printData.patient?.medical_record_number ||
-            ""
-          }
-          roomName={printData.destination_room?.name || ""}
-          roomCode={printData.destination_room?.code || ""}
-          priority={printData.visit.room_queue.priority}
-          date={format(new Date(), "dd/MM/yyyy")}
-          time={format(new Date(), "HH:mm")}
-        />
-      )}
+      {/* Confirm dialog for MJKN queue cancellation */}
+      <ConfirmDialog
+        open={cancelMjknId !== null}
+        onOpenChange={(open) => !open && setCancelMjknId(null)}
+        onConfirm={handleCancelMjkn}
+        title="Batalkan Antrian MJKN?"
+        description="Apakah Anda yakin ingin membatalkan antrian Mobile JKN ini? Pendaftaran dan kunjungan terkait juga akan dibatalkan."
+        confirmText="Ya, Batalkan"
+        cancelText="Tidak"
+        variant="destructive"
+      />
     </div>
   );
 }

@@ -23,11 +23,12 @@ import {
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { setPageTitle } from "@/lib/page-title";
-import { patientsApi, roomsApi, registrationApi } from "@/lib/api";
+import { patientsApi, roomsApi, registrationApi, api } from "@/lib/api";
 import { roomProceduresApi, type RoomProcedure } from "@/lib/api/procedures";
 import { roomMedicinesApi, type RoomMedicine } from "@/lib/api/medicines";
 import type { Patient, Room, RoomStaff } from "@/lib/api";
-import { ArrowLeft, Loader2, UserPlus, User, Search, Plus, Minus, X } from "lucide-react";
+import { ArrowLeft, Loader2, UserPlus, User, Search, Plus, Minus, X, FileText, CheckCircle2 } from "lucide-react";
+import { SEPFormSheet } from "@/components/sep/sep-form-sheet";
 
 export default function RegistrationCreate() {
   const navigate = useNavigate();
@@ -52,6 +53,11 @@ export default function RegistrationCreate() {
   const [complaint, setComplaint] = useState("");
   const [priority, setPriority] = useState<"normal" | "urgent" | "emergency">("normal");
   const [selectedServiceType, setSelectedServiceType] = useState<string>("");
+
+  // SEP BPJS
+  const [sepSheetOpen, setSepSheetOpen] = useState(false);
+  const [sepNumber, setSepNumber] = useState("");
+  const [sepData, setSepData] = useState<any>(null);
 
   // Master data
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -294,6 +300,26 @@ export default function RegistrationCreate() {
     if (paymentMethod === "bpjs" && existingPatient) {
       if (existingPatient.no_bpjs) {
         setBpjsNumber(existingPatient.no_bpjs);
+        
+        // Cek SEP lokal berdasarkan no_kartu (hanya yang aktif)
+        const checkLocalSEP = async () => {
+          try {
+            const res = await api.get(`/bpjs/vclaim/sep/list?no_kartu=${existingPatient.no_bpjs}&status=active&limit=1`);
+            const seps = res.data.data || [];
+            if (seps.length > 0) {
+              const latestSEP = seps[0];
+              setSepNumber(latestSEP.no_sep);
+              setSepData({
+                poli: { nama: latestSEP.nama_poli || "-" },
+                dokter: { nama: latestSEP.nama_dpjp || "-" },
+                diagnosa: { nama: latestSEP.nama_diagnosa || "-" },
+              });
+            }
+          } catch (error) {
+            console.log("No local SEP found");
+          }
+        };
+        checkLocalSEP();
       }
     }
   }, [paymentMethod, existingPatient]);
@@ -347,6 +373,16 @@ export default function RegistrationCreate() {
       return;
     }
 
+    // Validasi SEP untuk BPJS (opsional, bisa diwajibkan dengan uncomment)
+    // if (paymentMethod === "bpjs" && !sepNumber) {
+    //   toast({
+    //     variant: "destructive",
+    //     title: "Error",
+    //     description: "SEP harus dibuat untuk pasien BPJS",
+    //   });
+    //   return;
+    // }
+
     setLoading(true);
     try {
       // UGD dan Rawat Inap tidak perlu antrian ruangan
@@ -366,6 +402,8 @@ export default function RegistrationCreate() {
         create_visit: true,
         create_room_queue: needsRoomQueue,
         queue_priority: priority,
+        // SEP data for BPJS
+        sep_number: paymentMethod === "bpjs" && sepNumber ? sepNumber : undefined,
       };
 
       // Add procedure items for penunjang_medis (lab/radiologi)
@@ -406,6 +444,9 @@ export default function RegistrationCreate() {
             <p>Ruangan: {roomName}</p>
             {roomQueueNumber && (
               <p className="text-lg font-bold">Nomor Antrian Ruangan: {roomQueueNumber}</p>
+            )}
+            {sepNumber && (
+              <p>No. SEP: {sepNumber}</p>
             )}
           </div>
         ),
@@ -717,28 +758,74 @@ export default function RegistrationCreate() {
                   )}
 
                   {paymentMethod === "bpjs" && (
-                    <div className="col-span-3 grid grid-cols-2 gap-3">
-                      <div className="space-y-2">
-                        <Label htmlFor="bpjs_number" className="text-sm">Nomor BPJS *</Label>
-                        <Input
-                          id="bpjs_number"
-                          value={bpjsNumber}
-                          onChange={(e) => setBpjsNumber(e.target.value)}
-                          placeholder={existingPatient?.no_bpjs || "Nomor BPJS"}
-                          className="text-sm"
-                        />
-                      </div>
-                      {existingPatient?.kelas_bpjs && (
+                    <div className="col-span-3 space-y-3">
+                      <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-2">
-                          <Label htmlFor="bpjs_class" className="text-sm">Kelas</Label>
+                          <Label htmlFor="bpjs_number" className="text-sm">Nomor BPJS *</Label>
                           <Input
-                            id="bpjs_class"
-                            value={existingPatient.kelas_bpjs}
-                            disabled
-                            className="bg-muted text-sm"
+                            id="bpjs_number"
+                            value={bpjsNumber}
+                            onChange={(e) => setBpjsNumber(e.target.value)}
+                            placeholder={existingPatient?.no_bpjs || "Nomor BPJS"}
+                            className="text-sm"
                           />
                         </div>
-                      )}
+                        {existingPatient?.kelas_bpjs && (
+                          <div className="space-y-2">
+                            <Label htmlFor="bpjs_class" className="text-sm">Kelas</Label>
+                            <Input
+                              id="bpjs_class"
+                              value={existingPatient.kelas_bpjs}
+                              disabled
+                              className="bg-muted text-sm"
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* SEP Section */}
+                      <div className="border rounded-lg p-3 bg-blue-50/50">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <FileText className="h-4 w-4 text-blue-600" />
+                            <span className="text-sm font-medium text-blue-900">SEP (Surat Eligibilitas Peserta)</span>
+                          </div>
+                          {sepNumber ? (
+                            <Badge variant="secondary" className="bg-green-100 text-green-800">
+                              <CheckCircle2 className="h-3 w-3 mr-1" />
+                              {sepNumber}
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-orange-600 border-orange-300">
+                              Belum Ada
+                            </Badge>
+                          )}
+                        </div>
+                        
+                        {sepNumber && sepData ? (
+                          <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                            <p>Poli: {sepData.poli?.nama || "-"}</p>
+                            <p>Dokter: {sepData.dokter?.nama || "-"}</p>
+                            <p>Diagnosa: {sepData.diagnosa?.nama || "-"}</p>
+                          </div>
+                        ) : (
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            SEP wajib dibuat untuk pasien BPJS
+                          </p>
+                        )}
+                        
+                        <Button
+                          type="button"
+                          variant={sepNumber ? "outline" : "default"}
+                          size="sm"
+                          className="mt-3 w-full"
+                          onClick={() => setSepSheetOpen(true)}
+                          disabled={!bpjsNumber}
+                        >
+                          <FileText className="h-4 w-4 mr-2" />
+                          {sepNumber ? "Lihat / Edit SEP" : "Buat SEP"}
+                        </Button>
+                      </div>
                     </div>
                   )}
 
@@ -967,6 +1054,33 @@ export default function RegistrationCreate() {
           )}
         </CardContent>
       </Card>
+
+      {/* SEP Form Sheet */}
+      {existingPatient && (
+        <SEPFormSheet
+          open={sepSheetOpen}
+          onOpenChange={setSepSheetOpen}
+          patient={{
+            id: existingPatient.id,
+            no_rm: existingPatient.no_rm,
+            nama_lengkap: existingPatient.nama_lengkap,
+            nik: existingPatient.nik,
+            no_bpjs: bpjsNumber || existingPatient.no_bpjs,
+            tanggal_lahir: existingPatient.tanggal_lahir,
+            jenis_kelamin: existingPatient.jenis_kelamin,
+            no_telepon: existingPatient.no_telepon,
+            kelas_bpjs: existingPatient.kelas_bpjs,
+          }}
+          registrationId={undefined} // Will be set after registration is created
+          initialValues={{
+            jenisPelayanan: selectedServiceType === "rawat_inap" ? "1" : "2",
+          }}
+          onSEPCreated={(noSEP, data) => {
+            setSepNumber(noSEP);
+            setSepData(data);
+          }}
+        />
+      )}
     </div>
   );
 }

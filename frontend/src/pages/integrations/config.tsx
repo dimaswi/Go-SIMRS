@@ -52,7 +52,7 @@ import {
   Wifi,
   WifiOff,
 } from "lucide-react";
-import { integrationsApi, type IntegrationConfigMap, type IntegrationType, BPJS_SERVICE_TYPES, isBPJSType, getBPJSServiceName } from "@/lib/api";
+import { integrationsApi, vclaimApi, type IntegrationConfigMap, type IntegrationType, type VClaimRefPropinsi, BPJS_SERVICE_TYPES, isBPJSType, getBPJSServiceName } from "@/lib/api";
 
 interface IntegrationItem {
   id: string;
@@ -150,6 +150,10 @@ export default function IntegrationsConfigPage() {
   const [baseUrlProd, setBaseUrlProd] = useState("https://apijkn.bpjs-kesehatan.go.id");
   const [syncInterval, setSyncInterval] = useState("5");
   const [autoSyncEnabled, setAutoSyncEnabled] = useState(false);
+  // Webhook config (untuk BPJS Antrian Online)
+  const [webhookUsername, setWebhookUsername] = useState("");
+  const [webhookPassword, setWebhookPassword] = useState("");
+  const [showWebhookPassword, setShowWebhookPassword] = useState(false);
   
   // SatuSehat Config State
   const [ssConfig, setSsConfig] = useState<IntegrationConfigMap>({});
@@ -161,7 +165,12 @@ export default function IntegrationsConfigPage() {
   const [ssBaseUrlProd, setSsBaseUrlProd] = useState("https://api-satusehat.kemkes.go.id");
   const [ssAutoSync, setSsAutoSync] = useState(false);
   const [showSsClientSecret, setShowSsClientSecret] = useState(false);
-  
+
+  // VClaim Test State
+  const [vclaimTesting, setVclaimTesting] = useState(false);
+  const [vclaimTestResult, setVclaimTestResult] = useState<VClaimRefPropinsi[] | null>(null);
+  const [vclaimTestError, setVclaimTestError] = useState<string | null>(null);
+
   // Visibility State for secrets
   const [showSecretKey, setShowSecretKey] = useState(false);
   const [showUserKey, setShowUserKey] = useState(false);
@@ -281,6 +290,7 @@ export default function IntegrationsConfigPage() {
     setShowSecretKey(false);
     setShowUserKey(false);
     setShowSsClientSecret(false);
+    setShowWebhookPassword(false);
     
     if (isBPJSType(integrationId)) {
       // Load data from config for this specific BPJS service
@@ -295,6 +305,11 @@ export default function IntegrationsConfigPage() {
       setBaseUrlProd(config.base_url_prod?.value || "https://apijkn.bpjs-kesehatan.go.id");
       setSyncInterval(config.sync_interval_minutes?.value || "5");
       setAutoSyncEnabled(config.auto_sync_enabled?.value === "true");
+      // Webhook config (only for bpjs-antrian)
+      if (integrationId === "bpjs-antrian") {
+        setWebhookUsername(config.webhook_username?.value || "");
+        setWebhookPassword(config.webhook_password?.value || "");
+      }
     } else if (integrationId === "satusehat") {
       // Load SatuSehat config values
       setSsClientSecret(ssConfig.client_secret?.value || "");
@@ -329,6 +344,12 @@ export default function IntegrationsConfigPage() {
         sync_interval_minutes: syncInterval,
         auto_sync_enabled: autoSyncEnabled ? "true" : "false",
       };
+      
+      // Add webhook config for bpjs-antrian
+      if (editingIntegration === "bpjs-antrian") {
+        updateData.webhook_username = webhookUsername;
+        updateData.webhook_password = webhookPassword;
+      }
       
       // Update config for specific BPJS service
       await integrationsApi.updateConfig(editingIntegration as IntegrationType, updateData);
@@ -445,6 +466,33 @@ export default function IntegrationsConfigPage() {
       });
     } finally {
       setTesting(null);
+    }
+  };
+
+  const handleTestVClaim = async () => {
+    setVclaimTesting(true);
+    setVclaimTestResult(null);
+    setVclaimTestError(null);
+
+    try {
+      const response = await vclaimApi.getPropinsi();
+      const data = response.data.data;
+      setVclaimTestResult(data);
+      toast({
+        variant: "success",
+        title: "VClaim Berhasil!",
+        description: `Endpoint /referensi/propinsi berhasil. Ditemukan ${data?.length || 0} propinsi.`,
+      });
+    } catch (error: any) {
+      const errorMsg = error.response?.data?.error || error.message || "Gagal menghubungi VClaim";
+      setVclaimTestError(errorMsg);
+      toast({
+        variant: "destructive",
+        title: "VClaim Gagal",
+        description: errorMsg,
+      });
+    } finally {
+      setVclaimTesting(false);
     }
   };
 
@@ -826,6 +874,120 @@ export default function IntegrationsConfigPage() {
               </div>
             </div>
 
+            {/* Webhook Config - Only for BPJS Antrian */}
+            {editingIntegration === "bpjs-antrian" && (
+              <>
+                <hr />
+                <div className="space-y-4">
+                  <h4 className="text-sm font-semibold">Konfigurasi Webhook RS</h4>
+                  <p className="text-xs text-muted-foreground">
+                    Kredensial untuk BPJS mengakses endpoint webhook RS. Jika dikosongkan, akan menggunakan akun user SIMRS.
+                  </p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="webhookUsername" className="text-xs font-medium">
+                        Webhook Username (Opsional)
+                      </Label>
+                      <Input
+                        id="webhookUsername"
+                        placeholder="Kosongkan untuk pakai user SIMRS"
+                        value={webhookUsername}
+                        onChange={(e) => setWebhookUsername(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="webhookPassword" className="text-xs font-medium">
+                        Webhook Password (Opsional)
+                      </Label>
+                      <div className="relative">
+                        <Input
+                          id="webhookPassword"
+                          type={showWebhookPassword ? "text" : "password"}
+                          placeholder="Kosongkan untuk pakai user SIMRS"
+                          value={webhookPassword}
+                          onChange={(e) => setWebhookPassword(e.target.value)}
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="absolute right-0 top-0 h-full px-3"
+                          onClick={() => setShowWebhookPassword(!showWebhookPassword)}
+                        >
+                          {showWebhookPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Test VClaim - Only for bpjs-vclaim */}
+            {editingIntegration === "bpjs-vclaim" && (
+              <>
+                <hr />
+                <div className="space-y-4">
+                  <h4 className="text-sm font-semibold">Test VClaim API</h4>
+                  <p className="text-xs text-muted-foreground">
+                    Uji koneksi VClaim dengan mengambil data referensi propinsi dari endpoint <code>/referensi/propinsi</code>
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleTestVClaim}
+                    disabled={vclaimTesting}
+                  >
+                    {vclaimTesting ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : (
+                      <Plug className="h-4 w-4 mr-2" />
+                    )}
+                    Test VClaim - Referensi Propinsi
+                  </Button>
+
+                  {vclaimTestError && (
+                    <div className="rounded-md border border-red-200 bg-red-50 p-3">
+                      <div className="flex items-center gap-2 text-red-800">
+                        <AlertCircle className="h-4 w-4" />
+                        <span className="text-sm font-medium">Gagal</span>
+                      </div>
+                      <p className="text-xs text-red-700 mt-1">{vclaimTestError}</p>
+                    </div>
+                  )}
+
+                  {vclaimTestResult && (
+                    <div className="rounded-md border border-green-200 bg-green-50 p-3">
+                      <div className="flex items-center gap-2 text-green-800 mb-2">
+                        <CheckCircle className="h-4 w-4" />
+                        <span className="text-sm font-medium">
+                          Berhasil - {vclaimTestResult.length} propinsi ditemukan
+                        </span>
+                      </div>
+                      <div className="max-h-48 overflow-y-auto">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="border-b border-green-200">
+                              <th className="text-left py-1 px-2 font-medium text-green-800">Kode</th>
+                              <th className="text-left py-1 px-2 font-medium text-green-800">Nama Propinsi</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {vclaimTestResult.map((item, idx) => (
+                              <tr key={idx} className="border-b border-green-100 last:border-0">
+                                <td className="py-1 px-2 text-green-700">{item.kode}</td>
+                                <td className="py-1 px-2 text-green-700">{item.nama}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
             <hr />
 
             {/* Mapping Poli & Dokter */}
@@ -840,22 +1002,11 @@ export default function IntegrationsConfigPage() {
                   size="sm"
                   onClick={() => {
                     setConfigDialogOpen(false);
-                    navigate("/bpjs/mapping/poli");
+                    navigate("/bpjs/mapping");
                   }}
                 >
                   <Building2 className="h-4 w-4 mr-2" />
-                  Mapping Poli
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => {
-                    setConfigDialogOpen(false);
-                    navigate("/bpjs/mapping/dokter");
-                  }}
-                >
-                  <Stethoscope className="h-4 w-4 mr-2" />
-                  Mapping Dokter
+                  Kelola Mapping
                 </Button>
               </div>
             </div>

@@ -100,16 +100,19 @@ export function PharmacyDispense({ visitId, readOnly = false }: PharmacyDispense
   };
 
   const initializeDispenseItems = (order: MedicineOrder) => {
-    const items: DispenseItem[] = (order.items || []).map((item) => {
-      const remaining = item.quantity - (item.dispensed_qty || 0);
-      return {
-        item_id: item.id!,
-        item,
-        dispensed_qty: remaining,
-        selected: remaining > 0 && item.status !== "delivered" && item.status !== "cancelled",
-        remaining,
-      };
-    });
+    // Filter out cancelled items
+    const items: DispenseItem[] = (order.items || [])
+      .filter((item) => item.status !== "cancelled")
+      .map((item) => {
+        const remaining = item.quantity - (item.dispensed_qty || 0);
+        return {
+          item_id: item.id!,
+          item,
+          dispensed_qty: remaining,
+          selected: remaining > 0 && item.status !== "delivered",
+          remaining,
+        };
+      });
     setDispenseItems(items);
   };
 
@@ -166,6 +169,9 @@ export function PharmacyDispense({ visitId, readOnly = false }: PharmacyDispense
         description: "Obat berhasil diserahkan",
       });
       loadOrders();
+      // Trigger refresh on print options dropdown and final visit
+      window.dispatchEvent(new CustomEvent("refresh-print-options"));
+      window.dispatchEvent(new CustomEvent("refresh-final-visit"));
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -511,9 +517,11 @@ export function PharmacyDispense({ visitId, readOnly = false }: PharmacyDispense
                                 {item.medicine?.generic_name}
                               </p>
                             </div>
-                            <Badge variant={ITEM_STATUS_LABELS[item.status]?.variant || "secondary"}>
-                              {ITEM_STATUS_LABELS[item.status]?.label || item.status}
-                            </Badge>
+                            <div className="flex items-center gap-2">
+                              <Badge variant={ITEM_STATUS_LABELS[item.status]?.variant || "secondary"}>
+                                {ITEM_STATUS_LABELS[item.status]?.label || item.status}
+                              </Badge>
+                            </div>
                           </div>
                           <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
                             <div>
@@ -558,8 +566,8 @@ export function PharmacyDispense({ visitId, readOnly = false }: PharmacyDispense
               </div>
 
               {/* Action buttons */}
-              <div className="flex gap-2 mt-4">
-                {/* Print button - always show if there are delivered items */}
+              <div className="flex flex-wrap gap-2 mt-4">
+                {/* Print delivered medicines list */}
                 {(selectedOrder?.items || []).some(item => (item.dispensed_qty || 0) > 0) && (
                   <Button
                     variant="outline"

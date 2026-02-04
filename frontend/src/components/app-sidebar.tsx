@@ -20,6 +20,7 @@ import {
   Pill,
   FileText,
   FileSearch,
+  FileCheck,
   Send,
   ShoppingCart,
   ClipboardList,
@@ -33,10 +34,11 @@ import {
   Hotel,
   QrCode,
   Stethoscope,
+  Archive,
 } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
 import { usePermission } from '@/hooks/usePermission';
-import { getAppName, getAppSubtitle } from '@/lib/page-title';
+import { getAppName, getAppSubtitle, getAppLogo } from '@/lib/page-title';
 import {
   Sidebar,
   SidebarContent,
@@ -87,6 +89,7 @@ const menuItems = [
       { path: '/admisi', label: 'Permintaan Rawat Inap', icon: BedDouble, permission: 'registrations.view' },
       { path: '/visits', label: 'Kunjungan', icon: Activity, permission: 'visits.view' },
       { path: '/billing', label: 'Kasir & Billing', icon: Receipt, permission: 'billing.view' },
+      { path: '/eklaim', label: 'E-Klaim BPJS', icon: FileCheck, permission: 'eklaim.view' },
     ]
   },
   { path: '/bed-monitoring', label: 'Monitoring Bed', icon: Hotel, permission: 'rooms.view' },
@@ -121,6 +124,8 @@ const menuItems = [
       { path: '/room-stock/inventories', label: 'Stok Inventaris Ruangan', icon: Package, permission: 'room-inventories.view' },
     ]
   },
+  { path: '/archives', label: 'Arsip Rekam Medis', icon: Archive, permission: 'archives.view' },
+  { path: '/quality-cost', label: 'Kendali Mutu & Biaya', icon: Activity, permission: 'dashboard.view' },
   { 
     path: '/users', 
     label: 'User Management', 
@@ -133,16 +138,25 @@ const menuItems = [
     ]
   },
   { 
+    path: '/bpjs', 
+    label: 'BPJS', 
+    icon: Building2,
+    permission: 'integrations.view',
+    submenu: [
+      { path: '/bpjs/tools', label: 'Tools', icon: Settings, permission: 'integrations.view' },
+      { path: '/bpjs/mapping', label: 'Mapping Poli & Dokter', icon: Building2, permission: 'integrations.view' },
+      { path: '/bpjs/queue-monitoring', label: 'Monitoring Antrian', icon: Activity, permission: 'integrations.view' },
+      { path: '/bpjs/logs', label: 'Log API', icon: FileSearch, permission: 'integrations.view' },
+      { path: '/bpjs/api-tester', label: 'API Tester', icon: Send, permission: 'integrations.view' },
+    ]
+  },
+  { 
     path: '/integrations', 
     label: 'Integrasi', 
     icon: Stethoscope,
     permission: 'integrations.view',
     submenu: [
       { path: '/integrations/config', label: 'Konfigurasi', icon: Settings, permission: 'integrations.view' },
-      { path: '/bpjs/mapping/poli', label: 'Mapping Poli BPJS', icon: Building2, permission: 'integrations.view' },
-      { path: '/bpjs/mapping/dokter', label: 'Mapping Dokter BPJS', icon: UserRound, permission: 'integrations.view' },
-      { path: '/bpjs/logs', label: 'Log BPJS', icon: FileSearch, permission: 'integrations.view' },
-      { path: '/bpjs/api-tester', label: 'API Tester BPJS', icon: Send, permission: 'integrations.view' },
       { path: '/integrations/satusehat', label: 'Monitoring SatuSehat', icon: Activity, permission: 'integrations.view' },
       { path: '/integrations/satusehat/send', label: 'Kirim Data SatuSehat', icon: Send, permission: 'integrations.manage' },
       { path: '/integrations/satusehat/logs', label: 'Log SatuSehat', icon: FileSearch, permission: 'integrations.view' },
@@ -157,12 +171,14 @@ export function AppSidebar() {
   const { hasPermission } = usePermission();
   const [appName, setAppName] = useState(getAppName());
   const [appSubtitle, setAppSubtitle] = useState(getAppSubtitle());
+  const [appLogo, setAppLogo] = useState(getAppLogo());
 
   // Listen for storage changes to update app name/subtitle in real-time
   useEffect(() => {
     const handleStorageChange = () => {
       setAppName(getAppName());
       setAppSubtitle(getAppSubtitle());
+      setAppLogo(getAppLogo());
     };
 
     window.addEventListener('storage', handleStorageChange);
@@ -208,12 +224,20 @@ export function AppSidebar() {
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild className="data-[state=open]:bg-transparent">
               <a href="/" className="font-semibold">
-                <div className="flex aspect-square size-7 items-center justify-center rounded bg-foreground text-background">
-                  <Building2 className="size-4" />
+                <div className="flex aspect-square size-7 items-center justify-center rounded bg-foreground text-background overflow-hidden shrink-0">
+                  {appLogo ? (
+                    <img
+                      src={appLogo.startsWith('http') ? appLogo : `${(import.meta.env.VITE_API_URL || 'http://localhost:8080/api').replace(/\/api$/, '')}${appLogo}`}
+                      alt="Logo"
+                      className="size-7 object-contain"
+                    />
+                  ) : (
+                    <Building2 className="size-4" />
+                  )}
                 </div>
-                <div className="flex flex-col gap-0.5 leading-none">
-                  <span className="font-semibold text-sm">{appName}</span>
-                  <span className="text-xs text-muted-foreground">{appSubtitle}</span>
+                <div className="flex flex-col gap-0.5 leading-none overflow-hidden group-data-[collapsible=icon]:hidden">
+                  <span className="font-semibold text-sm truncate">{appName}</span>
+                  <span className="text-xs text-muted-foreground truncate">{appSubtitle}</span>
                 </div>
               </a>
             </SidebarMenuButton>

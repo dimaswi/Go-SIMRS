@@ -26,12 +26,15 @@ type Triage struct {
 	TriageLevel     string `gorm:"size:20" json:"triage_level,omitempty"`       // 0-5 (ESI/ATS) - 0=DOA
 
 	// Primary Survey (ABC)
-	Airway        string `gorm:"size:100" json:"airway,omitempty"`        // Airway (clear/obstructed)
-	Breathing     string `gorm:"size:100" json:"breathing,omitempty"`     // Breathing (spontaneous/assisted)
-	BreathingRate string `gorm:"size:20" json:"breathing_rate,omitempty"` // x/menit - LOINC: 9279-1
-	Circulation   string `gorm:"size:100" json:"circulation,omitempty"`   // Circulation (normal/shock)
-	Akral         string `gorm:"size:50" json:"akral,omitempty"`          // Akral (hangat/dingin)
-	CRT           string `gorm:"size:20" json:"crt,omitempty"`            // Capillary Refill Time
+	Airway          string `gorm:"size:100" json:"airway,omitempty"`            // Airway (clear/obstructed)
+	AirwayNote      string `gorm:"type:text" json:"airway_note,omitempty"`      // Catatan airway
+	Breathing       string `gorm:"size:100" json:"breathing,omitempty"`         // Breathing (spontaneous/assisted)
+	BreathingNote   string `gorm:"type:text" json:"breathing_note,omitempty"`   // Catatan breathing
+	BreathingRate   string `gorm:"size:20" json:"breathing_rate,omitempty"`     // x/menit - LOINC: 9279-1
+	Circulation     string `gorm:"size:100" json:"circulation,omitempty"`       // Circulation (normal/shock)
+	CirculationNote string `gorm:"type:text" json:"circulation_note,omitempty"` // Catatan circulation
+	Akral           string `gorm:"size:50" json:"akral,omitempty"`              // Akral (hangat/dingin)
+	CRT             string `gorm:"size:20" json:"crt,omitempty"`                // Capillary Refill Time
 
 	// Neurological
 	PupilLeft  string `gorm:"size:50" json:"pupil_left,omitempty"`  // Pupil kiri
@@ -343,9 +346,16 @@ type Disposition struct {
 	FollowUpRoom        *Room      `gorm:"foreignKey:FollowUpRoomID" json:"follow_up_room,omitempty"`
 
 	// Referral (if disposition is rujuk)
-	ReferralFacility string `gorm:"size:200" json:"referral_facility,omitempty"`
-	ReferralReason   string `gorm:"type:text" json:"referral_reason,omitempty"`
-	ReferralUrgency  string `gorm:"size:50" json:"referral_urgency,omitempty"`
+	ReferralFacility   string `gorm:"size:200" json:"referral_facility,omitempty"`
+	ReferralAddress    string `gorm:"type:text" json:"referral_address,omitempty"`    // Alamat fasilitas rujukan
+	ReferralPhone      string `gorm:"size:50" json:"referral_phone,omitempty"`        // Telepon fasilitas rujukan
+	ReferralSpecialist string `gorm:"size:100" json:"referral_specialist,omitempty"`  // Spesialis tujuan (Sp.PD, Sp.JP, dll)
+	ReferralReason     string `gorm:"type:text" json:"referral_reason,omitempty"`     // Alasan rujukan
+	ReferralUrgency    string `gorm:"size:50" json:"referral_urgency,omitempty"`      // cito, urgent, elektif
+	ReferralDiagnosis  string `gorm:"type:text" json:"referral_diagnosis,omitempty"`  // Diagnosis untuk surat rujukan
+	ReferralTherapy    string `gorm:"type:text" json:"referral_therapy,omitempty"`    // Terapi yang sudah diberikan
+	ReferralLabResult  string `gorm:"type:text" json:"referral_lab_result,omitempty"` // Hasil lab penting untuk rujukan
+	ReferralNotes      string `gorm:"type:text" json:"referral_notes,omitempty"`      // Catatan tambahan untuk RS tujuan
 
 	// Admission / Rawat Inap (if disposition is rawat_inap)
 	AdmissionType   string `gorm:"size:50" json:"admission_type,omitempty"`  // elektif, emergency
@@ -418,4 +428,147 @@ type VitalSign struct {
 
 func (VitalSign) TableName() string {
 	return "vital_signs"
+}
+
+// ===========================================================================
+// SURAT KETERANGAN SAKIT
+// ===========================================================================
+
+// SickLetter represents a sick leave certificate
+type SickLetter struct {
+	ID        uint           `gorm:"primarykey" json:"id"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
+
+	VisitID uint   `gorm:"not null;index" json:"visit_id"`
+	Visit   *Visit `gorm:"foreignKey:VisitID" json:"visit,omitempty"`
+
+	// Letter Details
+	LetterNumber string    `gorm:"size:50" json:"letter_number,omitempty"` // Nomor surat
+	StartDate    time.Time `json:"start_date"`                             // Tanggal mulai sakit
+	EndDate      time.Time `json:"end_date"`                               // Tanggal selesai sakit
+	Days         int       `gorm:"not null" json:"days"`                   // Jumlah hari sakit
+	Reason       string    `gorm:"type:text" json:"reason,omitempty"`      // Alasan/keterangan tambahan
+	Purpose      string    `gorm:"size:100" json:"purpose,omitempty"`      // Keperluan (sekolah, kerja, dll)
+	Institution  string    `gorm:"size:200" json:"institution,omitempty"`  // Nama institusi tujuan
+	Notes        string    `gorm:"type:text" json:"notes,omitempty"`       // Catatan tambahan
+
+	// Status
+	Status string `gorm:"size:20;default:'active'" json:"status"` // active, revoked
+
+	// Audit
+	IssuedByID *uint     `gorm:"index" json:"issued_by_id,omitempty"`
+	IssuedBy   *Employee `gorm:"foreignKey:IssuedByID" json:"issued_by,omitempty"`
+	IssuedAt   time.Time `json:"issued_at"`
+}
+
+func (SickLetter) TableName() string {
+	return "sick_letters"
+}
+
+// DeathCertificate represents a death certificate (Surat Kematian)
+// Used for: DOA (Dead on Arrival), DOD (Death on Departure at ED), and death during hospitalization
+type DeathCertificate struct {
+	ID      uint  `gorm:"primaryKey" json:"id"`
+	VisitID uint  `gorm:"not null;index" json:"visit_id"`
+	Visit   Visit `gorm:"foreignKey:VisitID" json:"-"`
+
+	// Certificate number (auto-generated)
+	CertificateNumber string `gorm:"size:50;uniqueIndex" json:"certificate_number"`
+
+	// Death type: doa (Dead on Arrival), dod (Death on Departure at ED), inpatient_death (Meninggal saat rawat inap)
+	DeathType string `gorm:"size:30;not null" json:"death_type"`
+
+	// Time of death
+	DeathDateTime time.Time `gorm:"not null" json:"death_datetime"`
+
+	// Location of death
+	DeathLocation string `gorm:"size:200" json:"death_location,omitempty"` // e.g., "IGD", "Ruang ICU", "Ruang Rawat Inap Kelas 1"
+
+	// Primary cause of death (ICD-10)
+	PrimaryCauseCode string `gorm:"size:20" json:"primary_cause_code,omitempty"`  // ICD-10 code
+	PrimaryCauseName string `gorm:"size:500" json:"primary_cause_name,omitempty"` // ICD-10 name/description
+
+	// Secondary/contributing causes
+	SecondaryCauseCode string `gorm:"size:20" json:"secondary_cause_code,omitempty"`
+	SecondaryCauseName string `gorm:"size:500" json:"secondary_cause_name,omitempty"`
+
+	// Underlying cause (for chain of events)
+	UnderlyingCauseCode string `gorm:"size:20" json:"underlying_cause_code,omitempty"`
+	UnderlyingCauseName string `gorm:"size:500" json:"underlying_cause_name,omitempty"`
+
+	// Manner of death: natural, accident, suicide, homicide, undetermined, pending
+	MannerOfDeath string `gorm:"size:30" json:"manner_of_death,omitempty"`
+
+	// Duration of illness (how long patient was sick before death)
+	DurationOfIllness string `gorm:"size:100" json:"duration_of_illness,omitempty"`
+
+	// Autopsy information
+	AutopsyPerformed bool   `gorm:"default:false" json:"autopsy_performed"`
+	AutopsyFindings  string `gorm:"type:text" json:"autopsy_findings,omitempty"`
+
+	// Attending physician who declared death
+	DeclaringDoctorID   *uint     `gorm:"index" json:"declaring_doctor_id,omitempty"`
+	DeclaringDoctor     *Employee `gorm:"foreignKey:DeclaringDoctorID" json:"declaring_doctor,omitempty"`
+	DeclaringDoctorName string    `gorm:"size:200" json:"declaring_doctor_name,omitempty"` // Backup name if doctor not in system
+
+	// Witness information (optional)
+	WitnessName     string `gorm:"size:200" json:"witness_name,omitempty"`
+	WitnessRelation string `gorm:"size:100" json:"witness_relation,omitempty"` // e.g., "Anak", "Suami", "Perawat"
+
+	// Additional notes
+	Notes string `gorm:"type:text" json:"notes,omitempty"`
+
+	// Status
+	Status string `gorm:"size:20;default:'active'" json:"status"` // active, revoked
+
+	// Audit
+	IssuedByID *uint      `gorm:"index" json:"issued_by_id,omitempty"`
+	IssuedBy   *Employee  `gorm:"foreignKey:IssuedByID" json:"issued_by,omitempty"`
+	IssuedAt   time.Time  `json:"issued_at"`
+	CreatedAt  time.Time  `json:"created_at"`
+	UpdatedAt  time.Time  `json:"updated_at"`
+	DeletedAt  *time.Time `gorm:"index" json:"deleted_at,omitempty"`
+}
+
+func (DeathCertificate) TableName() string {
+	return "death_certificates"
+}
+
+// ===========================================================================
+// MEDICAL RECORD EDIT LOG - Track edits after visit completed
+// ===========================================================================
+
+// MedicalRecordEditLog tracks when medical records are edited after patient discharge
+type MedicalRecordEditLog struct {
+	ID        uint           `gorm:"primarykey" json:"id"`
+	CreatedAt time.Time      `json:"created_at"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
+
+	// Reference
+	VisitID uint   `gorm:"not null;index" json:"visit_id"`
+	Visit   *Visit `gorm:"foreignKey:VisitID" json:"visit,omitempty"`
+
+	// What was edited
+	RecordType string `gorm:"size:50;not null" json:"record_type"` // triage, anamnesis, physical_exam, diagnosis, assessment_plan, cppt, etc.
+	RecordID   uint   `gorm:"not null" json:"record_id"`           // ID of the record being edited
+
+	// Edit details
+	Action     string `gorm:"size:20;not null" json:"action"`    // edit, create, delete
+	FieldsJSON string `gorm:"type:text" json:"fields_json"`      // JSON of changed fields (optional, for detail tracking)
+	Reason     string `gorm:"type:text" json:"reason,omitempty"` // Reason for editing after discharge
+	Notes      string `gorm:"type:text" json:"notes,omitempty"`  // Additional notes
+
+	// Who edited
+	EditedByID uint      `gorm:"not null;index" json:"edited_by_id"`
+	EditedBy   *User     `gorm:"foreignKey:EditedByID" json:"edited_by,omitempty"`
+	EditedAt   time.Time `gorm:"not null" json:"edited_at"`
+
+	// IP Address for audit
+	IPAddress string `gorm:"size:50" json:"ip_address,omitempty"`
+}
+
+func (MedicalRecordEditLog) TableName() string {
+	return "medical_record_edit_logs"
 }

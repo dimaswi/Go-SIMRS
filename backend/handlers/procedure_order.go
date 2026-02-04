@@ -965,19 +965,8 @@ func CompleteProcedureOrder(c *gin.Context) {
 		}
 	}
 
-	// Update target visit and queue
-	if order.TargetVisitID != nil {
-		tx.Model(&models.Visit{}).Where("id = ?", *order.TargetVisitID).
-			Updates(map[string]interface{}{
-				"status":   models.VisitStatusCompleted,
-				"end_time": now,
-			})
-		tx.Model(&models.RoomQueue{}).Where("visit_id = ?", *order.TargetVisitID).
-			Updates(map[string]interface{}{
-				"status":       models.RoomQueueStatusCompleted,
-				"completed_at": now,
-			})
-	}
+	// NOTE: Visit finalization is handled separately via the "Selesai Kunjungan" tab
+	// Do not auto-finalize target visit when procedure order is completed
 
 	tx.Commit()
 
@@ -1037,6 +1026,66 @@ func CancelProcedureOrder(c *gin.Context) {
 	tx.Commit()
 
 	c.JSON(http.StatusOK, order)
+}
+
+// RecalculateProcedureOrderStatus recalculates and fixes order status based on item statuses
+func RecalculateProcedureOrderStatus(c *gin.Context) {
+	id := c.Param("id")
+	var order models.ProcedureOrder
+
+	if err := database.DB.Preload("Items").First(&order, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Procedure order not found"})
+		return
+	}
+
+	// Count item statuses
+	var completedCount, cancelledCount, inProgressCount, totalCount int
+	for _, item := range order.Items {
+		totalCount++
+		if item.Status == models.ProcedureOrderStatusCompleted {
+			completedCount++
+		} else if item.Status == models.ProcedureOrderStatusCancelled {
+			cancelledCount++
+		} else if item.Status == models.ProcedureOrderStatusInProgress {
+			inProgressCount++
+		}
+	}
+
+	// Determine correct order status
+	var newStatus string
+	activeItems := totalCount - cancelledCount
+
+	if activeItems == 0 {
+		// All items cancelled
+		newStatus = models.ProcedureOrderStatusCancelled
+	} else if completedCount == activeItems {
+		// All active items completed
+		newStatus = models.ProcedureOrderStatusCompleted
+	} else if completedCount > 0 || inProgressCount > 0 {
+		// Some items in progress or completed
+		newStatus = models.ProcedureOrderStatusInProgress
+	} else {
+		// Keep current status if nothing started yet
+		newStatus = order.Status
+	}
+
+	// Update if different
+	if order.Status != newStatus {
+		if err := database.DB.Model(&order).Update("status", newStatus).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":          "Order status recalculated",
+		"previous_status":  order.Status,
+		"new_status":       newStatus,
+		"total_items":      totalCount,
+		"completed_items":  completedCount,
+		"cancelled_items":  cancelledCount,
+		"inprogress_items": inProgressCount,
+	})
 }
 
 // GetProceduresByRoom gets procedures available in a specific room
@@ -1362,3 +1411,206 @@ func GetSurgicalProcedures(c *gin.Context) {
 	c.JSON(http.StatusOK, procedures)
 }
 
+// ===========================================================================
+// PROCEDURE ORDER ITEM CRUD HANDLERS (Edit/Add/Delete Items)
+// ===========================================================================
+
+// AddProcedureOrderItem adds a new procedure item to an existing order
+func AddProcedureOrderItem(c *gin.Context) {
+	orderID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid order ID"})
+		return
+	}
+
+	var input struct {
+		ProcedureID uint   `json:"procedure_id" binding:"required"`
+		Notes       string `json:"notes"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Get procedure order
+	var order models.ProcedureOrder
+	if err := database.DB.First(&order, orderID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Procedure order not found"})
+		return
+	}
+
+	// Only allow adding items if order is pending or in_progress
+	if order.Status != "pending" && order.Status != "in_progress" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Tidak dapat menambah item karena order sudah " + order.Status})
+		return
+	}
+
+	// Validate procedure exists
+	var procedure models.Procedure
+	if err := database.DB.First(&procedure, input.ProcedureID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Procedure not found"})
+		return
+	}
+
+	// Check if procedure is assigned to target room (if target room is set)
+	if order.TargetRoomID != 0 {
+		var roomProcedure models.RoomProcedure
+		if err := database.DB.Where("room_id = ? AND procedure_id = ? AND is_available = ?",
+			order.TargetRoomID, input.ProcedureID, true).First(&roomProcedure).Error; err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Prosedur tidak tersedia di ruangan tujuan"})
+			return
+		}
+	}
+
+	// Check if item already exists in order
+	var existingItem models.ProcedureOrderItem
+	if err := database.DB.Where("procedure_order_id = ? AND procedure_id = ?", orderID, input.ProcedureID).
+		First(&existingItem).Error; err == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Prosedur sudah ada dalam order"})
+		return
+	}
+
+	// Create new item
+	item := models.ProcedureOrderItem{
+		ProcedureOrderID: uint(orderID),
+		ProcedureID:      input.ProcedureID,
+		Notes:            input.Notes,
+		Status:           "pending",
+	}
+
+	if err := database.DB.Create(&item).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Reload with relations
+	database.DB.Preload("Procedure.Parameters", func(db *gorm.DB) *gorm.DB {
+		return db.Where("is_active = ?", true).Order("sort_order ASC")
+	}).Preload("Procedure.Tariffs").First(&item, item.ID)
+
+	c.JSON(http.StatusCreated, item)
+}
+
+// UpdateProcedureOrderItem updates notes for an existing procedure order item
+func UpdateProcedureOrderItem(c *gin.Context) {
+	orderID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid order ID"})
+		return
+	}
+
+	itemID, err := strconv.ParseUint(c.Param("itemId"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid item ID"})
+		return
+	}
+
+	var input struct {
+		Notes string `json:"notes"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Get procedure order
+	var order models.ProcedureOrder
+	if err := database.DB.First(&order, orderID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Procedure order not found"})
+		return
+	}
+
+	// Only allow updating items if order is pending or in_progress
+	if order.Status != "pending" && order.Status != "in_progress" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Tidak dapat mengubah item karena order sudah " + order.Status})
+		return
+	}
+
+	// Get item
+	var item models.ProcedureOrderItem
+	if err := database.DB.Where("id = ? AND procedure_order_id = ?", itemID, orderID).First(&item).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Procedure order item not found"})
+		return
+	}
+
+	// Only allow updating if item is pending
+	if item.Status != "pending" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Tidak dapat mengubah item yang sudah diproses"})
+		return
+	}
+
+	// Update notes
+	item.Notes = input.Notes
+	if err := database.DB.Save(&item).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Reload with relations
+	database.DB.Preload("Procedure.Parameters").Preload("Procedure.Tariffs").First(&item, item.ID)
+
+	c.JSON(http.StatusOK, item)
+}
+
+// DeleteProcedureOrderItem removes an item from a procedure order
+func DeleteProcedureOrderItem(c *gin.Context) {
+	orderID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid order ID"})
+		return
+	}
+
+	itemID, err := strconv.ParseUint(c.Param("itemId"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid item ID"})
+		return
+	}
+
+	// Get procedure order
+	var order models.ProcedureOrder
+	if err := database.DB.Preload("Items").First(&order, orderID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Procedure order not found"})
+		return
+	}
+
+	// Only allow deleting items if order is pending or in_progress
+	if order.Status != "pending" && order.Status != "in_progress" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Tidak dapat menghapus item karena order sudah " + order.Status})
+		return
+	}
+
+	// Get item
+	var item models.ProcedureOrderItem
+	if err := database.DB.Where("id = ? AND procedure_order_id = ?", itemID, orderID).First(&item).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Procedure order item not found"})
+		return
+	}
+
+	// Only allow deleting if item is pending
+	if item.Status != "pending" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Tidak dapat menghapus item yang sudah diproses"})
+		return
+	}
+
+	// Check if this is the last item
+	if len(order.Items) <= 1 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Tidak dapat menghapus item terakhir. Gunakan batal order jika ingin membatalkan seluruh order."})
+		return
+	}
+
+	// Delete item results first
+	if err := database.DB.Where("procedure_order_item_id = ?", itemID).Delete(&models.ProcedureOrderResult{}).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Delete item
+	if err := database.DB.Delete(&item).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Item berhasil dihapus"})
+}

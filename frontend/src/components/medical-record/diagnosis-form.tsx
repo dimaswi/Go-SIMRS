@@ -23,6 +23,8 @@ import {
 } from "@/components/ui/popover";
 import { useMultipleMasterData } from "@/hooks/useMasterData";
 import { medicalRecordsApi } from "@/lib/api";
+import { medicalRecordEditLogApi } from "@/lib/api/visits";
+import { useEditMode, EditModeBanner, EditConfirmDialog } from "./edit-mode-controller";
 import { icd10Api, type ICD10 } from "@/lib/api/icd";
 import { useDebounce } from "@/hooks/use-debounce";
 import type { Diagnosis as DiagnosisData, DiagnosisItem } from "@/lib/api";
@@ -44,9 +46,10 @@ interface DiagnosisFormProps {
   visitId: number;
   onSave?: (data: any) => void;
   readOnly?: boolean;
+  isPatientDischarged?: boolean;
 }
 
-export function DiagnosisForm({ visitId, onSave, readOnly = false }: DiagnosisFormProps) {
+export function DiagnosisForm({ visitId, onSave, readOnly = false, isPatientDischarged = false }: DiagnosisFormProps) {
   const [loading, setLoading] = useState(true);
   const [clinicalImpression, setClinicalImpression] = useState("");
   const [differentialDiagnosis, setDifferentialDiagnosis] = useState("");
@@ -72,6 +75,25 @@ export function DiagnosisForm({ visitId, onSave, readOnly = false }: DiagnosisFo
   const [icdResults, setIcdResults] = useState<ICD10[]>([]);
   const [icdLoading, setIcdLoading] = useState(false);
   const debouncedSearch = useDebounce(searchValue, 300);
+  const [diagnosisId, setDiagnosisId] = useState<number | undefined>();
+
+  // Edit mode controller for post-discharge edits
+  const {
+    isEditing,
+    editReason,
+    showEditDialog,
+    setShowEditDialog,
+    setEditReason,
+    handleRequestEdit,
+    handleConfirmEdit,
+    resetEditMode,
+  } = useEditMode({
+    isPatientDischarged,
+    recordType: "diagnosis",
+  });
+
+  // Determine if form should be disabled
+  const isFormDisabled = readOnly || (isPatientDischarged && !isEditing);
   
   // Search ICD-10 when debounced search changes
   useEffect(() => {
@@ -117,6 +139,10 @@ export function DiagnosisForm({ visitId, onSave, readOnly = false }: DiagnosisFo
               onset_date: item.onset_date || "",
               note: item.note || "",
             })));
+            // If there are diagnoses, use the first one's ID for edit log tracking
+            if (data.items[0].id) {
+              setDiagnosisId(data.items[0].id);
+            }
           }
         }
       } catch {
@@ -157,13 +183,29 @@ export function DiagnosisForm({ visitId, onSave, readOnly = false }: DiagnosisFo
     setDiagnoses(updated);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Log edit if patient is discharged
+    if (isPatientDischarged && diagnosisId) {
+      try {
+        await medicalRecordEditLogApi.create(visitId, {
+          record_type: "diagnosis",
+          record_id: diagnosisId,
+          action: "edit",
+          reason: editReason || "Edit setelah pasien pulang",
+        });
+      } catch (error) {
+        console.error("Failed to log edit:", error);
+      }
+    }
+    
     onSave?.({ 
       clinical_impression: clinicalImpression,
       differential_diagnosis: differentialDiagnosis,
       items: diagnoses 
     });
+    resetEditMode();
   };
 
   const primaryDiagnoses = diagnoses.filter((d) => d.diagnosis_type === "primary");
@@ -323,7 +365,13 @@ export function DiagnosisForm({ visitId, onSave, readOnly = false }: DiagnosisFo
       <CardContent className="p-0">
         <ScrollArea className="h-[calc(100vh-300px)] min-h-[400px]">
           <div className="p-4">
-        <fieldset disabled={readOnly}>
+            <EditModeBanner
+              isPatientDischarged={isPatientDischarged}
+              isEditing={isEditing}
+              onRequestEdit={handleRequestEdit}
+              recordTypeLabel="Diagnosis"
+            />
+        <fieldset disabled={isFormDisabled}>
           <form onSubmit={handleSubmit}>
             <div className="space-y-6">
             
@@ -582,18 +630,27 @@ export function DiagnosisForm({ visitId, onSave, readOnly = false }: DiagnosisFo
             </Card>
 
             {/* Submit Button */}
+            {!isFormDisabled && (
             <div className="flex justify-end gap-3 pt-4 border-t">
               <Button type="submit" className="gap-2" disabled={primaryDiagnoses.length === 0}>
                 <Save className="h-4 w-4" />
                 Simpan Diagnosis
               </Button>
             </div>
+            )}
             </div>
           </form>
         </fieldset>
           </div>
         </ScrollArea>
       </CardContent>
+      <EditConfirmDialog
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
+        editReason={editReason}
+        onEditReasonChange={setEditReason}
+        onConfirm={handleConfirmEdit}
+      />
     </Card>
   );
 }

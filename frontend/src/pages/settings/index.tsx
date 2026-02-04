@@ -11,7 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Building2, Save, Loader2, Upload, Image, FileImage } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
+import { ArrowLeft, Building2, Save, Loader2, Upload, Image, FileImage, Hospital, Phone, Mail, Globe } from "lucide-react";
 import { settingsApi } from "@/lib/api";
 
 // Get base URL without /api suffix
@@ -28,6 +29,16 @@ export default function SettingsPage() {
   const [appSubtitle, setAppSubtitle] = useState("Hospital System");
   const [appLogo, setAppLogo] = useState("");
   const [appFavicon, setAppFavicon] = useState("");
+
+  // Hospital info for print header (kop surat)
+  const [hospitalName, setHospitalName] = useState("");
+  const [hospitalAddress, setHospitalAddress] = useState("");
+  const [hospitalCity, setHospitalCity] = useState("");
+  const [hospitalPhone, setHospitalPhone] = useState("");
+  const [hospitalFax, setHospitalFax] = useState("");
+  const [hospitalEmail, setHospitalEmail] = useState("");
+  const [hospitalWebsite, setHospitalWebsite] = useState("");
+  const [savingHospital, setSavingHospital] = useState(false);
   const [loading, setLoading] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingFavicon, setUploadingFavicon] = useState(false);
@@ -68,9 +79,16 @@ export default function SettingsPage() {
       if (settings.app_favicon) {
         setAppFavicon(settings.app_favicon);
         localStorage.setItem("appFavicon", settings.app_favicon);
-        // Update favicon in document
         updateFavicon(settings.app_favicon);
       }
+      // Hospital info
+      if (settings.hospital_name) setHospitalName(settings.hospital_name);
+      if (settings.hospital_address) setHospitalAddress(settings.hospital_address);
+      if (settings.hospital_city) setHospitalCity(settings.hospital_city);
+      if (settings.hospital_phone) setHospitalPhone(settings.hospital_phone);
+      if (settings.hospital_fax) setHospitalFax(settings.hospital_fax);
+      if (settings.hospital_email) setHospitalEmail(settings.hospital_email);
+      if (settings.hospital_website) setHospitalWebsite(settings.hospital_website);
     } catch (error) {
       console.error("Failed to load settings:", error);
     } finally {
@@ -174,6 +192,34 @@ export default function SettingsPage() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSaveHospitalSettings = async () => {
+    setSavingHospital(true);
+    try {
+      await settingsApi.update({
+        hospital_name: hospitalName,
+        hospital_address: hospitalAddress,
+        hospital_city: hospitalCity,
+        hospital_phone: hospitalPhone,
+        hospital_fax: hospitalFax,
+        hospital_email: hospitalEmail,
+        hospital_website: hospitalWebsite,
+      });
+      toast({
+        variant: "success",
+        title: "Berhasil",
+        description: "Data rumah sakit berhasil disimpan.",
+      });
+    } catch {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Gagal menyimpan data rumah sakit.",
+      });
+    } finally {
+      setSavingHospital(false);
     }
   };
 
@@ -389,6 +435,213 @@ export default function SettingsPage() {
                       </div>
                     </div>
                   </div>
+                </div>
+              </CardContent>
+            </Card>
+            {/* Hospital Info Settings (Kop Cetakan) */}
+            <Card className="shadow-md">
+              <CardHeader className="border-b bg-muted/50">
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <Hospital className="h-4 w-4" />
+                  Data Rumah Sakit
+                </CardTitle>
+                <CardDescription>
+                  Informasi rumah sakit yang akan tampil pada kop cetakan / header dokumen
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-6">
+                <div className="space-y-4">
+                  {/* Preview Kop - A4 Paper (scaled 60%) */}
+                  <div className="flex justify-center bg-muted/30 rounded-lg py-4 px-2 overflow-auto">
+                    <div
+                      className="bg-white shadow-lg border origin-top"
+                      style={{
+                        width: "210mm",
+                        minHeight: "297mm",
+                        padding: "10mm 12mm",
+                        fontFamily: "Arial, Helvetica, sans-serif",
+                        transform: "scale(0.6)",
+                        transformOrigin: "top center",
+                        marginBottom: "-118mm",
+                      }}
+                    >
+                      {/* Kop Surat */}
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        {appLogo && (
+                          <div style={{ width: "56px", height: "56px", flexShrink: 0 }}>
+                            <img
+                              src={`${BASE_URL}${appLogo}`}
+                              alt="Logo"
+                              style={{ width: "100%", height: "100%", objectFit: "contain" }}
+                            />
+                          </div>
+                        )}
+                        <div style={{ flex: 1, textAlign: "center" }}>
+                          <div style={{ fontSize: "16px", fontWeight: "bold", textTransform: "uppercase", letterSpacing: "0.5px", color: "#000" }}>
+                            {hospitalName || "Nama Rumah Sakit"}
+                          </div>
+                          <div style={{ fontSize: "9px", color: "#444", marginTop: "1px" }}>
+                            {hospitalAddress || "Jl. Contoh No. 123"}{hospitalCity ? `, ${hospitalCity}` : ""}
+                          </div>
+                          <div style={{ fontSize: "8px", color: "#555" }}>
+                            {[
+                              hospitalPhone ? `Telp: ${hospitalPhone}` : "",
+                              hospitalFax ? `Fax: ${hospitalFax}` : "",
+                              hospitalEmail || "",
+                            ].filter(Boolean).join("  |  ")}
+                          </div>
+                          {(hospitalWebsite || "www.rscontoh.co.id") && (
+                            <div style={{ fontSize: "8px", color: "#555" }}>
+                              {hospitalWebsite || "www.rscontoh.co.id"}
+                            </div>
+                          )}
+                        </div>
+                        {appLogo && <div style={{ width: "56px", flexShrink: 0 }} />}
+                      </div>
+                      <div style={{ marginTop: "4px", borderTop: "3px double #000" }} />
+
+                      {/* Placeholder document content */}
+                      <div style={{ textAlign: "center", marginTop: "10px" }}>
+                        <div style={{ fontSize: "13px", fontWeight: "bold", textTransform: "uppercase", textDecoration: "underline" }}>
+                          Judul Dokumen
+                        </div>
+                        <div style={{ fontSize: "10px", color: "#444", marginTop: "1px" }}>
+                          No. Dokumen: XXX/XX/2026
+                        </div>
+                      </div>
+
+                      <div style={{ marginTop: "14px" }}>
+                        {[...Array(10)].map((_, i) => (
+                          <div key={i} style={{ height: "1px", background: "#e5e5e5", margin: "8px 0" }} />
+                        ))}
+                      </div>
+
+                      {/* Placeholder signature */}
+                      <div style={{ display: "flex", justifyContent: "space-between", marginTop: "40px" }}>
+                        <div style={{ textAlign: "center", width: "160px" }}>
+                          <div style={{ fontSize: "9px", color: "#999" }}>Mengetahui,</div>
+                          <div style={{ borderBottom: "1px solid #ccc", marginTop: "40px", marginBottom: "3px" }} />
+                          <div style={{ fontSize: "9px", color: "#999" }}>NIP. _______________</div>
+                        </div>
+                        <div style={{ textAlign: "center", width: "160px" }}>
+                          <div style={{ fontSize: "9px", color: "#999" }}>Penanggung Jawab,</div>
+                          <div style={{ borderBottom: "1px solid #ccc", marginTop: "40px", marginBottom: "3px" }} />
+                          <div style={{ fontSize: "9px", color: "#999" }}>NIP. _______________</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground text-center italic">Preview kop cetakan (skala kertas A4)</p>
+
+                  <Separator />
+
+                  {/* Form Fields */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2 md:col-span-2">
+                      <Label htmlFor="hospitalName" className="text-xs font-medium flex items-center gap-2">
+                        <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+                        Nama Rumah Sakit
+                      </Label>
+                      <Input
+                        id="hospitalName"
+                        value={hospitalName}
+                        onChange={(e) => setHospitalName(e.target.value)}
+                        placeholder="RS Contoh Sejahtera"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="hospitalPhone" className="text-xs font-medium flex items-center gap-2">
+                        <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+                        Telepon
+                      </Label>
+                      <Input
+                        id="hospitalPhone"
+                        value={hospitalPhone}
+                        onChange={(e) => setHospitalPhone(e.target.value)}
+                        placeholder="(021) 1234567"
+                      />
+                    </div>
+
+                    <div className="space-y-2 md:col-span-2">
+                      <Label htmlFor="hospitalAddress" className="text-xs font-medium">
+                        Alamat
+                      </Label>
+                      <Input
+                        id="hospitalAddress"
+                        value={hospitalAddress}
+                        onChange={(e) => setHospitalAddress(e.target.value)}
+                        placeholder="Jl. Kesehatan No. 123"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="hospitalCity" className="text-xs font-medium">
+                        Kota / Kode Pos
+                      </Label>
+                      <Input
+                        id="hospitalCity"
+                        value={hospitalCity}
+                        onChange={(e) => setHospitalCity(e.target.value)}
+                        placeholder="Kota Contoh, Jawa Tengah 12345"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="hospitalFax" className="text-xs font-medium">
+                        Fax
+                      </Label>
+                      <Input
+                        id="hospitalFax"
+                        value={hospitalFax}
+                        onChange={(e) => setHospitalFax(e.target.value)}
+                        placeholder="(021) 1234568"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="hospitalEmail" className="text-xs font-medium flex items-center gap-2">
+                        <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+                        Email
+                      </Label>
+                      <Input
+                        id="hospitalEmail"
+                        value={hospitalEmail}
+                        onChange={(e) => setHospitalEmail(e.target.value)}
+                        placeholder="info@rscontoh.co.id"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="hospitalWebsite" className="text-xs font-medium flex items-center gap-2">
+                        <Globe className="h-3.5 w-3.5 text-muted-foreground" />
+                        Website
+                      </Label>
+                      <Input
+                        id="hospitalWebsite"
+                        value={hospitalWebsite}
+                        onChange={(e) => setHospitalWebsite(e.target.value)}
+                        placeholder="www.rscontoh.co.id"
+                      />
+                    </div>
+                  </div>
+
+                  <Button
+                    onClick={handleSaveHospitalSettings}
+                    disabled={savingHospital}
+                  >
+                    {savingHospital ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Menyimpan...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="h-4 w-4 mr-2" />
+                        Simpan Data Rumah Sakit
+                      </>
+                    )}
+                  </Button>
                 </div>
               </CardContent>
             </Card>

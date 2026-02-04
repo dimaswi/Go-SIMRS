@@ -19,6 +19,8 @@ import {
   Eye
 } from "lucide-react";
 import { medicalRecordsApi, type AssessmentPlan } from "@/lib/api/medical-records";
+import { medicalRecordEditLogApi } from "@/lib/api/visits";
+import { useEditMode, EditModeBanner, EditConfirmDialog } from "./edit-mode-controller";
 import { useToast } from "@/hooks/use-toast";
 
 interface AssessmentPlanFormProps {
@@ -26,12 +28,32 @@ interface AssessmentPlanFormProps {
   initialData?: AssessmentPlan;
   onSave?: (data: AssessmentPlan) => void;
   readOnly?: boolean;
+  isPatientDischarged?: boolean;
 }
 
-export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = false }: AssessmentPlanFormProps) {
+export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = false, isPatientDischarged = false }: AssessmentPlanFormProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [assessmentPlanId, setAssessmentPlanId] = useState<number | undefined>();
+
+  // Edit mode controller for post-discharge edits
+  const {
+    isEditing,
+    editReason,
+    showEditDialog,
+    setShowEditDialog,
+    setEditReason,
+    handleRequestEdit,
+    handleConfirmEdit,
+    resetEditMode,
+  } = useEditMode({
+    isPatientDischarged,
+    recordType: "assessment_plan",
+  });
+
+  // Determine if form should be disabled
+  const isFormDisabled = readOnly || (isPatientDischarged && !isEditing);
   const [formData, setFormData] = useState({
     clinical_assessment: initialData?.clinical_assessment || "",
     prognosis: initialData?.prognosis || "",
@@ -65,6 +87,9 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
             procedure_plan: response.data.procedure_plan || "",
             consultation_plan: response.data.consultation_plan || "",
           });
+          if (response.data.id) {
+            setAssessmentPlanId(response.data.id);
+          }
         }
       } catch {
         // No existing data, use defaults
@@ -82,13 +107,32 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
+    
+    // Log edit if patient is discharged
+    if (isPatientDischarged && assessmentPlanId) {
+      try {
+        await medicalRecordEditLogApi.create(visitId, {
+          record_type: "assessment_plan",
+          record_id: assessmentPlanId,
+          action: "edit",
+          reason: editReason || "Edit setelah pasien pulang",
+        });
+      } catch (error) {
+        console.error("Failed to log edit:", error);
+      }
+    }
+    
     try {
       const response = await medicalRecordsApi.saveAssessmentPlan(visitId, formData);
       toast({
         title: "Berhasil",
         description: "Assessment & Plan berhasil disimpan",
       });
+      // Trigger refresh print options dan final visit
+      window.dispatchEvent(new CustomEvent("refresh-print-options"));
+      window.dispatchEvent(new CustomEvent("refresh-final-visit"));
       onSave?.(response.data);
+      resetEditMode();
     } catch {
       toast({
         title: "Gagal",
@@ -147,8 +191,14 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
       <CardContent className="p-0">
         <ScrollArea className="h-[calc(100vh-300px)] min-h-[400px]">
           <div className="p-4">
+            <EditModeBanner
+              isPatientDischarged={isPatientDischarged}
+              isEditing={isEditing}
+              onRequestEdit={handleRequestEdit}
+              recordTypeLabel="Assessment & Plan"
+            />
         <form onSubmit={handleSubmit}>
-          <fieldset disabled={readOnly} className="space-y-6">
+          <fieldset disabled={isFormDisabled} className="space-y-6">
           
           {/* Section 1: Asesmen Klinis */}
           <Card className="border-purple-200 dark:border-purple-800">
@@ -352,17 +402,26 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
           </Card>
 
           {/* Submit Button */}
+          {!isFormDisabled && (
           <div className="flex justify-end gap-3 pt-4 border-t">
             <Button type="submit" className="gap-2" disabled={saving}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               Simpan Assessment & Plan
             </Button>
           </div>
+          )}
           </fieldset>
         </form>
           </div>
         </ScrollArea>
       </CardContent>
+      <EditConfirmDialog
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
+        editReason={editReason}
+        onEditReasonChange={setEditReason}
+        onConfirm={handleConfirmEdit}
+      />
     </Card>
   );
 }

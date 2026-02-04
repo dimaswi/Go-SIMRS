@@ -55,6 +55,17 @@ func GetAdmissionRequests(c *gin.Context) {
 		query = query.Where("DATE(requested_at) <= ?", endDate)
 	}
 
+	// Filter by patient_id
+	if patientID := c.Query("patient_id"); patientID != "" {
+		query = query.Joins("LEFT JOIN registrations reg ON reg.id = admission_requests.registration_id").
+			Where("reg.patient_id = ?", patientID)
+	}
+
+	// Filter by source_visit_id
+	if sourceVisitID := c.Query("source_visit_id"); sourceVisitID != "" {
+		query = query.Where("admission_requests.source_visit_id = ?", sourceVisitID)
+	}
+
 	// Search by patient name or request number
 	if search := c.Query("search"); search != "" {
 		query = query.Joins("LEFT JOIN registrations ON registrations.id = admission_requests.registration_id").
@@ -63,8 +74,8 @@ func GetAdmissionRequests(c *gin.Context) {
 				"%"+search+"%", "%"+search+"%", "%"+search+"%")
 	}
 
-	// Order by priority and created_at
-	query = query.Order("CASE WHEN priority = 'emergency' THEN 1 WHEN priority = 'urgent' THEN 2 ELSE 3 END, requested_at DESC")
+	// Order by requested_at descending (newest first)
+	query = query.Order("admission_requests.requested_at DESC")
 
 	// Pagination
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))

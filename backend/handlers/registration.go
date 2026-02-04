@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -11,6 +12,7 @@ import (
 
 	"starter/backend/database"
 	"starter/backend/models"
+	bpjsService "starter/backend/services/bpjs"
 )
 
 // GetRegistrations godoc
@@ -130,6 +132,7 @@ type CreateRegistrationInput struct {
 	DoctorID          uint   `json:"doctor_id" binding:"required"`           // Doctor - REQUIRED for SatuSehat
 	PaymentMethod     string `json:"payment_method" binding:"required"`      // cash, bpjs, insurance
 	BPJSNumber        string `json:"bpjs_number"`                            // BPJS number if applicable
+	SEPNumber         string `json:"sep_number"`                             // SEP number if BPJS
 	InsuranceName     string `json:"insurance_name"`                         // Insurance name
 	InsuranceNumber   string `json:"insurance_number"`                       // Insurance policy number
 	Complaint         string `json:"complaint"`                              // Chief complaint
@@ -266,6 +269,7 @@ func CreateRegistration(c *gin.Context) {
 		DoctorID:           &input.DoctorID,
 		PaymentMethod:      input.PaymentMethod,
 		BPJSNumber:         input.BPJSNumber,
+		SEPNumber:          input.SEPNumber,
 		InsuranceName:      input.InsuranceName,
 		InsuranceNumber:    input.InsuranceNumber,
 		Complaint:          input.Complaint,
@@ -279,8 +283,14 @@ func CreateRegistration(c *gin.Context) {
 
 	if err := tx.Create(&registration).Error; err != nil {
 		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat pendaftaran"})
+		fmt.Printf("ERROR CreateRegistration: Failed to create registration: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat pendaftaran: " + err.Error()})
 		return
+	}
+
+	// Update SEP registration_id if SEP number is provided
+	if input.SEPNumber != "" {
+		tx.Model(&models.SEP{}).Where("no_sep = ?", input.SEPNumber).Update("registration_id", registration.ID)
 	}
 
 	// Create visit and room queue if requested
@@ -636,6 +646,29 @@ func CreateRegistration(c *gin.Context) {
 		response["room_queue"] = roomQueue
 	}
 
+	// ========================================
+	// BPJS Antrian Online Integration (On-Site)
+	// ========================================
+	// Untuk pasien BPJS on-site RAWAT JALAN saja, buat BPJSQueue dan kirim ke BPJS Antrian Online
+	// Tidak berlaku untuk: IGD, Rawat Inap, Penunjang Medis (Lab/Radiologi), Farmasi
+	if input.PaymentMethod == "bpjs" && input.BPJSNumber != "" && visit != nil && roomQueue != nil && room.ServiceType == "rawat_jalan" {
+		go func() {
+			bpjsResult := registerBPJSAntreanOnSite(
+				&patient,
+				&registration,
+				visit,
+				roomQueue,
+				&room,
+				&doctor,
+				input.BPJSNumber,
+				input.SEPNumber,
+			)
+			if bpjsResult != nil {
+				fmt.Printf("[BPJS On-Site] Registration %s: %s\n", registration.RegistrationNumber, bpjsResult.Message)
+			}
+		}()
+	}
+
 	// Send notification to destination room
 	if NotifService != nil && visit != nil {
 		patientName := ""
@@ -667,9 +700,7 @@ func CreateRegistration(c *gin.Context) {
 // generateRegistrationNumber generates a unique registration number
 func generateRegistrationNumber() string {
 	today := time.Now()
-	year := today.Format("2006")
-	month := today.Format("01")
-	day := today.Format("02")
+	dateStr := today.Format("20060102")
 
 	var lastReg models.Registration
 	var nextNumber int64 = 1
@@ -680,15 +711,230 @@ func generateRegistrationNumber() string {
 
 	if err := database.DB.Unscoped().
 		Where("registration_date >= ? AND registration_date < ?", startOfDay, endOfDay).
+		Where("registration_number LIKE ?", "REG-"+dateStr+"-%").
 		Order("registration_number DESC").
 		First(&lastReg).Error; err == nil {
-		// Extract the number from the last registration_number
+		// Extract the number from the last registration_number (format: REG-YYYYMMDD-XXXX)
 		var lastNum int64
-		fmt.Sscanf(lastReg.RegistrationNumber, "REG-"+year+month+day+"-%04d", &lastNum)
+		fmt.Sscanf(lastReg.RegistrationNumber, "REG-"+dateStr+"-%d", &lastNum)
 		nextNumber = lastNum + 1
 	}
 
-	return fmt.Sprintf("REG-%s%s%s-%04d", year, month, day, nextNumber)
+	return fmt.Sprintf("REG-%s-%04d", dateStr, nextNumber)
+}
+
+// BPJSAntreanResult represents the result of BPJS Antrian Online registration
+type BPJSAntreanResult struct {
+	Success      bool   `json:"success"`
+	KodeBooking  string `json:"kode_booking"`
+	Message      string `json:"message"`
+	AddAntreanOK bool   `json:"add_antrean_ok"`
+}
+
+// registerBPJSAntreanOnSite registers patient to BPJS Antrian Online for on-site registration
+// This function handles:
+// 1. Find poli mapping and doctor mapping
+// 2. Generate kode booking
+// 3. Create BPJSQueue record
+// 4. Call AddAntrean to BPJS
+// 5. Send Task 3 (tunggu di poli) - karena on-site langsung ke poli
+func registerBPJSAntreanOnSite(
+	patient *models.Patient,
+	registration *models.Registration,
+	visit *models.Visit,
+	roomQueue *models.RoomQueue,
+	room *models.Room,
+	doctor *models.Employee,
+	bpjsNumber string,
+	sepNumber string,
+) *BPJSAntreanResult {
+	result := &BPJSAntreanResult{
+		Success: false,
+		Message: "",
+	}
+
+	// 1. Find poli mapping for this room
+	var poliMapping models.BPJSPoliMapping
+	if err := database.DB.Where("room_id = ? AND is_active = ?", room.ID, true).
+		First(&poliMapping).Error; err != nil {
+		result.Message = fmt.Sprintf("Poli mapping tidak ditemukan untuk ruangan %s", room.Name)
+		fmt.Printf("[BPJS On-Site] %s\n", result.Message)
+		return result
+	}
+
+	// 2. Find doctor mapping for this doctor in this poli
+	var dokterMapping models.BPJSDoctorMapping
+	if err := database.DB.Where("poli_mapping_id = ? AND employee_id = ? AND is_active = ?",
+		poliMapping.ID, doctor.ID, true).First(&dokterMapping).Error; err != nil {
+		result.Message = fmt.Sprintf("Dokter mapping tidak ditemukan untuk dr. %s di poli %s", doctor.NamaLengkap, poliMapping.NamaPoliBPJS)
+		fmt.Printf("[BPJS On-Site] %s\n", result.Message)
+		return result
+	}
+
+	// 3. Generate kode booking untuk on-site
+	tanggal := time.Now()
+	kodeBooking := generateKodeBookingOnSite(tanggal, poliMapping.KodePoliBPJS)
+
+	// 4. Extract angka antrean from queue number (e.g., "A001" -> 1)
+	angkaAntrean := extractAngkaAntrean(roomQueue.QueueNumber)
+
+	// 5. Calculate estimasi dilayani (15 menit per pasien)
+	jamPraktek := dokterMapping.JamPraktek
+	if jamPraktek == "" {
+		jamPraktek = "08:00-17:00" // default
+	}
+	jamPraktekParts := strings.Split(jamPraktek, "-")
+	jamMulai := "08:00"
+	if len(jamPraktekParts) > 0 {
+		jamMulai = jamPraktekParts[0]
+	}
+	startTime, _ := time.Parse("15:04", jamMulai)
+	estimasiTime := time.Date(tanggal.Year(), tanggal.Month(), tanggal.Day(),
+		startTime.Hour(), startTime.Minute(), 0, 0, time.Local)
+	estimasiTime = estimasiTime.Add(time.Duration((angkaAntrean-1)*15) * time.Minute)
+	estimasiDilayani := estimasiTime.UnixMilli()
+
+	// 6. Determine jenis kunjungan based on SEP or default
+	// 1=Rujukan FKTP, 2=Rujukan Internal, 3=Kontrol, 4=Rujukan Antar RS
+	jenisKunjungan := 1 // Default: Rujukan FKTP untuk pasien baru on-site
+
+	// 7. Get nomor referensi from SEP if available
+	nomorReferensi := ""
+	if sepNumber != "" {
+		// Try to get rujukan number from SEP
+		var sep models.SEP
+		if err := database.DB.Where("no_sep = ?", sepNumber).First(&sep).Error; err == nil {
+			nomorReferensi = sep.NoRujukan
+			// Determine jenis kunjungan based on asal rujukan
+			// 1=Rujukan FKTP, 2=Rujukan Internal, 3=Kontrol, 4=Rujukan Antar RS
+			if sep.AsalRujukan == "1" {
+				jenisKunjungan = 1 // Rujukan FKTP (Faskes 1)
+			} else if sep.AsalRujukan == "2" {
+				jenisKunjungan = 4 // Rujukan Antar RS (Faskes 2)
+			}
+		}
+	}
+
+	// 8. Create BPJSQueue record
+	now := time.Now()
+	bpjsQueue := models.BPJSQueue{
+		KodeBooking:      kodeBooking,
+		NomorAntrean:     roomQueue.QueueNumber,
+		AngkaAntrean:     angkaAntrean,
+		TanggalPeriksa:   tanggal,
+		JamPraktek:       jamPraktek,
+		KodePoli:         poliMapping.KodePoliBPJS,
+		NamaPoli:         poliMapping.NamaPoliBPJS,
+		KodeDokter:       dokterMapping.KodeDokterBPJS,
+		NamaDokter:       dokterMapping.NamaDokterBPJS,
+		JenisPasien:      "JKN",
+		NoKartu:          bpjsNumber,
+		NIK:              patient.NIK,
+		NoHP:             patient.NoHP,
+		NoRM:             patient.NoRM,
+		NamaPasien:       patient.NamaLengkap,
+		JenisKunjungan:   jenisKunjungan,
+		NomorReferensi:   nomorReferensi,
+		EstimasiDilayani: estimasiDilayani,
+		Status:           "checkin", // On-site langsung checkin
+		WaktuCheckin:     &now,
+		Task3At:          &now, // Langsung set Task 3 karena sudah di poli
+		PatientID:        &patient.ID,
+		RegistrationID:   &registration.ID,
+		VisitID:          &visit.ID,
+		RoomQueueID:      &roomQueue.ID,
+		RoomID:           &room.ID,
+		PoliMappingID:    &poliMapping.ID,
+		DoctorMappingID:  &dokterMapping.ID,
+		SyncStatus:       "pending",
+	}
+
+	if err := database.DB.Create(&bpjsQueue).Error; err != nil {
+		result.Message = fmt.Sprintf("Gagal menyimpan BPJSQueue: %s", err.Error())
+		fmt.Printf("[BPJS On-Site] %s\n", result.Message)
+		return result
+	}
+
+	result.KodeBooking = kodeBooking
+
+	// 9. Call AddAntrean to BPJS
+	addSuccess, addCode, addMsg := bpjsService.AddAntrean(&bpjsQueue)
+
+	// Update BPJSQueue with result
+	bpjsQueue.AddAntreanSent = true
+	bpjsQueue.AddAntreanCode = addCode
+	bpjsQueue.AddAntreanMsg = addMsg
+	bpjsQueue.LastSyncAt = &now
+
+	if addSuccess {
+		bpjsQueue.SyncStatus = "synced"
+		result.AddAntreanOK = true
+		fmt.Printf("[BPJS On-Site] AddAntrean berhasil untuk kode_booking: %s\n", kodeBooking)
+	} else {
+		bpjsQueue.SyncStatus = "failed"
+		bpjsQueue.SyncError = addMsg
+		result.AddAntreanOK = false
+		fmt.Printf("[BPJS On-Site] AddAntrean gagal untuk kode_booking: %s - [%d] %s\n", kodeBooking, addCode, addMsg)
+	}
+
+	// Save updated BPJSQueue
+	database.DB.Save(&bpjsQueue)
+
+	// 10. Send Task 3 (tunggu di poli) - async
+	// Untuk on-site, langsung kirim Task 3 karena pasien sudah di poli
+	if addSuccess {
+		go func() {
+			bpjsService.UpdateTaskAsync(kodeBooking, 3, now, nil)
+		}()
+	}
+
+	result.Success = addSuccess
+	if addSuccess {
+		result.Message = fmt.Sprintf("Berhasil mendaftarkan ke BPJS Antrian Online dengan kode booking: %s", kodeBooking)
+	} else {
+		result.Message = fmt.Sprintf("AddAntrean gagal: [%d] %s", addCode, addMsg)
+	}
+
+	return result
+}
+
+// generateKodeBookingOnSite generates unique booking code for on-site registration
+// Format: DDMMYYYYPPP + 3 digit sequence (e.g., 03022026ANA001)
+func generateKodeBookingOnSite(tanggal time.Time, kodePoli string) string {
+	dateStr := tanggal.Format("02012006") // DDMMYYYY
+
+	// Count existing bookings for this date
+	var count int64
+	database.DB.Model(&models.BPJSQueue{}).
+		Where("DATE(tanggal_periksa) = ?", tanggal.Format("2006-01-02")).
+		Count(&count)
+
+	return fmt.Sprintf("%s%s%03d", dateStr, kodePoli, count+1)
+}
+
+// extractAngkaAntrean extracts the numeric part from queue number
+// e.g., "A001" -> 1, "INT-0015" -> 15
+func extractAngkaAntrean(queueNumber string) int {
+	// Try to find numeric part at the end
+	angka := 0
+	for i := len(queueNumber) - 1; i >= 0; i-- {
+		if queueNumber[i] >= '0' && queueNumber[i] <= '9' {
+			continue
+		} else {
+			// Found non-numeric character
+			numStr := queueNumber[i+1:]
+			fmt.Sscanf(numStr, "%d", &angka)
+			break
+		}
+	}
+	// If all numeric
+	if angka == 0 {
+		fmt.Sscanf(queueNumber, "%d", &angka)
+	}
+	if angka == 0 {
+		angka = 1 // Default to 1 if parsing fails
+	}
+	return angka
 }
 
 // UpdateRegistrationInput represents input for updating a registration
@@ -1089,6 +1335,7 @@ func CreateRegistrationFromQueue(c *gin.Context) {
 		DoctorID:           &input.DoctorID,
 		PaymentMethod:      input.PaymentMethod,
 		BPJSNumber:         input.BPJSNumber,
+		SEPNumber:          input.SEPNumber,
 		InsuranceName:      input.InsuranceName,
 		InsuranceNumber:    input.InsuranceNumber,
 		Complaint:          input.Complaint,

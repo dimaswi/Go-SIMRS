@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"starter/backend/database"
 	"starter/backend/models"
+	"starter/backend/services/bpjs"
 	"strconv"
 	"strings"
 	"time"
@@ -42,16 +43,8 @@ func GetIntegrationConfig(c *gin.Context) {
 	// Convert to map for easier frontend consumption
 	result := make(map[string]IntegrationConfigResponse)
 	for _, cfg := range configs {
-		value := cfg.Value
+		value := cfg.Value // Langsung ambil nilai TANPA dekripsi
 		hasValue := value != ""
-
-		// Decrypt encrypted values
-		if cfg.IsEncrypted && value != "" {
-			decrypted, err := decryptValue(value)
-			if err == nil {
-				value = decrypted
-			}
-		}
 
 		result[cfg.Key] = IntegrationConfigResponse{
 			Key:         cfg.Key,
@@ -88,44 +81,25 @@ func UpdateIntegrationConfig(c *gin.Context) {
 		configMap[cfg.Key] = cfg
 	}
 
-	// Update each config
+	// Update each config - TANPA ENKRIPSI, simpan plain text
 	for key, value := range input {
-		existingCfg, exists := configMap[key]
-
-		var finalValue string
-		var err error
-
-		// Encrypt if needed
-		if exists && existingCfg.IsEncrypted && value != "" {
-			finalValue, err = encryptValue(value)
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to encrypt value"})
-				return
-			}
-		} else {
-			finalValue = value
-		}
+		_, exists := configMap[key]
 
 		if exists {
 			// Update existing
 			database.DB.Model(&models.IntegrationConfig{}).
 				Where("integration = ? AND key = ?", integrationType, key).
-				Update("value", finalValue)
+				Update("value", value)
 		} else {
-			// Create new (check if it should be encrypted based on key pattern)
-			isEncrypted := isSecretKey(key)
+			// Create new - TANPA enkripsi
 			isSecret := isSecretKey(key)
-
-			if isEncrypted && value != "" {
-				finalValue, _ = encryptValue(value)
-			}
 
 			newCfg := models.IntegrationConfig{
 				Integration: models.IntegrationType(integrationType),
 				Key:         key,
-				Value:       finalValue,
+				Value:       value,
 				Description: "",
-				IsEncrypted: isEncrypted,
+				IsEncrypted: false,
 				IsSecret:    isSecret,
 			}
 			database.DB.Create(&newCfg)
@@ -221,20 +195,20 @@ func TestIntegrationConnection(c *gin.Context) {
 }
 
 func testBPJSConnectionForType(c *gin.Context, startTime time.Time, integrationType models.IntegrationType) {
+	// For VClaim, use the VClaim client and /referensi/propinsi endpoint
+	if integrationType == models.IntegrationTypeBPJSVClaim {
+		testVClaimConnection(c, startTime)
+		return
+	}
+
 	// Get config values for specific BPJS service type
 	var configs []models.IntegrationConfig
 	database.DB.Where("integration = ?", integrationType).Find(&configs)
 
 	configMap := make(map[string]string)
 	for _, cfg := range configs {
-		value := cfg.Value
-		if cfg.IsEncrypted && value != "" {
-			decrypted, err := decryptValue(value)
-			if err == nil {
-				value = decrypted
-			}
-		}
-		configMap[cfg.Key] = value
+		// Langsung ambil nilai TANPA dekripsi
+		configMap[cfg.Key] = cfg.Value
 	}
 
 	// Check required fields
@@ -356,6 +330,39 @@ func testBPJSConnectionForType(c *gin.Context, startTime time.Time, integrationT
 			"response_time": duration.String(),
 		})
 	}
+}
+
+// testVClaimConnection tests VClaim connectivity using /referensi/propinsi endpoint
+func testVClaimConnection(c *gin.Context, startTime time.Time) {
+	client, err := bpjs.NewVClaimClient()
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"error":   "Gagal membuat VClaim client: " + err.Error(),
+		})
+		return
+	}
+
+	propinsi, err := client.GetReferensiPropinsi()
+	duration := time.Since(startTime)
+
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success":       false,
+			"error":         "Gagal terhubung ke VClaim: " + err.Error(),
+			"response_time": duration.String(),
+			"test_endpoint": "/referensi/propinsi",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":         true,
+		"message":         fmt.Sprintf("Koneksi ke BPJS VClaim berhasil! Ditemukan %d propinsi.", len(propinsi)),
+		"response_time":   duration.String(),
+		"test_endpoint":   "/referensi/propinsi",
+		"propinsi_count":  len(propinsi),
+	})
 }
 
 func testBPJSConnection(c *gin.Context, startTime time.Time) {

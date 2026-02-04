@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { registrationApi, type Registration } from "@/lib/api/queue";
+import { bpjsApi, type BPJSQueue } from "@/lib/api/bpjs";
 import { useToast } from "@/hooks/use-toast";
 import { setPageTitle } from "@/lib/page-title";
 import {
@@ -21,6 +22,13 @@ import {
   DollarSign,
   FileText,
   Activity,
+  Smartphone,
+  CheckCircle,
+  Clock,
+  AlertCircle,
+  Pencil,
+  Trash2,
+  ShieldCheck,
 } from "lucide-react";
 import { format } from "date-fns";
 import { id as localeId } from "date-fns/locale";
@@ -29,13 +37,87 @@ import {
   paymentMethodLabels,
   registrationTypeLabels,
 } from "@/lib/api/queue";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { api } from "@/lib/api";
+
+interface SEPLocal {
+  id: number;
+  no_sep: string;
+  no_kartu: string;
+  nama_pasien: string;
+  tgl_sep: string;
+  jns_pelayanan: string;
+  kls_rawat_hak: string;
+  no_mr: string;
+  asal_rujukan: string;
+  no_rujukan: string;
+  tgl_rujukan: string;
+  ppk_rujukan: string;
+  nama_rujukan: string;
+  kode_poli: string;
+  nama_poli: string;
+  kode_dpjp: string;
+  nama_dpjp: string;
+  diag_awal: string;
+  nama_diagnosa: string;
+  catatan: string;
+  status: string;
+}
 
 export default function RegistrationShow() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [registration, setRegistration] = useState<Registration | null>(null);
+  const [bpjsQueue, setBpjsQueue] = useState<BPJSQueue | null>(null);
+  const [sepData, setSepData] = useState<SEPLocal | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activatingCheckin, setActivatingCheckin] = useState(false);
+  const [deletingSEP, setDeletingSEP] = useState(false);
+  const [editSEPOpen, setEditSEPOpen] = useState(false);
+  const [deleteSEPOpen, setDeleteSEPOpen] = useState(false);
+  const [updatingSEP, setUpdatingSEP] = useState(false);
+  const [sepEditForm, setSepEditForm] = useState({
+    catatan: "",
+    diag_awal: "",
+    kls_rawat_naik: "",
+    pembiayaan: "",
+    penanggung_jawab: "",
+    no_telp: "",
+  });
 
   useEffect(() => {
     setPageTitle("Detail Pendaftaran");
@@ -48,7 +130,41 @@ export default function RegistrationShow() {
     setLoading(true);
     try {
       const response = await registrationApi.getById(parseInt(id));
-      setRegistration(response.data.data);
+      const regData = response.data.data;
+      setRegistration(regData);
+      
+      // Try to load BPJS Queue if payment method is BPJS
+      if (regData.payment_method === 'bpjs') {
+        try {
+          const bpjsResponse = await bpjsApi.getQueueByRegistration(parseInt(id));
+          setBpjsQueue(bpjsResponse.data.data);
+        } catch {
+          // No BPJS queue found, that's okay
+          setBpjsQueue(null);
+        }
+
+        // Load SEP data - first try by registration, then by sep_number
+        try {
+          const sepResponse = await api.get(`/bpjs/vclaim/sep/registration/${id}`);
+          if (sepResponse.data.data) {
+            setSepData(sepResponse.data.data);
+          }
+        } catch {
+          // Fallback: try by sep_number from registration
+          if (regData.sep_number) {
+            try {
+              const sepByNoResponse = await api.get(`/bpjs/vclaim/sep/list?no_sep=${regData.sep_number}`);
+              if (sepByNoResponse.data.data && sepByNoResponse.data.data.length > 0) {
+                setSepData(sepByNoResponse.data.data[0]);
+              }
+            } catch {
+              setSepData(null);
+            }
+          } else {
+            setSepData(null);
+          }
+        }
+      }
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -58,6 +174,102 @@ export default function RegistrationShow() {
       navigate("/registrations");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleOpenEditSEP = () => {
+    if (sepData) {
+      setSepEditForm({
+        catatan: sepData.catatan || "",
+        diag_awal: sepData.diag_awal || "",
+        kls_rawat_naik: "",
+        pembiayaan: "",
+        penanggung_jawab: "",
+        no_telp: "",
+      });
+      setEditSEPOpen(true);
+    }
+  };
+
+  const handleUpdateSEP = async () => {
+    if (!sepData?.no_sep) return;
+
+    setUpdatingSEP(true);
+    try {
+      await api.put(`/bpjs/vclaim/sep/${sepData.no_sep}`, {
+        no_sep: sepData.no_sep,
+        kls_rawat_hak: sepData.kls_rawat_hak,
+        kls_rawat_naik: sepEditForm.kls_rawat_naik === "none" ? "" : sepEditForm.kls_rawat_naik,
+        pembiayaan: sepEditForm.pembiayaan === "none" ? "" : sepEditForm.pembiayaan,
+        penanggung_jawab: sepEditForm.penanggung_jawab,
+        no_mr: sepData.no_mr,
+        catatan: sepEditForm.catatan,
+        diag_awal: sepEditForm.diag_awal,
+        poli_tujuan: sepData.kode_poli,
+        dpjp_layan: sepData.kode_dpjp,
+        no_telp: sepEditForm.no_telp,
+      });
+      toast({
+        title: "Berhasil",
+        description: "SEP berhasil diupdate",
+      });
+      setEditSEPOpen(false);
+      await loadRegistration();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.response?.data?.error || "Gagal mengupdate SEP",
+      });
+    } finally {
+      setUpdatingSEP(false);
+    }
+  };
+
+  const handleDeleteSEP = async () => {
+    if (!sepData?.no_sep) return;
+
+    setDeletingSEP(true);
+    try {
+      await api.delete(`/bpjs/vclaim/sep/${sepData.no_sep}`);
+      toast({
+        title: "Berhasil",
+        description: "SEP berhasil dihapus",
+      });
+      setSepData(null);
+      setDeleteSEPOpen(false);
+      await loadRegistration();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.response?.data?.error || "Gagal menghapus SEP",
+      });
+    } finally {
+      setDeletingSEP(false);
+    }
+  };
+
+  const handleActivateCheckin = async () => {
+    if (!bpjsQueue) return;
+    
+    setActivatingCheckin(true);
+    try {
+      const response = await bpjsApi.activateQueueCheckin(bpjsQueue.id);
+      toast({
+        title: "Berhasil",
+        description: response.data.message,
+      });
+      // Reload data
+      await loadRegistration();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.response?.data?.error || "Gagal mengaktifkan check-in",
+      });
+    } finally {
+      setActivatingCheckin(false);
     }
   };
 
@@ -109,6 +321,12 @@ export default function RegistrationShow() {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              {bpjsQueue && (
+                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 flex items-center gap-1">
+                  <Smartphone className="h-3 w-3" />
+                  MJKN
+                </Badge>
+              )}
               <Badge variant={getStatusVariant(registration.status) as any}>
                 {registrationStatusLabels[registration.status]}
               </Badge>
@@ -283,8 +501,234 @@ export default function RegistrationShow() {
                   </div>
                 </>
               )}
+              
+              {/* SEP Info - inline with payment */}
+              {registration.payment_method === "bpjs" && sepData && (
+                <div className="col-span-2 lg:col-span-4">
+                  <div className="mt-2 p-3 rounded-lg border bg-blue-50/50 border-blue-200">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <ShieldCheck className="h-5 w-5 text-blue-600" />
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-muted-foreground">No. SEP:</span>
+                            <span className="font-mono font-bold text-blue-700">{sepData.no_sep}</span>
+                            <Badge variant="outline" className="text-[10px] bg-blue-100 text-blue-700 border-blue-300">
+                              {sepData.status === 'active' ? 'Aktif' : sepData.status}
+                            </Badge>
+                          </div>
+                          <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground">
+                            <span>Poli: <strong className="text-foreground">{sepData.nama_poli || sepData.kode_poli}</strong></span>
+                            <span>DPJP: <strong className="text-foreground">{sepData.nama_dpjp || sepData.kode_dpjp}</strong></span>
+                            <span>Diagnosa: <strong className="text-foreground">{sepData.nama_diagnosa || sepData.diag_awal}</strong></span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button 
+                                variant="ghost" 
+                                size="icon"
+                                className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-100"
+                                onClick={handleOpenEditSEP}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Edit SEP</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button 
+                                variant="ghost" 
+                                size="icon"
+                                className="h-8 w-8 text-destructive hover:text-destructive hover:bg-red-100"
+                                disabled={deletingSEP}
+                                onClick={() => setDeleteSEPOpen(true)}
+                              >
+                                {deletingSEP ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Trash2 className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Hapus SEP</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
+
+          {/* Informasi BPJS/MJKN */}
+          {bpjsQueue && (
+            <>
+              <div className="border-t my-6" />
+              <div className="mb-6">
+                <h3 className="text-sm font-medium text-muted-foreground mb-4 flex items-center gap-2">
+                  <Smartphone className="h-4 w-4" />
+                  INFORMASI ANTRIAN BPJS (MJKN)
+                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                    MJKN
+                  </Badge>
+                </h3>
+                
+                {/* Status & Action */}
+                <div className="mb-4 p-4 rounded-lg border bg-muted/30">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={`p-2 rounded-full ${
+                        bpjsQueue.status === 'booking' ? 'bg-yellow-100' :
+                        bpjsQueue.status === 'checkin' ? 'bg-green-100' :
+                        bpjsQueue.status === 'batal' ? 'bg-red-100' : 'bg-blue-100'
+                      }`}>
+                        {bpjsQueue.status === 'booking' && <Clock className="h-5 w-5 text-yellow-600" />}
+                        {bpjsQueue.status === 'checkin' && <CheckCircle className="h-5 w-5 text-green-600" />}
+                        {bpjsQueue.status === 'batal' && <AlertCircle className="h-5 w-5 text-red-600" />}
+                        {!['booking', 'checkin', 'batal'].includes(bpjsQueue.status) && <Smartphone className="h-5 w-5 text-blue-600" />}
+                      </div>
+                      <div>
+                        <p className="font-medium">
+                          {bpjsQueue.status === 'booking' && 'Menunggu Check-in'}
+                          {bpjsQueue.status === 'checkin' && 'Sudah Check-in'}
+                          {bpjsQueue.status === 'dipanggil' && 'Dipanggil'}
+                          {bpjsQueue.status === 'dilayani' && 'Sedang Dilayani'}
+                          {bpjsQueue.status === 'selesai' && 'Selesai'}
+                          {bpjsQueue.status === 'batal' && 'Dibatalkan'}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {bpjsQueue.status === 'booking' 
+                            ? 'Pasien sudah booking via MJKN, silakan aktivasi check-in saat pasien datang'
+                            : bpjsQueue.waktu_checkin 
+                              ? `Check-in: ${format(new Date(bpjsQueue.waktu_checkin), "dd MMM yyyy HH:mm", { locale: localeId })}`
+                              : ''
+                          }
+                        </p>
+                      </div>
+                    </div>
+                    {bpjsQueue.status === 'booking' && (
+                      <Button 
+                        onClick={handleActivateCheckin}
+                        disabled={activatingCheckin}
+                        className="bg-green-600 hover:bg-green-700"
+                      >
+                        {activatingCheckin ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <CheckCircle className="mr-2 h-4 w-4" />
+                        )}
+                        Aktivasi Check-in
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+                  <div>
+                    <label className="text-xs text-muted-foreground">Kode Booking</label>
+                    <p className="font-medium text-sm font-mono">{bpjsQueue.kode_booking}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Nomor Antrian MJKN</label>
+                    <p className="font-mono font-bold text-2xl text-primary">{bpjsQueue.nomor_antrean}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Tanggal Periksa</label>
+                    <p className="font-medium text-sm">
+                      {format(new Date(bpjsQueue.tanggal_periksa), "dd MMMM yyyy", { locale: localeId })}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Jam Praktek</label>
+                    <p className="font-medium text-sm">{bpjsQueue.jam_praktek}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Poli BPJS</label>
+                    <p className="font-medium text-sm">{bpjsQueue.nama_poli}</p>
+                    <p className="text-xs text-muted-foreground">{bpjsQueue.kode_poli}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Dokter BPJS</label>
+                    <p className="font-medium text-sm">{bpjsQueue.nama_dokter}</p>
+                    <p className="text-xs text-muted-foreground">{bpjsQueue.kode_dokter}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Nomor Kartu BPJS</label>
+                    <p className="font-medium text-sm font-mono">{bpjsQueue.no_kartu}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Jenis Kunjungan</label>
+                    <p className="font-medium text-sm">
+                      {bpjsQueue.jenis_kunjungan === 1 && "Rujukan FKTP"}
+                      {bpjsQueue.jenis_kunjungan === 2 && "Rujukan Internal"}
+                      {bpjsQueue.jenis_kunjungan === 3 && "Kontrol"}
+                      {bpjsQueue.jenis_kunjungan === 4 && "Rujukan Antar RS"}
+                    </p>
+                  </div>
+                  {bpjsQueue.nomor_referensi && (
+                    <div>
+                      <label className="text-xs text-muted-foreground">Nomor Referensi/Rujukan</label>
+                      <p className="font-medium text-sm font-mono">{bpjsQueue.nomor_referensi}</p>
+                    </div>
+                  )}
+                  <div>
+                    <label className="text-xs text-muted-foreground">Estimasi Dilayani</label>
+                    <p className="font-medium text-sm">
+                      {format(new Date(bpjsQueue.estimasi_dilayani), "HH:mm", { locale: localeId })}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Task Tracking */}
+                <div className="mt-4 pt-4 border-t">
+                  <label className="text-xs text-muted-foreground mb-2 block">Progress Task BPJS</label>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant={bpjsQueue.task3_at ? "default" : "outline"} className={bpjsQueue.task3_at ? "bg-green-600" : ""}>
+                      Task 3: Tunggu Poli {bpjsQueue.task3_at && "✓"}
+                    </Badge>
+                    <Badge variant={bpjsQueue.task4_at ? "default" : "outline"} className={bpjsQueue.task4_at ? "bg-green-600" : ""}>
+                      Task 4: Dipanggil {bpjsQueue.task4_at && "✓"}
+                    </Badge>
+                    <Badge variant={bpjsQueue.task5_at ? "default" : "outline"} className={bpjsQueue.task5_at ? "bg-green-600" : ""}>
+                      Task 5: Selesai {bpjsQueue.task5_at && "✓"}
+                    </Badge>
+                    <Badge variant={bpjsQueue.task6_at ? "default" : "outline"} className={bpjsQueue.task6_at ? "bg-green-600" : ""}>
+                      Task 6: Tunggu Farmasi {bpjsQueue.task6_at && "✓"}
+                    </Badge>
+                    <Badge variant={bpjsQueue.task7_at ? "default" : "outline"} className={bpjsQueue.task7_at ? "bg-green-600" : ""}>
+                      Task 7: Serah Obat {bpjsQueue.task7_at && "✓"}
+                    </Badge>
+                  </div>
+                </div>
+
+                {/* Sync Status */}
+                <div className="mt-4 pt-4 border-t">
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs text-muted-foreground">Status Sinkronisasi:</label>
+                    <Badge variant={bpjsQueue.sync_status === 'success' ? "default" : bpjsQueue.sync_status === 'failed' ? "destructive" : "secondary"}>
+                      {bpjsQueue.sync_status}
+                    </Badge>
+                    {bpjsQueue.last_sync_at && (
+                      <span className="text-xs text-muted-foreground">
+                        (Terakhir: {format(new Date(bpjsQueue.last_sync_at), "dd/MM HH:mm")})
+                      </span>
+                    )}
+                  </div>
+                  {bpjsQueue.sync_error && (
+                    <p className="text-xs text-red-500 mt-1">{bpjsQueue.sync_error}</p>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
 
           {(registration.complaint || registration.notes || registration.visit) && (
             <>
@@ -345,6 +789,167 @@ export default function RegistrationShow() {
           )}
         </CardContent>
       </Card>
+
+      {/* Modal Edit SEP */}
+      <Dialog open={editSEPOpen} onOpenChange={setEditSEPOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="h-5 w-5" />
+              Edit SEP
+            </DialogTitle>
+            <DialogDescription>
+              Update data SEP dengan nomor <strong className="font-mono">{sepData?.no_sep}</strong>
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="grid gap-4 py-4">
+            {/* Info SEP (readonly) */}
+            <div className="grid grid-cols-2 gap-4 p-3 rounded-lg bg-muted/50">
+              <div>
+                <Label className="text-xs text-muted-foreground">No. Kartu BPJS</Label>
+                <p className="font-mono text-sm">{sepData?.no_kartu}</p>
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">Nama Pasien</Label>
+                <p className="text-sm font-medium">{sepData?.nama_pasien}</p>
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">Poli Tujuan</Label>
+                <p className="text-sm">{sepData?.nama_poli || sepData?.kode_poli}</p>
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">DPJP</Label>
+                <p className="text-sm">{sepData?.nama_dpjp || sepData?.kode_dpjp}</p>
+              </div>
+            </div>
+
+            {/* Editable Fields */}
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="diag_awal">Diagnosa Awal</Label>
+                  <Input
+                    id="diag_awal"
+                    placeholder="Kode ICD-10"
+                    value={sepEditForm.diag_awal}
+                    onChange={(e) => setSepEditForm(prev => ({ ...prev, diag_awal: e.target.value }))}
+                  />
+                  {sepData?.nama_diagnosa && (
+                    <p className="text-xs text-muted-foreground">Current: {sepData.nama_diagnosa}</p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="kls_rawat_naik">Naik Kelas</Label>
+                  <Select
+                    value={sepEditForm.kls_rawat_naik}
+                    onValueChange={(v) => setSepEditForm(prev => ({ ...prev, kls_rawat_naik: v }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Pilih kelas" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Tidak naik kelas</SelectItem>
+                      <SelectItem value="1">Kelas 1</SelectItem>
+                      <SelectItem value="2">Kelas 2</SelectItem>
+                      <SelectItem value="vip">VIP</SelectItem>
+                      <SelectItem value="vvip">VVIP</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="pembiayaan">Pembiayaan</Label>
+                  <Select
+                    value={sepEditForm.pembiayaan}
+                    onValueChange={(v) => setSepEditForm(prev => ({ ...prev, pembiayaan: v }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Pilih pembiayaan" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">-</SelectItem>
+                      <SelectItem value="1">Pribadi</SelectItem>
+                      <SelectItem value="2">Pemberi Kerja</SelectItem>
+                      <SelectItem value="3">Asuransi</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="penanggung_jawab">Penanggung Jawab</Label>
+                  <Input
+                    id="penanggung_jawab"
+                    placeholder="Nama penanggung jawab"
+                    value={sepEditForm.penanggung_jawab}
+                    onChange={(e) => setSepEditForm(prev => ({ ...prev, penanggung_jawab: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="no_telp">No. Telepon</Label>
+                <Input
+                  id="no_telp"
+                  placeholder="Nomor telepon pasien"
+                  value={sepEditForm.no_telp}
+                  onChange={(e) => setSepEditForm(prev => ({ ...prev, no_telp: e.target.value }))}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="catatan">Catatan</Label>
+                <Textarea
+                  id="catatan"
+                  placeholder="Catatan tambahan untuk SEP"
+                  value={sepEditForm.catatan}
+                  onChange={(e) => setSepEditForm(prev => ({ ...prev, catatan: e.target.value }))}
+                  rows={3}
+                />
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditSEPOpen(false)}>
+              Batal
+            </Button>
+            <Button onClick={handleUpdateSEP} disabled={updatingSEP}>
+              {updatingSEP && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Update SEP
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Delete SEP */}
+      <AlertDialog open={deleteSEPOpen} onOpenChange={setDeleteSEPOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="h-5 w-5" />
+              Hapus SEP?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              SEP dengan nomor <strong className="font-mono">{sepData?.no_sep}</strong> akan dihapus dari BPJS VClaim.
+              <br /><br />
+              <span className="text-destructive font-medium">⚠️ Tindakan ini tidak dapat dibatalkan.</span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingSEP}>Batal</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDeleteSEP}
+              disabled={deletingSEP}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deletingSEP && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Hapus SEP
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

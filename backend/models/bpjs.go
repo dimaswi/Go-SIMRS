@@ -28,57 +28,72 @@ type BPJSQueue struct {
 
 	// BPJS Data
 	KodeBooking    string    `gorm:"uniqueIndex;not null;size:50" json:"kode_booking"`
-	NomorAntrean   string    `gorm:"not null;size:20" json:"nomor_antrean"`
-	AngkaAntrean   int       `json:"angka_antrean"`
-	NoKartu        string    `gorm:"not null;size:20;index" json:"no_kartu"`
-	NIK            string    `gorm:"not null;size:20;index" json:"nik"`
-	NamaPasien     string    `gorm:"not null;size:100" json:"nama_pasien"`
-	NoHP           string    `gorm:"size:20" json:"no_hp"`
-	TanggalPeriksa time.Time `gorm:"not null;index" json:"tanggal_periksa"`
+	NomorAntrean   string    `gorm:"column:nomor_antrean;not null;size:20" json:"nomor_antrean"`
+	AngkaAntrean   int       `gorm:"column:angka_antrean" json:"angka_antrean"`
+	NoKartu        string    `gorm:"column:no_kartu;size:20;index" json:"no_kartu"` // Nomor kartu BPJS
+	NIK            string    `gorm:"column:nik;size:20;index" json:"nik"`
+	NamaPasien     string    `gorm:"column:nama_pasien;size:100" json:"nama_pasien"`
+	NoHP           string    `gorm:"column:no_hp;size:20" json:"no_hp"`
+	TanggalPeriksa time.Time `gorm:"column:tanggal_periksa;not null;index" json:"tanggal_periksa"`
 
 	// Poli Info
-	KodePoli   string `gorm:"not null;size:10;index" json:"kode_poli"`
-	NamaPoli   string `gorm:"size:100" json:"nama_poli"`
-	KodeDokter string `gorm:"size:20" json:"kode_dokter"`
-	NamaDokter string `gorm:"size:100" json:"nama_dokter"`
-	JamPraktek string `gorm:"size:20" json:"jam_praktek"`
+	KodePoli   string `gorm:"column:kode_poli;not null;size:10;index" json:"kode_poli"`
+	NamaPoli   string `gorm:"column:nama_poli;size:100" json:"nama_poli"`
+	KodeDokter string `gorm:"column:kode_dokter;size:20" json:"kode_dokter"`
+	NamaDokter string `gorm:"column:nama_dokter;size:100" json:"nama_dokter"`
+	JamPraktek string `gorm:"column:jam_praktek;size:20" json:"jam_praktek"`
 
 	// Reference
-	JenisKunjungan int    `gorm:"default:2" json:"jenis_kunjungan"` // 1=FKTP, 2=Internal, 3=Kontrol, 4=Antar RS
-	NomorReferensi string `gorm:"size:50" json:"nomor_referensi"`
-	PasienBaru     int    `gorm:"default:0" json:"pasien_baru"`
+	JenisKunjungan   int    `gorm:"column:jenis_kunjungan;default:1" json:"jenis_kunjungan"` // 1=FKTP, 2=Internal, 3=Kontrol, 4=Antar RS
+	NomorReferensi   string `gorm:"column:nomor_referensi;size:50" json:"nomor_referensi"`
+	NoRM             string `gorm:"column:no_rm;size:20;index" json:"no_rm"`
+	JenisPasien      string `gorm:"column:jenis_pasien;size:20;default:'JKN'" json:"jenis_pasien"` // JKN, NON-JKN
+	EstimasiDilayani int64  `gorm:"column:estimasi_dilayani" json:"estimasi_dilayani"`             // Milliseconds
 
 	// Status Tracking
-	Status      string     `gorm:"default:'pending';size:20" json:"status"` // pending, checkedin, serving, completed, cancelled
-	CheckedInAt *time.Time `json:"checked_in_at"`
+	Status       string     `gorm:"default:'booking';size:20" json:"status"` // booking, checkin, dipanggil, dilayani, selesai, batal
+	Keterangan   string     `gorm:"type:text" json:"keterangan"`
+	WaktuCheckin *time.Time `json:"waktu_checkin"`
+	WaktuBatal   *time.Time `json:"waktu_batal"`
 
-	// Task Tracking (BPJS Task IDs)
-	Task1At  *time.Time `json:"task_1_at"`  // Mulai tunggu admisi
-	Task2At  *time.Time `json:"task_2_at"`  // Selesai tunggu admisi
-	Task3At  *time.Time `json:"task_3_at"`  // Mulai tunggu poli
-	Task4At  *time.Time `json:"task_4_at"`  // Dipanggil dokter
-	Task5At  *time.Time `json:"task_5_at"`  // Mulai periksa
-	Task6At  *time.Time `json:"task_6_at"`  // Selesai periksa
-	Task7At  *time.Time `json:"task_7_at"`  // Mulai tunggu farmasi
-	Task99At *time.Time `json:"task_99_at"` // Selesai/Batal
+	// Farmasi
+	NomorAntreanFarmasi int    `gorm:"default:0" json:"nomor_antrean_farmasi"`
+	StatusFarmasi       string `gorm:"size:20" json:"status_farmasi"` // menunggu, dipanggil, dilayani, selesai
+
+	// Task Tracking (BPJS Task IDs - untuk kirim update ke BPJS)
+	Task1At *time.Time `json:"task1_at"` // Mulai tunggu admisi
+	Task2At *time.Time `json:"task2_at"` // Selesai tunggu admisi / mulai pendaftaran
+	Task3At *time.Time `json:"task3_at"` // Selesai pendaftaran / mulai tunggu poli
+	Task4At *time.Time `json:"task4_at"` // Dipanggil dokter
+	Task5At *time.Time `json:"task5_at"` // Mulai periksa
+	Task6At *time.Time `json:"task6_at"` // Selesai periksa
+	Task7At *time.Time `json:"task7_at"` // Mulai tunggu farmasi / serah obat
 
 	// Link to SIMRS
-	PatientID      *uint `json:"patient_id"`
-	RegistrationID *uint `json:"registration_id"`
-	VisitID        *uint `json:"visit_id"`
-	RoomQueueID    *uint `json:"room_queue_id"`
+	PatientID       *uint `gorm:"index" json:"patient_id"`
+	RegistrationID  *uint `gorm:"index" json:"registration_id"`
+	VisitID         *uint `gorm:"index" json:"visit_id"`
+	RoomQueueID     *uint `gorm:"index" json:"room_queue_id"`
+	RoomID          *uint `gorm:"index" json:"room_id"`
+	PoliMappingID   *uint `gorm:"index" json:"poli_mapping_id"`
+	DoctorMappingID *uint `gorm:"index" json:"doctor_mapping_id"`
 
 	// Sync Status
-	SyncStatus string     `gorm:"default:'synced';size:20" json:"sync_status"` // synced, pending, failed
-	LastSyncAt *time.Time `json:"last_sync_at"`
-	SyncError  string     `gorm:"type:text" json:"sync_error"`
-	Notes      string     `gorm:"type:text" json:"notes"`
+	SyncStatus     string     `gorm:"default:'pending';size:20" json:"sync_status"` // pending, synced, failed
+	AddAntreanSent bool       `gorm:"default:false" json:"add_antrean_sent"`        // Apakah sudah dikirim ke /antrean/add
+	AddAntreanCode int        `gorm:"default:0" json:"add_antrean_code"`            // Response code dari /antrean/add (200=sukses)
+	AddAntreanMsg  string     `gorm:"type:text" json:"add_antrean_msg"`             // Response message dari /antrean/add
+	LastSyncAt     *time.Time `json:"last_sync_at"`
+	SyncError      string     `gorm:"type:text" json:"sync_error"`
 
 	// Relations
-	Patient      *Patient      `gorm:"foreignKey:PatientID" json:"patient,omitempty"`
-	Registration *Registration `gorm:"foreignKey:RegistrationID" json:"registration,omitempty"`
-	Visit        *Visit        `gorm:"foreignKey:VisitID" json:"visit,omitempty"`
-	RoomQueue    *RoomQueue    `gorm:"foreignKey:RoomQueueID" json:"room_queue,omitempty"`
+	Patient       *Patient           `gorm:"foreignKey:PatientID" json:"patient,omitempty"`
+	Registration  *Registration      `gorm:"foreignKey:RegistrationID" json:"registration,omitempty"`
+	Visit         *Visit             `gorm:"foreignKey:VisitID" json:"visit,omitempty"`
+	RoomQueue     *RoomQueue         `gorm:"foreignKey:RoomQueueID" json:"room_queue,omitempty"`
+	Room          *Room              `gorm:"foreignKey:RoomID" json:"room,omitempty"`
+	PoliMapping   *BPJSPoliMapping   `gorm:"foreignKey:PoliMappingID" json:"poli_mapping,omitempty"`
+	DoctorMapping *BPJSDoctorMapping `gorm:"foreignKey:DoctorMappingID" json:"doctor_mapping,omitempty"`
 }
 
 // BPJSSyncLog stores API request/response logs
@@ -144,8 +159,8 @@ type BPJSDoctorMapping struct {
 	PoliMappingID uint             `gorm:"not null;index" json:"poli_mapping_id"`
 	PoliMapping   *BPJSPoliMapping `gorm:"foreignKey:PoliMappingID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"poli_mapping,omitempty"`
 
-	// SIMRS Doctor Schedule
-	DoctorScheduleID uint            `gorm:"index" json:"doctor_schedule_id"` // Optional - specific schedule
+	// SIMRS Doctor Schedule (Optional - nullable)
+	DoctorScheduleID *uint           `gorm:"index" json:"doctor_schedule_id"` // Optional - specific schedule
 	DoctorSchedule   *DoctorSchedule `gorm:"foreignKey:DoctorScheduleID" json:"doctor_schedule,omitempty"`
 
 	// SIMRS Employee (Doctor)
@@ -208,8 +223,8 @@ const (
 // Default BPJS Config values
 var DefaultBPJSConfigs = []BPJSConfig{
 	{Key: BPJSConfigConsID, Value: "", Description: "Consumer ID dari BPJS", IsEncrypted: false, IsSecret: false},
-	{Key: BPJSConfigSecretKey, Value: "", Description: "Secret Key dari BPJS", IsEncrypted: true, IsSecret: true},
-	{Key: BPJSConfigUserKey, Value: "", Description: "User Key dari BPJS", IsEncrypted: true, IsSecret: true},
+	{Key: BPJSConfigSecretKey, Value: "", Description: "Secret Key dari BPJS", IsEncrypted: false, IsSecret: true},
+	{Key: BPJSConfigUserKey, Value: "", Description: "User Key dari BPJS", IsEncrypted: false, IsSecret: true},
 	{Key: BPJSConfigKodePPK, Value: "", Description: "Kode Faskes/PPK", IsEncrypted: false, IsSecret: false},
 	{Key: BPJSConfigNamaPPK, Value: "", Description: "Nama Faskes", IsEncrypted: false, IsSecret: false},
 	{Key: BPJSConfigEnvironment, Value: "development", Description: "Environment: development atau production", IsEncrypted: false, IsSecret: false},

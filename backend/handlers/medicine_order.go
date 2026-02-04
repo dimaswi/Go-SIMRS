@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"starter/backend/database"
 	"starter/backend/models"
+	bpjsService "starter/backend/services/bpjs"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -514,6 +515,284 @@ func CancelMedicineOrder(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Order cancelled successfully"})
 }
 
+// RecalculateOrderStatus recalculates and fixes order status based on item statuses
+func RecalculateOrderStatus(c *gin.Context) {
+	id := c.Param("id")
+	var order models.MedicineOrder
+
+	if err := database.DB.Preload("Items").First(&order, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Medicine order not found"})
+		return
+	}
+
+	// Count item statuses
+	var deliveredCount, cancelledCount, totalCount int
+	for _, item := range order.Items {
+		totalCount++
+		if item.Status == models.ItemStatusDelivered {
+			deliveredCount++
+		} else if item.Status == models.ItemStatusCancelled {
+			cancelledCount++
+		}
+	}
+
+	// Determine correct order status
+	var newStatus string
+	activeItems := totalCount - cancelledCount
+
+	if activeItems == 0 {
+		// All items cancelled
+		newStatus = string(models.OrderStatusCancelled)
+	} else if deliveredCount == activeItems {
+		// All active items delivered
+		newStatus = string(models.OrderStatusDelivered)
+	} else if deliveredCount > 0 {
+		// Some items delivered
+		newStatus = string(models.OrderStatusPartial)
+	} else {
+		// Keep current status if no items delivered yet
+		newStatus = string(order.Status)
+	}
+
+	// Update if different
+	if string(order.Status) != newStatus {
+		if err := database.DB.Model(&order).Update("status", newStatus).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":         "Order status recalculated",
+		"previous_status": order.Status,
+		"new_status":      newStatus,
+		"total_items":     totalCount,
+		"delivered_items": deliveredCount,
+		"cancelled_items": cancelledCount,
+	})
+}
+
+// ===========================================================================
+// PHARMACY ITEM MANAGEMENT HANDLERS (for pharmacists to edit prescriptions)
+// ===========================================================================
+
+// AddMedicineOrderItem adds a new item to an existing medicine order
+func AddMedicineOrderItem(c *gin.Context) {
+	orderID := c.Param("id")
+
+	var order models.MedicineOrder
+	if err := database.DB.First(&order, orderID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Medicine order not found"})
+		return
+	}
+
+	// Allow add items if order is pending, reviewed, or cancelled (cancelled because all items were removed)
+	if order.Status != models.OrderStatusPending && order.Status != models.OrderStatusReviewed && order.Status != models.OrderStatusCancelled {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Tidak dapat menambah obat, order sudah diproses"})
+		return
+	}
+
+	var input struct {
+		MedicineID   uint   `json:"medicine_id" binding:"required"`
+		Quantity     int    `json:"quantity" binding:"required,min=1"`
+		Unit         string `json:"unit"`
+		Dosage       string `json:"dosage"`
+		Frequency    string `json:"frequency"`
+		Route        string `json:"route"`
+		Duration     string `json:"duration"`
+		Instructions string `json:"instructions"`
+		Notes        string `json:"notes"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Verify medicine exists
+	var medicine models.Medicine
+	if err := database.DB.First(&medicine, input.MedicineID).Error; err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Obat tidak ditemukan"})
+		return
+	}
+
+	// Check if medicine already exists in order
+	var existingItem models.MedicineOrderItem
+	if err := database.DB.Where("medicine_order_id = ? AND medicine_id = ? AND status != ?",
+		order.ID, input.MedicineID, models.ItemStatusCancelled).
+		First(&existingItem).Error; err == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Obat sudah ada dalam resep, silakan edit jumlahnya"})
+		return
+	}
+
+	unit := input.Unit
+	if unit == "" {
+		unit = medicine.Unit
+	}
+
+	item := models.MedicineOrderItem{
+		MedicineOrderID: order.ID,
+		MedicineID:      input.MedicineID,
+		Quantity:        input.Quantity,
+		Unit:            unit,
+		Dosage:          input.Dosage,
+		Frequency:       input.Frequency,
+		Route:           input.Route,
+		Duration:        input.Duration,
+		Instructions:    input.Instructions,
+		Notes:           input.Notes,
+		Status:          models.ItemStatusOrdered,
+	}
+
+	if err := database.DB.Create(&item).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// If order was cancelled (because all items were removed), reactivate it
+	if order.Status == models.OrderStatusCancelled {
+		database.DB.Model(&order).Update("status", models.OrderStatusPending)
+	}
+
+	// Reload with medicine relation
+	database.DB.Preload("Medicine").First(&item, item.ID)
+
+	c.JSON(http.StatusCreated, item)
+}
+
+// UpdateMedicineOrderItem updates an existing item in a medicine order
+func UpdateMedicineOrderItem(c *gin.Context) {
+	orderID := c.Param("id")
+	itemID := c.Param("itemId")
+
+	var order models.MedicineOrder
+	if err := database.DB.First(&order, orderID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Medicine order not found"})
+		return
+	}
+
+	// Allow update items if order is pending or reviewed (before dispense)
+	if order.Status != models.OrderStatusPending && order.Status != models.OrderStatusReviewed {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Tidak dapat mengubah obat, order sudah diproses"})
+		return
+	}
+
+	var item models.MedicineOrderItem
+	if err := database.DB.Where("id = ? AND medicine_order_id = ?", itemID, orderID).First(&item).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Item tidak ditemukan"})
+		return
+	}
+
+	// Cannot update if already dispensed
+	if item.DispensedQty > 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Tidak dapat mengubah item yang sudah diserahkan"})
+		return
+	}
+
+	var input struct {
+		Quantity     *int    `json:"quantity"`
+		Unit         *string `json:"unit"`
+		Dosage       *string `json:"dosage"`
+		Frequency    *string `json:"frequency"`
+		Route        *string `json:"route"`
+		Duration     *string `json:"duration"`
+		Instructions *string `json:"instructions"`
+		Notes        *string `json:"notes"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	updates := map[string]interface{}{}
+	if input.Quantity != nil && *input.Quantity > 0 {
+		updates["quantity"] = *input.Quantity
+	}
+	if input.Unit != nil {
+		updates["unit"] = *input.Unit
+	}
+	if input.Dosage != nil {
+		updates["dosage"] = *input.Dosage
+	}
+	if input.Frequency != nil {
+		updates["frequency"] = *input.Frequency
+	}
+	if input.Route != nil {
+		updates["route"] = *input.Route
+	}
+	if input.Duration != nil {
+		updates["duration"] = *input.Duration
+	}
+	if input.Instructions != nil {
+		updates["instructions"] = *input.Instructions
+	}
+	if input.Notes != nil {
+		updates["notes"] = *input.Notes
+	}
+
+	if len(updates) > 0 {
+		if err := database.DB.Model(&item).Updates(updates).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	}
+
+	// Reload with medicine relation
+	database.DB.Preload("Medicine").First(&item, item.ID)
+
+	c.JSON(http.StatusOK, item)
+}
+
+// DeleteMedicineOrderItem removes an item from a medicine order
+func DeleteMedicineOrderItem(c *gin.Context) {
+	orderID := c.Param("id")
+	itemID := c.Param("itemId")
+
+	var order models.MedicineOrder
+	if err := database.DB.Preload("Items").First(&order, orderID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Medicine order not found"})
+		return
+	}
+
+	// Allow delete items if order is pending or reviewed (before dispense)
+	if order.Status != models.OrderStatusPending && order.Status != models.OrderStatusReviewed {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Tidak dapat menghapus obat, order sudah diproses"})
+		return
+	}
+
+	var item models.MedicineOrderItem
+	if err := database.DB.Where("id = ? AND medicine_order_id = ?", itemID, orderID).First(&item).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Item tidak ditemukan"})
+		return
+	}
+
+	// Cannot delete if already dispensed
+	if item.DispensedQty > 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Tidak dapat menghapus item yang sudah diserahkan"})
+		return
+	}
+
+	// Soft delete by updating status to cancelled
+	if err := database.DB.Model(&item).Update("status", models.ItemStatusCancelled).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Check if all items are now cancelled - if so, mark order as cancelled
+	var activeItemCount int64
+	database.DB.Model(&models.MedicineOrderItem{}).
+		Where("medicine_order_id = ? AND status != ?", orderID, models.ItemStatusCancelled).
+		Count(&activeItemCount)
+
+	if activeItemCount == 0 {
+		// All items are cancelled, mark order as cancelled
+		database.DB.Model(&order).Update("status", models.OrderStatusCancelled)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Item berhasil dihapus"})
+}
+
 // ===========================================================================
 // PRESCRIPTION REVIEW HANDLERS
 // ===========================================================================
@@ -774,17 +1053,21 @@ func DispenseMedicine(c *gin.Context) {
 		}
 	}
 
-	// Check if all items are delivered
-	for _, item := range order.Items {
-		found := false
-		for _, inputItem := range input.Items {
-			if inputItem.ItemID == item.ID {
-				found = true
-				break
-			}
-		}
-		if !found && item.Status != models.ItemStatusDelivered {
+	// Reload items from database to get updated status
+	var updatedItems []models.MedicineOrderItem
+	if err := tx.Where("medicine_order_id = ?", order.ID).Find(&updatedItems).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Check if all items are delivered or cancelled
+	allDelivered = true
+	for _, item := range updatedItems {
+		// Item is considered "done" if delivered or cancelled
+		if item.Status != models.ItemStatusDelivered && item.Status != models.ItemStatusCancelled {
 			allDelivered = false
+			break
 		}
 	}
 
@@ -811,25 +1094,17 @@ func DispenseMedicine(c *gin.Context) {
 		return
 	}
 
-	// Update pharmacy visit status if all delivered
-	if allDelivered && order.PharmacyVisitID != nil {
-		completedNow := time.Now()
-		tx.Model(&models.Visit{}).
-			Where("id = ?", *order.PharmacyVisitID).
-			Updates(map[string]interface{}{
-				"status":   models.VisitStatusCompleted,
-				"end_time": completedNow,
-			})
-
-		tx.Model(&models.RoomQueue{}).
-			Where("visit_id = ?", *order.PharmacyVisitID).
-			Updates(map[string]interface{}{
-				"status":       models.RoomQueueStatusCompleted,
-				"completed_at": completedNow,
-			})
-	}
+	// NOTE: Visit finalization is handled separately via the "Selesai Kunjungan" tab
+	// Do not auto-finalize pharmacy visit when medicines are delivered
 
 	tx.Commit()
+
+	// Trigger BPJS Task 6 & 7 jika semua obat sudah diserahkan (async)
+	if orderStatus == models.OrderStatusDelivered {
+		go func() {
+			bpjsService.TriggerFarmasiTask(order.SourceVisitID, now)
+		}()
+	}
 
 	// Reload order
 	database.DB.

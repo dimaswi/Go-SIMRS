@@ -17,9 +17,21 @@ import {
   MessageSquare,
   ArrowLeft,
   Loader2,
+  ShieldCheck,
 } from "lucide-react";
-import { patientAllergyApi, ALLERGY_CATEGORY_LABELS, ALLERGY_CRITICALITY_LABELS } from "@/lib/api";
+import { patientAllergyApi, ALLERGY_CATEGORY_LABELS, ALLERGY_CRITICALITY_LABELS, api } from "@/lib/api";
 import type { PatientAllergy } from "@/lib/api";
+import { MedicalRecordPrintSelect } from "./print-select";
+
+interface SEPInfo {
+  no_sep: string;
+  tgl_sep: string;
+  nama_poli: string;
+  nama_dpjp: string;
+  diag_awal: string;
+  nama_diagnosa: string;
+  status: string;
+}
 
 interface PatientInfoProps {
   visit: {
@@ -59,6 +71,7 @@ interface PatientInfoProps {
     room?: {
       code: string;
       name: string;
+      type?: string;
       service_type?: string;
     };
     doctor?: {
@@ -192,10 +205,14 @@ export function PatientInfo({ visit }: PatientInfoProps) {
   
   const patient = visit.registration?.patient;
   const patientId = patient?.id;
+  const registrationId = visit.registration?.registration_number ? visit.id : null;
   
   // Patient allergies from dedicated allergy table
   const [patientAllergies, setPatientAllergies] = useState<PatientAllergy[]>([]);
   const [loadingAllergies, setLoadingAllergies] = useState(false);
+  
+  // SEP Info
+  const [sepInfo, setSepInfo] = useState<SEPInfo | null>(null);
   
   // Load patient allergies from database
   useEffect(() => {
@@ -215,6 +232,40 @@ export function PatientInfo({ visit }: PatientInfoProps) {
 
     loadAllergies();
   }, [patientId]);
+
+  // Load SEP info if BPJS payment
+  useEffect(() => {
+    const loadSEP = async () => {
+      if (visit.registration?.payment_method !== 'bpjs' || !visit.id) return;
+      
+      try {
+        // Prioritas 1: Cari SEP berdasarkan visit_id
+        try {
+          const visitSepResponse = await api.get(`/bpjs/vclaim/sep/visit/${visit.id}`);
+          if (visitSepResponse.data.data) {
+            setSepInfo(visitSepResponse.data.data);
+            return; // Found SEP by visit_id, stop here
+          }
+        } catch (visitError) {
+          // SEP not found by visit_id, continue to registration
+        }
+
+        // Prioritas 2: Fallback ke registration_id (untuk backward compatibility)
+        const regId = (visit as any).registration_id || (visit.registration as any)?.id;
+        if (regId) {
+          const response = await api.get(`/bpjs/vclaim/sep/registration/${regId}`);
+          if (response.data.data) {
+            setSepInfo(response.data.data);
+          }
+        }
+      } catch (error) {
+        // SEP not found is okay
+        setSepInfo(null);
+      }
+    };
+
+    loadSEP();
+  }, [visit.id, visit.registration?.payment_method]);
   
   // Check if patient has allergies - prefer allergies from database, fallback to master data
   const hasAllergyRecords = patientAllergies.length > 0;
@@ -225,6 +276,12 @@ export function PatientInfo({ visit }: PatientInfoProps) {
   
   // Check if this is inpatient visit
   const isInpatient = visit.room?.service_type === "rawat_inap" || visit.visit_type === "inpatient";
+  
+  // Check if this is emergency (UGD) visit
+  const isEmergency = visit.room?.service_type === "igd" || 
+                      visit.room?.type === "igd" || 
+                      visit.room?.type === "emergency" ||
+                      visit.visit_type === "emergency";
   
   // Check if patient is discharged
   const isPatientDischarged = visit.registration?.status === "completed" || 
@@ -279,8 +336,21 @@ export function PatientInfo({ visit }: PatientInfoProps) {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {/* Print Select Dropdown */}
+            <MedicalRecordPrintSelect
+              visitId={visit.id}
+              isInpatient={isInpatient}
+              isEmergency={isEmergency}
+            />
             {/* Visit Category Badge */}
             {getVisitCategoryBadge(visit)}
+            {/* SEP Badge */}
+            {sepInfo && (
+              <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 border-blue-300 gap-1.5">
+                <ShieldCheck className="h-3.5 w-3.5" />
+                SEP
+              </Badge>
+            )}
             {isPatientDischarged && (
               <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 border-amber-300 gap-1.5">
                 <AlertTriangle className="h-3.5 w-3.5" />
@@ -579,6 +649,39 @@ export function PatientInfo({ visit }: PatientInfoProps) {
                     </p>
                   </div>
                 )}
+              {/* SEP Info */}
+              {sepInfo && (
+                <div className="mt-2 p-2 rounded bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <ShieldCheck className="h-3.5 w-3.5 text-blue-600" />
+                    <span className="text-xs font-semibold text-blue-800 dark:text-blue-200">SEP</span>
+                  </div>
+                  <div className="space-y-1">
+                    <div>
+                      <label className="text-[10px] text-muted-foreground">No. SEP</label>
+                      <p className="font-mono text-xs font-bold text-blue-700 dark:text-blue-300">
+                        {sepInfo.no_sep}
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1">
+                      <div>
+                        <label className="text-[10px] text-muted-foreground">Poli</label>
+                        <p className="text-[11px] font-medium">{sepInfo.nama_poli || '-'}</p>
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-muted-foreground">DPJP</label>
+                        <p className="text-[11px] font-medium">{sepInfo.nama_dpjp || '-'}</p>
+                      </div>
+                    </div>
+                    {sepInfo.nama_diagnosa && (
+                      <div>
+                        <label className="text-[10px] text-muted-foreground">Diagnosa</label>
+                        <p className="text-[11px] font-medium">{sepInfo.nama_diagnosa}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
               {visit.registration?.payment_method === "insurance" &&
                 visit.registration?.insurance_name && (
                   <div>

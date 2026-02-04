@@ -310,3 +310,65 @@ export type {
   CreateAllergyInput,
   BulkCreateAllergiesInput
 } from './patient-allergy';
+
+// Archives (Medical Record Archive Management)
+export { archivesApi, archiveDestructionsApi } from './archives';
+export type {
+  MedicalRecordArchive,
+  ArchiveMovement,
+  ArchiveDestruction,
+  ArchiveStatistics,
+  ArchiveStatus,
+  ArchiveLocation
+} from './archives';
+
+// Print (PDF generation from backend)
+export { printApi } from './print';
+
+// Dashboard
+export { dashboardApi } from './dashboard';
+export type {
+  DashboardStats,
+  DashboardTrend,
+  DashboardCharts,
+  DashboardSummary,
+  RoomVisitCount,
+  DoctorVisitCount,
+  ProcedureCount,
+  MedicineCount,
+  DiagnosisCount,
+  RoomBedStatus,
+  BedMonitoringData,
+  RecentActivity
+} from './dashboard';
+
+// Quality Control & Cost Management (Kendali Mutu & Biaya)
+export { qualityCostApi } from './quality-cost';
+export type {
+  IndicatorStandards,
+  HospitalIndicators,
+  QualityMetricsResponse,
+  CostAnalysisSummary,
+  CostCaseDetail,
+  TopLossCase,
+  CostByCategory,
+  ClaimAgeGroup,
+  PendingClaimSummary,
+  QualityTrendPoint
+} from './quality-cost';
+
+// VClaim (BPJS SEP)
+export { vclaimApi } from './vclaim';
+export type {
+  VClaimPeserta,
+  VClaimRujukan,
+  VClaimSEPRequest,
+  VClaimSEP,
+  VClaimRefPoli,
+  VClaimRefDokter,
+  VClaimRefDiagnosa,
+  VClaimRefFaskes,
+  VClaimRefPropinsi,
+  VClaimSEPOptions,
+  SEPLocal
+} from './vclaim';

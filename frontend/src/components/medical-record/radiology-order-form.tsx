@@ -34,7 +34,7 @@ import {
   ChevronRight,
   Printer,
 } from "lucide-react";
-import { procedureOrdersApi, PROCEDURE_ORDER_STATUS } from "@/lib/api";
+import { procedureOrdersApi, PROCEDURE_ORDER_STATUS, printApi } from "@/lib/api";
 import type { ProcedureOrder, Procedure as ProcedureType } from "@/lib/api/procedure-orders";
 
 interface RadiologyOrderFormProps {
@@ -54,41 +54,35 @@ interface OrderItem {
 // Collapsible Order History Component
 function OrderCollapsible({ order, onCancel, canCancel }: { order: ProcedureOrder; onCancel: (id: number) => void; canCancel: boolean }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [isPrinting, setIsPrinting] = useState(false);
+  const { toast } = useToast();
   
   // Get patient info from registration or source_visit.registration
   const patient = order.registration?.patient || order.source_visit?.registration?.patient;
   
-  const handlePrintQueue = () => {
-    const printWindow = window.open("", "_blank", "width=400,height=600");
-    if (printWindow) {
-      printWindow.document.write(`
-        <html>
-          <head>
-            <title>Tiket Antrian Radiologi</title>
-            <style>
-              body { font-family: Arial, sans-serif; text-align: center; padding: 20px; }
-              .queue-number { font-size: 72px; font-weight: bold; margin: 20px 0; }
-              .info { margin: 10px 0; font-size: 14px; }
-              .header { font-size: 18px; font-weight: bold; margin-bottom: 10px; }
-              .divider { border-top: 1px dashed #ccc; margin: 15px 0; }
-            </style>
-          </head>
-          <body>
-            <div class="header">ANTRIAN RADIOLOGI</div>
-            <div class="info">${order.target_room?.name || "Radiologi"}</div>
-            <div class="divider"></div>
-            <div class="queue-number">${order.target_visit?.room_queue?.queue_number || "-"}</div>
-            <div class="divider"></div>
-            <div class="info"><strong>${patient?.nama_lengkap || "-"}</strong></div>
-            <div class="info">No. RM: ${patient?.no_rm || "-"}</div>
-            <div class="info">Order: ${order.order_number}</div>
-            <div class="divider"></div>
-            <div class="info">${new Date().toLocaleString("id-ID")}</div>
-            <script>window.print(); window.close();</script>
-          </body>
-        </html>
-      `);
-      printWindow.document.close();
+  const handlePrintQueue = async () => {
+    const queueId = order.target_visit?.room_queue?.id;
+    if (!queueId) {
+      toast({
+        title: "Error",
+        description: "Nomor antrian tidak tersedia",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setIsPrinting(true);
+    try {
+      const url = await printApi.queueTicket(queueId);
+      window.open(url, "_blank");
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.response?.data?.error || "Gagal mencetak tiket antrian",
+        variant: "destructive",
+      });
+    } finally {
+      setIsPrinting(false);
     }
   };
 
@@ -116,13 +110,17 @@ function OrderCollapsible({ order, onCancel, canCancel }: { order: ProcedureOrde
                 </Badge>
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                {new Date(order.created_at).toLocaleString("id-ID")} • {order.target_room?.name} • {order.items?.length || 0} pemeriksaan
+                {new Date(order.created_at).toLocaleString("id-ID")} • {order.target_room?.name} • {order.items?.filter(i => i.status !== "cancelled").length || 0} pemeriksaan
               </p>
             </div>
           </CollapsibleTrigger>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={handlePrintQueue}>
-              <Printer className="h-4 w-4 mr-1" />
+            <Button variant="outline" size="sm" onClick={handlePrintQueue} disabled={isPrinting}>
+              {isPrinting ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <Printer className="h-4 w-4 mr-1" />
+              )}
               Cetak Antrian
             </Button>
             {order.status === "pending" && canCancel && (
@@ -190,7 +188,7 @@ function OrderCollapsible({ order, onCancel, canCancel }: { order: ProcedureOrde
                     </tr>
                   </thead>
                   <tbody>
-                    {order.items.map((item, idx) => (
+                    {order.items.filter(item => item.status !== "cancelled").map((item, idx) => (
                       <tr key={idx} className="border-t">
                         <td className="py-2 px-3">
                           <p className="font-medium">{item.procedure?.name}</p>
@@ -200,7 +198,7 @@ function OrderCollapsible({ order, onCancel, canCancel }: { order: ProcedureOrde
                         </td>
                         <td className="py-2 px-3">
                           <Badge variant={item.status === "completed" ? "default" : "secondary"} className="text-xs">
-                            {item.status === "completed" ? "Selesai" : "Menunggu"}
+                            {item.status === "completed" ? "Selesai" : item.status === "in_progress" ? "Dikerjakan" : "Menunggu"}
                           </Badge>
                         </td>
                       </tr>
@@ -219,7 +217,7 @@ function OrderCollapsible({ order, onCancel, canCancel }: { order: ProcedureOrde
                 </p>
                 
                 {/* Detail Results per Item */}
-                {order.items?.map((item) => (
+                {order.items?.filter(item => item.status !== "cancelled").map((item) => (
                   <div key={item.id} className="mb-3 pb-3 border-b last:border-0">
                     <h5 className="font-semibold text-sm mb-2">{item.procedure?.name}</h5>
                     {item.results && item.results.length > 0 ? (
@@ -312,7 +310,22 @@ export function RadiologyOrderForm({ visitId, readOnly = false }: RadiologyOrder
         procedureOrdersApi.getBySourceVisit(visitId, "radiology"),
         procedureOrdersApi.getRadiologyRooms(),
       ]);
-      setExistingOrders(ordersRes.data || []);
+      const orders = ordersRes.data || [];
+      
+      // Recalculate status for orders that might have inconsistent status
+      for (const order of orders) {
+        if (order.status !== "completed" && order.status !== "cancelled") {
+          try {
+            await procedureOrdersApi.recalculate(order.id);
+          } catch {
+            // Ignore recalculate errors
+          }
+        }
+      }
+      
+      // Reload orders after recalculation
+      const updatedOrdersRes = await procedureOrdersApi.getBySourceVisit(visitId, "radiology");
+      setExistingOrders(updatedOrdersRes.data || []);
       setRadiologyRooms(roomsRes.data || []);
 
       // Auto-select first room
@@ -373,6 +386,9 @@ export function RadiologyOrderForm({ visitId, readOnly = false }: RadiologyOrder
         description: "Order berhasil dibatalkan",
       });
       loadData();
+      // Trigger refresh print options dan final visit
+      window.dispatchEvent(new CustomEvent("refresh-print-options"));
+      window.dispatchEvent(new CustomEvent("refresh-final-visit"));
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -429,6 +445,10 @@ export function RadiologyOrderForm({ visitId, readOnly = false }: RadiologyOrder
 
       // Reload orders
       loadData();
+      
+      // Trigger refresh print options dan final visit
+      window.dispatchEvent(new CustomEvent("refresh-print-options"));
+      window.dispatchEvent(new CustomEvent("refresh-final-visit"));
     } catch (error: any) {
       toast({
         variant: "destructive",

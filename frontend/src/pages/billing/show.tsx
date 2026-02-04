@@ -13,7 +13,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { billingApi, visitsApi, type Billing, type BillingPayment } from '@/lib/api';
+import { billingApi, visitsApi, printApi, type Billing, type BillingPayment } from '@/lib/api';
 import { usePermission } from '@/hooks/usePermission';
 import { useToast } from '@/hooks/use-toast';
 import { setPageTitle } from '@/lib/page-title';
@@ -26,6 +26,7 @@ import {
   CreditCard,
   ChevronDown,
   ChevronUp,
+  Printer,
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { id } from 'date-fns/locale';
@@ -150,6 +151,7 @@ export default function BillingShow() {
   const [regenerating, setRegenerating] = useState(false);
   const [finalizing, setFinalizing] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [printing, setPrinting] = useState(false);
 
   // Tabs & Sidebar
   const [activeTab, setActiveTab] = useState('overview');
@@ -350,6 +352,17 @@ export default function BillingShow() {
             Batalkan
           </Button>
         )}
+        {/* Tombol Cetak */}
+        {billing && (
+          <Button variant="outline" onClick={handlePrintBilling} disabled={printing}>
+            {printing ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Printer className="mr-2 h-4 w-4" />
+            )}
+            Cetak
+          </Button>
+        )}
         {/* Tombol Kembali */}
         <Button variant="outline" onClick={() => navigate('/billing')}>
           Kembali
@@ -473,6 +486,23 @@ export default function BillingShow() {
       });
     } finally {
       setVoidingPayment(false);
+    }
+  };
+
+  const handlePrintBilling = async () => {
+    if (!billing) return;
+    setPrinting(true);
+    try {
+      await printApi.billing(billing.id);
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: string } } };
+      toast({
+        variant: 'destructive',
+        title: 'Error!',
+        description: err.response?.data?.error || 'Gagal mencetak billing.',
+      });
+    } finally {
+      setPrinting(false);
     }
   };
 

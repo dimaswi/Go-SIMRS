@@ -55,6 +55,7 @@ type Visit struct {
 
 	// Relationships
 	RoomQueue *RoomQueue `gorm:"foreignKey:VisitID" json:"room_queue,omitempty"` // 1 Visit = 1 RoomQueue
+	SEP       *SEP       `gorm:"foreignKey:VisitID" json:"sep,omitempty"`        // SEP untuk visit ini (jika ada)
 }
 
 // TableName specifies the table name for Visit

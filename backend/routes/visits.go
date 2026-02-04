@@ -65,11 +65,31 @@ func SetupVisitRoutes(r *gin.Engine) {
 		visits.GET("/:id/disposition", handlers.GetDisposition)
 		visits.POST("/:id/disposition", handlers.SaveDisposition)
 		visits.PUT("/:id/disposition", handlers.SaveDisposition)
+		visits.DELETE("/:id/disposition", middleware.RequirePermission("visits.delete"), handlers.CancelDisposition)
+		visits.DELETE("/:id/follow-up-registration", middleware.RequirePermission("visits.delete"), handlers.CancelFollowUpRegistration)
 		visits.GET("/:id/pending-orders", handlers.CheckPendingOrders)
 
 		// Consultation - untuk visit konsultasi
 		visits.GET("/:id/consultation", handlers.GetConsultation)
 		visits.POST("/:id/consultation", handlers.SaveConsultation)
+
+		// Sick Letter - Surat Keterangan Sakit
+		visits.GET("/:id/sick-letter", handlers.GetSickLetter)
+		visits.GET("/:id/sick-letters", handlers.GetSickLetters)
+		visits.POST("/:id/sick-letter", handlers.SaveSickLetter)
+		visits.PUT("/:id/sick-letter", handlers.SaveSickLetter)
+		visits.DELETE("/:id/sick-letter/:letterId", handlers.DeleteSickLetter)
+
+		// Death Certificate - Surat Kematian
+		visits.GET("/:id/death-certificate", handlers.GetDeathCertificate)
+		visits.GET("/:id/death-certificates", handlers.GetDeathCertificates)
+		visits.POST("/:id/death-certificate", handlers.SaveDeathCertificate)
+		visits.PUT("/:id/death-certificate", handlers.SaveDeathCertificate)
+		visits.DELETE("/:id/death-certificate/:certId", handlers.DeleteDeathCertificate)
+
+		// Medical Record Edit Logs - Log Edit RM setelah pasien pulang
+		visits.GET("/:id/edit-logs", handlers.GetMedicalRecordEditLogs)
+		visits.POST("/:id/edit-logs", handlers.CreateMedicalRecordEditLog)
 
 		// Visit Procedures - Tindakan yang dilakukan langsung di ruangan
 		visits.GET("/:id/room-procedures", handlers.GetRoomProceduresForVisit)                 // Daftar tindakan tersedia di ruangan

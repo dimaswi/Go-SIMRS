@@ -240,6 +240,8 @@ export function ProcedureForm({ visitId, readOnly = false }: ProcedureFormProps)
       });
       setExpandedProcedure(null);
       loadData();
+      // Trigger refresh on print options dropdown
+      window.dispatchEvent(new CustomEvent("refresh-print-options"));
     } catch (error: any) {
       toast({
         variant: "destructive",

@@ -20,6 +20,7 @@ import {
   Users,
   HeartPulse,
   ArrowRightLeft,
+  Skull,
 } from "lucide-react";
 
 interface Tab {
@@ -59,6 +60,12 @@ export function MedicalRecordTabs({
   // Tabs for pharmacy visits
   const pharmacyTabs: Tab[] = [
     {
+      id: "prescription-edit",
+      label: "Edit Resep",
+      icon: <Pill />,
+      permission: "pharmacy.edit",
+    },
+    {
       id: "prescription-review",
       label: "Telaah Resep",
       icon: <FileCheck />,
@@ -87,6 +94,12 @@ export function MedicalRecordTabs({
   // Tabs for radiology visits
   const radiologyTabs: Tab[] = [
     {
+      id: "radiology-edit",
+      label: "Edit Order",
+      icon: <ClipboardList />,
+      permission: "procedure_orders.edit",
+    },
+    {
       id: "radiology-workstation",
       label: "Pengerjaan Radiologi",
       icon: <FileImage />,
@@ -103,6 +116,12 @@ export function MedicalRecordTabs({
   // Tabs for laboratory visits
   const laboratoryTabs: Tab[] = [
     {
+      id: "laboratory-edit",
+      label: "Edit Order",
+      icon: <ClipboardList />,
+      permission: "procedure_orders.edit",
+    },
+    {
       id: "laboratory-workstation",
       label: "Pengerjaan Laboratorium",
       icon: <TestTube />,
@@ -118,6 +137,12 @@ export function MedicalRecordTabs({
 
   // Tabs for surgery visits (workstation)
   const surgeryTabs: Tab[] = [
+    {
+      id: "surgery-edit",
+      label: "Edit Order",
+      icon: <ClipboardList />,
+      permission: "procedure_orders.edit",
+    },
     {
       id: "surgery-workstation",
       label: "Pengerjaan Operasi",
@@ -244,6 +269,18 @@ export function MedicalRecordTabs({
       label: "Order Operasi",
       icon: <Scissors />,
       permission: "medical_records.surgery_order",
+    },
+    {
+      id: "sick-letter",
+      label: "Surat Sakit",
+      icon: <FileText />,
+      permission: "medical_records.sick_letter",
+    },
+    {
+      id: "death-certificate",
+      label: "Surat Kematian",
+      icon: <Skull />,
+      permission: "medical_records.death_certificate",
     },
     {
       id: "disposition",

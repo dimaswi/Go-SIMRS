@@ -7,6 +7,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -16,6 +17,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	lzstring "github.com/pieroxy/lz-string-go"
 )
 
 type Client struct {
@@ -37,12 +40,21 @@ type BPJSResponse struct {
 // NewClient membuat BPJS client baru dari database config (table integration_configs)
 func NewClient() (*Client, error) {
 	var configs []models.IntegrationConfig
-	if err := database.DB.Where("integration = ?", models.IntegrationTypeBPJS).Find(&configs).Error; err != nil {
+	// Cari config dengan integration type "bpjs-antrian" terlebih dahulu, fallback ke "bpjs"
+	if err := database.DB.Where("integration = ?", models.IntegrationTypeBPJSAntrian).Find(&configs).Error; err != nil {
 		return nil, fmt.Errorf("gagal load config BPJS: %w", err)
+	}
+
+	// Fallback ke legacy "bpjs" jika tidak ditemukan
+	if len(configs) == 0 {
+		if err := database.DB.Where("integration = ?", models.IntegrationTypeBPJS).Find(&configs).Error; err != nil {
+			return nil, fmt.Errorf("gagal load config BPJS: %w", err)
+		}
 	}
 
 	configMap := make(map[string]string)
 	for _, c := range configs {
+		// Langsung gunakan key apa adanya (tanpa modifikasi)
 		configMap[c.Key] = c.Value
 	}
 
@@ -91,7 +103,7 @@ func NewClient() (*Client, error) {
 		UserKey:   configMap["user_key"],
 		BaseURL:   baseURL,
 		HTTPClient: &http.Client{
-			Timeout: 30 * time.Second,
+			Timeout: 60 * time.Second,
 		},
 	}, nil
 }
@@ -115,14 +127,25 @@ func (c *Client) GenerateSignature(timestamp string) string {
 }
 
 // generateDecryptionKey membuat key untuk dekripsi response
+// PHP: hex2bin(hash('sha256', $key))
+// key = cons_id + secret_key + timestamp
 func (c *Client) generateDecryptionKey(timestamp string) []byte {
 	key := c.ConsID + c.SecretKey + timestamp
-	h := sha256.New()
-	h.Write([]byte(key))
-	return h.Sum(nil)
+	// hash('sha256', $key) returns hex string
+	h := sha256.Sum256([]byte(key))
+	// hex2bin converts hex string to binary - but sha256.Sum256 already returns binary
+	// So we need to match PHP behavior: hash() returns hex, then hex2bin converts it
+	hexStr := hex.EncodeToString(h[:])
+	result, _ := hex.DecodeString(hexStr)
+	return result
 }
 
-// DecryptResponse mendekripsi response AES-256-CBC dari BPJS
+// DecryptResponse mendekripsi response AES-256-CBC dari BPJS lalu decompress LZString
+// Berdasarkan dokumentasi PHP BPJS:
+// - Key: hex2bin(hash('sha256', cons_id + secret_key + timestamp))
+// - IV: First 16 bytes dari key_hash
+// - Mode: AES-256-CBC
+// - Hasil decrypt masih di-compress dengan LZString
 func (c *Client) DecryptResponse(encryptedData string, timestamp string) ([]byte, error) {
 	// Decode base64
 	ciphertext, err := base64.StdEncoding.DecodeString(encryptedData)
@@ -130,8 +153,14 @@ func (c *Client) DecryptResponse(encryptedData string, timestamp string) ([]byte
 		return nil, fmt.Errorf("base64 decode error: %w", err)
 	}
 
-	// Generate key
-	key := c.generateDecryptionKey(timestamp)
+	// Generate key: hex2bin(hash('sha256', cons_id + secret_key + timestamp))
+	key := c.generateDecryptionKey(timestamp) // Returns 32 bytes
+
+	// IV adalah 16 byte pertama dari key (sesuai kode PHP BPJS)
+	iv := key[:16]
+
+	// Debug log
+	fmt.Printf("[BPJS Decrypt] KeyLen=%d, IVLen=%d, CiphertextLen=%d\n", len(key), len(iv), len(ciphertext))
 
 	// Create AES cipher
 	block, err := aes.NewCipher(key)
@@ -141,19 +170,40 @@ func (c *Client) DecryptResponse(encryptedData string, timestamp string) ([]byte
 
 	// Check length
 	if len(ciphertext) < aes.BlockSize {
-		return nil, fmt.Errorf("ciphertext too short")
+		return nil, fmt.Errorf("ciphertext too short: %d", len(ciphertext))
 	}
 
-	// Extract IV (first block)
-	iv := ciphertext[:aes.BlockSize]
-	ciphertext = ciphertext[aes.BlockSize:]
-
-	// Decrypt
+	// Decrypt dengan CBC mode
 	mode := cipher.NewCBCDecrypter(block, iv)
-	mode.CryptBlocks(ciphertext, ciphertext)
+	plaintext := make([]byte, len(ciphertext))
+	mode.CryptBlocks(plaintext, ciphertext)
 
 	// Remove PKCS7 padding
-	return removePKCS7Padding(ciphertext), nil
+	decrypted := removePKCS7Padding(plaintext)
+
+	// Debug: tampilkan hasil dekripsi sebelum decompress
+	debugLen := len(decrypted)
+	if debugLen > 100 {
+		debugLen = 100
+	}
+	fmt.Printf("[BPJS Decrypted Raw] (first %d bytes): %s\n", debugLen, string(decrypted[:debugLen]))
+
+	// Decompress dengan LZString (decompressFromEncodedURIComponent)
+	decompressed, err := lzstring.DecompressFromEncodedUriComponent(string(decrypted))
+	if err != nil || decompressed == "" {
+		// Jika decompress gagal, mungkin sudah plain JSON
+		fmt.Printf("[BPJS] LZString decompress failed or returned empty, using raw decrypted data\n")
+		return decrypted, nil
+	}
+
+	// Debug: tampilkan hasil decompress
+	debugLen = len(decompressed)
+	if debugLen > 200 {
+		debugLen = 200
+	}
+	fmt.Printf("[BPJS Decompressed] (first %d bytes): %s\n", debugLen, decompressed[:debugLen])
+
+	return []byte(decompressed), nil
 }
 
 // removePKCS7Padding removes PKCS7 padding
@@ -227,8 +277,7 @@ func (c *Client) Request(method, endpoint string, body interface{}) ([]byte, int
 	}
 
 	// Log raw response for debugging
-	fmt.Printf("[BPJS Response] Status=%d, ContentLength=%d, BodyLen=%d, Body=%q\n", resp.StatusCode, resp.ContentLength, len(respBody), string(respBody))
-	fmt.Printf("[BPJS Response Headers] %v\n", resp.Header)
+	fmt.Printf("[BPJS Response] Status=%d, ContentLength=%d, BodyLen=%d\n", resp.StatusCode, resp.ContentLength, len(respBody))
 
 	// Log HTTP error (4xx, 5xx) before parsing
 	if resp.StatusCode >= 400 {
@@ -249,6 +298,10 @@ func (c *Client) Request(method, endpoint string, body interface{}) ([]byte, int
 	}
 
 	// Check metadata code
+	// PENTING: Response BPJS HTTP statusnya selalu 200
+	// Yang menentukan sukses/error adalah metadata.code:
+	// - metadata.code = 200 -> sukses
+	// - metadata.code != 200 (termasuk 201, dll) -> error
 	code := 0
 	switch v := bpjsResp.MetaData.Code.(type) {
 	case float64:
@@ -259,11 +312,11 @@ func (c *Client) Request(method, endpoint string, body interface{}) ([]byte, int
 		code = v
 	}
 
-	// Jika bukan 200/1, return error
-	if code != 200 && code != 1 {
+	// Jika bukan 200, return error (201, 202, dll adalah error di BPJS)
+	if code != 200 {
 		errMsg := bpjsResp.MetaData.Message
-		logSync(method, fullURL, reqBodyStr, string(respBody), resp.StatusCode, int(duration), "BPJS error: "+errMsg)
-		return nil, resp.StatusCode, fmt.Errorf("BPJS error [%d]: %s", code, errMsg)
+		logSync(method, fullURL, reqBodyStr, string(respBody), code, int(duration), "BPJS error: "+errMsg)
+		return nil, code, fmt.Errorf("BPJS error [%d]: %s", code, errMsg)
 	}
 
 	// Cek apakah response berupa string (encrypted)
@@ -271,19 +324,19 @@ func (c *Client) Request(method, endpoint string, body interface{}) ([]byte, int
 		// Response encrypted, decrypt
 		decrypted, err := c.DecryptResponse(respStr, timestamp)
 		if err != nil {
-			logSync(method, fullURL, reqBodyStr, string(respBody), resp.StatusCode, int(duration), "Decryption error: "+err.Error())
-			return nil, resp.StatusCode, fmt.Errorf("decrypt response: %w", err)
+			logSync(method, fullURL, reqBodyStr, string(respBody), code, int(duration), "Decryption error: "+err.Error())
+			return nil, code, fmt.Errorf("decrypt response: %w", err)
 		}
 
-		logSync(method, fullURL, reqBodyStr, string(decrypted), resp.StatusCode, int(duration), "")
-		return decrypted, resp.StatusCode, nil
+		logSync(method, fullURL, reqBodyStr, string(decrypted), code, int(duration), "")
+		return decrypted, code, nil
 	}
 
 	// Response tidak encrypted (object biasa)
 	responseJSON, _ := json.Marshal(bpjsResp.Response)
-	logSync(method, fullURL, reqBodyStr, string(responseJSON), resp.StatusCode, int(duration), "")
+	logSync(method, fullURL, reqBodyStr, string(responseJSON), code, int(duration), "")
 
-	return responseJSON, resp.StatusCode, nil
+	return responseJSON, code, nil
 }
 
 func logSync(method, endpoint, request, response string, statusCode int, durationMs int, errorMsg string) {
@@ -296,7 +349,7 @@ func logSync(method, endpoint, request, response string, statusCode int, duratio
 	}
 
 	log := models.IntegrationSyncLog{
-		Integration:  models.IntegrationTypeBPJS,
+		Integration:  models.IntegrationTypeBPJSAntrian, // Gunakan bpjs-antrian agar konsisten dengan query
 		Endpoint:     endpoint,
 		Method:       method,
 		RequestBody:  request,
