@@ -1,13 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { counterApi } from "@/lib/api/counters";
@@ -106,56 +99,53 @@ export default function CounterShow() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => navigate("/counters")}
-              >
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-              <div className="space-y-1">
-                <CardTitle className="text-base font-semibold font-mono">
-                  {counter.code} - {counter.name}
-                </CardTitle>
-                <CardDescription>
-                  {counter.description || "Tidak ada deskripsi"}
-                </CardDescription>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              {hasPermission("counters.update") && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => navigate(`/counters/${id}/edit`)}
-                >
-                  <Pencil className="mr-2 h-4 w-4" />
-                  Edit
-                </Button>
-              )}
-              {hasPermission("counters.delete") && (
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={handleDelete}
-                  disabled={deleting}
-                >
-                  {deleting ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Trash2 className="mr-2 h-4 w-4" />
-                  )}
-                  Hapus
-                </Button>
-              )}
-            </div>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate("/counters")}
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div className="space-y-1">
+            <h1 className="text-lg font-semibold font-mono">
+              {counter.code} - {counter.name}
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              {counter.description || "Tidak ada deskripsi"}
+            </p>
           </div>
-        </CardHeader>
-        <CardContent className="pt-6">
+        </div>
+        <div className="flex items-center gap-2">
+          {hasPermission("counters.update") && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate(`/counters/${id}/edit`)}
+            >
+              <Pencil className="mr-2 h-4 w-4" />
+              Edit
+            </Button>
+          )}
+          {hasPermission("counters.delete") && (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleDelete}
+              disabled={deleting}
+            >
+              {deleting ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="mr-2 h-4 w-4" />
+              )}
+              Hapus
+            </Button>
+          )}
+        </div>
+      </div>
+      <div className="rounded-lg border p-6">
 
           {/* Informasi Loket */}
           <div className="mb-6">
@@ -216,8 +206,7 @@ export default function CounterShow() {
               </div>
             </div>
           </div>
-        </CardContent>
-      </Card>
+      </div>
 
       <ConfirmDialog
         open={deleteDialogOpen}

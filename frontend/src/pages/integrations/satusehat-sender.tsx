@@ -1,12 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
+
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -983,9 +977,8 @@ export default function SatuSehatSenderPage() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
-          <div className="flex items-center gap-4">
+      <div className="rounded-lg border">
+        <div className="flex items-center gap-4 p-6">
             <Button
               variant="outline"
               size="icon"
@@ -995,20 +988,19 @@ export default function SatuSehatSenderPage() {
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <div className="flex-1">
-              <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <h1 className="text-lg font-semibold flex items-center gap-2">
                 <Send className="h-5 w-5" />
                 Kirim Data ke SatuSehat
-              </CardTitle>
-              <CardDescription>
+              </h1>
+              <p className="text-sm text-muted-foreground">
                 Kelola pengiriman data FHIR R4 ke platform SatuSehat Kemenkes
-              </CardDescription>
+              </p>
             </div>
             <Button variant="outline" size="sm" onClick={loadData}>
               <RefreshCw className="h-4 w-4 mr-2" />
               Refresh
             </Button>
-          </div>
-        </CardHeader>
+        </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <div className="border-b px-4">
@@ -1064,7 +1056,7 @@ export default function SatuSehatSenderPage() {
             </TabsList>
           </div>
 
-          <CardContent className="pt-6">
+          <div className="rounded-lg border p-6 mx-4 mb-4">
             {/* Overview Tab */}
             <TabsContent value="overview" className="mt-0">
               <OverviewTab readiness={readiness} onChangeTab={setActiveTab} />
@@ -1120,9 +1112,9 @@ export default function SatuSehatSenderPage() {
                 onViewStatus={handleViewStatus}
               />
             </TabsContent>
-          </CardContent>
+          </div>
         </Tabs>
-      </Card>
+      </div>
 
       {/* Response Detail Dialog */}
       <Dialog open={responseDialogOpen} onOpenChange={setResponseDialogOpen}>

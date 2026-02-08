@@ -1,13 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { registrationApi, type Registration } from "@/lib/api/queue";
 import { bpjsApi, type BPJSQueue } from "@/lib/api/bpjs";
@@ -299,41 +292,39 @@ export default function RegistrationShow() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => navigate("/registrations")}
-              >
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-              <div className="space-y-1">
-                <CardTitle className="text-base font-semibold">
-                  {registration.patient?.nama_lengkap || registration.patient?.name || "-"}
-                </CardTitle>
-                <CardDescription>
-                  No. RM: {registration.patient?.no_rm || registration.patient?.medical_record_number || "-"} • 
-                  No. Pendaftaran: {registration.registration_number}
-                </CardDescription>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              {bpjsQueue && (
-                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 flex items-center gap-1">
-                  <Smartphone className="h-3 w-3" />
-                  MJKN
-                </Badge>
-              )}
-              <Badge variant={getStatusVariant(registration.status) as any}>
-                {registrationStatusLabels[registration.status]}
-              </Badge>
-            </div>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate("/registrations")}
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div className="space-y-1">
+            <h1 className="text-lg font-semibold">
+              {registration.patient?.nama_lengkap || registration.patient?.name || "-"}
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              No. RM: {registration.patient?.no_rm || registration.patient?.medical_record_number || "-"} • 
+              No. Pendaftaran: {registration.registration_number}
+            </p>
           </div>
-        </CardHeader>
-        <CardContent className="pt-6">
+        </div>
+        <div className="flex items-center gap-2">
+          {bpjsQueue && (
+            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 flex items-center gap-1">
+              <Smartphone className="h-3 w-3" />
+              MJKN
+            </Badge>
+          )}
+          <Badge variant={getStatusVariant(registration.status) as any}>
+            {registrationStatusLabels[registration.status]}
+          </Badge>
+        </div>
+      </div>
+
+      <div className="rounded-lg border p-6">
           {/* Informasi Pasien */}
           <div className="mb-6">
             <h3 className="text-sm font-medium text-muted-foreground mb-4 flex items-center gap-2">
@@ -787,8 +778,7 @@ export default function RegistrationShow() {
               </div>
             </>
           )}
-        </CardContent>
-      </Card>
+      </div>
 
       {/* Modal Edit SEP */}
       <Dialog open={editSEPOpen} onOpenChange={setEditSEPOpen}>

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -129,12 +129,12 @@ export default function AccountPage() {
 
       <div className="grid gap-4 md:grid-cols-2">
         {/* Profile Information */}
-        <Card className="shadow-md">
-          <CardHeader className="border-b bg-muted/50">
-            <CardTitle className="text-base font-semibold">Profile Information</CardTitle>
-            <CardDescription>Update your personal information</CardDescription>
-          </CardHeader>
-          <CardContent className="pt-6">
+        <div className="rounded-lg border">
+          <div className="flex items-center gap-2 px-6 py-4">
+            <h3 className="text-sm font-medium">Profile Information</h3>
+            <p className="text-sm text-muted-foreground">Update your personal information</p>
+          </div>
+          <div className="px-6 pb-6">
             <form onSubmit={handleUpdateProfile} className="space-y-5">
               <div className="space-y-2">
                 <Label htmlFor="full_name" className="text-xs font-medium flex items-center gap-2">
@@ -184,16 +184,16 @@ export default function AccountPage() {
                 Update Profile
               </Button>
             </form>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* Change Password */}
-        <Card className="shadow-md">
-          <CardHeader className="border-b bg-muted/50">
-            <CardTitle className="text-base font-semibold">Change Password</CardTitle>
-            <CardDescription>Update your password to keep your account secure</CardDescription>
-          </CardHeader>
-          <CardContent className="pt-6">
+        <div className="rounded-lg border">
+          <div className="flex items-center gap-2 px-6 py-4">
+            <h3 className="text-sm font-medium">Change Password</h3>
+            <p className="text-sm text-muted-foreground">Update your password to keep your account secure</p>
+          </div>
+          <div className="px-6 pb-6">
             <form onSubmit={handleChangePassword} className="space-y-5">
               <div className="space-y-2">
                 <Label htmlFor="current_password" className="text-xs font-medium flex items-center gap-2">
@@ -246,8 +246,8 @@ export default function AccountPage() {
                 Change Password
               </Button>
             </form>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
     </div>
   );

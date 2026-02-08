@@ -1,4 +1,3 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -30,13 +29,6 @@ const visitStatusLabels: Record<string, string> = {
   cancelled: 'Dibatalkan',
 };
 
-const visitStatusColors: Record<string, string> = {
-  waiting: 'bg-yellow-500 text-black',
-  in_progress: 'bg-blue-500',
-  completed: 'bg-green-500',
-  cancelled: 'bg-red-500',
-};
-
 export function BillingDetail({ 
   billing, 
   allVisits, 
@@ -48,17 +40,12 @@ export function BillingDetail({
   const { hasPermission } = usePermission();
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* Billing Items */}
-      <Card className="border-none shadow-sm">
-        <CardHeader className="border-b bg-muted/30 pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-sm font-semibold">
-              Detail Tagihan - <span className="font-mono">{billing.billing_number}</span>
-            </CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent className="pt-4">
+      <div className="space-y-3">
+        <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase">
+          Detail Tagihan — <span className="font-mono">{billing.billing_number}</span>
+        </h3>
           <Table>
             <TableHeader>
               <TableRow>
@@ -116,14 +103,12 @@ export function BillingDetail({
               </TableRow>
             </TableFooter>
           </Table>
-        </CardContent>
-      </Card>
+      </div>
 
       {/* Summary */}
-      <Card className="border-none shadow-sm bg-muted/20">
-        <CardHeader className="border-b bg-muted/40 pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-sm font-semibold">Ringkasan Pembayaran</CardTitle>
+      <div className="space-y-3 border-t pt-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase">Ringkasan Pembayaran</h3>
             {billing.status !== 'paid' && billing.status !== 'cancelled' && hasPermission('billing.update') && (
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" onClick={onDiscountClick}>
@@ -137,22 +122,20 @@ export function BillingDetail({
               </div>
             )}
           </div>
-        </CardHeader>
-        <CardContent className="pt-4">
           <div className="space-y-2.5">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Subtotal</span>
               <span className="font-mono">{formatCurrency(billing.total_amount)}</span>
             </div>
             {billing.discount_amount > 0 && (
-              <div className="flex justify-between text-sm text-red-600">
-                <span>Diskon {billing.discount_reason && `(${billing.discount_reason})`}</span>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Diskon {billing.discount_reason && `(${billing.discount_reason})`}</span>
                 <span className="font-mono">- {formatCurrency(billing.discount_amount)}</span>
               </div>
             )}
             {billing.adjust_amount !== 0 && (
-              <div className={`flex justify-between text-sm ${billing.adjust_amount > 0 ? 'text-blue-600' : 'text-orange-600'}`}>
-                <span>Penyesuaian {billing.adjust_reason && `(${billing.adjust_reason})`}</span>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Penyesuaian {billing.adjust_reason && `(${billing.adjust_reason})`}</span>
                 <span className="font-mono">{billing.adjust_amount > 0 ? '+' : ''} {formatCurrency(billing.adjust_amount)}</span>
               </div>
             )}
@@ -161,28 +144,24 @@ export function BillingDetail({
               <span>Total</span>
               <span className="font-mono text-lg">{formatCurrency(billing.final_amount)}</span>
             </div>
-            <div className="flex justify-between text-sm text-green-600">
-              <span>Terbayar</span>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Terbayar</span>
               <span className="font-mono">{formatCurrency(billing.paid_amount)}</span>
             </div>
             <Separator />
             <div className="flex justify-between text-base font-bold">
               <span>Sisa</span>
-              <span className="font-mono text-lg text-orange-600">{formatCurrency(billing.remaining_amount)}</span>
+              <span className="font-mono text-lg">{formatCurrency(billing.remaining_amount)}</span>
             </div>
           </div>
-        </CardContent>
-      </Card>
+      </div>
 
       {/* All Visits in Registration */}
       {allVisits.length > 0 && (
-        <Card className="border-none shadow-sm">
-          <CardHeader className="border-b bg-muted/30 pb-3">
-            <CardTitle className="text-sm font-semibold">
-              Daftar Kunjungan ({allVisits.length} kunjungan)
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-4">
+        <div className="space-y-3 border-t pt-4">
+          <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase">
+            Daftar Kunjungan ({allVisits.length} kunjungan)
+          </h3>
             <Table>
               <TableHeader>
                 <TableRow>
@@ -223,7 +202,7 @@ export function BillingDetail({
                     <TableCell className="text-xs font-mono">{formatDate(v.start_time)}</TableCell>
                     <TableCell className="text-xs font-mono">{formatDate(v.end_time)}</TableCell>
                     <TableCell>
-                      <Badge className={`text-xs ${visitStatusColors[v.status] || ''}`}>
+                      <Badge variant="secondary" className="text-xs">
                         {visitStatusLabels[v.status] || v.status}
                       </Badge>
                     </TableCell>
@@ -231,8 +210,7 @@ export function BillingDetail({
                 ))}
               </TableBody>
             </Table>
-          </CardContent>
-        </Card>
+        </div>
       )}
     </div>
   );

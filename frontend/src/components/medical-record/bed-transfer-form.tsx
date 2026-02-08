@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import {
   Tooltip,
@@ -178,7 +177,7 @@ export function BedTransferForm({
 
   if (loading) {
     return (
-      <Card className="shadow-md">
+      <Card>
         <CardContent className="p-6 flex items-center justify-center min-h-[300px]">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </CardContent>
@@ -187,8 +186,8 @@ export function BedTransferForm({
   }
 
   return (
-    <Card className="shadow-md">
-      <CardHeader className="border-b bg-muted/30 py-3 px-4">
+    <Card>
+      <CardHeader className="py-3 px-4">
         <CardTitle className="text-base font-semibold flex items-center gap-2">
           <ArrowRightLeft className="h-4 w-4" />
           Mutasi Pasien (Pindah Kamar)
@@ -243,8 +242,7 @@ export function BedTransferForm({
           </div>
         </div>
 
-        <ScrollArea className="h-[calc(100vh-450px)] min-h-[570px]">
-          <div className="p-4 space-y-6">
+        <div className="p-4 space-y-6">
             {/* Form Tab */}
             {activeTab === "form" && !readOnly && (
               <fieldset disabled={saving}>
@@ -653,8 +651,7 @@ export function BedTransferForm({
                 )}
               </div>
             )}
-          </div>
-        </ScrollArea>
+        </div>
       </CardContent>
     </Card>
   );

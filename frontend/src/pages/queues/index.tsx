@@ -1,12 +1,12 @@
 import { useEffect, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { DataTable } from "@/components/ui/data-table";
 import { createQueueColumns } from "./columns";
 import { queueApi, type Queue } from "@/lib/api/queue";
@@ -19,14 +19,13 @@ import { setPageTitle } from "@/lib/page-title";
 import {
   Loader2,
   RefreshCcw,
+  SlidersHorizontal,
 } from "lucide-react";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
@@ -38,6 +37,7 @@ export default function QueueIndex() {
   const [counters, setCounters] = useState<Counter[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingCounters, setLoadingCounters] = useState(true);
+  const [filterOpen, setFilterOpen] = useState(false);
   const [selectedCounter, setSelectedCounter] = useState<string>("all");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
   const [selectedDate, setSelectedDate] = useState<string>(""); // Empty = show all data
@@ -205,101 +205,99 @@ export default function QueueIndex() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      <div className="grid gap-4">
-        <Card className="shadow-md">
-          <CardHeader className="border-b bg-muted/50">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <CardTitle className="text-base font-semibold">
-                  Antrean Pasien
-                </CardTitle>
-                <CardDescription>
-                  Kelola antrean pasien untuk pendaftaran -{" "}
-                  {selectedDate
-                    ? format(new Date(selectedDate), "EEEE, dd MMMM yyyy", {
-                        locale: idLocale,
-                      })
-                    : "Semua Data"}
-                </CardDescription>
-              </div>
-
-              <div className="flex items-center gap-2 pt-2 flex-wrap">
-                <Input
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  className="w-48"
-                />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setSelectedDate("")}
-                >
-                  Semua Data
-                </Button>
-                  <Select
-                    value={selectedCounter}
-                    onValueChange={setSelectedCounter}
-                  >
-                    <SelectTrigger className="w-[150px]">
-                      <SelectValue placeholder="Pilih Loket" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Semua Loket</SelectItem>
-                      {loadingCounters ? (
-                        <SelectItem value="loading" disabled>
-                          <Loader2 className="h-3 w-3 animate-spin mr-2 inline" />
-                          Memuat...
-                        </SelectItem>
-                      ) : (
-                        counters.map((counter) => (
-                          <SelectItem
-                            key={counter.id}
-                            value={counter.id.toString()}
-                          >
-                            {counter.name}
-                          </SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
-                  <Select
-                    value={selectedStatus}
-                    onValueChange={setSelectedStatus}
-                  >
-                    <SelectTrigger className="w-[150px]">
-                      <SelectValue placeholder="Semua Status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Semua Status</SelectItem>
-                      <SelectItem value="waiting">Menunggu</SelectItem>
-                      <SelectItem value="called">Dipanggil</SelectItem>
-                      <SelectItem value="serving">Dilayani</SelectItem>
-                      <SelectItem value="completed">Selesai</SelectItem>
-                      <SelectItem value="skipped">Dilewati</SelectItem>
-                      <SelectItem value="cancelled">Dibatalkan</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button variant="outline" size="icon" onClick={loadData}>
-                    <RefreshCcw className="h-4 w-4" />
-                  </Button>
-              </div>
-            </div>
-
-            {/* Date Filter */}
-            <div className="flex items-center gap-4 pt-4 border-t"></div>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <DataTable
-              columns={columns}
-              data={queues}
-              searchPlaceholder="Cari nomor antrean atau nama pasien..."
-              pageSize={10}
-              tableId="queues"
-            />
-          </CardContent>
-        </Card>
+      <Collapsible open={filterOpen} onOpenChange={setFilterOpen}>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-lg font-semibold">Antrean Pasien</h1>
+          <p className="text-sm text-muted-foreground">
+            Kelola antrean pasien untuk pendaftaran -{" "}
+            {selectedDate
+              ? format(new Date(selectedDate), "EEEE, dd MMMM yyyy", {
+                  locale: idLocale,
+                })
+              : "Semua Data"}
+          </p>
+        </div>
+        <CollapsibleTrigger asChild>
+          <Button variant="outline" size="sm" className="h-9">
+            <SlidersHorizontal className="h-4 w-4 mr-2" />
+            Filter
+          </Button>
+        </CollapsibleTrigger>
       </div>
+      <CollapsibleContent>
+      <div className="flex items-center gap-2 flex-wrap pt-4">
+        <Input
+          type="date"
+          value={selectedDate}
+          onChange={(e) => setSelectedDate(e.target.value)}
+          className="h-9 w-48"
+        />
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setSelectedDate("")}
+          className="h-9"
+        >
+          Semua Data
+        </Button>
+        <Select
+          value={selectedCounter}
+          onValueChange={setSelectedCounter}
+        >
+          <SelectTrigger className="h-9 w-[150px]">
+            <SelectValue placeholder="Pilih Loket" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Semua Loket</SelectItem>
+            {loadingCounters ? (
+              <SelectItem value="loading" disabled>
+                <Loader2 className="h-3 w-3 animate-spin mr-2 inline" />
+                Memuat...
+              </SelectItem>
+            ) : (
+              counters.map((counter) => (
+                <SelectItem
+                  key={counter.id}
+                  value={counter.id.toString()}
+                >
+                  {counter.name}
+                </SelectItem>
+              ))
+            )}
+          </SelectContent>
+        </Select>
+        <Select
+          value={selectedStatus}
+          onValueChange={setSelectedStatus}
+        >
+          <SelectTrigger className="h-9 w-[150px]">
+            <SelectValue placeholder="Semua Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Semua Status</SelectItem>
+            <SelectItem value="waiting">Menunggu</SelectItem>
+            <SelectItem value="called">Dipanggil</SelectItem>
+            <SelectItem value="serving">Dilayani</SelectItem>
+            <SelectItem value="completed">Selesai</SelectItem>
+            <SelectItem value="skipped">Dilewati</SelectItem>
+            <SelectItem value="cancelled">Dibatalkan</SelectItem>
+          </SelectContent>
+        </Select>
+        <Button variant="outline" size="icon" className="h-9 w-9" onClick={loadData}>
+          <RefreshCcw className="h-4 w-4" />
+        </Button>
+      </div>
+      </CollapsibleContent>
+      </Collapsible>
+
+      <DataTable
+        columns={columns}
+        data={queues}
+        searchPlaceholder="Cari nomor antrean atau nama pasien..."
+        pageSize={10}
+        tableId="queues"
+      />
 
       <ConfirmDialog
         open={skipId !== null}

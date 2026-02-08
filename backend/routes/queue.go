@@ -77,6 +77,9 @@ func SetupRegistrationRoutes(router *gin.RouterGroup) {
 		// Check-in scheduled registration (for follow-up)
 		registrations.POST("/:id/checkin", middleware.RequirePermission("registrations.update"), handlers.CheckInScheduledRegistration)
 
+		// Get kontrol info for check-in drawer - uses read permission since it's just fetching data
+		registrations.GET("/:id/kontrol-info", handlers.GetKontrolInfo)
+
 		// Reschedule registration (for follow-up)
 		registrations.PUT("/:id/reschedule", middleware.RequirePermission("registrations.update"), handlers.RescheduleRegistration)
 

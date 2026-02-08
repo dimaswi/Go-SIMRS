@@ -326,8 +326,8 @@ export function ProcedureEditOrder({
 
   if (loading) {
     return (
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
+      <Card>
+        <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
             <Icon className="h-5 w-5" />
             {orderTypeConfig.title}
@@ -345,8 +345,8 @@ export function ProcedureEditOrder({
 
   if (orders.length === 0) {
     return (
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
+      <Card>
+        <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
             <Icon className="h-5 w-5" />
             {orderTypeConfig.title}
@@ -364,8 +364,8 @@ export function ProcedureEditOrder({
 
   return (
     <div className="space-y-4">
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50 py-3">
+      <Card>
+        <CardHeader className="py-3">
           <div className="flex items-center justify-between">
             <CardTitle className="text-lg flex items-center gap-2">
               <Icon className="h-5 w-5" />

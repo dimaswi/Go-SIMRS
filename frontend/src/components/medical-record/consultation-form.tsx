@@ -5,7 +5,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Save, FileText, CheckCircle2, User, Stethoscope } from "lucide-react";
 import { medicalRecordsApi } from "@/lib/api";
@@ -118,7 +117,7 @@ export function ConsultationForm({ visitId, readOnly = false }: ConsultationForm
 
   return (
     <Card>
-      <CardHeader className="border-b bg-muted/30 py-3 px-4">
+      <CardHeader className="py-3 px-4">
         <div className="flex items-center justify-between">
           <div className="flex-1">
             <CardTitle className="text-base font-semibold flex items-center gap-2">
@@ -152,15 +151,13 @@ export function ConsultationForm({ visitId, readOnly = false }: ConsultationForm
           )}
         </div>
       </CardHeader>
-      <CardContent className="p-0">
-        <ScrollArea className="h-[calc(100vh-300px)] min-h-[400px]">
-          <div className="p-6">
+      <CardContent>
         {/* Indikasi Konsultasi - Info from Order - Show always if procedure_order exists */}
         {existingData?.procedure_order && (
           <>
-            <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 rounded-lg p-4 mb-6">
-              <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300 font-medium mb-3">
-                <Stethoscope className="h-5 w-5" />
+            <div className="bg-muted/50 border rounded-lg p-4 mb-6">
+              <div className="flex items-center gap-2 font-medium mb-3">
+                <Stethoscope className="h-5 w-5 text-muted-foreground" />
                 Indikasi Konsultasi
               </div>
               <div className="space-y-2 text-sm">
@@ -179,7 +176,7 @@ export function ConsultationForm({ visitId, readOnly = false }: ConsultationForm
                 {existingData.procedure_order.clinical_notes && (
                   <div className="grid grid-cols-3 gap-2">
                     <div className="text-muted-foreground">Alasan Konsultasi:</div>
-                    <div className="col-span-2 font-medium bg-blue-100 dark:bg-blue-900 p-2 rounded whitespace-pre-wrap">
+                    <div className="col-span-2 font-medium bg-muted p-2 rounded whitespace-pre-wrap">
                       {existingData.procedure_order.clinical_notes}
                     </div>
                   </div>
@@ -201,9 +198,9 @@ export function ConsultationForm({ visitId, readOnly = false }: ConsultationForm
         {/* Show this badge only if consultation has been answered (has subjective field) */}
         {existingData?.subjective && (
           <>
-            <div className="bg-green-50 dark:bg-green-950 border border-green-200 rounded-lg p-4 mb-6">
-              <div className="flex items-center gap-2 text-green-700 dark:text-green-300 font-medium mb-2">
-                <CheckCircle2 className="h-5 w-5" />
+            <div className="bg-muted/50 border rounded-lg p-4 mb-6">
+              <div className="flex items-center gap-2 font-medium mb-2">
+                <CheckCircle2 className="h-5 w-5 text-muted-foreground" />
                 Konsultasi Telah Dijawab
               </div>
               <div className="grid grid-cols-2 gap-2 text-sm">
@@ -324,8 +321,6 @@ export function ConsultationForm({ visitId, readOnly = false }: ConsultationForm
             </div>
           )}
         </div>
-          </div>
-        </ScrollArea>
       </CardContent>
     </Card>
   );

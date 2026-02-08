@@ -187,16 +187,16 @@ function NursingCareCollapsibleRow({
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 text-sm">
               {/* Diagnosis Keperawatan */}
               {record.nursing_diagnosis && (
-                <div className="bg-rose-50 dark:bg-rose-950 rounded-lg p-3">
-                  <p className="font-medium text-rose-700 dark:text-rose-300 mb-1 flex items-center gap-1">
-                    <FileText className="h-3.5 w-3.5" /> Diagnosis Keperawatan
+                <div className="bg-muted/50 border rounded-lg p-3">
+                  <p className="font-medium mb-1 flex items-center gap-1">
+                    <FileText className="h-3.5 w-3.5 text-muted-foreground" /> Diagnosis Keperawatan
                     {record.nursing_diagnosis_code && (
-                      <span className="text-xs font-normal">({record.nursing_diagnosis_code})</span>
+                      <span className="text-xs font-normal text-muted-foreground">({record.nursing_diagnosis_code})</span>
                     )}
                   </p>
-                  <p className="text-rose-900 dark:text-rose-100 whitespace-pre-wrap">{record.nursing_diagnosis}</p>
+                  <p className="whitespace-pre-wrap">{record.nursing_diagnosis}</p>
                   {record.problem_etiology && (
-                    <p className="text-xs text-rose-700 dark:text-rose-300 mt-1">
+                    <p className="text-xs text-muted-foreground mt-1">
                       <strong>Etiologi:</strong> {record.problem_etiology}
                     </p>
                   )}
@@ -205,16 +205,16 @@ function NursingCareCollapsibleRow({
 
               {/* Luaran */}
               {record.nursing_outcome && (
-                <div className="bg-amber-50 dark:bg-amber-950 rounded-lg p-3">
-                  <p className="font-medium text-amber-700 dark:text-amber-300 mb-1 flex items-center gap-1">
-                    <Target className="h-3.5 w-3.5" /> Luaran Keperawatan
+                <div className="bg-muted/50 border rounded-lg p-3">
+                  <p className="font-medium mb-1 flex items-center gap-1">
+                    <Target className="h-3.5 w-3.5 text-muted-foreground" /> Luaran Keperawatan
                     {record.nursing_outcome_code && (
-                      <span className="text-xs font-normal">({record.nursing_outcome_code})</span>
+                      <span className="text-xs font-normal text-muted-foreground">({record.nursing_outcome_code})</span>
                     )}
                   </p>
-                  <p className="text-amber-900 dark:text-amber-100 whitespace-pre-wrap">{record.nursing_outcome}</p>
+                  <p className="whitespace-pre-wrap">{record.nursing_outcome}</p>
                   {record.outcome_target && (
-                    <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
+                    <p className="text-xs text-muted-foreground mt-1">
                       <strong>Target:</strong> {record.outcome_target}
                     </p>
                   )}
@@ -223,26 +223,26 @@ function NursingCareCollapsibleRow({
 
               {/* Intervensi */}
               {record.nursing_intervention && (
-                <div className="bg-indigo-50 dark:bg-indigo-950 rounded-lg p-3">
-                  <p className="font-medium text-indigo-700 dark:text-indigo-300 mb-1 flex items-center gap-1">
-                    <ClipboardList className="h-3.5 w-3.5" /> Intervensi Keperawatan
+                <div className="bg-muted/50 border rounded-lg p-3">
+                  <p className="font-medium mb-1 flex items-center gap-1">
+                    <ClipboardList className="h-3.5 w-3.5 text-muted-foreground" /> Intervensi Keperawatan
                     {record.nursing_intervention_code && (
-                      <span className="text-xs font-normal">({record.nursing_intervention_code})</span>
+                      <span className="text-xs font-normal text-muted-foreground">({record.nursing_intervention_code})</span>
                     )}
                   </p>
-                  <p className="text-indigo-900 dark:text-indigo-100 whitespace-pre-wrap">{record.nursing_intervention}</p>
+                  <p className="whitespace-pre-wrap">{record.nursing_intervention}</p>
                 </div>
               )}
 
               {/* Implementasi */}
               {record.implementation && (
-                <div className="bg-teal-50 dark:bg-teal-950 rounded-lg p-3">
-                  <p className="font-medium text-teal-700 dark:text-teal-300 mb-1 flex items-center gap-1">
-                    <Stethoscope className="h-3.5 w-3.5" /> Implementasi
+                <div className="bg-muted/50 border rounded-lg p-3">
+                  <p className="font-medium mb-1 flex items-center gap-1">
+                    <Stethoscope className="h-3.5 w-3.5 text-muted-foreground" /> Implementasi
                   </p>
-                  <p className="text-teal-900 dark:text-teal-100 whitespace-pre-wrap">{record.implementation}</p>
+                  <p className="whitespace-pre-wrap">{record.implementation}</p>
                   {record.patient_response && (
-                    <p className="text-xs text-teal-700 dark:text-teal-300 mt-1">
+                    <p className="text-xs text-muted-foreground mt-1">
                       <strong>Respon:</strong> {record.patient_response}
                     </p>
                   )}
@@ -254,27 +254,27 @@ function NursingCareCollapsibleRow({
             {(record.evaluation_subjective || record.evaluation_objective || record.evaluation_analysis || record.evaluation_planning) && (
               <div className="mt-3 grid grid-cols-2 lg:grid-cols-4 gap-2 text-xs">
                 {record.evaluation_subjective && (
-                  <div className="bg-blue-50 dark:bg-blue-950 rounded p-2">
-                    <span className="font-medium text-blue-700 dark:text-blue-300">S:</span>
-                    <p className="text-blue-900 dark:text-blue-100">{record.evaluation_subjective}</p>
+                  <div className="bg-muted/50 border rounded p-2">
+                    <span className="font-medium">S:</span>
+                    <p>{record.evaluation_subjective}</p>
                   </div>
                 )}
                 {record.evaluation_objective && (
-                  <div className="bg-green-50 dark:bg-green-950 rounded p-2">
-                    <span className="font-medium text-green-700 dark:text-green-300">O:</span>
-                    <p className="text-green-900 dark:text-green-100">{record.evaluation_objective}</p>
+                  <div className="bg-muted/50 border rounded p-2">
+                    <span className="font-medium">O:</span>
+                    <p>{record.evaluation_objective}</p>
                   </div>
                 )}
                 {record.evaluation_analysis && (
-                  <div className="bg-orange-50 dark:bg-orange-950 rounded p-2">
-                    <span className="font-medium text-orange-700 dark:text-orange-300">A:</span>
-                    <p className="text-orange-900 dark:text-orange-100">{record.evaluation_analysis}</p>
+                  <div className="bg-muted/50 border rounded p-2">
+                    <span className="font-medium">A:</span>
+                    <p>{record.evaluation_analysis}</p>
                   </div>
                 )}
                 {record.evaluation_planning && (
-                  <div className="bg-purple-50 dark:bg-purple-950 rounded p-2">
-                    <span className="font-medium text-purple-700 dark:text-purple-300">P:</span>
-                    <p className="text-purple-900 dark:text-purple-100">{record.evaluation_planning}</p>
+                  <div className="bg-muted/50 border rounded p-2">
+                    <span className="font-medium">P:</span>
+                    <p>{record.evaluation_planning}</p>
                   </div>
                 )}
               </div>
@@ -582,8 +582,8 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
 
   if (loading) {
     return (
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/30 py-3 px-4">
+      <Card>
+        <CardHeader className="py-3 px-4">
           <CardTitle className="text-base font-semibold flex items-center gap-2">
             <HeartPulse className="h-4 w-4" />
             Asuhan Keperawatan
@@ -604,8 +604,8 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
 
   return (
     <>
-        <Card className="shadow-md">
-          <CardHeader className="border-b bg-muted/30 py-3 px-4">
+        <Card>
+          <CardHeader className="py-3 px-4">
             <div className="flex items-center justify-between">
               <div className="flex-1">
                 <CardTitle className="text-base font-semibold flex items-center gap-2">
@@ -627,7 +627,7 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
           </CardHeader>
           <CardContent className="p-0">
             {records.length > 0 ? (
-              <ScrollArea className="h-[calc(110vh-400px)] min-h-[300px]">
+              <div>
                 {/* Table Header */}
                 <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-muted/50 text-xs font-medium text-muted-foreground border-b sticky top-0">
                   <div className="col-span-1"></div>
@@ -654,7 +654,7 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
                     />
                   ))}
                 </div>
-              </ScrollArea>
+              </div>
             ) : (
               <div className="py-12 text-center text-muted-foreground">
                 <HeartPulse className="h-12 w-12 mx-auto mb-4 opacity-50" />
@@ -715,14 +715,11 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
                 <ScrollArea className="h-full pr-4">
                   <div className="space-y-4 pb-4">
                 {/* Row 1 - Date, Shift */}
-                <Card className="shadow-md">
-                  <CardHeader className="border-b bg-muted/50 py-3 px-4">
-                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                      <Calendar className="h-4 w-4" />
-                      Informasi Dasar
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-4">
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase flex items-center gap-2">
+                    <Calendar className="h-4 w-4" />
+                    Informasi Dasar
+                  </h3>
                     <div className="grid grid-cols-3 gap-4">
                       <div className="space-y-2">
                         <Label>Tanggal & Waktu</Label>
@@ -780,18 +777,14 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
                         rows={2}
                       />
                     </div>
-                  </CardContent>
-                </Card>
+                </div>
 
                 {/* Vital Signs */}
-                <Card className="shadow-md">
-                  <CardHeader className="border-b bg-muted/50 py-3 px-4">
-                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                      <Activity className="h-4 w-4" />
-                      Tanda Vital
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-4">
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase flex items-center gap-2">
+                    <Activity className="h-4 w-4" />
+                    Tanda Vital
+                  </h3>
                   <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
                     <div className="space-y-1">
                       <Label className="text-xs">TD (mmHg)</Label>
@@ -859,18 +852,14 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
                         rows={2}
                       />
                     </div>
-                  </CardContent>
-                </Card>
+                </div>
 
                 {/* Risk Assessments */}
-                <Card className="shadow-md">
-                  <CardHeader className="border-b bg-muted/50 py-3 px-4">
-                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                      <AlertTriangle className="h-4 w-4" />
-                      Pengkajian Risiko & Status Fungsional
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-4">
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4" />
+                    Pengkajian Risiko & Status Fungsional
+                  </h3>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label>Status Fungsional (ADL)</Label>
@@ -953,8 +942,7 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
                         />
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
+                </div>
                   </div>
                 </ScrollArea>
               </TabsContent>
@@ -963,14 +951,11 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
               <TabsContent value="diagnosis" className="flex-1 overflow-hidden mt-0">
                 <ScrollArea className="h-full pr-4">
                   <div className="space-y-4 pb-4">
-                <Card className="shadow-md border-rose-200">
-                  <CardHeader className="border-b bg-rose-50 dark:bg-rose-950 py-3 px-4">
-                    <CardTitle className="text-sm font-semibold flex items-center gap-2 text-rose-700 dark:text-rose-300">
-                      <FileText className="h-4 w-4" />
-                      Diagnosis Keperawatan (SDKI)
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-4">
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase flex items-center gap-2">
+                    <FileText className="h-4 w-4" />
+                    Diagnosis Keperawatan (SDKI)
+                  </h3>
                     <div className="grid grid-cols-3 gap-4 mb-4">
                       <div className="col-span-2 space-y-2">
                         <Label>Diagnosis Keperawatan</Label>
@@ -1011,18 +996,14 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
                         />
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
+                </div>
 
                 {/* Luaran */}
-                <Card className="shadow-md border-amber-200">
-                  <CardHeader className="border-b bg-amber-50 dark:bg-amber-950 py-3 px-4">
-                    <CardTitle className="text-sm font-semibold flex items-center gap-2 text-amber-700 dark:text-amber-300">
-                      <Target className="h-4 w-4" />
-                      Luaran Keperawatan (SLKI)
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-4">
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase flex items-center gap-2">
+                    <Target className="h-4 w-4" />
+                    Luaran Keperawatan (SLKI)
+                  </h3>
                     <div className="grid grid-cols-3 gap-4 mb-4">
                       <div className="col-span-2 space-y-2">
                         <Label>Luaran Keperawatan</Label>
@@ -1072,24 +1053,18 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
                         </Select>
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
+                </div>
                   </div>
                 </ScrollArea>
               </TabsContent>
-
-              {/* Tab Intervensi */}
               <TabsContent value="intervensi" className="flex-1 overflow-hidden mt-0">
                 <ScrollArea className="h-full pr-4">
                   <div className="space-y-4 pb-4">
-                <Card className="shadow-md border-indigo-200">
-                  <CardHeader className="border-b bg-indigo-50 dark:bg-indigo-950 py-3 px-4">
-                    <CardTitle className="text-sm font-semibold flex items-center gap-2 text-indigo-700 dark:text-indigo-300">
-                      <ClipboardList className="h-4 w-4" />
-                      Intervensi Keperawatan (SIKI)
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-4">
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase flex items-center gap-2">
+                    <ClipboardList className="h-4 w-4" />
+                    Intervensi Keperawatan (SIKI)
+                  </h3>
                     <div className="grid grid-cols-3 gap-4 mb-4">
                       <div className="col-span-2 space-y-2">
                         <Label>Intervensi Keperawatan</Label>
@@ -1148,8 +1123,7 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
                         />
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
+                </div>
                   </div>
                 </ScrollArea>
               </TabsContent>
@@ -1158,14 +1132,11 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
               <TabsContent value="implementasi" className="flex-1 overflow-hidden mt-0">
                 <ScrollArea className="h-full pr-4">
                   <div className="space-y-4 pb-4">
-                <Card className="shadow-md border-teal-200">
-                  <CardHeader className="border-b bg-teal-50 dark:bg-teal-950 py-3 px-4">
-                    <CardTitle className="text-sm font-semibold flex items-center gap-2 text-teal-700 dark:text-teal-300">
-                      <Stethoscope className="h-4 w-4" />
-                      Implementasi Keperawatan
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-4">
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase flex items-center gap-2">
+                    <Stethoscope className="h-4 w-4" />
+                    Implementasi Keperawatan
+                  </h3>
                     <div className="space-y-4">
                       <div className="grid grid-cols-3 gap-4">
                         <div className="col-span-2 space-y-2">
@@ -1197,8 +1168,7 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
                         />
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
+                </div>
                   </div>
                 </ScrollArea>
               </TabsContent>
@@ -1207,53 +1177,46 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
               <TabsContent value="evaluasi" className="flex-1 overflow-hidden mt-0">
                 <ScrollArea className="h-full pr-4">
                   <div className="space-y-4 pb-4">
-                <Card className="shadow-md">
-                  <CardHeader className="border-b bg-muted/50 py-3 px-4">
-                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                      <CheckCircle className="h-4 w-4" />
-                      Evaluasi (SOAP)
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-4">
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4" />
+                    Evaluasi (SOAP)
+                  </h3>
                     <div className="grid grid-cols-2 gap-4 mb-4">
                       <div className="space-y-2">
-                        <Label className="text-blue-600">S - Subjektif</Label>
+                        <Label className="font-medium">S - Subjektif</Label>
                         <Textarea
                           value={formData.evaluation_subjective}
                           onChange={(e) => handleChange("evaluation_subjective", e.target.value)}
                           placeholder="Keluhan pasien setelah tindakan..."
                           rows={3}
-                          className="border-blue-200 focus:border-blue-400"
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label className="text-green-600">O - Objektif</Label>
+                        <Label className="font-medium">O - Objektif</Label>
                         <Textarea
                           value={formData.evaluation_objective}
                           onChange={(e) => handleChange("evaluation_objective", e.target.value)}
                           placeholder="Hasil observasi/pemeriksaan..."
                           rows={3}
-                          className="border-green-200 focus:border-green-400"
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label className="text-orange-600">A - Analisis</Label>
+                        <Label className="font-medium">A - Analisis</Label>
                         <Textarea
                           value={formData.evaluation_analysis}
                           onChange={(e) => handleChange("evaluation_analysis", e.target.value)}
                           placeholder="Analisis masalah keperawatan..."
                           rows={3}
-                          className="border-orange-200 focus:border-orange-400"
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label className="text-purple-600">P - Planning</Label>
+                        <Label className="font-medium">P - Planning</Label>
                         <Textarea
                           value={formData.evaluation_planning}
                           onChange={(e) => handleChange("evaluation_planning", e.target.value)}
                           placeholder="Rencana tindak lanjut..."
                           rows={3}
-                          className="border-purple-200 focus:border-purple-400"
                         />
                       </div>
                     </div>
@@ -1286,8 +1249,7 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
                         />
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
+                </div>
                   </div>
                 </ScrollArea>
               </TabsContent>

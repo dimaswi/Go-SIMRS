@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -93,26 +92,22 @@ export default function CreateMasterDataPage() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      <div className="grid gap-4">
-        <Card className="shadow-md">
-          <CardHeader className="border-b bg-muted/50">
-            <div className="flex items-center gap-4">
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                onClick={() => navigate(-1)}
-                className="h-9 w-9"
-              >
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-              <div className="space-y-1">
-                <CardTitle className="text-base font-semibold">Tambah Referensi Data</CardTitle>
-                <CardDescription>Tambahkan data referensi baru</CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="pt-6">
+      <div className="flex items-center gap-4">
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          onClick={() => navigate(-1)}
+          className="h-9 w-9"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <div>
+          <h1 className="text-lg font-semibold">Tambah Referensi Data</h1>
+          <p className="text-sm text-muted-foreground">Tambahkan data referensi baru</p>
+        </div>
+      </div>
+      <div className="rounded-lg border p-6">
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
@@ -201,8 +196,6 @@ export default function CreateMasterDataPage() {
                 </Button>
               </div>
             </form>
-          </CardContent>
-        </Card>
       </div>
     </div>
   );

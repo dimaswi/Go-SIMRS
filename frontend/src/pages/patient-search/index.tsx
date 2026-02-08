@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -98,41 +97,36 @@ export default function PatientSearchIndex() {
   if (!query) {
     return (
       <div className="flex flex-1 flex-col gap-4 p-6">
-        <Card className="shadow-md">
-          <CardContent className="py-16 text-center">
-            <User className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
-            <h3 className="text-lg font-semibold mb-2">Cari Pasien</h3>
-            <p className="text-muted-foreground">
-              Gunakan kolom pencarian di header untuk mencari pasien
-            </p>
-          </CardContent>
-        </Card>
+        <div className="rounded-lg border py-16 text-center">
+          <User className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
+          <h3 className="text-lg font-semibold mb-2">Cari Pasien</h3>
+          <p className="text-muted-foreground">
+            Gunakan kolom pencarian di header untuk mencari pasien
+          </p>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
-          <div className="flex items-center justify-between">
-            <div className="space-y-1">
-              <CardTitle className="text-base font-semibold">Hasil Pencarian</CardTitle>
-              <CardDescription>
-                {results.length > 0 
-                  ? `Ditemukan ${results.length} pasien`
-                  : `Tidak ada pasien yang ditemukan untuk "${query}"`
-                }
-              </CardDescription>
-            </div>
-            {results.length > 0 && (
-              <Badge variant="secondary" className="text-sm">
-                {results.length} pasien
-              </Badge>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent className="p-0">
+      <div className="flex items-center justify-between">
+        <div className="space-y-1">
+          <h1 className="text-lg font-semibold">Hasil Pencarian</h1>
+          <p className="text-sm text-muted-foreground">
+            {results.length > 0 
+              ? `Ditemukan ${results.length} pasien`
+              : `Tidak ada pasien yang ditemukan untuk "${query}"`
+            }
+          </p>
+        </div>
+        {results.length > 0 && (
+          <Badge variant="secondary" className="text-sm">
+            {results.length} pasien
+          </Badge>
+        )}
+      </div>
+      <div className="rounded-lg border">
           {results.length === 0 ? (
             <div className="py-16 text-center">
               <User className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
@@ -209,8 +203,7 @@ export default function PatientSearchIndex() {
               </TableBody>
             </Table>
           )}
-        </CardContent>
-      </Card>
+      </div>
     </div>
   );
 }

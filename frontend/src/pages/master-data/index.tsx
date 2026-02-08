@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { masterDataApi, type MasterDataCategory } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import { setPageTitle } from '@/lib/page-title';
@@ -66,29 +66,26 @@ export default function MasterDataPage() {
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
       <div className="grid gap-4">
-        <Card className="shadow-md">
-          <CardHeader className="border-b bg-muted/50">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <CardTitle className="text-base font-semibold">Referensi Data</CardTitle>
-                <CardDescription>Kelola data referensi untuk aplikasi SIMRS</CardDescription>
-              </div>
-              {hasPermission('master_data.create') && (
-                <Button onClick={() => navigate('/master-data/create')} size="sm">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Tambah Data
-                </Button>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent className="pt-6">
+        <div className="flex items-center justify-between">
+          <div className="space-y-1">
+            <h1 className="text-lg font-semibold">Referensi Data</h1>
+            <p className="text-sm text-muted-foreground">Kelola data referensi untuk aplikasi SIMRS</p>
+          </div>
+          {hasPermission('master_data.create') && (
+            <Button onClick={() => navigate('/master-data/create')} size="sm">
+              <Plus className="mr-2 h-4 w-4" />
+              Tambah Data
+            </Button>
+          )}
+        </div>
+        <div className="rounded-lg border p-6">
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {categories.map((category) => {
                 const { color } = getCategoryIcon(category.code);
                 return (
                   <Card 
                     key={category.code} 
-                    className="cursor-pointer hover:shadow-md transition-shadow"
+                    className="cursor-pointer hover:bg-muted/50 transition-colors"
                     onClick={() => navigate(`/master-data/category/${category.code}`)}
                   >
                     <CardContent className="p-4">
@@ -119,8 +116,7 @@ export default function MasterDataPage() {
                 Belum ada kategori master data.
               </div>
             )}
-          </CardContent>
-        </Card>
+        </div>
       </div>
     </div>
   );

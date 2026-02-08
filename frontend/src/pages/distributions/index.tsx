@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Loader2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+
 import { DataTable } from "@/components/ui/data-table";
 import { useToast } from "@/hooks/use-toast";
 import { usePermission } from "@/hooks/usePermission";
@@ -87,33 +87,25 @@ export default function DistributionsIndex() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      <div className="grid gap-4">
-        <Card className="shadow-md">
-          <CardHeader className="border-b bg-muted/50">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <CardTitle className="text-base font-semibold">Distribusi Stok</CardTitle>
-                <CardDescription>Kelola distribusi barang dan obat antar ruangan</CardDescription>
-              </div>
-              {hasPermission("distributions.create") && (
-                <Button onClick={() => navigate("/distributions/create")} size="sm">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Buat Distribusi
-                </Button>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <DataTable
-              columns={columns}
-              data={distributions}
-              searchPlaceholder="Cari nomor distribusi..."
-              pageSize={10}
-              tableId="distributions"
-            />
-          </CardContent>
-        </Card>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-lg font-semibold">Distribusi Stok</h1>
+          <p className="text-sm text-muted-foreground">Kelola distribusi barang dan obat antar ruangan</p>
+        </div>
+        {hasPermission("distributions.create") && (
+          <Button onClick={() => navigate("/distributions/create")} size="sm">
+            <Plus className="mr-2 h-4 w-4" />
+            Buat Distribusi
+          </Button>
+        )}
       </div>
+      <DataTable
+        columns={columns}
+        data={distributions}
+        searchPlaceholder="Cari nomor distribusi..."
+        pageSize={10}
+        tableId="distributions"
+      />
     </div>
   );
 }

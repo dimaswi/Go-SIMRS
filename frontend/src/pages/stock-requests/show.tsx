@@ -1,12 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -213,82 +206,79 @@ export default function StockRequestShow() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      {/* Header Card */}
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => navigate("/stock-requests")}
-                className="h-9 w-9"
-              >
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-              <div className="space-y-1">
-                <div className="flex items-center gap-3">
-                  <CardTitle className="text-base font-semibold">
-                    {request.request_number}
-                  </CardTitle>
-                  <Badge className={statusColors[request.status]}>
-                    {stockRequestStatusLabels[request.status]}
-                  </Badge>
-                </div>
-                <CardDescription>
-                  {requestTypeLabels[request.request_type]} • Dibuat {formatDate(request.created_at)}
-                </CardDescription>
-              </div>
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => navigate("/stock-requests")}
+            className="h-9 w-9"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div className="space-y-1">
+            <div className="flex items-center gap-3">
+              <h1 className="text-lg font-semibold">
+                {request.request_number}
+              </h1>
+              <Badge className={statusColors[request.status]}>
+                {stockRequestStatusLabels[request.status]}
+              </Badge>
             </div>
-            <div className="flex items-center gap-2">
-              {canEdit && (
-                <Button variant="outline" size="sm" onClick={() => navigate(`/stock-requests/${id}/edit`)}>
-                  <Pencil className="mr-2 h-4 w-4" />
-                  Edit
-                </Button>
-              )}
-              {canDelete && (
-                <Button 
-                  variant="destructive" 
-                  size="sm" 
-                  onClick={() => setDeleteDialogOpen(true)}
-                  disabled={deleting}
-                >
-                  {deleting ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Trash2 className="mr-2 h-4 w-4" />
-                  )}
-                  Hapus
-                </Button>
-              )}
-              {canSubmit && (
-                <Button size="sm" onClick={() => setSubmitDialogOpen(true)}>
-                  <Send className="mr-2 h-4 w-4" />
-                  Ajukan
-                </Button>
-              )}
-              {canApprove && (
-                <Button size="sm" onClick={() => navigate(`/stock-requests/${id}/approve`)}>
-                  <CheckCircle className="mr-2 h-4 w-4" />
-                  Proses
-                </Button>
-              )}
-              {canCancel && (
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => setCancelDialogOpen(true)}
-                >
-                  <XCircle className="mr-2 h-4 w-4" />
-                  Batalkan
-                </Button>
-              )}
-            </div>
+            <p className="text-sm text-muted-foreground">
+              {requestTypeLabels[request.request_type]} • Dibuat {formatDate(request.created_at)}
+            </p>
           </div>
-        </CardHeader>
+        </div>
+        <div className="flex items-center gap-2">
+          {canEdit && (
+            <Button variant="outline" size="sm" onClick={() => navigate(`/stock-requests/${id}/edit`)}>
+              <Pencil className="mr-2 h-4 w-4" />
+              Edit
+            </Button>
+          )}
+          {canDelete && (
+            <Button 
+              variant="destructive" 
+              size="sm" 
+              onClick={() => setDeleteDialogOpen(true)}
+              disabled={deleting}
+            >
+              {deleting ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="mr-2 h-4 w-4" />
+              )}
+              Hapus
+            </Button>
+          )}
+          {canSubmit && (
+            <Button size="sm" onClick={() => setSubmitDialogOpen(true)}>
+              <Send className="mr-2 h-4 w-4" />
+              Ajukan
+            </Button>
+          )}
+          {canApprove && (
+            <Button size="sm" onClick={() => navigate(`/stock-requests/${id}/approve`)}>
+              <CheckCircle className="mr-2 h-4 w-4" />
+              Proses
+            </Button>
+          )}
+          {canCancel && (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => setCancelDialogOpen(true)}
+            >
+              <XCircle className="mr-2 h-4 w-4" />
+              Batalkan
+            </Button>
+          )}
+        </div>
+      </div>
 
-        <CardContent className="pt-6">
+      <div className="rounded-lg border p-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {/* Priority */}
             <div className="space-y-1">
@@ -491,8 +481,7 @@ export default function StockRequestShow() {
             </TableBody>
           </Table>
           </div>
-        </CardContent>
-      </Card>
+      </div>
 
       {/* Cancel Confirmation Dialog */}
       <ConfirmDialog

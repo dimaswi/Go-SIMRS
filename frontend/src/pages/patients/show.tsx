@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { patientsApi } from '@/lib/api';
@@ -192,9 +191,7 @@ export default function PatientShow() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
-          <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <Button
                 variant="ghost"
@@ -216,12 +213,12 @@ export default function PatientShow() {
                   )}
                 </div>
                 <div className="space-y-1">
-                  <CardTitle className="text-base font-semibold">
+                  <h1 className="text-lg font-semibold">
                     {patient.nama_lengkap}
-                  </CardTitle>
-                  <CardDescription>
+                  </h1>
+                  <p className="text-sm text-muted-foreground">
                     No. RM: {patient.no_rm} • {patient.jenis_kelamin === 'L' ? 'Laki-laki' : 'Perempuan'} • {calculateAge(patient.tanggal_lahir)}
-                  </CardDescription>
+                  </p>
                 </div>
               </div>
             </div>
@@ -298,9 +295,8 @@ export default function PatientShow() {
                 </Button>
               )}
             </div>
-          </div>
-        </CardHeader>
-        <CardContent className="pt-6">
+      </div>
+      <div className="rounded-lg border p-6">
           {/* Identitas Pasien */}
           <div className="mb-6">
             <h3 className="text-sm font-medium text-muted-foreground mb-4 flex items-center gap-2">
@@ -569,8 +565,7 @@ export default function PatientShow() {
               </div>
             </div>
           </div>
-        </CardContent>
-      </Card>
+      </div>
 
       <ConfirmDialog
         open={deleteDialogOpen}

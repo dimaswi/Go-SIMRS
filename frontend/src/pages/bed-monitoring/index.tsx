@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -96,21 +96,18 @@ export default function BedMonitoringIndex() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] p-4 md:p-6 overflow-hidden">
-      <Card className="shadow-md flex flex-col flex-1 min-h-0">
-        <CardHeader className="border-b bg-muted/50 shrink-0 py-3 md:py-4">
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5 md:space-y-1">
-              <CardTitle className="text-sm md:text-base font-semibold flex items-center gap-2">
-                <BedDouble className="h-4 w-4 md:h-5 md:w-5" />
-                Monitoring Bed
-              </CardTitle>
-              <CardDescription className="text-xs md:text-sm">
-                Pilih ruangan untuk melihat status bed secara real-time
-              </CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="pt-4 flex-1 flex flex-col min-h-0 overflow-hidden">
+      <div className="flex items-center gap-4 shrink-0 mb-4">
+        <div>
+          <h1 className="text-lg font-semibold flex items-center gap-2">
+            <BedDouble className="h-5 w-5" />
+            Monitoring Bed
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Pilih ruangan untuk melihat status bed secara real-time
+          </p>
+        </div>
+      </div>
+      <div className="rounded-lg border flex-1 flex flex-col min-h-0 overflow-hidden p-4">
             {/* Search */}
             <div className="mb-4 shrink-0">
               <div className="relative max-w-md">
@@ -246,8 +243,7 @@ export default function BedMonitoringIndex() {
                 })}
               </div>
             )}
-          </CardContent>
-        </Card>
+      </div>
     </div>
   );
 }

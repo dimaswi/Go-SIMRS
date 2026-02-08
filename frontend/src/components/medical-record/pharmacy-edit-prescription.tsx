@@ -5,7 +5,6 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { usePermission } from "@/hooks/usePermission";
 import {
@@ -357,8 +356,8 @@ export function PharmacyEditPrescription({ visitId, readOnly = false }: Pharmacy
 
   if (loading) {
     return (
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
+      <Card>
+        <CardHeader>
           <CardTitle className="text-lg">Edit Resep</CardTitle>
         </CardHeader>
         <CardContent className="p-4">
@@ -373,8 +372,8 @@ export function PharmacyEditPrescription({ visitId, readOnly = false }: Pharmacy
 
   if (orders.length === 0) {
     return (
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
+      <Card>
+        <CardHeader>
           <CardTitle className="text-lg">Edit Resep</CardTitle>
         </CardHeader>
         <CardContent className="p-4">
@@ -399,8 +398,8 @@ export function PharmacyEditPrescription({ visitId, readOnly = false }: Pharmacy
 
   return (
     <>
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/30 py-3 px-4">
+      <Card>
+        <CardHeader className="py-3 px-4">
           <CardTitle className="text-base font-semibold flex items-center gap-2">
             <Pill className="h-4 w-4" />
             Edit Resep
@@ -409,9 +408,7 @@ export function PharmacyEditPrescription({ visitId, readOnly = false }: Pharmacy
             Tambah, ubah, atau hapus obat dari resep sebelum ditelaah
           </CardDescription>
         </CardHeader>
-        <CardContent className="p-0">
-          <ScrollArea className="h-[calc(100vh-300px)] min-h-[400px]">
-            <div className="p-4 space-y-4">
+        <CardContent className="space-y-4">
               {/* Order Selection if multiple */}
               {orders.length > 1 && (
                 <div className="border rounded-lg p-3 bg-muted/30">
@@ -581,8 +578,6 @@ export function PharmacyEditPrescription({ visitId, readOnly = false }: Pharmacy
                   </div>
                 </>
               )}
-            </div>
-          </ScrollArea>
         </CardContent>
       </Card>
 

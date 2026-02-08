@@ -1,12 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
+
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -33,17 +27,23 @@ import { roomsApi, type Room } from "@/lib/api/rooms";
 import { usePermission } from "@/hooks/usePermission";
 import { useToast } from "@/hooks/use-toast";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { CheckInKontrolDrawer } from "@/components/registration/checkin-kontrol-drawer";
 import { setPageTitle } from "@/lib/page-title";
 import {
   Loader2,
   RefreshCcw,
-  Calendar,
   CalendarClock,
   CheckCircle2,
   XCircle,
   UserCheck,
   AlertTriangle,
+  SlidersHorizontal,
 } from "lucide-react";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { format, parseISO, isToday, isBefore, startOfDay } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 
@@ -58,6 +58,7 @@ export default function ScheduledRegistrationsPage() {
   const { toast } = useToast();
   const [registrations, setRegistrations] = useState<ScheduledRegistration[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filterOpen, setFilterOpen] = useState(false);
   
   // Filters
   const [selectedDate, setSelectedDate] = useState<string>(getTodayString());
@@ -66,6 +67,7 @@ export default function ScheduledRegistrationsPage() {
   const [rooms, setRooms] = useState<Room[]>([]);
   
   // Dialogs
+  const [checkInDrawerOpen, setCheckInDrawerOpen] = useState(false);
   const [checkInId, setCheckInId] = useState<number | null>(null);
   const [cancelId, setCancelId] = useState<number | null>(null);
   const [rescheduleData, setRescheduleData] = useState<{
@@ -136,27 +138,17 @@ export default function ScheduledRegistrationsPage() {
     loadData();
   }, [loadData]);
 
-  // Handle check-in
-  const handleCheckIn = async () => {
-    if (!checkInId) return;
-    setActionLoading(true);
-    try {
-      const response = await registrationApi.checkIn(checkInId);
-      toast({
-        title: "Berhasil",
-        description: response.data.message || "Check-in berhasil",
-      });
-      setCheckInId(null);
-      loadData();
-    } catch (error) {
-      toast({
-        title: "Gagal",
-        description: "Gagal melakukan check-in",
-        variant: "destructive",
-      });
-    } finally {
-      setActionLoading(false);
-    }
+  // Open check-in drawer
+  const openCheckInDrawer = (registrationId: number) => {
+    setCheckInId(registrationId);
+    setCheckInDrawerOpen(true);
+  };
+
+  // Handle check-in success (called from drawer)
+  const handleCheckInSuccess = () => {
+    setCheckInId(null);
+    setCheckInDrawerOpen(false);
+    loadData();
   };
 
   // Handle cancel
@@ -334,7 +326,7 @@ export default function ScheduledRegistrationsPage() {
             {canCheckIn && hasPermission("registrations.update") && (
               <Button
                 size="sm"
-                onClick={() => setCheckInId(regId)}
+                onClick={() => openCheckInDrawer(regId)}
                 className="bg-green-600 hover:bg-green-700"
               >
                 <UserCheck className="h-4 w-4 mr-1" />
@@ -395,99 +387,78 @@ export default function ScheduledRegistrationsPage() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      <div className="grid gap-4">
-        <Card className="shadow-md">
-          <CardHeader className="border-b bg-muted/50">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="space-y-1">
-                    <CardTitle className="text-base font-semibold">
-                      Jadwal Kontrol Pasien
-                    </CardTitle>
-                    <CardDescription>
-                      Kelola jadwal kontrol dan check-in pasien -{" "}
-                      {selectedDate
-                        ? format(new Date(selectedDate), "EEEE, dd MMMM yyyy", {
-                            locale: idLocale,
-                          })
-                        : "Semua Data"}
-                    </CardDescription>
-                  </div>
-                </div>
-                <div>
-                  <div className="flex items-center gap-4 pb-2 pt-4">
-                    <div className="flex items-center gap-2">
-                      <Calendar className="h-4 w-4 text-muted-foreground" />
-                      <label className="text-sm font-medium">Tanggal:</label>
-                    </div>
-                    <Input
-                      type="date"
-                      value={selectedDate}
-                      onChange={(e) => setSelectedDate(e.target.value)}
-                      className="w-48"
-                    />
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setSelectedDate("")}
-                    >
-                      Semua Data
-                    </Button>
-                    <div className="flex flex-1 gap-2">
-                      <Select value={selectedRoom} onValueChange={setSelectedRoom}>
-                        <SelectTrigger className="w-[200px]">
-                          <SelectValue placeholder="Semua Ruangan" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Semua Ruangan</SelectItem>
-                          {rooms.map((room) => (
-                            <SelectItem key={room.id} value={room.id.toString()}>
-                              {room.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-                        <SelectTrigger className="w-[150px]">
-                          <SelectValue placeholder="Semua Status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Semua Status</SelectItem>
-                          <SelectItem value="scheduled">Terjadwal</SelectItem>
-                          <SelectItem value="no_show">Tidak Datang</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <Button variant="outline" size="icon" onClick={loadData}>
-                        <RefreshCcw className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <DataTable
-              columns={columns}
-              data={registrations}
-              searchPlaceholder="Cari nama pasien, No. RM..."
-              pageSize={10}
-              tableId="scheduled-registrations"
-            />
-          </CardContent>
-        </Card>
+      <Collapsible open={filterOpen} onOpenChange={setFilterOpen}>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-lg font-semibold">Jadwal Kontrol Pasien</h1>
+          <p className="text-sm text-muted-foreground">
+            Kelola jadwal kontrol dan check-in pasien -{" "}
+            {selectedDate
+              ? format(new Date(selectedDate), "EEEE, dd MMMM yyyy", {
+                  locale: idLocale,
+                })
+              : "Semua Data"}
+          </p>
+        </div>
+        <CollapsibleTrigger asChild>
+          <Button variant="outline" size="sm" className="h-9">
+            <SlidersHorizontal className="h-4 w-4 mr-2" />
+            Filter
+          </Button>
+        </CollapsibleTrigger>
       </div>
+      <CollapsibleContent>
+      <div className="flex items-center gap-2 flex-wrap pt-4">
+        <Input
+          type="date"
+          value={selectedDate}
+          onChange={(e) => setSelectedDate(e.target.value)}
+          className="h-9 w-48"
+        />
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setSelectedDate("")}
+          className="h-9"
+        >
+          Semua Data
+        </Button>
+        <Select value={selectedRoom} onValueChange={setSelectedRoom}>
+          <SelectTrigger className="h-9 w-[200px]">
+            <SelectValue placeholder="Semua Ruangan" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Semua Ruangan</SelectItem>
+            {rooms.map((room) => (
+              <SelectItem key={room.id} value={room.id.toString()}>
+                {room.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+          <SelectTrigger className="h-9 w-[150px]">
+            <SelectValue placeholder="Semua Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Semua Status</SelectItem>
+            <SelectItem value="scheduled">Terjadwal</SelectItem>
+            <SelectItem value="no_show">Tidak Datang</SelectItem>
+          </SelectContent>
+        </Select>
+        <Button variant="outline" size="icon" className="h-9 w-9" onClick={loadData}>
+          <RefreshCcw className="h-4 w-4" />
+        </Button>
+      </div>
+      </CollapsibleContent>
+      </Collapsible>
 
-      {/* Check-in Confirmation Dialog */}
-      <ConfirmDialog
-        open={checkInId !== null}
-        onOpenChange={() => setCheckInId(null)}
-        title="Konfirmasi Check-in"
-        description="Apakah Anda yakin pasien sudah datang dan siap masuk antrian ruangan?"
-        confirmText={actionLoading ? "Memproses..." : "Ya, Check-in"}
-        onConfirm={handleCheckIn}
-        variant="default"
+      <DataTable
+        columns={columns}
+        data={registrations}
+        searchPlaceholder="Cari nama pasien, No. RM..."
+        pageSize={10}
+        tableId="scheduled-registrations"
       />
 
       {/* Cancel Confirmation Dialog */}
@@ -573,6 +544,14 @@ export default function ScheduledRegistrationsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Check-in Kontrol Drawer */}
+      <CheckInKontrolDrawer
+        open={checkInDrawerOpen}
+        onOpenChange={setCheckInDrawerOpen}
+        registrationId={checkInId}
+        onSuccess={handleCheckInSuccess}
+      />
     </div>
   );
 }

@@ -269,8 +269,8 @@ export function FinalVisit({ visitId, type, onVisitUpdate }: FinalVisitProps) {
 
   if (loading) {
     return (
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
+      <Card>
+        <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
             {getTypeIcon()}
             Final Kunjungan {getTypeLabel()}
@@ -291,8 +291,8 @@ export function FinalVisit({ visitId, type, onVisitUpdate }: FinalVisitProps) {
     visit?.registration?.status === "discharged";
 
   return (
-    <Card className="shadow-md">
-      <CardHeader className="border-b bg-muted/30 py-3 px-4">
+    <Card>
+      <CardHeader className="py-3 px-4">
         <CardTitle className="text-base font-semibold flex items-center gap-2">
           {getTypeIcon()}
           Final Kunjungan {getTypeLabel()}

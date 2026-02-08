@@ -1,12 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -129,28 +123,25 @@ export default function SupplierEdit() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
-          <div className="flex items-center gap-4">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => navigate("/suppliers")}
-              className="h-9 w-9"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <div className="space-y-1">
-              <CardTitle className="text-base font-semibold">
-                Edit Supplier
-              </CardTitle>
-              <CardDescription>
-                Perbarui data supplier
-              </CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="pt-6">
+      <div className="flex items-center gap-4">
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => navigate("/suppliers")}
+          className="h-9 w-9"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <div className="space-y-1">
+          <h1 className="text-lg font-semibold">
+            Edit Supplier
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Perbarui data supplier
+          </p>
+        </div>
+      </div>
+      <div className="rounded-lg border p-6">
           <form onSubmit={handleSubmit}>
             {/* Basic Info */}
             <div className="grid gap-4 md:grid-cols-2 mb-6">
@@ -346,8 +337,7 @@ export default function SupplierEdit() {
               </Button>
             </div>
           </form>
-        </CardContent>
-      </Card>
+      </div>
     </div>
   );
 }

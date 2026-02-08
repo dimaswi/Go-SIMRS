@@ -164,27 +164,27 @@ function CPPTCollapsibleRow({
             {/* SOAP Content */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
               {cppt.subjective && (
-                <div className="bg-blue-50 dark:bg-blue-950 rounded-lg p-3">
-                  <p className="font-medium text-blue-700 dark:text-blue-300 mb-1">S - Subjektif</p>
-                  <p className="text-blue-900 dark:text-blue-100 whitespace-pre-wrap">{cppt.subjective}</p>
+                <div className="bg-muted/50 border rounded-lg p-3">
+                  <p className="font-medium text-foreground mb-1">S - Subjektif</p>
+                  <p className="whitespace-pre-wrap">{cppt.subjective}</p>
                 </div>
               )}
               {cppt.objective && (
-                <div className="bg-green-50 dark:bg-green-950 rounded-lg p-3">
-                  <p className="font-medium text-green-700 dark:text-green-300 mb-1">O - Objektif</p>
-                  <p className="text-green-900 dark:text-green-100 whitespace-pre-wrap">{cppt.objective}</p>
+                <div className="bg-muted/50 border rounded-lg p-3">
+                  <p className="font-medium text-foreground mb-1">O - Objektif</p>
+                  <p className="whitespace-pre-wrap">{cppt.objective}</p>
                 </div>
               )}
               {cppt.assessment && (
-                <div className="bg-orange-50 dark:bg-orange-950 rounded-lg p-3">
-                  <p className="font-medium text-orange-700 dark:text-orange-300 mb-1">A - Asesmen</p>
-                  <p className="text-orange-900 dark:text-orange-100 whitespace-pre-wrap">{cppt.assessment}</p>
+                <div className="bg-muted/50 border rounded-lg p-3">
+                  <p className="font-medium text-foreground mb-1">A - Asesmen</p>
+                  <p className="whitespace-pre-wrap">{cppt.assessment}</p>
                 </div>
               )}
               {cppt.plan && (
-                <div className="bg-purple-50 dark:bg-purple-950 rounded-lg p-3">
-                  <p className="font-medium text-purple-700 dark:text-purple-300 mb-1">P - Plan</p>
-                  <p className="text-purple-900 dark:text-purple-100 whitespace-pre-wrap">{cppt.plan}</p>
+                <div className="bg-muted/50 border rounded-lg p-3">
+                  <p className="font-medium text-foreground mb-1">P - Plan</p>
+                  <p className="whitespace-pre-wrap">{cppt.plan}</p>
                 </div>
               )}
             </div>
@@ -227,9 +227,9 @@ function CPPTCollapsibleRow({
 
             {/* Instruction */}
             {cppt.instruction && (
-              <div className="mt-3 p-2 bg-yellow-50 dark:bg-yellow-950 rounded border border-yellow-200">
-                <p className="text-xs font-medium text-yellow-700 dark:text-yellow-300">Instruksi:</p>
-                <p className="text-sm text-yellow-900 dark:text-yellow-100">{cppt.instruction}</p>
+              <div className="mt-3 p-2 bg-muted/50 rounded border">
+                <p className="text-xs font-medium text-muted-foreground">Instruksi:</p>
+                <p className="text-sm">{cppt.instruction}</p>
               </div>
             )}
 
@@ -446,22 +446,13 @@ export function CPPTForm({ visitId, readOnly = false }: CPPTFormProps) {
 
   // Get profession badge color
   const getProfessionColor = (profession: string) => {
-    const colors: Record<string, string> = {
-      dokter: "bg-blue-100 text-blue-800",
-      perawat: "bg-green-100 text-green-800",
-      bidan: "bg-pink-100 text-pink-800",
-      gizi: "bg-orange-100 text-orange-800",
-      farmasi: "bg-purple-100 text-purple-800",
-      fisioterapi: "bg-cyan-100 text-cyan-800",
-      lainnya: "bg-gray-100 text-gray-800",
-    };
-    return colors[profession] || colors.lainnya;
+    return "bg-muted text-muted-foreground";
   };
 
   if (loading) {
     return (
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/30 py-3 px-4">
+      <Card>
+        <CardHeader className="py-3 px-4">
           <CardTitle className="text-base font-semibold flex items-center gap-2">
             <ClipboardCheck className="h-4 w-4" />
             CPPT - Catatan Perkembangan Pasien Terintegrasi
@@ -482,8 +473,8 @@ export function CPPTForm({ visitId, readOnly = false }: CPPTFormProps) {
 
   return (
     <>
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/30 py-3 px-4">
+      <Card>
+        <CardHeader className="py-3 px-4">
           <div className="flex items-center justify-between">
             <div className="flex-1">
               <CardTitle className="text-base font-semibold flex items-center gap-2">
@@ -505,7 +496,7 @@ export function CPPTForm({ visitId, readOnly = false }: CPPTFormProps) {
         </CardHeader>
         <CardContent className="p-0">
           {cppts.length > 0 ? (
-            <ScrollArea className="h-[calc(110vh-400px)] min-h-[300px]">
+            <div>
               {/* Table Header */}
               <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-muted/50 text-xs font-medium text-muted-foreground border-b sticky top-0">
                 <div className="col-span-1"></div>
@@ -533,7 +524,7 @@ export function CPPTForm({ visitId, readOnly = false }: CPPTFormProps) {
                   />
                 ))}
               </div>
-            </ScrollArea>
+            </div>
           ) : (
             <div className="py-12 text-center text-muted-foreground">
               <ClipboardCheck className="h-12 w-12 mx-auto mb-4 opacity-50" />
@@ -589,7 +580,7 @@ export function CPPTForm({ visitId, readOnly = false }: CPPTFormProps) {
               {/* SOAP */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label className="text-blue-600">S - Subjektif (Keluhan)</Label>
+                  <Label>S - Subjektif (Keluhan)</Label>
                   <Textarea
                     value={formData.subjective}
                     onChange={(e) => handleChange("subjective", e.target.value)}
@@ -598,7 +589,7 @@ export function CPPTForm({ visitId, readOnly = false }: CPPTFormProps) {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-green-600">O - Objektif (Pemeriksaan)</Label>
+                  <Label>O - Objektif (Pemeriksaan)</Label>
                   <Textarea
                     value={formData.objective}
                     onChange={(e) => handleChange("objective", e.target.value)}
@@ -607,7 +598,7 @@ export function CPPTForm({ visitId, readOnly = false }: CPPTFormProps) {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-orange-600">A - Asesmen (Diagnosis)</Label>
+                  <Label>A - Asesmen (Diagnosis)</Label>
                   <Textarea
                     value={formData.assessment}
                     onChange={(e) => handleChange("assessment", e.target.value)}
@@ -616,7 +607,7 @@ export function CPPTForm({ visitId, readOnly = false }: CPPTFormProps) {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-purple-600">P - Plan (Rencana)</Label>
+                  <Label>P - Plan (Rencana)</Label>
                   <Textarea
                     value={formData.plan}
                     onChange={(e) => handleChange("plan", e.target.value)}

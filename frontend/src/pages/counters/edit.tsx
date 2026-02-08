@@ -1,13 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -150,41 +144,38 @@ export default function CounterEdit() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => navigate("/counters")}
-                className="h-9 w-9"
-              >
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-              <div>
-                <CardTitle className="text-base font-semibold">
-                  Edit Loket
-                </CardTitle>
-                <CardDescription>
-                  Perbarui informasi loket
-                </CardDescription>
-              </div>
-            </div>
-            {hasPermission("counters.delete") && (
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={handleDelete}
-                disabled={deleting}
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Hapus
-              </Button>
-            )}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => navigate("/counters")}
+            className="h-9 w-9"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div>
+            <h1 className="text-lg font-semibold">
+              Edit Loket
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Perbarui informasi loket
+            </p>
           </div>
-        </CardHeader>
-        <CardContent className="pt-6">
+        </div>
+        {hasPermission("counters.delete") && (
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={handleDelete}
+            disabled={deleting}
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Hapus
+          </Button>
+        )}
+      </div>
+      <div className="rounded-lg border p-6">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -309,8 +300,7 @@ export default function CounterEdit() {
               </div>
             </form>
           </Form>
-        </CardContent>
-      </Card>
+      </div>
 
       <ConfirmDialog
         open={deleteDialogOpen}

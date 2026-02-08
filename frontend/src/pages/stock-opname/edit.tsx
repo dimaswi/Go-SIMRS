@@ -1,12 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -176,30 +170,27 @@ export default function StockOpnameEdit() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
-          <div className="flex items-center gap-4">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => navigate(`/stock-opname/${id}`)}
-              className="h-9 w-9"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <div className="space-y-1">
-              <div className="flex items-center gap-3">
-                <CardTitle className="text-base font-semibold">Edit Stock Opname</CardTitle>
-                <Badge variant="outline">
-                  {stockOpnameStatusLabels[stockOpname.status] || stockOpname.status}
-                </Badge>
-              </div>
-              <CardDescription>{stockOpname.opname_number}</CardDescription>
-            </div>
+      <div className="flex items-center gap-4">
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => navigate(`/stock-opname/${id}`)}
+          className="h-9 w-9"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <div className="space-y-1">
+          <div className="flex items-center gap-3">
+            <h1 className="text-lg font-semibold">Edit Stock Opname</h1>
+            <Badge variant="outline">
+              {stockOpnameStatusLabels[stockOpname.status] || stockOpname.status}
+            </Badge>
           </div>
-        </CardHeader>
+          <p className="text-sm text-muted-foreground">{stockOpname.opname_number}</p>
+        </div>
+      </div>
 
-        <CardContent className="pt-6 space-y-6">
+      <div className="rounded-lg border p-6 space-y-6">
           {/* Info */}
           <div className="bg-muted/50 rounded-lg p-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -348,8 +339,7 @@ export default function StockOpnameEdit() {
               Simpan Perubahan
             </Button>
           </div>
-        </CardContent>
-      </Card>
+      </div>
     </div>
   );
 }

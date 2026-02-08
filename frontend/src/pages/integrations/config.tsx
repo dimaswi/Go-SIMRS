@@ -1,12 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -555,9 +549,8 @@ export default function IntegrationsConfigPage() {
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
       <div className="grid gap-4">
-        <Card className="shadow-md">
-          <CardHeader className="border-b bg-muted/50">
-            <div className="flex items-center gap-4">
+        <div className="rounded-lg border">
+          <div className="flex items-center gap-4 p-6">
               <div>
                 <Button
                   variant="outline"
@@ -569,20 +562,19 @@ export default function IntegrationsConfigPage() {
                 </Button>
               </div>
               <div className="flex-1">
-                <CardTitle className="text-base font-semibold">
+                <h1 className="text-lg font-semibold">
                   Konfigurasi Integrasi
-                </CardTitle>
-                <CardDescription>
+                </h1>
+                <p className="text-sm text-muted-foreground">
                   Kelola integrasi dengan sistem eksternal
-                </CardDescription>
+                </p>
               </div>
               <Button variant="outline" size="sm" onClick={() => { loadAllBPJSConfigs(); loadSatuSehatConfig(); }}>
                 <RefreshCw className="h-4 w-4 mr-2" />
                 Refresh
               </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="pt-6">
+          </div>
+          <div className="rounded-lg border p-6 mx-4 mb-4">
             <div className="rounded-md border">
               <Table>
               <TableHeader>
@@ -660,8 +652,8 @@ export default function IntegrationsConfigPage() {
               </TableBody>
               </Table>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
 
       {/* BPJS Config Dialog (each BPJS service has its own config) */}

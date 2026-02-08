@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+// Card imports removed - header flattened
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -514,9 +514,9 @@ export default function PatientSearchShow() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      <Card className="shadow-md">
+      <div>
         {/* Patient Header */}
-        <CardHeader className="border-b bg-muted/50">
+        <div className="flex items-center justify-between">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center">
@@ -531,9 +531,9 @@ export default function PatientSearchShow() {
                 )}
               </div>
               <div className="space-y-1">
-                <h2 className="text-xl font-semibold">
+                <h1 className="text-lg font-semibold">
                   {patient.nama_lengkap} <Badge variant={getStatusVariant(patient.status)} className="text-sm">{patient.status}</Badge>
-                </h2>
+                </h1>
                 <p className="text-sm text-muted-foreground">
                   No. RM:{" "}
                   <span className="font-mono font-medium text-foreground">
@@ -594,9 +594,9 @@ export default function PatientSearchShow() {
               )}
             </div>
           </div>
-        </CardHeader>
+        </div>
 
-        <CardContent className="pt-4 space-y-6">
+        <div className="rounded-lg border p-6 space-y-6">
           {/* Tabs Navigation */}
           <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
             <TabsList className="w-full justify-start h-auto p-0 bg-transparent border-b rounded-none">
@@ -1512,8 +1512,8 @@ export default function PatientSearchShow() {
               )}
             </TabsContent>
           </Tabs>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Delete SEP Dialog */}
       <AlertDialog open={!!deleteSepId} onOpenChange={(open) => !open && setDeleteSepId(null)}>

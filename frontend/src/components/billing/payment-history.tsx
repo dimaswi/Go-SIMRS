@@ -1,4 +1,3 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -29,20 +28,15 @@ export function PaymentHistory({
 
   if (payments.length === 0) {
     return (
-      <Card className="border-none shadow-sm">
-        <CardContent className="py-12 text-center">
-          <p className="text-sm text-muted-foreground">Belum ada riwayat pembayaran</p>
-        </CardContent>
-      </Card>
+      <div className="py-12 text-center">
+        <p className="text-sm text-muted-foreground">Belum ada riwayat pembayaran</p>
+      </div>
     );
   }
 
   return (
-    <Card className="border-none shadow-sm">
-      <CardHeader className="border-b bg-muted/30 pb-3">
-        <CardTitle className="text-sm font-semibold">Riwayat Pembayaran</CardTitle>
-      </CardHeader>
-      <CardContent className="pt-4">
+    <div className="space-y-3">
+      <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase">Riwayat Pembayaran</h3>
         <Table>
           <TableHeader>
             <TableRow>
@@ -96,7 +90,6 @@ export function PaymentHistory({
             ))}
           </TableBody>
         </Table>
-      </CardContent>
-    </Card>
+    </div>
   );
 }

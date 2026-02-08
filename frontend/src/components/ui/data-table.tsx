@@ -217,7 +217,7 @@ export function DataTable<TData, TValue>({
   })
 
   return (
-    <div className="w-full">
+    <div className="flex flex-col flex-1 w-full">
       {/* Search and Controls */}
       <div className="flex items-center justify-between py-4">
         <div className="flex items-center space-x-2">
@@ -261,7 +261,7 @@ export function DataTable<TData, TValue>({
       </div>
 
       {/* Table */}
-      <div className="rounded-md border">
+      <div className="rounded-md border flex-1">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -314,7 +314,7 @@ export function DataTable<TData, TValue>({
 
       {/* Pagination */}
       {showPagination && (
-        <div className="flex items-center justify-between space-x-2 py-4">
+        <div className="flex items-center justify-between space-x-2 py-4 mt-auto">
           <div className="flex items-center space-x-2">
             <p className="text-sm text-muted-foreground">Baris per halaman</p>
             <Select

@@ -1,12 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -680,40 +674,37 @@ export default function PatientEdit() {
           handleSubmit();
         }}
       >
-        <Card className="shadow-md">
-          <CardHeader className="border-b bg-muted/50">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  onClick={() => navigate(`/patients/${id}`)}
-                  className="h-9 w-9"
-                  tabIndex={-1}
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                </Button>
-                <div>
-                  <CardTitle className="text-base font-semibold">Edit Data Pasien</CardTitle>
-                  <CardDescription>Perbarui data pasien sesuai dengan standar Kemenkes RI</CardDescription>
-                </div>
-              </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowShortcuts(true)}
-                className="text-muted-foreground"
-                tabIndex={-1}
-              >
-                <Keyboard className="h-4 w-4 mr-2" />
-                <span className="hidden sm:inline">Shortcuts</span>
-                <kbd className="ml-2 px-1.5 py-0.5 bg-muted rounded text-xs font-mono hidden sm:inline">F1</kbd>
-              </Button>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              onClick={() => navigate(`/patients/${id}`)}
+              className="h-9 w-9"
+              tabIndex={-1}
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <div>
+              <h1 className="text-lg font-semibold">Edit Data Pasien</h1>
+              <p className="text-sm text-muted-foreground">Perbarui data pasien sesuai dengan standar Kemenkes RI</p>
             </div>
-          </CardHeader>
-          <CardContent className="pt-6 space-y-8">
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowShortcuts(true)}
+            className="text-muted-foreground"
+            tabIndex={-1}
+          >
+            <Keyboard className="h-4 w-4 mr-2" />
+            <span className="hidden sm:inline">Shortcuts</span>
+            <kbd className="ml-2 px-1.5 py-0.5 bg-muted rounded text-xs font-mono hidden sm:inline">F1</kbd>
+          </Button>
+        </div>
+        <div className="rounded-lg border p-6 space-y-8">
             {/* Section: Identitas */}
             <section className="pb-6">
               <div className="flex items-center gap-2 mb-4 pb-2 border-b">
@@ -1650,8 +1641,7 @@ export default function PatientEdit() {
                 </Button>
               </div>
             </div>
-          </CardContent>
-        </Card>
+        </div>
       </form>
     </div>
   );

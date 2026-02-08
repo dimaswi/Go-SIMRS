@@ -1,12 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -241,32 +235,29 @@ export default function StockRequestEdit() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
-          <div className="flex items-center gap-4">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => navigate(`/stock-requests/${id}`)}
-              className="h-9 w-9"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <div className="space-y-1">
-              <div className="flex items-center gap-3">
-                <CardTitle className="text-base font-semibold">Edit Permintaan Stok</CardTitle>
-                <Badge className="bg-yellow-100 text-yellow-800">
-                  {stockRequestStatusLabels[request.status]}
-                </Badge>
-              </div>
-              <CardDescription>
-                {request.request_number} • {requestTypeLabels[request.request_type]}
-              </CardDescription>
-            </div>
+      <div className="flex items-center gap-4">
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => navigate(`/stock-requests/${id}`)}
+          className="h-9 w-9"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <div className="space-y-1">
+          <div className="flex items-center gap-3">
+            <h1 className="text-lg font-semibold">Edit Permintaan Stok</h1>
+            <Badge className="bg-yellow-100 text-yellow-800">
+              {stockRequestStatusLabels[request.status]}
+            </Badge>
           </div>
-        </CardHeader>
+          <p className="text-sm text-muted-foreground">
+            {request.request_number} • {requestTypeLabels[request.request_type]}
+          </p>
+        </div>
+      </div>
 
-        <CardContent className="pt-6 space-y-6">
+      <div className="rounded-lg border p-6 space-y-6">
           {/* Info Box */}
           <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
             <p className="text-sm text-blue-700 dark:text-blue-300">
@@ -401,8 +392,7 @@ export default function StockRequestEdit() {
               Simpan Perubahan
             </Button>
           </div>
-        </CardContent>
-      </Card>
+      </div>
     </div>
   );
 }

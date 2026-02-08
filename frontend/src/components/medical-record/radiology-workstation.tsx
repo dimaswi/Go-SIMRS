@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -292,9 +291,7 @@ export function RadiologyWorkstation({ visitId, readOnly: _readOnly = false }: R
               {getStatusBadge(selectedOrder.status)}
             </div>
           </CardHeader>
-          <CardContent className="p-0">
-            <ScrollArea className="h-[calc(110vh-380px)] min-h-[350px]">
-              <div className="p-4 space-y-3">
+          <CardContent className="space-y-3">
                 {/* Patient Info */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs p-2 bg-muted/50 rounded">
                   <div className="flex items-center gap-1">
@@ -433,8 +430,6 @@ export function RadiologyWorkstation({ visitId, readOnly: _readOnly = false }: R
                     Simpan Semua Hasil
                   </Button>
                 )}
-              </div>
-            </ScrollArea>
           </CardContent>
         </Card>
       )}

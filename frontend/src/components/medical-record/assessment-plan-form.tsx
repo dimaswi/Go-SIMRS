@@ -4,12 +4,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { 
+import {
   Save, 
   ClipboardList, 
   Loader2, 
-  FileText, 
   Heart, 
   Utensils,
   Activity,
@@ -162,7 +160,7 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
 
   if (loading) {
     return (
-      <Card className="shadow-md">
+      <Card>
         <CardContent className="p-6 flex items-center justify-center min-h-[300px]">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </CardContent>
@@ -171,8 +169,8 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
   }
 
   return (
-    <Card className="shadow-md">
-      <CardHeader className="border-b bg-muted/30 py-3 px-4">
+    <Card>
+      <CardHeader className="py-3 px-4">
         <div className="flex items-center justify-between">
           <div className="flex-1">
             <CardTitle className="text-base font-semibold flex items-center gap-2">
@@ -188,9 +186,7 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
           </Badge>
         </div>
       </CardHeader>
-      <CardContent className="p-0">
-        <ScrollArea className="h-[calc(100vh-300px)] min-h-[400px]">
-          <div className="p-4">
+      <CardContent>
             <EditModeBanner
               isPatientDischarged={isPatientDischarged}
               isEditing={isEditing}
@@ -201,16 +197,8 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
           <fieldset disabled={isFormDisabled} className="space-y-6">
           
           {/* Section 1: Asesmen Klinis */}
-          <Card className="border-purple-200 dark:border-purple-800">
-            <CardHeader className="py-3 px-4 bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-950/30 dark:to-pink-950/30">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-purple-100 dark:bg-purple-900/50">
-                  <FileText className="h-5 w-5 text-purple-500" />
-                </div>
-                <CardTitle className="text-base font-semibold">Asesmen Klinis</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent className="p-4 space-y-4">
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase">Asesmen Klinis</h3>
               {/* Clinical Assessment / Clinical Impression */}
               <div className="space-y-2">
                 <Label htmlFor="clinical_assessment" className="text-sm font-semibold">
@@ -245,20 +233,11 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
                   Quo ad vitam, quo ad functionam, quo ad sanationam
                 </p>
               </div>
-            </CardContent>
-          </Card>
+          </div>
 
           {/* Section 2: Rencana Terapi */}
-          <Card className="border-blue-200 dark:border-blue-800">
-            <CardHeader className="py-3 px-4 bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-950/30 dark:to-cyan-950/30">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/50">
-                  <Heart className="h-5 w-5 text-blue-500" />
-                </div>
-                <CardTitle className="text-base font-semibold">Rencana Terapi</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent className="p-4 space-y-4">
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase">Rencana Terapi</h3>
               {/* Treatment Plan */}
               <div className="space-y-2">
                 <Label htmlFor="treatment_plan" className="text-sm font-semibold">
@@ -285,7 +264,7 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
               {/* Monitoring Plan */}
               <div className="space-y-2">
                 <Label htmlFor="monitoring_plan" className="text-sm font-semibold flex items-center gap-2">
-                  <Eye className="h-4 w-4 text-blue-500" />
+                  <Eye className="h-4 w-4 text-muted-foreground" />
                   Rencana Monitoring
                 </Label>
                 <Textarea
@@ -299,29 +278,20 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
                   Vital sign, lab, imaging, atau parameter klinis lain yang perlu dipantau
                 </p>
               </div>
-            </CardContent>
-          </Card>
+          </div>
 
           {/* Section 3: Rencana Detail */}
-          <Card className="border-green-200 dark:border-green-800">
-            <CardHeader className="py-3 px-4 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-green-100 dark:bg-green-900/50">
-                    <ClipboardList className="h-5 w-5 text-green-500" />
-                  </div>
-                  <CardTitle className="text-base font-semibold">Rencana Detail</CardTitle>
-                </div>
-                <Badge variant={filledDetailFields > 0 ? "default" : "outline"}>
-                  {filledDetailFields}/6
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="p-4">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase">Rencana Detail</h3>
+              <Badge variant={filledDetailFields > 0 ? "default" : "outline"}>
+                {filledDetailFields}/6
+              </Badge>
+            </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="medication_plan" className="text-sm flex items-center gap-2">
-                    <Heart className="h-4 w-4 text-green-500" />
+                    <Heart className="h-4 w-4 text-muted-foreground" />
                     Rencana Obat
                   </Label>
                   <Textarea
@@ -334,7 +304,7 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="diet_plan" className="text-sm flex items-center gap-2">
-                    <Utensils className="h-4 w-4 text-green-500" />
+                    <Utensils className="h-4 w-4 text-muted-foreground" />
                     Rencana Diet
                   </Label>
                   <Textarea
@@ -347,7 +317,7 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="activity_plan" className="text-sm flex items-center gap-2">
-                    <Activity className="h-4 w-4 text-green-500" />
+                    <Activity className="h-4 w-4 text-muted-foreground" />
                     Rencana Aktivitas
                   </Label>
                   <Textarea
@@ -360,7 +330,7 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="education_plan" className="text-sm flex items-center gap-2">
-                    <GraduationCap className="h-4 w-4 text-green-500" />
+                    <GraduationCap className="h-4 w-4 text-muted-foreground" />
                     Rencana Edukasi
                   </Label>
                   <Textarea
@@ -373,7 +343,7 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="procedure_plan" className="text-sm flex items-center gap-2">
-                    <Stethoscope className="h-4 w-4 text-green-500" />
+                    <Stethoscope className="h-4 w-4 text-muted-foreground" />
                     Rencana Tindakan
                   </Label>
                   <Textarea
@@ -386,7 +356,7 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="consultation_plan" className="text-sm flex items-center gap-2">
-                    <Users className="h-4 w-4 text-green-500" />
+                    <Users className="h-4 w-4 text-muted-foreground" />
                     Rencana Konsultasi
                   </Label>
                   <Textarea
@@ -398,8 +368,7 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
                   />
                 </div>
               </div>
-            </CardContent>
-          </Card>
+          </div>
 
           {/* Submit Button */}
           {!isFormDisabled && (
@@ -412,8 +381,6 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
           )}
           </fieldset>
         </form>
-          </div>
-        </ScrollArea>
       </CardContent>
       <EditConfirmDialog
         open={showEditDialog}

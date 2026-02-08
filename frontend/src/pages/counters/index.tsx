@@ -1,13 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
+
 import { DataTable } from "@/components/ui/data-table";
 import { createCounterColumns } from "./columns";
 import { counterApi, type Counter } from "@/lib/api/counters";
@@ -81,29 +75,21 @@ export default function CounterIndex() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Master Loket</CardTitle>
-              <CardDescription>
-                Kelola data loket pelayanan
-              </CardDescription>
-            </div>
-            {hasCreatePermission && (
-              <Link to="/counters/create">
-                <Button>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Tambah Loket
-                </Button>
-              </Link>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent className="pt-6">
-          <DataTable columns={columns} data={counters} />
-        </CardContent>
-      </Card>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-lg font-semibold">Master Loket</h1>
+          <p className="text-sm text-muted-foreground">Kelola data loket pelayanan</p>
+        </div>
+        {hasCreatePermission && (
+          <Link to="/counters/create">
+            <Button>
+              <Plus className="mr-2 h-4 w-4" />
+              Tambah Loket
+            </Button>
+          </Link>
+        )}
+      </div>
+      <DataTable columns={columns} data={counters} />
 
       <ConfirmDialog
         open={deleteId !== null}

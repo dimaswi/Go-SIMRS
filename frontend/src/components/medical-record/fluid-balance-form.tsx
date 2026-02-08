@@ -151,12 +151,12 @@ function FluidBalanceCollapsibleRow({
           <div className="px-4 pb-4 pt-0 ml-8 mr-4">
             {/* Intake/Output Details */}
             <div className="grid grid-cols-2 gap-3 text-sm">
-              <div className="bg-green-50 dark:bg-green-950 rounded-lg p-3">
-                <p className="font-medium text-green-700 dark:text-green-300 mb-2 flex items-center gap-1">
-                  <ArrowDownToLine className="h-4 w-4" />
+              <div className="bg-muted/50 border rounded-lg p-3">
+                <p className="font-medium mb-2 flex items-center gap-1">
+                  <ArrowDownToLine className="h-4 w-4 text-muted-foreground" />
                   Intake: {balance.total_intake} ml
                 </p>
-                <div className="grid grid-cols-2 gap-1 text-xs text-green-800 dark:text-green-200">
+                <div className="grid grid-cols-2 gap-1 text-xs">
                   {balance.oral_drink > 0 && <span>Minum: {balance.oral_drink} ml</span>}
                   {balance.iv_fluid > 0 && <span>Infus: {balance.iv_fluid} ml</span>}
                   {balance.oral_food > 0 && <span>Makanan: {balance.oral_food} ml</span>}
@@ -167,12 +167,12 @@ function FluidBalanceCollapsibleRow({
                   {balance.other_intake > 0 && <span>Lainnya: {balance.other_intake} ml</span>}
                 </div>
               </div>
-              <div className="bg-red-50 dark:bg-red-950 rounded-lg p-3">
-                <p className="font-medium text-red-700 dark:text-red-300 mb-2 flex items-center gap-1">
-                  <ArrowUpFromLine className="h-4 w-4" />
+              <div className="bg-muted/50 border rounded-lg p-3">
+                <p className="font-medium mb-2 flex items-center gap-1">
+                  <ArrowUpFromLine className="h-4 w-4 text-muted-foreground" />
                   Output: {balance.total_output} ml
                 </p>
-                <div className="grid grid-cols-2 gap-1 text-xs text-red-800 dark:text-red-200">
+                <div className="grid grid-cols-2 gap-1 text-xs">
                   {balance.urine_amount > 0 && <span>Urine: {balance.urine_amount} ml</span>}
                   {balance.feces_amount > 0 && <span>BAB: {balance.feces_amount} ml</span>}
                   {balance.vomit_amount > 0 && <span>Muntah: {balance.vomit_amount} ml</span>}
@@ -415,12 +415,7 @@ export function FluidBalanceForm({ visitId, readOnly = false }: FluidBalanceForm
 
   // Get shift badge color
   const getShiftColor = (shift: string) => {
-    const colors: Record<string, string> = {
-      pagi: "bg-yellow-100 text-yellow-800",
-      siang: "bg-orange-100 text-orange-800",
-      malam: "bg-indigo-100 text-indigo-800",
-    };
-    return colors[shift] || "bg-gray-100 text-gray-800";
+    return "bg-muted text-muted-foreground";
   };
 
   // Get balance status
@@ -432,8 +427,8 @@ export function FluidBalanceForm({ visitId, readOnly = false }: FluidBalanceForm
 
   if (loading) {
     return (
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/30 py-3 px-4">
+      <Card>
+        <CardHeader className="py-3 px-4">
           <CardTitle className="text-base font-semibold flex items-center gap-2">
             <Droplets className="h-4 w-4" />
             Balance Cairan
@@ -454,8 +449,8 @@ export function FluidBalanceForm({ visitId, readOnly = false }: FluidBalanceForm
 
   return (
     <>
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/30 py-3 px-4">
+      <Card>
+        <CardHeader className="py-3 px-4">
           <div className="flex items-center justify-between">
             <div className="flex-1">
               <CardTitle className="text-base font-semibold flex items-center gap-2">
@@ -512,7 +507,7 @@ export function FluidBalanceForm({ visitId, readOnly = false }: FluidBalanceForm
 
           {/* Balance List */}
           {balances.length > 0 ? (
-            <ScrollArea className="h-[calc(100vh-500px)] min-h-[200px]">
+            <div>
               {/* Table Header */}
               <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-muted/50 text-xs font-medium text-muted-foreground border-b sticky top-0 rounded-t-lg">
                 <div className="col-span-1"></div>
@@ -540,7 +535,7 @@ export function FluidBalanceForm({ visitId, readOnly = false }: FluidBalanceForm
                   />
                 ))}
               </div>
-            </ScrollArea>
+            </div>
           ) : (
             <div className="py-12 text-center text-muted-foreground border rounded-lg">
               <Droplets className="h-12 w-12 mx-auto mb-4 opacity-50" />
@@ -594,9 +589,9 @@ export function FluidBalanceForm({ visitId, readOnly = false }: FluidBalanceForm
               </div>
 
               {/* Intake Section */}
-              <div className="border rounded-lg p-4 bg-green-50/50 dark:bg-green-950/30">
-                <Label className="text-green-700 dark:text-green-300 font-semibold flex items-center gap-2 mb-3">
-                  <ArrowDownToLine className="h-4 w-4" />
+              <div className="border rounded-lg p-4 bg-muted/50">
+                <Label className="font-semibold flex items-center gap-2 mb-3">
+                  <ArrowDownToLine className="h-4 w-4 text-muted-foreground" />
                   INTAKE (Masukan)
                 </Label>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -671,9 +666,9 @@ export function FluidBalanceForm({ visitId, readOnly = false }: FluidBalanceForm
             </div>
 
               {/* Output Section */}
-              <div className="border rounded-lg p-4 bg-red-50/50 dark:bg-red-950/30">
-                <Label className="text-red-700 dark:text-red-300 font-semibold flex items-center gap-2 mb-3">
-                  <ArrowUpFromLine className="h-4 w-4" />
+              <div className="border rounded-lg p-4 bg-muted/50">
+                <Label className="font-semibold flex items-center gap-2 mb-3">
+                  <ArrowUpFromLine className="h-4 w-4 text-muted-foreground" />
                   OUTPUT (Keluaran)
                 </Label>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

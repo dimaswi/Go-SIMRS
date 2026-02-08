@@ -2,13 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
+
 import {
   Select,
   SelectContent,
@@ -26,8 +20,14 @@ import {
   Loader2,
   Eye,
   ExternalLink,
-  ArrowRight
+  ArrowRight,
+  SlidersHorizontal,
 } from "lucide-react";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { admissionRequestApi, type AdmissionRequest } from "@/lib/api/admission-request";
 import { useToast } from "@/hooks/use-toast";
 import { setPageTitle } from "@/lib/page-title";
@@ -38,6 +38,7 @@ export default function AdmissionRequestsIndexPage() {
   const { toast } = useToast();
   const [requests, setRequests] = useState<AdmissionRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filterOpen, setFilterOpen] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState("pending");
 
   useEffect(() => {
@@ -227,48 +228,48 @@ export default function AdmissionRequestsIndexPage() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      <div className="grid gap-4">
-        <Card className="shadow-md">
-          <CardHeader className="border-b bg-muted/50">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <CardTitle className="text-base font-semibold">
-                  Permintaan Rawat Inap
-                </CardTitle>
-                <CardDescription>
-                  Kelola permintaan rawat inap dari unit rawat jalan dan IGD
-                </CardDescription>
-              </div>
-              <div className="flex items-center gap-2">
-                <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-                  <SelectTrigger className="w-[180px]">
-                    <SelectValue placeholder="Semua Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Semua Status</SelectItem>
-                    <SelectItem value="pending">Menunggu</SelectItem>
-                    <SelectItem value="approved">Disetujui</SelectItem>
-                    <SelectItem value="rejected">Ditolak</SelectItem>
-                    <SelectItem value="cancelled">Dibatalkan</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Button variant="outline" size="icon" onClick={fetchRequests}>
-                  <RefreshCcw className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <DataTable
-              columns={columns}
-              data={requests}
-              searchPlaceholder="Cari no. request, nama pasien..."
-              pageSize={10}
-              tableId="admission-requests"
-            />
-          </CardContent>
-        </Card>
+      <Collapsible open={filterOpen} onOpenChange={setFilterOpen}>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-lg font-semibold">Permintaan Rawat Inap</h1>
+          <p className="text-sm text-muted-foreground">Kelola permintaan rawat inap dari unit rawat jalan dan IGD</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="icon" className="h-9 w-9" onClick={fetchRequests}>
+            <RefreshCcw className="h-4 w-4" />
+          </Button>
+          <CollapsibleTrigger asChild>
+            <Button variant="outline" size="sm" className="h-9">
+              <SlidersHorizontal className="h-4 w-4 mr-2" />
+              Filter
+            </Button>
+          </CollapsibleTrigger>
+        </div>
       </div>
+      <CollapsibleContent>
+      <div className="flex items-center gap-2 flex-wrap pt-4">
+          <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+            <SelectTrigger className="h-9 w-[180px]">
+              <SelectValue placeholder="Semua Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Semua Status</SelectItem>
+              <SelectItem value="pending">Menunggu</SelectItem>
+              <SelectItem value="approved">Disetujui</SelectItem>
+              <SelectItem value="rejected">Ditolak</SelectItem>
+              <SelectItem value="cancelled">Dibatalkan</SelectItem>
+            </SelectContent>
+          </Select>
+      </div>
+      </CollapsibleContent>
+      </Collapsible>
+      <DataTable
+        columns={columns}
+        data={requests}
+        searchPlaceholder="Cari no. request, nama pasien..."
+        pageSize={10}
+        tableId="admission-requests"
+      />
     </div>
   );
 }

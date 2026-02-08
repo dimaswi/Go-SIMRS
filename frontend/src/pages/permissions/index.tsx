@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { setPageTitle } from '@/lib/page-title';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+
 import { DataTable } from '@/components/ui/data-table';
 import { createPermissionColumns } from './columns';
 import { permissionsApi, type Permission } from '@/lib/api';
@@ -97,33 +97,25 @@ export default function PermissionsPage() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      <div className="grid gap-4">
-        <Card className="shadow-md">
-          <CardHeader className="border-b bg-muted/50">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <CardTitle className="text-base font-semibold">Permissions</CardTitle>
-                <CardDescription>Manage system permissions</CardDescription>
-              </div>
-              {hasPermission('permissions.create') && (
-                <Button onClick={() => navigate('/permissions/create')} size="sm">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Permission
-                </Button>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <DataTable
-              columns={columns}
-              data={permissions}
-              searchPlaceholder="Search permissions by name or description..."
-              pageSize={10}
-              tableId="permissions"
-            />
-          </CardContent>
-        </Card>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-lg font-semibold">Permissions</h1>
+          <p className="text-sm text-muted-foreground">Manage system permissions</p>
+        </div>
+        {hasPermission('permissions.create') && (
+          <Button onClick={() => navigate('/permissions/create')} size="sm">
+            <Plus className="mr-2 h-4 w-4" />
+            Add Permission
+          </Button>
+        )}
       </div>
+      <DataTable
+        columns={columns}
+        data={permissions}
+        searchPlaceholder="Search permissions by name or description..."
+        pageSize={10}
+        tableId="permissions"
+      />
 
       <ConfirmDialog
         open={deleteDialogOpen}

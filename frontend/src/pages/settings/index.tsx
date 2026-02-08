@@ -1,12 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -250,16 +244,16 @@ export default function SettingsPage() {
         ) : (
           <>
             {/* Application Settings */}
-            <Card className="shadow-md">
-              <CardHeader className="border-b bg-muted/50">
-                <CardTitle className="text-base font-semibold">
+            <div className="rounded-lg border">
+              <div className="flex items-center gap-2 px-6 py-4">
+                <h3 className="text-sm font-medium">
                   Application
-                </CardTitle>
-                <CardDescription>
+                </h3>
+                <p className="text-sm text-muted-foreground">
                   Customize application name and branding
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="pt-6">
+                </p>
+              </div>
+              <div className="px-6 pb-6">
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <Label
@@ -319,20 +313,20 @@ export default function SettingsPage() {
                     )}
                   </Button>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
 
             {/* Branding Settings */}
-            <Card className="shadow-md">
-              <CardHeader className="border-b bg-muted/50">
-                <CardTitle className="text-base font-semibold">
+            <div className="rounded-lg border">
+              <div className="flex items-center gap-2 px-6 py-4">
+                <h3 className="text-sm font-medium">
                   Branding
-                </CardTitle>
-                <CardDescription>
+                </h3>
+                <p className="text-sm text-muted-foreground">
                   Upload application logo and favicon
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="pt-6">
+                </p>
+              </div>
+              <div className="px-6 pb-6">
                 <div className="grid gap-6 md:grid-cols-2">
                   {/* Logo Upload */}
                   <div className="space-y-3">
@@ -436,20 +430,20 @@ export default function SettingsPage() {
                     </div>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
             {/* Hospital Info Settings (Kop Cetakan) */}
-            <Card className="shadow-md">
-              <CardHeader className="border-b bg-muted/50">
-                <CardTitle className="text-base font-semibold flex items-center gap-2">
+            <div className="rounded-lg border">
+              <div className="flex items-center gap-2 px-6 py-4">
+                <h3 className="text-sm font-medium flex items-center gap-2">
                   <Hospital className="h-4 w-4" />
                   Data Rumah Sakit
-                </CardTitle>
-                <CardDescription>
+                </h3>
+                <p className="text-sm text-muted-foreground">
                   Informasi rumah sakit yang akan tampil pada kop cetakan / header dokumen
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="pt-6">
+                </p>
+              </div>
+              <div className="px-6 pb-6">
                 <div className="space-y-4">
                   {/* Preview Kop - A4 Paper (scaled 60%) */}
                   <div className="flex justify-center bg-muted/30 rounded-lg py-4 px-2 overflow-auto">
@@ -643,8 +637,8 @@ export default function SettingsPage() {
                     )}
                   </Button>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </>
         )}
       </div>

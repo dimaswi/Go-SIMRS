@@ -7,6 +7,7 @@ import { Moon, Sun, UserPlus } from 'lucide-react';
 import { usePermission } from '@/hooks/usePermission';
 import { PatientSearch } from '@/components/patient-search';
 import { NotificationBell } from '@/components/notification-bell';
+import { useBreadcrumb } from '@/contexts/breadcrumb-context';
 import {
   Tooltip,
   TooltipContent,
@@ -36,6 +37,11 @@ const routeLabels: Record<string, string> = {
   'regencies': 'Kabupaten/Kota',
   'districts': 'Kecamatan',
   'villages': 'Desa/Kelurahan',
+  'visits': 'Kunjungan',
+  'billing': 'Kasir & Billing',
+  'patients': 'Pasien',
+  'registrations': 'Pendaftaran',
+  'medical-records': 'Rekam Medis',
   'create': 'Tambah',
   'edit': 'Edit',
 };
@@ -53,6 +59,7 @@ export function AppHeader() {
   const location = useLocation();
   const navigate = useNavigate();
   const { hasPermission } = usePermission();
+  const { override } = useBreadcrumb();
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
   // Load theme on mount
@@ -101,13 +108,20 @@ export function AppHeader() {
     breadcrumbs.push({ label, path: currentPath });
   }
 
+  // Append extra segments from context override
+  if (override?.extraSegments) {
+    for (const seg of override.extraSegments) {
+      breadcrumbs.push({ label: seg.label, path: seg.path || currentPath });
+    }
+  }
+
   const handleBreadcrumbClick = (e: React.MouseEvent, path: string) => {
     e.preventDefault();
     navigate(path);
   };
 
   return (
-    <header className="sticky top-0 z-50 flex h-14 shrink-0 items-center gap-2 rounded-xl bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4">
+    <header className="flex h-14 shrink-0 items-center gap-2 bg-background px-4 border-b">
       <div className="flex items-center gap-2 flex-1">
         <SidebarTrigger className="h-7 w-7" />
         <Separator orientation="vertical" className="h-4" />

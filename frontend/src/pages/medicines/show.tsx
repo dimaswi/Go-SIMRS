@@ -1,12 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -130,10 +123,7 @@ export default function MedicineShow() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      <div className="grid gap-4">
-        <Card className="shadow-md">
-          <CardHeader className="border-b bg-muted/50">
-            <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <Button
                   variant="outline"
@@ -143,20 +133,16 @@ export default function MedicineShow() {
                 >
                   <ArrowLeft className="h-4 w-4" />
                 </Button>
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                    <Pill className="h-5 w-5 text-primary" />
-                  </div>
-                  <div>
+                <div>
                     <div className="flex items-center gap-2">
-                      <CardTitle className="text-base font-semibold">
+                      <h1 className="text-lg font-semibold">
                         {medicine.name}
-                      </CardTitle>
+                      </h1>
                       <Badge variant={medicine.is_active ? "default" : "secondary"}>
                         {medicine.is_active ? "Aktif" : "Nonaktif"}
                       </Badge>
                     </div>
-                    <CardDescription className="flex items-center gap-2">
+                    <p className="text-sm text-muted-foreground flex items-center gap-2">
                       <span className="font-mono">{medicine.code}</span>
                       {medicine.generic_name && (
                         <>
@@ -164,8 +150,7 @@ export default function MedicineShow() {
                           <span>{medicine.generic_name}</span>
                         </>
                       )}
-                    </CardDescription>
-                  </div>
+                    </p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -191,9 +176,8 @@ export default function MedicineShow() {
                   </Button>
                 )}
               </div>
-            </div>
-          </CardHeader>
-          <CardContent className="pt-6">
+      </div>
+      <div className="rounded-lg border p-6">
             <div className="grid gap-6">
               {/* Basic Info */}
               <div className="space-y-4">
@@ -367,8 +351,6 @@ export default function MedicineShow() {
                 </>
               )}
             </div>
-          </CardContent>
-        </Card>
       </div>
 
       <ConfirmDialog

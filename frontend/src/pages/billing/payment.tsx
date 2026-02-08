@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -20,7 +20,6 @@ import {
   ArrowLeft, 
   Loader2, 
   CreditCard,
-  User,
   Banknote,
   Building2,
   Smartphone,
@@ -206,34 +205,26 @@ export default function BillingPayment() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      {/* Header Card */}
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" size="icon" onClick={() => navigate(`/billing/${billing?.visit_id}`)}>
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-              <div className="flex items-center gap-4">
-                <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
-                  <User className="h-6 w-6 text-muted-foreground" />
-                </div>
-                <div className="space-y-1">
-                  <CardTitle className="text-base font-semibold">
-                    Pembayaran - {billing.billing_number}
-                  </CardTitle>
-                  <CardDescription>
-                    {billing.registration?.patient?.nama_lengkap} • No. RM: {billing.registration?.patient?.no_rm}
-                  </CardDescription>
-                </div>
-              </div>
-            </div>
-            <Badge className="bg-yellow-500 text-black">
-              Sisa: {formatCurrency(billing.remaining_amount)}
-            </Badge>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" onClick={() => navigate(`/billing/${billing?.visit_id}`)}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div className="space-y-1">
+            <h1 className="text-lg font-semibold">
+              Pembayaran - {billing.billing_number}
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              {billing.registration?.patient?.nama_lengkap} • No. RM: {billing.registration?.patient?.no_rm}
+            </p>
           </div>
-        </CardHeader>
-        <CardContent className="pt-6">
+        </div>
+        <Badge className="bg-yellow-500 text-black">
+          Sisa: {formatCurrency(billing.remaining_amount)}
+        </Badge>
+      </div>
+
+      <div className="rounded-lg border p-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
               <p className="text-sm text-muted-foreground">Total Tagihan</p>
@@ -248,16 +239,15 @@ export default function BillingPayment() {
               <p className="text-xl font-bold text-red-600">{formatCurrency(billing.remaining_amount)}</p>
             </div>
           </div>
-        </CardContent>
-      </Card>
+      </div>
 
       {/* Payment Form Card */}
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
-          <CardTitle className="text-base font-semibold">Form Pembayaran</CardTitle>
-          <CardDescription>Masukkan detail pembayaran</CardDescription>
-        </CardHeader>
-        <CardContent className="pt-6">
+      <div className="rounded-lg border">
+        <div className="flex items-center gap-2 px-6 py-4">
+          <h3 className="text-sm font-medium">Form Pembayaran</h3>
+          <p className="text-sm text-muted-foreground">Masukkan detail pembayaran</p>
+        </div>
+        <div className="px-6 pb-6">
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Payment Method */}
@@ -462,8 +452,8 @@ export default function BillingPayment() {
               </Button>
             </div>
           </form>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }

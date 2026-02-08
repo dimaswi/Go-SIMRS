@@ -1,12 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -494,10 +487,7 @@ export default function RoomShow() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      <div className="grid gap-4">
-        <Card className="shadow-md">
-          <CardHeader className="border-b bg-muted/50">
-            <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4">
               <div>
                 <Button
                   variant="outline"
@@ -509,12 +499,12 @@ export default function RoomShow() {
                 </Button>
               </div>
               <div className="flex-1">
-                <CardTitle className="text-base font-semibold">
+                <h1 className="text-lg font-semibold">
                   {room.name}
-                </CardTitle>
-                <CardDescription>
+                </h1>
+                <p className="text-sm text-muted-foreground">
                   {room.code}
-                </CardDescription>
+                </p>
               </div>
               <Badge variant={room.is_active ? "default" : "secondary"}>
                 {room.is_active ? "Aktif" : "Tidak Aktif"}
@@ -535,9 +525,8 @@ export default function RoomShow() {
                   Edit
                 </Button>
               )}
-            </div>
-          </CardHeader>
-          <CardContent className="pt-6">
+      </div>
+      <div className="rounded-lg border p-6">
             {/* Show beds for selected unit OR show main tabs */}
             {selectedUnit ? (
               <div className="space-y-4">
@@ -995,8 +984,6 @@ export default function RoomShow() {
                 </TabsContent>
               </Tabs>
             )}
-          </CardContent>
-        </Card>
       </div>
 
       {/* Dialogs */}

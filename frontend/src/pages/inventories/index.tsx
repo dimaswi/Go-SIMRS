@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+
 import { DataTable } from '@/components/ui/data-table';
 import { createInventoryColumns } from './columns';
 import { inventoriesApi, type Inventory } from '@/lib/api/inventories';
@@ -9,7 +9,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { useToast } from '@/hooks/use-toast';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { setPageTitle } from '@/lib/page-title';
-import { Loader2, Plus, Package } from 'lucide-react';
+import { Loader2, Plus } from 'lucide-react';
 
 export default function InventoriesPage() {
   const navigate = useNavigate();
@@ -95,38 +95,25 @@ export default function InventoriesPage() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      <div className="grid gap-4">
-        <Card className="shadow-md">
-          <CardHeader className="border-b bg-muted/50">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                  <Package className="h-5 w-5 text-primary" />
-                </div>
-                <div className="space-y-1">
-                  <CardTitle className="text-base font-semibold">Inventaris</CardTitle>
-                  <CardDescription>Kelola data inventaris dan barang rumah sakit</CardDescription>
-                </div>
-              </div>
-              {hasPermission('inventories.create') && (
-                <Button onClick={() => navigate('/inventories/create')} size="sm">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Tambah Inventaris
-                </Button>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <DataTable
-              columns={columns}
-              data={inventories}
-              searchPlaceholder="Cari inventaris berdasarkan kode atau nama..."
-              pageSize={10}
-              tableId="inventories"
-            />
-          </CardContent>
-        </Card>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-lg font-semibold">Inventaris</h1>
+          <p className="text-sm text-muted-foreground">Kelola data inventaris dan barang rumah sakit</p>
+        </div>
+        {hasPermission('inventories.create') && (
+          <Button onClick={() => navigate('/inventories/create')} size="sm">
+            <Plus className="mr-2 h-4 w-4" />
+            Tambah Inventaris
+          </Button>
+        )}
       </div>
+      <DataTable
+        columns={columns}
+        data={inventories}
+        searchPlaceholder="Cari inventaris berdasarkan kode atau nama..."
+        pageSize={10}
+        tableId="inventories"
+      />
 
       <ConfirmDialog
         open={deleteDialogOpen}

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { 
@@ -9,7 +9,6 @@ import {
   Phone,
   MapPinned,
   ChevronDown,
-  ChevronUp,
   ArrowLeft,
   Droplet,
 } from "lucide-react";
@@ -19,6 +18,7 @@ import { id } from "date-fns/locale";
 interface PatientBillingInfoProps {
   visit: any;
   billing?: any;
+  actionButtons?: React.ReactNode;
 }
 
 const visitStatusLabels: Record<string, string> = {
@@ -26,13 +26,6 @@ const visitStatusLabels: Record<string, string> = {
   in_progress: 'Dalam Proses',
   completed: 'Selesai',
   cancelled: 'Dibatalkan',
-};
-
-const visitStatusColors: Record<string, string> = {
-  waiting: 'bg-yellow-500 text-black',
-  in_progress: 'bg-blue-500',
-  completed: 'bg-green-500',
-  cancelled: 'bg-red-500',
 };
 
 const billingStatusLabels: Record<string, string> = {
@@ -43,15 +36,7 @@ const billingStatusLabels: Record<string, string> = {
   cancelled: 'Dibatalkan',
 };
 
-const billingStatusColors: Record<string, string> = {
-  draft: 'bg-gray-500',
-  pending: 'bg-yellow-500 text-black',
-  partial: 'bg-blue-500',
-  paid: 'bg-green-500',
-  cancelled: 'bg-red-500',
-};
-
-export function PatientBillingInfo({ visit, billing }: PatientBillingInfoProps) {
+export function PatientBillingInfo({ visit, billing, actionButtons }: PatientBillingInfoProps) {
   const navigate = useNavigate();
   const patient = visit?.registration?.patient;
   const [isOpen, setIsOpen] = useState(false);
@@ -91,86 +76,70 @@ export function PatientBillingInfo({ visit, billing }: PatientBillingInfoProps) 
   };
 
   return (
-    <Card className="border-none shadow-none relative">
-      <CardHeader className="border-b bg-muted/30 px-4 py-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Button 
-              variant="outline" 
-              size="icon" 
-              onClick={() => navigate("/billing")}
-              className="flex-shrink-0"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <div 
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 cursor-pointer"
-              onClick={() => setIsOpen(!isOpen)}
-            >
-              <User className="h-5 w-5 text-primary" />
-            </div>
-            <div 
-              className="cursor-pointer hover:opacity-80 transition-opacity flex-1"
-              onClick={() => setIsOpen(!isOpen)}
-            >
-              <h3 className="text-base font-semibold">
+    <Card className="border-none shadow-none">
+      <div
+        className="flex items-center justify-between px-4 py-3 cursor-pointer select-none transition-colors hover:bg-muted/40 rounded-lg"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <Button 
+            variant="outline" 
+            size="icon" 
+            onClick={(e) => { e.stopPropagation(); navigate("/billing"); }}
+            className="flex-shrink-0"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-muted flex-shrink-0">
+            <User className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-semibold truncate">
                 {patient?.nama_lengkap || "-"}
               </h3>
-              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                <span className="text-xs text-muted-foreground">Kunjungan #{visit?.visit_number}</span>
-                <span className="text-muted-foreground">•</span>
-                <Badge variant="outline" className="font-mono text-xs">
-                  {patient?.no_rm || "-"}
-                </Badge>
-                <Badge
-                  variant={
-                    patient?.jenis_kelamin === "L" ? "default" : "secondary"
-                  }
-                  className="text-xs"
-                >
-                  {patient?.jenis_kelamin === "L"
-                    ? "Laki-laki"
-                    : patient?.jenis_kelamin === "P"
-                    ? "Perempuan"
-                    : "-"}
-                </Badge>
-                {billing && (
-                  <>
-                    <span className="text-muted-foreground">•</span>
-                    <Badge className={`text-xs ${billingStatusColors[billing?.status] || ''}`}>
-                      {billingStatusLabels[billing?.status] || billing?.status}
-                    </Badge>
-                  </>
-                )}
-              </div>
+              <Badge variant="outline" className="font-mono text-[10px] px-1.5 py-0 h-5 flex-shrink-0">
+                {patient?.no_rm || "-"}
+              </Badge>
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge className={`${visitStatusColors[visit?.status] || ''}`}>
-              {visitStatusLabels[visit?.status] || visit?.status}
-            </Badge>
-            <div 
-              className="flex items-center justify-center h-8 w-8 cursor-pointer hover:bg-muted rounded"
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsOpen(!isOpen);
-              }}
-            >
-              {isOpen ? (
-                <ChevronUp className="h-4 w-4" />
-              ) : (
-                <ChevronDown className="h-4 w-4" />
+            <div className="flex items-center gap-1.5 mt-0.5 text-xs text-muted-foreground">
+              <span>{patient?.jenis_kelamin === "L" ? "L" : patient?.jenis_kelamin === "P" ? "P" : "-"}</span>
+              {patient?.tanggal_lahir && (
+                <><span className="text-muted-foreground/50">·</span><span>{calculateAge(patient.tanggal_lahir)} thn</span></>
+              )}
+              <span className="text-muted-foreground/50">·</span>
+              <span>#{visit?.visit_number}</span>
+              {billing && (
+                <>
+                  <span className="text-muted-foreground/50">·</span>
+                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5">
+                    {billingStatusLabels[billing?.status] || billing?.status}
+                  </Badge>
+                </>
               )}
             </div>
           </div>
         </div>
-      </CardHeader>
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          {actionButtons && (
+            <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+              {actionButtons}
+            </div>
+          )}
+          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5">
+            {visitStatusLabels[visit?.status] || visit?.status}
+          </Badge>
+          <div className="flex items-center justify-center h-7 w-7 rounded-md border text-muted-foreground transition-transform duration-200">
+            <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} />
+          </div>
+        </div>
+      </div>
       {isOpen && (
-        <CardContent className="p-3 absolute left-0 right-0 top-full z-50 bg-background border-b shadow-lg">
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
+        <CardContent className="px-4 pb-4 pt-0">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 pt-3 border-t">
             {/* Column 1: Demographic Info */}
             <div className="space-y-2">
-              <h4 className="text-xs font-semibold text-muted-foreground uppercase">
+              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                 Data Demografis
               </h4>
               {patient?.tanggal_lahir && (
@@ -231,7 +200,7 @@ export function PatientBillingInfo({ visit, billing }: PatientBillingInfoProps) 
 
             {/* Column 2: Visit Info */}
             <div className="space-y-2">
-              <h4 className="text-xs font-semibold text-muted-foreground uppercase">
+              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                 Informasi Kunjungan
               </h4>
               <div>
@@ -252,11 +221,9 @@ export function PatientBillingInfo({ visit, billing }: PatientBillingInfoProps) 
               </div>
               <div>
                 <label className="text-xs text-muted-foreground">Status Kunjungan</label>
-                <div className="mt-0.5">
-                  <Badge className={visitStatusColors[visit?.status] || ''}>
-                    {visitStatusLabels[visit?.status] || visit?.status}
-                  </Badge>
-                </div>
+                <p className="text-xs font-medium mt-0.5">
+                  {visitStatusLabels[visit?.status] || visit?.status}
+                </p>
               </div>
               {visit?.start_time && (
                 <div>
@@ -294,7 +261,7 @@ export function PatientBillingInfo({ visit, billing }: PatientBillingInfoProps) 
 
             {/* Column 3: Medical Service Info */}
             <div className="space-y-2">
-              <h4 className="text-xs font-semibold text-muted-foreground uppercase">
+              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                 Layanan Medis
               </h4>
               <div>
@@ -313,17 +280,15 @@ export function PatientBillingInfo({ visit, billing }: PatientBillingInfoProps) 
                 <label className="text-xs text-muted-foreground">
                   Metode Pembayaran
                 </label>
-                <div className="mt-0.5">
-                  <Badge variant={visit?.registration?.payment_method === 'bpjs' ? 'default' : 'secondary'}>
-                    {visit?.registration?.payment_method === "bpjs"
-                      ? "BPJS"
-                      : visit?.registration?.payment_method === "insurance"
-                      ? "Asuransi"
-                      : visit?.registration?.payment_method === "cash"
-                      ? "Tunai"
-                      : "-"}
-                  </Badge>
-                </div>
+                <p className="text-xs font-medium mt-0.5">
+                  {visit?.registration?.payment_method === "bpjs"
+                    ? "BPJS"
+                    : visit?.registration?.payment_method === "insurance"
+                    ? "Asuransi"
+                    : visit?.registration?.payment_method === "cash"
+                    ? "Tunai"
+                    : "-"}
+                </p>
               </div>
               {visit?.registration?.payment_method === "bpjs" &&
                 visit?.registration?.bpjs_number && (
@@ -351,7 +316,7 @@ export function PatientBillingInfo({ visit, billing }: PatientBillingInfoProps) 
 
             {/* Column 4: Billing Info */}
             <div className="space-y-2">
-              <h4 className="text-xs font-semibold text-muted-foreground uppercase">
+              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                 Informasi Tagihan
               </h4>
               {billing ? (
@@ -368,17 +333,15 @@ export function PatientBillingInfo({ visit, billing }: PatientBillingInfoProps) 
                     <label className="text-xs text-muted-foreground">
                       Status Tagihan
                     </label>
-                    <div className="mt-0.5">
-                      <Badge className={billingStatusColors[billing?.status] || ''}>
-                        {billingStatusLabels[billing?.status] || billing?.status}
-                      </Badge>
-                    </div>
+                    <p className="text-xs font-medium mt-0.5">
+                      {billingStatusLabels[billing?.status] || billing?.status}
+                    </p>
                   </div>
                   <div>
                     <label className="text-xs text-muted-foreground">
                       Total Tagihan
                     </label>
-                    <p className="text-xs font-bold mt-0.5 text-primary">
+                    <p className="text-xs font-bold mt-0.5">
                       {formatCurrency(billing.final_amount)}
                     </p>
                   </div>
@@ -386,7 +349,7 @@ export function PatientBillingInfo({ visit, billing }: PatientBillingInfoProps) 
                     <label className="text-xs text-muted-foreground">
                       Terbayar
                     </label>
-                    <p className="text-xs font-medium mt-0.5 text-green-600 dark:text-green-400">
+                    <p className="text-xs font-medium mt-0.5">
                       {formatCurrency(billing.paid_amount)}
                     </p>
                   </div>
@@ -394,7 +357,7 @@ export function PatientBillingInfo({ visit, billing }: PatientBillingInfoProps) 
                     <label className="text-xs text-muted-foreground">
                       Sisa
                     </label>
-                    <p className="text-xs font-bold mt-0.5 text-orange-600 dark:text-orange-400">
+                    <p className="text-xs font-bold mt-0.5">
                       {formatCurrency(billing.remaining_amount)}
                     </p>
                   </div>

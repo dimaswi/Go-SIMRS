@@ -675,8 +675,8 @@ export function SurgeryOrderForm({ visitId, readOnly = false }: SurgeryOrderForm
   }
 
   return (
-    <Card className="shadow-md">
-      <CardHeader className="border-b bg-muted/30 py-3 px-4">
+    <Card>
+      <CardHeader className="py-3 px-4">
         <CardTitle className="text-base font-semibold flex items-center gap-2">
           <Scissors className="h-4 w-4" />
           Order Operasi / Bedah
@@ -731,8 +731,7 @@ export function SurgeryOrderForm({ visitId, readOnly = false }: SurgeryOrderForm
           </div>
         </div>
 
-        <ScrollArea className="h-[calc(100vh-450px)] min-h-[570px]">
-          <div className="p-4">
+        <div className="p-4">
             {/* Order Form Tab */}
             {activeTab === "form" && canOrder && (
               <fieldset disabled={readOnly} className="space-y-5">
@@ -987,8 +986,7 @@ export function SurgeryOrderForm({ visitId, readOnly = false }: SurgeryOrderForm
                 )}
               </div>
             )}
-          </div>
-        </ScrollArea>
+        </div>
       </CardContent>
     </Card>
   );

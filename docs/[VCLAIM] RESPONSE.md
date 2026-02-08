@@ -328,3 +328,96 @@ Response :
                 }
             }
         }
+
+7. SURAT PENCARIAN SURAT KONTROL BY NOMOR KARTU 
+Request : 
+{
+	"response": {
+		"noSuratKontrol": "0301R0111125K000002",
+		"tglRencanaKontrol": "2025-11-25",
+		"tglTerbit": "2025-11-18",
+		"jnsKontrol": "2",
+		"poliTujuan": "BED",
+		"namaPoliTujuan": "BEDAH",
+		"kodeDokter": "31348",
+		"namaDokter": "CIiNatXXAXSkrIrPId,ManFs.SDDMe",
+		"flagKontrol": "False",
+		"kodeDokterPembuat": "31348",
+		"namaDokterPembuat": "CIiNatXXAXSkrIrPId,ManFs.SDDMe",
+		"namaJnsKontrol": "Kontrol",
+		"sep": {
+			"noSep": "0301R0110725V000006",
+			"tglSep": "2025-07-30",
+			"jnsPelayanan": "Rawat Jalan",
+			"poli": "BED - BEDAH",
+			"diagnosa": "E10 - Insulin-dependent diabetes mellitus",
+			"peserta": {
+				"noKartu": "0002482505324",
+				"nama": "ARMSTIOFIALR",
+				"tglLahir": "1983-09-07",
+				"kelamin": "P",
+				"hakKelas": "-"
+			},
+			"provUmum": {
+				"kdProvider": "10210901",
+				"nmProvider": "KERTASEMAYA"
+			},
+			"provPerujuk": {
+				"kdProviderPerujuk": "0050B107",
+				"nmProviderPerujuk": "Klinik Sehat Gajah Mada",
+				"asalRujukan": "1",
+				"noRujukan": "0050B1070924P000001",
+				"tglRujukan": "2025-10-01"
+			}
+		},
+		"formPRB": {
+			"kdStatusPRB": null,
+			"data": {
+				"HBA1C": null,
+				"GDP": null,
+				"GD2JPP": null,
+				"eGFR": null,
+				"TD_Sistolik": null,
+				"TD_Diastolik": null,
+				"LDL": null,
+				"Rata_TD_Sistolik": null,
+				"Rata_TD_Diastolik": null,
+				"JantungKoroner": null,
+				"Stroke": null,
+				"VaskularPerifer": null,
+				"Aritmia": null,
+				"AtrialFibrilasi": null,
+				"SesakNapas3Bulan": null,
+				"NyeriDada3Bulan": null,
+				"Terkontrol": null,
+				"Gejala2xMinggu": null,
+				"BangunMalam": null,
+				"KeterbatasanFisik": null,
+				"FungsiParu": null,
+				"SkorMMRC": null,
+				"Eksaserbasi1Tahun": null,
+				"MampuAktivitas": null,
+				"Epileptik6Bulan": null,
+				"EfekSampingOAB": null,
+				"HamilMenyusui": null,
+				"Remisi": null,
+				"TerapiRumatan": null,
+				"Usia": null,
+				"AsamUrat": null,
+				"RemisiSLE": null,
+				"Hamil": null,
+				"NadiIstirahat": null,
+				"SesakNapasAktivitas": null,
+				"NyeriDadaAktivitas": null
+			}
+		}
+	},
+	"metaData": {
+		"code": "200",
+		"message": "Sukses"
+	}
+}
+    
+Catatan: 
+Ketika pembuatan SPRI atau jenis kontrol 1 tidak ada referensi nomor SEP asalnya, jadi field response SEP kosong atau null. 
+Sedangkan jika pembuatan surat kontrol atau jenis kontrol 2, akan terisi field response SEP karena terdapat referensi nomor SEP asal ketika pembuatan surat kontrol tersebut.

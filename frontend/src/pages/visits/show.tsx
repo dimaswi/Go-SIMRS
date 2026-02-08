@@ -6,6 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { usePermission } from "@/hooks/usePermission";
 import { setPageTitle } from "@/lib/page-title";
 import { Loader2, History, PanelLeftClose, PanelLeft } from "lucide-react";
+import { useBreadcrumb } from "@/contexts/breadcrumb-context";
 import { visitsApi, medicalRecordsApi } from "@/lib/api";
 import { PatientInfo } from "@/components/medical-record/patient-info";
 import { MedicalRecordTabs } from "@/components/medical-record/medical-record-tabs";
@@ -65,6 +66,7 @@ export default function VisitShow() {
   const [historyDrawerOpen, setHistoryDrawerOpen] = useState(false);
   const [patientId, setPatientId] = useState<number | null>(null);
   const [patientName, setPatientName] = useState<string>("");
+  const { setOverride } = useBreadcrumb();
 
   // Refresh tab content when switching tabs
   const handleTabChange = (tab: string) => {
@@ -76,6 +78,16 @@ export default function VisitShow() {
   useEffect(() => {
     localStorage.setItem('medicalRecordSidebarHidden', JSON.stringify(sidebarHidden));
   }, [sidebarHidden]);
+
+  // Update breadcrumb with patient name when available
+  useEffect(() => {
+    if (patientName) {
+      setOverride({
+        extraSegments: [{ label: patientName }],
+      });
+    }
+    return () => setOverride(null);
+  }, [patientName, setOverride]);
 
   // Reset states and load visit when ID changes (navigating to different visit)
   // This ensures the correct default tab is shown for each visit type
@@ -898,14 +910,14 @@ export default function VisitShow() {
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div>
       {/* Patient Info Header - Sticky */}
-      <div className="sticky top-0 z-50 bg-background px-6 pt-6 pb-3 flex-shrink-0">
+      <div className="sticky top-0 z-40 bg-background px-6 pt-6 pb-3">
         <PatientInfo visit={visit} />
       </div>
 
       {/* Main Content Area with Tabs and Form */}
-      <div className="flex-1 min-h-0 px-6 pb-6 pt-4">
+      <div className="px-6 pb-6 pt-4">
         <div className="flex gap-4">
           {/* Left Sidebar: Menu Navigation - Clean without Card */}
           <div className={`self-start sticky top-[120px] z-30 transition-all duration-300 ease-in-out ${

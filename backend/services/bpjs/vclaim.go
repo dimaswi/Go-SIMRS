@@ -1220,14 +1220,15 @@ func (c *VClaimClient) UpdateSuratKontrol(noSuratKontrol, noSEP, kodeDokter, pol
 // DeleteSuratKontrol menghapus surat kontrol
 // Endpoint: DELETE /RencanaKontrol/Delete
 // Request body format sesuai dokumentasi BPJS:
-// {
-//   "request": {
-//     "t_suratkontrol": {
-//       "noSuratKontrol": "xxx",
-//       "user": "xxx"
-//     }
-//   }
-// }
+//
+//	{
+//	  "request": {
+//	    "t_suratkontrol": {
+//	      "noSuratKontrol": "xxx",
+//	      "user": "xxx"
+//	    }
+//	  }
+//	}
 func (c *VClaimClient) DeleteSuratKontrol(noSuratKontrol, user string) error {
 	reqBody := map[string]interface{}{
 		"request": map[string]interface{}{
@@ -1247,6 +1248,69 @@ func (c *VClaimClient) DeleteSuratKontrol(noSuratKontrol, user string) error {
 	}
 
 	return nil
+}
+
+// ==================== SURAT KONTROL DETAIL ====================
+
+// SuratKontrolDetailResponse adalah response detail surat kontrol
+type SuratKontrolDetailResponse struct {
+	NoSuratKontrol    string `json:"noSuratKontrol"`
+	TglRencanaKontrol string `json:"tglRencanaKontrol"`
+	TglTerbit         string `json:"tglTerbit"`
+	JnsKontrol        string `json:"jnsKontrol"`        // 1=SPRI, 2=Kontrol
+	PoliTujuan        string `json:"poliTujuan"`        // Kode poli
+	NamaPoliTujuan    string `json:"namaPoliTujuan"`    // Nama poli
+	KodeDokter        string `json:"kodeDokter"`        // Kode dokter
+	NamaDokter        string `json:"namaDokter"`        // Nama dokter
+	FlagKontrol       string `json:"flagKontrol"`       // True/False - sudah terbit SEP atau belum
+	KodeDokterPembuat string `json:"kodeDokterPembuat"` // Kode dokter pembuat
+	NamaDokterPembuat string `json:"namaDokterPembuat"` // Nama dokter pembuat
+	NamaJnsKontrol    string `json:"namaJnsKontrol"`    // "SPRI" atau "Kontrol"
+	Sep               *struct {
+		NoSep        string `json:"noSep"`
+		TglSep       string `json:"tglSep"`
+		JnsPelayanan string `json:"jnsPelayanan"`
+		Poli         string `json:"poli"`
+		Diagnosa     string `json:"diagnosa"`
+		Peserta      struct {
+			NoKartu  string `json:"noKartu"`
+			Nama     string `json:"nama"`
+			TglLahir string `json:"tglLahir"`
+			Kelamin  string `json:"kelamin"`
+			HakKelas string `json:"hakKelas"`
+		} `json:"peserta"`
+		ProvUmum struct {
+			KdProvider string `json:"kdProvider"`
+			NmProvider string `json:"nmProvider"`
+		} `json:"provUmum"`
+		ProvPerujuk struct {
+			KdProviderPerujuk string `json:"kdProviderPerujuk"`
+			NmProviderPerujuk string `json:"nmProviderPerujuk"`
+			AsalRujukan       string `json:"asalRujukan"`
+			NoRujukan         string `json:"noRujukan"`
+			TglRujukan        string `json:"tglRujukan"`
+		} `json:"provPerujuk"`
+	} `json:"sep"` // Null jika jnsKontrol=1 (SPRI)
+}
+
+// GetSuratKontrolDetail mendapatkan detail surat kontrol berdasarkan nomor surat kontrol
+func (c *VClaimClient) GetSuratKontrolDetail(noSuratKontrol string) (*SuratKontrolDetailResponse, error) {
+	endpoint := fmt.Sprintf("/RencanaKontrol/noSuratKontrol/%s", noSuratKontrol)
+
+	respBody, code, err := c.Request("GET", endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+	if code != 200 {
+		return nil, fmt.Errorf("VClaim response code: %d", code)
+	}
+
+	var result SuratKontrolDetailResponse
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return nil, fmt.Errorf("parse surat kontrol detail response: %w", err)
+	}
+
+	return &result, nil
 }
 
 // GetPoliKontrolSPRI mendapatkan referensi poli untuk SPRI (rawat inap)
@@ -1297,4 +1361,75 @@ func (c *VClaimClient) GetDokterSPRI(kodePoli string, tglPelayanan string) ([]ma
 	}
 
 	return result.List, nil
+}
+
+// PersetujuanSEPItem adalah item dalam list persetujuan SEP
+type PersetujuanSEPItem struct {
+	NoKartu      string `json:"noKartu"`
+	Nama         string `json:"nama"`
+	TglSEP       string `json:"tglsep"`
+	JnsPelayanan string `json:"jnspelayanan"`
+	Persetujuan  string `json:"persetujuan"`
+	Status       string `json:"status"`
+}
+
+// GetListPersetujuanSEP mendapatkan daftar SEP yang butuh persetujuan (approval)
+func (c *VClaimClient) GetListPersetujuanSEP(bulan, tahun string) ([]PersetujuanSEPItem, error) {
+	endpoint := fmt.Sprintf("/Sep/persetujuanSEP/list/bulan/%s/tahun/%s", bulan, tahun)
+
+	respBody, code, err := c.Request("GET", endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+	if code != 200 {
+		return nil, fmt.Errorf("VClaim response code: %d", code)
+	}
+
+	var result struct {
+		List []PersetujuanSEPItem `json:"list"`
+	}
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return nil, fmt.Errorf("parse persetujuan SEP response: %w", err)
+	}
+
+	return result.List, nil
+}
+
+// ApprovalSEPRequest adalah request body untuk approval SEP
+type ApprovalSEPRequest struct {
+	NoKartu      string `json:"noKartu"`
+	TglSEP       string `json:"tglSep"`
+	JnsPelayanan string `json:"jnsPelayanan"` // 1 = Rawat Inap, 2 = Rawat Jalan
+	JnsPengajuan string `json:"jnsPengajuan"` // 1 = backdate, 2 = finger print
+	Keterangan   string `json:"keterangan"`
+	User         string `json:"user"`
+}
+
+// ApprovalSEP mengajukan approval untuk SEP (backdate atau fingerprint)
+func (c *VClaimClient) ApprovalSEP(req *ApprovalSEPRequest) error {
+	endpoint := "/Sep/aprovalSEP"
+
+	// Build request body sesuai format BPJS
+	body := map[string]interface{}{
+		"request": map[string]interface{}{
+			"t_sep": map[string]interface{}{
+				"noKartu":      req.NoKartu,
+				"tglSep":       req.TglSEP,
+				"jnsPelayanan": req.JnsPelayanan,
+				"jnsPengajuan": req.JnsPengajuan,
+				"keterangan":   req.Keterangan,
+				"user":         req.User,
+			},
+		},
+	}
+
+	respBody, code, err := c.Request("POST", endpoint, body)
+	if err != nil {
+		return err
+	}
+	if code != 200 {
+		return fmt.Errorf("VClaim response code: %d, body: %s", code, string(respBody))
+	}
+
+	return nil
 }

@@ -22,13 +22,6 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
   Table,
   TableBody,
   TableCell,
@@ -111,24 +104,20 @@ export default function ProcedureShow() {
   if (loading) {
     return (
       <div className="flex flex-1 flex-col gap-4 p-6">
-        <Card className="shadow-md">
-          <CardHeader className="border-b bg-muted/50">
-            <div className="flex items-center gap-4">
+        <div className="rounded-lg border p-6">
+            <div className="flex items-center gap-4 mb-6">
               <Skeleton className="h-9 w-9" />
               <div className="space-y-2">
                 <Skeleton className="h-5 w-48" />
                 <Skeleton className="h-4 w-32" />
               </div>
             </div>
-          </CardHeader>
-          <CardContent className="pt-6">
             <div className="space-y-4">
               <Skeleton className="h-20 w-full" />
               <Skeleton className="h-20 w-full" />
               <Skeleton className="h-20 w-full" />
             </div>
-          </CardContent>
-        </Card>
+        </div>
       </div>
     );
   }
@@ -139,9 +128,7 @@ export default function ProcedureShow() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
-          <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <Button variant="outline" size="icon" asChild className="h-9 w-9">
                 <Link to="/procedures">
@@ -150,12 +137,12 @@ export default function ProcedureShow() {
               </Button>
               <div>
                 <div className="flex items-center gap-2">
-                  <CardTitle className="text-base font-semibold">{procedure.name}</CardTitle>
+                  <h1 className="text-lg font-semibold">{procedure.name}</h1>
                   <Badge variant={procedure.is_active ? "default" : "secondary"}>
                     {procedure.is_active ? "Aktif" : "Nonaktif"}
                   </Badge>
                 </div>
-                <CardDescription className="font-mono">Kode: {procedure.code}</CardDescription>
+                <p className="text-sm text-muted-foreground font-mono">Kode: {procedure.code}</p>
               </div>
             </div>
             <div className="flex gap-2">
@@ -170,9 +157,8 @@ export default function ProcedureShow() {
                 Hapus
               </Button>
             </div>
-          </div>
-        </CardHeader>
-        <CardContent className="pt-6">
+      </div>
+      <div className="rounded-lg border p-6">
           <div className="space-y-6">
             {/* Badges */}
             <div className="flex flex-wrap gap-2">
@@ -311,8 +297,7 @@ export default function ProcedureShow() {
               </>
             )}
           </div>
-        </CardContent>
-      </Card>
+      </div>
 
       {/* Parameter Management */}
       <ParameterManagement

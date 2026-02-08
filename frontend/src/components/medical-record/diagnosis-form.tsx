@@ -5,7 +5,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Combobox } from "@/components/ui/combobox";
 import { Save, Plus, X, Loader2, ChevronDown, ChevronUp, FileText, Stethoscope, AlertCircle, Search } from "lucide-react";
 import {
@@ -213,8 +212,8 @@ export function DiagnosisForm({ visitId, onSave, readOnly = false, isPatientDisc
 
   if (loading || masterDataLoading) {
     return (
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
+      <Card>
+        <CardHeader>
           <CardTitle className="text-lg">Diagnosis (ICD-10)</CardTitle>
         </CardHeader>
         <CardContent className="p-6">
@@ -345,8 +344,8 @@ export function DiagnosisForm({ visitId, onSave, readOnly = false, isPatientDisc
   );
 
   return (
-    <Card className="shadow-md">
-      <CardHeader className="border-b bg-muted/30 py-3 px-4">
+    <Card>
+      <CardHeader className="py-3 px-4">
         <div className="flex items-center justify-between">
           <div className="flex-1">
             <CardTitle className="text-base font-semibold flex items-center gap-2">
@@ -362,9 +361,7 @@ export function DiagnosisForm({ visitId, onSave, readOnly = false, isPatientDisc
           </Badge>
         </div>
       </CardHeader>
-      <CardContent className="p-0">
-        <ScrollArea className="h-[calc(100vh-300px)] min-h-[400px]">
-          <div className="p-4">
+      <CardContent>
             <EditModeBanner
               isPatientDischarged={isPatientDischarged}
               isEditing={isEditing}
@@ -376,16 +373,13 @@ export function DiagnosisForm({ visitId, onSave, readOnly = false, isPatientDisc
             <div className="space-y-6">
             
             {/* Section 1: Diagnosis Primer */}
-            <Card className="border-green-200 dark:border-green-800">
-              <CardHeader className="py-3 px-4 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30">
+            <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-green-100 dark:bg-green-900/50">
-                      <Stethoscope className="h-5 w-5 text-green-500" />
-                    </div>
-                    <CardTitle className="text-base font-semibold">
+                    <Stethoscope className="h-5 w-5 text-muted-foreground" />
+                    <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase">
                       Diagnosis Primer <span className="text-destructive">*</span>
-                    </CardTitle>
+                    </h3>
                     <Badge variant={primaryDiagnoses.length > 0 ? "default" : "outline"}>
                       {primaryDiagnoses.length}
                     </Badge>
@@ -463,8 +457,6 @@ export function DiagnosisForm({ visitId, onSave, readOnly = false, isPatientDisc
                     </PopoverContent>
                   </Popover>
                 </div>
-              </CardHeader>
-              <CardContent className="p-4">
                 {primaryDiagnoses.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground border-2 border-dashed rounded-lg">
                     <Stethoscope className="h-8 w-8 mx-auto mb-2 opacity-50" />
@@ -479,18 +471,14 @@ export function DiagnosisForm({ visitId, onSave, readOnly = false, isPatientDisc
                     })}
                   </div>
                 )}
-              </CardContent>
-            </Card>
+            </div>
 
             {/* Section 2: Diagnosis Sekunder */}
-            <Card className="border-blue-200 dark:border-blue-800">
-              <CardHeader className="py-3 px-4 bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-950/30 dark:to-cyan-950/30">
+            <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/50">
-                      <FileText className="h-5 w-5 text-blue-500" />
-                    </div>
-                    <CardTitle className="text-base font-semibold">Diagnosis Sekunder</CardTitle>
+                    <FileText className="h-5 w-5 text-muted-foreground" />
+                    <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase">Diagnosis Sekunder</h3>
                     <Badge variant={secondaryDiagnoses.length > 0 ? "default" : "outline"}>
                       {secondaryDiagnoses.length}
                     </Badge>
@@ -564,8 +552,6 @@ export function DiagnosisForm({ visitId, onSave, readOnly = false, isPatientDisc
                     </PopoverContent>
                   </Popover>
                 </div>
-              </CardHeader>
-              <CardContent className="p-4">
                 {secondaryDiagnoses.length === 0 ? (
                   <div className="text-center py-6 text-muted-foreground border-2 border-dashed rounded-lg">
                     <p className="text-sm">Tidak ada diagnosis sekunder</p>
@@ -578,20 +564,14 @@ export function DiagnosisForm({ visitId, onSave, readOnly = false, isPatientDisc
                     })}
                   </div>
                 )}
-              </CardContent>
-            </Card>
+            </div>
 
             {/* Section 3: Kesan Klinis & Diagnosis Banding */}
-            <Card className="border-purple-200 dark:border-purple-800">
-              <CardHeader className="py-3 px-4 bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-950/30 dark:to-pink-950/30">
+            <div className="space-y-4">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-purple-100 dark:bg-purple-900/50">
-                    <FileText className="h-5 w-5 text-purple-500" />
-                  </div>
-                  <CardTitle className="text-base font-semibold">Kesan Klinis & Diagnosis Banding</CardTitle>
+                  <FileText className="h-5 w-5 text-muted-foreground" />
+                  <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase">Kesan Klinis & Diagnosis Banding</h3>
                 </div>
-              </CardHeader>
-              <CardContent className="p-4 space-y-4">
                 {/* Clinical Impression */}
                 <div className="space-y-2">
                   <Label htmlFor="clinical_impression" className="text-sm font-semibold">
@@ -612,7 +592,7 @@ export function DiagnosisForm({ visitId, onSave, readOnly = false, isPatientDisc
                 {/* Differential Diagnosis */}
                 <div className="space-y-2">
                   <Label htmlFor="differential_diagnosis" className="text-sm font-semibold flex items-center gap-2">
-                    <AlertCircle className="h-4 w-4 text-purple-500" />
+                    <AlertCircle className="h-4 w-4 text-muted-foreground" />
                     Diagnosis Banding
                   </Label>
                   <Textarea
@@ -626,8 +606,7 @@ export function DiagnosisForm({ visitId, onSave, readOnly = false, isPatientDisc
                     Daftar diagnosis alternatif yang perlu dipertimbangkan
                   </p>
                 </div>
-              </CardContent>
-            </Card>
+            </div>
 
             {/* Submit Button */}
             {!isFormDisabled && (
@@ -641,8 +620,6 @@ export function DiagnosisForm({ visitId, onSave, readOnly = false, isPatientDisc
             </div>
           </form>
         </fieldset>
-          </div>
-        </ScrollArea>
       </CardContent>
       <EditConfirmDialog
         open={showEditDialog}

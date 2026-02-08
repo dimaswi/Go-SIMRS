@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -13,7 +13,6 @@ import {
   AlertTriangle,
   Pill,
   ChevronDown,
-  ChevronUp,
   MessageSquare,
   ArrowLeft,
   Loader2,
@@ -118,86 +117,22 @@ const getPriorityBadge = (priority?: string) => {
   return <Badge variant={config.variant}>{config.label}</Badge>;
 };
 
-// Get visit category badge based on visit_type and service_type
-const getVisitCategoryBadge = (visit: PatientInfoProps["visit"]) => {
+// Get visit category label based on visit_type and service_type
+const getVisitCategoryLabel = (visit: PatientInfoProps["visit"]) => {
   const serviceType = visit.room?.service_type;
   const visitType = visit.visit_type;
   const hasReferral = !!visit.referral_from;
 
-  // Support visits (order from other visit)
-  if (visitType === "pharmacy") {
-    return (
-      <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 border-purple-300">
-        🏥 Farmasi
-      </Badge>
-    );
-  }
-  if (visitType === "radiology") {
-    return (
-      <Badge className="bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200 border-cyan-300">
-        📷 Radiologi
-      </Badge>
-    );
-  }
-  if (visitType === "lab") {
-    return (
-      <Badge className="bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200 border-teal-300">
-        🧪 Laboratorium
-      </Badge>
-    );
-  }
-  if (visitType === "consultation" && hasReferral) {
-    return (
-      <Badge className="bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200 border-indigo-300">
-        👨‍⚕️ Order Konsultasi
-      </Badge>
-    );
-  }
-  if (visitType === "surgery") {
-    return (
-      <Badge className="bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200 border-orange-300">
-        🔪 Operasi
-      </Badge>
-    );
-  }
-
-  // Clinical visits based on service_type
-  if (serviceType === "gawat_darurat" || visitType === "emergency") {
-    return (
-      <Badge className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 border-red-300">
-        🚨 UGD
-      </Badge>
-    );
-  }
-  if (serviceType === "rawat_inap" || visitType === "inpatient") {
-    return (
-      <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 border-blue-300">
-        🛏️ Rawat Inap
-      </Badge>
-    );
-  }
-  if (serviceType === "rawat_jalan" || visitType === "outpatient") {
-    return (
-      <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border-green-300">
-        🏃 Rawat Jalan
-      </Badge>
-    );
-  }
-
-  // Fallback for consultation (non-order) or other
-  if (visitType === "consultation") {
-    return (
-      <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border-green-300">
-        👨‍⚕️ Konsultasi
-      </Badge>
-    );
-  }
-
-  return (
-    <Badge variant="outline">
-      {visitType || "Kunjungan"}
-    </Badge>
-  );
+  if (visitType === "pharmacy") return "Farmasi";
+  if (visitType === "radiology") return "Radiologi";
+  if (visitType === "lab") return "Laboratorium";
+  if (visitType === "consultation" && hasReferral) return "Konsultasi";
+  if (visitType === "surgery") return "Operasi";
+  if (serviceType === "gawat_darurat" || visitType === "emergency") return "UGD";
+  if (serviceType === "rawat_inap" || visitType === "inpatient") return "Rawat Inap";
+  if (serviceType === "rawat_jalan" || visitType === "outpatient") return "Rawat Jalan";
+  if (visitType === "consultation") return "Konsultasi";
+  return visitType || "Kunjungan";
 };
 
 export function PatientInfo({ visit }: PatientInfoProps) {
@@ -205,7 +140,6 @@ export function PatientInfo({ visit }: PatientInfoProps) {
   
   const patient = visit.registration?.patient;
   const patientId = patient?.id;
-  const registrationId = visit.registration?.registration_number ? visit.id : null;
   
   // Patient allergies from dedicated allergy table
   const [patientAllergies, setPatientAllergies] = useState<PatientAllergy[]>([]);
@@ -290,97 +224,77 @@ export function PatientInfo({ visit }: PatientInfoProps) {
 
   return (
     <Card className="border-none shadow-none">
-      <CardHeader className="border-b bg-muted/30 px-4 py-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Button 
-              variant="outline" 
-              size="icon" 
-              onClick={() => navigate("/visits")}
-              className="flex-shrink-0"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <div 
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 cursor-pointer"
-              onClick={() => setIsOpen(!isOpen)}
-            >
-              <User className="h-5 w-5 text-primary" />
-            </div>
-            <div 
-              className="cursor-pointer hover:opacity-80 transition-opacity flex-1"
-              onClick={() => setIsOpen(!isOpen)}
-            >
-              <h3 className="text-base font-semibold">
+      <div
+        className="flex items-center justify-between px-4 py-3 cursor-pointer select-none transition-colors hover:bg-muted/40 rounded-lg"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <Button 
+            variant="outline" 
+            size="icon" 
+            onClick={(e) => { e.stopPropagation(); navigate("/visits"); }}
+            className="flex-shrink-0"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-muted flex-shrink-0">
+            <User className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-semibold truncate">
                 {patient?.nama_lengkap || "-"}
               </h3>
-              <div className="flex items-center gap-2 mt-0.5">
-                <span className="text-xs text-muted-foreground">Kunjungan #{visit.visit_number}</span>
-                <span className="text-muted-foreground">•</span>
-                <Badge variant="outline" className="font-mono text-xs">
-                  {patient?.no_rm || "-"}
-                </Badge>
-                <Badge
-                  variant={
-                    patient?.jenis_kelamin === "L" ? "default" : "secondary"
-                  }
-                  className="text-xs"
-                >
-                  {patient?.jenis_kelamin === "L"
-                    ? "Laki-laki"
-                    : patient?.jenis_kelamin === "P"
-                    ? "Perempuan"
-                    : "-"}
-                </Badge>
-              </div>
+              <Badge variant="outline" className="font-mono text-[10px] px-1.5 py-0 h-5 flex-shrink-0">
+                {patient?.no_rm || "-"}
+              </Badge>
+            </div>
+            <div className="flex items-center gap-1.5 mt-0.5 text-xs text-muted-foreground">
+              <span>{patient?.jenis_kelamin === "L" ? "L" : patient?.jenis_kelamin === "P" ? "P" : "-"}</span>
+              {patient?.tanggal_lahir && (
+                <><span className="text-muted-foreground/50">·</span><span>{calculateAge(patient.tanggal_lahir)} thn</span></>
+              )}
+              <span className="text-muted-foreground/50">·</span>
+              <span>#{visit.visit_number}</span>
+              <span className="text-muted-foreground/50">·</span>
+              <span>{getVisitCategoryLabel(visit)}</span>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            {/* Print Select Dropdown */}
+        </div>
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          {/* SEP Badge */}
+          {sepInfo && (
+            <Badge variant="outline" className="gap-1 text-[10px] px-1.5 py-0 h-5">
+              <ShieldCheck className="h-3 w-3" />
+              SEP
+            </Badge>
+          )}
+          {isPatientDischarged && (
+            <Badge variant="secondary" className="gap-1 text-[10px] px-1.5 py-0 h-5">
+              Selesai
+            </Badge>
+          )}
+          {hasAllergies && (
+            <Badge variant="destructive" className="gap-1 text-[10px] px-1.5 py-0 h-5">
+              <AlertTriangle className="h-3 w-3" />
+              Alergi
+            </Badge>
+          )}
+          {/* Print Select Dropdown */}
+          <div onClick={(e) => e.stopPropagation()}>
             <MedicalRecordPrintSelect
               visitId={visit.id}
               isInpatient={isInpatient}
               isEmergency={isEmergency}
             />
-            {/* Visit Category Badge */}
-            {getVisitCategoryBadge(visit)}
-            {/* SEP Badge */}
-            {sepInfo && (
-              <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 border-blue-300 gap-1.5">
-                <ShieldCheck className="h-3.5 w-3.5" />
-                SEP
-              </Badge>
-            )}
-            {isPatientDischarged && (
-              <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 border-amber-300 gap-1.5">
-                <AlertTriangle className="h-3.5 w-3.5" />
-                Sudah Pulang
-              </Badge>
-            )}
-            {hasAllergies && (
-              <Badge variant="destructive" className="gap-1.5">
-                <AlertTriangle className="h-3.5 w-3.5" />
-                Alergi
-              </Badge>
-            )}
-            <div 
-              className="flex items-center justify-center h-8 w-8 cursor-pointer hover:bg-muted rounded"
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsOpen(!isOpen);
-              }}
-            >
-              {isOpen ? (
-                <ChevronUp className="h-4 w-4" />
-              ) : (
-                <ChevronDown className="h-4 w-4" />
-              )}
-            </div>
+          </div>
+          <div className="flex items-center justify-center h-7 w-7 rounded-md border text-muted-foreground transition-transform duration-200">
+            <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} />
           </div>
         </div>
-      </CardHeader>
+      </div>
       {isOpen && (
-        <CardContent className="p-3">
+        <CardContent className="px-4 pb-4 pt-0">
           {/* Allergy Alert Section */}
           {loadingAllergies ? (
             <div className="flex items-center gap-2 py-2 text-muted-foreground mb-3">
@@ -651,15 +565,15 @@ export function PatientInfo({ visit }: PatientInfoProps) {
                 )}
               {/* SEP Info */}
               {sepInfo && (
-                <div className="mt-2 p-2 rounded bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
+                <div className="mt-2 p-2 rounded-md bg-muted/50 border">
                   <div className="flex items-center gap-1.5 mb-1.5">
-                    <ShieldCheck className="h-3.5 w-3.5 text-blue-600" />
-                    <span className="text-xs font-semibold text-blue-800 dark:text-blue-200">SEP</span>
+                    <ShieldCheck className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="text-xs font-semibold">SEP</span>
                   </div>
                   <div className="space-y-1">
                     <div>
                       <label className="text-[10px] text-muted-foreground">No. SEP</label>
-                      <p className="font-mono text-xs font-bold text-blue-700 dark:text-blue-300">
+                      <p className="font-mono text-xs font-bold">
                         {sepInfo.no_sep}
                       </p>
                     </div>

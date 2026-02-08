@@ -1,13 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
-import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -557,45 +550,42 @@ export default function BPJSMappingPage() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
-          <div className="flex items-center gap-4">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => navigate("/integrations/config")}
-              className="h-9 w-9"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-              <Building2 className="h-5 w-5 text-primary" />
-            </div>
-            <div className="flex-1">
-              <CardTitle className="text-base font-semibold flex items-center gap-2">
-                Mapping Poli & Dokter BPJS
-              </CardTitle>
-              <CardDescription>
-                Petakan ruangan poliklinik dan dokter SIMRS dengan kode BPJS untuk antrian online
-              </CardDescription>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={loadData} disabled={loading}>
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Refresh
-              </Button>
-              <Button variant="outline" size="sm" onClick={loadBPJSPolis} disabled={loadingPolis}>
-                {loadingPolis ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-                Sync Poli
-              </Button>
-              <Button variant="outline" size="sm" onClick={loadBPJSDokters} disabled={loadingDokters}>
-                {loadingDokters ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-                Sync Dokter
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="p-4">
+      <div className="flex items-center gap-4">
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => navigate("/integrations/config")}
+          className="h-9 w-9"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+          <Building2 className="h-5 w-5 text-primary" />
+        </div>
+        <div className="flex-1">
+          <h1 className="text-lg font-semibold flex items-center gap-2">
+            Mapping Poli & Dokter BPJS
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Petakan ruangan poliklinik dan dokter SIMRS dengan kode BPJS untuk antrian online
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={loadData} disabled={loading}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
+          <Button variant="outline" size="sm" onClick={loadBPJSPolis} disabled={loadingPolis}>
+            {loadingPolis ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+            Sync Poli
+          </Button>
+          <Button variant="outline" size="sm" onClick={loadBPJSDokters} disabled={loadingDokters}>
+            {loadingDokters ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+            Sync Dokter
+          </Button>
+        </div>
+      </div>
+      <div className="rounded-lg border p-4">
           {/* Mapping Summary */}
           <div className="grid grid-cols-4 gap-4 mb-4 p-3 bg-muted/30 rounded-lg border">
             <div className="text-center">
@@ -841,8 +831,7 @@ export default function BPJSMappingPage() {
               </Accordion>
             )}
           </ScrollArea>
-        </CardContent>
-      </Card>
+      </div>
 
       {/* Poli Dialog */}
       <Dialog open={poliDialogOpen} onOpenChange={setPoliDialogOpen}>

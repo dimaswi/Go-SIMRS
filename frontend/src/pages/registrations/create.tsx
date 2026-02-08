@@ -1,12 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -467,31 +461,28 @@ export default function RegistrationCreate() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      <Card className="shadow-md w-full">
-        <CardHeader className="border-b bg-muted/50">
-          <div className="flex items-center gap-4">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => step === "registration" ? setStep("search") : navigate("/registrations")}
-              className="h-9 w-9"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <div>
-              <CardTitle className="text-base font-semibold flex items-center gap-2">
-                <UserPlus className="h-5 w-5" />
-                Pendaftaran Pasien
-              </CardTitle>
-              <CardDescription>
-                {step === "search"
-                  ? "Cari pasien berdasarkan Nama, NIK, No. RM, atau No. BPJS"
-                  : "Lengkapi data pendaftaran"}
-              </CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="pt-6">
+      <div className="flex items-center gap-4">
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => step === "registration" ? setStep("search") : navigate("/registrations")}
+          className="h-9 w-9"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <div>
+          <h1 className="text-lg font-semibold flex items-center gap-2">
+            <UserPlus className="h-5 w-5" />
+            Pendaftaran Pasien
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            {step === "search"
+              ? "Cari pasien berdasarkan Nama, NIK, No. RM, atau No. BPJS"
+              : "Lengkapi data pendaftaran"}
+          </p>
+        </div>
+      </div>
+      <div className="rounded-lg border p-6 w-full">
           {step === "search" && (
             <div className="space-y-4">
               {/* Search Bar */}
@@ -1052,8 +1043,7 @@ export default function RegistrationCreate() {
               </div>
             </form>
           )}
-        </CardContent>
-      </Card>
+      </div>
 
       {/* SEP Form Sheet */}
       {existingPatient && (

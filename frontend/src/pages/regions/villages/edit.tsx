@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { regionsApi, type Village } from '@/lib/api';
@@ -89,28 +88,26 @@ export default function VillageEditPage() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      <Card className="shadow-md max-w-2xl">
-        <CardHeader className="border-b bg-muted/50">
-          <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => navigate(`/regions/villages/${id}`)}
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <div className="space-y-1">
-              <CardTitle className="text-base font-semibold flex items-center gap-2">
-                <Home className="h-5 w-5" />
-                Edit Desa/Kelurahan
-              </CardTitle>
-              <CardDescription>
-                Edit data {village.name}
-              </CardDescription>
-            </div>
+      <div className="max-w-2xl space-y-6">
+        <div className="flex items-center gap-4">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate(`/regions/villages/${id}`)}
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div className="space-y-1">
+            <h1 className="text-lg font-semibold flex items-center gap-2">
+              <Home className="h-5 w-5" />
+              Edit Desa/Kelurahan
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Edit data {village.name}
+            </p>
           </div>
-        </CardHeader>
-        <CardContent className="pt-6">
+        </div>
+        <div className="rounded-lg border p-6">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label>Provinsi</Label>
@@ -170,8 +167,8 @@ export default function VillageEditPage() {
               </Button>
             </div>
           </form>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }

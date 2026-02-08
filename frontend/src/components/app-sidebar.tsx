@@ -193,6 +193,13 @@ export function AppSidebar() {
     window.location.href = '/login';
   };
 
+  // Check if a path is active (exact match or child route)
+  const isPathActive = (currentPath: string, menuPath: string) => {
+    if (currentPath === menuPath) return true;
+    // Check if current path is a child route (e.g. /visits/101 matches /visits)
+    return currentPath.startsWith(menuPath + '/');
+  };
+
   // Filter menu items based on permissions
   const visibleMenuItems = menuItems.filter(item => {
     // For items with submenu, check if any submenu item is visible
@@ -252,8 +259,8 @@ export function AppSidebar() {
             <SidebarMenu>
               {visibleMenuItems.map((item) => {
                 const Icon = item.icon;
-                const isActive = location.pathname === item.path || 
-                  ('submenu' in item && item.submenu && item.submenu.some((sub: any) => location.pathname === sub.path));
+                const isActive = isPathActive(location.pathname, item.path) ||
+                  ('submenu' in item && item.submenu && item.submenu.some((sub: any) => isPathActive(location.pathname, sub.path)));
                 
                 // Menu with submenu
                 if ('submenu' in item && item.submenu) {
@@ -281,7 +288,7 @@ export function AppSidebar() {
                         <DropdownMenuContent side="right" align="start" className="w-48">
                           {item.submenu.map((subItem: any) => {
                             const SubIcon = subItem.icon;
-                            const isSubActive = location.pathname === subItem.path;
+                            const isSubActive = isPathActive(location.pathname, subItem.path);
                             
                             return (
                               <DropdownMenuItem key={subItem.path} asChild>
@@ -324,7 +331,7 @@ export function AppSidebar() {
                           <SidebarMenuSub>
                             {item.submenu.map((subItem: any) => {
                               const SubIcon = subItem.icon;
-                              const isSubActive = location.pathname === subItem.path;
+                              const isSubActive = isPathActive(location.pathname, subItem.path);
                               
                               return (
                                 <SidebarMenuSubItem key={subItem.path}>

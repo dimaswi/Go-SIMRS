@@ -210,9 +210,9 @@ function OrderCollapsible({ order, onCancel, canCancel }: { order: ProcedureOrde
 
             {/* Results if completed */}
             {order.status === "completed" && (
-              <div className="bg-green-50 dark:bg-green-950 border border-green-200 rounded-lg p-3 space-y-2">
-                <p className="font-medium text-green-700 dark:text-green-300 flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4" />
+              <div className="bg-muted/50 border rounded-lg p-3 space-y-2">
+                <p className="font-medium flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
                   Hasil Pemeriksaan
                 </p>
                 
@@ -469,8 +469,8 @@ export function RadiologyOrderForm({ visitId, readOnly = false }: RadiologyOrder
   }
 
   return (
-    <Card className="shadow-md">
-      <CardHeader className="border-b bg-muted/30 py-3 px-4">
+    <Card>
+      <CardHeader className="py-3 px-4">
         <CardTitle className="text-base font-semibold flex items-center gap-2">
           <FileImage className="h-4 w-4" />
           Order Radiologi
@@ -525,8 +525,7 @@ export function RadiologyOrderForm({ visitId, readOnly = false }: RadiologyOrder
           </div>
         </div>
 
-        <ScrollArea className="h-[calc(100vh-450px)] min-h-[570px]">
-          <div className="p-4">
+        <div className="p-4">
             {/* Order Form Tab */}
             {activeTab === "form" && canOrder && (
               <div className="space-y-4">
@@ -709,8 +708,7 @@ export function RadiologyOrderForm({ visitId, readOnly = false }: RadiologyOrder
                 )}
               </div>
             )}
-          </div>
-        </ScrollArea>
+        </div>
       </CardContent>
     </Card>
   );

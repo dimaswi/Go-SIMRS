@@ -5,7 +5,6 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-  CardDescription,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -278,9 +277,8 @@ export default function BPJSAPITesterPage() {
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
       {/* Header */}
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
-          <div className="flex items-center gap-4">
+      <div className="rounded-lg border">
+        <div className="flex items-center gap-4 p-6">
             <Button
               variant="outline"
               size="icon"
@@ -293,21 +291,20 @@ export default function BPJSAPITesterPage() {
               <Stethoscope className="h-5 w-5 text-primary" />
             </div>
             <div className="flex-1">
-              <CardTitle className="text-base font-semibold">
+              <h1 className="text-lg font-semibold">
                 API Tester BPJS
-              </CardTitle>
-              <CardDescription>
+              </h1>
+              <p className="text-sm text-muted-foreground">
                 Test request ke BPJS Antrian Online seperti Postman
-              </CardDescription>
+              </p>
             </div>
             <Button variant="outline" size="sm" onClick={loadConfig}>
               <RefreshCw className="h-4 w-4 mr-2" />
               Reload Config
             </Button>
-          </div>
-        </CardHeader>
+        </div>
 
-        <CardContent className="pt-6 space-y-6">
+        <div className="rounded-lg border p-6 space-y-6 mx-4 mb-4">
           {/* Config Info dari Database */}
           <div className="grid gap-4 md:grid-cols-2">
             <Card className="bg-slate-50 dark:bg-slate-900 border-dashed">
@@ -497,8 +494,8 @@ export default function BPJSAPITesterPage() {
               />
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Result */}
       {result && (

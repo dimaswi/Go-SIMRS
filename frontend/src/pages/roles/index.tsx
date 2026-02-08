@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { setPageTitle } from '@/lib/page-title';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+
 import { DataTable } from '@/components/ui/data-table';
 import { createRoleColumns } from './columns';
 import { rolesApi, type Role } from '@/lib/api';
@@ -97,33 +97,25 @@ export default function RolesPage() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      <div className="grid gap-4">
-        <Card className="shadow-md">
-          <CardHeader className="border-b bg-muted/50">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <CardTitle className="text-base font-semibold">Roles</CardTitle>
-                <CardDescription>Manage roles and permissions</CardDescription>
-              </div>
-              {hasPermission('roles.create') && (
-                <Button onClick={() => navigate('/roles/create')} size="sm">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Role
-                </Button>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <DataTable
-              columns={columns}
-              data={roles}
-              searchPlaceholder="Search roles by name or description..."
-              pageSize={10}
-              tableId="roles"
-            />
-          </CardContent>
-        </Card>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-lg font-semibold">Roles</h1>
+          <p className="text-sm text-muted-foreground">Manage roles and permissions</p>
+        </div>
+        {hasPermission('roles.create') && (
+          <Button onClick={() => navigate('/roles/create')} size="sm">
+            <Plus className="mr-2 h-4 w-4" />
+            Add Role
+          </Button>
+        )}
       </div>
+      <DataTable
+        columns={columns}
+        data={roles}
+        searchPlaceholder="Search roles by name or description..."
+        pageSize={10}
+        tableId="roles"
+      />
 
       <ConfirmDialog
         open={deleteDialogOpen}

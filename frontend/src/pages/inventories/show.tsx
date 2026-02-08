@@ -1,12 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -296,51 +289,44 @@ export default function InventoryShow() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => navigate("/inventories")}
-                className="h-9 w-9"
-              >
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                  <Package className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <CardTitle className="text-base font-semibold">
-                    {inventory.name}
-                  </CardTitle>
-                  <CardDescription className="flex items-center gap-2">
-                    <span className="font-mono">{inventory.code}</span>
-                    <Badge className={categoryColors[inventory.category]}>
-                      {inventoryCategoryLabels[inventory.category]}
-                    </Badge>
-                    <Badge variant={inventory.is_active ? "default" : "secondary"}>
-                      {inventory.is_active ? "Aktif" : "Tidak Aktif"}
-                    </Badge>
-                  </CardDescription>
-                </div>
-              </div>
-            </div>
-            {hasPermission("inventories.update") && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => navigate(`/inventories/${id}/edit`)}
-              >
-                <Pencil className="mr-2 h-4 w-4" />
-                Edit
-              </Button>
-            )}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => navigate("/inventories")}
+            className="h-9 w-9"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div>
+            <h1 className="text-lg font-semibold">
+              {inventory.name}
+            </h1>
+            <p className="text-sm text-muted-foreground flex items-center gap-2">
+              <span className="font-mono">{inventory.code}</span>
+              <Badge className={categoryColors[inventory.category]}>
+                {inventoryCategoryLabels[inventory.category]}
+              </Badge>
+              <Badge variant={inventory.is_active ? "default" : "secondary"}>
+                {inventory.is_active ? "Aktif" : "Tidak Aktif"}
+              </Badge>
+            </p>
           </div>
-        </CardHeader>
-        <CardContent className="pt-6">
+        </div>
+        {hasPermission("inventories.update") && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate(`/inventories/${id}/edit`)}
+          >
+            <Pencil className="mr-2 h-4 w-4" />
+            Edit
+          </Button>
+        )}
+      </div>
+
+      <div className="rounded-lg border p-6">
           <Tabs defaultValue="detail">
             <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="detail">Detail</TabsTrigger>
@@ -632,8 +618,7 @@ export default function InventoryShow() {
               )}
             </TabsContent>
           </Tabs>
-        </CardContent>
-      </Card>
+      </div>
 
       {/* Item Dialog */}
       <Dialog open={itemDialogOpen} onOpenChange={setItemDialogOpen}>

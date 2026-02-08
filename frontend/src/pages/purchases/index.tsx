@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Loader2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+
 import { DataTable } from "@/components/ui/data-table";
 import { useToast } from "@/hooks/use-toast";
 import { usePermission } from "@/hooks/usePermission";
@@ -105,33 +105,25 @@ export default function PurchasesIndex() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      <div className="grid gap-4">
-        <Card className="shadow-md">
-          <CardHeader className="border-b bg-muted/50">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <CardTitle className="text-base font-semibold">Pembelian</CardTitle>
-                <CardDescription>Kelola pembelian barang dan obat dari supplier</CardDescription>
-              </div>
-              {hasPermission("purchases.create") && (
-                <Button onClick={() => navigate("/purchases/create")} size="sm">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Buat Pembelian
-                </Button>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <DataTable
-              columns={columns}
-              data={purchases}
-              searchPlaceholder="Cari nomor pembelian atau supplier..."
-              pageSize={10}
-              tableId="purchases"
-            />
-          </CardContent>
-        </Card>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-lg font-semibold">Pembelian</h1>
+          <p className="text-sm text-muted-foreground">Kelola pembelian barang dan obat dari supplier</p>
+        </div>
+        {hasPermission("purchases.create") && (
+          <Button onClick={() => navigate("/purchases/create")} size="sm">
+            <Plus className="mr-2 h-4 w-4" />
+            Buat Pembelian
+          </Button>
+        )}
       </div>
+      <DataTable
+        columns={columns}
+        data={purchases}
+        searchPlaceholder="Cari nomor pembelian atau supplier..."
+        pageSize={10}
+        tableId="purchases"
+      />
 
       <ConfirmDialog
         open={deleteId !== null}

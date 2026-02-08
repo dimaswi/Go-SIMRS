@@ -6,13 +6,6 @@ import * as z from "zod";
 import { ArrowLeft, ClipboardList, RefreshCcw, Loader2, Package, Pill } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
-import {
   Form,
   FormControl,
   FormField,
@@ -206,26 +199,22 @@ export default function StockOpnameCreate() {
     <div className="flex flex-1 flex-col gap-4 p-6">
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-          {/* Main Card with Header */}
-          <Card className="shadow-md">
-            <CardHeader className="border-b bg-muted/50">
-              <div className="flex items-center gap-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  onClick={() => navigate("/stock-opname")}
-                  className="h-9 w-9"
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                </Button>
-                <div className="space-y-1">
-                  <CardTitle className="text-base font-semibold">Buat Stock Opname</CardTitle>
-                  <CardDescription>Buat kegiatan stock opname baru</CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-6 space-y-4">
+          <div className="flex items-center gap-4">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              onClick={() => navigate("/stock-opname")}
+              className="h-9 w-9"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <div>
+              <h1 className="text-lg font-semibold">Buat Stock Opname</h1>
+              <p className="text-sm text-muted-foreground">Buat kegiatan stock opname baru</p>
+            </div>
+          </div>
+          <div className="rounded-lg border p-6 space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
                 <FormField
                   control={form.control}
@@ -439,8 +428,7 @@ export default function StockOpnameCreate() {
                 </>
               )}
               </div>
-            </CardContent>
-          </Card>
+          </div>
 
           {/* Actions */}
           <div className="flex justify-end gap-2">

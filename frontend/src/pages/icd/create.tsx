@@ -5,13 +5,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
-import {
   Form,
   FormControl,
   FormDescription,
@@ -135,40 +128,25 @@ export default function ICDCreatePage() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      <div className="grid gap-4">
-        <Card className="shadow-md">
-          <CardHeader className="border-b bg-muted/50">
-            <div className="flex items-center gap-4">
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => navigate(`/icd?type=${type}`)}
-                className="h-9 w-9"
-              >
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-              <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-lg ${isICD10 ? "bg-blue-100 dark:bg-blue-900/50" : "bg-green-100 dark:bg-green-900/50"}`}>
-                  {isICD10 ? (
-                    <Stethoscope className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                  ) : (
-                    <Syringe className="h-5 w-5 text-green-600 dark:text-green-400" />
-                  )}
-                </div>
-                <div className="space-y-1">
-                  <CardTitle className="text-base font-semibold">
-                    Tambah {isICD10 ? "ICD-10" : "ICD-9-CM"}
-                  </CardTitle>
-                  <CardDescription>
-                    {isICD10
-                      ? "Tambah kode diagnosis baru ke database ICD-10"
-                      : "Tambah kode prosedur baru ke database ICD-9-CM"}
-                  </CardDescription>
-                </div>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="pt-6">
+      <div className="flex items-center gap-4">
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => navigate(`/icd?type=${type}`)}
+          className="h-9 w-9"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <div>
+          <h1 className="text-lg font-semibold">Tambah {isICD10 ? "ICD-10" : "ICD-9-CM"}</h1>
+          <p className="text-sm text-muted-foreground">
+            {isICD10
+              ? "Tambah kode diagnosis baru ke database ICD-10"
+              : "Tambah kode prosedur baru ke database ICD-9-CM"}
+          </p>
+        </div>
+      </div>
+      <div className="rounded-lg border p-6">
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                 {/* Basic Information */}
@@ -408,8 +386,6 @@ export default function ICDCreatePage() {
                 </div>
               </form>
             </Form>
-          </CardContent>
-        </Card>
       </div>
     </div>
   );
