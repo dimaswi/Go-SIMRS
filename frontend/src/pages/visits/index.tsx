@@ -1,6 +1,16 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 import {
   Select,
@@ -124,6 +134,7 @@ export default function VisitsIndex() {
   const [cancellingId, setCancellingId] = useState<number | null>(null);
   const [roomPopoverOpen, setRoomPopoverOpen] = useState(false);
   const [displayPanelOpen, setDisplayPanelOpen] = useState(false);
+  const [cancelConfirmVisit, setCancelConfirmVisit] = useState<Visit | null>(null);
 
   // Check if user is admin
   const adminRoles = ["admin", "super admin", "system administrator", "sistem admin"];
@@ -312,9 +323,13 @@ export default function VisitsIndex() {
   };
 
   const handleCancelVisit = async (visit: Visit) => {
-    if (!confirm(`Apakah Anda yakin ingin membatalkan kunjungan ${visit.registration?.patient?.nama_lengkap}?`)) {
-      return;
-    }
+    setCancelConfirmVisit(visit);
+  };
+
+  const handleConfirmCancelVisit = async () => {
+    const visit = cancelConfirmVisit;
+    if (!visit) return;
+    setCancelConfirmVisit(null);
 
     setCancellingId(visit.id);
     try {
@@ -613,6 +628,45 @@ export default function VisitsIndex() {
         pageSize={10}
         tableId="visits"
       />
+
+      {/* Cancel Visit Confirmation Dialog */}
+      <AlertDialog open={!!cancelConfirmVisit} onOpenChange={(open) => !open && setCancelConfirmVisit(null)}>
+        <AlertDialogContent className="max-w-sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-sm">Batalkan Kunjungan?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-xs">
+                <p>Apakah Anda yakin ingin membatalkan kunjungan ini?</p>
+                {cancelConfirmVisit && (
+                  <dl className="border rounded-md px-3 py-2 space-y-1">
+                    <div className="flex justify-between">
+                      <dt className="text-muted-foreground">Pasien</dt>
+                      <dd className="font-medium">{cancelConfirmVisit.registration?.patient?.nama_lengkap}</dd>
+                    </div>
+                    <div className="flex justify-between">
+                      <dt className="text-muted-foreground">No. RM</dt>
+                      <dd className="font-mono">{cancelConfirmVisit.registration?.patient?.no_rm}</dd>
+                    </div>
+                    <div className="flex justify-between">
+                      <dt className="text-muted-foreground">Ruangan</dt>
+                      <dd>{cancelConfirmVisit.room?.name}</dd>
+                    </div>
+                  </dl>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="h-8 text-xs">Batal</AlertDialogCancel>
+            <AlertDialogAction
+              className="h-8 text-xs bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleConfirmCancelVisit}
+            >
+              Ya, Batalkan
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

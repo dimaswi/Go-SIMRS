@@ -10,6 +10,16 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -288,6 +298,7 @@ export function RadiologyOrderForm({ visitId, readOnly = false }: RadiologyOrder
   const [diagnosis, setDiagnosis] = useState("");
   const [clinicalNotes, setClinicalNotes] = useState("");
   const [priority, setPriority] = useState("normal");
+  const [cancelConfirmOrderId, setCancelConfirmOrderId] = useState<number | null>(null);
 
   const canOrder = hasPermission("medical_records.radiology_order");
 
@@ -378,7 +389,14 @@ export function RadiologyOrderForm({ visitId, readOnly = false }: RadiologyOrder
   };
 
   const handleCancelOrder = async (orderId: number) => {
-    if (!confirm("Yakin ingin membatalkan order ini?")) return;
+    setCancelConfirmOrderId(orderId);
+  };
+
+  const handleConfirmCancelOrder = async () => {
+    const orderId = cancelConfirmOrderId;
+    if (!orderId) return;
+    setCancelConfirmOrderId(null);
+    
     try {
       await procedureOrdersApi.cancel(orderId, "Dibatalkan oleh dokter");
       toast({
@@ -710,6 +728,27 @@ export function RadiologyOrderForm({ visitId, readOnly = false }: RadiologyOrder
             )}
         </div>
       </CardContent>
+
+      {/* Cancel Confirmation Dialog */}
+      <AlertDialog open={!!cancelConfirmOrderId} onOpenChange={(open) => !open && setCancelConfirmOrderId(null)}>
+        <AlertDialogContent className="max-w-sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-sm">Batalkan Order Radiologi?</AlertDialogTitle>
+            <AlertDialogDescription className="text-xs">
+              Yakin ingin membatalkan order radiologi ini? Order yang dibatalkan tidak dapat dikembalikan.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="h-8 text-xs">Batal</AlertDialogCancel>
+            <AlertDialogAction
+              className="h-8 text-xs bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleConfirmCancelOrder}
+            >
+              Ya, Batalkan
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }

@@ -17,6 +17,16 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -82,6 +92,7 @@ export function ProcedureEditOrder({
     procedureName: "",
     notes: "",
   });
+  const [deleteConfirmItem, setDeleteConfirmItem] = useState<ProcedureOrderItem | null>(null);
 
   const canEdit = hasPermission("procedure_orders.edit") && !readOnly;
 
@@ -242,7 +253,13 @@ export function ProcedureEditOrder({
 
   const handleDeleteItem = async (item: ProcedureOrderItem) => {
     if (!selectedOrder) return;
-    if (!confirm(`Yakin ingin menghapus ${item.procedure?.name}?`)) return;
+    setDeleteConfirmItem(item);
+  };
+
+  const handleConfirmDeleteItem = async () => {
+    const item = deleteConfirmItem;
+    if (!item || !selectedOrder) return;
+    setDeleteConfirmItem(null);
 
     try {
       await procedureOrdersApi.deleteItem(selectedOrder.id, item.id!);
@@ -625,6 +642,27 @@ export function ProcedureEditOrder({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deleteConfirmItem} onOpenChange={(open) => !open && setDeleteConfirmItem(null)}>
+        <AlertDialogContent className="max-w-sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-sm">Hapus Prosedur?</AlertDialogTitle>
+            <AlertDialogDescription className="text-xs">
+              Yakin ingin menghapus {deleteConfirmItem?.procedure?.name}?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="h-8 text-xs">Batal</AlertDialogCancel>
+            <AlertDialogAction
+              className="h-8 text-xs bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleConfirmDeleteItem}
+            >
+              Ya, Hapus
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

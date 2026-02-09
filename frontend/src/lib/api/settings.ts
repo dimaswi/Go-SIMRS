@@ -7,7 +7,7 @@ export const settingsApi = {
   update: (data: Record<string, string>) => 
     api.put('/settings', data),
 
-  uploadLogo: (file: File, type: 'logo' | 'favicon') => {
+  uploadLogo: (file: File, type: 'logo' | 'favicon' | 'bpjs_logo') => {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('type', type);

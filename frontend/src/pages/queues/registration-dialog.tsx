@@ -164,8 +164,10 @@ export function RegistrationDialog({
       const response = await patientsApi.search(
         searchQuery, 
         50,
-        searchAddress || undefined,
-        searchBirthDate || undefined
+        {
+          address: searchAddress || undefined,
+          birthDate: searchBirthDate || undefined
+        }
       );
       const data = response.data?.data || response.data || [];
       setSearchResults(Array.isArray(data) ? data : []);

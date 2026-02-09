@@ -62,6 +62,10 @@ const CheckInScannerPage = lazy(() => import('./pages/checkin/scanner'));
 // Quality Control & Cost Management
 const QualityCostPage = lazy(() => import('./pages/quality-cost/index'));
 
+// Patient Portal (Public)
+const PatientPortalLogin = lazy(() => import('./pages/patient-portal/login'));
+const PatientPortalDashboard = lazy(() => import('./pages/patient-portal/dashboard'));
+
 function LoadingFallback() {
   return (
     <div className="flex items-center justify-center h-screen">
@@ -104,6 +108,10 @@ function App() {
           
           {/* Public Bed Monitoring Display (for TV/public display) */}
           <Route path="/display/bed-monitoring/:id" element={<PublicBedMonitoring />} />
+          
+          {/* Patient Portal (Public with patient authentication) */}
+          <Route path="/portal" element={<PatientPortalLogin />} />
+          <Route path="/portal/dashboard" element={<PatientPortalDashboard />} />
           
           <Route path="/login" element={<LoginPage />} />
           <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />

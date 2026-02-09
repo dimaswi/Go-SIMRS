@@ -640,6 +640,16 @@ export const vclaimApi = {
       data: { user }
     }),
 
+  // Approval SEP (backdate/finger print)
+  approvalSEP: (data: {
+    no_kartu: string;
+    tgl_sep: string;           // yyyy-mm-dd
+    jns_pelayanan: string;     // 1=Rawat Inap, 2=Rawat Jalan
+    jns_pengajuan?: string;    // 1=Backdate, 2=Finger Print (default: 1)
+    keterangan: string;
+  }) =>
+    api.post<{ data: { metadata: { code: string; message: string }; response: string }; message: string }>('/bpjs/vclaim/sep/approval', data),
+
   // Options for form
   getOptions: () =>
     api.get<{ data: VClaimSEPOptions }>('/bpjs/vclaim/options'),
@@ -735,7 +745,7 @@ export const vclaimApi = {
 
   // Create SEP for Kontrol (using Surat Kontrol)
   createSEPKontrol: (data: VClaimSEPKontrolRequest) =>
-    api.post<{ data: { noSep: string }; message: string }>('/bpjs/vclaim/sep/kontrol', {
+    api.post<{ data: { noSep: string; sepId: number }; message: string }>('/bpjs/vclaim/sep/kontrol', {
       registration_id: data.registrationId,
       no_surat_kontrol: data.noSuratKontrol,
       no_sep_asal: data.noSEPAsal,
@@ -766,7 +776,7 @@ export const vclaimApi = {
   getPRBOptions: () =>
     api.get<{ data: PRBStatusOption[] }>('/bpjs/vclaim/surat-kontrol/prb-options'),
 
-  // Cancel SPRI (local only - BPJS doesn't provide delete API)
+  // Cancel SPRI (update local status only - BPJS delete done via deleteSuratKontrol with noSPRI)
   cancelSPRILocal: (visitId: number) =>
     api.put<{ message: string }>(`/bpjs/vclaim/spri/visit/${visitId}/cancel`, {}),
 
@@ -778,4 +788,7 @@ export const vclaimApi = {
 
   approvalSEP: (data: VClaimApprovalSEPRequest) =>
     api.post<{ message: string }>('/bpjs/vclaim/sep/approval', data),
+
+  pengajuanSEP: (data: VClaimApprovalSEPRequest) =>
+    api.post<{ message: string }>('/bpjs/vclaim/sep/pengajuan', data),
 };

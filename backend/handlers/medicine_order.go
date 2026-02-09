@@ -267,7 +267,8 @@ func CreateMedicineOrder(c *gin.Context) {
 	// Generate unique visit number based on existing visits count
 	var lastVisit models.Visit
 	var visitNum int
-	errVis := tx.Where("visit_number LIKE ?", "PH"+today+"%").
+	// Use Unscoped to include soft-deleted records when checking for last visit number
+	errVis := tx.Unscoped().Where("visit_number LIKE ?", "PH"+today+"%").
 		Order("visit_number DESC").First(&lastVisit).Error
 
 	if errVis != nil {

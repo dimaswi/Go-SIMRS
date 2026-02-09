@@ -70,8 +70,10 @@ export function PatientSearchCombobox({
         const response = await patientsApi.search(
           search, 
           20, 
-          addressFilter || undefined, 
-          birthDateFilter || undefined
+          {
+            address: addressFilter || undefined,
+            birthDate: birthDateFilter || undefined
+          }
         )
         const data = response.data?.data || response.data || []
         setPatients(Array.isArray(data) ? data : [])

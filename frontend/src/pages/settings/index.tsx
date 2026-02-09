@@ -23,6 +23,7 @@ export default function SettingsPage() {
   const [appSubtitle, setAppSubtitle] = useState("Hospital System");
   const [appLogo, setAppLogo] = useState("");
   const [appFavicon, setAppFavicon] = useState("");
+  const [bpjsLogo, setBpjsLogo] = useState("");
 
   // Hospital info for print header (kop surat)
   const [hospitalName, setHospitalName] = useState("");
@@ -36,10 +37,12 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingFavicon, setUploadingFavicon] = useState(false);
+  const [uploadingBpjsLogo, setUploadingBpjsLogo] = useState(false);
   const [fetching, setFetching] = useState(true);
   
   const logoInputRef = useRef<HTMLInputElement>(null);
   const faviconInputRef = useRef<HTMLInputElement>(null);
+  const bpjsLogoInputRef = useRef<HTMLInputElement>(null);
 
   // Set page title
   useEffect(() => {
@@ -74,6 +77,9 @@ export default function SettingsPage() {
         setAppFavicon(settings.app_favicon);
         localStorage.setItem("appFavicon", settings.app_favicon);
         updateFavicon(settings.app_favicon);
+      }
+      if (settings.bpjs_logo) {
+        setBpjsLogo(settings.bpjs_logo);
       }
       // Hospital info
       if (settings.hospital_name) setHospitalName(settings.hospital_name);
@@ -154,6 +160,32 @@ export default function SettingsPage() {
       });
     } finally {
       setUploadingFavicon(false);
+    }
+  };
+
+  const handleUploadBpjsLogo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingBpjsLogo(true);
+    try {
+      const response = await settingsApi.uploadLogo(file, 'bpjs_logo');
+      const url = response.data.url;
+      setBpjsLogo(url);
+      
+      toast({
+        variant: "success",
+        title: "Berhasil!",
+        description: "Logo BPJS berhasil diunggah.",
+      });
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error!",
+        description: "Gagal mengunggah logo BPJS.",
+      });
+    } finally {
+      setUploadingBpjsLogo(false);
     }
   };
 
@@ -425,6 +457,57 @@ export default function SettingsPage() {
                         </Button>
                         <p className="text-xs text-muted-foreground">
                           ICO, PNG, or JPG. 32x32 or 64x64 recommended.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* BPJS Logo Upload */}
+                  <div className="space-y-3 pt-4">
+                    <Label className="text-xs font-medium flex items-center gap-2">
+                      <Image className="h-3.5 w-3.5 text-muted-foreground" />
+                      Logo BPJS
+                    </Label>
+                    <div className="flex items-center gap-4">
+                      <div className="w-20 h-20 border rounded-lg flex items-center justify-center bg-muted/30 overflow-hidden">
+                        {bpjsLogo ? (
+                          <img 
+                            src={`${BASE_URL}${bpjsLogo}`} 
+                            alt="Logo BPJS" 
+                            className="w-full h-full object-contain"
+                          />
+                        ) : (
+                          <Image className="h-8 w-8 text-muted-foreground" />
+                        )}
+                      </div>
+                      <div className="flex-1 space-y-2">
+                        <input
+                          ref={bpjsLogoInputRef}
+                          type="file"
+                          accept="image/png,image/jpeg,image/jpg"
+                          onChange={handleUploadBpjsLogo}
+                          className="hidden"
+                        />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => bpjsLogoInputRef.current?.click()}
+                          disabled={uploadingBpjsLogo}
+                        >
+                          {uploadingBpjsLogo ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Mengunggah...
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="h-4 w-4 mr-2" />
+                              Upload Logo BPJS
+                            </>
+                          )}
+                        </Button>
+                        <p className="text-xs text-muted-foreground">
+                          Logo BPJS untuk cetakan SEP. PNG atau JPG. Max 2MB.
                         </p>
                       </div>
                     </div>

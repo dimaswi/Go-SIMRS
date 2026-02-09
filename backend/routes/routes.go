@@ -131,6 +131,10 @@ func SetupRoutes(r *gin.Engine) {
 	// These are outside /api group as they have their own auth mechanism
 	SetupBPJSWebhookRoutes(r)
 
+	// Patient Portal Routes (public access with patient authentication)
+	// Allows patients to view their own medical records from home
+	SetupPatientPortalRoutes(r)
+
 	// Health check
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})

@@ -24,6 +24,8 @@ func SetupPrintRoutes(api *gin.RouterGroup) {
 		print.GET("/admission-discharge-summary/:registrationId", handlers.PrintAdmissionDischargeSummary)
 		// Bukti Registrasi / Tanda Pendaftaran
 		print.GET("/registration-receipt/:registrationId", handlers.PrintRegistrationReceipt)
+		// SEP (Surat Eligibilitas Peserta) - BPJS
+		print.GET("/sep/:sepId", handlers.PrintSEP)
 		// Formulir Permohonan DPJP
 		print.GET("/dpjp-request/:visitId", handlers.PrintDPJPRequest)
 		// Bukti Pemberian Informed Consent per Kunjungan

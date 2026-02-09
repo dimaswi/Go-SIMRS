@@ -53,6 +53,7 @@ import {
 } from "@/lib/api/rooms";
 import { employeesApi } from "@/lib/api/employees";
 import { patientsApi, type Patient, api } from "@/lib/api";
+import { vclaimApi } from "@/lib/api/vclaim";
 import { SEPFormSheet } from "@/components/sep/sep-form-sheet";
 
 interface RoomWithBeds extends Room {
@@ -121,6 +122,8 @@ export default function AdmissionRequestShowPage() {
       const patientId = getPatient(request)?.id;
       if (patientId) {
         fetchPatientDetail(patientId);
+        // Fetch existing SEP for rawat inap (jns_pelayanan=1) for this patient
+        fetchExistingSEP(patientId, request.source_visit_id);
       }
     }
   }, [request?.status]);
@@ -165,6 +168,43 @@ export default function AdmissionRequestShowPage() {
       console.error("Failed to fetch patient detail:", error);
     } finally {
       setLoadingPatient(false);
+    }
+  };
+
+  const fetchExistingSEP = async (patientId: number, sourceVisitId?: number) => {
+    try {
+      // First try to get SEP by source_visit_id
+      if (sourceVisitId) {
+        try {
+          const visitSEPRes = await vclaimApi.getSEPByVisit(sourceVisitId);
+          if (visitSEPRes.data?.data?.no_sep) {
+            // Check if it's rawat inap SEP (jns_pelayanan = 1)
+            if (visitSEPRes.data.data.jns_pelayanan === "1") {
+              setSepNumber(visitSEPRes.data.data.no_sep);
+              return;
+            }
+          }
+        } catch {
+          // No SEP found by visit, try by patient
+        }
+      }
+
+      // Fallback: search active rawat inap SEP by patient
+      const sepListRes = await vclaimApi.getSEPList({
+        patient_id: patientId,
+        status: "active",
+        limit: 10,
+      });
+      const sepList = sepListRes.data?.data || [];
+      // Find rawat inap SEP (jns_pelayanan = "1" or "Rawat Inap")
+      const ranapSEP = sepList.find(
+        (sep) => sep.jns_pelayanan === "1" || sep.jns_pelayanan?.toLowerCase().includes("inap")
+      );
+      if (ranapSEP) {
+        setSepNumber(ranapSEP.no_sep);
+      }
+    } catch (error) {
+      console.error("Failed to fetch existing SEP:", error);
     }
   };
 
@@ -331,8 +371,8 @@ export default function AdmissionRequestShowPage() {
           "Permintaan rawat inap berhasil diproses. Kunjungan rawat inap telah dibuat.",
       });
 
-      // Navigate to inpatient list or the new visit
-      navigate("/rawat-inap");
+      // Navigate to admisi list
+      navigate("/admisi");
     } catch (error) {
       console.error("Failed to process request:", error);
       toast({
@@ -1188,7 +1228,7 @@ export default function AdmissionRequestShowPage() {
             no_telepon: patientDetail.no_telepon,
             kelas_bpjs: patientDetail.kelas_bpjs,
           }}
-          visitId={inpatientVisitId || undefined}
+          visitId={inpatientVisitId || request?.source_visit_id || undefined}
           registrationId={request?.registration_id}
           initialValues={{
             jenisPelayanan: "1", // Rawat Inap

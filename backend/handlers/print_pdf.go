@@ -62,15 +62,17 @@ func formatDateTimeIndonesian(t time.Time) string {
 
 // HospitalInfo untuk header dokumen
 type HospitalInfo struct {
-	Name    string
-	Type    string
-	Address string
-	City    string
-	Phone   string
-	Fax     string
-	Email   string
-	Website string
-	Logo    string
+	Name     string
+	SubTitle string
+	Type     string
+	Address  string
+	City     string
+	Phone    string
+	Fax      string
+	Email    string
+	Website  string
+	Logo     string
+	BPJSLogo string
 }
 
 // getHospitalInfo mengambil informasi rumah sakit dari settings
@@ -83,6 +85,8 @@ func getHospitalInfo() HospitalInfo {
 		switch s.Key {
 		case "hospital_name":
 			info.Name = s.Value
+		case "app_subtitle":
+			info.SubTitle = s.Value
 		case "hospital_type":
 			info.Type = s.Value
 		case "hospital_address":
@@ -99,6 +103,8 @@ func getHospitalInfo() HospitalInfo {
 			info.Website = s.Value
 		case "app_logo":
 			info.Logo = s.Value
+		case "bpjs_logo":
+			info.BPJSLogo = s.Value
 		}
 	}
 	return info
@@ -8117,6 +8123,382 @@ func PrintInformedConsentReceipt(c *gin.Context) {
 	}
 
 	filename := fmt.Sprintf("Informed_Consent_%s_%s.pdf", patient.NoRM, visit.VisitNumber)
+	c.Header("Content-Type", "application/pdf")
+	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
+	c.Data(http.StatusOK, "application/pdf", buf.Bytes())
+}
+
+// PrintSEP generates SEP (Surat Eligibilitas Peserta) PDF
+func PrintSEP(c *gin.Context) {
+	sepID := c.Param("sepId")
+
+	var sep models.SEP
+	if err := database.DB.
+		Preload("Patient").
+		Preload("Registration").
+		Preload("Visit").
+		First(&sep, sepID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "SEP tidak ditemukan"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		}
+		return
+	}
+
+	// Initialize PDF with Landscape orientation
+	pdf := gofpdf.New("L", "mm", "A4", "")
+	pdf.SetAutoPageBreak(false, 0)
+	pdf.AddPage()
+
+	// Page dimensions for Landscape A4 (297mm x 210mm)
+	pageWidth := 297.0
+	pageHeight := 210.0
+	margin := 10.0
+	contentWidth := pageWidth - (2 * margin)
+
+	hospitalInfo := getHospitalInfo()
+
+	// === HEADER SECTION ===
+	logoHeight := 14.0
+	logoWidth := 75.0
+	logoX := margin
+	if hospitalInfo.BPJSLogo != "" {
+		logoFile := strings.TrimPrefix(hospitalInfo.BPJSLogo, "/")
+		logoFile = strings.TrimPrefix(logoFile, "uploads/")
+		logoPath := filepath.Join("uploads", logoFile)
+
+		if _, err := os.Stat(logoPath); err == nil {
+			ext := strings.ToLower(filepath.Ext(logoPath))
+			var imgType string
+			switch ext {
+			case ".jpg", ".jpeg":
+				imgType = "JPG"
+			case ".png":
+				imgType = "PNG"
+			default:
+				imgType = ""
+			}
+
+			if imgType != "" {
+				pdf.Image(logoPath, margin, margin, logoWidth, logoHeight, false, imgType, 0, "")
+				logoX = margin + logoWidth + 3
+			}
+		}
+	}
+
+	// Line 1: "SURAT ELIGIBILITAS PESERTA"
+	pdf.SetFont("Arial", "", 14)
+	pdf.SetTextColor(0, 0, 0)
+	pdf.SetXY(logoX, margin+2)
+	pdf.CellFormat(contentWidth-(logoX-margin), 6, "SURAT ELIGIBILITAS PESERTA", "", 1, "L", false, 0, "")
+
+	// Line 2: Hospital name
+	rsName := hospitalInfo.SubTitle
+	if rsName == "" {
+		rsName = hospitalInfo.Name
+	}
+	pdf.SetFont("Arial", "", 10)
+	pdf.SetTextColor(0, 0, 0)
+	pdf.SetXY(logoX, margin+9)
+	pdf.CellFormat(contentWidth-(logoX-margin), 5, strings.ToUpper(rsName), "", 1, "L", false, 0, "")
+
+	// === 2 COLUMN LAYOUT ===
+	startY := margin + logoHeight + 4
+	colWidth := contentWidth / 2
+	col1X := margin
+	col2X := margin + colWidth
+
+	// Row height & font size — enlarged to fill A4
+	rowH := 5.5
+	fontSize := 10.0
+	labelW := 42.0
+	valueW := colWidth - labelW
+
+	// Helper function for field with label: value format (NO BOLD)
+	addField := func(x, y, labelWidth, valueWidth float64, label, value string) float64 {
+		pdf.SetFont("Arial", "", fontSize)
+		pdf.SetXY(x, y)
+		pdf.CellFormat(labelWidth, rowH, label, "", 0, "L", false, 0, "")
+		pdf.SetX(x + labelWidth)
+		pdf.CellFormat(valueWidth, rowH, ": "+value, "", 0, "L", false, 0, "")
+		return y + rowH
+	}
+
+	currentY := startY
+
+	// === LEFT COLUMN ===
+	currentY = addField(col1X, currentY, labelW, valueW, "No. SEP", sep.NoSEP)
+
+	// Tgl. SEP
+	tglSEP := sep.TglSEP
+	if tglSEP != "" {
+		if t, err := time.Parse("2006-01-02", tglSEP); err == nil {
+			tglSEP = t.Format("02-01-2006")
+		}
+	}
+	currentY = addField(col1X, currentY, labelW, valueW, "Tgl. SEP", tglSEP)
+
+	// No. Kartu (with MR)
+	noKartu := sep.NoKartu
+	if noKartu == "" {
+		noKartu = "-"
+	}
+	noMR := sep.NoMR
+	if noMR == "" && sep.Patient != nil {
+		noMR = sep.Patient.NoRM
+	}
+	if noMR != "" {
+		noKartu = noKartu + " ( MR. " + noMR + " )"
+	}
+	currentY = addField(col1X, currentY, labelW, valueW, "No. Kartu", noKartu)
+
+	// Nama Peserta
+	namaPasien := sep.NamaPasien
+	if namaPasien == "" && sep.Patient != nil {
+		namaPasien = sep.Patient.NamaLengkap
+	}
+	currentY = addField(col1X, currentY, labelW, valueW, "Nama Peserta", namaPasien)
+
+	// Tgl. Lahir + Kelamin
+	tglLahir := sep.TglLahir
+	if tglLahir == "" && sep.Patient != nil && sep.Patient.TanggalLahir != nil {
+		tglLahir = sep.Patient.TanggalLahir.Time.Format("02-01-2006")
+	} else if tglLahir != "" {
+		if t, err := time.Parse("2006-01-02", tglLahir); err == nil {
+			tglLahir = t.Format("02-01-2006")
+		}
+	}
+	jenisKelamin := sep.JenisKelamin
+	if jenisKelamin == "" && sep.Patient != nil {
+		if sep.Patient.JenisKelamin == "L" {
+			jenisKelamin = "Laki-laki"
+		} else if sep.Patient.JenisKelamin == "P" {
+			jenisKelamin = "Perempuan"
+		}
+	}
+	tglLahirKelamin := tglLahir + "  Kelamin : " + jenisKelamin
+	currentY = addField(col1X, currentY, labelW, valueW, "Tgl. Lahir", tglLahirKelamin)
+
+	// No. Telepon
+	noTelp := sep.NoTelp
+	if noTelp == "" && sep.Patient != nil {
+		noTelp = sep.Patient.NoTelepon
+	}
+	if noTelp == "" {
+		noTelp = "-"
+	}
+	currentY = addField(col1X, currentY, labelW, valueW, "No. Telepon", noTelp)
+
+	// Sub/Spesialis
+	subSpesialis := sep.NamaPoli
+	if subSpesialis == "" {
+		subSpesialis = "-"
+	}
+	currentY = addField(col1X, currentY, labelW, valueW, "Sub/Spesialis", subSpesialis)
+
+	// Dokter
+	namaDokter := sep.NamaDPJP
+	if namaDokter == "" {
+		namaDokter = "-"
+	}
+	currentY = addField(col1X, currentY, labelW, valueW, "Dokter", namaDokter)
+
+	// Faskes Perujuk
+	faskesPerujuk := sep.NamaRujukan
+	if faskesPerujuk == "" {
+		faskesPerujuk = "-"
+	}
+	currentY = addField(col1X, currentY, labelW, valueW, "Faskes Perujuk", faskesPerujuk)
+
+	// Diagnosa Awal
+	diagnosa := sep.DiagAwal
+	if sep.NamaDiagnosa != "" {
+		diagnosa = diagnosa + " (" + sep.NamaDiagnosa + ")"
+	}
+	if diagnosa == "" {
+		diagnosa = "-"
+	}
+	currentY = addField(col1X, currentY, labelW, valueW, "Diagnosa Awal", diagnosa)
+
+	// === RIGHT COLUMN ===
+	currentYRight := startY
+
+	// Peserta (Jenis Peserta BPJS - from catatan if available)
+	peserta := "-"
+	currentYRight = addField(col2X, currentYRight, labelW, valueW, "Peserta", peserta)
+
+	// Skip row to align with Tgl. SEP on left
+	currentYRight += rowH
+
+	// Jns. Rawat
+	jnsRawat := "-"
+	if sep.JnsPelayanan == "1" {
+		jnsRawat = "Rawat Inap"
+	} else if sep.JnsPelayanan == "2" {
+		jnsRawat = "Rawat Jalan"
+	}
+	currentYRight = addField(col2X, currentYRight, labelW, valueW, "Jns. Rawat", jnsRawat)
+
+	// Jns. Kunjungan
+	jnsKunjungan := "-"
+	if sep.TujuanKunj == "0" {
+		jnsKunjungan = "Normal"
+	} else if sep.TujuanKunj == "1" {
+		jnsKunjungan = "Prosedur"
+	} else if sep.TujuanKunj == "2" {
+		jnsKunjungan = "Konsul Dokter"
+	}
+	currentYRight = addField(col2X, currentYRight, labelW, valueW, "Jns. Kunjungan", jnsKunjungan)
+
+	// Prosedur
+	prosedur := "-"
+	if sep.FlagProcedure == "1" {
+		prosedur = "Berkelanjutan"
+	} else if sep.FlagProcedure == "0" {
+		prosedur = "Tidak Berkelanjutan"
+	}
+	currentYRight = addField(col2X, currentYRight, labelW, valueW, "Prosedur", prosedur)
+
+	// Assesment plyn
+	assessmentPlyn := "-"
+	if sep.AssesmentPel != "" {
+		switch sep.AssesmentPel {
+		case "1":
+			assessmentPlyn = "Poli tidak tersedia"
+		case "2":
+			assessmentPlyn = "Jam Poli berakhir"
+		case "3":
+			assessmentPlyn = "Dokter tidak praktek"
+		case "4":
+			assessmentPlyn = "Atas Instruksi RS"
+		case "5":
+			assessmentPlyn = "Tujuan Kontrol"
+		}
+	}
+	currentYRight = addField(col2X, currentYRight, labelW, valueW, "Assesment plyn", assessmentPlyn)
+
+	// Poli Perujuk
+	poliPerujuk := sep.KodePoli
+	if poliPerujuk == "" {
+		poliPerujuk = "-"
+	}
+	currentYRight = addField(col2X, currentYRight, labelW, valueW, "Poli Perujuk", poliPerujuk)
+
+	// Kelas Hak
+	kelasHak := sep.KlsRawatHak
+	if kelasHak == "" {
+		kelasHak = "-"
+	} else if kelasHak == "1" {
+		kelasHak = "KELAS I"
+	} else if kelasHak == "2" {
+		kelasHak = "KELAS II"
+	} else if kelasHak == "3" {
+		kelasHak = "KELAS III"
+	}
+	currentYRight = addField(col2X, currentYRight, labelW, valueW, "Kelas Hak", kelasHak)
+
+	// Kelas Rawat
+	kelasRawat := sep.KlsRawatNaik
+	if kelasRawat == "" {
+		kelasRawat = kelasHak
+	} else {
+		switch kelasRawat {
+		case "1":
+			kelasRawat = "VVIP"
+		case "2":
+			kelasRawat = "VIP"
+		case "3":
+			kelasRawat = "Kelas I"
+		case "4":
+			kelasRawat = "Kelas II"
+		case "5":
+			kelasRawat = "Kelas III"
+		case "6":
+			kelasRawat = "ICCU"
+		case "7":
+			kelasRawat = "ICU"
+		case "8":
+			kelasRawat = "Diatas Kelas 1"
+		}
+	}
+	currentYRight = addField(col2X, currentYRight, labelW, valueW, "Kelas Rawat", kelasRawat)
+
+	// Penjamin (Pembiayaan naik kelas)
+	penjamin := ""
+	if sep.Pembiayaan != "" {
+		switch sep.Pembiayaan {
+		case "1":
+			penjamin = "Pribadi"
+		case "2":
+			penjamin = "Pemberi Kerja"
+		case "3":
+			penjamin = "Asuransi Kesehatan Tambahan"
+		}
+	}
+	currentYRight = addField(col2X, currentYRight, labelW, valueW, "Penjamin", penjamin)
+
+	// === CATATAN SECTION ===
+	catatanY := currentY + 3
+	if currentYRight+3 > catatanY {
+		catatanY = currentYRight + 3
+	}
+
+	// "Catatan" label as field row
+	pdf.SetFont("Arial", "", fontSize)
+	pdf.SetTextColor(0, 0, 0)
+	pdf.SetXY(margin, catatanY)
+	pdf.CellFormat(labelW, rowH, "Catatan", "", 0, "L", false, 0, "")
+	pdf.SetX(margin + labelW)
+	pdf.CellFormat(10, rowH, ":", "", 0, "L", false, 0, "")
+
+	// "Pasien/Keluarga Pasien" on right same line
+	pdf.SetFont("Arial", "", fontSize)
+	pdf.SetXY(col2X+colWidth-55, catatanY)
+	pdf.CellFormat(55, rowH, "Pasien/Keluarga Pasien", "", 0, "R", false, 0, "")
+	catatanY += rowH
+
+	// Notes
+	pdf.SetTextColor(0, 0, 0)
+	pdf.SetFont("Arial", "", 8)
+	pdf.SetXY(margin, catatanY)
+	pdf.MultiCell(contentWidth*0.55, 3.5,
+		"* Saya Menyetujui BPJS Kesehatan menggunakan Informasi Media pasien jika diperlukan.\n"+
+			"* SEP bukan sebagai bukti penjamin peserta.\n"+
+			"** Dengan diterbitkannya SEP ini, Peserta rawat inap telah mendapatkan informasi dan menempati\n"+
+			"  kelas rawat sesuai hak kelasnya (terkecuali kelas penuh atau naik kelas sesuai aturan yang berlaku)",
+		"", "L", false)
+
+	// Signature line on right
+	notesEndY := pdf.GetY()
+	sigLineY := catatanY + 15
+	if sigLineY < notesEndY+2 {
+		sigLineY = notesEndY + 2
+	}
+	pdf.SetTextColor(0, 0, 0)
+	pdf.SetFont("Arial", "", fontSize)
+	pdf.SetXY(col2X+colWidth-55, sigLineY)
+	pdf.CellFormat(55, rowH, "___________________", "", 0, "C", false, 0, "")
+
+	// Cetakan Ke 1
+	catatanEndY := sigLineY + rowH + 1
+	pdf.SetTextColor(0, 0, 0)
+	pdf.SetFont("Arial", "", 8)
+	pdf.SetXY(margin, catatanEndY)
+	printDate := time.Now().Format("02-01-2006 15:04:05")
+	pdf.CellFormat(contentWidth/2, 4, "*Cetakan Ke 1 "+printDate, "", 0, "L", false, 0, "")
+
+	_ = pageHeight
+	pdf.SetTextColor(0, 0, 0)
+	pdf.SetDrawColor(0, 0, 0)
+
+	var buf bytes.Buffer
+	if err := pdf.Output(&buf); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate PDF"})
+		return
+	}
+
+	filename := fmt.Sprintf("SEP_%s_%s.pdf", sep.NoSEP, sep.TglSEP)
 	c.Header("Content-Type", "application/pdf")
 	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
 	c.Data(http.StatusOK, "application/pdf", buf.Bytes())

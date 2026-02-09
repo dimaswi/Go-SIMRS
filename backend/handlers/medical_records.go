@@ -9,6 +9,7 @@ import (
 
 	"starter/backend/database"
 	"starter/backend/models"
+	"starter/backend/services/bpjs"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -1381,6 +1382,51 @@ func CancelDisposition(c *gin.Context) {
 		return
 	}
 
+	fmt.Printf("[CancelDisposition] Mencari SPRI dan Surat Kontrol untuk visit_id=%s\n", visitID)
+
+	// Get current user for BPJS API calls
+	userID, _ := c.Get("userID")
+	var user models.User
+	database.DB.First(&user, userID)
+	fmt.Printf("[CancelDisposition] User: %s\n", user.Username)
+
+	// Cancel BPJS SPRI if exists (delete from BPJS using same API as Surat Kontrol)
+	var spri models.SPRI
+	if err := database.DB.Where("visit_id = ? AND status = ?", visitID, "active").First(&spri).Error; err == nil {
+		fmt.Printf("[CancelDisposition] SPRI ditemukan: %s (ID=%d)\n", spri.NoSPRI, spri.ID)
+		// Try to delete from BPJS (same API endpoint as Surat Kontrol)
+		if client, err := bpjs.NewVClaimClient(); err == nil {
+			if deleteErr := client.DeleteSuratKontrol(spri.NoSPRI, user.Username); deleteErr != nil {
+				fmt.Printf("[CancelDisposition] Gagal hapus SPRI dari BPJS: %v\n", deleteErr)
+			} else {
+				fmt.Printf("[CancelDisposition] SPRI %s berhasil dihapus dari BPJS\n", spri.NoSPRI)
+			}
+		} else {
+			fmt.Printf("[CancelDisposition] Gagal buat VClaim client: %v\n", err)
+		}
+		// Update local status regardless of BPJS result
+		database.DB.Model(&spri).Update("status", "cancelled")
+	} else {
+		fmt.Printf("[CancelDisposition] SPRI tidak ditemukan untuk visit_id=%s: %v\n", visitID, err)
+	}
+
+	// Cancel BPJS Surat Kontrol if exists (delete from BPJS + update local status)
+	var suratKontrol models.SuratKontrol
+	if err := database.DB.Where("visit_id = ? AND status = ?", visitID, "active").First(&suratKontrol).Error; err == nil {
+		// Try to delete from BPJS
+		if client, err := bpjs.NewVClaimClient(); err == nil {
+			if deleteErr := client.DeleteSuratKontrol(suratKontrol.NoSuratKontrol, user.Username); deleteErr != nil {
+				fmt.Printf("[CancelDisposition] Gagal hapus Surat Kontrol dari BPJS: %v\n", deleteErr)
+			} else {
+				fmt.Printf("[CancelDisposition] Surat Kontrol %s berhasil dihapus dari BPJS\n", suratKontrol.NoSuratKontrol)
+			}
+		}
+		// Update local status regardless of BPJS result
+		database.DB.Model(&suratKontrol).Update("status", "cancelled")
+	} else {
+		fmt.Printf("[CancelDisposition] Surat Kontrol tidak ditemukan untuk visit_id=%s: %v\n", visitID, err)
+	}
+
 	// Reactivate the visit - use raw SQL for nil values
 	if err := database.DB.Exec(`UPDATE visits SET status = ?, end_time = NULL, discharge_time = NULL, updated_at = ? WHERE id = ?`,
 		models.VisitStatusInProgress, now, visitID).Error; err != nil {
@@ -1615,7 +1661,9 @@ func createFollowUpRegistration(db *gorm.DB, sourceVisit *models.Visit, followUp
 	var lastVisit models.Visit
 	var visitNum int
 
-	err := database.DB.Where("visit_number LIKE ?", "VIS"+todayStr+"%").
+	// Use Unscoped to include soft-deleted records when checking for last visit number
+	// This prevents duplicate key error when a follow-up was cancelled and recreated
+	err := database.DB.Unscoped().Where("visit_number LIKE ?", "VIS"+todayStr+"%").
 		Order("visit_number DESC").First(&lastVisit).Error
 
 	if err != nil {
