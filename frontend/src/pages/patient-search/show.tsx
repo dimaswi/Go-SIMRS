@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 // Card imports removed - header flattened
 import { Button } from "@/components/ui/button";
@@ -32,8 +32,11 @@ import {
   Shield,
   Heart,
   CalendarPlus,
+  ChevronDown,
+  ChevronRight,
   FileText,
-  History,
+  FileSignature,
+  UserCheck,
   AlertTriangle,
   CreditCard,
   Eye,
@@ -113,6 +116,31 @@ export default function PatientSearchShow() {
   const [registrationDetailOpen, setRegistrationDetailOpen] = useState(false);
   const [selectedSep, setSelectedSep] = useState<SEPLocal | null>(null);
   const [sepDetailOpen, setSepDetailOpen] = useState(false);
+  const [expandedRegistrations, setExpandedRegistrations] = useState<Set<number>>(new Set());
+
+  const toggleRegistrationExpand = (regId: number) => {
+    setExpandedRegistrations(prev => {
+      const next = new Set(prev);
+      if (next.has(regId)) {
+        next.delete(regId);
+      } else {
+        next.add(regId);
+      }
+      return next;
+    });
+  };
+
+  const visitsByRegistration = useMemo(() => {
+    const map = new Map<number, Visit[]>();
+    for (const visit of visits) {
+      const regId = visit.registration_id;
+      if (regId) {
+        if (!map.has(regId)) map.set(regId, []);
+        map.get(regId)!.push(visit);
+      }
+    }
+    return map;
+  }, [visits]);
 
   useEffect(() => {
     setPageTitle("Detail Pasien");
@@ -629,10 +657,6 @@ export default function PatientSearchShow() {
                 <FileText className="mr-2 h-4 w-4" />
                 Detail Pasien
               </TabsTrigger>
-              <TabsTrigger value="kunjungan">
-                <History className="mr-2 h-4 w-4" />
-                Riwayat Kunjungan
-              </TabsTrigger>
               <TabsTrigger value="pembayaran">
                 <CreditCard className="mr-2 h-4 w-4" />
                 Riwayat Pembayaran
@@ -1057,83 +1081,6 @@ export default function PatientSearchShow() {
               </div>
             </TabsContent>
 
-            {/* Riwayat Kunjungan Tab */}
-            <TabsContent value="kunjungan" className="mt-6">
-              {loadingVisits ? (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                </div>
-              ) : visits.length === 0 ? (
-                <div className="text-center py-12">
-                  <History className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
-                  <h3 className="text-lg font-semibold mb-2">
-                    Riwayat Kunjungan
-                  </h3>
-                  <p className="text-muted-foreground mb-4">
-                    Belum ada data riwayat kunjungan untuk pasien ini
-                  </p>
-                  <Button variant="default" size="sm">
-                    <CalendarPlus className="mr-2 h-4 w-4" />
-                    Daftarkan Kunjungan Baru
-                  </Button>
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[140px]">No. Kunjungan</TableHead>
-                      <TableHead className="w-[160px]">Tanggal</TableHead>
-                      <TableHead>Ruangan</TableHead>
-                      <TableHead>Dokter</TableHead>
-                      <TableHead className="w-[120px]">Tipe</TableHead>
-                      <TableHead className="w-[120px]">Status</TableHead>
-                      <TableHead className="w-[80px] text-center">
-                        Aksi
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {visits.map((visit) => (
-                      <TableRow key={visit.id}>
-                        <TableCell className="font-mono font-medium">
-                          {visit.visit_number}
-                        </TableCell>
-                        <TableCell>
-                          {formatDateTime(visit.created_at)}
-                        </TableCell>
-                        <TableCell>{visit.room?.name || "-"}</TableCell>
-                        <TableCell>
-                          {visit.doctor?.user?.name ||
-                            visit.doctor?.name ||
-                            "-"}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline">
-                            {getVisitTypeLabel(visit.visit_type)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={getVisitStatusVariant(visit.status)}>
-                            {getVisitStatusLabel(visit.status)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => navigate(`/visits/${visit.id}`)}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </TabsContent>
-
             {/* Riwayat Pembayaran Tab */}
             <TabsContent value="pembayaran" className="mt-6">
               {loadingBillings ? (
@@ -1240,74 +1187,272 @@ export default function PatientSearchShow() {
                   </Button>
                 </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[140px]">No. Registrasi</TableHead>
-                      <TableHead className="w-[160px]">Tanggal</TableHead>
-                      <TableHead>Ruangan</TableHead>
-                      <TableHead>Dokter</TableHead>
-                      <TableHead className="w-[100px]">Pembayaran</TableHead>
-                      <TableHead className="w-[120px]">No. SEP</TableHead>
-                      <TableHead className="w-[120px]">Status</TableHead>
-                      <TableHead className="w-[80px] text-center">
-                        Aksi
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {registrations.map((reg) => (
-                      <TableRow key={reg.id || reg.ID}>
-                        <TableCell className="font-mono font-medium">
-                          {reg.registration_number}
-                        </TableCell>
-                        <TableCell>
-                          {formatDateTime(reg.created_at)}
-                        </TableCell>
-                        <TableCell>{reg.destination_room?.name || "-"}</TableCell>
-                        <TableCell>
-                          {reg.doctor?.nama_lengkap || reg.doctor?.name || "-"}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="uppercase">
-                            {reg.payment_method}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="font-mono text-xs">
-                          {reg.sep_number || "-"}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={getRegistrationStatusVariant(reg.status)}>
-                            {getRegistrationStatusLabel(reg.status)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem
-                                onClick={() => handleViewRegistration(reg)}
-                              >
-                                <Eye className="mr-2 h-4 w-4" />
-                                Lihat Detail
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => handlePrintQueue(reg)}
-                              >
-                                <Printer className="mr-2 h-4 w-4" />
-                                Cetak Antrian
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                <div className="space-y-2">
+                  {registrations.map((reg) => {
+                    const regId = reg.id || reg.ID;
+                    const isExpanded = expandedRegistrations.has(regId!);
+                    const regVisits = visitsByRegistration.get(regId!) || [];
+                    const mainVisits = regVisits.filter(v =>
+                      ['outpatient', 'inpatient', 'emergency', 'consultation'].includes(v.visit_type)
+                    );
+                    const orderVisits = regVisits.filter(v =>
+                      !['outpatient', 'inpatient', 'emergency', 'consultation'].includes(v.visit_type)
+                    );
+
+                    return (
+                      <div key={regId} className="border rounded-lg overflow-hidden">
+                        {/* Registration Header — clickable to expand */}
+                        <div
+                          className={`flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-muted/50 transition-colors ${isExpanded ? 'bg-muted/30' : ''}`}
+                          onClick={() => toggleRegistrationExpand(regId!)}
+                        >
+                          {isExpanded ? (
+                            <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                              <span className="font-mono font-medium text-sm">{reg.registration_number}</span>
+                              <span className="text-sm text-muted-foreground">{formatDateTime(reg.created_at)}</span>
+                              <span className="text-sm">{reg.destination_room?.name || '-'}</span>
+                              <span className="text-sm text-muted-foreground">{reg.doctor?.nama_lengkap || reg.doctor?.name || '-'}</span>
+                              <Badge variant="outline" className="uppercase text-xs">{reg.payment_method}</Badge>
+                              {reg.sep_number && (
+                                <span className="font-mono text-xs text-muted-foreground">SEP: {reg.sep_number}</span>
+                              )}
+                              <Badge variant={getRegistrationStatusVariant(reg.status)} className="text-xs">
+                                {getRegistrationStatusLabel(reg.status)}
+                              </Badge>
+                            </div>
+                            {regVisits.length > 0 && (
+                              <div className="text-xs text-muted-foreground mt-0.5">
+                                {mainVisits.length > 0 && `${mainVisits.length} kunjungan utama`}
+                                {mainVisits.length > 0 && orderVisits.length > 0 && ' · '}
+                                {orderVisits.length > 0 && `${orderVisits.length} order`}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Expanded Visit Tree */}
+                        {isExpanded && (
+                          <div className="border-t bg-muted/10 px-4 py-3">
+                            {loadingVisits ? (
+                              <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                Memuat kunjungan...
+                              </div>
+                            ) : regVisits.length === 0 ? (
+                              <div className="text-sm text-muted-foreground py-2 pl-4">
+                                Belum ada kunjungan untuk pendaftaran ini
+                              </div>
+                            ) : (
+                              <div className="space-y-3">
+                                {/* Section: Kunjungan Utama */}
+                                {mainVisits.length > 0 && (
+                                  <div>
+                                    <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 pl-1">
+                                      Kunjungan Utama
+                                    </div>
+                                    {mainVisits.map((visit, idx) => {
+                                      const isLastMain = idx === mainVisits.length - 1 && orderVisits.length === 0;
+                                      return (
+                                        <div key={visit.id} className="flex items-center gap-2.5 py-1.5 pl-5 relative group hover:bg-muted/50 rounded-sm">
+                                          <div className={`absolute left-[7px] w-px bg-border ${isLastMain ? 'top-0 h-1/2' : 'top-0 bottom-0'}`} />
+                                          <div className="absolute left-[7px] top-1/2 w-3 h-px bg-border" />
+                                          <div className="relative z-10 h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
+                                          <Badge variant="outline" className={`text-xs shrink-0 ${
+                                            visit.visit_type === 'emergency' ? 'border-red-300 text-red-700 dark:border-red-700 dark:text-red-400 bg-red-50 dark:bg-red-950/30' :
+                                            visit.visit_type === 'inpatient' ? 'border-blue-300 text-blue-700 dark:border-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30' :
+                                            visit.visit_type === 'outpatient' ? 'border-green-300 text-green-700 dark:border-green-700 dark:text-green-400 bg-green-50 dark:bg-green-950/30' :
+                                            'border-purple-300 text-purple-700 dark:border-purple-700 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/30'
+                                          }`}>
+                                            {getVisitTypeLabel(visit.visit_type)}
+                                          </Badge>
+                                          <span className="text-sm truncate">{visit.room?.name || '-'}</span>
+                                          <span className="text-xs text-muted-foreground truncate hidden sm:inline">
+                                            {visit.doctor?.user?.name || visit.doctor?.name || ''}
+                                          </span>
+                                          <Badge variant={getVisitStatusVariant(visit.status)} className="text-xs shrink-0">
+                                            {getVisitStatusLabel(visit.status)}
+                                          </Badge>
+                                          {/* Action buttons */}
+                                          <div className="ml-auto flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <TooltipProvider delayDuration={200}>
+                                              <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                  <Button variant="ghost" size="icon" className="h-7 w-7"
+                                                    onClick={() => navigate(`/visits/${visit.id}`)}
+                                                  >
+                                                    <Eye className="h-3.5 w-3.5" />
+                                                  </Button>
+                                                </TooltipTrigger>
+                                                <TooltipContent side="top"><p>Lihat Kunjungan</p></TooltipContent>
+                                              </Tooltip>
+                                              <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                  <Button variant="ghost" size="icon" className="h-7 w-7"
+                                                    onClick={() => { if (regId) printApi.admissionDischargeSummary(regId, visit.id); }}
+                                                  >
+                                                    <FileText className="h-3.5 w-3.5" />
+                                                  </Button>
+                                                </TooltipTrigger>
+                                                <TooltipContent side="top"><p>MR.1 Ringkasan Masuk & Keluar</p></TooltipContent>
+                                              </Tooltip>
+                                              <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                  <Button variant="ghost" size="icon" className="h-7 w-7"
+                                                    onClick={() => printApi.dpjpRequest(visit.id)}
+                                                  >
+                                                    <UserCheck className="h-3.5 w-3.5" />
+                                                  </Button>
+                                                </TooltipTrigger>
+                                                <TooltipContent side="top"><p>Permohonan DPJP</p></TooltipContent>
+                                              </Tooltip>
+                                              <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                  <Button variant="ghost" size="icon" className="h-7 w-7"
+                                                    onClick={() => printApi.informedConsentReceipt(visit.id)}
+                                                  >
+                                                    <FileSignature className="h-3.5 w-3.5" />
+                                                  </Button>
+                                                </TooltipTrigger>
+                                                <TooltipContent side="top"><p>Bukti Informed Consent</p></TooltipContent>
+                                              </Tooltip>
+                                              {visit.visit_type === 'outpatient' && (
+                                                <>
+                                                  <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                      <Button variant="ghost" size="icon" className="h-7 w-7"
+                                                        onClick={() => printApi.outpatientResume(visit.id)}
+                                                      >
+                                                        <ClipboardList className="h-3.5 w-3.5" />
+                                                      </Button>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent side="top"><p>Cetak Resume Rawat Jalan</p></TooltipContent>
+                                                  </Tooltip>
+                                                  <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                      <Button variant="ghost" size="icon" className="h-7 w-7"
+                                                        onClick={handlePrintLabel}
+                                                      >
+                                                        <Printer className="h-3.5 w-3.5" />
+                                                      </Button>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent side="top"><p>Cetak Label Pasien</p></TooltipContent>
+                                                  </Tooltip>
+                                                </>
+                                              )}
+                                              {visit.visit_type === 'emergency' && (
+                                                <Tooltip>
+                                                  <TooltipTrigger asChild>
+                                                    <Button variant="ghost" size="icon" className="h-7 w-7"
+                                                      onClick={() => printApi.emergencySummary(visit.id)}
+                                                    >
+                                                      <ClipboardList className="h-3.5 w-3.5" />
+                                                    </Button>
+                                                  </TooltipTrigger>
+                                                  <TooltipContent side="top"><p>Cetak Resume IGD</p></TooltipContent>
+                                                </Tooltip>
+                                              )}
+                                              {visit.visit_type === 'inpatient' && (
+                                                <Tooltip>
+                                                  <TooltipTrigger asChild>
+                                                    <Button variant="ghost" size="icon" className="h-7 w-7"
+                                                      onClick={() => printApi.inpatientResume(visit.id)}
+                                                    >
+                                                      <ClipboardList className="h-3.5 w-3.5" />
+                                                    </Button>
+                                                  </TooltipTrigger>
+                                                  <TooltipContent side="top"><p>Cetak Resume Rawat Inap</p></TooltipContent>
+                                                </Tooltip>
+                                              )}
+                                              {visit.room_queue?.id && (
+                                                <Tooltip>
+                                                  <TooltipTrigger asChild>
+                                                    <Button variant="ghost" size="icon" className="h-7 w-7"
+                                                      onClick={() => printApi.queueTicket(visit.room_queue.id)}
+                                                    >
+                                                      <Clock className="h-3.5 w-3.5" />
+                                                    </Button>
+                                                  </TooltipTrigger>
+                                                  <TooltipContent side="top"><p>Cetak Tiket Antrian</p></TooltipContent>
+                                                </Tooltip>
+                                              )}
+                                            </TooltipProvider>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+
+                                {/* Section: Order / Penunjang */}
+                                {orderVisits.length > 0 && (
+                                  <div>
+                                    <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 pl-1">
+                                      Order / Penunjang
+                                    </div>
+                                    {orderVisits.map((visit, idx) => {
+                                      const isLastOrder = idx === orderVisits.length - 1;
+                                      return (
+                                        <div key={visit.id} className="flex items-center gap-2.5 py-1.5 pl-5 relative group hover:bg-muted/50 rounded-sm">
+                                          <div className={`absolute left-[7px] w-px bg-border ${isLastOrder ? 'top-0 h-1/2' : 'top-0 bottom-0'}`} />
+                                          <div className="absolute left-[7px] top-1/2 w-3 h-px bg-border" />
+                                          <div className="relative z-10 h-1.5 w-1.5 rounded-full bg-muted-foreground shrink-0" />
+                                          <Badge variant="outline" className={`text-xs shrink-0 ${
+                                            visit.visit_type === 'pharmacy' ? 'border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30' :
+                                            (visit.visit_type === 'lab' || visit.visit_type === 'laboratory') ? 'border-cyan-300 text-cyan-700 dark:border-cyan-700 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-950/30' :
+                                            visit.visit_type === 'radiology' ? 'border-indigo-300 text-indigo-700 dark:border-indigo-700 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/30' :
+                                            'border-gray-300 text-gray-700 dark:border-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-950/30'
+                                          }`}>
+                                            {getVisitTypeLabel(visit.visit_type)}
+                                          </Badge>
+                                          <span className="text-sm truncate">{visit.room?.name || '-'}</span>
+                                          <Badge variant={getVisitStatusVariant(visit.status)} className="text-xs shrink-0">
+                                            {getVisitStatusLabel(visit.status)}
+                                          </Badge>
+                                          {/* Action buttons */}
+                                          <div className="ml-auto flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <TooltipProvider delayDuration={200}>
+                                              <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                  <Button variant="ghost" size="icon" className="h-7 w-7"
+                                                    onClick={() => navigate(`/visits/${visit.id}`)}
+                                                  >
+                                                    <Eye className="h-3.5 w-3.5" />
+                                                  </Button>
+                                                </TooltipTrigger>
+                                                <TooltipContent side="top"><p>Lihat Kunjungan</p></TooltipContent>
+                                              </Tooltip>
+                                              {visit.room_queue?.id && (
+                                                <Tooltip>
+                                                  <TooltipTrigger asChild>
+                                                    <Button variant="ghost" size="icon" className="h-7 w-7"
+                                                      onClick={() => printApi.queueTicket(visit.room_queue.id)}
+                                                    >
+                                                      <Clock className="h-3.5 w-3.5" />
+                                                    </Button>
+                                                  </TooltipTrigger>
+                                                  <TooltipContent side="top"><p>Cetak Tiket Antrian</p></TooltipContent>
+                                                </Tooltip>
+                                              )}
+                                            </TooltipProvider>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               )}
             </TabsContent>
 
