@@ -445,7 +445,7 @@ export function CPPTForm({ visitId, readOnly = false }: CPPTFormProps) {
   };
 
   // Get profession badge color
-  const getProfessionColor = (profession: string) => {
+  const getProfessionColor = (_profession: string) => {
     return "bg-muted text-muted-foreground";
   };
 

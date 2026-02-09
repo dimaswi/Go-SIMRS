@@ -19,7 +19,6 @@ import { setPageTitle } from "@/lib/page-title";
 import {
   ArrowLeft,
   Loader2,
-  Pill,
   Pencil,
   Trash2,
   AlertTriangle,
