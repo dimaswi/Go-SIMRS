@@ -205,10 +205,13 @@ func VClaimCreateSEP(c *gin.Context) {
 	// Cek apakah poli IGD/UGD - tidak perlu rujukan
 	isIGD := strings.ToUpper(input.KodePoli) == "IGD" || strings.ToUpper(input.KodePoli) == "UGD"
 
-	// Validasi rujukan untuk non-IGD
-	if !isIGD {
+	// Cek apakah ada surat kontrol (SKDP) - tidak perlu rujukan manual
+	hasSuratKontrol := input.NoSuratKontrol != ""
+
+	// Validasi rujukan untuk non-IGD dan non-SKDP
+	if !isIGD && !hasSuratKontrol {
 		if input.NoRujukan == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "No. Rujukan wajib diisi untuk non-IGD"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "No. Rujukan wajib diisi atau gunakan Surat Kontrol"})
 			return
 		}
 		if input.TglRujukan == "" {
@@ -786,6 +789,107 @@ func VClaimDeleteSEP(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "SEP berhasil dihapus"})
 }
 
+// ApprovalSEPInput adalah input untuk approval SEP (backdate/finger print)
+type ApprovalSEPInput struct {
+	NoKartu      string `json:"no_kartu" binding:"required"`
+	TglSep       string `json:"tgl_sep" binding:"required"`       // yyyy-mm-dd
+	JnsPelayanan string `json:"jns_pelayanan" binding:"required"` // 1=Rawat Inap, 2=Rawat Jalan
+	JnsPengajuan string `json:"jns_pengajuan"`                    // 1=Backdate, 2=Finger Print (default: 1)
+	Keterangan   string `json:"keterangan" binding:"required"`
+}
+
+// VClaimApprovalSEP mengajukan approval SEP (backdate atau finger print)
+// POST /bpjs/vclaim/sep/approval
+func VClaimApprovalSEP(c *gin.Context) {
+	var input ApprovalSEPInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Get current user
+	userID, _ := c.Get("userID")
+	var user models.User
+	if err := database.DB.First(&user, userID).Error; err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User tidak ditemukan"})
+		return
+	}
+
+	client, err := bpjs.NewVClaimClient()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat VClaim client: " + err.Error()})
+		return
+	}
+
+	// Default jnsPengajuan = 1 (Backdate)
+	jnsPengajuan := input.JnsPengajuan
+	if jnsPengajuan == "" {
+		jnsPengajuan = "1"
+	}
+
+	// Call VClaim API
+	result, err := client.ApprovalSEP(
+		input.NoKartu,
+		input.TglSep,
+		input.JnsPelayanan,
+		jnsPengajuan,
+		input.Keterangan,
+		user.Username,
+	)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Gagal mengajukan approval SEP: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Approval SEP berhasil diajukan",
+		"data":    result,
+	})
+}
+
+// VClaimPengajuanSEP mengajukan pengajuan SEP (untuk SEP backdate/finger print)
+// POST /bpjs/vclaim/sep/pengajuan
+func VClaimPengajuanSEP(c *gin.Context) {
+	var input ApprovalSEPInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Get current user
+	userID, _ := c.Get("userID")
+	var user models.User
+	if err := database.DB.First(&user, userID).Error; err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User tidak ditemukan"})
+		return
+	}
+
+	client, err := bpjs.NewVClaimClient()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat VClaim client: " + err.Error()})
+		return
+	}
+
+	// Call VClaim API
+	result, err := client.PengajuanSEP(
+		input.NoKartu,
+		input.TglSep,
+		input.JnsPelayanan,
+		input.JnsPengajuan,
+		input.Keterangan,
+		user.Username,
+	)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Gagal mengajukan pengajuan SEP: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Pengajuan SEP berhasil dikirim",
+		"data":    result,
+	})
+}
+
 // ==================== SPRI (Surat Perintah Rawat Inap) ====================
 
 // SPRIInput adalah input untuk membuat SPRI
@@ -1268,6 +1372,33 @@ func GetSuratKontrolList(c *gin.Context) {
 	query.Order("created_at DESC").Limit(limit).Find(&suratKontrolList)
 
 	c.JSON(http.StatusOK, gin.H{"data": suratKontrolList})
+}
+
+// GetSuratKontrolLocal mendapatkan surat kontrol local berdasarkan noSuratKontrol
+// Endpoint ini mengembalikan data surat kontrol dari database lokal termasuk SEP asal
+func GetSuratKontrolLocal(c *gin.Context) {
+	noSuratKontrol := c.Param("noSuratKontrol")
+	if noSuratKontrol == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Nomor Surat Kontrol wajib diisi"})
+		return
+	}
+
+	var suratKontrol models.SuratKontrol
+	if err := database.DB.Preload("SEP").Preload("Patient").
+		Where("no_surat_kontrol = ?", noSuratKontrol).
+		First(&suratKontrol).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Surat Kontrol tidak ditemukan di database lokal"})
+		return
+	}
+
+	// Return data termasuk NoSEP asal
+	c.JSON(http.StatusOK, gin.H{
+		"data": suratKontrol,
+		"sep_asal": gin.H{
+			"no_sep": suratKontrol.NoSEP,
+			"sep_id": suratKontrol.SEPID,
+		},
+	})
 }
 
 // VClaimDeleteSuratKontrol menghapus surat kontrol
@@ -1972,6 +2103,7 @@ func VClaimInsertSEPKontrol(c *gin.Context) {
 		"message": "SEP kontrol berhasil diterbitkan",
 		"data": gin.H{
 			"noSep": sepResponse.Sep.NoSep,
+			"sepId": sep.ID,
 		},
 	})
 }
@@ -1999,51 +2131,4 @@ func VClaimGetListPersetujuanSEP(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": list})
-}
-
-// VClaimApprovalSEP mengajukan approval untuk SEP (backdate atau fingerprint)
-func VClaimApprovalSEP(c *gin.Context) {
-	var input struct {
-		NoKartu      string `json:"no_kartu" binding:"required"`
-		TglSEP       string `json:"tgl_sep" binding:"required"`
-		JnsPelayanan string `json:"jns_pelayanan" binding:"required"` // 1 = Rawat Inap, 2 = Rawat Jalan
-		JnsPengajuan string `json:"jns_pengajuan" binding:"required"` // 1 = backdate, 2 = finger print
-		Keterangan   string `json:"keterangan" binding:"required"`
-	}
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	// Get current user
-	userID := c.GetUint("user_id")
-	var user models.User
-	database.DB.First(&user, userID)
-	userName := user.FullName
-	if userName == "" {
-		userName = user.Username
-	}
-
-	client, err := bpjs.NewVClaimClient()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat VClaim client: " + err.Error()})
-		return
-	}
-
-	req := &bpjs.ApprovalSEPRequest{
-		NoKartu:      input.NoKartu,
-		TglSEP:       input.TglSEP,
-		JnsPelayanan: input.JnsPelayanan,
-		JnsPengajuan: input.JnsPengajuan,
-		Keterangan:   input.Keterangan,
-		User:         userName,
-	}
-
-	if err := client.ApprovalSEP(req); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengajukan approval SEP: " + err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "Approval SEP berhasil diajukan"})
 }

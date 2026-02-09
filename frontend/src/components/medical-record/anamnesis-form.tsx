@@ -6,6 +6,16 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Save, Loader2, FileText, Pill, AlertCircle, Search, X, Plus, AlertTriangle } from "lucide-react";
 import { medicalRecordsApi, patientAllergyApi, ALLERGY_CATEGORY_LABELS, ALLERGY_CRITICALITY_LABELS, ALLERGY_CRITICALITY_COLORS } from "@/lib/api";
 import { medicalRecordEditLogApi } from "@/lib/api/visits";
@@ -86,6 +96,8 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false, is
   // Saving states
   const [savingAllergy, setSavingAllergy] = useState(false);
   const [deletingAllergyId, setDeletingAllergyId] = useState<number | null>(null);
+  const [duplicateAllergyAlert, setDuplicateAllergyAlert] = useState(false);
+  const [deleteAllergyConfirm, setDeleteAllergyConfirm] = useState<number | null>(null);
 
   // Load existing anamnesis data
   useEffect(() => {
@@ -201,7 +213,7 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false, is
       updateAllergiesSummary(updatedAllergies);
     } catch (error: any) {
       if (error.response?.status === 409) {
-        alert("Alergi ini sudah tercatat untuk pasien");
+        setDuplicateAllergyAlert(true);
       } else {
         console.error("Failed to add allergy:", error);
       }
@@ -211,7 +223,13 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false, is
   };
 
   const handleDeleteAllergy = async (allergyId: number) => {
-    if (!confirm("Hapus alergi ini?")) return;
+    setDeleteAllergyConfirm(allergyId);
+  };
+
+  const handleConfirmDeleteAllergy = async () => {
+    const allergyId = deleteAllergyConfirm;
+    if (!allergyId) return;
+    setDeleteAllergyConfirm(null);
     
     setDeletingAllergyId(allergyId);
     try {
@@ -682,6 +700,42 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false, is
         onEditReasonChange={setEditReason}
         onConfirm={handleConfirmEdit}
       />
+
+      {/* Duplicate Allergy Alert Dialog */}
+      <AlertDialog open={duplicateAllergyAlert} onOpenChange={setDuplicateAllergyAlert}>
+        <AlertDialogContent className="max-w-sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-sm">Alergi Duplikat</AlertDialogTitle>
+            <AlertDialogDescription className="text-xs">
+              Alergi ini sudah tercatat untuk pasien.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction className="h-8 text-xs">OK</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Allergy Confirmation Dialog */}
+      <AlertDialog open={!!deleteAllergyConfirm} onOpenChange={(open) => !open && setDeleteAllergyConfirm(null)}>
+        <AlertDialogContent className="max-w-sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-sm">Hapus Alergi?</AlertDialogTitle>
+            <AlertDialogDescription className="text-xs">
+              Yakin ingin menghapus data alergi ini dari pasien?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="h-8 text-xs">Batal</AlertDialogCancel>
+            <AlertDialogAction
+              className="h-8 text-xs bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleConfirmDeleteAllergy}
+            >
+              Ya, Hapus
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }

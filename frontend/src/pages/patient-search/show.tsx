@@ -1500,6 +1500,12 @@ export default function PatientSearchShow() {
                                 <Eye className="mr-2 h-4 w-4" />
                                 Lihat Detail
                               </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => printApi.sep(sep.id)}
+                              >
+                                <Printer className="mr-2 h-4 w-4" />
+                                Cetak SEP
+                              </DropdownMenuItem>
                               {sep.status === "active" && (
                                 <>
                                   <DropdownMenuSeparator />

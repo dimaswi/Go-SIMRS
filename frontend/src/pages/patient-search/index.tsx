@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Table,
   TableBody,
@@ -12,10 +14,12 @@ import {
 } from '@/components/ui/table';
 import { patientsApi, type Patient } from '@/lib/api';
 import { setPageTitle } from '@/lib/page-title';
-import { 
-  User, 
-  Loader2, 
+import {
+  User,
+  Loader2,
   Eye,
+  Filter,
+  X,
 } from 'lucide-react';
 import { differenceInYears, parseISO } from 'date-fns';
 
@@ -23,30 +27,40 @@ export default function PatientSearchIndex() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const query = searchParams.get('q') || '';
-  
+
   const [results, setResults] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  const [filters, setFilters] = useState({
+    address: '',
+    kabupaten: '',
+    birthDate: '',
+    parentName: '',
+  });
 
   useEffect(() => {
     setPageTitle('Pencarian Pasien');
   }, []);
 
-  // Search when query changes
-  useEffect(() => {
-    if (query) {
-      performSearch(query);
-    }
-  }, [query]);
-
-  const performSearch = async (searchQuery: string) => {
+  const performSearch = useCallback(async (searchQuery: string, activeFilters = filters) => {
     if (!searchQuery.trim()) return;
-    
+
     setLoading(true);
     try {
-      const response = await patientsApi.search(searchQuery.trim(), 100);
+      const hasFilters = activeFilters.address || activeFilters.kabupaten || activeFilters.birthDate || activeFilters.parentName;
+      const response = await patientsApi.search(
+        searchQuery.trim(),
+        100,
+        hasFilters ? {
+          address: activeFilters.address || undefined,
+          kabupaten: activeFilters.kabupaten || undefined,
+          birthDate: activeFilters.birthDate || undefined,
+          parentName: activeFilters.parentName || undefined,
+        } : undefined
+      );
       const patients: Patient[] = response.data || [];
       setResults(patients);
-      
+
       // Jika hanya 1 hasil, langsung ke detail (gunakan replace untuk menghindari loop back)
       if (patients.length === 1) {
         navigate(`/patient-search/${patients[0].id}?q=${encodeURIComponent(searchQuery)}`, { replace: true });
@@ -57,7 +71,30 @@ export default function PatientSearchIndex() {
     } finally {
       setLoading(false);
     }
+  }, [filters, navigate]);
+
+  // Search when query changes
+  useEffect(() => {
+    if (query) {
+      performSearch(query);
+    }
+  }, [query]);
+
+  const handleApplyFilters = () => {
+    if (query) {
+      performSearch(query, filters);
+    }
   };
+
+  const handleResetFilters = () => {
+    const emptyFilters = { address: '', kabupaten: '', birthDate: '', parentName: '' };
+    setFilters(emptyFilters);
+    if (query) {
+      performSearch(query, emptyFilters);
+    }
+  };
+
+  const hasActiveFilters = filters.address || filters.kabupaten || filters.birthDate || filters.parentName;
 
   const handleViewPatient = (patient: Patient) => {
     navigate(`/patient-search/${patient.id}?q=${encodeURIComponent(query)}`);
@@ -114,18 +151,87 @@ export default function PatientSearchIndex() {
         <div className="space-y-1">
           <h1 className="text-lg font-semibold">Hasil Pencarian</h1>
           <p className="text-sm text-muted-foreground">
-            {results.length > 0 
+            {results.length > 0
               ? `Ditemukan ${results.length} pasien`
               : `Tidak ada pasien yang ditemukan untuk "${query}"`
             }
           </p>
         </div>
-        {results.length > 0 && (
-          <Badge variant="secondary" className="text-sm">
-            {results.length} pasien
-          </Badge>
-        )}
+        <div className="flex items-center gap-2">
+          {hasActiveFilters && (
+            <Badge variant="secondary" className="text-xs">
+              Filter aktif
+            </Badge>
+          )}
+          <Button
+            variant={showFilters ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setShowFilters(!showFilters)}
+          >
+            <Filter className="h-4 w-4 mr-1" />
+            Filter
+          </Button>
+          {results.length > 0 && (
+            <Badge variant="secondary" className="text-sm">
+              {results.length} pasien
+            </Badge>
+          )}
+        </div>
       </div>
+
+      {showFilters && (
+        <div className="rounded-lg border p-4 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="filter-address">Alamat</Label>
+              <Input
+                id="filter-address"
+                placeholder="Cari berdasarkan alamat..."
+                value={filters.address}
+                onChange={(e) => setFilters(prev => ({ ...prev, address: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="filter-kabupaten">Kabupaten / Kota</Label>
+              <Input
+                id="filter-kabupaten"
+                placeholder="Cari berdasarkan kabupaten..."
+                value={filters.kabupaten}
+                onChange={(e) => setFilters(prev => ({ ...prev, kabupaten: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="filter-birthdate">Tanggal Lahir</Label>
+              <Input
+                id="filter-birthdate"
+                type="date"
+                value={filters.birthDate}
+                onChange={(e) => setFilters(prev => ({ ...prev, birthDate: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="filter-parent">Nama Orang Tua</Label>
+              <Input
+                id="filter-parent"
+                placeholder="Nama ayah atau ibu..."
+                value={filters.parentName}
+                onChange={(e) => setFilters(prev => ({ ...prev, parentName: e.target.value }))}
+              />
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button size="sm" onClick={handleApplyFilters}>
+              Terapkan Filter
+            </Button>
+            {hasActiveFilters && (
+              <Button variant="ghost" size="sm" onClick={handleResetFilters}>
+                <X className="h-4 w-4 mr-1" />
+                Reset Filter
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
       <div className="rounded-lg border">
           {results.length === 0 ? (
             <div className="py-16 text-center">

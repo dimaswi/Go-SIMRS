@@ -93,6 +93,14 @@ export const printApi = {
   },
 
   /**
+   * Print SEP (Surat Eligibilitas Peserta) - BPJS
+   * @param sepId - SEP ID
+   */
+  sep: async (sepId: number) => {
+    return fetchPdf(`${BASE_URL}/sep/${sepId}`);
+  },
+
+  /**
    * Print Formulir Permohonan DPJP
    * @param visitId - Visit ID
    */

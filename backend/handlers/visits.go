@@ -153,7 +153,8 @@ func CreateVisit(c *gin.Context) {
 	var lastVisit models.Visit
 	var visitNum int
 
-	err := database.DB.Where("visit_number LIKE ?", "VIS"+today+"%").
+	// Use Unscoped to include soft-deleted records when checking for last visit number
+	err := database.DB.Unscoped().Where("visit_number LIKE ?", "VIS"+today+"%").
 		Order("visit_number DESC").First(&lastVisit).Error
 
 	if err != nil {
@@ -573,6 +574,21 @@ func CancelVisit(c *gin.Context) {
 	tx.Model(&models.ProcedureOrder{}).
 		Where("source_visit_id = ? AND status = ?", visit.ID, models.OrderStatusPending).
 		Update("status", models.OrderStatusCancelled)
+
+	// Check if this visit was created from an AdmissionRequest (rawat inap dari UGD/Rajal)
+	var admissionRequest models.AdmissionRequest
+	if err := tx.Where("inpatient_visit_id = ?", visit.ID).First(&admissionRequest).Error; err == nil {
+		// Revert admission request back to pending
+		tx.Model(&admissionRequest).Updates(map[string]interface{}{
+			"status":             models.AdmissionRequestStatusPending,
+			"inpatient_visit_id": nil,
+			"approved_room_id":   nil,
+			"approved_bed_id":    nil,
+			"processed_by_id":    nil,
+			"processed_at":       nil,
+		})
+		// Note: Source visit (UGD) tetap selesai, tidak direaktivasi
+	}
 
 	// Cancel the visit
 	visit.Status = "cancelled"

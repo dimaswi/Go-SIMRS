@@ -350,6 +350,25 @@ func ProcessAdmissionRequest(c *gin.Context) {
 		"completed_at": now,
 	})
 
+	// Auto-update SEP: Find active rawat inap SEP linked to source visit or patient, and update to inpatient visit
+	// This ensures SEP is correctly linked to the inpatient visit instead of the source (UGD) visit
+	var sep models.SEP
+	if err := tx.Where("visit_id = ? AND jns_pelayanan = ? AND status = ?", request.SourceVisitID, "1", "active").
+		First(&sep).Error; err == nil {
+		// Found SEP linked to source visit, update to inpatient visit
+		tx.Model(&sep).Update("visit_id", inpatientVisit.ID)
+	} else {
+		// Try to find by patient_id and source registration
+		if request.Registration != nil {
+			patientID := request.Registration.PatientID
+			if err := tx.Where("patient_id = ? AND jns_pelayanan = ? AND status = ? AND visit_id IS NULL", patientID, "1", "active").
+				First(&sep).Error; err == nil {
+				// Found SEP without visit_id, update to inpatient visit
+				tx.Model(&sep).Update("visit_id", inpatientVisit.ID)
+			}
+		}
+	}
+
 	tx.Commit()
 
 	// Reload with relations
@@ -495,7 +514,8 @@ func createInpatientVisitFromRequest(tx *gorm.DB, request *models.AdmissionReque
 	var lastVisit models.Visit
 	todayStr := time.Now().Format("20060102")
 	visitNumber := fmt.Sprintf("VIS%s0001", todayStr)
-	if err := tx.Where("visit_number LIKE ?", "VIS"+todayStr+"%").
+	// Use Unscoped to include soft-deleted records when checking for last visit number
+	if err := tx.Unscoped().Where("visit_number LIKE ?", "VIS"+todayStr+"%").
 		Order("visit_number DESC").First(&lastVisit).Error; err == nil {
 		var num int
 		fmt.Sscanf(lastVisit.VisitNumber, "VIS"+todayStr+"%d", &num)
@@ -523,8 +543,12 @@ func createInpatientVisitFromRequest(tx *gorm.DB, request *models.AdmissionReque
 		return nil, err
 	}
 
-	// Update registration type to inpatient
-	tx.Model(&models.Registration{}).Where("id = ?", request.RegistrationID).Update("registration_type", "inpatient")
+	// Update registration type to inpatient and reset status to in_progress
+	// (registration might have been set to 'completed' when source visit was discharged)
+	tx.Model(&models.Registration{}).Where("id = ?", request.RegistrationID).Updates(map[string]interface{}{
+		"registration_type": "inpatient",
+		"status":            models.RegistrationStatusInProgress,
+	})
 
 	return &inpatientVisit, nil
 }

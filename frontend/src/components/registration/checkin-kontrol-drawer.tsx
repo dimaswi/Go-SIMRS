@@ -1,36 +1,15 @@
 import { useState, useEffect, useMemo } from "react";
 import { format } from "date-fns";
-import {
-  Sheet,
-  SheetContent,
-} from "@/components/ui/sheet";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import {
-  Loader2,
-  Search,
-  CheckCircle2,
-  AlertCircle,
-  User,
-  Calendar,
-  FileText,
-  ShieldCheck,
-} from "lucide-react";
+import { Loader2 } from "lucide-react";
 import {
   vclaimApi,
   type VClaimListRencanaKontrolItem,
   type VClaimSuratKontrolDetail,
-  type VClaimSEPKontrolRequest,
 } from "@/lib/api/vclaim";
 import { registrationApi } from "@/lib/api/queue";
 import { api } from "@/lib/api";
-import { useAuthStore } from "@/lib/store";
+import { SEPFormSheet } from "@/components/sep/sep-form-sheet";
 
 interface KontrolInfoResponse {
   registration: {
@@ -53,6 +32,7 @@ interface KontrolInfoResponse {
     no_bpjs?: string;
     no_telepon?: string;
     nik?: string;
+    kelas_bpjs?: string;
   };
   destinationRoom?: {
     id: number;
@@ -120,34 +100,25 @@ export function CheckInKontrolDrawer({
   onSuccess,
 }: CheckInKontrolDrawerProps) {
   const { toast } = useToast();
-  const { user } = useAuthStore();
 
-  // Loading states
+  // Loading state
   const [loading, setLoading] = useState(false);
-  const [loadingSearch, setLoadingSearch] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
 
   // Data states
   const [kontrolInfo, setKontrolInfo] = useState<KontrolInfoResponse | null>(null);
   const [suratKontrolList, setSuratKontrolList] = useState<VClaimListRencanaKontrolItem[]>([]);
   const [selectedSuratKontrol, setSelectedSuratKontrol] = useState<VClaimSuratKontrolDetail | null>(null);
 
-  // Form states
-  const [searchNoSuratKontrol, setSearchNoSuratKontrol] = useState("");
-  const [catatan, setCatatan] = useState("");
-
   // Merge data from list to fill missing fields in detail
   const mergedSuratKontrol = useMemo(() => {
     if (!selectedSuratKontrol) return null;
     
-    // Find matching item from list
     const listItem = suratKontrolList.find(
       (sk) => sk.noSuratKontrol === selectedSuratKontrol.noSuratKontrol
     );
     
     if (!listItem) return selectedSuratKontrol;
     
-    // Merge: use detail data, fallback to list data
     return {
       ...selectedSuratKontrol,
       poli: selectedSuratKontrol.poli?.nama 
@@ -163,17 +134,57 @@ export function CheckInKontrolDrawer({
     };
   }, [selectedSuratKontrol, suratKontrolList]);
 
+  // Build SEP initial values from surat kontrol
+  const sepInitialValues = useMemo(() => {
+    if (!mergedSuratKontrol) return undefined;
+
+    const listItem = suratKontrolList.find(
+      (sk) => sk.noSuratKontrol === mergedSuratKontrol.noSuratKontrol
+    );
+
+    // Extract ICD code from diagnosis
+    let diagAwal = mergedSuratKontrol.namaDiagnosa || "";
+    if (diagAwal.includes(" - ")) {
+      diagAwal = diagAwal.split(" - ")[0].trim();
+    }
+    if (!diagAwal) {
+      diagAwal = "Z00.0";
+    }
+
+    // noRujukan = No SEP asal (bukan nomor surat kontrol)
+    // noSuratKontrol = Nomor surat kontrol (SKDP)
+    // ppkRujukan akan otomatis diisi dari config di backend
+    const noSepAsal = mergedSuratKontrol.sep?.noSep || listItem?.noSepAsalKontrol || "";
+    const tglSepAsal = mergedSuratKontrol.sep?.tglSep || listItem?.tglSEP || format(new Date(), "yyyy-MM-dd");
+    
+    // Determine jenis pelayanan from surat kontrol (1=Ranap, 2=Rajal)
+    // VClaim returns "Rawat Inap" or "Rawat Jalan"
+    const jenisPelayananFromList = listItem?.jnsPelayanan || "";
+    const jnsPelayanan = jenisPelayananFromList === "Rawat Inap" ? "1" : "2";
+
+    return {
+      kodePoli: mergedSuratKontrol.poli?.kode || listItem?.poliTujuan || kontrolInfo?.destinationRoom?.kode_bpjs || "",
+      namaPoli: mergedSuratKontrol.poli?.nama || listItem?.namaPoliTujuan || kontrolInfo?.destinationRoom?.name || "",
+      kodeDokter: mergedSuratKontrol.dokter?.kode || listItem?.kodeDokter || kontrolInfo?.doctor?.kode_bpjs || "",
+      namaDokter: mergedSuratKontrol.dokter?.nama || listItem?.namaDokter || kontrolInfo?.doctor?.nama || "",
+      jenisPelayanan: jnsPelayanan, // Dari surat kontrol (1=Ranap, 2=Rajal)
+      noSuratKontrol: mergedSuratKontrol.noSuratKontrol,
+      noRujukan: noSepAsal, // No SEP asal, bukan nomor surat kontrol
+      tglRujukan: tglSepAsal,
+      diagAwal: diagAwal,
+      namaDiagnosa: mergedSuratKontrol.namaDiagnosa || "",
+      asalRujukan: "2", // Kontrol/internal (Faskes 2)
+    };
+  }, [mergedSuratKontrol, suratKontrolList, kontrolInfo]);
+
   // Load kontrol info when opened
   useEffect(() => {
     if (open && registrationId) {
       loadKontrolInfo();
     } else {
-      // Reset state when closed
       setKontrolInfo(null);
       setSuratKontrolList([]);
       setSelectedSuratKontrol(null);
-      setSearchNoSuratKontrol("");
-      setCatatan("");
     }
   }, [open, registrationId]);
 
@@ -195,6 +206,13 @@ export function CheckInKontrolDrawer({
       }
     }
   }, [kontrolInfo, suratKontrolList]);
+
+  // For non-BPJS, auto check-in when opened
+  useEffect(() => {
+    if (kontrolInfo && !kontrolInfo.isBPJS) {
+      handleDirectCheckIn();
+    }
+  }, [kontrolInfo]);
 
   const loadKontrolInfo = async () => {
     if (!registrationId) return;
@@ -220,7 +238,7 @@ export function CheckInKontrolDrawer({
       const response = await vclaimApi.searchSuratKontrolByNoKartu(noKartu, {
         bulan: String(now.getMonth() + 1).padStart(2, "0"),
         tahun: String(now.getFullYear()),
-        filter: "2", // Belum terbit SEP
+        filter: "2",
       });
       setSuratKontrolList(response.data.data || []);
     } catch (error) {
@@ -229,130 +247,27 @@ export function CheckInKontrolDrawer({
   };
 
   const handleSelectSuratKontrol = async (noSuratKontrol: string) => {
-    setLoadingSearch(true);
     try {
       const response = await vclaimApi.getSuratKontrolDetail(noSuratKontrol);
       setSelectedSuratKontrol(response.data.data);
-      setSearchNoSuratKontrol(noSuratKontrol);
     } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.response?.data?.error || "Gagal memuat detail surat kontrol",
-        variant: "destructive",
-      });
-    } finally {
-      setLoadingSearch(false);
+      console.error("Failed to get surat kontrol detail:", error);
     }
   };
 
-  const handleSearchSuratKontrol = async () => {
-    if (!searchNoSuratKontrol.trim()) {
-      toast({
-        title: "Validasi",
-        description: "Masukkan nomor surat kontrol",
-        variant: "destructive",
-      });
-      return;
-    }
-    await handleSelectSuratKontrol(searchNoSuratKontrol.trim());
-  };
+  const handleSEPCreated = async (noSEP: string) => {
+    toast({
+      title: "SEP Berhasil Dibuat",
+      description: `No SEP: ${noSEP}`,
+    });
 
-  const handleCheckIn = async () => {
-    if (!kontrolInfo || !registrationId) return;
-
-    // For BPJS, must have selected surat kontrol and create SEP first
-    if (kontrolInfo.isBPJS) {
-      if (!mergedSuratKontrol) {
-        toast({
-          title: "Validasi",
-          description: "Pilih surat kontrol terlebih dahulu",
-          variant: "destructive",
-        });
-        return;
-      }
-      await handleCreateSEPAndCheckIn();
-    } else {
-      // For non-BPJS, just check-in directly
-      await handleDirectCheckIn();
-    }
-  };
-
-  const handleCreateSEPAndCheckIn = async () => {
-    if (!kontrolInfo || !mergedSuratKontrol || !registrationId) return;
-
-    // Also get the list item for additional data
-    const listItem = suratKontrolList.find(
-      (sk) => sk.noSuratKontrol === mergedSuratKontrol.noSuratKontrol
-    );
-
-    setSubmitting(true);
-    try {
-      // Build SEP Kontrol request using merged data + list item fallback
-      const noSEPAsal = mergedSuratKontrol.sep?.noSep || listItem?.noSepAsalKontrol || "";
-      const tglSEPAsal = mergedSuratKontrol.sep?.tglSep || listItem?.tglSEP || format(new Date(), "yyyy-MM-dd");
-      const kodePoli = mergedSuratKontrol.poli?.kode || listItem?.poliTujuan || kontrolInfo.destinationRoom?.kode_bpjs || "";
-      const kodeDokter = mergedSuratKontrol.dokter?.kode || listItem?.kodeDokter || kontrolInfo.doctor?.kode_bpjs || "";
-      
-      // Extract ICD code from diagnosis (format: "A00.0 - Diagnosis Name" or just "A00.0")
-      let diagAwal = mergedSuratKontrol.namaDiagnosa || "";
-      if (diagAwal.includes(" - ")) {
-        diagAwal = diagAwal.split(" - ")[0].trim();
-      }
-      // If still empty, use default
-      if (!diagAwal) {
-        diagAwal = "Z00.0"; // Default general examination
-      }
-
-      const sepRequest: VClaimSEPKontrolRequest = {
-        noKartu: kontrolInfo.patient?.no_bpjs || "",
-        tglSep: format(new Date(), "yyyy-MM-dd"),
-        noSuratKontrol: mergedSuratKontrol.noSuratKontrol || "",
-        noSEPAsal: noSEPAsal,
-        tglSEPAsal: tglSEPAsal,
-        kodePoli: kodePoli,
-        kodeDokter: kodeDokter,
-        jnsPelayanan: "2", // Default rawat jalan
-        catatan: catatan || "",
-        diagAwal: diagAwal,
-        klsRawatHak: mergedSuratKontrol.sep?.klsRawat || kontrolInfo.pesertaInfo?.hakKelas?.kode || "3",
-        noTelp: kontrolInfo.patient?.no_telepon || "000000000000",
-        userBuat: user?.username || "SIMRS",
-        registrationId: registrationId,
-      };
-
-      console.log("SEP Request:", sepRequest); // Debug
-
-      // Create SEP
-      const sepResponse = await vclaimApi.createSEPKontrol(sepRequest);
-      const noSEP = sepResponse.data.data?.noSep;
-
-      if (!noSEP) {
-        throw new Error("No SEP tidak didapatkan dari BPJS");
-      }
-
-      toast({
-        title: "SEP Berhasil Dibuat",
-        description: `No SEP: ${noSEP}`,
-      });
-
-      // Now check-in
-      await handleDirectCheckIn();
-
-    } catch (error: any) {
-      toast({
-        title: "Gagal Membuat SEP",
-        description: error.response?.data?.error || error.message || "Terjadi kesalahan",
-        variant: "destructive",
-      });
-    } finally {
-      setSubmitting(false);
-    }
+    // Check-in after SEP created
+    await handleDirectCheckIn();
   };
 
   const handleDirectCheckIn = async () => {
     if (!registrationId) return;
 
-    setSubmitting(true);
     try {
       const response = await registrationApi.checkIn(registrationId);
       toast({
@@ -367,293 +282,42 @@ export function CheckInKontrolDrawer({
         description: error.response?.data?.error || "Terjadi kesalahan",
         variant: "destructive",
       });
-    } finally {
-      setSubmitting(false);
     }
   };
 
+  // Show loading while fetching data
   if (loading) {
     return (
-      <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent className="w-full sm:max-w-xl">
-          <div className="flex items-center justify-center h-full">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          </div>
-        </SheetContent>
-      </Sheet>
+      <div className="fixed inset-0 bg-background/80 flex items-center justify-center z-50">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
     );
   }
 
-  // Don't render content if no kontrolInfo (e.g., after error)
-  if (!kontrolInfo) {
+  // For BPJS patients, show SEP form directly
+  if (kontrolInfo?.isBPJS && kontrolInfo.patient) {
     return (
-      <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent className="w-full sm:max-w-lg flex flex-col p-0 gap-0">
-          <div className="bg-gradient-to-r from-emerald-600 to-teal-600 p-4 text-white">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-white/20 flex items-center justify-center">
-                <Loader2 className="h-5 w-5 animate-spin" />
-              </div>
-              <div>
-                <h2 className="font-semibold text-lg">Check-in Kontrol</h2>
-                <p className="text-white/80 text-sm">Memuat data...</p>
-              </div>
-            </div>
-          </div>
-        </SheetContent>
-      </Sheet>
+      <SEPFormSheet
+        open={open}
+        onOpenChange={onOpenChange}
+        patient={{
+          id: kontrolInfo.patient.id,
+          no_rm: kontrolInfo.patient.no_rm,
+          nama_lengkap: kontrolInfo.patient.nama_lengkap,
+          nik: kontrolInfo.patient.nik,
+          no_bpjs: kontrolInfo.patient.no_bpjs,
+          tanggal_lahir: kontrolInfo.patient.tanggal_lahir,
+          jenis_kelamin: kontrolInfo.patient.jenis_kelamin,
+          no_telepon: kontrolInfo.patient.no_telepon,
+          kelas_bpjs: kontrolInfo.patient.kelas_bpjs,
+        }}
+        registrationId={registrationId || undefined}
+        initialValues={sepInitialValues}
+        onSEPCreated={handleSEPCreated}
+      />
     );
   }
 
-  return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-lg flex flex-col p-0 gap-0">
-        {/* Header with Gradient */}
-        <div className="bg-gradient-to-r from-emerald-600 to-teal-600 p-4 text-white">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-full bg-white/20 flex items-center justify-center">
-              <CheckCircle2 className="h-5 w-5" />
-            </div>
-            <div>
-              <h2 className="font-semibold text-lg">Check-in Kontrol</h2>
-              <p className="text-white/80 text-sm">
-                {kontrolInfo.isBPJS ? "BPJS Kesehatan" : "Pasien Umum"}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <ScrollArea className="flex-1">
-          <div className="p-4 space-y-4">
-            {/* Patient Card - Hero Style */}
-            <div className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 rounded-xl p-4 border">
-              <div className="flex items-start gap-3">
-                <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                  <User className="h-6 w-6 text-primary" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-base truncate">{kontrolInfo?.patient?.nama_lengkap}</h3>
-                  <div className="flex items-center gap-2 mt-1">
-                    <Badge variant="outline" className="text-xs font-mono">
-                      {kontrolInfo?.patient?.no_rm}
-                    </Badge>
-                    <Badge variant={kontrolInfo?.isBPJS ? "default" : "secondary"} className="text-xs">
-                      {kontrolInfo?.isBPJS ? "BPJS" : "Umum"}
-                    </Badge>
-                  </div>
-                  {kontrolInfo?.isBPJS && kontrolInfo.patient?.no_bpjs && (
-                    <p className="text-xs text-muted-foreground mt-1 font-mono">
-                      BPJS: {kontrolInfo.patient.no_bpjs}
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Jadwal Kontrol - Visual Timeline */}
-            <div className="rounded-xl border overflow-hidden">
-              <div className="bg-blue-50 dark:bg-blue-950 px-4 py-2 border-b">
-                <h4 className="font-medium text-sm flex items-center gap-2 text-blue-700 dark:text-blue-300">
-                  <Calendar className="h-4 w-4" />
-                  Jadwal Kontrol Hari Ini
-                </h4>
-              </div>
-              <div className="p-4 grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-xs text-muted-foreground mb-0.5">Tanggal</p>
-                  <p className="font-semibold">
-                    {kontrolInfo?.registration?.scheduled_date 
-                      ? format(new Date(kontrolInfo.registration.scheduled_date), "dd MMM yyyy")
-                      : "-"
-                    }
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground mb-0.5">No. Registrasi</p>
-                  <p className="font-mono text-sm">{kontrolInfo?.registration?.registration_number}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground mb-0.5">Poli Tujuan</p>
-                  <p className="font-medium">{kontrolInfo?.destinationRoom?.name || "-"}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground mb-0.5">Dokter</p>
-                  <p className="font-medium">{kontrolInfo?.doctor?.nama || "-"}</p>
-                </div>
-              </div>
-            </div>
-
-            {/* BPJS Section */}
-            {kontrolInfo?.isBPJS && (
-              <div className="rounded-xl border overflow-hidden">
-                <div className="bg-emerald-50 dark:bg-emerald-950 px-4 py-2 border-b">
-                  <h4 className="font-medium text-sm flex items-center gap-2 text-emerald-700 dark:text-emerald-300">
-                    <ShieldCheck className="h-4 w-4" />
-                    Surat Kontrol BPJS
-                  </h4>
-                </div>
-                <div className="p-4 space-y-3">
-                  {/* Search */}
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="Cari nomor surat kontrol..."
-                      value={searchNoSuratKontrol}
-                      onChange={(e) => setSearchNoSuratKontrol(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && handleSearchSuratKontrol()}
-                      className="h-9"
-                    />
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={handleSearchSuratKontrol}
-                      disabled={loadingSearch}
-                      className="h-9 w-9 shrink-0"
-                    >
-                      {loadingSearch ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Search className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </div>
-
-                  {/* Surat Kontrol List */}
-                  {suratKontrolList.length > 0 && (
-                    <div className="space-y-2">
-                      <p className="text-xs text-muted-foreground">
-                        Pilih surat kontrol ({suratKontrolList.length} tersedia)
-                      </p>
-                      <div className="space-y-2 max-h-32 overflow-y-auto">
-                        {suratKontrolList.map((sk) => (
-                          <div
-                            key={sk.noSuratKontrol}
-                            className={`p-3 rounded-lg border-2 cursor-pointer transition-all ${
-                              selectedSuratKontrol?.noSuratKontrol === sk.noSuratKontrol
-                                ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950"
-                                : "border-transparent bg-muted/50 hover:border-emerald-300"
-                            } ${sk.terbitSEP === "Sudah" ? "opacity-50 cursor-not-allowed" : ""}`}
-                            onClick={() => {
-                              if (sk.terbitSEP !== "Sudah") {
-                                handleSelectSuratKontrol(sk.noSuratKontrol);
-                              }
-                            }}
-                          >
-                            <div className="flex justify-between items-start gap-2">
-                              <div className="min-w-0 flex-1">
-                                <p className="font-mono text-sm font-medium">{sk.noSuratKontrol}</p>
-                                <p className="text-xs text-muted-foreground mt-0.5">
-                                  {sk.namaPoliTujuan} • {sk.tglRencanaKontrol ? format(new Date(sk.tglRencanaKontrol), "dd/MM/yyyy") : "-"}
-                                </p>
-                              </div>
-                              {sk.terbitSEP === "Sudah" ? (
-                                <Badge variant="secondary" className="shrink-0">SEP Terbit</Badge>
-                              ) : selectedSuratKontrol?.noSuratKontrol === sk.noSuratKontrol ? (
-                                <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />
-                              ) : null}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Selected Detail */}
-                  {mergedSuratKontrol && (
-                    <div className="bg-emerald-50 dark:bg-emerald-950/50 rounded-lg p-3 space-y-2">
-                      <div className="flex items-center gap-2">
-                        <FileText className="h-4 w-4 text-emerald-600" />
-                        <span className="font-medium text-sm text-emerald-700 dark:text-emerald-300">Detail Surat Kontrol</span>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3 text-sm">
-                        <div>
-                          <p className="text-xs text-muted-foreground">Poli Tujuan</p>
-                          <p className="font-medium">{mergedSuratKontrol.poli?.nama || "-"}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Dokter</p>
-                          <p className="font-medium">{mergedSuratKontrol.dokter?.nama || "-"}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">SEP Asal</p>
-                          <p className="font-mono text-xs">{mergedSuratKontrol.sep?.noSep || "-"}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Diagnosa</p>
-                          <p className="text-xs truncate">{mergedSuratKontrol.namaDiagnosa || "-"}</p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Catatan */}
-                  <div>
-                    <Label htmlFor="catatan" className="text-sm">Catatan SEP</Label>
-                    <Textarea
-                      id="catatan"
-                      placeholder="Catatan tambahan (opsional)..."
-                      value={catatan}
-                      onChange={(e) => setCatatan(e.target.value)}
-                      rows={2}
-                      className="mt-1.5"
-                    />
-                  </div>
-
-                  {!selectedSuratKontrol && suratKontrolList.length === 0 && (
-                    <Alert variant="destructive" className="bg-red-50 border-red-200">
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertTitle>Tidak ada surat kontrol</AlertTitle>
-                      <AlertDescription>
-                        Surat kontrol tidak ditemukan. Pastikan sudah dibuat pada kunjungan sebelumnya.
-                      </AlertDescription>
-                    </Alert>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Non-BPJS Ready */}
-            {!kontrolInfo?.isBPJS && (
-              <div className="rounded-xl border-2 border-emerald-200 bg-emerald-50 dark:bg-emerald-950 p-4">
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-full bg-emerald-100 dark:bg-emerald-900 flex items-center justify-center">
-                    <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-                  </div>
-                  <div>
-                    <h4 className="font-medium text-emerald-700 dark:text-emerald-300">Siap Check-in</h4>
-                    <p className="text-sm text-emerald-600 dark:text-emerald-400">
-                      Pasien umum dapat langsung check-in
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </ScrollArea>
-
-        {/* Footer */}
-        <div className="border-t p-4 flex gap-3">
-          <Button variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>
-            Batal
-          </Button>
-          <Button
-            className="flex-1 bg-emerald-600 hover:bg-emerald-700"
-            onClick={handleCheckIn}
-            disabled={submitting || (kontrolInfo?.isBPJS && !mergedSuratKontrol)}
-          >
-            {submitting ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Memproses...
-              </>
-            ) : (
-              <>
-                <CheckCircle2 className="h-4 w-4 mr-2" />
-                {kontrolInfo?.isBPJS ? "Terbitkan SEP & Check-in" : "Check-in Sekarang"}
-              </>
-            )}
-          </Button>
-        </div>
-      </SheetContent>
-    </Sheet>
-  );
+  // For non-BPJS, nothing to render (auto check-in happens in useEffect)
+  return null;
 }

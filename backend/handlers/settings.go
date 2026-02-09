@@ -74,9 +74,9 @@ func UploadLogo(c *gin.Context) {
 		return
 	}
 
-	// Get upload type (logo or favicon)
+	// Get upload type (logo, favicon, or bpjs_logo)
 	uploadType := c.PostForm("type")
-	if uploadType != "logo" && uploadType != "favicon" {
+	if uploadType != "logo" && uploadType != "favicon" && uploadType != "bpjs_logo" {
 		uploadType = "logo"
 	}
 
@@ -106,7 +106,12 @@ func UploadLogo(c *gin.Context) {
 	}
 
 	// Save to settings
-	settingKey := "app_" + uploadType
+	settingKey := ""
+	if uploadType == "bpjs_logo" {
+		settingKey = "bpjs_logo"
+	} else {
+		settingKey = "app_" + uploadType
+	}
 	fileURL := "/uploads/" + filename
 
 	var setting models.Setting

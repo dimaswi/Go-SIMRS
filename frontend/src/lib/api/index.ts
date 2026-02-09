@@ -372,3 +372,22 @@ export type {
   VClaimSEPOptions,
   SEPLocal
 } from './vclaim';
+
+// Patient Portal (Public Access for Patients)
+export { patientPortalApi, patientPortalAuth } from './patient-portal';
+export type {
+  PatientLoginRequest,
+  PatientProfile,
+  PatientLoginResponse,
+  VisitHistoryItem,
+  VisitHistoryResponse,
+  VitalSign,
+  Diagnosis as PortalDiagnosis,
+  ProcedureItem,
+  Medication,
+  LabResult,
+  VisitDetail,
+  MedicalResume,
+  PatientAllergy as PortalPatientAllergy,
+  AllergiesResponse
+} from './patient-portal';

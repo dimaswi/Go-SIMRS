@@ -303,7 +303,8 @@ func CreateRegistration(c *gin.Context) {
 		var lastVisit models.Visit
 		var visitNum int
 
-		err := tx.Where("visit_number LIKE ?", "VIS"+todayStr+"%").
+		// Use Unscoped to include soft-deleted records when checking for last visit number
+		err := tx.Unscoped().Where("visit_number LIKE ?", "VIS"+todayStr+"%").
 			Order("visit_number DESC").First(&lastVisit).Error
 
 		if err != nil {
@@ -1674,7 +1675,8 @@ func CheckInScheduledRegistration(c *gin.Context) {
 		var lastVisit models.Visit
 		var visitNum int
 
-		err := tx.Where("visit_number LIKE ?", "VIS"+todayStr+"%").
+		// Use Unscoped to include soft-deleted records when checking for last visit number
+		err := tx.Unscoped().Where("visit_number LIKE ?", "VIS"+todayStr+"%").
 			Order("visit_number DESC").First(&lastVisit).Error
 		if err != nil {
 			visitNum = 1
@@ -1727,6 +1729,13 @@ func CheckInScheduledRegistration(c *gin.Context) {
 		registration.Visit = &visit
 	}
 
+	// Update SEP dengan visit_id jika ada SEP untuk registration ini
+	if registration.SEPNumber != "" && registration.Visit != nil {
+		tx.Model(&models.SEP{}).
+			Where("registration_id = ? OR no_sep = ?", registration.ID, registration.SEPNumber).
+			Update("visit_id", registration.Visit.ID)
+	}
+
 	tx.Commit()
 
 	// Reload with associations
@@ -1738,6 +1747,14 @@ func CheckInScheduledRegistration(c *gin.Context) {
 	queueNumber := ""
 	if registration.Visit != nil && registration.Visit.RoomQueue != nil {
 		queueNumber = registration.Visit.RoomQueue.QueueNumber
+	}
+
+	// === BPJS Antrian Online integration ===
+	// Untuk pasien BPJS rawat jalan, kirim ke BPJS Antrian Online
+	if registration.PaymentMethod == "BPJS" && registration.Visit != nil {
+		go func() {
+			sendBPJSAntreanOnCheckIn(&registration, queueNumber, now)
+		}()
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -1752,6 +1769,197 @@ type RescheduleRegistrationInput struct {
 	NewDate string `json:"new_date" binding:"required"` // YYYY-MM-DD
 	NewRoom *uint  `json:"new_room_id"`                 // Optional: change room
 	Reason  string `json:"reason"`                      // Optional: reason for reschedule
+}
+
+// sendBPJSAntreanOnCheckIn sends BPJSQueue data to BPJS Antrian Online when check-in
+// This is called async (in goroutine) to not block the check-in response
+func sendBPJSAntreanOnCheckIn(registration *models.Registration, queueNumber string, checkInTime time.Time) {
+	// Load patient if not preloaded
+	var patient models.Patient
+	if registration.Patient != nil {
+		patient = *registration.Patient
+	} else {
+		if err := database.DB.First(&patient, registration.PatientID).Error; err != nil {
+			fmt.Printf("[BPJS Check-in] Gagal load patient: %v\n", err)
+			return
+		}
+	}
+
+	// Get BPJS number from patient or SEP
+	bpjsNumber := patient.NoBPJS
+	if bpjsNumber == "" && registration.SEPNumber != "" {
+		var sep models.SEP
+		if err := database.DB.Where("no_sep = ?", registration.SEPNumber).First(&sep).Error; err == nil {
+			bpjsNumber = sep.NoKartu
+		}
+	}
+	if bpjsNumber == "" {
+		fmt.Printf("[BPJS Check-in] Pasien tidak memiliki nomor BPJS\n")
+		return
+	}
+
+	// Get poli mapping
+	var poliMapping models.BPJSPoliMapping
+	if err := database.DB.Where("room_id = ?", registration.DestinationRoomID).First(&poliMapping).Error; err != nil {
+		fmt.Printf("[BPJS Check-in] Tidak ada mapping poli untuk room_id %d\n", registration.DestinationRoomID)
+		return
+	}
+
+	// Get doctor mapping
+	var dokterMapping models.BPJSDoctorMapping
+	if registration.DoctorID != nil {
+		if err := database.DB.Where("employee_id = ?", *registration.DoctorID).First(&dokterMapping).Error; err != nil {
+			fmt.Printf("[BPJS Check-in] Tidak ada mapping dokter untuk employee_id %d\n", *registration.DoctorID)
+			// Continue without doctor mapping, not critical
+		}
+	}
+
+	// Get jam praktek from doctor schedule if available
+	jamPraktek := "08:00-12:00" // Default jam praktek
+	scheduleDate := checkInTime
+	if registration.Visit != nil && registration.Visit.CreatedAt.Unix() > 0 {
+		scheduleDate = registration.Visit.CreatedAt
+	}
+	dayOfWeek := int(scheduleDate.Weekday())
+	if dayOfWeek == 0 {
+		dayOfWeek = 7 // Minggu = 7
+	}
+	var doctorSchedule models.DoctorSchedule
+	if registration.DoctorID != nil {
+		if err := database.DB.Where("employee_id = ? AND room_id = ? AND day_of_week = ?",
+			*registration.DoctorID, registration.DestinationRoomID, dayOfWeek).
+			First(&doctorSchedule).Error; err == nil {
+			jamPraktek = fmt.Sprintf("%s-%s", doctorSchedule.StartTime, doctorSchedule.EndTime)
+		}
+	}
+
+	// Check existing BPJSQueue for this registration
+	var existingQueue models.BPJSQueue
+	if err := database.DB.Where("registration_id = ?", registration.ID).First(&existingQueue).Error; err == nil {
+		// Already has BPJSQueue, update it instead
+		existingQueue.Status = "checkin"
+		existingQueue.WaktuCheckin = &checkInTime
+		existingQueue.Task3At = &checkInTime
+		if registration.Visit != nil {
+			existingQueue.VisitID = &registration.Visit.ID
+			if registration.Visit.RoomQueue != nil {
+				existingQueue.RoomQueueID = &registration.Visit.RoomQueue.ID
+			}
+		}
+		database.DB.Save(&existingQueue)
+
+		// Send Task 3 if AddAntrean was successful
+		if existingQueue.AddAntreanCode == 200 {
+			bpjsService.UpdateTaskAsync(existingQueue.KodeBooking, 3, checkInTime, nil)
+		}
+		return
+	}
+
+	// Determine jenis kunjungan and nomor referensi from SEP
+	jenisKunjungan := 3 // Default: Kontrol untuk jadwal kontrol
+	nomorReferensi := ""
+	if registration.SEPNumber != "" {
+		var sep models.SEP
+		if err := database.DB.Where("no_sep = ?", registration.SEPNumber).First(&sep).Error; err == nil {
+			if sep.NoSuratKontrol != "" {
+				nomorReferensi = sep.NoSuratKontrol
+				jenisKunjungan = 3 // Kontrol
+			} else if sep.NoRujukan != "" {
+				nomorReferensi = sep.NoRujukan
+				if sep.AsalRujukan == "1" {
+					jenisKunjungan = 1 // Rujukan FKTP
+				} else if sep.AsalRujukan == "2" {
+					jenisKunjungan = 4 // Rujukan Antar RS
+				}
+			}
+		}
+	}
+
+	// Generate kode booking
+	kodeBooking := generateKodeBookingOnSite(checkInTime, poliMapping.KodePoliBPJS)
+
+	// Extract angka antrean from queue number
+	angkaAntrean := extractAngkaAntrean(queueNumber)
+
+	// Estimate dilayani time (30 minutes from now as default)
+	estimasiDilayani := checkInTime.Add(30 * time.Minute).UnixMilli()
+
+	// Get kodeDokter as string
+	kodeDokter := ""
+	if dokterMapping.ID > 0 {
+		kodeDokter = dokterMapping.KodeDokterBPJS
+	}
+
+	// Create BPJSQueue
+	now := time.Now()
+	bpjsQueue := models.BPJSQueue{
+		KodeBooking:      kodeBooking,
+		NomorAntrean:     queueNumber,
+		AngkaAntrean:     angkaAntrean,
+		TanggalPeriksa:   checkInTime,
+		JamPraktek:       jamPraktek,
+		KodePoli:         poliMapping.KodePoliBPJS,
+		NamaPoli:         poliMapping.NamaPoliBPJS,
+		KodeDokter:       kodeDokter,
+		NamaDokter:       dokterMapping.NamaDokterBPJS,
+		JenisPasien:      "JKN",
+		NoKartu:          bpjsNumber,
+		NIK:              patient.NIK,
+		NoHP:             patient.NoHP,
+		NoRM:             patient.NoRM,
+		NamaPasien:       patient.NamaLengkap,
+		JenisKunjungan:   jenisKunjungan,
+		NomorReferensi:   nomorReferensi,
+		EstimasiDilayani: estimasiDilayani,
+		Status:           "checkin",
+		WaktuCheckin:     &checkInTime,
+		Task3At:          &checkInTime,
+		PatientID:        &patient.ID,
+		RegistrationID:   &registration.ID,
+		RoomID:           &registration.DestinationRoomID,
+		PoliMappingID:    &poliMapping.ID,
+		SyncStatus:       "pending",
+	}
+
+	if registration.Visit != nil {
+		bpjsQueue.VisitID = &registration.Visit.ID
+		if registration.Visit.RoomQueue != nil {
+			bpjsQueue.RoomQueueID = &registration.Visit.RoomQueue.ID
+		}
+	}
+
+	if dokterMapping.ID > 0 {
+		bpjsQueue.DoctorMappingID = &dokterMapping.ID
+	}
+
+	if err := database.DB.Create(&bpjsQueue).Error; err != nil {
+		fmt.Printf("[BPJS Check-in] Gagal menyimpan BPJSQueue: %s\n", err.Error())
+		return
+	}
+
+	// Call AddAntrean to BPJS
+	addSuccess, addCode, addMsg := bpjsService.AddAntrean(&bpjsQueue)
+
+	// Update BPJSQueue with result
+	bpjsQueue.AddAntreanSent = true
+	bpjsQueue.AddAntreanCode = addCode
+	bpjsQueue.AddAntreanMsg = addMsg
+	bpjsQueue.LastSyncAt = &now
+
+	if addSuccess {
+		bpjsQueue.SyncStatus = "synced"
+		fmt.Printf("[BPJS Check-in] AddAntrean berhasil untuk kode_booking: %s\n", kodeBooking)
+
+		// Send Task 3 (tunggu di poli)
+		bpjsService.UpdateTaskAsync(kodeBooking, 3, checkInTime, nil)
+	} else {
+		bpjsQueue.SyncStatus = "failed"
+		bpjsQueue.SyncError = addMsg
+		fmt.Printf("[BPJS Check-in] AddAntrean gagal untuk kode_booking: %s - [%d] %s\n", kodeBooking, addCode, addMsg)
+	}
+
+	// Save updated BPJSQueue
+	database.DB.Save(&bpjsQueue)
 }
 
 // RescheduleRegistration godoc

@@ -236,10 +236,12 @@ export const patientsApi = {
   },
 
   // Quick search for autocomplete
-  search: async (query: string, limit = 10, address?: string, birthDate?: string) => {
+  search: async (query: string, limit = 10, filters?: { address?: string; birthDate?: string; kabupaten?: string; parentName?: string }) => {
     const params: any = { q: query, limit };
-    if (address) params.address = address;
-    if (birthDate) params.birth_date = birthDate;
+    if (filters?.address) params.address = filters.address;
+    if (filters?.birthDate) params.birth_date = filters.birthDate;
+    if (filters?.kabupaten) params.kabupaten = filters.kabupaten;
+    if (filters?.parentName) params.parent_name = filters.parentName;
     const response = await api.get('/patients/search', { params });
     return response.data;
   },

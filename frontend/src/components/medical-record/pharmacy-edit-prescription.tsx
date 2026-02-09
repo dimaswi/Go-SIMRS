@@ -8,6 +8,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { usePermission } from "@/hooks/usePermission";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -139,6 +149,8 @@ export function PharmacyEditPrescription({ visitId, readOnly = false }: Pharmacy
     instructions: "",
     notes: "",
   });
+  const [deleteConfirmItem, setDeleteConfirmItem] = useState<MedicineOrderItem | null>(null);
+  const [cancelConfirmOrder, setCancelConfirmOrder] = useState(false);
 
   useEffect(() => {
     loadOrders();
@@ -296,7 +308,13 @@ export function PharmacyEditPrescription({ visitId, readOnly = false }: Pharmacy
 
   const handleDeleteItem = async (item: MedicineOrderItem) => {
     if (!selectedOrder) return;
-    if (!confirm(`Yakin ingin menghapus ${item.medicine?.name}?`)) return;
+    setDeleteConfirmItem(item);
+  };
+
+  const handleConfirmDeleteItem = async () => {
+    const item = deleteConfirmItem;
+    if (!item || !selectedOrder) return;
+    setDeleteConfirmItem(null);
 
     try {
       await medicineOrdersApi.deleteItem(selectedOrder.id, item.id!);
@@ -316,7 +334,12 @@ export function PharmacyEditPrescription({ visitId, readOnly = false }: Pharmacy
 
   const handleCancelOrder = async () => {
     if (!selectedOrder) return;
-    if (!confirm(`Yakin ingin membatalkan order ${selectedOrder.order_number}? Semua item akan dibatalkan.`)) return;
+    setCancelConfirmOrder(true);
+  };
+
+  const handleConfirmCancelOrder = async () => {
+    setCancelConfirmOrder(false);
+    if (!selectedOrder) return;
 
     try {
       await medicineOrdersApi.cancel(selectedOrder.id);
@@ -808,6 +831,48 @@ export function PharmacyEditPrescription({ visitId, readOnly = false }: Pharmacy
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Item Confirmation Dialog */}
+      <AlertDialog open={!!deleteConfirmItem} onOpenChange={(open) => !open && setDeleteConfirmItem(null)}>
+        <AlertDialogContent className="max-w-sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-sm">Hapus Obat?</AlertDialogTitle>
+            <AlertDialogDescription className="text-xs">
+              Yakin ingin menghapus {deleteConfirmItem?.medicine?.name}?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="h-8 text-xs">Batal</AlertDialogCancel>
+            <AlertDialogAction
+              className="h-8 text-xs bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleConfirmDeleteItem}
+            >
+              Ya, Hapus
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Cancel Order Confirmation Dialog */}
+      <AlertDialog open={cancelConfirmOrder} onOpenChange={setCancelConfirmOrder}>
+        <AlertDialogContent className="max-w-sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-sm">Batalkan Order?</AlertDialogTitle>
+            <AlertDialogDescription className="text-xs">
+              Yakin ingin membatalkan order {selectedOrder?.order_number}? Semua item akan dibatalkan.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="h-8 text-xs">Batal</AlertDialogCancel>
+            <AlertDialogAction
+              className="h-8 text-xs bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleConfirmCancelOrder}
+            >
+              Ya, Batalkan
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

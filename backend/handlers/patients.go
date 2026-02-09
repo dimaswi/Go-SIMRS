@@ -97,9 +97,11 @@ func SearchPatients(c *gin.Context) {
 	query := c.Query("q")
 	address := c.Query("address")
 	birthDate := c.Query("birth_date")
+	kabupaten := c.Query("kabupaten")
+	parentName := c.Query("parent_name")
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
 
-	if query == "" && address == "" && birthDate == "" {
+	if query == "" && address == "" && birthDate == "" && kabupaten == "" && parentName == "" {
 		c.JSON(http.StatusOK, gin.H{"data": []models.Patient{}})
 		return
 	}
@@ -121,6 +123,13 @@ func SearchPatients(c *gin.Context) {
 			addressPattern, addressPattern)
 	}
 
+	// Search by kabupaten/kota
+	if kabupaten != "" {
+		kabupatenPattern := "%" + strings.ToLower(kabupaten) + "%"
+		db = db.Where("LOWER(kota_ktp) LIKE ? OR LOWER(kota_domisili) LIKE ?",
+			kabupatenPattern, kabupatenPattern)
+	}
+
 	// Search by birth date
 	if birthDate != "" {
 		// Try to parse the date
@@ -128,6 +137,13 @@ func SearchPatients(c *gin.Context) {
 		if err == nil {
 			db = db.Where("tanggal_lahir = ?", parsedDate)
 		}
+	}
+
+	// Search by parent name (nama_ayah or nama_ibu)
+	if parentName != "" {
+		parentPattern := "%" + strings.ToLower(parentName) + "%"
+		db = db.Where("LOWER(nama_ayah) LIKE ? OR LOWER(nama_ibu) LIKE ?",
+			parentPattern, parentPattern)
 	}
 
 	db.Where("status = ?", models.PatientStatusActive).

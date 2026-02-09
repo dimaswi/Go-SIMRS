@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import {
   Loader2,
@@ -13,10 +14,6 @@ import {
   Save,
   FileText,
   FileCheck,
-  ClipboardList,
-  UserSearch,
-  History,
-  Settings2,
   Trash2,
   Check,
   Minus,
@@ -45,49 +42,6 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 
-// Sidebar menu items
-const menuItems = [
-  {
-    id: "get-sep",
-    label: "Get SEP",
-    icon: FileText,
-  },
-  {
-    id: "surat-kontrol",
-    label: "Surat Kontrol",
-    icon: FileCheck,
-  },
-  {
-    id: "approval-sep",
-    label: "Approval SEP",
-    icon: ShieldCheck,
-  },
-  {
-    id: "get-peserta",
-    label: "Cek Peserta",
-    icon: UserSearch,
-    disabled: true,
-  },
-  {
-    id: "get-rujukan",
-    label: "Cek Rujukan",
-    icon: ClipboardList,
-    disabled: true,
-  },
-  {
-    id: "history-sep",
-    label: "History SEP",
-    icon: History,
-    disabled: true,
-  },
-  {
-    id: "settings",
-    label: "Pengaturan",
-    icon: Settings2,
-    disabled: true,
-  },
-];
-
 // Form schema for Get SEP
 const getSEPSchema = z.object({
   noSEP: z.string().min(1, "Nomor SEP wajib diisi"),
@@ -99,15 +53,15 @@ type GetSEPForm = z.infer<typeof getSEPSchema>;
 function Field({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div className="min-w-0">
-      <dt className="text-[11px] text-muted-foreground leading-none mb-0.5">{label}</dt>
-      <dd className={cn("text-xs truncate", mono && "font-mono")}>{value || "-"}</dd>
+      <dt className="text-xs text-muted-foreground leading-none mb-1">{label}</dt>
+      <dd className={cn("text-sm truncate", mono && "font-mono")}>{value || "-"}</dd>
     </div>
   );
 }
 
 export default function BPJSToolsPage() {
   const { toast } = useToast();
-  const [activeMenu, setActiveMenu] = useState("get-sep");
+  const [activeTab, setActiveTab] = useState("get-sep");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [sepData, setSepData] = useState<any>(null);
@@ -132,6 +86,22 @@ export default function BPJSToolsPage() {
   const [approvalSubmitting, setApprovalSubmitting] = useState<string | null>(null);
   const [approvalDialog, setApprovalDialog] = useState<VClaimPersetujuanSEPItem | null>(null);
   const [approvalKeterangan, setApprovalKeterangan] = useState("");
+  
+  // Manual Approval SEP input state
+  const [manualNoKartu, setManualNoKartu] = useState("");
+  const [manualTglSep, setManualTglSep] = useState(() => new Date().toISOString().slice(0, 10));
+  const [manualJnsPelayanan, setManualJnsPelayanan] = useState("2"); // 1=RI, 2=RJ
+  const [manualJnsPengajuan, setManualJnsPengajuan] = useState("1"); // 1=Backdate, 2=Finger Print
+  const [manualKeterangan, setManualKeterangan] = useState("");
+  const [manualApprovalSubmitting, setManualApprovalSubmitting] = useState(false);
+
+  // Pengajuan SEP state
+  const [pengajuanNoKartu, setPengajuanNoKartu] = useState("");
+  const [pengajuanTglSep, setPengajuanTglSep] = useState(() => new Date().toISOString().slice(0, 10));
+  const [pengajuanJnsPelayanan, setPengajuanJnsPelayanan] = useState("2"); // 1=RI, 2=RJ
+  const [pengajuanJnsPengajuan, setPengajuanJnsPengajuan] = useState("1"); // 1=Backdate, 2=Finger Print
+  const [pengajuanKeterangan, setPengajuanKeterangan] = useState("");
+  const [pengajuanSubmitting, setPengajuanSubmitting] = useState(false);
 
   const form = useForm<GetSEPForm>({
     resolver: zodResolver(getSEPSchema),
@@ -236,6 +206,66 @@ export default function BPJSToolsPage() {
     }
   };
 
+  // Manual Approval SEP handler
+  const handleManualApprovalSEP = async () => {
+    if (!manualNoKartu.trim()) {
+      toast({ variant: "destructive", title: "No. Kartu wajib diisi" });
+      return;
+    }
+    if (!manualKeterangan.trim()) {
+      toast({ variant: "destructive", title: "Keterangan wajib diisi" });
+      return;
+    }
+    setManualApprovalSubmitting(true);
+    try {
+      await vclaimApi.approvalSEP({
+        no_kartu: manualNoKartu,
+        tgl_sep: manualTglSep,
+        jns_pelayanan: manualJnsPelayanan,
+        jns_pengajuan: manualJnsPengajuan,
+        keterangan: manualKeterangan,
+      });
+      toast({ title: "Berhasil", description: "Pengajuan approval SEP berhasil dikirim" });
+      // Reset form
+      setManualNoKartu("");
+      setManualKeterangan("");
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Gagal", description: error.response?.data?.error || "Gagal mengajukan approval" });
+    } finally {
+      setManualApprovalSubmitting(false);
+    }
+  };
+
+  // Pengajuan SEP handler
+  const handlePengajuanSEP = async () => {
+    if (!pengajuanNoKartu.trim()) {
+      toast({ variant: "destructive", title: "No. Kartu wajib diisi" });
+      return;
+    }
+    if (!pengajuanKeterangan.trim()) {
+      toast({ variant: "destructive", title: "Keterangan wajib diisi" });
+      return;
+    }
+    setPengajuanSubmitting(true);
+    try {
+      await vclaimApi.pengajuanSEP({
+        no_kartu: pengajuanNoKartu,
+        tgl_sep: pengajuanTglSep,
+        jns_pelayanan: pengajuanJnsPelayanan,
+        jns_pengajuan: pengajuanJnsPengajuan,
+        keterangan: pengajuanKeterangan,
+      });
+      toast({ title: "Berhasil", description: "Pengajuan SEP berhasil dikirim" });
+      // Reset form
+      setPengajuanNoKartu("");
+      setPengajuanKeterangan("");
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Gagal", description: error.response?.data?.error || "Gagal mengajukan SEP" });
+    } finally {
+      setPengajuanSubmitting(false);
+    }
+  };
+
   const handleSaveSEP = async () => {
     if (!sepData) return;
     setSaving(true);
@@ -276,177 +306,174 @@ export default function BPJSToolsPage() {
   };
 
   return (
-    <div className="flex h-[calc(100vh-4rem)]">
-      {/* Sidebar - narrow, compact */}
-      <div className="w-48 border-r flex flex-col bg-background">
-        <div className="px-3 py-3 border-b">
-          <span className="text-xs font-semibold tracking-wide uppercase text-muted-foreground">BPJS Tools</span>
-        </div>
-        <nav className="flex-1 py-1 overflow-auto">
-          {menuItems.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => !item.disabled && setActiveMenu(item.id)}
-              disabled={item.disabled}
-              className={cn(
-                "w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors",
-                activeMenu === item.id
-                  ? "bg-muted font-medium text-foreground"
-                  : item.disabled
-                  ? "text-muted-foreground/40 cursor-not-allowed"
-                  : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-              )}
-            >
-              <item.icon className="h-3.5 w-3.5 flex-shrink-0" />
-              <span className="truncate">{item.label}</span>
-            </button>
-          ))}
-        </nav>
+    <div className="flex flex-1 flex-col gap-4 p-6">
+      {/* Page Header */}
+      <div>
+        <h1 className="text-lg font-semibold">BPJS Tools</h1>
+        <p className="text-sm text-muted-foreground">Utilitas bridging VClaim BPJS Kesehatan</p>
       </div>
 
-      {/* Main Content */}
-      <div className="flex-1 overflow-auto">
-        <div className="max-w-5xl mx-auto px-4 py-4">
+      {/* Tabs */}
+      <div className="rounded-lg border p-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab} variant="inline" className="w-full">
+          <TabsList>
+            <TabsTrigger value="get-sep">
+              <FileText className="mr-2 h-4 w-4" />
+              Get SEP
+            </TabsTrigger>
+            <TabsTrigger value="surat-kontrol">
+              <FileCheck className="mr-2 h-4 w-4" />
+              Surat Kontrol
+            </TabsTrigger>
+            <TabsTrigger value="approval-sep">
+              <ShieldCheck className="mr-2 h-4 w-4" />
+              Approval SEP
+            </TabsTrigger>
+            <TabsTrigger value="pengajuan-sep">
+              <FileText className="mr-2 h-4 w-4" />
+              Pengajuan SEP
+            </TabsTrigger>
+          </TabsList>
 
           {/* ===== GET SEP ===== */}
-          {activeMenu === "get-sep" && (
-            <div className="space-y-4">
-              <div>
-                <h2 className="text-sm font-semibold">Get SEP</h2>
-                <p className="text-xs text-muted-foreground">Ambil data SEP dari VClaim dan simpan ke database lokal</p>
-              </div>
-
-              <form onSubmit={form.handleSubmit(handleGetSEP)} className="flex gap-2 items-start">
-                <div className="flex-1">
-                  <Input
-                    placeholder="Nomor SEP..."
-                    className="h-8 text-xs"
-                    {...form.register("noSEP")}
-                  />
-                  {form.formState.errors.noSEP && (
-                    <p className="text-[11px] text-destructive mt-0.5">{form.formState.errors.noSEP.message}</p>
-                  )}
-                </div>
-                <Button type="submit" size="sm" variant="outline" disabled={loading} className="h-8 text-xs">
-                  {loading ? <Loader2 className="h-3 w-3 animate-spin mr-1.5" /> : <Search className="h-3 w-3 mr-1.5" />}
-                  Cari
-                </Button>
-              </form>
-
-              {/* SEP Result */}
-              {sepData && (
-                <div className="border rounded-md">
-                  {/* Header */}
-                  <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/30">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="text-xs font-medium truncate">SEP</span>
-                      <span className="text-[11px] font-mono text-muted-foreground">{sepData.noSep}</span>
-                    </div>
-                    <Button onClick={handleSaveSEP} size="sm" variant="outline" disabled={saving} className="h-7 text-[11px] shrink-0">
-                      {saving ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Save className="h-3 w-3 mr-1" />}
-                      Simpan
-                    </Button>
-                  </div>
-
-                  {/* Body */}
-                  <div className="px-3 py-2.5 space-y-3">
-                    {/* Peserta */}
-                    <div>
-                      <p className="text-[11px] font-medium text-muted-foreground mb-1.5">Peserta</p>
-                      <dl className="grid grid-cols-3 md:grid-cols-6 gap-x-4 gap-y-2">
-                        <Field label="Nama" value={sepData.peserta?.nama} />
-                        <Field label="No. Kartu" value={sepData.peserta?.noKartu} mono />
-                        <Field label="No. MR" value={sepData.peserta?.noMr} mono />
-                        <Field label="Tgl Lahir" value={sepData.peserta?.tglLahir} />
-                        <Field label="Kelamin" value={sepData.peserta?.kelamin === "L" ? "Laki-laki" : sepData.peserta?.kelamin === "P" ? "Perempuan" : "-"} />
-                        <Field label="Hak Kelas" value={sepData.peserta?.hakKelas || sepData.klsRawat?.klsRawatHak} />
-                      </dl>
-                    </div>
-
-                    <Separator />
-
-                    {/* SEP Detail */}
-                    <div>
-                      <p className="text-[11px] font-medium text-muted-foreground mb-1.5">Detail SEP</p>
-                      <dl className="grid grid-cols-3 md:grid-cols-6 gap-x-4 gap-y-2">
-                        <Field label="Tgl SEP" value={sepData.tglSep} />
-                        <Field label="Jns Pelayanan" value={sepData.jnsPelayanan} />
-                        <Field label="Kelas Rawat" value={sepData.kelasRawat} />
-                        <Field label="Poli" value={sepData.poli} />
-                        <Field label="Tujuan Kunjungan" value={sepData.tujuanKunj?.nama} />
-                        <Field label="Kecelakaan" value={sepData.nmstatusKecelakaan} />
-                      </dl>
-                    </div>
-
-                    <Separator />
-
-                    {/* Diagnosa & DPJP */}
-                    <div>
-                      <p className="text-[11px] font-medium text-muted-foreground mb-1.5">Diagnosa & DPJP</p>
-                      <dl className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-2">
-                        <Field label="Diagnosa" value={sepData.diagnosa} />
-                        <Field label="DPJP" value={sepData.dpjp?.nmDPJP ? `${sepData.dpjp.nmDPJP}${sepData.dpjp.kdDPJP ? ` (${sepData.dpjp.kdDPJP})` : ""}` : "-"} />
-                        {sepData.catatan && <Field label="Catatan" value={sepData.catatan} />}
-                      </dl>
-                    </div>
-                  </div>
-                </div>
-              )}
+          <TabsContent value="get-sep" className="mt-6 space-y-5">
+            <div>
+              <h2 className="text-sm font-semibold">Cari SEP dari VClaim</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">Ambil data SEP dari VClaim dan simpan ke database lokal</p>
             </div>
-          )}
+
+            <form onSubmit={form.handleSubmit(handleGetSEP)} className="flex gap-2 items-start max-w-lg">
+              <div className="flex-1">
+                <Input
+                  placeholder="Masukkan Nomor SEP..."
+                  {...form.register("noSEP")}
+                />
+                {form.formState.errors.noSEP && (
+                  <p className="text-xs text-destructive mt-1">{form.formState.errors.noSEP.message}</p>
+                )}
+              </div>
+              <Button type="submit" variant="outline" disabled={loading}>
+                {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Search className="h-4 w-4 mr-2" />}
+                Cari
+              </Button>
+            </form>
+
+            {/* SEP Result */}
+            {sepData && (
+              <div className="border rounded-lg overflow-hidden">
+                {/* Header */}
+                <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <div>
+                      <span className="text-sm font-medium">Data SEP</span>
+                      <span className="text-xs font-mono text-muted-foreground ml-2">{sepData.noSep}</span>
+                    </div>
+                  </div>
+                  <Button onClick={handleSaveSEP} size="sm" variant="outline" disabled={saving}>
+                    {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Save className="h-3.5 w-3.5 mr-1.5" />}
+                    Simpan ke Database
+                  </Button>
+                </div>
+
+                {/* Body */}
+                <div className="px-4 py-4 space-y-4">
+                  {/* Peserta */}
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Peserta</p>
+                    <dl className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-x-6 gap-y-3">
+                      <Field label="Nama" value={sepData.peserta?.nama} />
+                      <Field label="No. Kartu" value={sepData.peserta?.noKartu} mono />
+                      <Field label="No. MR" value={sepData.peserta?.noMr} mono />
+                      <Field label="Tgl Lahir" value={sepData.peserta?.tglLahir} />
+                      <Field label="Kelamin" value={sepData.peserta?.kelamin === "L" ? "Laki-laki" : sepData.peserta?.kelamin === "P" ? "Perempuan" : "-"} />
+                      <Field label="Hak Kelas" value={sepData.peserta?.hakKelas || sepData.klsRawat?.klsRawatHak} />
+                    </dl>
+                  </div>
+
+                  <Separator />
+
+                  {/* SEP Detail */}
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Detail SEP</p>
+                    <dl className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-x-6 gap-y-3">
+                      <Field label="Tgl SEP" value={sepData.tglSep} />
+                      <Field label="Jns Pelayanan" value={sepData.jnsPelayanan} />
+                      <Field label="Kelas Rawat" value={sepData.kelasRawat} />
+                      <Field label="Poli" value={sepData.poli} />
+                      <Field label="Tujuan Kunjungan" value={sepData.tujuanKunj?.nama} />
+                      <Field label="Kecelakaan" value={sepData.nmstatusKecelakaan} />
+                    </dl>
+                  </div>
+
+                  <Separator />
+
+                  {/* Diagnosa & DPJP */}
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Diagnosa & DPJP</p>
+                    <dl className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-3">
+                      <Field label="Diagnosa" value={sepData.diagnosa} />
+                      <Field label="DPJP" value={sepData.dpjp?.nmDPJP ? `${sepData.dpjp.nmDPJP}${sepData.dpjp.kdDPJP ? ` (${sepData.dpjp.kdDPJP})` : ""}` : "-"} />
+                      {sepData.catatan && <Field label="Catatan" value={sepData.catatan} />}
+                    </dl>
+                  </div>
+                </div>
+              </div>
+            )}
+          </TabsContent>
 
           {/* ===== SURAT KONTROL ===== */}
-          {activeMenu === "surat-kontrol" && (
-            <div className="space-y-4">
-              <div>
-                <h2 className="text-sm font-semibold">Surat Kontrol</h2>
-                <p className="text-xs text-muted-foreground">Cari dan kelola surat kontrol peserta dari VClaim</p>
-              </div>
+          <TabsContent value="surat-kontrol" className="mt-6 space-y-5">
+            <div>
+              <h2 className="text-sm font-semibold">Surat Kontrol</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">Cari dan kelola surat kontrol peserta dari VClaim</p>
+            </div>
 
-              {/* Search */}
-              <div className="flex flex-wrap items-end gap-2">
-                <div className="flex-1 min-w-[200px]">
-                  <label className="text-[11px] text-muted-foreground">No. Kartu BPJS</label>
-                  <Input
-                    placeholder="Nomor kartu..."
-                    className="h-8 text-xs"
-                    value={skNoKartu}
-                    onChange={(e) => setSkNoKartu(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleSearchSuratKontrol()}
-                  />
-                </div>
-                <div className="w-28">
-                  <label className="text-[11px] text-muted-foreground">Bulan</label>
-                  <Select value={skBulan} onValueChange={setSkBulan}>
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"].map((n, i) => (
-                        <SelectItem key={i + 1} value={String(i + 1)} className="text-xs">{n}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="w-24">
-                  <label className="text-[11px] text-muted-foreground">Tahun</label>
-                  <Select value={skTahun} onValueChange={setSkTahun}>
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map(y => (
-                        <SelectItem key={y} value={String(y)} className="text-xs">{y}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex items-center gap-1 border rounded-md h-8">
+            {/* Search */}
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="flex-1 min-w-[220px]">
+                <label className="text-xs text-muted-foreground mb-1 block">No. Kartu BPJS</label>
+                <Input
+                  placeholder="Nomor kartu..."
+                  value={skNoKartu}
+                  onChange={(e) => setSkNoKartu(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleSearchSuratKontrol()}
+                />
+              </div>
+              <div className="w-32">
+                <label className="text-xs text-muted-foreground mb-1 block">Bulan</label>
+                <Select value={skBulan} onValueChange={setSkBulan}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"].map((n, i) => (
+                      <SelectItem key={i + 1} value={String(i + 1)}>{n}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="w-24">
+                <label className="text-xs text-muted-foreground mb-1 block">Tahun</label>
+                <Select value={skTahun} onValueChange={setSkTahun}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map(y => (
+                      <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Filter</label>
+                <div className="flex items-center border rounded-md h-9">
                   <button
                     type="button"
                     onClick={() => setSkFilter("1")}
                     className={cn(
-                      "px-2 h-full text-[11px] rounded-l-md transition-colors",
+                      "px-3 h-full text-sm rounded-l-md transition-colors",
                       skFilter === "1" ? "bg-muted font-medium" : "text-muted-foreground hover:bg-muted/50"
                     )}
                   >
@@ -456,201 +483,347 @@ export default function BPJSToolsPage() {
                     type="button"
                     onClick={() => setSkFilter("2")}
                     className={cn(
-                      "px-2 h-full text-[11px] rounded-r-md transition-colors",
+                      "px-3 h-full text-sm rounded-r-md transition-colors",
                       skFilter === "2" ? "bg-muted font-medium" : "text-muted-foreground hover:bg-muted/50"
                     )}
                   >
                     Kontrol
                   </button>
                 </div>
-                <Button onClick={handleSearchSuratKontrol} size="sm" variant="outline" disabled={skLoading} className="h-8 text-xs">
-                  {skLoading ? <Loader2 className="h-3 w-3 animate-spin mr-1.5" /> : <Search className="h-3 w-3 mr-1.5" />}
-                  Cari
-                </Button>
               </div>
+              <Button onClick={handleSearchSuratKontrol} variant="outline" disabled={skLoading}>
+                {skLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Search className="h-4 w-4 mr-2" />}
+                Cari
+              </Button>
+            </div>
 
-              {/* Results */}
-              {skSearched && (
-                <>
-                  {skData.length > 0 ? (
-                    <div className="border rounded-md">
-                      <div className="flex items-center gap-2 px-3 py-1.5 border-b bg-muted/30">
-                        <span className="text-xs font-medium">Hasil</span>
-                        <Badge variant="secondary" className="text-[10px] h-4 px-1.5">{skData.length}</Badge>
-                      </div>
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-xs">
-                          <thead>
-                            <tr className="border-b text-[11px] text-muted-foreground">
-                              <th className="text-left font-medium px-3 py-1.5">No. Surat Kontrol</th>
-                              <th className="text-left font-medium px-3 py-1.5">Peserta</th>
-                              <th className="text-left font-medium px-3 py-1.5">Tgl Kontrol</th>
-                              <th className="text-left font-medium px-3 py-1.5">Terbit</th>
-                              <th className="text-left font-medium px-3 py-1.5">Poli</th>
-                              <th className="text-left font-medium px-3 py-1.5">Dokter</th>
-                              <th className="text-center font-medium px-3 py-1.5">SEP</th>
-                              <th className="text-right font-medium px-3 py-1.5 w-12"></th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {skData.map((item) => (
-                              <tr key={item.noSuratKontrol} className="border-b last:border-0 hover:bg-muted/20 transition-colors">
-                                <td className="px-3 py-1.5 font-mono text-[11px]">{item.noSuratKontrol}</td>
-                                <td className="px-3 py-1.5">{item.nama}</td>
-                                <td className="px-3 py-1.5 tabular-nums">{item.tglRencanaKontrol}</td>
-                                <td className="px-3 py-1.5 tabular-nums">{item.tglTerbitKontrol}</td>
-                                <td className="px-3 py-1.5 truncate max-w-[140px]">{item.namaPoliTujuan}</td>
-                                <td className="px-3 py-1.5 truncate max-w-[140px]">{item.namaDokter}</td>
-                                <td className="px-3 py-1.5 text-center">
-                                  {item.terbitSEP === "Sudah" ? (
-                                    <Check className="h-3 w-3 mx-auto text-foreground" />
-                                  ) : (
-                                    <Minus className="h-3 w-3 mx-auto text-muted-foreground/50" />
-                                  )}
-                                </td>
-                                <td className="px-3 py-1.5 text-right">
-                                  <button
-                                    type="button"
-                                    onClick={() => setSkDeleteConfirm(item)}
-                                    disabled={skDeleting === item.noSuratKontrol || item.terbitSEP === "Sudah"}
-                                    className={cn(
-                                      "inline-flex items-center justify-center h-6 w-6 rounded transition-colors",
-                                      item.terbitSEP === "Sudah"
-                                        ? "text-muted-foreground/30 cursor-not-allowed"
-                                        : "text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                                    )}
-                                  >
-                                    {skDeleting === item.noSuratKontrol ? (
-                                      <Loader2 className="h-3 w-3 animate-spin" />
-                                    ) : (
-                                      <Trash2 className="h-3 w-3" />
-                                    )}
-                                  </button>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
+            {/* Results */}
+            {skSearched && (
+              <>
+                {skData.length > 0 ? (
+                  <div className="border rounded-lg overflow-hidden">
+                    <div className="flex items-center gap-2 px-4 py-2.5 border-b bg-muted/30">
+                      <span className="text-sm font-medium">Hasil Pencarian</span>
+                      <Badge variant="secondary" className="text-xs">{skData.length}</Badge>
                     </div>
-                  ) : !skLoading ? (
-                    <p className="text-xs text-muted-foreground py-6 text-center">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b text-xs text-muted-foreground">
+                            <th className="text-left font-medium px-4 py-2">No. Surat Kontrol</th>
+                            <th className="text-left font-medium px-4 py-2">Peserta</th>
+                            <th className="text-left font-medium px-4 py-2">Tgl Kontrol</th>
+                            <th className="text-left font-medium px-4 py-2">Terbit</th>
+                            <th className="text-left font-medium px-4 py-2">Poli</th>
+                            <th className="text-left font-medium px-4 py-2">Dokter</th>
+                            <th className="text-center font-medium px-4 py-2">SEP</th>
+                            <th className="text-right font-medium px-4 py-2 w-14"></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {skData.map((item) => (
+                            <tr key={item.noSuratKontrol} className="border-b last:border-0 hover:bg-muted/20 transition-colors">
+                              <td className="px-4 py-2 font-mono text-xs">{item.noSuratKontrol}</td>
+                              <td className="px-4 py-2">{item.nama}</td>
+                              <td className="px-4 py-2 tabular-nums">{item.tglRencanaKontrol}</td>
+                              <td className="px-4 py-2 tabular-nums">{item.tglTerbitKontrol}</td>
+                              <td className="px-4 py-2 truncate max-w-[160px]">{item.namaPoliTujuan}</td>
+                              <td className="px-4 py-2 truncate max-w-[160px]">{item.namaDokter}</td>
+                              <td className="px-4 py-2 text-center">
+                                {item.terbitSEP === "Sudah" ? (
+                                  <Check className="h-4 w-4 mx-auto text-emerald-600" />
+                                ) : (
+                                  <Minus className="h-4 w-4 mx-auto text-muted-foreground/40" />
+                                )}
+                              </td>
+                              <td className="px-4 py-2 text-right">
+                                <button
+                                  type="button"
+                                  onClick={() => setSkDeleteConfirm(item)}
+                                  disabled={skDeleting === item.noSuratKontrol || item.terbitSEP === "Sudah"}
+                                  className={cn(
+                                    "inline-flex items-center justify-center h-7 w-7 rounded transition-colors",
+                                    item.terbitSEP === "Sudah"
+                                      ? "text-muted-foreground/30 cursor-not-allowed"
+                                      : "text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                  )}
+                                >
+                                  {skDeleting === item.noSuratKontrol ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  ) : (
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  )}
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ) : !skLoading ? (
+                  <div className="text-center py-12">
+                    <FileCheck className="h-12 w-12 mx-auto mb-3 text-muted-foreground/30" />
+                    <p className="text-sm text-muted-foreground">
                       Tidak ada surat kontrol ditemukan untuk <span className="font-mono">{skNoKartu}</span>
                     </p>
-                  ) : null}
-                </>
-              )}
-            </div>
-          )}
+                  </div>
+                ) : null}
+              </>
+            )}
+          </TabsContent>
 
           {/* ========== Approval SEP ========== */}
-          {activeMenu === "approval-sep" && (
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 flex-wrap">
-                <div className="w-24">
-                  <label className="text-[11px] text-muted-foreground">Bulan</label>
-                  <Select value={approvalBulan} onValueChange={setApprovalBulan}>
-                    <SelectTrigger className="h-8 text-xs">
+          <TabsContent value="approval-sep" className="mt-6 space-y-5">
+            <div>
+              <h2 className="text-sm font-semibold">Approval SEP</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">Ajukan approval SEP (backdate / fingerprint)</p>
+            </div>
+
+            {/* Manual Input Form */}
+            <div className="border rounded-lg p-4 space-y-4">
+              <div className="text-sm font-medium">Input Manual</div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">No. Kartu BPJS</label>
+                  <Input
+                    placeholder="0001234567890"
+                    value={manualNoKartu}
+                    onChange={(e) => setManualNoKartu(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Tgl SEP</label>
+                  <Input
+                    type="date"
+                    value={manualTglSep}
+                    onChange={(e) => setManualTglSep(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Jenis Pelayanan</label>
+                  <Select value={manualJnsPelayanan} onValueChange={setManualJnsPelayanan}>
+                    <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"].map((n, i) => (
-                        <SelectItem key={i + 1} value={String(i + 1)} className="text-xs">{n}</SelectItem>
-                      ))}
+                      <SelectItem value="2">Rawat Jalan</SelectItem>
+                      <SelectItem value="1">Rawat Inap</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="w-24">
-                  <label className="text-[11px] text-muted-foreground">Tahun</label>
-                  <Select value={approvalTahun} onValueChange={setApprovalTahun}>
-                    <SelectTrigger className="h-8 text-xs">
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Jenis Pengajuan</label>
+                  <Select value={manualJnsPengajuan} onValueChange={setManualJnsPengajuan}>
+                    <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map(y => (
-                        <SelectItem key={y} value={String(y)} className="text-xs">{y}</SelectItem>
-                      ))}
+                      <SelectItem value="1">Backdate</SelectItem>
+                      <SelectItem value="2">Finger Print</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-                <Button onClick={handleSearchApprovalSEP} size="sm" variant="outline" disabled={approvalLoading} className="h-8 text-xs mt-4">
-                  {approvalLoading ? <Loader2 className="h-3 w-3 animate-spin mr-1.5" /> : <Search className="h-3 w-3 mr-1.5" />}
-                  Cari
+                <div className="md:col-span-2">
+                  <label className="text-xs text-muted-foreground mb-1 block">Keterangan</label>
+                  <Input
+                    placeholder="Alasan pengajuan approval..."
+                    value={manualKeterangan}
+                    onChange={(e) => setManualKeterangan(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <Button onClick={handleManualApprovalSEP} disabled={manualApprovalSubmitting}>
+                  {manualApprovalSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <ShieldCheck className="h-4 w-4 mr-2" />}
+                  Ajukan Approval
                 </Button>
               </div>
-
-              {/* Results */}
-              {approvalSearched && (
-                <>
-                  {approvalData.length > 0 ? (
-                    <div className="border rounded-md">
-                      <div className="flex items-center gap-2 px-3 py-1.5 border-b bg-muted/30">
-                        <span className="text-xs font-medium">SEP Butuh Approval</span>
-                        <Badge variant="secondary" className="text-[10px] h-4 px-1.5">{approvalData.length}</Badge>
-                      </div>
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-xs">
-                          <thead>
-                            <tr className="border-b text-[11px] text-muted-foreground">
-                              <th className="text-left font-medium px-3 py-1.5">No. Kartu</th>
-                              <th className="text-left font-medium px-3 py-1.5">Nama</th>
-                              <th className="text-left font-medium px-3 py-1.5">Tgl SEP</th>
-                              <th className="text-center font-medium px-3 py-1.5">Jns Pelayanan</th>
-                              <th className="text-left font-medium px-3 py-1.5">Status</th>
-                              <th className="text-right font-medium px-3 py-1.5">Aksi</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {approvalData.map((item) => (
-                              <tr key={`${item.noKartu}-${item.tglsep}`} className="border-b last:border-0 hover:bg-muted/20 transition-colors">
-                                <td className="px-3 py-1.5 font-mono text-[11px]">{item.noKartu}</td>
-                                <td className="px-3 py-1.5">{item.nama}</td>
-                                <td className="px-3 py-1.5 tabular-nums">{item.tglsep}</td>
-                                <td className="px-3 py-1.5 text-center">
-                                  <Badge variant={item.jnspelayanan === "RI" ? "default" : "secondary"} className="text-[10px]">
-                                    {item.jnspelayanan === "RI" ? "Rawat Inap" : "Rawat Jalan"}
-                                  </Badge>
-                                </td>
-                                <td className="px-3 py-1.5">
-                                  <span className="text-amber-600">{item.status}</span>
-                                </td>
-                                <td className="px-3 py-1.5 text-right">
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-6 text-[11px] px-2"
-                                    onClick={() => {
-                                      setApprovalDialog(item);
-                                      setApprovalKeterangan("");
-                                    }}
-                                    disabled={approvalSubmitting === item.noKartu}
-                                  >
-                                    {approvalSubmitting === item.noKartu ? (
-                                      <Loader2 className="h-3 w-3 animate-spin" />
-                                    ) : (
-                                      <>
-                                        <ShieldCheck className="h-3 w-3 mr-1" />
-                                        Approval
-                                      </>
-                                    )}
-                                  </Button>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  ) : !approvalLoading ? (
-                    <p className="text-xs text-muted-foreground py-6 text-center">
-                      Tidak ada SEP yang butuh approval untuk periode {approvalBulan}/{approvalTahun}
-                    </p>
-                  ) : null}
-                </>
-              )}
             </div>
-          )}
-        </div>
+
+            <Separator />
+
+            {/* Search dari List */}
+            <div>
+              <div className="text-sm font-medium mb-2">Cari dari Daftar</div>
+              <p className="text-xs text-muted-foreground mb-3">Cari SEP yang membutuhkan approval dari BPJS</p>
+            </div>
+
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="w-32">
+                <label className="text-xs text-muted-foreground mb-1 block">Bulan</label>
+                <Select value={approvalBulan} onValueChange={setApprovalBulan}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"].map((n, i) => (
+                      <SelectItem key={i + 1} value={String(i + 1)}>{n}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="w-24">
+                <label className="text-xs text-muted-foreground mb-1 block">Tahun</label>
+                <Select value={approvalTahun} onValueChange={setApprovalTahun}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map(y => (
+                      <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button onClick={handleSearchApprovalSEP} variant="outline" disabled={approvalLoading}>
+                {approvalLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Search className="h-4 w-4 mr-2" />}
+                Cari
+              </Button>
+            </div>
+
+            {/* Results */}
+            {approvalSearched && (
+              <>
+                {approvalData.length > 0 ? (
+                  <div className="border rounded-lg overflow-hidden">
+                    <div className="flex items-center gap-2 px-4 py-2.5 border-b bg-muted/30">
+                      <span className="text-sm font-medium">SEP Butuh Approval</span>
+                      <Badge variant="secondary" className="text-xs">{approvalData.length}</Badge>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b text-xs text-muted-foreground">
+                            <th className="text-left font-medium px-4 py-2">No. Kartu</th>
+                            <th className="text-left font-medium px-4 py-2">Nama</th>
+                            <th className="text-left font-medium px-4 py-2">Tgl SEP</th>
+                            <th className="text-center font-medium px-4 py-2">Jns Pelayanan</th>
+                            <th className="text-left font-medium px-4 py-2">Status</th>
+                            <th className="text-right font-medium px-4 py-2">Aksi</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {approvalData.map((item) => (
+                            <tr key={`${item.noKartu}-${item.tglsep}`} className="border-b last:border-0 hover:bg-muted/20 transition-colors">
+                              <td className="px-4 py-2 font-mono text-xs">{item.noKartu}</td>
+                              <td className="px-4 py-2">{item.nama}</td>
+                              <td className="px-4 py-2 tabular-nums">{item.tglsep}</td>
+                              <td className="px-4 py-2 text-center">
+                                <Badge variant={item.jnspelayanan === "RI" ? "default" : "secondary"}>
+                                  {item.jnspelayanan === "RI" ? "Rawat Inap" : "Rawat Jalan"}
+                                </Badge>
+                              </td>
+                              <td className="px-4 py-2">
+                                <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-700">
+                                  {item.status}
+                                </Badge>
+                              </td>
+                              <td className="px-4 py-2 text-right">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setApprovalDialog(item);
+                                    setApprovalKeterangan("");
+                                  }}
+                                  disabled={approvalSubmitting === item.noKartu}
+                                >
+                                  {approvalSubmitting === item.noKartu ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  ) : (
+                                    <>
+                                      <ShieldCheck className="h-3.5 w-3.5 mr-1.5" />
+                                      Approval
+                                    </>
+                                  )}
+                                </Button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ) : !approvalLoading ? (
+                  <div className="text-center py-12">
+                    <ShieldCheck className="h-12 w-12 mx-auto mb-3 text-muted-foreground/30" />
+                    <p className="text-sm text-muted-foreground">
+                      Tidak ada SEP yang butuh approval untuk periode ini
+                    </p>
+                  </div>
+                ) : null}
+              </>
+            )}
+          </TabsContent>
+
+          {/* ========== Pengajuan SEP ========== */}
+          <TabsContent value="pengajuan-sep" className="mt-6 space-y-5">
+            <div>
+              <h2 className="text-sm font-semibold">Pengajuan SEP</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">Ajukan SEP baru (backdate / fingerprint) ke BPJS</p>
+            </div>
+
+            <div className="border rounded-lg p-4 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">No. Kartu BPJS</label>
+                  <Input
+                    placeholder="0001234567890"
+                    value={pengajuanNoKartu}
+                    onChange={(e) => setPengajuanNoKartu(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Tgl SEP</label>
+                  <Input
+                    type="date"
+                    value={pengajuanTglSep}
+                    onChange={(e) => setPengajuanTglSep(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Jenis Pelayanan</label>
+                  <Select value={pengajuanJnsPelayanan} onValueChange={setPengajuanJnsPelayanan}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="2">Rawat Jalan</SelectItem>
+                      <SelectItem value="1">Rawat Inap</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Jenis Pengajuan</label>
+                  <Select value={pengajuanJnsPengajuan} onValueChange={setPengajuanJnsPengajuan}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">Backdate</SelectItem>
+                      <SelectItem value="2">Finger Print</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="md:col-span-2">
+                  <label className="text-xs text-muted-foreground mb-1 block">Keterangan</label>
+                  <Input
+                    placeholder="Alasan pengajuan SEP..."
+                    value={pengajuanKeterangan}
+                    onChange={(e) => setPengajuanKeterangan(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <Button onClick={handlePengajuanSEP} disabled={pengajuanSubmitting}>
+                  {pengajuanSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <FileText className="h-4 w-4 mr-2" />}
+                  Ajukan SEP
+                </Button>
+              </div>
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
 
       {/* Delete Confirmation */}

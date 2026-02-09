@@ -511,16 +511,23 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
         }
       }
 
-      // 2. Cancel SPRI (local only - BPJS doesn't provide delete API)
+      // 2. Cancel SPRI (API delete sama dengan Surat Kontrol)
       // Always try to cancel SPRI for this visit, regardless of disposition type
       try {
         console.log("Attempting to cancel SPRI for visit:", visitId);
-        await vclaimApi.cancelSPRILocal(visitId);
+        // First, delete from BPJS if we have the SPRI number
         if (spriResult?.noSPRI) {
-          canceledItems.push(`SPRI: ${spriResult.noSPRI} (dibatalkan lokal)`);
-        } else {
-          canceledItems.push("SPRI (dibatalkan lokal)");
+          try {
+            console.log("Deleting SPRI from BPJS:", spriResult.noSPRI);
+            await vclaimApi.deleteSuratKontrol(spriResult.noSPRI);
+            canceledItems.push(`SPRI BPJS: ${spriResult.noSPRI}`);
+          } catch (bpjsErr) {
+            console.error("Failed to delete SPRI from BPJS:", bpjsErr);
+            failedItems.push(`SPRI BPJS: ${spriResult.noSPRI}`);
+          }
         }
+        // Then update local status
+        await vclaimApi.cancelSPRILocal(visitId);
         setSpriResult(null);
       } catch (err: unknown) {
         // 404 means no active SPRI found, which is fine
@@ -767,6 +774,11 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
         // Close drawer
         setAdmissionDrawerOpen(false);
         onSave?.(payload as any);
+        
+        // Reload page to reflect new state (patient discharged)
+        setTimeout(() => {
+          window.location.reload();
+        }, 1000);
         return;
       }
       
@@ -804,6 +816,11 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
         
         setAdmissionDrawerOpen(false);
         onSave?.(payload as any);
+        
+        // Reload page to reflect new state (patient discharged)
+        setTimeout(() => {
+          window.location.reload();
+        }, 1000);
         return;
       }
       

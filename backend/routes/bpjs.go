@@ -93,6 +93,8 @@ func SetupBPJSRoutes(api *gin.RouterGroup) {
 			// SEP
 			vclaim.POST("/sep", middleware.RequirePermission("registrations.create"), handlers.VClaimCreateSEP)
 			vclaim.POST("/sep/import", middleware.RequirePermission("registrations.create"), handlers.VClaimImportSEP)
+			vclaim.POST("/sep/approval", middleware.RequirePermission("registrations.update"), handlers.VClaimApprovalSEP)   // Approval SEP backdate/finger print
+			vclaim.POST("/sep/pengajuan", middleware.RequirePermission("registrations.update"), handlers.VClaimPengajuanSEP) // Pengajuan SEP backdate/finger print
 			vclaim.GET("/sep/:noSEP", handlers.VClaimGetSEP)
 			vclaim.PUT("/sep/:noSEP", middleware.RequirePermission("registrations.update"), handlers.VClaimUpdateSEP)
 			vclaim.DELETE("/sep/:noSEP", middleware.RequirePermission("registrations.update"), handlers.VClaimDeleteSEP)
@@ -123,6 +125,7 @@ func SetupBPJSRoutes(api *gin.RouterGroup) {
 			vclaim.GET("/surat-kontrol/visit/:visitId", handlers.GetSuratKontrolByVisit)
 			vclaim.GET("/surat-kontrol/registration/:registrationId", handlers.GetSuratKontrolByRegistration)
 			vclaim.GET("/surat-kontrol/list", handlers.GetSuratKontrolList)
+			vclaim.GET("/surat-kontrol/local/:noSuratKontrol", handlers.GetSuratKontrolLocal) // Get from local DB with SEP asal
 
 			// Rencana Kontrol / SKDP
 			vclaim.GET("/rencana-kontrol/sep/:noSEP", handlers.VClaimGetRencanaKontrolBySEP)
@@ -135,7 +138,6 @@ func SetupBPJSRoutes(api *gin.RouterGroup) {
 
 			// Persetujuan / Approval SEP (untuk SEP backdate atau fingerprint)
 			vclaim.GET("/sep/persetujuan", handlers.VClaimGetListPersetujuanSEP)
-			vclaim.POST("/sep/approval", middleware.RequirePermission("registrations.update"), handlers.VClaimApprovalSEP)
 
 			// Referensi VClaim
 			vclaim.GET("/referensi/poli", handlers.VClaimGetReferensiPoli)

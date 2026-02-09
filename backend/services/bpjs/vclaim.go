@@ -795,6 +795,88 @@ func (c *VClaimClient) DeleteSEP(noSep string, user string) error {
 	return nil
 }
 
+// ApprovalSEPRequest adalah request untuk approval SEP (backdate/finger print)
+type ApprovalSEPRequest struct {
+	Request struct {
+		TSep struct {
+			NoKartu      string `json:"noKartu"`
+			TglSep       string `json:"tglSep"`
+			JnsPelayanan string `json:"jnsPelayanan"` // 1=Rawat Inap, 2=Rawat Jalan
+			JnsPengajuan string `json:"jnsPengajuan"` // 1=Backdate, 2=Finger Print
+			Keterangan   string `json:"keterangan"`
+			User         string `json:"user"`
+		} `json:"t_sep"`
+	} `json:"request"`
+}
+
+// ApprovalSEPResponse adalah response dari approval SEP
+type ApprovalSEPResponse struct {
+	Metadata struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+	} `json:"metadata"`
+	Response string `json:"response"` // Nomor kartu BPJS
+}
+
+// ApprovalSEP mengajukan approval SEP (backdate atau finger print)
+// jnsPengajuan: 1=Backdate, 2=Finger Print (default: 1)
+func (c *VClaimClient) ApprovalSEP(noKartu, tglSep, jnsPelayanan, jnsPengajuan, keterangan, user string) (*ApprovalSEPResponse, error) {
+	// Default jnsPengajuan = 1 (Backdate)
+	if jnsPengajuan == "" {
+		jnsPengajuan = "1"
+	}
+
+	reqBody := ApprovalSEPRequest{}
+	reqBody.Request.TSep.NoKartu = noKartu
+	reqBody.Request.TSep.TglSep = tglSep
+	reqBody.Request.TSep.JnsPelayanan = jnsPelayanan
+	reqBody.Request.TSep.JnsPengajuan = jnsPengajuan
+	reqBody.Request.TSep.Keterangan = keterangan
+	reqBody.Request.TSep.User = user
+
+	respBody, code, err := c.Request("POST", "/Sep/aprovalSEP", reqBody)
+	if err != nil {
+		return nil, err
+	}
+	if code != 200 {
+		return nil, fmt.Errorf("VClaim response code: %d", code)
+	}
+
+	var result ApprovalSEPResponse
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return nil, fmt.Errorf("parse approval SEP response: %w", err)
+	}
+
+	return &result, nil
+}
+
+// PengajuanSEP mengajukan pengajuan SEP (untuk SEP yang butuh approval)
+// jnsPengajuan: 1=Backdate, 2=Finger Print
+func (c *VClaimClient) PengajuanSEP(noKartu, tglSep, jnsPelayanan, jnsPengajuan, keterangan, user string) (*ApprovalSEPResponse, error) {
+	reqBody := ApprovalSEPRequest{}
+	reqBody.Request.TSep.NoKartu = noKartu
+	reqBody.Request.TSep.TglSep = tglSep
+	reqBody.Request.TSep.JnsPelayanan = jnsPelayanan
+	reqBody.Request.TSep.JnsPengajuan = jnsPengajuan
+	reqBody.Request.TSep.Keterangan = keterangan
+	reqBody.Request.TSep.User = user
+
+	respBody, code, err := c.Request("POST", "/Sep/pengajuanSEP", reqBody)
+	if err != nil {
+		return nil, err
+	}
+	if code != 200 {
+		return nil, fmt.Errorf("VClaim response code: %d", code)
+	}
+
+	var result ApprovalSEPResponse
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return nil, fmt.Errorf("parse pengajuan SEP response: %w", err)
+	}
+
+	return &result, nil
+}
+
 // GetSEP mendapatkan detail SEP
 func (c *VClaimClient) GetSEP(noSep string) (*GetSEPResponse, error) {
 	endpoint := fmt.Sprintf("/SEP/%s", noSep)
@@ -1393,43 +1475,4 @@ func (c *VClaimClient) GetListPersetujuanSEP(bulan, tahun string) ([]Persetujuan
 	}
 
 	return result.List, nil
-}
-
-// ApprovalSEPRequest adalah request body untuk approval SEP
-type ApprovalSEPRequest struct {
-	NoKartu      string `json:"noKartu"`
-	TglSEP       string `json:"tglSep"`
-	JnsPelayanan string `json:"jnsPelayanan"` // 1 = Rawat Inap, 2 = Rawat Jalan
-	JnsPengajuan string `json:"jnsPengajuan"` // 1 = backdate, 2 = finger print
-	Keterangan   string `json:"keterangan"`
-	User         string `json:"user"`
-}
-
-// ApprovalSEP mengajukan approval untuk SEP (backdate atau fingerprint)
-func (c *VClaimClient) ApprovalSEP(req *ApprovalSEPRequest) error {
-	endpoint := "/Sep/aprovalSEP"
-
-	// Build request body sesuai format BPJS
-	body := map[string]interface{}{
-		"request": map[string]interface{}{
-			"t_sep": map[string]interface{}{
-				"noKartu":      req.NoKartu,
-				"tglSep":       req.TglSEP,
-				"jnsPelayanan": req.JnsPelayanan,
-				"jnsPengajuan": req.JnsPengajuan,
-				"keterangan":   req.Keterangan,
-				"user":         req.User,
-			},
-		},
-	}
-
-	respBody, code, err := c.Request("POST", endpoint, body)
-	if err != nil {
-		return err
-	}
-	if code != 200 {
-		return fmt.Errorf("VClaim response code: %d, body: %s", code, string(respBody))
-	}
-
-	return nil
 }

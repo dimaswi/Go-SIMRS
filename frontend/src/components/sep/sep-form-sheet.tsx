@@ -61,6 +61,13 @@ interface SEPFormSheetProps {
     kodeDokter?: string;
     namaDokter?: string;
     jenisPelayanan?: string;
+    // Kontrol / SKDP fields
+    noSuratKontrol?: string;
+    noRujukan?: string;
+    tglRujukan?: string;
+    diagAwal?: string;
+    namaDiagnosa?: string;
+    asalRujukan?: string;
   };
 }
 
@@ -158,6 +165,32 @@ export function SEPFormSheet({
         setKodeDPJP(initialValues.kodeDokter || "");
         setNamaDPJP(initialValues.namaDokter || "");
         setJnsPelayanan(initialValues.jenisPelayanan || "2");
+        
+        // RAWAT INAP: Auto-generate noRujukan dengan format YYYYMMDDHHIISS
+        if (initialValues.jenisPelayanan === "1") {
+          const now = new Date();
+          const generated = format(now, "yyyyMMddHHmmss");
+          setNoRujukan(generated);
+          setTglRujukan(format(now, "yyyy-MM-dd"));
+          setAsalRujukan("2"); // Faskes 2 (internal RS)
+        } else {
+          // KONTROL: gunakan SEP asal dari initialValues
+          if (initialValues.noSuratKontrol) {
+            setNoSuratKontrol(initialValues.noSuratKontrol);
+          }
+          if (initialValues.noRujukan) {
+            setNoRujukan(initialValues.noRujukan);
+            setAsalRujukan(initialValues.asalRujukan || "2");
+          }
+          if (initialValues.tglRujukan) {
+            setTglRujukan(initialValues.tglRujukan);
+          }
+        }
+        
+        if (initialValues.diagAwal) {
+          setDiagAwal(initialValues.diagAwal);
+          setNamaDiagnosa(initialValues.namaDiagnosa || "");
+        }
       } else {
         setKodePoli("");
         setNamaPoli("");
@@ -340,9 +373,9 @@ export function SEPFormSheet({
       toast({ variant: "destructive", title: "Error", description: "Pilih diagnosa awal" });
       return;
     }
-    // Rujukan tidak wajib untuk IGD/UGD
-    if (!noRujukan && !isIGD) {
-      toast({ variant: "destructive", title: "Error", description: "Pilih rujukan terlebih dahulu" });
+    // Rujukan tidak wajib untuk IGD/UGD atau jika ada Surat Kontrol (SKDP)
+    if (!noRujukan && !isIGD && !noSuratKontrol) {
+      toast({ variant: "destructive", title: "Error", description: "Pilih rujukan atau surat kontrol terlebih dahulu" });
       return;
     }
 
@@ -534,20 +567,22 @@ export function SEPFormSheet({
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <Label className="text-xs">No. Rujukan {!isIGD && "*"}</Label>
+                    <Label className="text-xs">
+                      {jnsPelayanan === "1" ? "No. Rujukan" : (noSuratKontrol ? "No. SEP Asal" : "No. Rujukan")} {!isIGD && "*"}
+                    </Label>
                     <div className="flex gap-2">
                       <Input
                         value={noRujukan}
                         onChange={(e) => setNoRujukan(e.target.value)}
-                        disabled={isIGD}
-                        placeholder="Nomor rujukan"
+                        disabled={isIGD || jnsPelayanan === "1"}
+                        placeholder={jnsPelayanan === "1" ? "Auto-generated" : (noSuratKontrol ? "No. SEP asal kontrol" : "Nomor rujukan")}
                         className="h-9"
                       />
                       <Button 
                         size="sm" 
                         variant="outline"
                         onClick={() => setRujukanModalOpen(true)}
-                        disabled={!noKartu || isIGD}
+                        disabled={!noKartu || isIGD || jnsPelayanan === "1"}
                         className="h-9 px-3"
                       >
                         <Search className="h-4 w-4" />
@@ -555,13 +590,13 @@ export function SEPFormSheet({
                     </div>
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Tanggal Rujukan</Label>
+                    <Label className="text-xs">{jnsPelayanan === "1" ? "Tanggal Rujukan" : (noSuratKontrol ? "Tanggal SEP Asal" : "Tanggal Rujukan")}</Label>
                     <Input
                       type="date"
                       value={tglRujukan}
                       onChange={(e) => setTglRujukan(e.target.value)}
                       className="h-9"
-                      disabled={isIGD}
+                      disabled={isIGD || jnsPelayanan === "1"}
                     />
                   </div>
                 </div>
@@ -569,11 +604,11 @@ export function SEPFormSheet({
                 <div className="space-y-1.5">
                   <Label className="text-xs">PPK Perujuk</Label>
                   <Input
-                    value={namaRujukan}
+                    value={jnsPelayanan === "1" ? "(Diisi otomatis dari config)" : namaRujukan}
                     onChange={(e) => setNamaRujukan(e.target.value)}
                     placeholder="Nama faskes perujuk"
                     className="h-9"
-                    disabled={isIGD}
+                    disabled={isIGD || jnsPelayanan === "1"}
                   />
                 </div>
 
@@ -601,6 +636,9 @@ export function SEPFormSheet({
                     {skdpData && (
                       <div className="text-xs text-muted-foreground mt-1">
                         {skdpData.namaPoliTujuan} - {skdpData.namaDokter} | Berlaku: {skdpData.tglRencanaKontrol}
+                        {skdpData.noSepAsalKontrol && (
+                          <span className="block">SEP Asal: {skdpData.noSepAsalKontrol}</span>
+                        )}
                       </div>
                     )}
                   </div>
@@ -864,7 +902,7 @@ export function SEPFormSheet({
         onOpenChange={setSkdpModalOpen}
         noKartu={noKartu}
         onFetch={handleFetchSKDP}
-        onSelect={(skdp: SKDPData) => {
+        onSelect={async (skdp: SKDPData) => {
           setNoSuratKontrol(skdp.noSuratKontrol);
           setSkdpData(skdp);
           
@@ -879,22 +917,32 @@ export function SEPFormSheet({
             setNamaPoli(skdp.namaPoliTujuan || "");
           }
 
-          // Untuk SKDP: ppkRujukan dan ppkPelayanan samakan dengan kode RS sendiri
-          // Auto-generate noRujukan format YYYYMMDDHHmmss
-          const now = new Date();
-          const autoNoRujukan = now.getFullYear().toString() +
-            String(now.getMonth() + 1).padStart(2, "0") +
-            String(now.getDate()).padStart(2, "0") +
-            String(now.getHours()).padStart(2, "0") +
-            String(now.getMinutes()).padStart(2, "0") +
-            String(now.getSeconds()).padStart(2, "0");
-          setNoRujukan(autoNoRujukan);
+          // noRujukan = No SEP asal (bukan nomor surat kontrol)
+          // Jika noSepAsalKontrol kosong, coba fetch dari detail
+          let noSepAsal = skdp.noSepAsalKontrol || "";
+          let tglSepAsal = skdp.tglSEP || tglSEP;
           
-          // Set asalRujukan = 2 (RS), tglRujukan = hari ini
-          setAsalRujukan("2");
-          setTglRujukan(tglSEP);
+          if (!noSepAsal && skdp.noSuratKontrol) {
+            try {
+              const res = await vclaimApi.getSuratKontrolDetail(skdp.noSuratKontrol);
+              const detail = res.data.data;
+              if (detail?.sep?.noSep) {
+                noSepAsal = detail.sep.noSep;
+                tglSepAsal = detail.sep.tglSep || tglSepAsal;
+              }
+            } catch (e) {
+              console.error("Failed to fetch SKDP detail for SEP asal:", e);
+            }
+          }
           
-          // ppkRujukan akan diambil dari config RS (dihandle di handleSubmitSEP)
+          // Untuk RAWAT INAP: JANGAN ubah noRujukan (sudah auto-generated)
+          // Untuk RAWAT JALAN (kontrol): gunakan SEP asal
+          if (jnsPelayanan !== "1") {
+            setNoRujukan(noSepAsal);
+            setTglRujukan(tglSepAsal);
+            // Set asalRujukan = 2 (Faskes 2 / Internal RS)
+            setAsalRujukan("2");
+          }
         }}
       />
 
