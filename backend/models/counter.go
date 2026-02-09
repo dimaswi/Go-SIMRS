@@ -16,6 +16,7 @@ type Counter struct {
 	Code         string         `json:"code" gorm:"size:20;not null;index"` // e.g., "L1", "LVIP"
 	Description  string         `json:"description" gorm:"type:text"`       // Optional description
 	IsActive     bool           `json:"is_active" gorm:"default:true"`      // Active/inactive status
+	IsOpen       bool           `json:"is_open" gorm:"default:false"`       // Open/closed for daily operation
 	DisplayOrder int            `json:"display_order" gorm:"default:0"`     // Order for display
 	Location     string         `json:"location" gorm:"size:200"`           // Physical location
 }

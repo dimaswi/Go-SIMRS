@@ -1956,3 +1956,117 @@ func CancelScheduledRegistration(c *gin.Context) {
 		"message": "Jadwal kontrol berhasil dibatalkan",
 	})
 }
+
+// GetKontrolInfo godoc
+// @Summary Get kontrol info for check-in drawer
+// @Description Get all information needed for check-in kontrol drawer
+// @Tags Registration
+// @Accept json
+// @Produce json
+// @Param id path int true "Registration ID (jadwal kontrol)"
+// @Success 200 {object} map[string]interface{}
+// @Router /registrations/{id}/kontrol-info [get]
+func GetKontrolInfo(c *gin.Context) {
+	id := c.Param("id")
+	var registration models.Registration
+
+	// Load registration with all needed relations
+	if err := database.DB.Preload("Patient").
+		Preload("DestinationRoom").
+		Preload("Doctor").
+		Preload("SourceVisit").
+		Preload("SourceVisit.SEP").
+		First(&registration, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Pendaftaran tidak ditemukan"})
+		return
+	}
+
+	// Validate it's a scheduled follow-up
+	if !registration.IsFollowUp {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Pendaftaran ini bukan jadwal kontrol"})
+		return
+	}
+
+	// Get source registration for more context
+	var sourceRegistration *models.Registration
+	if registration.SourceVisitID != nil {
+		var srcReg models.Registration
+		database.DB.Where("visit_id = ?", *registration.SourceVisitID).
+			Preload("Doctor").
+			Preload("DestinationRoom").
+			First(&srcReg)
+		if srcReg.ID > 0 {
+			sourceRegistration = &srcReg
+		}
+	}
+
+	// Get Surat Kontrol related to this registration
+	var suratKontrol *models.SuratKontrol
+	if registration.SourceVisitID != nil {
+		var sk models.SuratKontrol
+		if err := database.DB.Where("visit_id = ?", *registration.SourceVisitID).First(&sk).Error; err == nil {
+			suratKontrol = &sk
+		}
+	}
+
+	// For BPJS patients, try to get peserta info
+	var pesertaInfo map[string]interface{}
+	if registration.PaymentMethod == "bpjs" && registration.Patient != nil && registration.Patient.NoBPJS != "" {
+		// Use vclaim to get peserta info
+		vclient, err := bpjsService.NewVClaimClient()
+		if err == nil && vclient != nil {
+			resp, err := vclient.GetPesertaByNoKartu(registration.Patient.NoBPJS, time.Now().Format("2006-01-02"))
+			if err == nil && resp != nil {
+				pesertaInfo = map[string]interface{}{
+					"noKartu":      resp.Peserta.NoKartu,
+					"nama":         resp.Peserta.Nama,
+					"nik":          resp.Peserta.Nik,
+					"jenisKelamin": resp.Peserta.Sex,
+					"tglLahir":     resp.Peserta.TglLahir,
+					"statusPeserta": map[string]interface{}{
+						"kode":       resp.Peserta.StatusPeserta.Kode,
+						"keterangan": resp.Peserta.StatusPeserta.Keterangan,
+					},
+					"hakKelas": map[string]interface{}{
+						"kode":       resp.Peserta.HakKelas.Kode,
+						"keterangan": resp.Peserta.HakKelas.Keterangan,
+					},
+					"jenisPeserta": map[string]interface{}{
+						"kode":       resp.Peserta.JenisPeserta.Kode,
+						"keterangan": resp.Peserta.JenisPeserta.Keterangan,
+					},
+				}
+			}
+		}
+	}
+
+	// Build response
+	response := gin.H{
+		"registration":       registration,
+		"patient":            registration.Patient,
+		"destinationRoom":    registration.DestinationRoom,
+		"doctor":             registration.Doctor,
+		"sourceRegistration": sourceRegistration,
+		"sourceVisit":        registration.SourceVisit,
+		"suratKontrol":       suratKontrol,
+		"isBPJS":             registration.PaymentMethod == "bpjs",
+		"pesertaInfo":        pesertaInfo,
+	}
+
+	// If surat kontrol exists, add SEP asal info
+	if suratKontrol != nil {
+		response["sepAsal"] = gin.H{
+			"noSEP": suratKontrol.NoSEP,
+		}
+	} else if registration.SourceVisit != nil && registration.SourceVisit.SEP != nil {
+		response["sepAsal"] = gin.H{
+			"noSEP":    registration.SourceVisit.SEP.NoSEP,
+			"tglSEP":   registration.SourceVisit.SEP.TglSEP,
+			"diagAwal": registration.SourceVisit.SEP.DiagAwal,
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"data": response,
+	})
+}

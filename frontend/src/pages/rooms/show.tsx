@@ -1,12 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -494,10 +487,7 @@ export default function RoomShow() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      <div className="grid gap-4">
-        <Card className="shadow-md">
-          <CardHeader className="border-b bg-muted/50">
-            <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4">
               <div>
                 <Button
                   variant="outline"
@@ -509,12 +499,12 @@ export default function RoomShow() {
                 </Button>
               </div>
               <div className="flex-1">
-                <CardTitle className="text-base font-semibold">
+                <h1 className="text-lg font-semibold">
                   {room.name}
-                </CardTitle>
-                <CardDescription>
+                </h1>
+                <p className="text-sm text-muted-foreground">
                   {room.code}
-                </CardDescription>
+                </p>
               </div>
               <Badge variant={room.is_active ? "default" : "secondary"}>
                 {room.is_active ? "Aktif" : "Tidak Aktif"}
@@ -535,9 +525,8 @@ export default function RoomShow() {
                   Edit
                 </Button>
               )}
-            </div>
-          </CardHeader>
-          <CardContent className="pt-6">
+      </div>
+      <div className="rounded-lg border p-6">
             {/* Show beds for selected unit OR show main tabs */}
             {selectedUnit ? (
               <div className="space-y-4">
@@ -582,58 +571,34 @@ export default function RoomShow() {
                 />
               </div>
             ) : (
-              <Tabs defaultValue="detail" className="w-full">
-                <TabsList className="h-auto p-0 bg-transparent border-b border-border rounded-none w-full justify-start gap-6 mb-6">
-                  <TabsTrigger 
-                    value="detail" 
-                    className="px-0 py-2 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none text-sm font-medium text-muted-foreground data-[state=active]:text-foreground"
-                  >
+              <Tabs defaultValue="detail" variant="inline" className="w-full">
+                <TabsList className="mb-6">
+                  <TabsTrigger value="detail">
                     Detail
                   </TabsTrigger>
                   {room.has_bed && (
-                    <TabsTrigger 
-                      value="units" 
-                      className="px-0 py-2 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none text-sm font-medium text-muted-foreground data-[state=active]:text-foreground"
-                    >
+                    <TabsTrigger value="units">
                       Kamar
                     </TabsTrigger>
                   )}
                   {room.has_schedule && (
-                    <TabsTrigger 
-                      value="schedules" 
-                      className="px-0 py-2 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none text-sm font-medium text-muted-foreground data-[state=active]:text-foreground"
-                    >
+                    <TabsTrigger value="schedules">
                       Jadwal
                     </TabsTrigger>
                   )}
-                  <TabsTrigger 
-                    value="staff" 
-                    className="px-0 py-2 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none text-sm font-medium text-muted-foreground data-[state=active]:text-foreground"
-                  >
+                  <TabsTrigger value="staff">
                     Staff
                   </TabsTrigger>
-                  <TabsTrigger 
-                    value="procedures" 
-                    className="px-0 py-2 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none text-sm font-medium text-muted-foreground data-[state=active]:text-foreground"
-                  >
+                  <TabsTrigger value="procedures">
                     Tindakan
                   </TabsTrigger>
-                  <TabsTrigger 
-                    value="inventories" 
-                    className="px-0 py-2 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none text-sm font-medium text-muted-foreground data-[state=active]:text-foreground"
-                  >
+                  <TabsTrigger value="inventories">
                     Inventaris
                   </TabsTrigger>
-                  <TabsTrigger 
-                    value="medicines" 
-                    className="px-0 py-2 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none text-sm font-medium text-muted-foreground data-[state=active]:text-foreground"
-                  >
+                  <TabsTrigger value="medicines">
                     Obat
                   </TabsTrigger>
-                  <TabsTrigger 
-                    value="tariffs" 
-                    className="px-0 py-2 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none text-sm font-medium text-muted-foreground data-[state=active]:text-foreground"
-                  >
+                  <TabsTrigger value="tariffs">
                     Tarif
                   </TabsTrigger>
                 </TabsList>
@@ -995,8 +960,6 @@ export default function RoomShow() {
                 </TabsContent>
               </Tabs>
             )}
-          </CardContent>
-        </Card>
       </div>
 
       {/* Dialogs */}

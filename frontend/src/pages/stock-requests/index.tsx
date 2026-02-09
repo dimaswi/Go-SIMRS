@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Loader2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+
 import { DataTable } from "@/components/ui/data-table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
@@ -142,69 +142,61 @@ export default function StockRequestsIndex() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      <div className="grid gap-4">
-        <Card className="shadow-md">
-          <CardHeader className="border-b bg-muted/50">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <CardTitle className="text-base font-semibold">Permintaan Stok</CardTitle>
-                <CardDescription>Kelola permintaan barang dan obat antar ruangan</CardDescription>
-              </div>
-              {hasPermission("stock_requests.create") && (
-                <Button onClick={() => navigate("/stock-requests/create")} size="sm">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Buat Permintaan
-                </Button>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList>
-                <TabsTrigger value="all">
-                  Semua ({requests.length})
-                </TabsTrigger>
-                <TabsTrigger value="my">
-                  Permintaan Saya ({myRequests.length})
-                </TabsTrigger>
-                <TabsTrigger value="pending">
-                  Perlu Persetujuan ({pendingApprovals.length})
-                </TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="all" className="mt-4">
-                <DataTable
-                  columns={columns}
-                  data={requests}
-                  searchPlaceholder="Cari nomor permintaan..."
-                  pageSize={10}
-                  tableId="stock_requests_all"
-                />
-              </TabsContent>
-
-              <TabsContent value="my" className="mt-4">
-                <DataTable
-                  columns={columns}
-                  data={myRequests}
-                  searchPlaceholder="Cari nomor permintaan..."
-                  pageSize={10}
-                  tableId="stock_requests_my"
-                />
-              </TabsContent>
-
-              <TabsContent value="pending" className="mt-4">
-                <DataTable
-                  columns={columns}
-                  data={pendingApprovals}
-                  searchPlaceholder="Cari nomor permintaan..."
-                  pageSize={10}
-                  tableId="stock_requests_pending"
-                />
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-lg font-semibold">Permintaan Stok</h1>
+          <p className="text-sm text-muted-foreground">Kelola permintaan barang dan obat antar ruangan</p>
+        </div>
+        {hasPermission("stock_requests.create") && (
+          <Button onClick={() => navigate("/stock-requests/create")} size="sm">
+            <Plus className="mr-2 h-4 w-4" />
+            Buat Permintaan
+          </Button>
+        )}
       </div>
+      <Tabs value={activeTab} onValueChange={setActiveTab} variant="inline">
+        <TabsList>
+          <TabsTrigger value="all">
+            Semua ({requests.length})
+          </TabsTrigger>
+          <TabsTrigger value="my">
+            Permintaan Saya ({myRequests.length})
+          </TabsTrigger>
+          <TabsTrigger value="pending">
+            Perlu Persetujuan ({pendingApprovals.length})
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="all" className="mt-4">
+          <DataTable
+            columns={columns}
+            data={requests}
+            searchPlaceholder="Cari nomor permintaan..."
+            pageSize={10}
+            tableId="stock_requests_all"
+          />
+        </TabsContent>
+
+        <TabsContent value="my" className="mt-4">
+          <DataTable
+            columns={columns}
+            data={myRequests}
+            searchPlaceholder="Cari nomor permintaan..."
+            pageSize={10}
+            tableId="stock_requests_my"
+          />
+        </TabsContent>
+
+        <TabsContent value="pending" className="mt-4">
+          <DataTable
+            columns={columns}
+            data={pendingApprovals}
+            searchPlaceholder="Cari nomor permintaan..."
+            pageSize={10}
+            tableId="stock_requests_pending"
+          />
+        </TabsContent>
+      </Tabs>
 
       <ConfirmDialog
         open={deleteId !== null}

@@ -6,7 +6,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Combobox } from "@/components/ui/combobox";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Save, AlertTriangle, Loader2, FileText, Heart, Activity } from "lucide-react";
 import { useMultipleMasterData } from "@/hooks/useMasterData";
 import { medicalRecordsApi } from "@/lib/api";
@@ -170,8 +169,8 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
 
   if (loading || masterDataLoading) {
     return (
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/30 py-3 px-4">
+      <Card>
+        <CardHeader className="py-3 px-4">
           <CardTitle className="text-base font-semibold flex items-center gap-2">
             <AlertTriangle className="h-4 w-4 text-destructive" />
             Triase UGD
@@ -191,8 +190,8 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
   }
 
   return (
-    <Card className="shadow-md">
-      <CardHeader className="border-b bg-muted/30 py-3 px-4">
+    <Card>
+      <CardHeader className="py-3 px-4">
         <CardTitle className="text-base font-semibold flex items-center gap-2">
           <AlertTriangle className="h-4 w-4 text-destructive" />
           Triase UGD
@@ -201,9 +200,7 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
           Penilaian prioritas penanganan pasien gawat darurat
         </CardDescription>
       </CardHeader>
-      <CardContent className="p-0">
-        <ScrollArea className="h-[calc(100vh-300px)] min-h-[400px]">
-          <div className="p-4">
+      <CardContent>
           {/* Edit Mode Banner for discharged patients */}
           <EditModeBanner
             isPatientDischarged={isPatientDischarged}
@@ -216,16 +213,8 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
           <fieldset disabled={isFormDisabled} className="space-y-6">
           
           {/* Section 1: Informasi Kedatangan */}
-          <Card className="border-red-200 dark:border-red-800">
-            <CardHeader className="py-3 px-4 bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-950/30 dark:to-orange-950/30">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-red-100 dark:bg-red-900/50">
-                  <AlertTriangle className="h-5 w-5 text-red-500" />
-                </div>
-                <CardTitle className="text-base font-semibold">Informasi Kedatangan</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent className="p-4 space-y-4">
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase">Informasi Kedatangan</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="arrival_mode" className="text-sm font-semibold">
@@ -278,20 +267,11 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
                   ))}
                 </div>
               </div>
-            </CardContent>
-          </Card>
+          </div>
 
           {/* Section 2: Primary Survey (ABC) */}
-          <Card className="border-blue-200 dark:border-blue-800">
-            <CardHeader className="py-3 px-4 bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-950/30 dark:to-cyan-950/30">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/50">
-                  <Activity className="h-5 w-5 text-blue-500" />
-                </div>
-                <CardTitle className="text-base font-semibold">Primary Survey (ABC)</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent className="p-4 space-y-4">
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase">Primary Survey (ABC)</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="airway" className="text-sm font-semibold">Airway (Jalan Napas)</Label>
@@ -363,20 +343,11 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
                   />
                 </div>
               </div>
-            </CardContent>
-          </Card>
+          </div>
 
           {/* Section 3: Tanda Vital */}
-          <Card className="border-purple-200 dark:border-purple-800">
-            <CardHeader className="py-3 px-4 bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-950/30 dark:to-pink-950/30">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-purple-100 dark:bg-purple-900/50">
-                  <Heart className="h-5 w-5 text-purple-500" />
-                </div>
-                <CardTitle className="text-base font-semibold">Tanda Vital</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent className="p-4 space-y-4">
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase">Tanda Vital</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="blood_pressure" className="text-sm font-semibold">Tekanan Darah</Label>
@@ -452,20 +423,11 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
                   />
                 </div>
               </div>
-            </CardContent>
-          </Card>
+          </div>
 
           {/* Section 4: GCS & Penilaian */}
-          <Card className="border-green-200 dark:border-green-800">
-            <CardHeader className="py-3 px-4 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-green-100 dark:bg-green-900/50">
-                  <FileText className="h-5 w-5 text-green-500" />
-                </div>
-                <CardTitle className="text-base font-semibold">Glasgow Coma Scale & Penilaian</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent className="p-4 space-y-4">
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase">Glasgow Coma Scale & Penilaian</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="gcs_e" className="text-sm font-semibold">Eye Opening (E) [1-4]</Label>
@@ -505,7 +467,7 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
                 </div>
               </div>
               
-              <div className="p-3 bg-primary/10 rounded-lg">
+              <div className="p-3 bg-muted/50 rounded-lg">
                 <div className="text-sm font-semibold flex items-center gap-2">
                   <span>Total GCS:</span>
                   <Badge variant="default">{gcsTotal}</Badge>
@@ -542,8 +504,7 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
                   className="min-h-[100px] resize-none"
                 />
               </div>
-            </CardContent>
-          </Card>
+          </div>
 
           {/* Submit Button - only show when can edit */}
           {!isFormDisabled && (
@@ -556,8 +517,6 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
           )}
           </fieldset>
         </form>
-          </div>
-        </ScrollArea>
       </CardContent>
       
       {/* Edit Confirmation Dialog */}

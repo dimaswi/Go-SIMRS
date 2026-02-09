@@ -1,4 +1,3 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -21,16 +20,14 @@ export function VisitOverview({ billing, formatCurrency }: VisitOverviewProps) {
   // If there's no billing yet, show message
   if (!billing) {
     return (
-      <Card className="border-none shadow-sm">
-        <CardContent className="py-12 text-center">
+      <div className="py-12 text-center">
           <p className="text-sm text-muted-foreground mb-2">
             Tagihan belum dibuat untuk kunjungan ini.
           </p>
           <p className="text-xs text-muted-foreground">
             Klik tombol "Ambil Tagihan" untuk membuat tagihan setelah kunjungan selesai.
           </p>
-        </CardContent>
-      </Card>
+        </div>
     );
   }
 
@@ -65,13 +62,11 @@ export function VisitOverview({ billing, formatCurrency }: VisitOverviewProps) {
   // If no data in billing, show empty state
   if (!hasAnyData) {
     return (
-      <Card className="border-none shadow-sm">
-        <CardContent className="py-12 text-center">
+      <div className="py-12 text-center">
           <p className="text-sm text-muted-foreground">
             Belum ada data tindakan, pemeriksaan, atau obat pada kunjungan ini.
           </p>
-        </CardContent>
-      </Card>
+        </div>
     );
   }
 
@@ -79,11 +74,7 @@ export function VisitOverview({ billing, formatCurrency }: VisitOverviewProps) {
     <div className="space-y-4">
       {/* Pendaftaran */}
       {hasRegistration && (
-        <Card className="border-none shadow-sm">
-          <CardHeader className="border-b bg-muted/30 pb-3">
-            <CardTitle className="text-sm font-semibold">Biaya Pendaftaran</CardTitle>
-          </CardHeader>
-          <CardContent className="pt-4">
+        <div className="space-y-3"><h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase">Biaya Pendaftaran</h3>
             <Table>
               <TableHeader>
                 <TableRow>
@@ -110,17 +101,12 @@ export function VisitOverview({ billing, formatCurrency }: VisitOverviewProps) {
                 </TableRow>
               </TableFooter>
             </Table>
-          </CardContent>
-        </Card>
+          </div>
       )}
 
       {/* Tindakan */}
       {hasProcedures && (
-        <Card className="border-none shadow-sm">
-          <CardHeader className="border-b bg-muted/30 pb-3">
-            <CardTitle className="text-sm font-semibold">Tindakan Medis</CardTitle>
-          </CardHeader>
-          <CardContent className="pt-4">
+        <div className="space-y-3"><h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase">Tindakan Medis</h3>
             <Table>
               <TableHeader>
                 <TableRow>
@@ -160,17 +146,12 @@ export function VisitOverview({ billing, formatCurrency }: VisitOverviewProps) {
                 </TableRow>
               </TableFooter>
             </Table>
-          </CardContent>
-        </Card>
+          </div>
       )}
 
       {/* Radiologi */}
       {hasRadiology && (
-        <Card className="border-none shadow-sm">
-          <CardHeader className="border-b bg-muted/30 pb-3">
-            <CardTitle className="text-sm font-semibold">Pemeriksaan Radiologi</CardTitle>
-          </CardHeader>
-          <CardContent className="pt-4">
+        <div className="space-y-3"><h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase">Pemeriksaan Radiologi</h3>
             <Table>
               <TableHeader>
                 <TableRow>
@@ -210,17 +191,12 @@ export function VisitOverview({ billing, formatCurrency }: VisitOverviewProps) {
                 </TableRow>
               </TableFooter>
             </Table>
-          </CardContent>
-        </Card>
+          </div>
       )}
 
       {/* Laboratorium */}
       {hasLaboratory && (
-        <Card className="border-none shadow-sm">
-          <CardHeader className="border-b bg-muted/30 pb-3">
-            <CardTitle className="text-sm font-semibold">Pemeriksaan Laboratorium</CardTitle>
-          </CardHeader>
-          <CardContent className="pt-4">
+        <div className="space-y-3"><h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase">Pemeriksaan Laboratorium</h3>
             <Table>
               <TableHeader>
                 <TableRow>
@@ -260,17 +236,12 @@ export function VisitOverview({ billing, formatCurrency }: VisitOverviewProps) {
                 </TableRow>
               </TableFooter>
             </Table>
-          </CardContent>
-        </Card>
+          </div>
       )}
 
       {/* Obat */}
       {hasMedicines && (
-        <Card className="border-none shadow-sm">
-          <CardHeader className="border-b bg-muted/30 pb-3">
-            <CardTitle className="text-sm font-semibold">Obat-obatan</CardTitle>
-          </CardHeader>
-          <CardContent className="pt-4">
+        <div className="space-y-3"><h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase">Obat-obatan</h3>
             <Table>
               <TableHeader>
                 <TableRow>
@@ -310,17 +281,12 @@ export function VisitOverview({ billing, formatCurrency }: VisitOverviewProps) {
                 </TableRow>
               </TableFooter>
             </Table>
-          </CardContent>
-        </Card>
+          </div>
       )}
 
       {/* Biaya Kamar (untuk rawat inap) */}
       {hasRoomCharge && (
-        <Card className="border-none shadow-sm">
-          <CardHeader className="border-b bg-muted/30 pb-3">
-            <CardTitle className="text-sm font-semibold">Biaya Kamar</CardTitle>
-          </CardHeader>
-          <CardContent className="pt-4">
+        <div className="space-y-3"><h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase">Biaya Kamar</h3>
             <Table>
               <TableHeader>
                 <TableRow>
@@ -347,16 +313,12 @@ export function VisitOverview({ billing, formatCurrency }: VisitOverviewProps) {
                 </TableRow>
               </TableFooter>
             </Table>
-          </CardContent>
-        </Card>
+          </div>
       )}
 
       {/* Total Summary */}
-      <Card className="border-none shadow-sm bg-muted/20">
-        <CardHeader className="border-b bg-muted/40 pb-3">
-          <CardTitle className="text-sm font-semibold">Ringkasan Biaya</CardTitle>
-        </CardHeader>
-        <CardContent className="pt-4">
+      <div className="space-y-3 border-t pt-4">
+        <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase">Ringkasan Biaya</h3>
           <div className="space-y-2">
             {hasRegistration && (
               <div className="flex justify-between text-sm">
@@ -400,8 +362,7 @@ export function VisitOverview({ billing, formatCurrency }: VisitOverviewProps) {
               <span className="font-mono">{formatCurrency(billing.total_amount)}</span>
             </div>
           </div>
-        </CardContent>
-      </Card>
+      </div>
     </div>
   );
 }

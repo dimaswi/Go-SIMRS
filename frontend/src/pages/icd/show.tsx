@@ -1,13 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { icd10Api, icd9cmApi, type ICD10, type ICD9CM } from "@/lib/api/icd";
 import { usePermission } from "@/hooks/usePermission";
@@ -88,23 +81,19 @@ export default function ICDShowPage() {
   if (loading) {
     return (
       <div className="flex flex-1 flex-col gap-4 p-6">
-        <Card className="shadow-md">
-          <CardHeader className="border-b bg-muted/50">
-            <div className="flex items-center gap-4">
+        <div className="rounded-lg border p-6">
+            <div className="flex items-center gap-4 mb-6">
               <Skeleton className="h-9 w-9" />
               <div className="space-y-2">
                 <Skeleton className="h-5 w-48" />
                 <Skeleton className="h-4 w-32" />
               </div>
             </div>
-          </CardHeader>
-          <CardContent className="pt-6">
             <div className="space-y-4">
               <Skeleton className="h-20 w-full" />
               <Skeleton className="h-20 w-full" />
             </div>
-          </CardContent>
-        </Card>
+        </div>
       </div>
     );
   }
@@ -118,9 +107,7 @@ export default function ICDShowPage() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
-          <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <Button variant="outline" size="icon" asChild className="h-9 w-9">
                 <Link to={`/icd?type=${type}`}>
@@ -129,14 +116,14 @@ export default function ICDShowPage() {
               </Button>
               <div>
                 <div className="flex items-center gap-2">
-                  <CardTitle className="text-base font-semibold">{data.display}</CardTitle>
+                  <h1 className="text-lg font-semibold">{data.display}</h1>
                   <Badge variant={data.is_active ? "default" : "secondary"}>
                     {data.is_active ? "Aktif" : "Nonaktif"}
                   </Badge>
                 </div>
-                <CardDescription className="font-mono">
+                <p className="text-sm text-muted-foreground font-mono">
                   Kode: {data.code} ({isICD10 ? "ICD-10" : "ICD-9-CM"})
-                </CardDescription>
+                </p>
               </div>
             </div>
             <div className="flex gap-2">
@@ -155,9 +142,8 @@ export default function ICDShowPage() {
                 </Button>
               )}
             </div>
-          </div>
-        </CardHeader>
-        <CardContent className="pt-6">
+      </div>
+      <div className="rounded-lg border p-6">
           <div className="space-y-6">
             {/* Badges */}
             <div className="flex flex-wrap gap-2">
@@ -217,8 +203,7 @@ export default function ICDShowPage() {
               )}
             </div>
           </div>
-        </CardContent>
-      </Card>
+      </div>
 
       <ConfirmDialog
         open={showDelete}

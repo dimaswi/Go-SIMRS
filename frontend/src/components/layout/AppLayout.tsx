@@ -1,6 +1,7 @@
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { AppHeader } from "@/components/app-header";
+import { BreadcrumbProvider } from "@/contexts/breadcrumb-context";
 import { useState } from "react";
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
@@ -18,12 +19,16 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   };
 
   return (
+    <BreadcrumbProvider>
     <SidebarProvider open={open} onOpenChange={handleOpenChange}>
       <AppSidebar />
       <SidebarInset>
         <AppHeader />
-        {children}
+        <div className="flex flex-col flex-1 overflow-auto">
+          {children}
+        </div>
       </SidebarInset>
     </SidebarProvider>
+    </BreadcrumbProvider>
   );
 }

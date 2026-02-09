@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { employeesApi, masterDataApi, type Employee, type MasterData } from '@/lib/api';
@@ -131,59 +130,56 @@ export default function EmployeeShow() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => navigate('/employees')}
-              >
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-              <div className="space-y-1">
-                <CardTitle className="text-base font-semibold">
-                  {employee.nama_lengkap}
-                </CardTitle>
-                <CardDescription>
-                  {employee.nip || employee.nik} • {getMasterDataName('employee_type', employee.tipe_karyawan)}
-                </CardDescription>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Badge variant={employee.is_active ? "default" : "secondary"}>
-                {employee.is_active ? 'Aktif' : 'Tidak Aktif'}
-              </Badge>
-              {hasPermission('employees.update') && (
-                <Button 
-                  variant="outline"
-                  size="sm"
-                  onClick={() => navigate(`/employees/${id}/edit`)}
-                >
-                  <Pencil className="mr-2 h-4 w-4" />
-                  Edit
-                </Button>
-              )}
-              {hasPermission('employees.delete') && (
-                <Button 
-                  variant="destructive"
-                  size="sm"
-                  onClick={handleDelete}
-                  disabled={deleting}
-                >
-                  {deleting ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Trash2 className="mr-2 h-4 w-4" />
-                  )}
-                  Hapus
-                </Button>
-              )}
-            </div>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate('/employees')}
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div className="space-y-1">
+            <h1 className="text-lg font-semibold">
+              {employee.nama_lengkap}
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              {employee.nip || employee.nik} • {getMasterDataName('employee_type', employee.tipe_karyawan)}
+            </p>
           </div>
-        </CardHeader>
-        <CardContent className="pt-6">
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge variant={employee.is_active ? "default" : "secondary"}>
+            {employee.is_active ? 'Aktif' : 'Tidak Aktif'}
+          </Badge>
+          {hasPermission('employees.update') && (
+            <Button 
+              variant="outline"
+              size="sm"
+              onClick={() => navigate(`/employees/${id}/edit`)}
+            >
+              <Pencil className="mr-2 h-4 w-4" />
+              Edit
+            </Button>
+          )}
+          {hasPermission('employees.delete') && (
+            <Button 
+              variant="destructive"
+              size="sm"
+              onClick={handleDelete}
+              disabled={deleting}
+            >
+              {deleting ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="mr-2 h-4 w-4" />
+              )}
+              Hapus
+            </Button>
+          )}
+        </div>
+      </div>
+      <div className="rounded-lg border p-6">
           {/* Data Pribadi */}
           <div className="mb-6">
             <h3 className="text-sm font-medium text-muted-foreground mb-4">DATA PRIBADI</h3>
@@ -407,8 +403,7 @@ export default function EmployeeShow() {
               </div>
             </div>
           </div>
-        </CardContent>
-      </Card>
+      </div>
 
       <ConfirmDialog
         open={deleteDialogOpen}

@@ -1704,3 +1704,346 @@ func UpdateSEPVisitID(c *gin.Context) {
 		"data":    sep,
 	})
 }
+
+// ==================== SURAT KONTROL UNTUK CHECK-IN ====================
+
+// VClaimGetSuratKontrolDetail mendapatkan detail surat kontrol berdasarkan nomor surat
+func VClaimGetSuratKontrolDetail(c *gin.Context) {
+	noSuratKontrol := c.Param("noSuratKontrol")
+
+	if noSuratKontrol == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Nomor surat kontrol wajib diisi"})
+		return
+	}
+
+	client, err := bpjs.NewVClaimClient()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat VClaim client: " + err.Error()})
+		return
+	}
+
+	result, err := client.GetSuratKontrolDetail(noSuratKontrol)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": result})
+}
+
+// VClaimCariSuratKontrolByNoKartu mencari surat kontrol berdasarkan nomor kartu
+func VClaimCariSuratKontrolByNoKartu(c *gin.Context) {
+	noKartu := c.Param("noKartu")
+	bulan := c.Query("bulan")
+	tahun := c.Query("tahun")
+	filter := c.Query("filter") // 1=Tanggal Rencana Kontrol, 2=Tanggal Entry
+
+	if noKartu == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Nomor kartu wajib diisi"})
+		return
+	}
+
+	// Default ke bulan dan tahun sekarang
+	now := time.Now()
+	if bulan == "" {
+		bulan = fmt.Sprintf("%02d", now.Month())
+	}
+	if tahun == "" {
+		tahun = fmt.Sprintf("%d", now.Year())
+	}
+	if filter == "" {
+		filter = "1" // Default filter by tanggal rencana kontrol
+	}
+
+	client, err := bpjs.NewVClaimClient()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat VClaim client: " + err.Error()})
+		return
+	}
+
+	result, err := client.GetListRencanaKontrolByNoKartu(noKartu, bulan, tahun, filter)
+	if err != nil {
+		// Jika tidak ada data, return empty array
+		if strings.Contains(err.Error(), "tidak ditemukan") || strings.Contains(err.Error(), "Data Tidak Ditemukan") {
+			c.JSON(http.StatusOK, gin.H{"data": []interface{}{}})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": result})
+}
+
+// VClaimInsertSEPKontrol menerbitkan SEP untuk pasien kontrol menggunakan surat kontrol
+func VClaimInsertSEPKontrol(c *gin.Context) {
+	var input struct {
+		RegistrationID  uint   `json:"registration_id"`
+		NoSuratKontrol  string `json:"no_surat_kontrol" binding:"required"`
+		NoSEPAsal       string `json:"no_sep_asal" binding:"required"`
+		TglSEPAsal      string `json:"tgl_sep_asal" binding:"required"`
+		DiagAwal        string `json:"diag_awal" binding:"required"`
+		NoTelp          string `json:"no_telp" binding:"required"`
+		Catatan         string `json:"catatan"`
+		KodeDPJP        string `json:"kode_dokter" binding:"required"`
+		KodePoli        string `json:"kode_poli" binding:"required"`
+		NoKartu         string `json:"no_kartu" binding:"required"`
+		KlsRawatHak     string `json:"kls_rawat_hak"`
+		KlsRawatNaik    string `json:"kls_rawat_naik"`
+		Pembiayaan      string `json:"pembiayaan"`
+		PenanggungJawab string `json:"penanggung_jawab"`
+		JnsPelayanan    string `json:"jns_pelayanan"` // Default 2 = Rawat Jalan
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Get registration with patient if provided
+	var registration *models.Registration
+	var patient *models.Patient
+	if input.RegistrationID > 0 {
+		var reg models.Registration
+		if err := database.DB.Preload("Patient").First(&reg, input.RegistrationID).Error; err == nil {
+			registration = &reg
+			patient = reg.Patient
+		}
+	}
+
+	// Get current user
+	userID := c.GetUint("user_id")
+	var user models.User
+	database.DB.First(&user, userID)
+	userName := user.FullName
+	if userName == "" {
+		userName = user.Username
+	}
+
+	// Create VClaim client
+	client, err := bpjs.NewVClaimClient()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat VClaim client: " + err.Error()})
+		return
+	}
+
+	// Validasi kode_ppk dari config
+	if client.KodePPK == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Kode PPK (Faskes) belum dikonfigurasi. Silakan isi di menu Integrasi > BPJS"})
+		return
+	}
+
+	// Set defaults
+	tglSEP := time.Now().Format("2006-01-02")
+	jnsPelayanan := input.JnsPelayanan
+	if jnsPelayanan == "" {
+		jnsPelayanan = "2" // Rawat Jalan
+	}
+	klsRawatHak := input.KlsRawatHak
+	if klsRawatHak == "" {
+		klsRawatHak = "3" // Default kelas 3
+	}
+
+	// Get NoMR from patient if available
+	noMR := ""
+	if patient != nil {
+		noMR = patient.NoRM
+	}
+
+	// Build SEP request using existing SEPData structure
+	sepData := &bpjs.SEPData{
+		NoKartu:      input.NoKartu,
+		TglSep:       tglSEP,
+		PPKPelayanan: client.KodePPK,
+		JnsPelayanan: jnsPelayanan,
+		KlsRawat: bpjs.SEPKelasRawat{
+			KlsRawatHak:     klsRawatHak,
+			KlsRawatNaik:    input.KlsRawatNaik,
+			Pembiayaan:      input.Pembiayaan,
+			PenanggungJawab: input.PenanggungJawab,
+		},
+		NoMR: noMR,
+		Rujukan: bpjs.SEPRujukan{
+			AsalRujukan: "2",              // 2 = Kontrol/internal
+			TglRujukan:  input.TglSEPAsal, // Tanggal SEP asal
+			NoRujukan:   input.NoSEPAsal,  // Nomor SEP asal (bukan surat kontrol)
+			PPKRujukan:  client.KodePPK,   // RS sendiri
+		},
+		Catatan:  input.Catatan,
+		DiagAwal: input.DiagAwal,
+		Poli: bpjs.SEPPoli{
+			Tujuan:    input.KodePoli,
+			Eksekutif: "0",
+		},
+		Cob: bpjs.SEPCob{
+			Cob: "0",
+		},
+		Katarak: bpjs.SEPKatarak{
+			Katarak: "0",
+		},
+		Jaminan: bpjs.SEPJaminan{
+			LakaLantas: "0",
+			NoLP:       "",
+			Penjamin: &bpjs.SEPPenjamin{
+				Penjamin:    "0",
+				TglKejadian: "",
+				Keterangan:  "",
+				Suplesi: &bpjs.SEPSuplesi{
+					Suplesi:      "0",
+					NoSepSuplesi: "",
+					LokasiLaka: &bpjs.SEPLokasiLaka{
+						KdPropinsi:  "",
+						KdKabupaten: "",
+						KdKecamatan: "",
+					},
+				},
+			},
+		},
+		TujuanKunj:    "0", // Normal
+		FlagProcedure: "",
+		KdPenunjang:   "",
+		AssesmentPel:  "",
+		SKDP: bpjs.SEPSKDP{
+			NoSurat:  input.NoSuratKontrol,
+			KodeDPJP: input.KodeDPJP,
+		},
+		DPJPLayan: input.KodeDPJP,
+		NoTelp:    input.NoTelp,
+		User:      userName,
+	}
+
+	// Call VClaim API
+	sepResponse, err := client.InsertSEP(sepData)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Gagal membuat SEP: " + err.Error()})
+		return
+	}
+
+	// Save SEP to database
+	var registrationID *uint
+	var patientID uint
+	if registration != nil {
+		registrationID = &registration.ID
+		patientID = registration.PatientID
+	}
+
+	sep := models.SEP{
+		NoSEP:          sepResponse.Sep.NoSep,
+		RegistrationID: registrationID,
+		PatientID:      patientID,
+		NoKartu:        input.NoKartu,
+		TglSEP:         tglSEP,
+		JnsPelayanan:   jnsPelayanan,
+		KlsRawatHak:    klsRawatHak,
+		KlsRawatNaik:   input.KlsRawatNaik,
+		Pembiayaan:     input.Pembiayaan,
+		AsalRujukan:    "2",
+		NoRujukan:      input.NoSEPAsal,
+		TglRujukan:     input.TglSEPAsal,
+		PPKRujukan:     client.KodePPK,
+		KodePoli:       input.KodePoli,
+		KodeDPJP:       input.KodeDPJP,
+		PPKPelayanan:   client.KodePPK,
+		DiagAwal:       input.DiagAwal,
+		NoSuratKontrol: input.NoSuratKontrol,
+		Catatan:        input.Catatan,
+		NoTelp:         input.NoTelp,
+		UserBuat:       userName,
+		Status:         "aktif",
+	}
+
+	if err := database.DB.Create(&sep).Error; err != nil {
+		// SEP already created in BPJS but failed to save locally
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":    "SEP berhasil diterbitkan di BPJS tapi gagal disimpan di database: " + err.Error(),
+			"no_sep":   sepResponse.Sep.NoSep,
+			"sep_data": sepResponse,
+		})
+		return
+	}
+
+	// Update registration with SEP number if provided
+	if registration != nil {
+		registration.SEPNumber = sepResponse.Sep.NoSep
+		database.DB.Save(registration)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "SEP kontrol berhasil diterbitkan",
+		"data": gin.H{
+			"noSep": sepResponse.Sep.NoSep,
+		},
+	})
+}
+
+// VClaimGetListPersetujuanSEP mendapatkan daftar SEP yang butuh persetujuan
+func VClaimGetListPersetujuanSEP(c *gin.Context) {
+	bulan := c.Query("bulan")
+	tahun := c.Query("tahun")
+
+	if bulan == "" || tahun == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Parameter bulan dan tahun diperlukan"})
+		return
+	}
+
+	client, err := bpjs.NewVClaimClient()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat VClaim client: " + err.Error()})
+		return
+	}
+
+	list, err := client.GetListPersetujuanSEP(bulan, tahun)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengambil list persetujuan SEP: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": list})
+}
+
+// VClaimApprovalSEP mengajukan approval untuk SEP (backdate atau fingerprint)
+func VClaimApprovalSEP(c *gin.Context) {
+	var input struct {
+		NoKartu      string `json:"no_kartu" binding:"required"`
+		TglSEP       string `json:"tgl_sep" binding:"required"`
+		JnsPelayanan string `json:"jns_pelayanan" binding:"required"` // 1 = Rawat Inap, 2 = Rawat Jalan
+		JnsPengajuan string `json:"jns_pengajuan" binding:"required"` // 1 = backdate, 2 = finger print
+		Keterangan   string `json:"keterangan" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Get current user
+	userID := c.GetUint("user_id")
+	var user models.User
+	database.DB.First(&user, userID)
+	userName := user.FullName
+	if userName == "" {
+		userName = user.Username
+	}
+
+	client, err := bpjs.NewVClaimClient()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat VClaim client: " + err.Error()})
+		return
+	}
+
+	req := &bpjs.ApprovalSEPRequest{
+		NoKartu:      input.NoKartu,
+		TglSEP:       input.TglSEP,
+		JnsPelayanan: input.JnsPelayanan,
+		JnsPengajuan: input.JnsPengajuan,
+		Keterangan:   input.Keterangan,
+		User:         userName,
+	}
+
+	if err := client.ApprovalSEP(req); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengajukan approval SEP: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Approval SEP berhasil diajukan"})
+}

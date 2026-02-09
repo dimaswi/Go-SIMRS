@@ -1,4 +1,3 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DataTable } from "@/components/ui/data-table";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Info, Pill } from "lucide-react";
@@ -35,25 +34,23 @@ export function MedicineAssignmentPanel({
       </Alert>
 
       {/* Medicine Table */}
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-              <Pill className="h-5 w-5 text-primary" />
-            </div>
-            <div className="space-y-1">
-              <CardTitle className="text-base font-semibold">
-                Obat di Ruangan
-              </CardTitle>
-              <CardDescription className="text-xs">
-                Daftar obat yang tersedia di ruangan ini ({roomMedicines.length}{" "}
-                obat
-                {lowStockCount > 0 && `, ${lowStockCount} stok rendah`})
-              </CardDescription>
-            </div>
+      <div className="space-y-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+            <Pill className="h-5 w-5 text-primary" />
           </div>
-        </CardHeader>
-        <CardContent className="pt-6">
+          <div className="space-y-1">
+            <h2 className="text-base font-semibold">
+              Obat di Ruangan
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              Daftar obat yang tersedia di ruangan ini ({roomMedicines.length}{" "}
+              obat
+              {lowStockCount > 0 && `, ${lowStockCount} stok rendah`})
+            </p>
+          </div>
+        </div>
+        <div className="rounded-lg border p-6">
           <DataTable
             columns={columns}
             data={roomMedicines}
@@ -61,8 +58,8 @@ export function MedicineAssignmentPanel({
             pageSize={10}
             tableId={`room_medicine_${roomId}`}
           />
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }

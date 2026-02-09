@@ -6,7 +6,6 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { 
   Save, 
@@ -278,8 +277,8 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
 
   if (loading) {
     return (
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
+      <Card>
+        <CardHeader>
           <CardTitle className="text-lg">Pemeriksaan Fisik</CardTitle>
         </CardHeader>
         <CardContent className="p-6">
@@ -293,8 +292,8 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
   }
 
   return (
-    <Card className="shadow-md">
-      <CardHeader className="border-b bg-muted/30 py-3 px-4">
+    <Card>
+      <CardHeader className="py-3 px-4">
         <CardTitle className="text-base font-semibold flex items-center gap-2">
           <Activity className="h-4 w-4" />
           Pemeriksaan Fisik
@@ -303,9 +302,7 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
           Tanda vital dan pemeriksaan fisik head to toe
         </CardDescription>
       </CardHeader>
-      <CardContent className="p-0">
-        <ScrollArea className="h-[calc(100vh-300px)] min-h-[400px]">
-          <div className="p-4">
+      <CardContent>
             <EditModeBanner
               isPatientDischarged={isPatientDischarged}
               isEditing={isEditing}
@@ -316,18 +313,13 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
               <fieldset disabled={isFormDisabled} className="space-y-6">
             
             {/* Section 1: Kondisi Umum & Tanda Vital */}
-            <Card className="border-red-200 dark:border-red-800">
-              <CardHeader className="py-3 px-4 bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-950/30 dark:to-orange-950/30">
+            <div className="space-y-4">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-red-100 dark:bg-red-900/50">
-                    <Thermometer className="h-5 w-5 text-red-500" />
-                  </div>
-                  <CardTitle className="text-base font-semibold">
+                  <Thermometer className="h-5 w-5 text-muted-foreground" />
+                  <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase">
                     Kondisi Umum & Tanda Vital {isEmergency && <span className="text-destructive">(Wajib)</span>}
-                  </CardTitle>
+                  </h3>
                 </div>
-              </CardHeader>
-              <CardContent className="p-4 space-y-6">
                 {/* Kondisi Umum */}
                 <div>
                   <h4 className="text-sm font-medium text-muted-foreground mb-3">Kondisi Umum</h4>
@@ -525,18 +517,14 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
                     </div>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+            </div>
 
             {/* Section 2: Pemeriksaan Fisik - Table with Checkbox Column */}
-            <Card className="border-blue-200 dark:border-blue-800">
-              <CardHeader className="py-3 px-4 bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-950/30 dark:to-cyan-950/30">
+            <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/50">
-                      <Activity className="h-5 w-5 text-blue-500" />
-                    </div>
-                    <CardTitle className="text-base font-semibold">Pemeriksaan Fisik</CardTitle>
+                    <Activity className="h-5 w-5 text-muted-foreground" />
+                    <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase">Pemeriksaan Fisik</h3>
                     <Badge variant={filledPhysicalExam > 0 ? "default" : "secondary"}>
                       {filledPhysicalExam}/{physicalExamSections.length}
                     </Badge>
@@ -562,8 +550,6 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
                     )}
                   </Button>
                 </div>
-              </CardHeader>
-              <CardContent className="p-0">
                 <div className="w-full">
                   <table className="w-full caption-bottom text-sm">
                     <thead className="[&_tr]:border-b">
@@ -669,23 +655,17 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
                     className="mt-2 min-h-[60px] resize-none"
                   />
                 </div>
-              </CardContent>
-            </Card>
+            </div>
 
             {/* Section 3: Pemeriksaan Penunjang - Table with Checkbox Column */}
-            <Card className="border-purple-200 dark:border-purple-800">
-              <CardHeader className="py-3 px-4 bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-950/30 dark:to-pink-950/30">
+            <div className="space-y-4">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-purple-100 dark:bg-purple-900/50">
-                    <Heart className="h-5 w-5 text-purple-500" />
-                  </div>
-                  <CardTitle className="text-base font-semibold">Pemeriksaan Penunjang</CardTitle>
+                  <Heart className="h-5 w-5 text-muted-foreground" />
+                  <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase">Pemeriksaan Penunjang</h3>
                   <Badge variant={formData.ecg_performed ? "default" : "secondary"}>
                     {formData.ecg_performed ? 1 : 0}/1
                   </Badge>
                 </div>
-              </CardHeader>
-              <CardContent className="p-0">
                 <div className="w-full">
                   <table className="w-full caption-bottom text-sm">
                     <thead className="[&_tr]:border-b">
@@ -788,7 +768,7 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
                           <CollapsibleContent asChild>
                             <tr>
                               <td colSpan={4} className="p-0">
-                                <div className="px-4 py-3 bg-purple-50/30 dark:bg-purple-950/10 border-t space-y-4">
+                                <div className="px-4 py-3 bg-muted/30 border-t space-y-4">
                                   <div className="space-y-2">
                                     <Label htmlFor="ecg_result" className="text-sm font-medium">Hasil EKG</Label>
                                     <Input
@@ -848,8 +828,7 @@ Kesimpulan: EKG dalam batas normal`}
                     * Pemeriksaan penunjang lainnya (EEG, USG, dll) akan ditambahkan kemudian
                   </p>
                 </div>
-              </CardContent>
-            </Card>
+            </div>
 
             {/* Submit Button */}
             {!isFormDisabled && (
@@ -862,8 +841,6 @@ Kesimpulan: EKG dalam batas normal`}
             )}
           </fieldset>
         </form>
-          </div>
-        </ScrollArea>
       </CardContent>
       <EditConfirmDialog
         open={showEditDialog}

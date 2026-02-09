@@ -7,7 +7,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import {
   Select,
@@ -390,9 +389,7 @@ export function SurgeryWorkstation({ visitId, readOnly: _readOnly = false }: Sur
               {getStatusBadge(selectedOrder.status)}
             </div>
           </CardHeader>
-          <CardContent className="p-0">
-            <ScrollArea className="h-[calc(100vh-380px)] min-h-[350px]">
-              <div className="p-4 space-y-3">
+          <CardContent className="space-y-3">
                 {/* Patient Info */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs p-2 bg-muted/50 rounded">
                   <div className="flex items-center gap-1">
@@ -639,8 +636,6 @@ export function SurgeryWorkstation({ visitId, readOnly: _readOnly = false }: Sur
                     Simpan Laporan Operasi
                   </Button>
                 )}
-              </div>
-            </ScrollArea>
           </CardContent>
         </Card>
       )}

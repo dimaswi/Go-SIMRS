@@ -1187,8 +1187,12 @@ func GetBPJSQueues(c *gin.Context) {
 	query = query.Order("created_at DESC")
 
 	// Limit
-	if limit := c.Query("limit"); limit != "" {
-		query = query.Limit(100)
+	if limitStr := c.Query("limit"); limitStr != "" {
+		if limitVal, err := strconv.Atoi(limitStr); err == nil && limitVal > 0 {
+			query = query.Limit(limitVal)
+		} else {
+			query = query.Limit(100)
+		}
 	}
 
 	if err := query.Find(&queues).Error; err != nil {
@@ -1356,6 +1360,34 @@ func SendBPJSTaskManual(c *gin.Context) {
 		return
 	}
 
+	// Validasi urutan task: task sebelumnya harus sudah dikirim
+	// Alur: 3→4→5→(6→7). Task yang lebih kecil harus sudah terkirim.
+	var prevTaskMissing string
+	switch req.TaskID {
+	case 4:
+		if queue.Task3At == nil {
+			prevTaskMissing = "Task 3 (Tunggu Poli)"
+		}
+	case 5:
+		if queue.Task4At == nil {
+			prevTaskMissing = "Task 4 (Dipanggil Dokter)"
+		}
+	case 6:
+		if queue.Task5At == nil {
+			prevTaskMissing = "Task 5 (Selesai Periksa)"
+		}
+	case 7:
+		if queue.Task6At == nil {
+			prevTaskMissing = "Task 6 (Mulai Tunggu Farmasi)"
+		}
+	}
+	if prevTaskMissing != "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": fmt.Sprintf("Tidak dapat mengirim Task %d karena %s belum dikirim", req.TaskID, prevTaskMissing),
+		})
+		return
+	}
+
 	// Waktu dari request (sudah dalam milliseconds)
 	waktu := req.Waktu
 
@@ -1371,6 +1403,25 @@ func SendBPJSTaskManual(c *gin.Context) {
 		})
 		return
 	}
+
+	// Sukses kirim ke BPJS → update task timestamp di database
+	waktuTime := time.UnixMilli(waktu)
+	switch req.TaskID {
+	case 3:
+		queue.Task3At = &waktuTime
+	case 4:
+		queue.Task4At = &waktuTime
+	case 5:
+		queue.Task5At = &waktuTime
+	case 6:
+		queue.Task6At = &waktuTime
+	case 7:
+		queue.Task7At = &waktuTime
+	}
+	queue.SyncStatus = "synced"
+	now := time.Now()
+	queue.LastSyncAt = &now
+	database.DB.Save(&queue)
 
 	c.JSON(http.StatusOK, gin.H{
 		"success":       true,
@@ -1469,12 +1520,24 @@ func CancelBPJSQueue(c *gin.Context) {
 		return
 	}
 
+	// 5. Kirim pembatalan ke BPJS jika antrean sudah pernah didaftarkan (AddAntrean)
+	var bpjsCancelSuccess bool
+	var bpjsCancelCode int
+	var bpjsCancelMsg string
+	if queue.AddAntreanSent {
+		bpjsCancelSuccess, bpjsCancelCode, bpjsCancelMsg = bpjs.BatalAntrean(queue.KodeBooking, "Dibatalkan oleh petugas pendaftaran")
+	}
+
 	// Reload with relations
 	database.DB.Preload("Patient").Preload("Registration").Preload("Visit").Preload("RoomQueue").First(&queue, queueID)
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Antrian MJKN berhasil dibatalkan",
-		"data":    queue,
+		"message":             "Antrian MJKN berhasil dibatalkan",
+		"data":                queue,
+		"bpjs_cancel_sent":    queue.AddAntreanSent,
+		"bpjs_cancel_success": bpjsCancelSuccess,
+		"bpjs_cancel_code":    bpjsCancelCode,
+		"bpjs_cancel_msg":     bpjsCancelMsg,
 	})
 }
 
@@ -1487,11 +1550,27 @@ func RetryAddAntrean(c *gin.Context) {
 		return
 	}
 
-	// Call AddAntrean
+	// Call AddAntrean (modifies queue struct fields)
 	success, code, msg := bpjs.AddAntrean(&queue)
 
-	// Reload queue
-	database.DB.First(&queue, queueID)
+	// Save perubahan dari AddAntrean ke database (AddAntreanSent, SyncStatus, etc)
+	if err := database.DB.Save(&queue).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Gagal menyimpan data setelah retry: " + err.Error(),
+			"success": success,
+		})
+		return
+	}
+
+	// Reload with relations
+	database.DB.Preload("Patient").
+		Preload("PoliMapping").
+		Preload("DoctorMapping").
+		Preload("Room").
+		Preload("Registration").
+		Preload("Visit").
+		Preload("RoomQueue").
+		First(&queue, queueID)
 
 	c.JSON(http.StatusOK, gin.H{
 		"success":       success,

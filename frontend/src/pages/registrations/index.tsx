@@ -1,13 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
+
 import { DataTable } from "@/components/ui/data-table";
 import { createRegistrationColumns } from "./columns";
 import { registrationApi, type Registration } from "@/lib/api/queue";
@@ -23,8 +17,15 @@ import {
   RefreshCcw,
   Check,
   ChevronsUpDown,
-  Calendar,
+  SlidersHorizontal,
+  CalendarClock,
 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 import {
   Select,
@@ -63,6 +64,7 @@ export default function RegistrationIndex() {
   const { toast } = useToast();
   const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filterOpen, setFilterOpen] = useState(false);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [selectedRoom, setSelectedRoom] = useState<string>("all");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
@@ -73,6 +75,17 @@ export default function RegistrationIndex() {
   const [roomPopoverOpen, setRoomPopoverOpen] = useState(false);
   const [mjknQueueMap, setMjknQueueMap] = useState<Map<number, BPJSQueue>>(new Map());
   const [activatingCheckin, setActivatingCheckin] = useState<number | null>(null);
+  const [scheduledTodayCount, setScheduledTodayCount] = useState(0);
+
+  const loadScheduledCount = useCallback(async () => {
+    try {
+      const today = new Date().toISOString().split("T")[0];
+      const response = await registrationApi.getScheduled({ date: today, status: "scheduled" });
+      setScheduledTodayCount(response.data.summary?.today || response.data.data?.length || 0);
+    } catch {
+      // Silently fail
+    }
+  }, []);
 
   const loadMjknQueues = useCallback(async () => {
     try {
@@ -216,7 +229,8 @@ export default function RegistrationIndex() {
     setPageTitle("Pendaftaran");
     loadRooms();
     loadMjknQueues();
-  }, [loadRooms, loadMjknQueues]);
+    loadScheduledCount();
+  }, [loadRooms, loadMjknQueues, loadScheduledCount]);
 
   useEffect(() => {
     loadData();
@@ -325,175 +339,178 @@ export default function RegistrationIndex() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      <div className="grid gap-4">
-        <Card className="shadow-md">
-          <CardHeader className="border-b bg-muted/50">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="space-y-1">
-                    <CardTitle className="text-base font-semibold">
-                      Pendaftaran Pasien
-                    </CardTitle>
-                    <CardDescription>
-                      Kelola pendaftaran pasien -{" "}
-                      {selectedDate
-                        ? format(new Date(selectedDate), "EEEE, dd MMMM yyyy", {
-                            locale: idLocale,
-                          })
-                        : "Semua Data"}
-                    </CardDescription>
-                  </div>
-                </div>
-                <div>
-                  <div className="flex items-center gap-4 pb-2 pt-4">
-                    <div className="flex items-center gap-2">
-                      <Calendar className="h-4 w-4 text-muted-foreground" />
-                      <label className="text-sm font-medium">
-                        Filter Tanggal:
-                      </label>
-                    </div>
-                    <Input
-                      type="date"
-                      value={selectedDate}
-                      onChange={(e) => setSelectedDate(e.target.value)}
-                      className="w-48"
-                    />
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setSelectedDate("")}
-                    >
-                      Semua Data
-                    </Button>
-                    <div className="flex flex-1 gap-2">
-                      <Popover
-                        open={roomPopoverOpen}
-                        onOpenChange={setRoomPopoverOpen}
-                      >
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="outline"
-                            role="combobox"
-                            className={cn(
-                              "w-[220px] justify-between",
-                              selectedRoom === "all" && "text-muted-foreground"
-                            )}
-                          >
-                            {selectedRoom === "all"
-                              ? "Semua Poli"
-                              : `${
-                                  rooms.find(
-                                    (r) => r.id.toString() === selectedRoom
-                                  )?.code
-                                } - ${
-                                  rooms.find(
-                                    (r) => r.id.toString() === selectedRoom
-                                  )?.name
-                                }`}
-                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-[220px] p-0" align="start">
-                          <Command>
-                            <CommandInput placeholder="Cari ruangan..." />
-                            <CommandList>
-                              <CommandEmpty>
-                                Ruangan tidak ditemukan.
-                              </CommandEmpty>
-                              <CommandGroup>
-                                <CommandItem
-                                  value="all"
-                                  onSelect={() => {
-                                    setSelectedRoom("all");
-                                    setRoomPopoverOpen(false);
-                                  }}
-                                >
-                                  <Check
-                                    className={cn(
-                                      "mr-2 h-4 w-4",
-                                      selectedRoom === "all"
-                                        ? "opacity-100"
-                                        : "opacity-0"
-                                    )}
-                                  />
-                                  Semua Poli
-                                </CommandItem>
-                                {rooms.map((room) => (
-                                  <CommandItem
-                                    key={room.id}
-                                    value={`${room.code} ${room.name}`}
-                                    onSelect={() => {
-                                      setSelectedRoom(room.id.toString());
-                                      setRoomPopoverOpen(false);
-                                    }}
-                                  >
-                                    <Check
-                                      className={cn(
-                                        "mr-2 h-4 w-4",
-                                        selectedRoom === room.id.toString()
-                                          ? "opacity-100"
-                                          : "opacity-0"
-                                      )}
-                                    />
-                                    {room.code} - {room.name}
-                                  </CommandItem>
-                                ))}
-                              </CommandGroup>
-                            </CommandList>
-                          </Command>
-                        </PopoverContent>
-                      </Popover>
-                      <Select
-                        value={selectedStatus}
-                        onValueChange={setSelectedStatus}
-                      >
-                        <SelectTrigger className="w-[150px]">
-                          <SelectValue placeholder="Semua Status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Semua Status</SelectItem>
-                          <SelectItem value="scheduled">Terjadwal (MJKN)</SelectItem>
-                          <SelectItem value="registered">Terdaftar</SelectItem>
-                          <SelectItem value="in_queue">
-                            Dalam Antrean
-                          </SelectItem>
-                          <SelectItem value="in_progress">
-                            Sedang Diproses
-                          </SelectItem>
-                          <SelectItem value="completed">Selesai</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <Button variant="outline" size="icon" onClick={loadData}>
-                        <RefreshCcw className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    {hasPermission("registrations.create") && (
-                      <Button
-                        onClick={() => navigate("/registrations/create")}
-                        size="sm"
-                      >
-                        <Plus className="mr-2 h-4 w-4" />
-                        Tambah Pendaftaran
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </CardHeader>
-
-          <CardContent className="pt-6">
-            <DataTable
-              columns={columns}
-              data={registrations}
-              searchPlaceholder="Cari no. registrasi atau nama pasien..."
-              pageSize={10}
-              tableId="registrations"
-            />
-          </CardContent>
-        </Card>
+      <Collapsible open={filterOpen} onOpenChange={setFilterOpen}>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-lg font-semibold">Pendaftaran Pasien</h1>
+          <p className="text-sm text-muted-foreground">
+            Kelola pendaftaran pasien -{" "}
+            {selectedDate
+              ? format(new Date(selectedDate), "EEEE, dd MMMM yyyy", {
+                  locale: idLocale,
+                })
+              : "Semua Data"}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => navigate("/registrations/scheduled")}
+          className="relative"
+        >
+          <CalendarClock className="mr-2 h-4 w-4" />
+          Jadwal Kontrol
+          {scheduledTodayCount > 0 && (
+            <Badge className="ml-2 h-5 min-w-5 px-1.5 text-[10px] font-semibold bg-blue-500 hover:bg-blue-500 text-white rounded-full">
+              {scheduledTodayCount}
+            </Badge>
+          )}
+        </Button>
+        {hasPermission("registrations.create") && (
+          <Button
+            onClick={() => navigate("/registrations/create")}
+            size="sm"
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Tambah Pendaftaran
+          </Button>
+        )}
+        <CollapsibleTrigger asChild>
+          <Button variant="outline" size="sm" className="h-9">
+            <SlidersHorizontal className="h-4 w-4 mr-2" />
+            Filter
+          </Button>
+        </CollapsibleTrigger>
+        </div>
       </div>
+      <CollapsibleContent>
+      <div className="flex items-center gap-2 flex-wrap pt-4">
+        <Input
+          type="date"
+          value={selectedDate}
+          onChange={(e) => setSelectedDate(e.target.value)}
+          className="h-9 w-48"
+        />
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setSelectedDate("")}
+          className="h-9"
+        >
+          Semua Data
+        </Button>
+        <Popover
+          open={roomPopoverOpen}
+          onOpenChange={setRoomPopoverOpen}
+        >
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              role="combobox"
+              className={cn(
+                "h-9 w-[220px] justify-between",
+                selectedRoom === "all" && "text-muted-foreground"
+              )}
+            >
+              {selectedRoom === "all"
+                ? "Semua Poli"
+                : `${
+                    rooms.find(
+                      (r) => r.id.toString() === selectedRoom
+                    )?.code
+                  } - ${
+                    rooms.find(
+                      (r) => r.id.toString() === selectedRoom
+                    )?.name
+                  }`}
+              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[220px] p-0" align="start">
+            <Command>
+              <CommandInput placeholder="Cari ruangan..." />
+              <CommandList>
+                <CommandEmpty>
+                  Ruangan tidak ditemukan.
+                </CommandEmpty>
+                <CommandGroup>
+                  <CommandItem
+                    value="all"
+                    onSelect={() => {
+                      setSelectedRoom("all");
+                      setRoomPopoverOpen(false);
+                    }}
+                  >
+                    <Check
+                      className={cn(
+                        "mr-2 h-4 w-4",
+                        selectedRoom === "all"
+                          ? "opacity-100"
+                          : "opacity-0"
+                      )}
+                    />
+                    Semua Poli
+                  </CommandItem>
+                  {rooms.map((room) => (
+                    <CommandItem
+                      key={room.id}
+                      value={`${room.code} ${room.name}`}
+                      onSelect={() => {
+                        setSelectedRoom(room.id.toString());
+                        setRoomPopoverOpen(false);
+                      }}
+                    >
+                      <Check
+                        className={cn(
+                          "mr-2 h-4 w-4",
+                          selectedRoom === room.id.toString()
+                            ? "opacity-100"
+                            : "opacity-0"
+                        )}
+                      />
+                      {room.code} - {room.name}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
+        <Select
+          value={selectedStatus}
+          onValueChange={setSelectedStatus}
+        >
+          <SelectTrigger className="h-9 w-[150px]">
+            <SelectValue placeholder="Semua Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Semua Status</SelectItem>
+            <SelectItem value="scheduled">Terjadwal (MJKN)</SelectItem>
+            <SelectItem value="registered">Terdaftar</SelectItem>
+            <SelectItem value="in_queue">
+              Dalam Antrean
+            </SelectItem>
+            <SelectItem value="in_progress">
+              Sedang Diproses
+            </SelectItem>
+            <SelectItem value="completed">Selesai</SelectItem>
+          </SelectContent>
+        </Select>
+        <Button variant="outline" size="icon" className="h-9 w-9" onClick={loadData}>
+          <RefreshCcw className="h-4 w-4" />
+        </Button>
+      </div>
+      </CollapsibleContent>
+      </Collapsible>
+
+      <DataTable
+        columns={columns}
+        data={registrations}
+        searchPlaceholder="Cari no. registrasi atau nama pasien..."
+        pageSize={10}
+        tableId="registrations"
+      />
 
       {/* Confirm dialog for regular registration cancellation */}
       <ConfirmDialog

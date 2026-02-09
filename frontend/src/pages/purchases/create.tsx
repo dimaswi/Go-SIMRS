@@ -2,13 +2,6 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Plus, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -243,26 +236,22 @@ export default function PurchaseCreate() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      {/* Main Card with Header */}
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
-          <div className="flex items-center gap-4">
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              onClick={() => navigate("/purchases")}
-              className="h-9 w-9"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <div className="space-y-1">
-              <CardTitle className="text-base font-semibold">Buat Pembelian</CardTitle>
-              <CardDescription>Buat order pembelian baru ke supplier</CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-6 pt-6">
+      <div className="flex items-center gap-4">
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          onClick={() => navigate("/purchases")}
+          className="h-9 w-9"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <div>
+          <h1 className="text-lg font-semibold">Buat Pembelian</h1>
+          <p className="text-sm text-muted-foreground">Buat order pembelian baru ke supplier</p>
+        </div>
+      </div>
+      <div className="rounded-lg border p-6 space-y-6">
           {/* Supplier Selection */}
           <div className="space-y-4">
             <div className="flex items-center gap-4">
@@ -372,8 +361,7 @@ export default function PurchaseCreate() {
               emptyMessage="Klik 'Pilih Item' untuk menambahkan item pembelian"
             />
           </div>
-        </CardContent>
-      </Card>
+      </div>
 
       {/* Actions */}
       <div className="flex justify-end gap-2">

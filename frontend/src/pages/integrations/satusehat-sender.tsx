@@ -1,12 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
+
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -983,9 +977,8 @@ export default function SatuSehatSenderPage() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
-          <div className="flex items-center gap-4">
+      <div className="rounded-lg border">
+        <div className="flex items-center gap-4 p-6">
             <Button
               variant="outline"
               size="icon"
@@ -995,76 +988,52 @@ export default function SatuSehatSenderPage() {
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <div className="flex-1">
-              <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <h1 className="text-lg font-semibold flex items-center gap-2">
                 <Send className="h-5 w-5" />
                 Kirim Data ke SatuSehat
-              </CardTitle>
-              <CardDescription>
+              </h1>
+              <p className="text-sm text-muted-foreground">
                 Kelola pengiriman data FHIR R4 ke platform SatuSehat Kemenkes
-              </CardDescription>
+              </p>
             </div>
             <Button variant="outline" size="sm" onClick={loadData}>
               <RefreshCw className="h-4 w-4 mr-2" />
               Refresh
             </Button>
-          </div>
-        </CardHeader>
+        </div>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <div className="border-b px-4">
-            <TabsList className="h-12 bg-transparent p-0 w-full justify-start gap-4">
-              <TabsTrigger
-                value="overview"
-                className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-1"
-              >
+        <Tabs value={activeTab} onValueChange={setActiveTab} variant="inline">
+            <TabsList className="px-4">
+              <TabsTrigger value="overview">
                 Overview
               </TabsTrigger>
-              <TabsTrigger
-                value="patients"
-                className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-1"
-              >
+              <TabsTrigger value="patients">
                 <Users className="h-4 w-4 mr-2" />
                 Pasien
               </TabsTrigger>
-              <TabsTrigger
-                value="practitioners"
-                className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-1"
-              >
+              <TabsTrigger value="practitioners">
                 <Stethoscope className="h-4 w-4 mr-2" />
                 Karyawan
               </TabsTrigger>
-              <TabsTrigger
-                value="locations"
-                className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-1"
-              >
+              <TabsTrigger value="locations">
                 <MapPin className="h-4 w-4 mr-2" />
                 Lokasi
               </TabsTrigger>
-              <TabsTrigger
-                value="kfa"
-                className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-1"
-              >
+              <TabsTrigger value="kfa">
                 <Pill className="h-4 w-4 mr-2" />
                 KFA Obat
               </TabsTrigger>
-              <TabsTrigger
-                value="loinc"
-                className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-1"
-              >
+              <TabsTrigger value="loinc">
                 <FlaskConical className="h-4 w-4 mr-2" />
                 LOINC Lab/Rad
               </TabsTrigger>
-              <TabsTrigger
-                value="encounters"
-                className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-1"
-              >
+              <TabsTrigger value="encounters">
                 <Building2 className="h-4 w-4 mr-2" />
                 Encounter
               </TabsTrigger>
             </TabsList>
-          </div>
 
-          <CardContent className="pt-6">
+          <div className="rounded-lg border p-6 mx-4 mb-4">
             {/* Overview Tab */}
             <TabsContent value="overview" className="mt-0">
               <OverviewTab readiness={readiness} onChangeTab={setActiveTab} />
@@ -1120,9 +1089,9 @@ export default function SatuSehatSenderPage() {
                 onViewStatus={handleViewStatus}
               />
             </TabsContent>
-          </CardContent>
+          </div>
         </Tabs>
-      </Card>
+      </div>
 
       {/* Response Detail Dialog */}
       <Dialog open={responseDialogOpen} onOpenChange={setResponseDialogOpen}>

@@ -1,12 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -164,31 +158,25 @@ export default function RoomEdit() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      <div className="grid gap-4">
-        <Card className="shadow-md">
-          <CardHeader className="border-b bg-muted/50">
-            <div className="flex items-center gap-4">
-              <div>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => navigate("/rooms")}
-                  className="h-9 w-9"
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                </Button>
-              </div>
-              <div>
-                <CardTitle className="text-base font-semibold">
-                  Edit Ruangan
-                </CardTitle>
-                <CardDescription>
-                  Perbarui detail informasi ruangan
-                </CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="pt-6">
+      <div className="flex items-center gap-4">
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => navigate("/rooms")}
+          className="h-9 w-9"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <div>
+          <h1 className="text-lg font-semibold">
+            Edit Ruangan
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Perbarui detail informasi ruangan
+          </p>
+        </div>
+      </div>
+      <div className="rounded-lg border p-6">
             <form onSubmit={handleSubmit} className="space-y-5">
               {/* Basic Info */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -495,8 +483,6 @@ export default function RoomEdit() {
                 </Button>
               </div>
             </form>
-          </CardContent>
-        </Card>
       </div>
     </div>
   );

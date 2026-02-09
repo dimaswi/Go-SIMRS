@@ -517,8 +517,8 @@ export function LaboratoryOrderForm({ visitId, readOnly = false }: LaboratoryOrd
   }
 
   return (
-    <Card className="shadow-md">
-      <CardHeader className="border-b bg-muted/30 py-3 px-4">
+    <Card>
+      <CardHeader className="py-3 px-4">
         <CardTitle className="text-base font-semibold flex items-center gap-2">
           <TestTube className="h-4 w-4" />
           Order Laboratorium
@@ -573,8 +573,7 @@ export function LaboratoryOrderForm({ visitId, readOnly = false }: LaboratoryOrd
           </div>
         </div>
 
-        <ScrollArea className="h-[calc(100vh-450px)] min-h-[570px]">
-          <div className="p-4">
+        <div className="p-4">
             {/* Order Form Tab */}
             {activeTab === "form" && canOrder && (
               <div className="space-y-4">
@@ -758,8 +757,7 @@ export function LaboratoryOrderForm({ visitId, readOnly = false }: LaboratoryOrd
                 )}
               </div>
             )}
-          </div>
-        </ScrollArea>
+        </div>
       </CardContent>
     </Card>
   );

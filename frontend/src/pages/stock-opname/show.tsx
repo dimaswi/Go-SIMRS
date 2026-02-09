@@ -11,13 +11,6 @@ import {
   Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -208,60 +201,58 @@ export default function StockOpnameShow() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      {/* Main Card with Header */}
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => navigate("/stock-opname")}
-                className="h-9 w-9"
-              >
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-              <div className="space-y-1">
-                <div className="flex items-center gap-3">
-                  <CardTitle className="text-base font-semibold">
-                    {opname.opname_number}
-                  </CardTitle>
-                  <Badge className={statusColors[status]}>
-                    {statusLabels[status]}
-                  </Badge>
-                </div>
-                <CardDescription>Detail stock opname</CardDescription>
-              </div>
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => navigate("/stock-opname")}
+            className="h-9 w-9"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div className="space-y-1">
+            <div className="flex items-center gap-3">
+              <h1 className="text-lg font-semibold">
+                {opname.opname_number}
+              </h1>
+              <Badge className={statusColors[status]}>
+                {statusLabels[status]}
+              </Badge>
             </div>
-            <div className="flex gap-2">
-              {canEdit && (
-                <Button size="sm" variant="outline" onClick={() => navigate(`/stock-opname/${id}/edit`)}>
-                  <Pencil className="mr-2 h-4 w-4" />
-                  Edit
-                </Button>
-              )}
-              {canComplete && (
-                <Button size="sm" onClick={() => setShowCompleteDialog(true)}>
-                  <CheckCircle className="mr-2 h-4 w-4" />
-                  Selesaikan
-                </Button>
-              )}
-              {canApprove && (
-                <Button size="sm" variant="default" onClick={() => setShowApproveDialog(true)}>
-                  <CheckCircle className="mr-2 h-4 w-4" />
-                  Setujui & Sesuaikan Stok
-                </Button>
-              )}
-              {canDelete && (
-                <Button size="sm" variant="destructive" onClick={() => setShowDeleteDialog(true)}>
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Hapus
-                </Button>
-              )}
-            </div>
+            <p className="text-sm text-muted-foreground">Detail stock opname</p>
           </div>
-        </CardHeader>
-        <CardContent className="pt-6">
+        </div>
+        <div className="flex gap-2">
+          {canEdit && (
+            <Button size="sm" variant="outline" onClick={() => navigate(`/stock-opname/${id}/edit`)}>
+              <Pencil className="mr-2 h-4 w-4" />
+              Edit
+            </Button>
+          )}
+          {canComplete && (
+            <Button size="sm" onClick={() => setShowCompleteDialog(true)}>
+              <CheckCircle className="mr-2 h-4 w-4" />
+              Selesaikan
+            </Button>
+          )}
+          {canApprove && (
+            <Button size="sm" variant="default" onClick={() => setShowApproveDialog(true)}>
+              <CheckCircle className="mr-2 h-4 w-4" />
+              Setujui & Sesuaikan Stok
+            </Button>
+          )}
+          {canDelete && (
+            <Button size="sm" variant="destructive" onClick={() => setShowDeleteDialog(true)}>
+              <Trash2 className="mr-2 h-4 w-4" />
+              Hapus
+            </Button>
+          )}
+        </div>
+      </div>
+
+      <div className="rounded-lg border p-6">
           {/* Info Grid */}
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-6">
             <div className="flex items-start gap-3">
@@ -382,8 +373,7 @@ export default function StockOpnameShow() {
             </TableBody>
           </Table>
           </div>
-        </CardContent>
-      </Card>
+      </div>
 
       {/* Complete Dialog */}
       <ConfirmDialog

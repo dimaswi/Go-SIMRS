@@ -206,15 +206,21 @@ func (c *Client) DecryptResponse(encryptedData string, timestamp string) ([]byte
 	return []byte(decompressed), nil
 }
 
-// removePKCS7Padding removes PKCS7 padding
+// removePKCS7Padding removes PKCS7 padding with proper validation
 func removePKCS7Padding(data []byte) []byte {
 	length := len(data)
 	if length == 0 {
 		return data
 	}
 	padding := int(data[length-1])
-	if padding > length {
+	if padding > length || padding == 0 || padding > 16 {
 		return data
+	}
+	// Validate all padding bytes are equal
+	for i := length - padding; i < length; i++ {
+		if int(data[i]) != padding {
+			return data // Invalid padding, return as-is
+		}
 	}
 	return data[:length-padding]
 }

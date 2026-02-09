@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DataTable } from "@/components/ui/data-table";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Check, X } from "lucide-react";
@@ -120,56 +119,52 @@ export function ProcedureAssignmentPanel({
       {/* Two Column Layout */}
       <div className="grid grid-cols-2 gap-4">
         {/* Available Column */}
-        <Card className="shadow-md">
-          <CardHeader className="py-3 border-b bg-muted/50">
-            <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
-                <X className="h-4 w-4 text-primary" />
-              </div>
-              <div>
-                <CardTitle className="text-sm font-semibold">
-                  Tersedia ({availableProcedures.length})
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  Tindakan yang belum ditugaskan
-                </CardDescription>
-              </div>
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+              <X className="h-4 w-4 text-primary" />
             </div>
-          </CardHeader>
-          <CardContent className="p-4">
+            <div>
+              <h2 className="text-sm font-semibold">
+                Tersedia ({availableProcedures.length})
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                Tindakan yang belum ditugaskan
+              </p>
+            </div>
+          </div>
+          <div className="rounded-lg border p-4">
             <DataTable
               columns={availableColumns}
               data={availableProcedures}
 
             />
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* Assigned Column */}
-        <Card className="shadow-md">
-          <CardHeader className="py-3 border-b bg-muted/50">
-            <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
-                <Check className="h-4 w-4 text-primary" />
-              </div>
-              <div>
-                <CardTitle className="text-sm font-semibold">
-                  Ditugaskan ({roomProcedures.length})
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  Tindakan di ruangan ini
-                </CardDescription>
-              </div>
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+              <Check className="h-4 w-4 text-primary" />
             </div>
-          </CardHeader>
-          <CardContent className="p-4">
+            <div>
+              <h2 className="text-sm font-semibold">
+                Ditugaskan ({roomProcedures.length})
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                Tindakan di ruangan ini
+              </p>
+            </div>
+          </div>
+          <div className="rounded-lg border p-4">
             <DataTable
               columns={assignedColumns}
               data={roomProcedures}
 
             />
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
     </div>
   );

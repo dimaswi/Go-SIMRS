@@ -3,13 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
+
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -111,29 +105,26 @@ export default function QueueCreate() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      <Card className="shadow-md max-w-2xl mx-auto w-full">
-        <CardHeader className="border-b bg-muted/50">
-          <div className="flex items-center gap-4">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => navigate("/queues")}
-              className="h-9 w-9"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <div>
-              <CardTitle className="text-base font-semibold flex items-center gap-2">
-                <Ticket className="h-5 w-5" />
-                Ambil Nomor Antrean
-              </CardTitle>
-              <CardDescription>
-                Pilih jenis layanan dan loket pendaftaran
-              </CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="pt-6">
+      <div className="flex items-center gap-4">
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => navigate("/queues")}
+          className="h-9 w-9"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <div>
+          <h1 className="text-lg font-semibold flex items-center gap-2">
+            <Ticket className="h-5 w-5" />
+            Ambil Nomor Antrean
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Pilih jenis layanan dan loket pendaftaran
+          </p>
+        </div>
+      </div>
+      <div className="rounded-lg border p-6 max-w-2xl mx-auto w-full">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <FormField
@@ -242,8 +233,7 @@ export default function QueueCreate() {
               </div>
             </form>
           </Form>
-        </CardContent>
-      </Card>
+      </div>
     </div>
   );
 }

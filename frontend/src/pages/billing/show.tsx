@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { useBreadcrumb } from '@/contexts/breadcrumb-context';
 import {
   Dialog,
   DialogContent,
@@ -24,8 +24,6 @@ import {
   XCircle,
   RefreshCw,
   CreditCard,
-  ChevronDown,
-  ChevronUp,
   Printer,
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
@@ -153,12 +151,8 @@ export default function BillingShow() {
   const [cancelling, setCancelling] = useState(false);
   const [printing, setPrinting] = useState(false);
 
-  // Tabs & Sidebar
+  // Tabs
   const [activeTab, setActiveTab] = useState('overview');
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-    const saved = localStorage.getItem('billingTabsCollapsed');
-    return saved ? JSON.parse(saved) : false;
-  });
 
   // Dialogs
   const [discountDialogOpen, setDiscountDialogOpen] = useState(false);
@@ -176,10 +170,15 @@ export default function BillingShow() {
   const [adjustAmount, setAdjustAmount] = useState(0);
   const [adjustReason, setAdjustReason] = useState('');
 
-  // Save sidebar state
+  // Breadcrumb: show patient name
+  const { setOverride } = useBreadcrumb();
   useEffect(() => {
-    localStorage.setItem('billingTabsCollapsed', JSON.stringify(sidebarCollapsed));
-  }, [sidebarCollapsed]);
+    const name = visit?.registration?.patient?.nama_lengkap;
+    if (name) {
+      setOverride({ extraSegments: [{ label: name }] });
+    }
+    return () => setOverride(null);
+  }, [visit, setOverride]);
 
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
@@ -271,17 +270,15 @@ export default function BillingShow() {
         ) : null;
       case 'payment':
         return (
-          <Card className="border-none shadow-sm">
-            <CardContent className="py-12 text-center">
-              <p className="text-sm text-muted-foreground mb-4">
-                Untuk melakukan pembayaran, gunakan halaman pembayaran khusus
-              </p>
-              <Button onClick={() => billing && navigate(`/billing/${billing.id}/payment`)}>
-                <CreditCard className="mr-2 h-4 w-4" />
-                Proses Pembayaran
-              </Button>
-            </CardContent>
-          </Card>
+          <div className="py-12 text-center">
+            <p className="text-sm text-muted-foreground mb-4">
+              Untuk melakukan pembayaran, gunakan halaman pembayaran khusus
+            </p>
+            <Button onClick={() => billing && navigate(`/billing/${billing.id}/payment`)}>
+              <CreditCard className="mr-2 h-4 w-4" />
+              Proses Pembayaran
+            </Button>
+          </div>
         );
       case 'payment-history':
         return (
@@ -304,69 +301,65 @@ export default function BillingShow() {
     if (!visit) return null;
 
     return (
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5">
         {/* Tombol Ambil Tagihan */}
         {!billing && hasPermission('billing.create') && visit.status === 'completed' && (
-          <Button onClick={handleGenerateBilling} disabled={generating}>
+          <Button size="sm" onClick={handleGenerateBilling} disabled={generating}>
             {generating ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
             ) : (
-              <Receipt className="mr-2 h-4 w-4" />
+              <Receipt className="mr-1.5 h-3.5 w-3.5" />
             )}
             Ambil Tagihan
           </Button>
         )}
         {/* Tombol Finalisasi */}
         {billing && billing.status === 'draft' && hasPermission('billing.finalize') && (
-          <Button onClick={handleFinalize} disabled={finalizing}>
+          <Button size="sm" onClick={handleFinalize} disabled={finalizing}>
             {finalizing ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
             ) : (
-              <CheckCircle className="mr-2 h-4 w-4" />
+              <CheckCircle className="mr-1.5 h-3.5 w-3.5" />
             )}
             Finalisasi
           </Button>
         )}
         {/* Tombol Regenerate Tagihan */}
         {billing && (billing.status === 'draft' || billing.status === 'cancelled') && hasPermission('billing.create') && (
-          <Button variant="outline" onClick={handleRegenerateBilling} disabled={regenerating}>
+          <Button variant="outline" size="sm" onClick={handleRegenerateBilling} disabled={regenerating}>
             {regenerating ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
             ) : (
-              <RefreshCw className="mr-2 h-4 w-4" />
+              <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
             )}
             {billing.status === 'cancelled' ? 'Buat Ulang' : 'Regenerate'}
           </Button>
         )}
         {/* Tombol Bayar */}
         {billing && billing.status !== 'paid' && billing.status !== 'cancelled' && billing.status !== 'draft' && hasPermission('billing.payment') && (
-          <Button onClick={() => navigate(`/billing/${billing.id}/payment`)}>
-            <CreditCard className="mr-2 h-4 w-4" />
+          <Button size="sm" onClick={() => navigate(`/billing/${billing.id}/payment`)}>
+            <CreditCard className="mr-1.5 h-3.5 w-3.5" />
             Bayar
           </Button>
         )}
         {/* Tombol Batalkan */}
         {billing && billing.status !== 'paid' && billing.status !== 'cancelled' && hasPermission('billing.delete') && (
-          <Button variant="destructive" onClick={() => setCancelDialogOpen(true)}>
-            <XCircle className="mr-2 h-4 w-4" />
+          <Button variant="outline" size="sm" onClick={() => setCancelDialogOpen(true)}>
+            <XCircle className="mr-1.5 h-3.5 w-3.5" />
             Batalkan
           </Button>
         )}
         {/* Tombol Cetak */}
         {billing && (
-          <Button variant="outline" onClick={handlePrintBilling} disabled={printing}>
+          <Button variant="outline" size="sm" onClick={handlePrintBilling} disabled={printing}>
             {printing ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
             ) : (
-              <Printer className="mr-2 h-4 w-4" />
+              <Printer className="mr-1.5 h-3.5 w-3.5" />
             )}
             Cetak
           </Button>
         )}
-        {/* Tombol Kembali */}
-        <Button variant="outline" onClick={() => navigate('/billing')}>
-          Kembali
-        </Button>
       </div>
     );
   };
@@ -579,59 +572,34 @@ export default function BillingShow() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Patient Info Header - Sticky */}
-      <div className="sticky top-0 z-50 bg-background px-6 pt-6 pb-3 flex-shrink-0">
-        <PatientBillingInfo visit={visit} billing={billing} />
-      </div>
-
-      {/* Action Buttons Bar - Sticky */}
-      <div className="sticky top-[120px] z-40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-6 py-3 border-b flex-shrink-0">
-        <div className="flex items-center justify-end">
-          {renderActionButtons()}
-        </div>
+      {/* Patient Info Header + Actions - Sticky */}
+      <div className="sticky top-0 z-50 bg-background px-6 pt-4 pb-2 border-b flex-shrink-0">
+        <PatientBillingInfo visit={visit} billing={billing} actionButtons={renderActionButtons()} />
       </div>
 
       {/* Main Content Area with Tabs and Form */}
       <div className="flex-1 min-h-0 px-6 pb-6 pt-4">
-        <div className="grid grid-cols-1 lg:grid-cols-[200px_1fr] gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-[190px_1fr] gap-6">
           {/* Left Sidebar: Tabs Navigation - Sticky */}
-          <div className="self-start sticky top-[180px] z-30">
-            <Card className="border-none shadow-sm">
-              <CardHeader 
-                className="border-b bg-muted/30 px-3 py-2.5 cursor-pointer hover:bg-muted/40 transition-colors" 
-                onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-              >
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-semibold text-muted-foreground uppercase">Menu Billing</h3>
-                  {sidebarCollapsed ? (
-                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                  ) : (
-                    <ChevronUp className="h-4 w-4 text-muted-foreground" />
-                  )}
-                </div>
-              </CardHeader>
-              {!sidebarCollapsed && (
-                <CardContent className="p-2.5">
-                  <BillingTabs
-                    activeTab={activeTab}
-                    onTabChange={handleTabChange}
-                    hasBilling={!!billing}
-                    billingStatus={billing?.status}
-                  />
-                </CardContent>
-              )}
-            </Card>
+          <div className="self-start sticky top-[80px] z-30">
+            <h3 className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider px-2.5 mb-2">
+              Menu
+            </h3>
+            <BillingTabs
+              activeTab={activeTab}
+              onTabChange={handleTabChange}
+              hasBilling={!!billing}
+              billingStatus={billing?.status}
+            />
           </div>
 
           {/* Right Content: Active Tab Form */}
           <div>
             {loadingBilling ? (
-              <Card className="border-none shadow-sm">
-                <CardContent className="py-12 flex items-center justify-center">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground mr-2" />
-                  <span className="text-muted-foreground">Memuat data...</span>
-                </CardContent>
-              </Card>
+              <div className="py-12 flex items-center justify-center">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground mr-2" />
+                <span className="text-muted-foreground">Memuat data...</span>
+              </div>
             ) : (
               renderActiveTabContent()
             )}

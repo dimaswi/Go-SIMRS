@@ -1,11 +1,8 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
-  User,
   Calendar,
   Phone,
   MapPin,
@@ -13,7 +10,6 @@ import {
   AlertTriangle,
   Pill,
   ChevronDown,
-  ChevronUp,
   MessageSquare,
   ArrowLeft,
   Loader2,
@@ -118,86 +114,22 @@ const getPriorityBadge = (priority?: string) => {
   return <Badge variant={config.variant}>{config.label}</Badge>;
 };
 
-// Get visit category badge based on visit_type and service_type
-const getVisitCategoryBadge = (visit: PatientInfoProps["visit"]) => {
+// Get visit category label based on visit_type and service_type
+const getVisitCategoryLabel = (visit: PatientInfoProps["visit"]) => {
   const serviceType = visit.room?.service_type;
   const visitType = visit.visit_type;
   const hasReferral = !!visit.referral_from;
 
-  // Support visits (order from other visit)
-  if (visitType === "pharmacy") {
-    return (
-      <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 border-purple-300">
-        🏥 Farmasi
-      </Badge>
-    );
-  }
-  if (visitType === "radiology") {
-    return (
-      <Badge className="bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200 border-cyan-300">
-        📷 Radiologi
-      </Badge>
-    );
-  }
-  if (visitType === "lab") {
-    return (
-      <Badge className="bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200 border-teal-300">
-        🧪 Laboratorium
-      </Badge>
-    );
-  }
-  if (visitType === "consultation" && hasReferral) {
-    return (
-      <Badge className="bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200 border-indigo-300">
-        👨‍⚕️ Order Konsultasi
-      </Badge>
-    );
-  }
-  if (visitType === "surgery") {
-    return (
-      <Badge className="bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200 border-orange-300">
-        🔪 Operasi
-      </Badge>
-    );
-  }
-
-  // Clinical visits based on service_type
-  if (serviceType === "gawat_darurat" || visitType === "emergency") {
-    return (
-      <Badge className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 border-red-300">
-        🚨 UGD
-      </Badge>
-    );
-  }
-  if (serviceType === "rawat_inap" || visitType === "inpatient") {
-    return (
-      <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 border-blue-300">
-        🛏️ Rawat Inap
-      </Badge>
-    );
-  }
-  if (serviceType === "rawat_jalan" || visitType === "outpatient") {
-    return (
-      <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border-green-300">
-        🏃 Rawat Jalan
-      </Badge>
-    );
-  }
-
-  // Fallback for consultation (non-order) or other
-  if (visitType === "consultation") {
-    return (
-      <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border-green-300">
-        👨‍⚕️ Konsultasi
-      </Badge>
-    );
-  }
-
-  return (
-    <Badge variant="outline">
-      {visitType || "Kunjungan"}
-    </Badge>
-  );
+  if (visitType === "pharmacy") return "Farmasi";
+  if (visitType === "radiology") return "Radiologi";
+  if (visitType === "lab") return "Laboratorium";
+  if (visitType === "consultation" && hasReferral) return "Konsultasi";
+  if (visitType === "surgery") return "Operasi";
+  if (serviceType === "gawat_darurat" || visitType === "emergency") return "UGD";
+  if (serviceType === "rawat_inap" || visitType === "inpatient") return "Rawat Inap";
+  if (serviceType === "rawat_jalan" || visitType === "outpatient") return "Rawat Jalan";
+  if (visitType === "consultation") return "Konsultasi";
+  return visitType || "Kunjungan";
 };
 
 export function PatientInfo({ visit }: PatientInfoProps) {
@@ -205,7 +137,6 @@ export function PatientInfo({ visit }: PatientInfoProps) {
   
   const patient = visit.registration?.patient;
   const patientId = patient?.id;
-  // const registrationId = visit.registration?.registration_number ? visit.id : null;
   
   // Patient allergies from dedicated allergy table
   const [patientAllergies, setPatientAllergies] = useState<PatientAllergy[]>([]);
@@ -288,440 +219,320 @@ export function PatientInfo({ visit }: PatientInfoProps) {
                               visit.registration?.status === "discharged" ||
                               visit.status === "completed";
 
+  // Helper: Get initials from patient name
+  const getInitials = (name?: string) => {
+    if (!name) return "?";
+    const parts = name.split(" ").filter(Boolean);
+    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+    return parts[0]?.[0]?.toUpperCase() || "?";
+  };
+
   return (
-    <Card className="border-none shadow-none">
-      <CardHeader className="border-b bg-muted/30 px-4 py-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Button 
-              variant="outline" 
-              size="icon" 
-              onClick={() => navigate("/visits")}
-              className="flex-shrink-0"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <div 
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 cursor-pointer"
-              onClick={() => setIsOpen(!isOpen)}
-            >
-              <User className="h-5 w-5 text-primary" />
-            </div>
-            <div 
-              className="cursor-pointer hover:opacity-80 transition-opacity flex-1"
-              onClick={() => setIsOpen(!isOpen)}
-            >
-              <h3 className="text-base font-semibold">
+    <div>
+      {/* Header Bar */}
+      <div
+        className="flex items-center justify-between py-2 cursor-pointer select-none group"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={(e) => { e.stopPropagation(); navigate("/visits"); }}
+            className="flex-shrink-0 h-8 w-8 rounded-full"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold text-sm flex-shrink-0">
+            {getInitials(patient?.nama_lengkap)}
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-semibold truncate">
                 {patient?.nama_lengkap || "-"}
               </h3>
-              <div className="flex items-center gap-2 mt-0.5">
-                <span className="text-xs text-muted-foreground">Kunjungan #{visit.visit_number}</span>
-                <span className="text-muted-foreground">•</span>
-                <Badge variant="outline" className="font-mono text-xs">
-                  {patient?.no_rm || "-"}
-                </Badge>
-                <Badge
-                  variant={
-                    patient?.jenis_kelamin === "L" ? "default" : "secondary"
-                  }
-                  className="text-xs"
-                >
-                  {patient?.jenis_kelamin === "L"
-                    ? "Laki-laki"
-                    : patient?.jenis_kelamin === "P"
-                    ? "Perempuan"
-                    : "-"}
-                </Badge>
-              </div>
+              <span className="font-mono text-[11px] text-muted-foreground flex-shrink-0">
+                {patient?.no_rm || "-"}
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5 mt-0.5 text-xs text-muted-foreground">
+              <span>{patient?.jenis_kelamin === "L" ? "Laki-laki" : patient?.jenis_kelamin === "P" ? "Perempuan" : "-"}</span>
+              {patient?.tanggal_lahir && (
+                <><span className="text-muted-foreground/40">·</span><span>{calculateAge(patient.tanggal_lahir)} thn</span></>
+              )}
+              <span className="text-muted-foreground/40">·</span>
+              <span>{getVisitCategoryLabel(visit)}</span>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            {/* Print Select Dropdown */}
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {/* Quick badges */}
+          {hasAllergies && (
+            <Badge variant="destructive" className="gap-1 text-[10px] px-1.5 py-0 h-5">
+              <AlertTriangle className="h-3 w-3" />
+              Alergi
+            </Badge>
+          )}
+          {sepInfo && (
+            <Badge variant="outline" className="gap-1 text-[10px] px-1.5 py-0 h-5 text-muted-foreground">
+              <ShieldCheck className="h-3 w-3" />
+              SEP
+            </Badge>
+          )}
+          {isPatientDischarged && (
+            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5">
+              Selesai
+            </Badge>
+          )}
+          {/* Print Select */}
+          <div onClick={(e) => e.stopPropagation()}>
             <MedicalRecordPrintSelect
               visitId={visit.id}
               isInpatient={isInpatient}
               isEmergency={isEmergency}
             />
-            {/* Visit Category Badge */}
-            {getVisitCategoryBadge(visit)}
-            {/* SEP Badge */}
-            {sepInfo && (
-              <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 border-blue-300 gap-1.5">
-                <ShieldCheck className="h-3.5 w-3.5" />
-                SEP
-              </Badge>
-            )}
-            {isPatientDischarged && (
-              <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 border-amber-300 gap-1.5">
-                <AlertTriangle className="h-3.5 w-3.5" />
-                Sudah Pulang
-              </Badge>
-            )}
-            {hasAllergies && (
-              <Badge variant="destructive" className="gap-1.5">
-                <AlertTriangle className="h-3.5 w-3.5" />
-                Alergi
-              </Badge>
-            )}
-            <div 
-              className="flex items-center justify-center h-8 w-8 cursor-pointer hover:bg-muted rounded"
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsOpen(!isOpen);
-              }}
-            >
-              {isOpen ? (
-                <ChevronUp className="h-4 w-4" />
-              ) : (
-                <ChevronDown className="h-4 w-4" />
-              )}
-            </div>
           </div>
+          <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} />
         </div>
-      </CardHeader>
+      </div>
+
+      {/* Expanded Details */}
       {isOpen && (
-        <CardContent className="p-3">
-          {/* Allergy Alert Section */}
+        <div className="border-t pt-4 pb-2 mt-1">
+          {/* Allergy Alert */}
           {loadingAllergies ? (
             <div className="flex items-center gap-2 py-2 text-muted-foreground mb-3">
               <Loader2 className="h-4 w-4 animate-spin" />
               <span className="text-xs">Memuat data alergi...</span>
             </div>
           ) : hasAllergies && (
-            <Alert variant="destructive" className="mb-3">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertDescription className="text-sm">
-                <div className="font-semibold mb-1">
-                  Perhatian: Pasien Memiliki Alergi
-                </div>
-                <div className="space-y-1.5 text-xs">
-                  {/* Allergies from database (SNOMED CT coded) */}
-                  {hasAllergyRecords && (
-                    <div className="space-y-1">
-                      {patientAllergies.map((allergy) => (
-                        <div key={allergy.id} className="flex gap-1.5 items-start">
-                          <Badge 
-                            variant={allergy.criticality === 'high' ? 'destructive' : 'secondary'}
-                            className="text-[10px] px-1.5 py-0 h-4 flex-shrink-0"
-                          >
-                            {ALLERGY_CRITICALITY_LABELS[allergy.criticality]}
-                          </Badge>
-                          <span>
-                            <strong>{ALLERGY_CATEGORY_LABELS[allergy.category]}:</strong>{" "}
-                            {allergy.snomed_display}
-                            {allergy.notes && <span className="text-muted-foreground"> ({allergy.notes})</span>}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  
-                  {/* Legacy allergies from master data (fallback, show only if no records from DB) */}
-                  {!hasAllergyRecords && hasLegacyAllergies && (
-                    <>
-                      {patient?.alergi_obat && (
-                        <div className="flex gap-1.5">
-                          <Pill className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
-                          <span>
-                            <strong>Obat:</strong> {patient.alergi_obat}
-                          </span>
-                        </div>
-                      )}
-                      {patient?.alergi_makanan && (
-                        <div className="flex gap-1.5">
-                          <span className="text-sm mt-0.5">🍽️</span>
-                          <span>
-                            <strong>Makanan:</strong> {patient.alergi_makanan}
-                          </span>
-                        </div>
-                      )}
-                      {patient?.alergi_lainnya && (
-                        <div className="flex gap-1.5">
-                          <AlertTriangle className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
-                          <span>
-                            <strong>Lainnya:</strong> {patient.alergi_lainnya}
-                          </span>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              </AlertDescription>
-            </Alert>
+            <div className="mb-4 rounded-lg bg-destructive/5 border border-destructive/20 p-3">
+              <div className="flex items-center gap-1.5 mb-2">
+                <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
+                <span className="text-xs font-semibold text-destructive">Alergi Pasien</span>
+              </div>
+              <div className="space-y-1 text-xs">
+                {hasAllergyRecords && patientAllergies.map((allergy) => (
+                  <div key={allergy.id} className="flex gap-1.5 items-start">
+                    <Badge 
+                      variant={allergy.criticality === 'high' ? 'destructive' : 'secondary'}
+                      className="text-[10px] px-1.5 py-0 h-4 flex-shrink-0"
+                    >
+                      {ALLERGY_CRITICALITY_LABELS[allergy.criticality]}
+                    </Badge>
+                    <span className="text-foreground">
+                      <strong>{ALLERGY_CATEGORY_LABELS[allergy.category]}:</strong>{" "}
+                      {allergy.snomed_display}
+                      {allergy.notes && <span className="text-muted-foreground"> ({allergy.notes})</span>}
+                    </span>
+                  </div>
+                ))}
+                {!hasAllergyRecords && hasLegacyAllergies && (
+                  <>
+                    {patient?.alergi_obat && (
+                      <div className="flex gap-1.5 text-foreground">
+                        <Pill className="h-3.5 w-3.5 mt-0.5 flex-shrink-0 text-destructive/70" />
+                        <span><strong>Obat:</strong> {patient.alergi_obat}</span>
+                      </div>
+                    )}
+                    {patient?.alergi_makanan && (
+                      <div className="flex gap-1.5 text-foreground">
+                        <span className="text-sm mt-0.5">🍽️</span>
+                        <span><strong>Makanan:</strong> {patient.alergi_makanan}</span>
+                      </div>
+                    )}
+                    {patient?.alergi_lainnya && (
+                      <div className="flex gap-1.5 text-foreground">
+                        <AlertTriangle className="h-3.5 w-3.5 mt-0.5 flex-shrink-0 text-destructive/70" />
+                        <span><strong>Lainnya:</strong> {patient.alergi_lainnya}</span>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
           )}
 
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
-            {/* Column 1: Demographic Info */}
-            <div className="space-y-2">
-              <h4 className="text-xs font-semibold text-muted-foreground uppercase">
-                Data Demografis
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-x-6 gap-y-4">
+            {/* Column 1: Demographic */}
+            <div className="space-y-2.5">
+              <h4 className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                Demografis
               </h4>
-              {patient?.tanggal_lahir && (
-                <div>
-                  <label className="text-xs text-muted-foreground">
-                    Tanggal Lahir / Usia
-                  </label>
-                  <div className="flex items-center gap-1.5 text-muted-foreground mt-0.5">
-                    <Calendar className="h-3.5 w-3.5" />
+              <div className="space-y-2">
+                {patient?.tanggal_lahir && (
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-3.5 w-3.5 text-muted-foreground/70" />
                     <span className="text-xs">
-                      {new Date(patient.tanggal_lahir).toLocaleDateString(
-                        "id-ID",
-                        {
-                          day: "numeric",
-                          month: "short",
-                          year: "numeric",
-                        }
-                      )}{" "}
-                      ({calculateAge(patient.tanggal_lahir)} tahun)
+                      {new Date(patient.tanggal_lahir).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })} ({calculateAge(patient.tanggal_lahir)} tahun)
                     </span>
                   </div>
-                </div>
-              )}
-              {(patient?.golongan_darah || patient?.rhesus) && (
-                <div>
-                  <label className="text-xs text-muted-foreground">
-                    Golongan Darah
-                  </label>
-                  <div className="flex items-center gap-1.5 text-muted-foreground mt-0.5">
-                    <Droplet className="h-3.5 w-3.5" />
+                )}
+                {(patient?.golongan_darah || patient?.rhesus) && (
+                  <div className="flex items-center gap-2">
+                    <Droplet className="h-3.5 w-3.5 text-muted-foreground/70" />
                     <span className="text-xs">
-                      {patient?.golongan_darah || "-"}{" "}
-                      {patient?.rhesus ? `(${patient.rhesus})` : ""}
+                      Gol. {patient?.golongan_darah || "-"} {patient?.rhesus ? `(${patient.rhesus})` : ""}
                     </span>
                   </div>
-                </div>
-              )}
-              {(patient?.no_hp || patient?.no_telepon) && (
-                <div>
-                  <label className="text-xs text-muted-foreground">
-                    Kontak
-                  </label>
-                  <div className="flex items-center gap-1.5 text-muted-foreground mt-0.5">
-                    <Phone className="h-3.5 w-3.5" />
-                    <span className="text-xs">
-                      {patient?.no_hp || patient?.no_telepon}
-                    </span>
+                )}
+                {(patient?.no_hp || patient?.no_telepon) && (
+                  <div className="flex items-center gap-2">
+                    <Phone className="h-3.5 w-3.5 text-muted-foreground/70" />
+                    <span className="text-xs">{patient?.no_hp || patient?.no_telepon}</span>
                   </div>
-                </div>
-              )}
-              {patient?.alamat_ktp && (
-                <div>
-                  <label className="text-xs text-muted-foreground">
-                    Alamat
-                  </label>
-                  <div className="flex items-start gap-1.5 text-muted-foreground mt-0.5">
-                    <MapPin className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
-                    <span className="text-xs line-clamp-3">
-                      {patient.alamat_ktp}
-                    </span>
+                )}
+                {patient?.alamat_ktp && (
+                  <div className="flex items-start gap-2">
+                    <MapPin className="h-3.5 w-3.5 mt-0.5 flex-shrink-0 text-muted-foreground/70" />
+                    <span className="text-xs line-clamp-2">{patient.alamat_ktp}</span>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
 
             {/* Column 2: Visit Info */}
-            <div className="space-y-2">
-              <h4 className="text-xs font-semibold text-muted-foreground uppercase">
-                Informasi Kunjungan
+            <div className="space-y-2.5">
+              <h4 className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                Kunjungan
               </h4>
-              <div>
-                <label className="text-xs text-muted-foreground">
-                  No. Kunjungan
-                </label>
-                <p className="font-mono text-xs font-medium mt-0.5">
-                  {visit.visit_number}
-                </p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">
-                  No. Pendaftaran
-                </label>
-                <p className="font-mono text-xs font-medium mt-0.5">
-                  {visit.registration?.registration_number || "-"}
-                </p>
-              </div>
-              {visit.room_queue?.queue_number && (
-                <div>
-                  <label className="text-xs text-muted-foreground">
-                    No. Antrian
-                  </label>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <p className="font-mono text-xs font-medium">
-                      {visit.room_queue.queue_number}
-                    </p>
-                    {getPriorityBadge(visit.room_queue.priority)}
-                  </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">No. Visit</span>
+                  <span className="font-mono text-xs font-medium">{visit.visit_number}</span>
                 </div>
-              )}
-              <div>
-                <label className="text-xs text-muted-foreground">Status</label>
-                <div className="mt-0.5">{getStatusBadge(visit.status)}</div>
-              </div>
-              {!isInpatient && visit.check_in_time && (
-                <div>
-                  <label className="text-xs text-muted-foreground">
-                    Check-in
-                  </label>
-                  <p className="text-xs font-medium mt-0.5">
-                    {new Date(visit.check_in_time).toLocaleString("id-ID", {
-                      day: "2-digit",
-                      month: "short",
-                      year: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </p>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">No. Daftar</span>
+                  <span className="font-mono text-xs font-medium">{visit.registration?.registration_number || "-"}</span>
                 </div>
-              )}
-              {(isInpatient && visit.admission_time) && (
-                <div>
-                  <label className="text-xs text-muted-foreground">
-                    Tanggal Masuk Rawat Inap
-                  </label>
-                  <p className="text-xs font-medium mt-0.5">
-                    {new Date(visit.admission_time).toLocaleString("id-ID", {
-                      day: "2-digit",
-                      month: "short",
-                      year: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </p>
-                </div>
-              )}
-              {(isInpatient && visit.discharge_time) && (
-                <div>
-                  <label className="text-xs text-muted-foreground">
-                    Tanggal Keluar Rawat Inap
-                  </label>
-                  <p className="text-xs font-medium mt-0.5 text-green-600 dark:text-green-400">
-                    {new Date(visit.discharge_time).toLocaleString("id-ID", {
-                      day: "2-digit",
-                      month: "short",
-                      year: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {/* Column 3: Medical Service Info */}
-            <div className="space-y-2">
-              <h4 className="text-xs font-semibold text-muted-foreground uppercase">
-                Layanan Medis
-              </h4>
-              <div>
-                <label className="text-xs text-muted-foreground">Ruangan</label>
-                <p className="text-xs font-medium mt-0.5">
-                  {visit.room?.code} - {visit.room?.name || "-"}
-                </p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Dokter</label>
-                <p className="text-xs font-medium mt-0.5">
-                  {visit.doctor?.nama_lengkap || "-"}
-                </p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">
-                  Metode Pembayaran
-                </label>
-                <p className="text-xs font-medium mt-0.5">
-                  {visit.registration?.payment_method === "bpjs"
-                    ? "BPJS"
-                    : visit.registration?.payment_method === "insurance"
-                    ? "Asuransi"
-                    : visit.registration?.payment_method === "cash"
-                    ? "Tunai"
-                    : "-"}
-                </p>
-              </div>
-              {visit.registration?.payment_method === "bpjs" &&
-                visit.registration?.bpjs_number && (
-                  <div>
-                    <label className="text-xs text-muted-foreground">
-                      No. BPJS
-                    </label>
-                    <p className="font-mono text-xs font-medium mt-0.5">
-                      {visit.registration.bpjs_number}
-                    </p>
+                {visit.room_queue?.queue_number && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">Antrian</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-mono text-xs font-medium">{visit.room_queue.queue_number}</span>
+                      {getPriorityBadge(visit.room_queue.priority)}
+                    </div>
                   </div>
                 )}
-              {/* SEP Info */}
-              {sepInfo && (
-                <div className="mt-2 p-2 rounded bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
-                  <div className="flex items-center gap-1.5 mb-1.5">
-                    <ShieldCheck className="h-3.5 w-3.5 text-blue-600" />
-                    <span className="text-xs font-semibold text-blue-800 dark:text-blue-200">SEP</span>
-                  </div>
-                  <div className="space-y-1">
-                    <div>
-                      <label className="text-[10px] text-muted-foreground">No. SEP</label>
-                      <p className="font-mono text-xs font-bold text-blue-700 dark:text-blue-300">
-                        {sepInfo.no_sep}
-                      </p>
-                    </div>
-                    <div className="grid grid-cols-2 gap-1">
-                      <div>
-                        <label className="text-[10px] text-muted-foreground">Poli</label>
-                        <p className="text-[11px] font-medium">{sepInfo.nama_poli || '-'}</p>
-                      </div>
-                      <div>
-                        <label className="text-[10px] text-muted-foreground">DPJP</label>
-                        <p className="text-[11px] font-medium">{sepInfo.nama_dpjp || '-'}</p>
-                      </div>
-                    </div>
-                    {sepInfo.nama_diagnosa && (
-                      <div>
-                        <label className="text-[10px] text-muted-foreground">Diagnosa</label>
-                        <p className="text-[11px] font-medium">{sepInfo.nama_diagnosa}</p>
-                      </div>
-                    )}
-                  </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">Status</span>
+                  {getStatusBadge(visit.status)}
                 </div>
-              )}
-              {visit.registration?.payment_method === "insurance" &&
-                visit.registration?.insurance_name && (
-                  <div>
-                    <label className="text-xs text-muted-foreground">
-                      Nama Asuransi
-                    </label>
-                    <p className="text-xs font-medium mt-0.5">
-                      {visit.registration.insurance_name}
-                    </p>
-                  </div>
-                )}
-            </div>
-
-            {/* Column 4: Medical History */}
-            <div className="space-y-2">
-              <h4 className="text-xs font-semibold text-muted-foreground uppercase">
-                Riwayat Medis
-              </h4>
-              {visit.registration?.complaint && (
-                <div>
-                  <label className="text-xs text-muted-foreground">
-                    Keluhan Utama
-                  </label>
-                  <div className="flex items-start gap-1.5 mt-0.5">
-                    <MessageSquare className="h-3.5 w-3.5 mt-0.5 flex-shrink-0 text-primary" />
-                    <span className="text-xs font-medium text-foreground">
-                      {visit.registration.complaint}
+                {!isInpatient && visit.check_in_time && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">Check-in</span>
+                    <span className="text-xs font-medium">
+                      {new Date(visit.check_in_time).toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
                     </span>
                   </div>
+                )}
+                {isInpatient && visit.admission_time && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">Masuk RI</span>
+                    <span className="text-xs font-medium">
+                      {new Date(visit.admission_time).toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  </div>
+                )}
+                {isInpatient && visit.discharge_time && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">Keluar RI</span>
+                    <span className="text-xs font-medium text-green-600 dark:text-green-400">
+                      {new Date(visit.discharge_time).toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Column 3: Medical Service */}
+            <div className="space-y-2.5">
+              <h4 className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                Layanan
+              </h4>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">Ruangan</span>
+                  <span className="text-xs font-medium">{visit.room?.name || "-"}</span>
                 </div>
-              )}
-              {!visit.registration?.complaint && (
-                <p className="text-xs text-muted-foreground italic">
-                  Tidak ada keluhan yang dicatat
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">Dokter</span>
+                  <span className="text-xs font-medium truncate max-w-[140px]">{visit.doctor?.nama_lengkap || "-"}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">Pembayaran</span>
+                  <span className="text-xs font-medium">
+                    {visit.registration?.payment_method === "bpjs" ? "BPJS"
+                      : visit.registration?.payment_method === "insurance" ? "Asuransi"
+                      : visit.registration?.payment_method === "cash" ? "Tunai"
+                      : "-"}
+                  </span>
+                </div>
+                {visit.registration?.payment_method === "bpjs" && visit.registration?.bpjs_number && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">No. BPJS</span>
+                    <span className="font-mono text-xs font-medium">{visit.registration.bpjs_number}</span>
+                  </div>
+                )}
+                {visit.registration?.payment_method === "insurance" && visit.registration?.insurance_name && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">Asuransi</span>
+                    <span className="text-xs font-medium">{visit.registration.insurance_name}</span>
+                  </div>
+                )}
+                {/* SEP Info */}
+                {sepInfo && (
+                  <div className="mt-2 p-2 rounded-md bg-muted/50">
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                      <ShieldCheck className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="text-[11px] font-semibold">SEP</span>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-muted-foreground">No. SEP</span>
+                        <span className="font-mono text-[11px] font-bold">{sepInfo.no_sep}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-muted-foreground">Poli</span>
+                        <span className="text-[11px] font-medium">{sepInfo.nama_poli || '-'}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-muted-foreground">DPJP</span>
+                        <span className="text-[11px] font-medium">{sepInfo.nama_dpjp || '-'}</span>
+                      </div>
+                      {sepInfo.nama_diagnosa && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-muted-foreground">Diagnosa</span>
+                          <span className="text-[11px] font-medium">{sepInfo.nama_diagnosa}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Column 4: Complaint */}
+            <div className="space-y-2.5">
+              <h4 className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                Keluhan
+              </h4>
+              {visit.registration?.complaint ? (
+                <div className="flex items-start gap-2">
+                  <MessageSquare className="h-3.5 w-3.5 mt-0.5 flex-shrink-0 text-primary/70" />
+                  <span className="text-xs leading-relaxed">
+                    {visit.registration.complaint}
+                  </span>
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground/60 italic">
+                  Tidak ada keluhan
                 </p>
               )}
             </div>
           </div>
-        </CardContent>
+        </div>
       )}
-    </Card>
+    </div>
   );
 }

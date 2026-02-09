@@ -1,12 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
+
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -270,38 +264,34 @@ export default function StockRequestApprove() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      {/* Header Card */}
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
-          <div className="flex items-center gap-4">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => navigate(`/stock-requests/${id}`)}
-              className="h-9 w-9"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <div className="space-y-1">
-              <div className="flex items-center gap-3">
-                <CardTitle className="text-base font-semibold">
-                  Proses Persetujuan
-                </CardTitle>
-                <Badge className={statusColors[request.status]}>
-                  {stockRequestStatusLabels[request.status]}
-                </Badge>
-              </div>
-              <CardDescription>
-                {request.request_number} • {requestTypeLabels[request.request_type]} •{" "}
-                <Badge variant="outline" className={priorityColors[request.priority]}>
-                  Prioritas: {priorityLabels[request.priority]}
-                </Badge>
-              </CardDescription>
-            </div>
+      <div className="flex items-center gap-4">
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => navigate(`/stock-requests/${id}`)}
+          className="h-9 w-9"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <div className="space-y-1">
+          <div className="flex items-center gap-3">
+            <h1 className="text-lg font-semibold">
+              Proses Persetujuan
+            </h1>
+            <Badge className={statusColors[request.status]}>
+              {stockRequestStatusLabels[request.status]}
+            </Badge>
           </div>
-        </CardHeader>
+          <p className="text-sm text-muted-foreground">
+            {request.request_number} • {requestTypeLabels[request.request_type]} •{" "}
+            <Badge variant="outline" className={priorityColors[request.priority]}>
+              Prioritas: {priorityLabels[request.priority]}
+            </Badge>
+          </p>
+        </div>
+      </div>
 
-        <CardContent className="pt-6">
+      <div className="rounded-lg border p-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* From Room */}
             <div className="space-y-1">
@@ -344,16 +334,15 @@ export default function StockRequestApprove() {
               </div>
             </>
           )}
-        </CardContent>
-      </Card>
+      </div>
 
       {/* Items Approval Card */}
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
+      <div className="rounded-lg border">
+        <div className="flex items-center justify-between px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="space-y-1">
-              <CardTitle className="text-base font-semibold">Daftar Item</CardTitle>
-              <CardDescription>Tentukan jumlah yang disetujui untuk setiap item</CardDescription>
+              <h3 className="text-sm font-medium">Daftar Item</h3>
+              <p className="text-sm text-muted-foreground">Tentukan jumlah yang disetujui untuk setiap item</p>
             </div>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={handleApproveAll}>
@@ -364,8 +353,8 @@ export default function StockRequestApprove() {
               </Button>
             </div>
           </div>
-        </CardHeader>
-        <CardContent className="pt-6">
+        </div>
+        <div className="px-6 pb-6">
           <Table>
             <TableHeader>
               <TableRow>
@@ -460,8 +449,8 @@ export default function StockRequestApprove() {
               Setujui
             </Button>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Reject Dialog */}
       <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>

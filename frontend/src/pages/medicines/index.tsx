@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+
 import { DataTable } from '@/components/ui/data-table';
 import { createMedicineColumns } from './columns';
 import { medicinesApi, type Medicine } from '@/lib/api/medicines';
@@ -9,7 +9,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { useToast } from '@/hooks/use-toast';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { setPageTitle } from '@/lib/page-title';
-import { Loader2, Plus, Pill } from 'lucide-react';
+import { Loader2, Plus } from 'lucide-react';
 
 export default function MedicinesPage() {
   const navigate = useNavigate();
@@ -95,38 +95,25 @@ export default function MedicinesPage() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      <div className="grid gap-4">
-        <Card className="shadow-md">
-          <CardHeader className="border-b bg-muted/50">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                  <Pill className="h-5 w-5 text-primary" />
-                </div>
-                <div className="space-y-1">
-                  <CardTitle className="text-base font-semibold">Master Obat</CardTitle>
-                  <CardDescription>Kelola data obat dan farmasi rumah sakit</CardDescription>
-                </div>
-              </div>
-              {hasPermission('medicines.create') && (
-                <Button onClick={() => navigate('/medicines/create')} size="sm">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Tambah Obat
-                </Button>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <DataTable
-              columns={columns}
-              data={medicines}
-              searchPlaceholder="Cari obat berdasarkan kode, nama, atau nama generik..."
-              pageSize={10}
-              tableId="medicines"
-            />
-          </CardContent>
-        </Card>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-lg font-semibold">Master Obat</h1>
+          <p className="text-sm text-muted-foreground">Kelola data obat dan farmasi rumah sakit</p>
+        </div>
+        {hasPermission('medicines.create') && (
+          <Button onClick={() => navigate('/medicines/create')} size="sm">
+            <Plus className="mr-2 h-4 w-4" />
+            Tambah Obat
+          </Button>
+        )}
       </div>
+      <DataTable
+        columns={columns}
+        data={medicines}
+        searchPlaceholder="Cari obat berdasarkan kode, nama, atau nama generik..."
+        pageSize={10}
+        tableId="medicines"
+      />
 
       <ConfirmDialog
         open={deleteDialogOpen}

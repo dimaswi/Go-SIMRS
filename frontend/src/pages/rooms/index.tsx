@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+
 import { DataTable } from '@/components/ui/data-table';
 import { createRoomColumns } from './columns';
 import { roomsApi, masterDataApi, type Room, type MasterData } from '@/lib/api';
@@ -118,33 +118,25 @@ export default function RoomsPage() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      <div className="grid gap-4">
-        <Card className="shadow-md">
-          <CardHeader className="border-b bg-muted/50">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <CardTitle className="text-base font-semibold">Ruangan</CardTitle>
-                <CardDescription>Kelola data ruangan rumah sakit</CardDescription>
-              </div>
-              {hasPermission('rooms.create') && (
-                <Button onClick={() => navigate('/rooms/create')} size="sm">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Tambah Ruangan
-                </Button>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <DataTable
-              columns={columns}
-              data={rooms}
-              searchPlaceholder="Cari ruangan berdasarkan kode atau nama..."
-              pageSize={10}
-              tableId="rooms"
-            />
-          </CardContent>
-        </Card>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-lg font-semibold">Ruangan</h1>
+          <p className="text-sm text-muted-foreground">Kelola data ruangan rumah sakit</p>
+        </div>
+        {hasPermission('rooms.create') && (
+          <Button onClick={() => navigate('/rooms/create')} size="sm">
+            <Plus className="mr-2 h-4 w-4" />
+            Tambah Ruangan
+          </Button>
+        )}
       </div>
+      <DataTable
+        columns={columns}
+        data={rooms}
+        searchPlaceholder="Cari ruangan berdasarkan kode atau nama..."
+        pageSize={10}
+        tableId="rooms"
+      />
 
       <ConfirmDialog
         open={deleteDialogOpen}

@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
@@ -472,16 +472,16 @@ export default function EKlaimShow() {
   if (!claim) {
     return (
       <div className="flex flex-1 flex-col gap-4 p-6">
-        <Card>
-          <CardContent className="py-12 text-center">
+        <div className="rounded-lg border">
+          <div className="py-12 text-center">
             <AlertTriangle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
             <p className="text-muted-foreground">Data E-Klaim tidak ditemukan.</p>
             <Button variant="outline" className="mt-4" onClick={() => navigate('/eklaim')}>
               <ArrowLeft className="mr-2 h-4 w-4" />
               Kembali
             </Button>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
     );
   }
@@ -494,25 +494,25 @@ export default function EKlaimShow() {
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
       {/* Header */}
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
+      <div>
+        <div className="flex items-start justify-between">
           <div className="flex items-start justify-between">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
                 <Button variant="ghost" size="sm" onClick={() => navigate('/eklaim')}>
                   <ArrowLeft className="h-4 w-4" />
                 </Button>
-                <CardTitle className="text-lg flex items-center gap-2">
+                <h1 className="text-lg font-semibold flex items-center gap-2">
                   <FileCheck className="h-5 w-5" />
                   E-Klaim: {claim.no_sep || 'Draft'}
-                </CardTitle>
+                </h1>
                 <Badge className={eklaimStateColors[claim.state] || ''}>
                   {eklaimStateLabels[claim.state] || claim.state}
                 </Badge>
               </div>
-              <CardDescription>
+              <p className="text-sm text-muted-foreground">
                 No. Kartu BPJS: {claim.no_kartu} • {jenisRawatLabels[claim.jenis_rawat] || claim.jenis_rawat}
-              </CardDescription>
+              </p>
             </div>
             
             <div className="flex gap-2">
@@ -562,9 +562,9 @@ export default function EKlaimShow() {
               ))}
             </div>
           </div>
-        </CardHeader>
+        </div>
         
-        <CardContent className="pt-6">
+        <div className="rounded-lg border p-6">
           {/* Patient Info Summary */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             <div>
@@ -608,21 +608,21 @@ export default function EKlaimShow() {
               <p className="font-mono font-bold text-lg">{formatCurrency(claim.total_tarif_rs)}</p>
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Tabs for Details */}
-      <Tabs defaultValue="diagnoses" className="space-y-4">
+      <Tabs defaultValue="diagnoses" variant="inline">
         <TabsList>
-          <TabsTrigger value="diagnoses" className="flex items-center gap-2">
+          <TabsTrigger value="diagnoses" className="gap-2">
             <Stethoscope className="h-4 w-4" />
             Diagnoses ({diagnoses.length})
           </TabsTrigger>
-          <TabsTrigger value="procedures" className="flex items-center gap-2">
+          <TabsTrigger value="procedures" className="gap-2">
             <Clipboard className="h-4 w-4" />
             Procedures ({procedures.length})
           </TabsTrigger>
-          <TabsTrigger value="history" className="flex items-center gap-2">
+          <TabsTrigger value="history" className="gap-2">
             <History className="h-4 w-4" />
             Riwayat
           </TabsTrigger>
@@ -630,14 +630,14 @@ export default function EKlaimShow() {
 
         {/* Diagnoses Tab */}
         <TabsContent value="diagnoses">
-          <Card>
-            <CardHeader className="border-b bg-muted/50">
+          <div className="rounded-lg border">
+            <div className="flex items-center justify-between px-6 py-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="text-base">Diagnoses (ICD-10)</CardTitle>
-                  <CardDescription>
+                  <h3 className="text-sm font-medium">Diagnoses (ICD-10)</h3>
+                  <p className="text-sm text-muted-foreground">
                     25 Kriteria: Diagnosis Utama (1) + Diagnosis Sekunder per klaim
-                  </CardDescription>
+                  </p>
                 </div>
                 {canEdit && (
                   <Popover open={icd10SearchOpen} onOpenChange={setIcd10SearchOpen}>
@@ -694,8 +694,8 @@ export default function EKlaimShow() {
                   </Popover>
                 )}
               </div>
-            </CardHeader>
-            <CardContent className="pt-4">
+            </div>
+            <div className="px-6 pb-6">
               {diagnoses.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <Stethoscope className="h-12 w-12 mx-auto mb-4 opacity-50" />
@@ -750,20 +750,20 @@ export default function EKlaimShow() {
                   ))}
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </TabsContent>
 
         {/* Procedures Tab */}
         <TabsContent value="procedures">
-          <Card>
-            <CardHeader className="border-b bg-muted/50">
+          <div className="rounded-lg border">
+            <div className="flex items-center justify-between px-6 py-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="text-base">Procedures (ICD-9-CM)</CardTitle>
-                  <CardDescription>
+                  <h3 className="text-sm font-medium">Procedures (ICD-9-CM)</h3>
+                  <p className="text-sm text-muted-foreground">
                     25 Kriteria: Setting (OR/Non-OR/ICU) + Multiplicity
-                  </CardDescription>
+                  </p>
                 </div>
                 {canEdit && (
                   <Popover open={icd9SearchOpen} onOpenChange={setIcd9SearchOpen}>
@@ -820,8 +820,8 @@ export default function EKlaimShow() {
                   </Popover>
                 )}
               </div>
-            </CardHeader>
-            <CardContent className="pt-4">
+            </div>
+            <div className="px-6 pb-6">
               {procedures.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <Clipboard className="h-12 w-12 mx-auto mb-4 opacity-50" />
@@ -875,18 +875,18 @@ export default function EKlaimShow() {
                   ))}
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </TabsContent>
 
         {/* History Tab */}
         <TabsContent value="history">
-          <Card>
-            <CardHeader className="border-b bg-muted/50">
-              <CardTitle className="text-base">Riwayat Perubahan</CardTitle>
-              <CardDescription>Log aktivitas dan perubahan status klaim</CardDescription>
-            </CardHeader>
-            <CardContent className="pt-4">
+          <div className="rounded-lg border">
+            <div className="px-6 py-4">
+              <h3 className="text-sm font-medium">Riwayat Perubahan</h3>
+              <p className="text-sm text-muted-foreground">Log aktivitas dan perubahan status klaim</p>
+            </div>
+            <div className="px-6 pb-6">
               {logs.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <History className="h-12 w-12 mx-auto mb-4 opacity-50" />
@@ -930,8 +930,8 @@ export default function EKlaimShow() {
                   ))}
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </TabsContent>
       </Tabs>
     </div>

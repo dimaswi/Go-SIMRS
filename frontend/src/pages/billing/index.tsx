@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+
 import { DataTable } from '@/components/ui/data-table';
 import { Badge } from '@/components/ui/badge';
 import { billingApi } from '@/lib/api';
@@ -261,23 +261,17 @@ export default function BillingIndex() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
-          <div className="space-y-1">
-            <CardTitle className="text-base font-semibold">Kasir</CardTitle>
-            <CardDescription>Daftar semua pendaftaran pasien (1 pendaftaran = 1 tagihan)</CardDescription>
-          </div>
-        </CardHeader>
-        <CardContent className="pt-6">
-          <DataTable
-            columns={columns}
-            data={registrations}
-            searchPlaceholder="Cari no. registrasi, nama pasien, atau no. RM..."
-            pageSize={10}
-            tableId="billing-registrations"
-          />
-        </CardContent>
-      </Card>
+      <div>
+        <h1 className="text-lg font-semibold">Kasir</h1>
+        <p className="text-sm text-muted-foreground">Daftar semua pendaftaran pasien (1 pendaftaran = 1 tagihan)</p>
+      </div>
+      <DataTable
+        columns={columns}
+        data={registrations}
+        searchPlaceholder="Cari no. registrasi, nama pasien, atau no. RM..."
+        pageSize={10}
+        tableId="billing-registrations"
+      />
     </div>
   );
 }

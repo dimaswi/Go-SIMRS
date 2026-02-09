@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
@@ -489,14 +489,14 @@ export default function AdmissionRequestShowPage() {
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Left Column - Detail Permintaan */}
-        <Card className="shadow-md">
-          <CardHeader className="border-b bg-muted/50">
-            <CardTitle className="text-base font-semibold flex items-center gap-2">
+        <div className="rounded-lg border">
+          <div className="flex items-center gap-2 px-6 py-4">
+            <h3 className="text-sm font-medium flex items-center gap-2">
               <FileText className="h-4 w-4" />
               Detail Permintaan
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 space-y-6">
+            </h3>
+          </div>
+          <div className="p-4 space-y-6">
             {/* Patient Info */}
             <div className="flex items-center gap-4">
               <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
@@ -684,13 +684,13 @@ export default function AdmissionRequestShowPage() {
                 )}
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* Right Column - Proses Pemilihan */}
-        <Card className="shadow-md lg:col-span-2">
-          <CardHeader className="border-b bg-muted/50">
-            <CardTitle className="text-base font-semibold flex items-center gap-2">
+        <div className="rounded-lg border lg:col-span-2">
+          <div className="flex items-center gap-2 px-6 py-4">
+            <h3 className="text-sm font-medium flex items-center gap-2">
               {isPending ? (
                 <>
                   <Building className="h-4 w-4" />
@@ -702,9 +702,9 @@ export default function AdmissionRequestShowPage() {
                   Status Permintaan
                 </>
               )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-4">
+            </h3>
+          </div>
+          <div className="p-4">
             {isPending ? (
               <div className="space-y-6">
                 {/* Room Selection */}
@@ -1106,8 +1106,8 @@ export default function AdmissionRequestShowPage() {
                 </p>
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
 
       {/* Reject Dialog */}

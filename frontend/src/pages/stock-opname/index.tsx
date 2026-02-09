@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Loader2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+
 import { DataTable } from "@/components/ui/data-table";
 import { useToast } from "@/hooks/use-toast";
 import { usePermission } from "@/hooks/usePermission";
@@ -117,33 +117,25 @@ export default function StockOpnameIndex() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      <div className="grid gap-4">
-        <Card className="shadow-md">
-          <CardHeader className="border-b bg-muted/50">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <CardTitle className="text-base font-semibold">Stock Opname</CardTitle>
-                <CardDescription>Pengecekan dan penyesuaian stok fisik</CardDescription>
-              </div>
-              {hasPermission("stock_opname.create") && (
-                <Button onClick={() => navigate("/stock-opname/create")} size="sm">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Buat Stock Opname
-                </Button>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <DataTable
-              columns={columns}
-              data={stockOpnames}
-              searchPlaceholder="Cari nomor opname..."
-              pageSize={10}
-              tableId="stock_opname"
-            />
-          </CardContent>
-        </Card>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-lg font-semibold">Stock Opname</h1>
+          <p className="text-sm text-muted-foreground">Pengecekan dan penyesuaian stok fisik</p>
+        </div>
+        {hasPermission("stock_opname.create") && (
+          <Button onClick={() => navigate("/stock-opname/create")} size="sm">
+            <Plus className="mr-2 h-4 w-4" />
+            Buat Stock Opname
+          </Button>
+        )}
       </div>
+      <DataTable
+        columns={columns}
+        data={stockOpnames}
+        searchPlaceholder="Cari nomor opname..."
+        pageSize={10}
+        tableId="stock_opname"
+      />
 
       <ConfirmDialog
         open={deleteId !== null}

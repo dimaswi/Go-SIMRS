@@ -1,7 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { DataTable } from '@/components/ui/data-table';
 import { regionsApi, type Regency } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
@@ -69,56 +68,53 @@ export default function RegencyShowPage() {
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
       {/* Districts List */}
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => {
-                  if (regency.province) {
-                    navigate(`/regions/provinces/${regency.province.id}`);
-                  } else {
-                    navigate('/regions');
-                  }
-                }}
-              >
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-              <div className="space-y-1">
-                <CardTitle className="text-base font-semibold flex items-center gap-2">
-                  <Building2 className="h-5 w-5" />
-                  {regency.name}
-                </CardTitle>
-                <CardDescription>
-                  {regency.districts && regency.districts.length > 0 
-                    ? `${regency.districts.length} kecamatan` 
-                    : 'Belum ada data kecamatan'}
-                </CardDescription>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <Button 
-                variant="outline"
-                size="sm"
-                onClick={() => navigate(`/regions/regencies/${id}/edit`)}
-              >
-                <Pencil className="mr-2 h-4 w-4" />
-                Edit
-              </Button>
-              <Button 
-                variant="outline"
-                size="sm"
-                onClick={() => navigate(`/regions/districts/create?regencyId=${id}`)}
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                Tambah Kecamatan
-              </Button>
-            </div>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => {
+              if (regency.province) {
+                navigate(`/regions/provinces/${regency.province.id}`);
+              } else {
+                navigate('/regions');
+              }
+            }}
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div className="space-y-1">
+            <h1 className="text-lg font-semibold flex items-center gap-2">
+              <Building2 className="h-5 w-5" />
+              {regency.name}
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              {regency.districts && regency.districts.length > 0 
+                ? `${regency.districts.length} kecamatan` 
+                : 'Belum ada data kecamatan'}
+            </p>
           </div>
-        </CardHeader>
-        <CardContent className="pt-6">
+        </div>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline"
+            size="sm"
+            onClick={() => navigate(`/regions/regencies/${id}/edit`)}
+          >
+            <Pencil className="mr-2 h-4 w-4" />
+            Edit
+          </Button>
+          <Button 
+            variant="outline"
+            size="sm"
+            onClick={() => navigate(`/regions/districts/create?regencyId=${id}`)}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Tambah Kecamatan
+          </Button>
+        </div>
+      </div>
+      <div className="rounded-lg border p-6">
           {!regency.districts || regency.districts.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <Map className="h-12 w-12 mx-auto mb-4 opacity-50" />
@@ -132,8 +128,7 @@ export default function RegencyShowPage() {
               tableId="regency_districts"
             />
           )}
-        </CardContent>
-      </Card>
+      </div>
     </div>
   );
 }

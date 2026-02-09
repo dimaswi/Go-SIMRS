@@ -3,13 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
   Table,
   TableBody,
   TableCell,
@@ -288,29 +281,26 @@ export default function ArchivesPage() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <ArchiveIcon className="h-5 w-5" />
-                Manajemen Arsip Rekam Medis
-              </CardTitle>
-              <CardDescription>
-                Kelola arsip fisik rekam medis pasien, peminjaman, dan lokasi penyimpanan
-              </CardDescription>
-            </div>
-            <Button onClick={handleSync} disabled={processing}>
-              {processing ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <RefreshCw className="mr-2 h-4 w-4" />
-              )}
-              Sinkronisasi Data
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="pt-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-lg font-semibold flex items-center gap-2">
+            <ArchiveIcon className="h-5 w-5" />
+            Manajemen Arsip Rekam Medis
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Kelola arsip fisik rekam medis pasien, peminjaman, dan lokasi penyimpanan
+          </p>
+        </div>
+        <Button onClick={handleSync} disabled={processing}>
+          {processing ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <RefreshCw className="mr-2 h-4 w-4" />
+          )}
+          Sinkronisasi Data
+        </Button>
+      </div>
+      <div className="rounded-lg border p-6">
           {/* Tabs */}
           <div className="flex gap-2 mb-4">
             <Button
@@ -509,8 +499,7 @@ export default function ArchivesPage() {
               </Table>
             </div>
           )}
-        </CardContent>
-      </Card>
+      </div>
 
       {/* Borrow Dialog */}
       <Dialog open={borrowDialogOpen} onOpenChange={setBorrowDialogOpen}>

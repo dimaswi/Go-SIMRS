@@ -1,12 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -141,43 +134,40 @@ export default function DistributionShow() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      {/* Header Card */}
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => navigate("/distributions")}
-                className="h-9 w-9"
-              >
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-              <div className="space-y-1">
-                <div className="flex items-center gap-3">
-                  <CardTitle className="text-base font-semibold">
-                    {distribution.distribution_number}
-                  </CardTitle>
-                  <Badge className={statusColors[distribution.status]}>
-                    {statusLabels[distribution.status]}
-                  </Badge>
-                </div>
-                <CardDescription>Dibuat {formatDate(distribution.created_at)}</CardDescription>
-              </div>
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => navigate("/distributions")}
+            className="h-9 w-9"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div className="space-y-1">
+            <div className="flex items-center gap-3">
+              <h1 className="text-lg font-semibold">
+                {distribution.distribution_number}
+              </h1>
+              <Badge className={statusColors[distribution.status]}>
+                {statusLabels[distribution.status]}
+              </Badge>
             </div>
-            <div className="flex items-center gap-2">
-              {canReceive && (
-                <Button size="sm" onClick={() => setReceiveDialogOpen(true)}>
-                  <CheckCircle className="mr-2 h-4 w-4" />
-                  Terima Distribusi
-                </Button>
-              )}
-            </div>
+            <p className="text-sm text-muted-foreground">Dibuat {formatDate(distribution.created_at)}</p>
           </div>
-        </CardHeader>
+        </div>
+        <div className="flex items-center gap-2">
+          {canReceive && (
+            <Button size="sm" onClick={() => setReceiveDialogOpen(true)}>
+              <CheckCircle className="mr-2 h-4 w-4" />
+              Terima Distribusi
+            </Button>
+          )}
+        </div>
+      </div>
 
-        <CardContent className="pt-6">
+      <div className="rounded-lg border p-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {/* From Room */}
             <div className="space-y-1">
@@ -341,8 +331,7 @@ export default function DistributionShow() {
             </TableBody>
           </Table>
           </div>
-        </CardContent>
-      </Card>
+      </div>
 
       {/* Receive Confirmation Dialog */}
       <ConfirmDialog

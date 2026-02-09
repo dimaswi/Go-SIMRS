@@ -278,6 +278,86 @@ export interface VClaimListRencanaKontrolItem {
   terbitSEP: string;         // "Belum" / "Sudah"
 }
 
+// Persetujuan SEP Item (untuk approval backdate/fingerprint)
+export interface VClaimPersetujuanSEPItem {
+  noKartu: string;
+  nama: string;
+  tglsep: string;
+  jnspelayanan: string;  // "RJ" atau "RI"
+  persetujuan: string;   // "Pengajuan"
+  status: string;        // "Tgl.SEP Backdate"
+}
+
+// Approval SEP Request
+export interface VClaimApprovalSEPRequest {
+  no_kartu: string;
+  tgl_sep: string;
+  jns_pelayanan: string;  // "1" = Rawat Inap, "2" = Rawat Jalan
+  jns_pengajuan: string;  // "1" = backdate, "2" = finger print
+  keterangan: string;
+}
+
+// Surat Kontrol Detail from BPJS (response from GetSuratKontrolDetail)
+export interface VClaimSuratKontrolDetail {
+  noSuratKontrol: string;
+  jnsKontrol?: string;
+  namaJnsKontrol?: string;
+  tglRencanaKontrol: string;
+  tglTerbitKontrol?: string;
+  noKartu: string;
+  nama?: string;
+  kelamin?: string;
+  tglLahir?: string;
+  namaDiagnosa?: string;
+  poli?: {
+    kode?: string;
+    nama?: string;
+  };
+  dokter?: {
+    kode?: string;
+    nama?: string;
+  };
+  sep?: {
+    noSep?: string;
+    tglSep?: string;
+    provPerujuk?: {
+      kdProviderPerujuk?: string;
+      nmProviderPerujuk?: string;
+    };
+    ppkPelayanan?: string;
+    jnsPelayanan?: string;
+    poli?: string;
+    klsRawat?: string;
+  };
+  statusKontrol?: string;
+  terbitSEP?: string;
+  // Additional fields from list response
+  namaPoliTujuan?: string;
+}
+
+// SEP Kontrol Request (using Surat Kontrol for check-in)
+export interface VClaimSEPKontrolRequest {
+  noKartu: string;
+  tglSep: string;
+  noSuratKontrol: string;
+  noSEPAsal: string;
+  tglSEPAsal: string;
+  kodePoli: string;
+  kodeDokter: string;
+  jnsPelayanan: string;
+  catatan?: string;
+  diagAwal: string;
+  klsRawatHak: string;
+  klsRawatNaik?: string;
+  pembiayaan?: string;
+  penanggungJawab?: string;
+  lakaLantas?: string;
+  noTelp: string;
+  userBuat: string;
+  // For SIMRS registration update
+  registrationId?: number;
+}
+
 // SEP Options for Dropdowns
 export interface VClaimSEPOptions {
   jenisPelayanan: { kode: string; nama: string }[];
@@ -645,6 +725,34 @@ export const vclaimApi = {
   getSuratKontrolList: (params?: { patient_id?: number; visit_id?: number; status?: string; limit?: number }) =>
     api.get<{ data: SuratKontrolLocal[] }>('/bpjs/vclaim/surat-kontrol/list', { params }),
 
+  // Get Surat Kontrol Detail from BPJS by No Surat Kontrol
+  getSuratKontrolDetail: (noSuratKontrol: string) =>
+    api.get<{ data: VClaimSuratKontrolDetail }>(`/bpjs/vclaim/surat-kontrol/detail/${noSuratKontrol}`),
+
+  // Search Surat Kontrol by No Kartu from BPJS
+  searchSuratKontrolByNoKartu: (noKartu: string, params?: { bulan?: string; tahun?: string; filter?: string }) =>
+    api.get<{ data: VClaimListRencanaKontrolItem[] }>(`/bpjs/vclaim/surat-kontrol/cari/${noKartu}`, { params }),
+
+  // Create SEP for Kontrol (using Surat Kontrol)
+  createSEPKontrol: (data: VClaimSEPKontrolRequest) =>
+    api.post<{ data: { noSep: string }; message: string }>('/bpjs/vclaim/sep/kontrol', {
+      registration_id: data.registrationId,
+      no_surat_kontrol: data.noSuratKontrol,
+      no_sep_asal: data.noSEPAsal,
+      tgl_sep_asal: data.tglSEPAsal,
+      diag_awal: data.diagAwal,
+      no_telp: data.noTelp,
+      catatan: data.catatan,
+      kode_dokter: data.kodeDokter,
+      kode_poli: data.kodePoli,
+      no_kartu: data.noKartu,
+      kls_rawat_hak: data.klsRawatHak,
+      kls_rawat_naik: data.klsRawatNaik,
+      pembiayaan: data.pembiayaan,
+      penanggung_jawab: data.penanggungJawab,
+      jns_pelayanan: data.jnsPelayanan,
+    }),
+
   searchPoliSuratKontrol: (nama: string) =>
     api.get<{ data: VClaimRefPoli[] }>('/bpjs/vclaim/surat-kontrol/poli', {
       params: { nama }
@@ -661,4 +769,13 @@ export const vclaimApi = {
   // Cancel SPRI (local only - BPJS doesn't provide delete API)
   cancelSPRILocal: (visitId: number) =>
     api.put<{ message: string }>(`/bpjs/vclaim/spri/visit/${visitId}/cancel`, {}),
+
+  // Persetujuan / Approval SEP (untuk SEP backdate atau fingerprint)
+  getListPersetujuanSEP: (bulan: string, tahun: string) =>
+    api.get<{ data: VClaimPersetujuanSEPItem[] }>('/bpjs/vclaim/sep/persetujuan', {
+      params: { bulan, tahun }
+    }),
+
+  approvalSEP: (data: VClaimApprovalSEPRequest) =>
+    api.post<{ message: string }>('/bpjs/vclaim/sep/approval', data),
 };

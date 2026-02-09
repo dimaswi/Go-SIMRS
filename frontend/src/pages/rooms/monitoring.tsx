@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, Link, useSearchParams } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
@@ -287,14 +287,14 @@ export default function RoomMonitoring() {
 
       <div className="grid gap-3 lg:grid-cols-4 flex-1 min-h-0 overflow-hidden">
         {/* Left Column - Statistics & Navigation */}
-        <Card className="shadow-md flex flex-col min-h-0 overflow-hidden">
-          <CardHeader className="border-b bg-muted/50 shrink-0 py-2 px-3">
-            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+        <div className="rounded-lg border flex flex-col min-h-0 overflow-hidden">
+          <div className="flex items-center gap-4 shrink-0 py-2 px-3">
+            <h1 className="text-lg font-semibold flex items-center gap-2">
               <BedDouble className="h-3.5 w-3.5" />
               Statistik Bed
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-3 overflow-y-auto flex-1">
+            </h1>
+          </div>
+          <div className="p-3 overflow-y-auto flex-1">
             <div className="space-y-3">
             {/* Stats Grid */}
             <div className="grid grid-cols-2 gap-2">
@@ -370,18 +370,18 @@ export default function RoomMonitoring() {
               </div>
             </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* Right Column - Bed Selection */}
-        <Card className="shadow-md lg:col-span-3 flex flex-col min-h-0 overflow-hidden">
-          <CardHeader className="border-b bg-muted/50 shrink-0 py-2 px-3">
-            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+        <div className="rounded-lg border lg:col-span-3 flex flex-col min-h-0 overflow-hidden">
+          <div className="flex items-center gap-4 shrink-0 py-2 px-3">
+            <h1 className="text-lg font-semibold flex items-center gap-2">
               <BedDouble className="h-3.5 w-3.5" />
               Daftar Bed - Lantai {selectedFloor}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-3 flex-1 flex flex-col min-h-0 overflow-hidden">
+            </h1>
+          </div>
+          <div className="p-3 flex-1 flex flex-col min-h-0 overflow-hidden">
             {/* Unit Selection */}
             <div className="space-y-2 mb-3 shrink-0">
               <Label className="text-xs font-semibold flex items-center gap-2">
@@ -481,8 +481,8 @@ export default function RoomMonitoring() {
                 </TooltipProvider>
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
 
       {/* Patient Detail Dialog */}

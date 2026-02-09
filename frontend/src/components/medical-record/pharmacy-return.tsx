@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Dialog,
   DialogContent,
@@ -183,8 +182,8 @@ export function PharmacyReturn({ visitId, readOnly = false }: PharmacyReturnProp
 
   if (loading) {
     return (
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
+      <Card>
+        <CardHeader>
           <CardTitle className="text-lg">Pengembalian Obat</CardTitle>
         </CardHeader>
         <CardContent className="p-4">
@@ -199,8 +198,8 @@ export function PharmacyReturn({ visitId, readOnly = false }: PharmacyReturnProp
 
   if (orders.length === 0) {
     return (
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
+      <Card>
+        <CardHeader>
           <CardTitle className="text-lg">Pengembalian Obat</CardTitle>
         </CardHeader>
         <CardContent className="p-4">
@@ -219,8 +218,8 @@ export function PharmacyReturn({ visitId, readOnly = false }: PharmacyReturnProp
   ) || [];
 
   return (
-    <Card className="shadow-md">
-      <CardHeader className="border-b bg-muted/30 py-3 px-4">
+    <Card>
+      <CardHeader className="py-3 px-4">
         <CardTitle className="text-base font-semibold flex items-center gap-2">
           <RotateCcw className="h-4 w-4" />
           Pengembalian Obat
@@ -229,9 +228,7 @@ export function PharmacyReturn({ visitId, readOnly = false }: PharmacyReturnProp
           Proses pengembalian obat yang tidak digunakan atau ada masalah
         </CardDescription>
       </CardHeader>
-      <CardContent className="p-0">
-        <ScrollArea className="h-[calc(100vh-300px)] min-h-[400px]">
-          <div className="p-4 space-y-4">
+      <CardContent className="space-y-4">
       {/* Order Selection if multiple */}
       {orders.length > 1 && (
         <div className="border rounded-lg p-3 bg-muted/30">
@@ -414,8 +411,7 @@ export function PharmacyReturn({ visitId, readOnly = false }: PharmacyReturnProp
             </div>
           </div>
         </>
-      )}          </div>
-        </ScrollArea>      </CardContent>
+      )}      </CardContent>
 
       {/* Return Dialog */}
       <Dialog open={showReturnDialog} onOpenChange={setShowReturnDialog}>

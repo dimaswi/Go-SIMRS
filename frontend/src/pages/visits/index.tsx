@@ -1,13 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
+
 import {
   Select,
   SelectContent,
@@ -40,7 +34,16 @@ import {
   Check,
   ChevronsUpDown,
   Tv,
+  SlidersHorizontal,
+  ExternalLink,
+  Volume2,
+  ScreenShare,
 } from "lucide-react";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { roomQueuesApi, roomsApi, visitsApi } from "@/lib/api";
 import type { Room } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -114,14 +117,17 @@ export default function VisitsIndex() {
   );
   const [selectedDate, setSelectedDate] = useState<string>(""); // Empty = show all data
   const [loading, setLoading] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
   const [callingId, setCallingId] = useState<number | null>(null);
   const [recallingId, setRecallingId] = useState<number | null>(null);
   const [acceptingId, setAcceptingId] = useState<number | null>(null);
   const [cancellingId, setCancellingId] = useState<number | null>(null);
   const [roomPopoverOpen, setRoomPopoverOpen] = useState(false);
+  const [displayPanelOpen, setDisplayPanelOpen] = useState(false);
 
   // Check if user is admin
-  const isAdmin = user?.role?.name?.toLowerCase() === "admin";
+  const adminRoles = ["admin", "super admin", "system administrator", "sistem admin"];
+  const isAdmin = adminRoles.includes(user?.role?.name?.toLowerCase() || "");
 
   // Save filters to localStorage whenever they change
   useEffect(() => {
@@ -357,208 +363,256 @@ export default function VisitsIndex() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
-          <div className="space-y-4">
-            {/* Title */}
-            <div className="flex items-center gap-3 justify-between">
-              <div>
-                <div className="space-y-1">
-                  <CardTitle className="text-base font-semibold">
-                    Kunjungan Pasien
-                    {selectedRoom &&
-                      rooms.find((r) => r.id.toString() === selectedRoom) && (
-                        <>
-                          {" - "}
-                          <Button
-                            variant="link"
-                            className="h-auto p-0 text-base font-semibold text-primary hover:underline"
-                            onClick={() =>
-                              navigate(`/rooms/show/${selectedRoom}`)
-                            }
-                          >
-                            {
-                              rooms.find(
-                                (r) => r.id.toString() === selectedRoom
-                              )?.name
-                            }
-                          </Button>
-                        </>
+      <Collapsible open={filterOpen} onOpenChange={setFilterOpen}>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-lg font-semibold">
+            Kunjungan Pasien
+            {selectedRoom &&
+              rooms.find((r) => r.id.toString() === selectedRoom) && (
+                <>
+                  {" - "}
+                  <Button
+                    variant="link"
+                    className="h-auto p-0 text-base font-semibold text-primary hover:underline"
+                    onClick={() =>
+                      navigate(`/rooms/show/${selectedRoom}`)
+                    }
+                  >
+                    {
+                      rooms.find(
+                        (r) => r.id.toString() === selectedRoom
+                      )?.name
+                    }
+                  </Button>
+                </>
+              )}
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Kelola kunjungan pasien -{" "}
+            {selectedDate
+              ? format(new Date(selectedDate), "EEEE, dd MMMM yyyy", {
+                  locale: idLocale,
+                })
+              : "Semua Data"}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {selectedRoom && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9"
+              onClick={() =>
+                window.open(
+                  `/room-queue/display/${selectedRoom}`,
+                  "_blank"
+                )
+              }
+            >
+              <Tv className="h-4 w-4 mr-2" />
+              Display Ruangan
+            </Button>
+          )}
+          <Button
+            variant={displayPanelOpen ? "default" : "outline"}
+            size="sm"
+            className="h-9"
+            onClick={() => setDisplayPanelOpen(!displayPanelOpen)}
+          >
+            <ScreenShare className="h-4 w-4 mr-2" />
+            Display Per Ruangan
+          </Button>
+          <CollapsibleTrigger asChild>
+            <Button variant="outline" size="sm" className="h-9">
+              <SlidersHorizontal className="h-4 w-4 mr-2" />
+              Filter
+            </Button>
+          </CollapsibleTrigger>
+        </div>
+      </div>
+      <CollapsibleContent>
+      <div className="flex items-center gap-2 flex-wrap pt-4">
+        {/* Date Filter */}
+        <Input
+          type="date"
+          value={selectedDate}
+          onChange={(e) => setSelectedDate(e.target.value)}
+          className="h-9 w-40"
+        />
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setSelectedDate("")}
+          className="h-9 px-3"
+        >
+          Semua Data
+        </Button>
+
+        <div className="h-6 border-r"></div>
+
+        {/* Room Filter */}
+        <Popover
+          open={roomPopoverOpen}
+          onOpenChange={setRoomPopoverOpen}
+        >
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              role="combobox"
+              className={cn(
+                "h-9 w-[250px] justify-between",
+                !selectedRoom && "text-muted-foreground"
+              )}
+            >
+              {selectedRoom
+                ? `${
+                    rooms.find(
+                      (r) => r.id.toString() === selectedRoom
+                    )?.code
+                  } - ${
+                    rooms.find(
+                      (r) => r.id.toString() === selectedRoom
+                    )?.name
+                  }`
+                : "Semua Ruangan"}
+              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[250px] p-0" align="start">
+            <Command>
+              <CommandInput placeholder="Cari ruangan..." />
+              <CommandList>
+                <CommandEmpty>Ruangan tidak ditemukan.</CommandEmpty>
+                <CommandGroup>
+                  <CommandItem
+                    value="Semua Ruangan"
+                    onSelect={() => {
+                      setSelectedRoom("");
+                      setRoomPopoverOpen(false);
+                    }}
+                  >
+                    <Check
+                      className={cn(
+                        "mr-2 h-4 w-4",
+                        !selectedRoom ? "opacity-100" : "opacity-0"
                       )}
-                  </CardTitle>
-                  <CardDescription>
-                    Kelola kunjungan pasien -{" "}
-                    {selectedDate
-                      ? format(new Date(selectedDate), "EEEE, dd MMMM yyyy", {
-                          locale: idLocale,
-                        })
-                      : "Semua Data"}
-                  </CardDescription>
-                </div>
-              </div>
-
-              <div>
-                <div className="flex items-center gap-2 pt-2 flex-wrap">
-                  {/* Date Filter */}
-                  <div className="flex items-center gap-2">
-                    <Input
-                      type="date"
-                      value={selectedDate}
-                      onChange={(e) => setSelectedDate(e.target.value)}
-                      className="h-9 w-40"
                     />
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setSelectedDate("")}
-                      className="h-9 px-3"
+                    Semua Ruangan
+                  </CommandItem>
+                  {rooms.map((room) => (
+                    <CommandItem
+                      key={room.id}
+                      value={`${room.code} ${room.name}`}
+                      onSelect={() => {
+                        setSelectedRoom(room.id.toString());
+                        setRoomPopoverOpen(false);
+                      }}
                     >
-                      Semua Data
-                    </Button>
-                  </div>
-
-                  <div className="h-6 border-r"></div>
-
-                  {/* Room Filter */}
-                  <Popover
-                    open={roomPopoverOpen}
-                    onOpenChange={setRoomPopoverOpen}
-                  >
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        role="combobox"
+                      <Check
                         className={cn(
-                          "h-9 w-[250px] justify-between",
-                          !selectedRoom && "text-muted-foreground"
+                          "mr-2 h-4 w-4",
+                          selectedRoom === room.id.toString()
+                            ? "opacity-100"
+                            : "opacity-0"
                         )}
-                      >
-                        {selectedRoom
-                          ? `${
-                              rooms.find(
-                                (r) => r.id.toString() === selectedRoom
-                              )?.code
-                            } - ${
-                              rooms.find(
-                                (r) => r.id.toString() === selectedRoom
-                              )?.name
-                            }`
-                          : "Semua Ruangan"}
-                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-[250px] p-0" align="start">
-                      <Command>
-                        <CommandInput placeholder="Cari ruangan..." />
-                        <CommandList>
-                          <CommandEmpty>Ruangan tidak ditemukan.</CommandEmpty>
-                          <CommandGroup>
-                            <CommandItem
-                              value="Semua Ruangan"
-                              onSelect={() => {
-                                setSelectedRoom("");
-                                setRoomPopoverOpen(false);
-                              }}
-                            >
-                              <Check
-                                className={cn(
-                                  "mr-2 h-4 w-4",
-                                  !selectedRoom ? "opacity-100" : "opacity-0"
-                                )}
-                              />
-                              Semua Ruangan
-                            </CommandItem>
-                            {rooms.map((room) => (
-                              <CommandItem
-                                key={room.id}
-                                value={`${room.code} ${room.name}`}
-                                onSelect={() => {
-                                  setSelectedRoom(room.id.toString());
-                                  setRoomPopoverOpen(false);
-                                }}
-                              >
-                                <Check
-                                  className={cn(
-                                    "mr-2 h-4 w-4",
-                                    selectedRoom === room.id.toString()
-                                      ? "opacity-100"
-                                      : "opacity-0"
-                                  )}
-                                />
-                                {room.code} - {room.name}
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
+                      />
+                      {room.code} - {room.name}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
 
-                  {/* Status Filter */}
-                  <Select
-                    value={selectedStatus}
-                    onValueChange={setSelectedStatus}
-                  >
-                    <SelectTrigger className="h-9 w-[150px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="active">
-                        Aktif (Belum Selesai)
-                      </SelectItem>
-                      <SelectItem value="all">Semua Status</SelectItem>
-                      <SelectItem value="waiting">Menunggu</SelectItem>
-                      <SelectItem value="in_queue">Dalam Antrian</SelectItem>
-                      <SelectItem value="in_progress">
-                        Sedang Dilayani
-                      </SelectItem>
-                      <SelectItem value="completed">Selesai</SelectItem>
-                    </SelectContent>
-                  </Select>
+        {/* Status Filter */}
+        <Select
+          value={selectedStatus}
+          onValueChange={setSelectedStatus}
+        >
+          <SelectTrigger className="h-9 w-[150px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="active">
+              Aktif (Belum Selesai)
+            </SelectItem>
+            <SelectItem value="all">Semua Status</SelectItem>
+            <SelectItem value="waiting">Menunggu</SelectItem>
+            <SelectItem value="in_queue">Dalam Antrian</SelectItem>
+            <SelectItem value="in_progress">
+              Sedang Dilayani
+            </SelectItem>
+            <SelectItem value="completed">Selesai</SelectItem>
+          </SelectContent>
+        </Select>
 
-                  <div className="ml-auto flex items-center gap-2">
-                    {selectedRoom && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-9"
-                        onClick={() =>
-                          window.open(
-                            `/room-queue/display/${selectedRoom}`,
-                            "_blank"
-                          )
-                        }
-                      >
-                        <Tv className="h-4 w-4 mr-2" />
-                        Display Antrian
-                      </Button>
-                    )}
-                    {selectedRoom && (
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-9 w-9"
-                        onClick={loadVisits}
-                      >
-                        <RefreshCcw className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </div>
+        <div className="ml-auto flex items-center gap-2">
+          {selectedRoom && (
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-9 w-9"
+              onClick={loadVisits}
+            >
+              <RefreshCcw className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+      </div>
+      </CollapsibleContent>
+      </Collapsible>
+
+      {/* Display Per Ruangan Panel */}
+      {displayPanelOpen && (
+        <div className="border rounded-lg p-4 bg-muted/30">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h3 className="font-semibold text-sm">Display Per Ruangan</h3>
+              <p className="text-xs text-muted-foreground">
+                Buka display antrean per ruangan dengan suara pengumuman
+              </p>
             </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => window.open("/queue-display", "_blank")}
+            >
+              <Tv className="h-3 w-3 mr-1" />
+              Pengaturan Display
+              <ExternalLink className="h-3 w-3 ml-1 text-muted-foreground" />
+            </Button>
           </div>
-        </CardHeader>
-        <CardContent className="pt-6">
-          <DataTable
-            columns={columns}
-            data={visits}
-            searchPlaceholder="Cari nomor RM, nama pasien, nomor kunjungan..."
-            pageSize={10}
-            tableId="visits"
-          />
-        </CardContent>
-      </Card>
+          <div className="flex flex-wrap gap-2">
+            {rooms.length === 0 ? (
+              <span className="text-xs text-muted-foreground">Tidak ada ruangan</span>
+            ) : (
+              rooms.map((room) => (
+                <Button
+                  key={room.id}
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs"
+                  onClick={() => window.open(`/room-queue/display/${room.id}`, "_blank")}
+                >
+                  <Volume2 className="h-3 w-3 mr-1.5" />
+                  {room.queue_code || room.code} - {room.name}
+                  <ExternalLink className="h-2.5 w-2.5 ml-1.5 text-muted-foreground" />
+                </Button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      <DataTable
+        columns={columns}
+        data={visits}
+        searchPlaceholder="Cari nomor RM, nama pasien, nomor kunjungan..."
+        pageSize={10}
+        tableId="visits"
+      />
     </div>
   );
 }

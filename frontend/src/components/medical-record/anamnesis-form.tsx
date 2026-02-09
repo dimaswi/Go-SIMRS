@@ -5,9 +5,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Save, Loader2, FileText, History, Pill, AlertCircle, Search, X, Plus, AlertTriangle } from "lucide-react";
+import { Save, Loader2, FileText, Pill, AlertCircle, Search, X, Plus, AlertTriangle } from "lucide-react";
 import { medicalRecordsApi, patientAllergyApi, ALLERGY_CATEGORY_LABELS, ALLERGY_CRITICALITY_LABELS, ALLERGY_CRITICALITY_COLORS } from "@/lib/api";
 import { medicalRecordEditLogApi } from "@/lib/api/visits";
 import { useEditMode, EditModeBanner, EditConfirmDialog } from "./edit-mode-controller";
@@ -261,8 +260,8 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false, is
 
   if (loading) {
     return (
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
+      <Card>
+        <CardHeader>
           <CardTitle className="text-lg">Anamnesis</CardTitle>
         </CardHeader>
         <CardContent className="p-4">
@@ -276,8 +275,8 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false, is
   }
 
   return (
-    <Card className="shadow-md">
-      <CardHeader className="border-b bg-muted/30 py-3 px-4">
+    <Card>
+      <CardHeader className="py-3 px-4">
         <div className="flex items-center justify-between">
           <div className="flex-1">
             <CardTitle className="text-base font-semibold flex items-center gap-2">
@@ -293,9 +292,7 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false, is
           </Badge>
         </div>
       </CardHeader>
-      <CardContent className="p-0">
-        <ScrollArea className="h-[calc(100vh-300px)] min-h-[400px]">
-          <div className="p-4">
+      <CardContent>
           {/* Edit Mode Banner for discharged patients */}
           <EditModeBanner
             isPatientDischarged={isPatientDischarged}
@@ -308,17 +305,8 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false, is
           <fieldset disabled={isFormDisabled} className="space-y-6">
           
           {/* Section 1: Keluhan Utama & Riwayat Penyakit Sekarang */}
-          <Card className="border-red-200 dark:border-red-800">
-            <CardHeader className="py-3 px-4 bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-950/30 dark:to-orange-950/30">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-red-100 dark:bg-red-900/50">
-                  <FileText className="h-5 w-5 text-red-500" />
-                </div>
-                <CardTitle className="text-base font-semibold">Keluhan & Riwayat Penyakit</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent className="p-4 space-y-4">
-              {/* Keluhan Utama */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase">Keluhan & Riwayat Penyakit</h3>
               <div className="space-y-2">
                 <Label htmlFor="chief_complaint" className="text-sm font-semibold">
                   Keluhan Utama <span className="text-destructive">*</span>
@@ -350,20 +338,11 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false, is
                   Detail onset, lokasi, durasi, karakteristik, faktor yang memperberat/meringankan
                 </p>
               </div>
-            </CardContent>
-          </Card>
+          </div>
 
           {/* Section 2: Riwayat Medis */}
-          <Card className="border-blue-200 dark:border-blue-800">
-            <CardHeader className="py-3 px-4 bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-950/30 dark:to-cyan-950/30">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/50">
-                  <History className="h-5 w-5 text-blue-500" />
-                </div>
-                <CardTitle className="text-base font-semibold">Riwayat Medis</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent className="p-4 space-y-4">
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase">Riwayat Medis</h3>
               {/* Riwayat Penyakit Dahulu */}
               <div className="space-y-2">
                 <Label htmlFor="past_medical_history" className="text-sm font-semibold">
@@ -405,26 +384,17 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false, is
                   className="min-h-[80px] resize-none"
                 />
               </div>
-            </CardContent>
-          </Card>
+          </div>
 
           {/* Section 3: Alergi & Obat */}
-          <Card className="border-amber-200 dark:border-amber-800">
-            <CardHeader className="py-3 px-4 bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-950/30 dark:to-yellow-950/30">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-amber-100 dark:bg-amber-900/50">
-                  <AlertCircle className="h-5 w-5 text-amber-500" />
-                </div>
-                <CardTitle className="text-base font-semibold">Alergi & Obat</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent className="p-4 space-y-4">
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase">Alergi & Obat</h3>
               
               {/* Existing Allergies List */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label className="text-sm font-semibold flex items-center gap-2">
-                    <AlertTriangle className="h-4 w-4 text-amber-500" />
+                    <AlertTriangle className="h-4 w-4 text-muted-foreground" />
                     Daftar Alergi Pasien
                   </Label>
                   {!readOnly && (
@@ -516,14 +486,14 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false, is
                       
                       {/* Google Search Tip */}
                       {snomedQuery.length >= 3 && snomedResults.length === 0 && !searchingSnomed && (
-                        <div className="p-2 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded text-xs">
-                          <p className="text-blue-700 dark:text-blue-300">
+                        <div className="p-2 bg-muted/50 border rounded text-xs">
+                          <p className="text-muted-foreground">
                             💡 <strong>Tip:</strong> Tidak menemukan? Cari di Google dengan kata kunci:{" "}
                             <a 
                               href={`https://www.google.com/search?q=snomed+ct+allergy+${encodeURIComponent(snomedQuery)}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="underline font-medium hover:text-blue-900"
+                              className="underline font-medium hover:text-foreground"
                             >
                               "snomed ct allergy {snomedQuery}"
                             </a>
@@ -579,8 +549,8 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false, is
                       
                       {/* Selected SNOMED */}
                       {newAllergy.snomed_code && (
-                        <div className="flex items-center gap-2 p-2 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded text-sm">
-                          <AlertCircle className="h-4 w-4 text-green-600" />
+                        <div className="flex items-center gap-2 p-2 bg-muted/50 border rounded text-sm">
+                          <AlertCircle className="h-4 w-4 text-muted-foreground" />
                           <span className="font-mono text-xs">{newAllergy.snomed_code}</span>
                           <span>-</span>
                           <span className="font-medium">{newAllergy.snomed_display}</span>
@@ -675,7 +645,7 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false, is
               {/* Obat yang Sedang Dikonsumsi */}
               <div className="space-y-2">
                 <Label htmlFor="current_medications" className="text-sm font-semibold flex items-center gap-2">
-                  <Pill className="h-4 w-4 text-amber-500" />
+                  <Pill className="h-4 w-4 text-muted-foreground" />
                   Obat yang Sedang Dikonsumsi
                 </Label>
                 <Textarea
@@ -689,8 +659,7 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false, is
                   Termasuk dosis dan frekuensi untuk menghindari interaksi obat
                 </p>
               </div>
-            </CardContent>
-          </Card>
+          </div>
 
           {/* Submit Button */}
           {!isFormDisabled && (
@@ -703,8 +672,6 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false, is
           )}
           </fieldset>
         </form>
-          </div>
-        </ScrollArea>
       </CardContent>
       
       {/* Edit Confirmation Dialog */}

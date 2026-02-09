@@ -1,12 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -80,52 +73,49 @@ export default function SupplierShow() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => navigate("/suppliers")}
-                className="h-9 w-9"
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => navigate("/suppliers")}
+            className="h-9 w-9"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div className="space-y-1">
+            <div className="flex items-center gap-3">
+              <h1 className="text-lg font-semibold">
+                {supplier.name}
+              </h1>
+              <Badge
+                variant={supplier.is_active ? "default" : "secondary"}
+                className={
+                  supplier.is_active
+                    ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                    : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"
+                }
               >
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-              <div className="space-y-1">
-                <div className="flex items-center gap-3">
-                  <CardTitle className="text-base font-semibold">
-                    {supplier.name}
-                  </CardTitle>
-                  <Badge
-                    variant={supplier.is_active ? "default" : "secondary"}
-                    className={
-                      supplier.is_active
-                        ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                        : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"
-                    }
-                  >
-                    {supplier.is_active ? "Aktif" : "Non-Aktif"}
-                  </Badge>
-                </div>
-                <CardDescription>
-                  Kode: {supplier.code}
-                </CardDescription>
-              </div>
+                {supplier.is_active ? "Aktif" : "Non-Aktif"}
+              </Badge>
             </div>
-            {hasPermission("suppliers.update") && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => navigate(`/suppliers/${id}/edit`)}
-              >
-                <Pencil className="mr-2 h-4 w-4" />
-                Edit
-              </Button>
-            )}
+            <p className="text-sm text-muted-foreground">
+              Kode: {supplier.code}
+            </p>
           </div>
-        </CardHeader>
-        <CardContent className="pt-6">
+        </div>
+        {hasPermission("suppliers.update") && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate(`/suppliers/${id}/edit`)}
+          >
+            <Pencil className="mr-2 h-4 w-4" />
+            Edit
+          </Button>
+        )}
+      </div>
+      <div className="rounded-lg border p-6">
           {/* Basic Info */}
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-6">
             <div className="flex items-start gap-3">
@@ -226,8 +216,7 @@ export default function SupplierShow() {
               </div>
             </>
           )}
-        </CardContent>
-      </Card>
+      </div>
     </div>
   );
 }

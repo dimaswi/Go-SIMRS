@@ -286,36 +286,36 @@ export function ItemPickerDialog({
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 flex flex-col gap-4 overflow-hidden">
-          {/* Search and Actions */}
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Cari nama atau kode item..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-            <Button variant="outline" size="sm" onClick={handleSelectAll}>
-              <Check className="h-4 w-4 mr-1" />
-              Pilih Semua
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleDeselectAll}>
-              <X className="h-4 w-4 mr-1" />
-              Hapus Semua
-            </Button>
+        <div className="flex-1 flex flex-col gap-3 overflow-hidden">
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Cari nama atau kode item..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
           </div>
 
-          {/* Selection Count */}
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">
+          {/* Selection Count & Actions */}
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">
               {filteredItems.length} item tersedia
             </span>
-            <Badge variant="secondary">
-              {tempSelected.size} item dipilih
-            </Badge>
+            <div className="flex items-center gap-1">
+              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={handleSelectAll}>
+                <Check className="h-3.5 w-3.5 mr-1" />
+                Pilih Semua
+              </Button>
+              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={handleDeselectAll}>
+                <X className="h-3.5 w-3.5 mr-1" />
+                Hapus Semua
+              </Button>
+              <Badge variant="secondary" className="ml-1">
+                {tempSelected.size} dipilih
+              </Badge>
+            </div>
           </div>
 
           {/* Item List */}

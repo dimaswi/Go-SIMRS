@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
@@ -157,25 +156,18 @@ export default function EKlaimCreate() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={() => navigate('/eklaim')}>
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <div className="space-y-1">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <FileCheck className="h-5 w-5" />
-                Buat E-Klaim Baru
-              </CardTitle>
-              <CardDescription>
-                Buat klaim BPJS baru untuk pasien dengan SEP yang valid
-              </CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        
-        <CardContent className="pt-6">
+      <div className="flex items-center gap-4">
+        <Button variant="ghost" size="sm" onClick={() => navigate('/eklaim')}>
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <div>
+          <h1 className="text-lg font-semibold">Buat E-Klaim Baru</h1>
+          <p className="text-sm text-muted-foreground">
+            Buat klaim BPJS baru untuk pasien dengan SEP yang valid
+          </p>
+        </div>
+      </div>
+      <div className="rounded-lg border p-6">
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Visit & SEP Information */}
             <div className="space-y-4">
@@ -430,8 +422,7 @@ export default function EKlaimCreate() {
               </Button>
             </div>
           </form>
-        </CardContent>
-      </Card>
+      </div>
     </div>
   );
 }

@@ -4,7 +4,6 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
@@ -145,22 +144,19 @@ export default function AdjustMedicineStockPage() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-              <Pill className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <CardTitle>Sesuaikan Stok Obat</CardTitle>
-              <CardDescription>Tambah, kurangi, atau set stok baru</CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="p-6">
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
+        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+          <Pill className="h-5 w-5 text-primary" />
+        </div>
+        <div>
+          <h1 className="text-lg font-semibold">Sesuaikan Stok Obat</h1>
+          <p className="text-sm text-muted-foreground">Tambah, kurangi, atau set stok baru</p>
+        </div>
+      </div>
+      <div className="rounded-lg border p-6">
           {/* Current Info */}
           <div className="mb-6 p-4 bg-muted rounded-lg">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -273,8 +269,7 @@ export default function AdjustMedicineStockPage() {
               </div>
             </form>
           </Form>
-        </CardContent>
-      </Card>
+      </div>
     </div>
   );
 }

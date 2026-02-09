@@ -506,8 +506,8 @@ export function ConsultationOrderForm({ visitId, sourceRoomId, readOnly = false 
   }
 
   return (
-    <Card className="shadow-md">
-      <CardHeader className="border-b bg-muted/30 py-3 px-4">
+    <Card>
+      <CardHeader className="py-3 px-4">
         <CardTitle className="text-base font-semibold flex items-center gap-2">
           <Stethoscope className="h-4 w-4" />
           Order Konsultasi
@@ -562,8 +562,7 @@ export function ConsultationOrderForm({ visitId, sourceRoomId, readOnly = false 
           </div>
         </div>
 
-        <ScrollArea className="h-[calc(100vh-300px)] min-h-[400px]">
-          <div className="p-4">
+        <div className="p-4">
             {/* Order Form Tab */}
             {activeTab === "form" && canOrder && (
               <div className="space-y-4">
@@ -853,8 +852,7 @@ export function ConsultationOrderForm({ visitId, sourceRoomId, readOnly = false 
                 )}
               </div>
             )}
-          </div>
-        </ScrollArea>
+        </div>
       </CardContent>
     </Card>
   );

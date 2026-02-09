@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from "react";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -378,31 +377,29 @@ export function RoomTariffPanel({
       )}
 
       {/* Tariff Table */}
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                <DollarSign className="h-5 w-5 text-primary" />
-              </div>
-              <div className="space-y-1">
-                <CardTitle className="text-base font-semibold">
-                  Tarif Ruangan
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  Tarif per kelas pasien untuk ruangan ini
-                </CardDescription>
-              </div>
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+              <DollarSign className="h-5 w-5 text-primary" />
             </div>
-            {hasPermission("rooms.update") && !isAdding && !editingId && (
-              <Button onClick={() => setIsAdding(true)} size="sm">
-                <Plus className="h-4 w-4 mr-1" />
-                Tambah Tarif
-              </Button>
-            )}
+            <div className="space-y-1">
+              <h2 className="text-base font-semibold">
+                Tarif Ruangan
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                Tarif per kelas pasien untuk ruangan ini
+              </p>
+            </div>
           </div>
-        </CardHeader>
-        <CardContent className="pt-6">
+          {hasPermission("rooms.update") && !isAdding && !editingId && (
+            <Button onClick={() => setIsAdding(true)} size="sm">
+              <Plus className="h-4 w-4 mr-1" />
+              Tambah Tarif
+            </Button>
+          )}
+        </div>
+        <div className="rounded-lg border p-6">
           <DataTable
             columns={columns}
             data={tariffs}
@@ -410,8 +407,8 @@ export function RoomTariffPanel({
             pageSize={10}
             tableId={`room_tariff_${roomId}`}
           />
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       <ConfirmDialog
         open={deleteDialogOpen}

@@ -13,13 +13,7 @@ import {
   Info,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
+
 import {
   Form,
   FormControl,
@@ -285,43 +279,40 @@ export default function PurchaseReceive() {
     <div className="flex flex-1 flex-col gap-4 p-6">
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-          {/* Header Card */}
-          <Card className="shadow-md">
-            <CardHeader className="border-b bg-muted/50">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={() => navigate(`/purchases/${id}`)}
-                    className="h-9 w-9"
-                  >
-                    <ArrowLeft className="h-4 w-4" />
-                  </Button>
-                  <div className="space-y-1">
-                    <CardTitle className="text-base font-semibold">
-                      Terima Barang
-                    </CardTitle>
-                    <CardDescription>
-                      Pembelian: {purchase.purchase_number} •{" "}
-                      {purchase.supplier_name}
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline">
-                    {completedItems} / {totalItems} Lengkap
-                  </Badge>
-                  {selectedCount > 0 && (
-                    <Badge className="bg-primary">
-                      {selectedCount} dipilih
-                    </Badge>
-                  )}
-                </div>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={() => navigate(`/purchases/${id}`)}
+                className="h-9 w-9"
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+              <div className="space-y-1">
+                <h1 className="text-lg font-semibold">
+                  Terima Barang
+                </h1>
+                <p className="text-sm text-muted-foreground">
+                  Pembelian: {purchase.purchase_number} •{" "}
+                  {purchase.supplier_name}
+                </p>
               </div>
-            </CardHeader>
-            <CardContent className="pt-6 space-y-4">
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline">
+                {completedItems} / {totalItems} Lengkap
+              </Badge>
+              {selectedCount > 0 && (
+                <Badge className="bg-primary">
+                  {selectedCount} dipilih
+                </Badge>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-lg border p-6 space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
                 <FormField
                   control={form.control}
@@ -353,16 +344,15 @@ export default function PurchaseReceive() {
                   )}
                 />
               </div>
-            </CardContent>
-          </Card>
+          </div>
 
           {/* Bulk Actions Card */}
-          <Card className="shadow-md">
-            <CardHeader className="py-3 border-b bg-muted/50">
+          <div className="rounded-lg border">
+            <div className="flex items-center justify-between px-6 py-4">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-medium">
+                <h3 className="text-sm font-medium">
                   Aksi Massal
-                </CardTitle>
+                </h3>
                 <div className="flex items-center gap-2">
                   <Button
                     type="button"
@@ -387,9 +377,9 @@ export default function PurchaseReceive() {
                   </Button>
                 </div>
               </div>
-            </CardHeader>
+            </div>
             {selectedMedicines > 0 && (
-              <CardContent className="pt-4">
+              <div className="px-6 pb-6">
                 <Alert>
                   <Info className="h-4 w-4" />
                   <AlertDescription>
@@ -457,21 +447,21 @@ export default function PurchaseReceive() {
                     </div>
                   </div>
                 </div>
-              </CardContent>
+              </div>
             )}
-          </Card>
+          </div>
 
           {/* Items Card */}
-          <Card className="shadow-md">
-            <CardHeader className="border-b bg-muted/50">
-              <CardTitle className="text-sm font-medium">
+          <div className="rounded-lg border">
+            <div className="px-6 py-4">
+              <h3 className="text-sm font-medium">
                 Daftar Item ({totalItems})
-              </CardTitle>
-              <CardDescription>
+              </h3>
+              <p className="text-sm text-muted-foreground">
                 Centang item yang akan diterima, lalu masukkan jumlah
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="p-0">
+              </p>
+            </div>
+            <div className="p-0">
               <ScrollArea className="h-[500px]">
                 <div className="divide-y">
                   {fields.map((field, index) => {
@@ -666,8 +656,8 @@ export default function PurchaseReceive() {
                   })}
                 </div>
               </ScrollArea>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
           {/* Actions */}
           <Separator />

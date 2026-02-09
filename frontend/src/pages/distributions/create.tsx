@@ -1,12 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -302,42 +296,35 @@ export default function DistributionCreate() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      {/* Header Card */}
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => navigate("/distributions")}
-                className="h-9 w-9"
-              >
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-              <div className="space-y-1">
-                <CardTitle className="text-base font-semibold">
-                  Buat Distribusi
-                </CardTitle>
-                <CardDescription>
-                  Kirim barang/obat berdasarkan permintaan yang disetujui
-                </CardDescription>
-              </div>
-            </div>
-            {selectedRequest && (
-              <div className="flex items-center gap-2">
-                <Badge variant="outline">
-                  {completedItems} / {totalItems} Selesai
-                </Badge>
-                {selectedCount > 0 && (
-                  <Badge className="bg-primary">{selectedCount} dipilih</Badge>
-                )}
-              </div>
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => navigate("/distributions")}
+            className="h-9 w-9"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div>
+            <h1 className="text-lg font-semibold">Buat Distribusi</h1>
+            <p className="text-sm text-muted-foreground">Kirim barang/obat berdasarkan permintaan yang disetujui</p>
+          </div>
+        </div>
+        {selectedRequest && (
+          <div className="flex items-center gap-2">
+            <Badge variant="outline">
+              {completedItems} / {totalItems} Selesai
+            </Badge>
+            {selectedCount > 0 && (
+              <Badge className="bg-primary">{selectedCount} dipilih</Badge>
             )}
           </div>
-        </CardHeader>
+        )}
+      </div>
 
-        <CardContent className="pt-6 space-y-4">
+      <div className="rounded-lg border p-6 space-y-4">
           {/* Select Request */}
           <div className="space-y-2">
             <Label>Pilih Permintaan yang Disetujui *</Label>
@@ -403,15 +390,14 @@ export default function DistributionCreate() {
               </div>
             </>
           )}
-        </CardContent>
-      </Card>
+      </div>
 
       {/* Bulk Actions Card */}
       {selectedRequest && items.length > 0 && (
-        <Card className="shadow-md">
-          <CardHeader className="py-3 border-b bg-muted/50">
+        <div className="rounded-lg border">
+          <div className="flex items-center justify-between px-6 py-4">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium">Aksi Massal</CardTitle>
+              <h3 className="text-sm font-medium">Aksi Massal</h3>
               <div className="flex items-center gap-2">
                 <Button
                   type="button"
@@ -436,9 +422,9 @@ export default function DistributionCreate() {
                 </Button>
               </div>
             </div>
-          </CardHeader>
+          </div>
           {selectedMedicines > 0 && (
-            <CardContent className="pt-4">
+            <div className="px-6 pb-6">
               <Alert>
                 <Info className="h-4 w-4" />
                 <AlertDescription>
@@ -502,23 +488,23 @@ export default function DistributionCreate() {
                   </div>
                 </div>
               </div>
-            </CardContent>
+            </div>
           )}
-        </Card>
+        </div>
       )}
 
       {/* Items Card */}
       {selectedRequest && (
-        <Card className="shadow-md">
-          <CardHeader className="border-b bg-muted/50">
-            <CardTitle className="text-sm font-medium">
+        <div className="rounded-lg border">
+          <div className="px-6 py-4">
+            <h3 className="text-sm font-medium">
               Daftar Item ({totalItems})
-            </CardTitle>
-            <CardDescription>
+            </h3>
+            <p className="text-sm text-muted-foreground">
               Centang item yang akan dikirim, lalu masukkan jumlah
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="p-0">
+            </p>
+          </div>
+          <div className="p-0">
             <ScrollArea className="h-[500px]">
               {items.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
@@ -700,14 +686,14 @@ export default function DistributionCreate() {
                 </div>
               )}
             </ScrollArea>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
       {/* No Request Selected */}
       {!selectedRequest && (
-        <Card className="shadow-md">
-          <CardContent className="py-12">
+        <div className="rounded-lg border">
+          <div className="py-12">
             <div className="flex flex-col items-center justify-center text-muted-foreground">
               <Truck className="h-12 w-12 mb-3 opacity-50" />
               <p className="text-sm font-medium">Belum ada permintaan dipilih</p>
@@ -715,8 +701,8 @@ export default function DistributionCreate() {
                 Pilih permintaan yang sudah disetujui untuk membuat distribusi
               </p>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
       {/* Actions */}

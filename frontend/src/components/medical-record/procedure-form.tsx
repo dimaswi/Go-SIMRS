@@ -5,7 +5,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -411,8 +410,8 @@ export function ProcedureForm({ visitId, readOnly = false }: ProcedureFormProps)
     <fieldset disabled={readOnly}>
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       {/* Left Column - Available Procedures to Add */}
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50 py-3 px-4">
+      <Card>
+        <CardHeader className="py-3 px-4">
           <CardTitle className="text-base font-semibold flex items-center gap-2">
             <Plus className="h-4 w-4" />
             Tindakan Tersedia ({availableProcedures.length})
@@ -424,8 +423,7 @@ export function ProcedureForm({ visitId, readOnly = false }: ProcedureFormProps)
         <CardContent className="p-0">
           {canCreate ? (
             availableProcedures.length > 0 ? (
-              <ScrollArea className="h-[calc(100vh-400px)] min-h-[300px]">
-                <div className="divide-y">
+              <div className="divide-y">
                   {availableProcedures.map((proc) => {
                     const isSelected = selectedProcedureToAdd === proc.id;
                     const addedCount = procedureCounts[proc.id] || 0;
@@ -468,8 +466,7 @@ export function ProcedureForm({ visitId, readOnly = false }: ProcedureFormProps)
                       </div>
                     );
                   })}
-                </div>
-              </ScrollArea>
+              </div>
             ) : (
               <div className="py-12 text-center text-muted-foreground">
                 <CheckCircle className="h-10 w-10 mx-auto mb-3 opacity-50 text-green-500" />
@@ -541,8 +538,8 @@ export function ProcedureForm({ visitId, readOnly = false }: ProcedureFormProps)
       </Card>
 
       {/* Right Column - Added Procedures with Collapsible Form */}
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50 py-3 px-4">
+      <Card>
+        <CardHeader className="py-3 px-4">
           <CardTitle className="text-base font-semibold flex items-center gap-2">
             <Clock className="h-4 w-4" />
             Tindakan Kunjungan ({visitProcedures.length})
@@ -550,8 +547,7 @@ export function ProcedureForm({ visitId, readOnly = false }: ProcedureFormProps)
         </CardHeader>
         <CardContent className="p-0">
           {visitProcedures.length > 0 ? (
-            <ScrollArea className="h-[calc(100vh-300px)] min-h-[400px]">
-              <div className="divide-y">
+            <div className="divide-y">
                 {visitProcedures.map((vp) => {
                   const isExpanded = expandedProcedure === vp.id;
                   const hasParams = procedureHasParameters(vp);
@@ -844,8 +840,7 @@ export function ProcedureForm({ visitId, readOnly = false }: ProcedureFormProps)
                     </Collapsible>
                   );
                 })}
-              </div>
-            </ScrollArea>
+            </div>
           ) : (
             <div className="py-12 text-center text-muted-foreground">
               <Scissors className="h-10 w-10 mx-auto mb-3 opacity-50" />

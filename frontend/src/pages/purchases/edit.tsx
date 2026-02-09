@@ -1,12 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -181,30 +175,26 @@ export default function PurchaseEdit() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
-          <div className="flex items-center gap-4">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => navigate(`/purchases/${id}`)}
-              className="h-9 w-9"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <div className="space-y-1">
-              <div className="flex items-center gap-3">
-                <CardTitle className="text-base font-semibold">Edit Pembelian</CardTitle>
-                <Badge variant="outline">
-                  {purchaseStatusLabels[purchase.status] || purchase.status}
-                </Badge>
-              </div>
-              <CardDescription>{purchase.purchase_number}</CardDescription>
-            </div>
+      <div className="flex items-center gap-4">
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => navigate(`/purchases/${id}`)}
+          className="h-9 w-9"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <div>
+          <div className="flex items-center gap-3">
+            <h1 className="text-lg font-semibold">Edit Pembelian</h1>
+            <Badge variant="outline">
+              {purchaseStatusLabels[purchase.status] || purchase.status}
+            </Badge>
           </div>
-        </CardHeader>
-
-        <CardContent className="pt-6 space-y-6">
+          <p className="text-sm text-muted-foreground">{purchase.purchase_number}</p>
+        </div>
+      </div>
+      <div className="rounded-lg border p-6 space-y-6">
           {/* Supplier Info */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
@@ -329,8 +319,7 @@ export default function PurchaseEdit() {
               Simpan Perubahan
             </Button>
           </div>
-        </CardContent>
-      </Card>
+      </div>
     </div>
   );
 }

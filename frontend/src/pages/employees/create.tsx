@@ -1,12 +1,5 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -283,40 +276,30 @@ export default function EmployeeCreate() {
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
       <form onSubmit={handleSubmit} className="grid gap-4">
-        {/* Header Card */}
-        <Card className="shadow-md">
-          <CardHeader className="border-b bg-muted/50">
-            <div className="flex items-center gap-4">
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                onClick={() => navigate("/employees")}
-                className="h-9 w-9"
-              >
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-              <div>
-                <CardTitle className="text-base font-semibold">
-                  Tambah Pegawai Baru
-                </CardTitle>
-                <CardDescription>
-                  Masukkan data pegawai rumah sakit
-                </CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-        </Card>
+        {/* Header */}
+        <div className="flex items-center gap-4">
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            onClick={() => navigate("/employees")}
+            className="h-9 w-9"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div>
+            <h1 className="text-lg font-semibold">Tambah Pegawai Baru</h1>
+            <p className="text-sm text-muted-foreground">Masukkan data pegawai rumah sakit</p>
+          </div>
+        </div>
 
         {/* Personal Information */}
-        <Card className="shadow-md">
-          <CardHeader className="border-b bg-muted/50">
-            <div className="flex items-center gap-2">
-              <User className="h-4 w-4 text-muted-foreground" />
-              <CardTitle className="text-sm font-medium">Data Pribadi</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent className="pt-6">
+        <div className="rounded-lg border">
+          <div className="flex items-center gap-2 px-6 py-4">
+            <User className="h-4 w-4 text-muted-foreground" />
+            <h3 className="text-sm font-medium">Data Pribadi</h3>
+          </div>
+          <div className="px-6 pb-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
               <div className="space-y-2">
                 <Label htmlFor="nik" className="text-xs font-medium">
@@ -465,18 +448,16 @@ export default function EmployeeCreate() {
                 />
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* Address Information */}
-        <Card className="shadow-md">
-          <CardHeader className="border-b bg-muted/50">
-            <div className="flex items-center gap-2">
-              <MapPin className="h-4 w-4 text-muted-foreground" />
-              <CardTitle className="text-sm font-medium">Alamat</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent className="pt-6">
+        <div className="rounded-lg border">
+          <div className="flex items-center gap-2 px-6 py-4">
+            <MapPin className="h-4 w-4 text-muted-foreground" />
+            <h3 className="text-sm font-medium">Alamat</h3>
+          </div>
+          <div className="px-6 pb-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div className="space-y-2">
                 <Label className="text-xs font-medium">
@@ -566,18 +547,16 @@ export default function EmployeeCreate() {
                 />
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* Employment Information */}
-        <Card className="shadow-md">
-          <CardHeader className="border-b bg-muted/50">
-            <div className="flex items-center gap-2">
-              <Briefcase className="h-4 w-4 text-muted-foreground" />
-              <CardTitle className="text-sm font-medium">Data Kepegawaian</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent className="pt-6">
+        <div className="rounded-lg border">
+          <div className="flex items-center gap-2 px-6 py-4">
+            <Briefcase className="h-4 w-4 text-muted-foreground" />
+            <h3 className="text-sm font-medium">Data Kepegawaian</h3>
+          </div>
+          <div className="px-6 pb-6">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
               <div className="space-y-2">
                 <Label className="text-xs font-medium">
@@ -658,19 +637,17 @@ export default function EmployeeCreate() {
                 </div>
               )}
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* Medical Staff License Information */}
         {isMedicalStaff && (
-          <Card className="shadow-md">
-            <CardHeader className="border-b bg-muted/50">
-              <div className="flex items-center gap-2">
-                <Stethoscope className="h-4 w-4 text-muted-foreground" />
-                <CardTitle className="text-sm font-medium">Surat Izin Praktik</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-6">
+          <div className="rounded-lg border">
+            <div className="flex items-center gap-2 px-6 py-4">
+              <Stethoscope className="h-4 w-4 text-muted-foreground" />
+              <h3 className="text-sm font-medium">Surat Izin Praktik</h3>
+            </div>
+            <div className="px-6 pb-6">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                 <div className="space-y-2">
                   <Label htmlFor="no_str" className="text-xs font-medium">
@@ -747,19 +724,17 @@ export default function EmployeeCreate() {
                   />
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         )}
 
         {/* Education */}
-        <Card className="shadow-md">
-          <CardHeader className="border-b bg-muted/50">
-            <div className="flex items-center gap-2">
-              <GraduationCap className="h-4 w-4 text-muted-foreground" />
-              <CardTitle className="text-sm font-medium">Pendidikan</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent className="pt-6">
+        <div className="rounded-lg border">
+          <div className="flex items-center gap-2 px-6 py-4">
+            <GraduationCap className="h-4 w-4 text-muted-foreground" />
+            <h3 className="text-sm font-medium">Pendidikan</h3>
+          </div>
+          <div className="px-6 pb-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
               <div className="space-y-2">
                 <Label className="text-xs font-medium">
@@ -801,18 +776,16 @@ export default function EmployeeCreate() {
                 />
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* Bank Information */}
-        <Card className="shadow-md">
-          <CardHeader className="border-b bg-muted/50">
-            <div className="flex items-center gap-2">
-              <Building2 className="h-4 w-4 text-muted-foreground" />
-              <CardTitle className="text-sm font-medium">Informasi Bank</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent className="pt-6">
+        <div className="rounded-lg border">
+          <div className="flex items-center gap-2 px-6 py-4">
+            <Building2 className="h-4 w-4 text-muted-foreground" />
+            <h3 className="text-sm font-medium">Informasi Bank</h3>
+          </div>
+          <div className="px-6 pb-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
               <div className="space-y-2">
                 <Label htmlFor="nama_bank" className="text-xs font-medium">
@@ -852,18 +825,16 @@ export default function EmployeeCreate() {
                 />
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* Emergency Contact */}
-        <Card className="shadow-md">
-          <CardHeader className="border-b bg-muted/50">
-            <div className="flex items-center gap-2">
-              <Heart className="h-4 w-4 text-muted-foreground" />
-              <CardTitle className="text-sm font-medium">Kontak Darurat</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent className="pt-6">
+        <div className="rounded-lg border">
+          <div className="flex items-center gap-2 px-6 py-4">
+            <Heart className="h-4 w-4 text-muted-foreground" />
+            <h3 className="text-sm font-medium">Kontak Darurat</h3>
+          </div>
+          <div className="px-6 pb-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
               <div className="space-y-2">
                 <Label htmlFor="nama_kontak_darurat" className="text-xs font-medium">
@@ -903,8 +874,8 @@ export default function EmployeeCreate() {
                 />
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* Submit Button */}
         <div className="flex gap-3 justify-end">

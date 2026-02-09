@@ -1,13 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
+
 import { DataTable } from "@/components/ui/data-table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { icd10Api, icd9cmApi, type ICD10, type ICD9CM } from "@/lib/api/icd";
@@ -117,60 +111,51 @@ export default function ICDIndexPage() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      <div className="grid gap-4">
-        {/* Main Table Card */}
-        <Card className="shadow-md">
-          <CardHeader className="border-b bg-muted/50">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <CardTitle className="text-base font-semibold">
-                  {activeTab === "icd10" ? "ICD-10 Indonesia Modified" : "ICD-9-CM Indonesia Modified"}
-                </CardTitle>
-                <CardDescription>
-                  {activeTab === "icd10"
-                    ? "Kode diagnosis berdasarkan ICD-10 versi Indonesia"
-                    : "Kode prosedur/tindakan berdasarkan ICD-9-CM versi Indonesia"}
-                </CardDescription>
-              </div>
-              <div className="flex items-center gap-4">
-                <Tabs value={activeTab} onValueChange={handleTabChange}>
-                  <TabsList>
-                    <TabsTrigger value="icd10" className="gap-2">
-                      <Stethoscope className="h-4 w-4" />
-                      ICD-10
-                    </TabsTrigger>
-                    <TabsTrigger value="icd9cm" className="gap-2">
-                      <Syringe className="h-4 w-4" />
-                      ICD-9-CM
-                    </TabsTrigger>
-                  </TabsList>
-                </Tabs>
-                {hasPermission("icd.create") && (
-                  <Button onClick={() => navigate(`/icd/${activeTab}/create`)} size="sm">
-                    <Plus className="mr-2 h-4 w-4" />
-                    Tambah
-                  </Button>
-                )}
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="pt-6">
-            {loading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
-            ) : (
-              <DataTable
-                columns={columns}
-                data={data}
-                searchPlaceholder="Cari kode atau nama..."
-                pageSize={15}
-                tableId={`icd_${activeTab}`}
-              />
-            )}
-          </CardContent>
-        </Card>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-lg font-semibold">
+            {activeTab === "icd10" ? "ICD-10 Indonesia Modified" : "ICD-9-CM Indonesia Modified"}
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            {activeTab === "icd10"
+              ? "Kode diagnosis berdasarkan ICD-10 versi Indonesia"
+              : "Kode prosedur/tindakan berdasarkan ICD-9-CM versi Indonesia"}
+          </p>
+        </div>
+        <div className="flex items-center gap-4">
+          <Tabs value={activeTab} onValueChange={handleTabChange} variant="inline">
+            <TabsList>
+              <TabsTrigger value="icd10" className="gap-2">
+                <Stethoscope className="h-4 w-4" />
+                ICD-10
+              </TabsTrigger>
+              <TabsTrigger value="icd9cm" className="gap-2">
+                <Syringe className="h-4 w-4" />
+                ICD-9-CM
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+          {hasPermission("icd.create") && (
+            <Button onClick={() => navigate(`/icd/${activeTab}/create`)} size="sm">
+              <Plus className="mr-2 h-4 w-4" />
+              Tambah
+            </Button>
+          )}
+        </div>
       </div>
+      {loading ? (
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      ) : (
+        <DataTable
+          columns={columns}
+          data={data}
+          searchPlaceholder="Cari kode atau nama..."
+          pageSize={15}
+          tableId={`icd_${activeTab}`}
+        />
+      )}
 
       <ConfirmDialog
         open={deleteDialogOpen}

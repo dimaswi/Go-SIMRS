@@ -146,8 +146,10 @@ func CreateQueue(c *gin.Context) {
 	today := time.Now()
 	queueDate := time.Date(today.Year(), today.Month(), today.Day(), 0, 0, 0, 0, today.Location())
 
-	// Generate queue number
-	queueNumber := generateQueueNumber(input.QueueType, queueDate)
+	// Generate queue number within transaction to avoid race condition
+	tx := database.DB.Begin()
+
+	queueNumber := generateQueueNumberTx(tx, input.QueueType, queueDate)
 
 	queue := models.Queue{
 		QueueNumber: queueNumber,
@@ -158,8 +160,14 @@ func CreateQueue(c *gin.Context) {
 		Notes:       input.Notes,
 	}
 
-	if err := database.DB.Create(&queue).Error; err != nil {
+	if err := tx.Create(&queue).Error; err != nil {
+		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengambil nomor antrean"})
+		return
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal commit transaksi"})
 		return
 	}
 
@@ -169,8 +177,8 @@ func CreateQueue(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"data": queue})
 }
 
-// generateQueueNumber generates the next queue number for the given type and date
-func generateQueueNumber(queueType string, queueDate time.Time) string {
+// generateQueueNumberTx generates the next queue number within a transaction (race-safe)
+func generateQueueNumberTx(tx *gorm.DB, queueType string, queueDate time.Time) string {
 	prefix := "A" // general
 	switch queueType {
 	case "bpjs":
@@ -180,7 +188,9 @@ func generateQueueNumber(queueType string, queueDate time.Time) string {
 	}
 
 	var counter models.QueueCounter
-	err := database.DB.Where("queue_date = ? AND queue_type = ?", queueDate, queueType).First(&counter).Error
+	// Use Set("gorm:query_option", "FOR UPDATE") for row-level lock
+	err := tx.Set("gorm:query_option", "FOR UPDATE").
+		Where("queue_date = ? AND queue_type = ?", queueDate, queueType).First(&counter).Error
 
 	if err == gorm.ErrRecordNotFound {
 		// Create new counter
@@ -189,11 +199,11 @@ func generateQueueNumber(queueType string, queueDate time.Time) string {
 			QueueType:  queueType,
 			LastNumber: 1,
 		}
-		database.DB.Create(&counter)
+		tx.Create(&counter)
 	} else {
 		// Increment counter
 		counter.LastNumber++
-		database.DB.Save(&counter)
+		tx.Save(&counter)
 	}
 
 	return fmt.Sprintf("%s%03d", prefix, counter.LastNumber)

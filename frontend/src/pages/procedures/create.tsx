@@ -12,13 +12,6 @@ import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
   Table,
   TableBody,
   TableCell,
@@ -199,21 +192,18 @@ export default function ProcedureCreate() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
-          <div className="flex items-center gap-4">
-            <Button variant="outline" size="icon" asChild className="h-9 w-9">
-              <Link to="/procedures">
-                <ArrowLeft className="h-4 w-4" />
-              </Link>
-            </Button>
-            <div>
-              <CardTitle className="text-base font-semibold">Tambah Tindakan</CardTitle>
-              <CardDescription>Tambah tindakan medis baru dengan tarif per kelas pasien</CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="pt-6">
+      <div className="flex items-center gap-4">
+        <Button variant="outline" size="icon" asChild className="h-9 w-9">
+          <Link to="/procedures">
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
+        </Button>
+        <div>
+          <h1 className="text-lg font-semibold">Tambah Tindakan</h1>
+          <p className="text-sm text-muted-foreground">Tambah tindakan medis baru dengan tarif per kelas pasien</p>
+        </div>
+      </div>
+      <div className="rounded-lg border p-6">
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Basic Information */}
             <div className="space-y-4">
@@ -481,8 +471,7 @@ export default function ProcedureCreate() {
               </Button>
             </div>
           </form>
-        </CardContent>
-      </Card>
+      </div>
     </div>
   );
 }

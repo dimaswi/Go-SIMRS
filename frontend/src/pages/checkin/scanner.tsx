@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -233,21 +233,19 @@ export default function CheckInScannerPage() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6 h-full overflow-hidden">
-      <Card className="shadow-md flex-1 flex flex-col overflow-hidden">
-        <CardHeader className="border-b bg-muted/50 flex-shrink-0">
-          <div className="flex items-center justify-between">
+      <div className="rounded-lg border flex-1 flex flex-col overflow-hidden">
+        <div className="flex items-center justify-between flex-shrink-0 p-6">
             <div className="space-y-1">
-              <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <h1 className="text-lg font-semibold flex items-center gap-2">
                 <QrCode className="h-4 w-4" />
                 Check-In Pasien
-              </CardTitle>
-              <CardDescription>
+              </h1>
+              <p className="text-sm text-muted-foreground">
                 Scan QR code atau masukkan nomor registrasi untuk check-in
-              </CardDescription>
+              </p>
             </div>
-          </div>
-        </CardHeader>
-        <CardContent className="flex-1 overflow-auto py-4">
+        </div>
+        <div className="flex-1 overflow-auto py-4 px-6">
           {/* Check-in Result */}
           {checkInResult ? (
             <div className="max-w-lg mx-auto">
@@ -402,8 +400,8 @@ export default function CheckInScannerPage() {
               </div>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }

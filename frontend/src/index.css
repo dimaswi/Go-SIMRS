@@ -22,8 +22,8 @@
     --destructive-foreground: 0 0% 100%;
     --success: 142 76% 36%;
     --success-foreground: 0 0% 100%;
-    --border: 0 0% 92%;
-    --input: 0 0% 92%;
+    --border: 0 0% 90%;
+    --input: 0 0% 82%;
     --ring: 0 0% 20%;
     --radius: 0.375rem;
     --chart-1: 12 76% 61%;
@@ -61,7 +61,7 @@
     --success: 142 76% 36%;
     --success-foreground: 0 0% 100%;
     --border: 0 0% 20%;
-    --input: 0 0% 20%;
+    --input: 0 0% 30%;
     --ring: 0 0% 80%;
     --chart-1: 220 70% 50%;
     --chart-2: 160 60% 45%;
@@ -79,9 +79,14 @@
   }
 }
 
+
 @layer base {
   * {
     @apply border-border;
+    scrollbar-width: none;
+  }
+  *::-webkit-scrollbar {
+    display: none;
   }
   body {
     @apply bg-background text-foreground;

@@ -1,15 +1,4 @@
-import { useState, useEffect, useRef } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
-import { Button } from "@/components/ui/button";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormMessage,
-} from "@/components/ui/form";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { queueApi, type Queue } from "@/lib/api/queue";
 import { counterApi, type Counter } from "@/lib/api/counters";
@@ -23,38 +12,35 @@ import {
   Users,
   ChevronUp,
   ChevronDown,
-  Volume2,
+  HandMetal,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const formSchema = z.object({
-  counter_id: z.number().min(1, "Pilih loket"),
-  notes: z.string().optional(),
-});
-
-type FormData = z.infer<typeof formSchema>;
+// Get base URL without /api suffix
+const getBaseUrl = () => {
+  const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8080/api";
+  return apiUrl.replace(/\/api$/, "");
+};
+const BASE_URL = getBaseUrl();
 
 export default function KioskIndex() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [counters, setCounters] = useState<Counter[]>([]);
   const [selectedCounter, setSelectedCounter] = useState<number | null>(null);
   const [queueNumber, setQueueNumber] = useState<string>("");
   const [showSuccess, setShowSuccess] = useState(false);
+  const [countdown, setCountdown] = useState(8);
   const [allQueues, setAllQueues] = useState<Queue[]>([]);
-  const [hospitalName, setHospitalName] = useState("RUMAH SAKIT");
+  const [appName, setAppName] = useState("RUMAH SAKIT");
+  const [appSubtitle, setAppSubtitle] = useState("");
+  const [appLogo, setAppLogo] = useState("");
   const [currentTime, setCurrentTime] = useState(new Date());
   const [canScrollUp, setCanScrollUp] = useState(false);
   const [canScrollDown, setCanScrollDown] = useState(false);
   const gridContainerRef = useRef<HTMLDivElement>(null);
-
-  const form = useForm<FormData>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      counter_id: 0,
-      notes: "",
-    },
-  });
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Update time every second
   useEffect(() => {
@@ -63,33 +49,27 @@ export default function KioskIndex() {
   }, []);
 
   // Check scroll position
-  const checkScrollPosition = () => {
+  const checkScrollPosition = useCallback(() => {
     const container = gridContainerRef.current;
     if (container) {
       const { scrollTop, scrollHeight, clientHeight } = container;
       setCanScrollUp(scrollTop > 0);
       setCanScrollDown(scrollTop + clientHeight < scrollHeight - 10);
     }
-  };
+  }, []);
 
   useEffect(() => {
     checkScrollPosition();
     window.addEventListener("resize", checkScrollPosition);
     return () => window.removeEventListener("resize", checkScrollPosition);
-  }, [counters]);
+  }, [counters, checkScrollPosition]);
 
   const scrollUp = () => {
-    const container = gridContainerRef.current;
-    if (container) {
-      container.scrollBy({ top: -300, behavior: "smooth" });
-    }
+    gridContainerRef.current?.scrollBy({ top: -300, behavior: "smooth" });
   };
 
   const scrollDown = () => {
-    const container = gridContainerRef.current;
-    if (container) {
-      container.scrollBy({ top: 300, behavior: "smooth" });
-    }
+    gridContainerRef.current?.scrollBy({ top: 300, behavior: "smooth" });
   };
 
   // Load settings
@@ -98,9 +78,9 @@ export default function KioskIndex() {
       try {
         const response = await settingsApi.getAll();
         const settings = response.data.data;
-        if (settings.app_name) {
-          setHospitalName(settings.app_name);
-        }
+        if (settings.app_name) setAppName(settings.app_name);
+        if (settings.app_subtitle) setAppSubtitle(settings.app_subtitle);
+        if (settings.app_logo) setAppLogo(settings.app_logo);
       } catch (error) {
         console.error("Failed to load settings:", error);
       }
@@ -108,11 +88,11 @@ export default function KioskIndex() {
     loadSettings();
   }, []);
 
-  // Load active counters
+  // Load open counters
   useEffect(() => {
     const loadCounters = async () => {
       try {
-        const data = await counterApi.getActiveCounters();
+        const data = await counterApi.getOpenCounters();
         setCounters(data);
       } catch (error) {
         toast({
@@ -125,6 +105,8 @@ export default function KioskIndex() {
       }
     };
     loadCounters();
+    const interval = setInterval(loadCounters, 3000);
+    return () => clearInterval(interval);
   }, [toast]);
 
   // Load queue statistics
@@ -133,8 +115,7 @@ export default function KioskIndex() {
       try {
         const today = new Date().toISOString().split("T")[0];
         const response = await queueApi.getAll({ date: today });
-        const data = response.data.data || [];
-        setAllQueues(data);
+        setAllQueues(response.data.data || []);
       } catch (error) {
         console.error("Failed to load queues:", error);
       }
@@ -144,30 +125,30 @@ export default function KioskIndex() {
     return () => clearInterval(interval);
   }, []);
 
-  const handleCounterSelect = (counter: number) => {
-    setSelectedCounter(counter);
-    form.setValue("counter_id", counter);
-    // Auto submit setelah pilih counter
-    setTimeout(() => {
-      form.handleSubmit(onSubmit)();
-    }, 300);
-  };
-
-  const onSubmit = async (values: FormData) => {
+  const handleCounterSelect = async (counterId: number) => {
+    if (submitting) return;
+    setSelectedCounter(counterId);
+    setSubmitting(true);
     try {
       const response = await queueApi.create({
         queue_type: "general",
-        counter_id: values.counter_id,
-        notes: values.notes || "",
+        counter_id: counterId,
+        notes: "",
       });
-
       setQueueNumber(response.data.data.queue_number);
       setShowSuccess(true);
+      setCountdown(8);
 
-      // Auto reset after 5 seconds
-      setTimeout(() => {
-        handleReset();
-      }, 5000);
+      // Start countdown
+      countdownRef.current = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev <= 1) {
+            handleReset();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -175,140 +156,108 @@ export default function KioskIndex() {
         description:
           error.response?.data?.error || "Gagal mengambil nomor antrean.",
       });
+      setSelectedCounter(null);
+    } finally {
+      setSubmitting(false);
     }
   };
 
   const handleReset = () => {
+    if (countdownRef.current) {
+      clearInterval(countdownRef.current);
+      countdownRef.current = null;
+    }
     setSelectedCounter(null);
     setShowSuccess(false);
     setQueueNumber("");
-    form.reset();
+    setCountdown(8);
   };
 
   const handlePrint = () => {
     const printWindow = window.open("", "_blank");
     if (!printWindow) return;
 
-    const content = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Cetak Antrean - ${queueNumber}</title>
-          <style>
-            @page { margin: 0; }
-            body {
-              margin: 0;
-              padding: 20px;
-              font-family: 'Arial', sans-serif;
-              width: 80mm;
-              background: white;
-            }
-            .ticket {
-              text-align: center;
-              border: 3px solid #000;
-              padding: 20px;
-            }
-            .header {
-              font-size: 16px;
-              font-weight: bold;
-              margin-bottom: 15px;
-              border-bottom: 2px solid #000;
-              padding-bottom: 15px;
-              text-transform: uppercase;
-              letter-spacing: 1px;
-            }
-            .queue-number {
-              font-size: 64px;
-              font-weight: 900;
-              margin: 25px 0;
-              letter-spacing: 4px;
-            }
-            .counter {
-              font-size: 20px;
-              font-weight: bold;
-              margin: 20px 0;
-              padding: 12px;
-              border: 2px solid #000;
-            }
-            .datetime {
-              font-size: 12px;
-              color: #333;
-              margin: 15px 0;
-            }
-            .footer {
-              font-size: 11px;
-              margin-top: 20px;
-              padding-top: 15px;
-              border-top: 2px dashed #000;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="ticket">
-            <div class="header">${hospitalName}<br/>NOMOR ANTREAN</div>
-            <div class="queue-number">${queueNumber}</div>
-            <div class="counter">
-              ${counters.find((c) => c.id === selectedCounter)?.name || "Loket"}
-            </div>
-            <div class="datetime">
-              ${new Date().toLocaleDateString("id-ID", {
-                weekday: "long",
-                year: "numeric",
-                month: "long",
-                day: "numeric",
-              })}<br/>
-              ${new Date().toLocaleTimeString("id-ID")}
-            </div>
-            <div class="footer">
-              Mohon menunggu hingga nomor Anda dipanggil<br/>
-              Terima kasih
-            </div>
-          </div>
-          <script>
-            window.onload = function() {
-              window.print();
-              setTimeout(function() { window.close(); }, 100);
-            }
-          </script>
-        </body>
-      </html>
-    `;
+    const content = `<!DOCTYPE html>
+<html>
+<head>
+  <title>Cetak Antrean - ${queueNumber}</title>
+  <style>
+    @page { margin: 0; }
+    body { margin: 0; padding: 15px; font-family: 'Arial', sans-serif; width: 80mm; background: white; }
+    .ticket { text-align: center; border: 3px solid #000; padding: 15px; }
+    .header { font-size: 14px; font-weight: bold; margin-bottom: 10px; border-bottom: 2px solid #000; padding-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; }
+    .queue-number { font-size: 64px; font-weight: 900; margin: 20px 0; letter-spacing: 4px; }
+    .counter { font-size: 18px; font-weight: bold; margin: 15px 0; padding: 10px; border: 2px solid #000; }
+    .datetime { font-size: 11px; color: #333; margin: 10px 0; }
+    .footer { font-size: 10px; margin-top: 15px; padding-top: 10px; border-top: 2px dashed #000; }
+  </style>
+</head>
+<body>
+  <div class="ticket">
+    <div class="header">${appName}<br/>NOMOR ANTREAN</div>
+    <div class="queue-number">${queueNumber}</div>
+    <div class="counter">${counters.find((c) => c.id === selectedCounter)?.name || "Loket"}</div>
+    <div class="datetime">${new Date().toLocaleDateString("id-ID", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}<br/>${new Date().toLocaleTimeString("id-ID")}</div>
+    <div class="footer">Mohon menunggu hingga nomor Anda dipanggil<br/>Terima kasih</div>
+  </div>
+  <script>window.onload=function(){window.print();setTimeout(function(){window.close();},100);}</script>
+</body>
+</html>`;
 
     printWindow.document.write(content);
     printWindow.document.close();
   };
 
   // Calculate statistics
-  const totalQueues = (allQueues || []).length;
   const waitingQueues = (allQueues || []).filter(
     (q) => q.status === "waiting"
   ).length;
   const servingQueues = (allQueues || []).filter(
     (q) => q.status === "serving" || q.status === "called"
   ).length;
-  const completedQueues = (allQueues || []).filter(
-    (q) => q.status === "completed"
-  ).length;
 
-  // Success Screen
+  // Determine grid columns based on counter count for optimal 19" layout
+  const getGridCols = (count: number) => {
+    if (count <= 2) return "grid-cols-2";
+    if (count <= 3) return "grid-cols-3";
+    if (count <= 4) return "grid-cols-2 lg:grid-cols-4";
+    if (count <= 6) return "grid-cols-2 lg:grid-cols-3";
+    if (count <= 9) return "grid-cols-3";
+    return "grid-cols-3 lg:grid-cols-4";
+  };
+
+  // ============================================
+  // SUCCESS SCREEN
+  // ============================================
   if (showSuccess) {
     return (
-      <div className="h-screen overflow-hidden bg-white flex flex-col">
-        {/* Header */}
-        <div className="bg-black text-white py-4 px-6">
+      <div className="h-screen overflow-hidden bg-gradient-to-b from-gray-50 to-white flex flex-col select-none">
+        {/* Compact Header */}
+        <div className="bg-white border-b border-gray-200 py-3 px-6 flex-shrink-0">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold tracking-wide">{hospitalName}</h1>
-              <p className="text-gray-400 text-sm">Sistem Antrean Pendaftaran</p>
+            <div className="flex items-center gap-3">
+              {appLogo && (
+                <img
+                  src={`${BASE_URL}${appLogo}`}
+                  alt="Logo"
+                  className="h-10 w-10 object-contain"
+                />
+              )}
+              <div>
+                <h1 className="text-lg font-bold text-gray-900">{appName}</h1>
+                {appSubtitle && (
+                  <p className="text-gray-500 text-xs">{appSubtitle}</p>
+                )}
+              </div>
             </div>
             <div className="text-right">
-              <div className="text-3xl font-mono font-bold">
+              <div className="text-2xl font-mono font-bold text-gray-900">
                 {currentTime.toLocaleTimeString("id-ID", {
                   hour: "2-digit",
                   minute: "2-digit",
                 })}
               </div>
-              <div className="text-gray-400 text-sm">
+              <div className="text-gray-400 text-xs">
                 {currentTime.toLocaleDateString("id-ID", {
                   weekday: "long",
                   day: "numeric",
@@ -320,54 +269,61 @@ export default function KioskIndex() {
         </div>
 
         {/* Success Content */}
-        <div className="flex-1 flex items-center justify-center p-8">
-          <div className="text-center">
-            {/* Success Icon */}
-            <div className="mb-6">
-              <div className="mx-auto w-20 h-20 bg-black rounded-full flex items-center justify-center">
+        <div className="flex-1 flex items-center justify-center p-6">
+          <div className="text-center max-w-lg mx-auto">
+            {/* Animated Success Icon */}
+            <div className="mb-5 animate-[bounce_1s_ease-in-out]">
+              <div className="mx-auto w-20 h-20 bg-emerald-500 rounded-full flex items-center justify-center shadow-lg shadow-emerald-200">
                 <CheckCircle className="h-12 w-12 text-white" />
               </div>
             </div>
 
-            {/* Queue Number */}
-            <p className="text-xl text-gray-500 mb-4 uppercase tracking-wider">
+            <p className="text-base text-gray-400 mb-3 uppercase tracking-[0.2em] font-medium">
               Nomor Antrean Anda
             </p>
-            <div className="border-4 border-black inline-block px-16 py-8 mb-6">
-              <div className="text-8xl font-black tracking-wider">{queueNumber}</div>
+
+            {/* Queue Number - Bold & Clear */}
+            <div className="relative inline-block mb-4">
+              <div className="border-4 border-gray-900 rounded-2xl px-14 py-6 bg-white shadow-xl">
+                <div className="text-[5.5rem] leading-none font-black tracking-wider text-gray-900">
+                  {queueNumber}
+                </div>
+              </div>
             </div>
-            <div className="text-2xl font-semibold text-gray-700 mb-6">
-              {counters.find((c) => c.id === selectedCounter)?.name || "Loket"}
+
+            {/* Counter Name */}
+            <div className="mb-4">
+              <span className="inline-block bg-gray-900 text-white text-xl font-bold px-8 py-2.5 rounded-full">
+                {counters.find((c) => c.id === selectedCounter)?.name || "Loket"}
+              </span>
             </div>
 
             {/* Instructions */}
-            <p className="text-lg text-gray-600 mb-8">
-              Silakan tunggu hingga nomor Anda dipanggil
+            <p className="text-base text-gray-500 mb-6">
+              Silakan menunggu hingga nomor Anda dipanggil
             </p>
 
             {/* Actions */}
             <div className="flex gap-4 justify-center">
-              <Button
-                size="lg"
-                variant="outline"
+              <button
                 onClick={handlePrint}
-                className="text-lg px-8 py-6 h-auto border-2 border-black hover:bg-black hover:text-white transition-colors"
+                className="flex items-center gap-2 px-8 py-4 text-lg font-semibold border-2 border-gray-900 rounded-xl bg-white hover:bg-gray-900 hover:text-white transition-all duration-200 active:scale-95"
               >
-                <Printer className="mr-2 h-5 w-5" />
+                <Printer className="h-5 w-5" />
                 Cetak Tiket
-              </Button>
-              <Button
-                size="lg"
+              </button>
+              <button
                 onClick={handleReset}
-                className="text-lg px-8 py-6 h-auto bg-black hover:bg-gray-800"
+                className="flex items-center gap-2 px-8 py-4 text-lg font-semibold bg-gray-900 text-white rounded-xl hover:bg-gray-700 transition-all duration-200 active:scale-95"
               >
-                Ambil Nomor Lagi
-              </Button>
+                Selesai
+              </button>
             </div>
 
-            {/* Auto reset notice */}
-            <p className="text-sm text-gray-400 mt-6">
-              Halaman akan kembali otomatis dalam 5 detik
+            {/* Countdown */}
+            <p className="text-sm text-gray-400 mt-5">
+              Kembali otomatis dalam{" "}
+              <span className="font-mono font-bold text-gray-600">{countdown}</span> detik
             </p>
           </div>
         </div>
@@ -375,83 +331,94 @@ export default function KioskIndex() {
     );
   }
 
+  // ============================================
+  // MAIN KIOSK SCREEN
+  // ============================================
   return (
-    <div className="h-screen overflow-hidden bg-white text-gray-900 flex flex-col">
-      {/* Header */}
-      <div className="bg-black text-white py-4 px-6 flex-shrink-0">
+    <div className="h-screen overflow-hidden bg-gradient-to-b from-gray-100 to-gray-50 text-gray-900 flex flex-col select-none">
+      {/* Header - Compact with branding */}
+      <div className="bg-white shadow-sm py-3 px-6 flex-shrink-0">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-wide">{hospitalName}</h1>
-            <p className="text-gray-400 text-sm uppercase tracking-wider">
-              Ambil Nomor Antrean
-            </p>
-          </div>
-          <div className="text-right">
-            <div className="text-4xl font-mono font-bold">
-              {currentTime.toLocaleTimeString("id-ID", {
-                hour: "2-digit",
-                minute: "2-digit",
-                second: "2-digit",
-              })}
+          <div className="flex items-center gap-3">
+            {appLogo && (
+              <img
+                src={`${BASE_URL}${appLogo}`}
+                alt="Logo"
+                className="h-12 w-12 object-contain"
+              />
+            )}
+            <div>
+              <h1 className="text-xl font-bold tracking-wide text-gray-900">
+                {appName}
+              </h1>
+              {appSubtitle && (
+                <p className="text-gray-400 text-xs tracking-wider">
+                  {appSubtitle}
+                </p>
+              )}
             </div>
-            <div className="text-gray-400 text-sm">
-              {currentTime.toLocaleDateString("id-ID", {
-                weekday: "long",
-                day: "numeric",
-                month: "long",
-                year: "numeric",
-              })}
+          </div>
+
+          {/* Clock & Stats inline */}
+          <div className="flex items-center gap-6">
+            {/* Mini Stats */}
+            <div className="hidden sm:flex items-center gap-4 text-sm">
+              <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 rounded-full px-3 py-1">
+                <Clock className="h-3.5 w-3.5 text-amber-500" />
+                <span className="text-amber-700 font-semibold">{waitingQueues}</span>
+                <span className="text-amber-500 text-xs">antri</span>
+              </div>
+              <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 rounded-full px-3 py-1">
+                <Users className="h-3.5 w-3.5 text-emerald-500" />
+                <span className="text-emerald-700 font-semibold">{servingQueues}</span>
+                <span className="text-emerald-500 text-xs">dilayani</span>
+              </div>
+            </div>
+
+            {/* Clock */}
+            <div className="text-right">
+              <div className="text-3xl font-mono font-bold text-gray-900 leading-tight">
+                {currentTime.toLocaleTimeString("id-ID", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </div>
+              <div className="text-gray-400 text-xs">
+                {currentTime.toLocaleDateString("id-ID", {
+                  weekday: "long",
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                })}
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Statistics Bar */}
-      <div className="border-b-2 border-gray-200 py-3 px-6 flex-shrink-0">
-        <div className="flex items-center justify-center gap-12">
-          <div className="flex items-center gap-3">
-            <Users className="h-5 w-5 text-gray-400" />
-            <span className="text-gray-600 text-sm">Total</span>
-            <span className="text-3xl font-bold">{totalQueues}</span>
-          </div>
-          <div className="w-px h-8 bg-gray-300" />
-          <div className="flex items-center gap-3">
-            <Clock className="h-5 w-5 text-gray-400" />
-            <span className="text-gray-600 text-sm">Menunggu</span>
-            <span className="text-3xl font-bold">{waitingQueues}</span>
-          </div>
-          <div className="w-px h-8 bg-gray-300" />
-          <div className="flex items-center gap-3">
-            <Volume2 className="h-5 w-5 text-gray-400" />
-            <span className="text-gray-600 text-sm">Dilayani</span>
-            <span className="text-3xl font-bold">{servingQueues}</span>
-          </div>
-          <div className="w-px h-8 bg-gray-300" />
-          <div className="flex items-center gap-3">
-            <CheckCircle className="h-5 w-5 text-gray-400" />
-            <span className="text-gray-600 text-sm">Selesai</span>
-            <span className="text-3xl font-bold">{completedQueues}</span>
-          </div>
+      {/* CTA Title */}
+      <div className="py-4 px-6 text-center flex-shrink-0">
+        <div className="flex items-center justify-center gap-3">
+          <HandMetal className="h-7 w-7 text-gray-400" />
+          <h2 className="text-2xl font-bold text-gray-800">
+            Sentuh Loket Tujuan Anda
+          </h2>
         </div>
-      </div>
-
-      {/* Title Bar */}
-      <div className="py-4 px-6 text-center flex-shrink-0 border-b border-gray-100">
-        <h2 className="text-2xl font-bold text-gray-900">
-          Sentuh Loket untuk Mengambil Nomor Antrean
-        </h2>
+        <p className="text-gray-400 text-sm mt-1">
+          Pilih loket untuk mengambil nomor antrean
+        </p>
       </div>
 
       {/* Main Content - Counter Grid */}
-      <div className="flex-1 flex overflow-hidden relative">
-        {/* Scroll Up Button */}
+      <div className="flex-1 flex overflow-hidden relative px-4 pb-3">
+        {/* Scroll Up */}
         {canScrollUp && (
           <button
             onClick={scrollUp}
-            className="absolute top-2 left-1/2 -translate-x-1/2 z-10 bg-black text-white px-8 py-2 flex items-center gap-2 hover:bg-gray-800 transition-colors shadow-lg"
+            className="absolute top-2 left-1/2 -translate-x-1/2 z-10 bg-gray-900/90 text-white px-6 py-1.5 rounded-full flex items-center gap-2 hover:bg-gray-800 transition-colors shadow-lg backdrop-blur-sm"
           >
-            <ChevronUp className="h-5 w-5" />
-            <span className="font-medium">Geser Ke Atas</span>
+            <ChevronUp className="h-4 w-4" />
+            <span className="text-sm font-medium">Geser Atas</span>
           </button>
         )}
 
@@ -459,192 +426,218 @@ export default function KioskIndex() {
         <div
           ref={gridContainerRef}
           onScroll={checkScrollPosition}
-          className="flex-1 overflow-auto p-4"
+          className="flex-1 overflow-auto"
         >
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)}>
-              {loading ? (
-                <div className="flex items-center justify-center h-full">
-                  <Loader2 className="h-12 w-12 animate-spin text-gray-400" />
-                  <span className="ml-4 text-xl text-gray-500">Memuat loket...</span>
-                </div>
-              ) : counters.length === 0 ? (
-                <div className="flex items-center justify-center h-full">
-                  <AlertCircle className="h-16 w-16 text-gray-300 mr-4" />
-                  <p className="text-xl text-gray-500">Tidak ada loket yang tersedia</p>
-                </div>
-              ) : (
-                <FormField
-                  control={form.control}
-                  name="counter_id"
-                  render={({ field: _field }) => (
-                    <FormItem>
-                      <FormControl>
-                        {/* Grid that can accommodate 18+ cards like universal display */}
-                        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-6 2xl:grid-cols-9 gap-3">
-                          {counters.map((counter) => {
-                            const isSelected = selectedCounter === counter.id;
-
-                            // Statistics per counter
-                            const counterAllQueues = (allQueues || []).filter(
-                              (q) => q.counter_id === counter.id
-                            );
-                            const counterWaiting = counterAllQueues.filter(
-                              (q) => q.status === "waiting"
-                            ).length;
-                            const counterServing = counterAllQueues.filter(
-                              (q) => q.status === "serving" || q.status === "called"
-                            ).length;
-
-                            // Get current serving queue
-                            const currentQueue = counterAllQueues.find(
-                              (q) => q.status === "called" || q.status === "serving"
-                            );
-
-                            return (
-                              <button
-                                key={counter.id}
-                                type="button"
-                                onClick={() => handleCounterSelect(counter.id)}
-                                className={cn(
-                                  "border-2 transition-all duration-200 text-left",
-                                  "hover:scale-[1.02] active:scale-[0.98]",
-                                  isSelected
-                                    ? "border-black bg-black text-white"
-                                    : "border-gray-200 bg-gray-50 hover:border-black"
-                                )}
-                              >
-                                {/* Counter Header */}
-                                <div
-                                  className={cn(
-                                    "px-3 py-2 border-b",
-                                    isSelected ? "border-gray-700" : "border-gray-200"
-                                  )}
-                                >
-                                  <div className="flex items-center justify-between">
-                                    <div
-                                      className={cn(
-                                        "text-lg font-bold",
-                                        isSelected ? "text-white" : "text-gray-900"
-                                      )}
-                                    >
-                                      {counter.code}
-                                    </div>
-                                    {isSelected && (
-                                      <CheckCircle className="h-4 w-4 text-white" />
-                                    )}
-                                  </div>
-                                  <div
-                                    className={cn(
-                                      "text-xs truncate",
-                                      isSelected ? "text-gray-400" : "text-gray-500"
-                                    )}
-                                  >
-                                    {counter.name}
-                                  </div>
-                                </div>
-
-                                {/* Current Queue Display */}
-                                <div className="px-3 py-4 text-center">
-                                  {currentQueue ? (
-                                    <>
-                                      <div className="text-4xl font-black tracking-wide mb-1">
-                                        {currentQueue.queue_number}
-                                      </div>
-                                      <div
-                                        className={cn(
-                                          "text-xs",
-                                          isSelected ? "text-gray-400" : "text-gray-500"
-                                        )}
-                                      >
-                                        Sedang Dilayani
-                                      </div>
-                                    </>
-                                  ) : (
-                                    <div
-                                      className={cn(
-                                        "text-3xl py-2",
-                                        isSelected ? "text-gray-500" : "text-gray-300"
-                                      )}
-                                    >
-                                      ---
-                                    </div>
-                                  )}
-                                </div>
-
-                                {/* Counter Statistics */}
-                                <div
-                                  className={cn(
-                                    "px-3 py-2 border-t",
-                                    isSelected ? "border-gray-700" : "border-gray-200"
-                                  )}
-                                >
-                                  <div className="flex justify-between text-xs">
-                                    <div className="text-center">
-                                      <div
-                                        className={cn(
-                                          "font-bold text-sm",
-                                          isSelected ? "text-white" : "text-gray-900"
-                                        )}
-                                      >
-                                        {counterWaiting}
-                                      </div>
-                                      <div
-                                        className={cn(
-                                          isSelected ? "text-gray-500" : "text-gray-400"
-                                        )}
-                                      >
-                                        Tunggu
-                                      </div>
-                                    </div>
-                                    <div className="text-center">
-                                      <div
-                                        className={cn(
-                                          "font-bold text-sm",
-                                          isSelected ? "text-white" : "text-gray-900"
-                                        )}
-                                      >
-                                        {counterServing}
-                                      </div>
-                                      <div
-                                        className={cn(
-                                          isSelected ? "text-gray-500" : "text-gray-400"
-                                        )}
-                                      >
-                                        Layani
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </FormControl>
-                      <FormMessage className="text-lg mt-6 text-center" />
-                    </FormItem>
-                  )}
-                />
+          {loading ? (
+            <div className="flex flex-col items-center justify-center h-full gap-3">
+              <Loader2 className="h-10 w-10 animate-spin text-gray-300" />
+              <span className="text-lg text-gray-400">Memuat loket...</span>
+            </div>
+          ) : counters.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full gap-3">
+              <div className="w-20 h-20 rounded-full bg-gray-200 flex items-center justify-center">
+                <AlertCircle className="h-10 w-10 text-gray-400" />
+              </div>
+              <p className="text-xl font-semibold text-gray-400">
+                Tidak ada loket yang buka
+              </p>
+              <p className="text-sm text-gray-400">
+                Silakan hubungi petugas pendaftaran
+              </p>
+            </div>
+          ) : (
+            <div
+              className={cn(
+                "grid gap-4 h-full auto-rows-fr",
+                getGridCols(counters.length)
               )}
-            </form>
-          </Form>
+            >
+              {counters.map((counter) => {
+                const isSelected = selectedCounter === counter.id;
+
+                // Statistics per counter
+                const counterQueues = (allQueues || []).filter(
+                  (q) => q.counter_id === counter.id
+                );
+                const counterWaiting = counterQueues.filter(
+                  (q) => q.status === "waiting"
+                ).length;
+
+                // Get current serving queue
+                const currentQueue = counterQueues.find(
+                  (q) => q.status === "called" || q.status === "serving"
+                );
+
+                return (
+                  <button
+                    key={counter.id}
+                    type="button"
+                    disabled={submitting}
+                    onClick={() => handleCounterSelect(counter.id)}
+                    className={cn(
+                      "relative rounded-2xl transition-all duration-200 flex flex-col overflow-hidden",
+                      "active:scale-[0.97] disabled:opacity-70",
+                      "min-h-[140px]",
+                      isSelected
+                        ? "bg-gray-900 text-white ring-4 ring-gray-900/30 shadow-2xl scale-[0.97]"
+                        : "bg-white text-gray-900 shadow-md hover:shadow-xl border border-gray-200 hover:border-gray-400"
+                    )}
+                  >
+                    {/* Counter Name - Top Section */}
+                    <div
+                      className={cn(
+                        "px-4 py-3 flex items-center justify-between flex-shrink-0",
+                        isSelected
+                          ? "bg-gray-800"
+                          : "bg-gray-50 border-b border-gray-100"
+                      )}
+                    >
+                      <div className="text-left">
+                        <div className="text-xl font-extrabold leading-tight">
+                          {counter.name}
+                        </div>
+                        {counter.location && (
+                          <div
+                            className={cn(
+                              "text-xs mt-0.5",
+                              isSelected ? "text-gray-400" : "text-gray-400"
+                            )}
+                          >
+                            {counter.location}
+                          </div>
+                        )}
+                      </div>
+                      <div
+                        className={cn(
+                          "text-sm font-bold px-3 py-1 rounded-full",
+                          isSelected
+                            ? "bg-white/20 text-white"
+                            : "bg-gray-200 text-gray-600"
+                        )}
+                      >
+                        {counter.code}
+                      </div>
+                    </div>
+
+                    {/* Current Queue - Center Section */}
+                    <div className="flex-1 flex flex-col items-center justify-center px-4 py-2">
+                      {currentQueue ? (
+                        <>
+                          <div
+                            className={cn(
+                              "text-xs font-medium uppercase tracking-wider mb-1",
+                              isSelected ? "text-gray-400" : "text-gray-400"
+                            )}
+                          >
+                            Sedang Dilayani
+                          </div>
+                          <div className="text-5xl font-black tracking-wider leading-none">
+                            {currentQueue.queue_number}
+                          </div>
+                        </>
+                      ) : counterWaiting > 0 ? (
+                        <>
+                          <div
+                            className={cn(
+                              "text-4xl font-black leading-none",
+                              isSelected ? "text-white" : "text-amber-500"
+                            )}
+                          >
+                            {counterWaiting}
+                          </div>
+                          <div
+                            className={cn(
+                              "text-sm font-medium mt-1",
+                              isSelected ? "text-gray-400" : "text-amber-400"
+                            )}
+                          >
+                            orang menunggu
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div
+                            className={cn(
+                              "text-sm font-medium",
+                              isSelected ? "text-gray-500" : "text-gray-300"
+                            )}
+                          >
+                            Belum ada antrian
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Waiting Info - Bottom */}
+                    <div
+                      className={cn(
+                        "px-4 py-2.5 flex items-center justify-center gap-2 flex-shrink-0",
+                        isSelected
+                          ? "bg-gray-800"
+                          : counterWaiting > 0
+                            ? "bg-amber-50 border-t border-amber-100"
+                            : "bg-gray-50 border-t border-gray-100"
+                      )}
+                    >
+                      {currentQueue ? (
+                        <>
+                          <Clock
+                            className={cn(
+                              "h-4 w-4",
+                              isSelected ? "text-gray-400" : "text-amber-400"
+                            )}
+                          />
+                          <span
+                            className={cn(
+                              "text-sm font-medium",
+                              isSelected ? "text-gray-300" : "text-amber-600"
+                            )}
+                          >
+                            {counterWaiting > 0
+                              ? `${counterWaiting} orang menunggu`
+                              : "Tidak ada yang menunggu"}
+                          </span>
+                        </>
+                      ) : (
+                        <span
+                          className={cn(
+                            "text-sm font-medium",
+                            isSelected ? "text-gray-400" : "text-gray-400"
+                          )}
+                        >
+                          Sentuh untuk ambil nomor
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Loading overlay when submitting this counter */}
+                    {isSelected && submitting && (
+                      <div className="absolute inset-0 bg-gray-900/80 flex items-center justify-center rounded-2xl">
+                        <Loader2 className="h-8 w-8 animate-spin text-white" />
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
-        {/* Scroll Down Button */}
+        {/* Scroll Down */}
         {canScrollDown && (
           <button
             onClick={scrollDown}
-            className="absolute bottom-2 left-1/2 -translate-x-1/2 z-10 bg-black text-white px-8 py-2 flex items-center gap-2 hover:bg-gray-800 transition-colors shadow-lg"
+            className="absolute bottom-2 left-1/2 -translate-x-1/2 z-10 bg-gray-900/90 text-white px-6 py-1.5 rounded-full flex items-center gap-2 hover:bg-gray-800 transition-colors shadow-lg backdrop-blur-sm"
           >
-            <ChevronDown className="h-5 w-5" />
-            <span className="font-medium">Geser Ke Bawah</span>
+            <ChevronDown className="h-4 w-4" />
+            <span className="text-sm font-medium">Geser Bawah</span>
           </button>
         )}
       </div>
 
       {/* Footer */}
-      <div className="border-t-2 border-gray-200 py-3 px-6 text-center bg-gray-50 flex-shrink-0">
-        <p className="text-gray-500 text-sm">
+      <div className="py-2.5 px-6 text-center flex-shrink-0 bg-white border-t border-gray-200">
+        <p className="text-gray-400 text-xs tracking-wide">
           Sentuh loket yang dituju untuk mendapatkan nomor antrean
         </p>
       </div>

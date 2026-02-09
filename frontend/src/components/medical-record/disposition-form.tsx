@@ -3,7 +3,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Dialog,
   DialogContent,
@@ -892,7 +891,7 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
 
   if (loading) {
     return (
-      <Card className="shadow-md">
+      <Card>
         <CardContent className="p-6 flex items-center justify-center min-h-[300px]">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </CardContent>
@@ -902,8 +901,8 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
 
   return (
     <>
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/30 py-3 px-4">
+      <Card>
+        <CardHeader className="py-3 px-4">
           <CardTitle className="text-base font-semibold flex items-center gap-2">
             <LogOut className="h-4 w-4" />
             Pasien Pulang / Disposisi
@@ -912,9 +911,7 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
             Keputusan akhir terkait pemulangan, rawat inap, rujukan, atau tindakan lanjutan
           </CardDescription>
         </CardHeader>
-        <CardContent className="p-0">
-          <ScrollArea className="h-[calc(100vh-300px)] min-h-[400px]">
-            <div className="p-4">
+        <CardContent>
               {/* Pending Orders Warning */}
               {pendingOrdersInfo?.has_pending_orders && (
                 <Alert variant="destructive" className="mb-4">
@@ -1062,8 +1059,6 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
                   </div>
                 </div>
               )}
-            </div>
-          </ScrollArea>
         </CardContent>
       </Card>
 

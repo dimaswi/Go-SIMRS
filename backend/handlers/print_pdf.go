@@ -5927,3 +5927,257 @@ func formatNumber(num float64) string {
 	}
 	return string(result)
 }
+
+// PrintInformedConsent generates PDF for General Consent / Persetujuan Umum
+func PrintInformedConsent(c *gin.Context) {
+	patientID, err := strconv.Atoi(c.Param("patientId"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid patient ID"})
+		return
+	}
+
+	var patient models.Patient
+	if err := database.DB.First(&patient, patientID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Patient not found"})
+		return
+	}
+
+	// Get the logged-in user who prints this document
+	staffName := ""
+	if userID, exists := c.Get("user_id"); exists {
+		var user models.User
+		if err := database.DB.First(&user, userID).Error; err == nil {
+			staffName = user.FullName
+		}
+	}
+
+	info := getHospitalInfo()
+
+	// Create A4 PDF
+	pdf := gofpdf.New("P", "mm", "A4", "")
+	pdf.SetMargins(marginLeft, marginTop, marginRight)
+	pdf.SetAutoPageBreak(true, marginBottom)
+	pdf.AddPage()
+
+	// KOP Header
+	addHeader(pdf, info, "FORMULIR PERSETUJUAN UMUM", "(GENERAL CONSENT)")
+
+	// Patient Info Section
+	labelW := 40.0
+	pdf.SetFont("Arial", "B", 9)
+	pdf.SetFillColor(220, 220, 220)
+	pdf.SetDrawColor(0, 0, 0)
+	pdf.SetLineWidth(0.3)
+	pdf.CellFormat(contentWidth, 6, " DATA PASIEN", "1", 1, "L", true, 0, "")
+	pdf.SetLineWidth(0.2)
+
+	col1 := 40.0
+	col2 := 50.0
+	col3 := 35.0
+	col4 := 55.0
+
+	pdf.SetFont("Arial", "", 9)
+	pdf.SetFillColor(245, 245, 245)
+
+	// Row 1: No RM | JK
+	pdf.CellFormat(col1, rowHeight, " No. Rekam Medis", "1", 0, "L", true, 0, "")
+	pdf.SetFont("Arial", "B", 9)
+	pdf.CellFormat(col2, rowHeight, " "+patient.NoRM, "1", 0, "L", false, 0, "")
+	pdf.SetFont("Arial", "", 9)
+	pdf.CellFormat(col3, rowHeight, " Jenis Kelamin", "1", 0, "L", true, 0, "")
+	gender := string(patient.JenisKelamin)
+	if gender == "L" {
+		gender = "Laki-laki"
+	} else if gender == "P" {
+		gender = "Perempuan"
+	}
+	pdf.CellFormat(col4, rowHeight, " "+gender, "1", 1, "L", false, 0, "")
+
+	// Row 2: Nama | TTL
+	pdf.CellFormat(col1, rowHeight, " Nama Lengkap", "1", 0, "L", true, 0, "")
+	pdf.SetFont("Arial", "B", 9)
+	pdf.CellFormat(col2, rowHeight, " "+truncateText(patient.NamaLengkap, 25), "1", 0, "L", false, 0, "")
+	pdf.SetFont("Arial", "", 9)
+	pdf.CellFormat(col3, rowHeight, " Tanggal Lahir", "1", 0, "L", true, 0, "")
+	birthDate := "-"
+	age := ""
+	if patient.TanggalLahir != nil && !patient.TanggalLahir.IsZero() {
+		birthDate = patient.TanggalLahir.Format("02-01-2006")
+		age = fmt.Sprintf(" (%d th)", calculateAgeYears(patient.TanggalLahir.Time))
+	}
+	pdf.CellFormat(col4, rowHeight, " "+birthDate+age, "1", 1, "L", false, 0, "")
+
+	// Row 3: Alamat (full width)
+	pdf.CellFormat(col1, rowHeight, " Alamat", "1", 0, "L", true, 0, "")
+	alamat := patient.AlamatKTP
+	if alamat == "" {
+		alamat = "-"
+	}
+	pdf.CellFormat(col2+col3+col4, rowHeight, " "+truncateText(alamat, 68), "1", 1, "L", false, 0, "")
+
+	// Row 4: No HP | Penanggung Jawab
+	pdf.CellFormat(col1, rowHeight, " No. HP", "1", 0, "L", true, 0, "")
+	phone := patient.NoHP
+	if phone == "" {
+		phone = "-"
+	}
+	pdf.CellFormat(col2, rowHeight, " "+phone, "1", 0, "L", false, 0, "")
+	pdf.CellFormat(col3, rowHeight, " Penanggung Jawab", "1", 0, "L", true, 0, "")
+	pj := patient.NamaPenanggungJawab
+	if pj == "" {
+		pj = "-"
+	}
+	hubPj := patient.HubunganPenanggungJawab
+	if hubPj != "" {
+		pj = pj + " (" + hubPj + ")"
+	}
+	pdf.CellFormat(col4, rowHeight, " "+truncateText(pj, 28), "1", 1, "L", false, 0, "")
+
+	pdf.SetY(pdf.GetY() + 4)
+	_ = labelW // suppress unused warning
+
+	// Consent Body
+	pdf.SetFont("Arial", "", 9)
+	lineH := 4.5
+
+	// Introduction
+	introText := "Yang bertanda tangan di bawah ini, saya selaku pasien/wali dari pasien tersebut di atas, dengan ini menyatakan PERSETUJUAN terhadap hal-hal sebagai berikut:"
+	pdf.MultiCell(contentWidth, lineH, introText, "", "J", false)
+	pdf.SetY(pdf.GetY() + 2)
+
+	// Consent items
+	type consentItem struct {
+		title   string
+		content string
+	}
+
+	items := []consentItem{
+		{
+			title:   "Persetujuan Pelayanan Kesehatan",
+			content: "Saya menyetujui untuk menerima pelayanan kesehatan berupa pemeriksaan fisik, pemeriksaan penunjang (laboratorium, radiologi, dan pemeriksaan diagnostik lainnya), serta tindakan medis dan keperawatan yang diperlukan sesuai dengan standar profesi dan standar prosedur operasional yang berlaku di rumah sakit ini.",
+		},
+		{
+			title:   "Persetujuan Perekaman dan Pendokumentasian Medis",
+			content: "Saya menyetujui perekaman/pencatatan informasi mengenai riwayat kesehatan, hasil pemeriksaan, diagnosis, pengobatan/tindakan medis, dan informasi kesehatan lainnya ke dalam rekam medis pasien. Saya memahami bahwa rekam medis tersebut merupakan milik rumah sakit dan akan dijaga kerahasiaannya sesuai dengan peraturan perundang-undangan yang berlaku.",
+		},
+		{
+			title:   "Hak dan Kewajiban Pasien",
+			content: "Saya telah menerima penjelasan mengenai hak dan kewajiban pasien sesuai dengan Undang-Undang Nomor 44 Tahun 2009 tentang Rumah Sakit dan peraturan terkait lainnya, termasuk: (a) hak memperoleh informasi tentang diagnosis, tindakan medis, dan alternatif pengobatan; (b) hak memberikan persetujuan atau menolak tindakan medis; (c) hak atas privasi dan kerahasiaan penyakit; (d) hak memperoleh keamanan dan keselamatan selama perawatan; serta (e) kewajiban memberikan informasi yang lengkap dan jujur tentang masalah kesehatannya.",
+		},
+		{
+			title:   "Pelepasan Informasi / Kerahasiaan Medis",
+			content: "Saya menyetujui pelepasan informasi medis kepada pihak-pihak yang berwenang sesuai dengan ketentuan peraturan perundang-undangan, termasuk namun tidak terbatas pada: (a) pihak penjamin biaya perawatan (BPJS Kesehatan/asuransi); (b) pihak berwenang sesuai ketentuan hukum; dan (c) tenaga kesehatan lain yang terlibat dalam perawatan pasien. Selain pihak tersebut, pelepasan informasi medis hanya dapat dilakukan dengan persetujuan tertulis dari pasien/wali pasien.",
+		},
+		{
+			title:   "Privasi dan Kerahasiaan",
+			content: "Saya memahami bahwa rumah sakit menjamin privasi dan kerahasiaan seluruh informasi kesehatan pasien. Setiap petugas rumah sakit yang memiliki akses terhadap informasi medis pasien terikat kewajiban menjaga kerahasiaan sesuai dengan sumpah profesi dan kode etik masing-masing.",
+		},
+		{
+			title:   "Tanggung Jawab Pembiayaan",
+			content: "Saya bertanggung jawab atas seluruh biaya pelayanan kesehatan yang diterima pasien di rumah sakit ini. Apabila pasien merupakan peserta jaminan kesehatan (BPJS/asuransi), saya bertanggung jawab atas selisih biaya yang tidak ditanggung oleh penjamin. Saya memahami bahwa biaya dapat berubah sesuai dengan pelayanan yang diberikan.",
+		},
+		{
+			title:   "Barang Berharga / Valuables",
+			content: "Saya memahami bahwa rumah sakit tidak bertanggung jawab atas kehilangan atau kerusakan barang berharga milik pasien (uang, perhiasan, perangkat elektronik, dan barang berharga lainnya) selama pasien berada di lingkungan rumah sakit, kecuali barang tersebut dititipkan secara resmi kepada petugas yang ditunjuk.",
+		},
+		{
+			title:   "Persetujuan Tata Tertib Rumah Sakit",
+			content: "Saya bersedia mematuhi seluruh tata tertib dan peraturan yang berlaku di rumah sakit ini, termasuk jam besuk, larangan merokok, ketentuan penunggu pasien, dan peraturan lainnya demi kenyamanan dan keselamatan bersama.",
+		},
+	}
+
+	for i, item := range items {
+		checkPageBreak(pdf, 20)
+
+		// Numbered title
+		pdf.SetFont("Arial", "B", 9)
+		titleText := fmt.Sprintf("%d. %s", i+1, item.title)
+		pdf.MultiCell(contentWidth, lineH, titleText, "", "L", false)
+
+		// Content - indented
+		pdf.SetFont("Arial", "", 9)
+		pdf.SetX(marginLeft + 5)
+		pdf.MultiCell(contentWidth-5, lineH, item.content, "", "J", false)
+		pdf.SetY(pdf.GetY() + 2)
+	}
+
+	// Closing statement
+	checkPageBreak(pdf, 80)
+	pdf.SetY(pdf.GetY() + 3)
+	pdf.SetFont("Arial", "", 9)
+	closingText := "Dengan menandatangani formulir ini, saya menyatakan bahwa saya telah membaca, memahami, dan menyetujui seluruh isi persetujuan umum di atas. Saya juga menyatakan bahwa informasi yang saya berikan adalah benar dan dapat dipertanggungjawabkan."
+	pdf.MultiCell(contentWidth, lineH, closingText, "", "J", false)
+
+	// Signature Area
+	checkPageBreak(pdf, 65)
+	pdf.SetY(pdf.GetY() + 8)
+
+	// Date
+	dateStr := formatDateIndonesian(time.Now())
+	city := info.City
+	if city == "" {
+		city = "Jakarta" // fallback
+	}
+	locationDate := city + ", " + dateStr
+
+	pdf.SetFont("Arial", "", 9)
+	pdf.CellFormat(contentWidth, lineH, locationDate, "", 1, "R", false, 0, "")
+	pdf.SetY(pdf.GetY() + 3)
+
+	// Two column signatures
+	sigWidth := 80.0
+	gap := contentWidth - sigWidth*2
+	startY := pdf.GetY()
+
+	// Left: Pasien/Wali
+	pdf.SetXY(marginLeft, startY)
+	pdf.SetFont("Arial", "B", 9)
+	pdf.CellFormat(sigWidth, lineH, "Yang Menyatakan,", "", 1, "C", false, 0, "")
+	pdf.SetFont("Arial", "", 9)
+	pdf.SetX(marginLeft)
+	pdf.CellFormat(sigWidth, lineH, "Pasien / Wali *)", "", 1, "C", false, 0, "")
+
+	// Signature space
+	pdf.SetY(startY + 35)
+	pdf.SetX(marginLeft)
+	pdf.SetFont("Arial", "B", 9)
+	patientName := patient.NamaLengkap
+	if patientName == "" {
+		patientName = "(...................................)"
+	}
+	pdf.CellFormat(sigWidth, lineH, patientName, "T", 1, "C", false, 0, "")
+
+	// Right: Petugas RS
+	pdf.SetXY(marginLeft+sigWidth+gap, startY)
+	pdf.SetFont("Arial", "B", 9)
+	pdf.CellFormat(sigWidth, lineH, "Petugas Rumah Sakit,", "", 1, "C", false, 0, "")
+	pdf.SetFont("Arial", "", 9)
+	pdf.SetXY(marginLeft+sigWidth+gap, startY+lineH)
+	pdf.CellFormat(sigWidth, lineH, "", "", 1, "C", false, 0, "")
+
+	// Signature space
+	pdf.SetXY(marginLeft+sigWidth+gap, startY+35)
+	pdf.SetFont("Arial", "B", 9)
+	staffLabel := "(...................................)"
+	if staffName != "" {
+		staffLabel = staffName
+	}
+	pdf.CellFormat(sigWidth, lineH, staffLabel, "T", 1, "C", false, 0, "")
+
+	// Footer note
+	pdf.SetY(pdf.GetY() + 5)
+	pdf.SetFont("Arial", "I", 7)
+	pdf.CellFormat(contentWidth, 3, "*) Coret yang tidak perlu. Wali menandatangani apabila pasien tidak mampu/belum cukup umur.", "", 1, "L", false, 0, "")
+
+	// Output PDF
+	var buf bytes.Buffer
+	if err := pdf.Output(&buf); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate PDF"})
+		return
+	}
+
+	filename := fmt.Sprintf("Informed_Consent_%s.pdf", patient.NoRM)
+	c.Header("Content-Type", "application/pdf")
+	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=%s", filename))
+	c.Data(http.StatusOK, "application/pdf", buf.Bytes())
+}

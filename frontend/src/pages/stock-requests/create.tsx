@@ -1,12 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -268,25 +261,22 @@ export default function StockRequestCreate() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
-          <div className="flex items-center gap-4">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => navigate("/stock-requests")}
-              className="h-9 w-9"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <div className="space-y-1">
-              <CardTitle className="text-base font-semibold">Buat Permintaan Stok</CardTitle>
-              <CardDescription>Ajukan permintaan barang atau obat dari depo farmasi</CardDescription>
-            </div>
-          </div>
-        </CardHeader>
+      <div className="flex items-center gap-4">
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => navigate("/stock-requests")}
+          className="h-9 w-9"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <div>
+          <h1 className="text-lg font-semibold">Buat Permintaan Stok</h1>
+          <p className="text-sm text-muted-foreground">Ajukan permintaan barang atau obat dari depo farmasi</p>
+        </div>
+      </div>
 
-        <CardContent className="pt-6 space-y-6">
+      <div className="rounded-lg border p-6 space-y-6">
           {/* Form Fields */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
@@ -423,8 +413,7 @@ export default function StockRequestCreate() {
               Kirim Permintaan
             </Button>
           </div>
-        </CardContent>
-      </Card>
+      </div>
 
       {/* Item Picker Dialog */}
       <ItemPickerDialog

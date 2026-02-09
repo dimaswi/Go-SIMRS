@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { DataTable } from '@/components/ui/data-table';
 import { masterDataApi, type MasterData } from '@/lib/api';
 import { usePermission } from '@/hooks/usePermission';
@@ -181,36 +180,33 @@ export default function CategoryListPage() {
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
       <div className="grid gap-4">
-        <Card className="shadow-md">
-          <CardHeader className="border-b bg-muted/50">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <Button variant="outline" size="icon" onClick={() => navigate('/master-data')} className="h-9 w-9">
-                  <ArrowLeft className="h-4 w-4" />
-                </Button>
-                <div className="space-y-1">
-                  <CardTitle className="text-base font-semibold">{categoryName}</CardTitle>
-                  <CardDescription>Kelola data {categoryName.toLowerCase()}</CardDescription>
-                </div>
-              </div>
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <Switch
-                    checked={showInactive}
-                    onCheckedChange={setShowInactive}
-                  />
-                  <span className="text-sm text-muted-foreground">Tampilkan nonaktif</span>
-                </div>
-                {hasPermission('master_data.create') && (
-                  <Button onClick={() => navigate(`/master-data/create?category=${category}`)} size="sm">
-                    <Plus className="mr-2 h-4 w-4" />
-                    Tambah {categoryName}
-                  </Button>
-                )}
-              </div>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Button variant="outline" size="icon" onClick={() => navigate('/master-data')} className="h-9 w-9">
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <div className="space-y-1">
+              <h1 className="text-lg font-semibold">{categoryName}</h1>
+              <p className="text-sm text-muted-foreground">Kelola data {categoryName.toLowerCase()}</p>
             </div>
-          </CardHeader>
-          <CardContent className="pt-6">
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={showInactive}
+                onCheckedChange={setShowInactive}
+              />
+              <span className="text-sm text-muted-foreground">Tampilkan nonaktif</span>
+            </div>
+            {hasPermission('master_data.create') && (
+              <Button onClick={() => navigate(`/master-data/create?category=${category}`)} size="sm">
+                <Plus className="mr-2 h-4 w-4" />
+                Tambah {categoryName}
+              </Button>
+            )}
+          </div>
+        </div>
+        <div className="rounded-lg border p-6">
             <DataTable
               columns={columns}
               data={data}
@@ -218,8 +214,7 @@ export default function CategoryListPage() {
               pageSize={10}
               tableId={`master_data_${category}`}
             />
-          </CardContent>
-        </Card>
+        </div>
       </div>
 
       <ConfirmDialog

@@ -12,13 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+
 import {
   Table,
   TableBody,
@@ -263,43 +257,36 @@ export default function ProcedureEdit() {
   if (loading) {
     return (
       <div className="flex flex-1 flex-col gap-4 p-6">
-        <Card className="shadow-md">
-          <CardHeader className="border-b bg-muted/50">
-            <div className="flex items-center gap-4">
-              <Skeleton className="h-9 w-9" />
-              <div className="space-y-2">
-                <Skeleton className="h-5 w-32" />
-                <Skeleton className="h-4 w-48" />
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="pt-6 space-y-4">
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-32 w-full" />
-          </CardContent>
-        </Card>
+        <div className="flex items-center gap-4">
+          <Skeleton className="h-9 w-9" />
+          <div className="space-y-2">
+            <Skeleton className="h-5 w-32" />
+            <Skeleton className="h-4 w-48" />
+          </div>
+        </div>
+        <div className="rounded-lg border p-6 space-y-4">
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-32 w-full" />
+        </div>
       </div>
     );
   }
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      <Card className="shadow-md">
-        <CardHeader className="border-b bg-muted/50">
-          <div className="flex items-center gap-4">
-            <Button variant="outline" size="icon" asChild className="h-9 w-9">
-              <Link to="/procedures">
-                <ArrowLeft className="h-4 w-4" />
-              </Link>
-            </Button>
-            <div>
-              <CardTitle className="text-base font-semibold">Edit Tindakan</CardTitle>
-              <CardDescription>Edit data tindakan {procedure?.name}</CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="pt-6">
+      <div className="flex items-center gap-4">
+        <Button variant="outline" size="icon" asChild className="h-9 w-9">
+          <Link to="/procedures">
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
+        </Button>
+        <div>
+          <h1 className="text-lg font-semibold">Edit Tindakan</h1>
+          <p className="text-sm text-muted-foreground">Edit data tindakan {procedure?.name}</p>
+        </div>
+      </div>
+      <div className="rounded-lg border p-6">
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Basic Information */}
             <div className="space-y-4">
@@ -567,8 +554,7 @@ export default function ProcedureEdit() {
               </Button>
             </div>
           </form>
-        </CardContent>
-      </Card>
+      </div>
     </div>
   );
 }

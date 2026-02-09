@@ -1,6 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { DataTable } from '@/components/ui/data-table';
 import { createRoomMedicineColumns } from './columns-medicine';
 import { roomMedicinesApi } from '@/lib/api/medicines';
@@ -139,44 +138,38 @@ export default function RoomMedicinePage() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
-      <div className="grid gap-4">
-        <Card className="shadow-md">
-          <CardHeader className="border-b bg-muted/50">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                  <Pill className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <CardTitle>Stok Obat Ruangan</CardTitle>
-                  <CardDescription>
-                    Kelola stok obat per ruangan
-                  </CardDescription>
-                </div>
-              </div>
-              <div className="flex gap-2 w-full sm:w-auto">
-                <Combobox
-                  options={roomOptions}
-                  value={selectedRoom}
-                  onValueChange={setSelectedRoom}
-                  placeholder="Pilih Ruangan"
-                  searchPlaceholder="Cari ruangan..."
-                  emptyText="Tidak ada ruangan"
-                  className="w-full sm:w-[250px]"
-                />
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="p-6">
-            {loading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
-            ) : (
-              <DataTable columns={columns} data={roomMedicines} tableId="room_medicines" />
-            )}
-          </CardContent>
-        </Card>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+            <Pill className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-lg font-semibold">Stok Obat Ruangan</h1>
+            <p className="text-sm text-muted-foreground">
+              Kelola stok obat per ruangan
+            </p>
+          </div>
+        </div>
+        <div className="flex gap-2 w-full sm:w-auto">
+          <Combobox
+            options={roomOptions}
+            value={selectedRoom}
+            onValueChange={setSelectedRoom}
+            placeholder="Pilih Ruangan"
+            searchPlaceholder="Cari ruangan..."
+            emptyText="Tidak ada ruangan"
+            className="w-full sm:w-[250px]"
+          />
+        </div>
+      </div>
+      <div className="rounded-lg border p-6">
+        {loading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        ) : (
+          <DataTable columns={columns} data={roomMedicines} tableId="room_medicines" />
+        )}
       </div>
 
       <ConfirmDialog
