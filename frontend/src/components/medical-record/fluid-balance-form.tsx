@@ -414,7 +414,7 @@ export function FluidBalanceForm({ visitId, readOnly = false }: FluidBalanceForm
   };
 
   // Get shift badge color
-  const getShiftColor = (shift: string) => {
+  const getShiftColor = (_shift: string) => {
     return "bg-muted text-muted-foreground";
   };
 

@@ -19,7 +19,7 @@ import { Switch } from "@/components/ui/switch";
 import { icd10Api, icd9cmApi } from "@/lib/api/icd";
 import { useToast } from "@/hooks/use-toast";
 import { setPageTitle } from "@/lib/page-title";
-import { ArrowLeft, Save, Loader2, Stethoscope, Syringe } from "lucide-react";
+import { ArrowLeft, Save, Loader2 } from "lucide-react";
 import { useEffect } from "react";
 
 type ICDType = "icd10" | "icd9cm";

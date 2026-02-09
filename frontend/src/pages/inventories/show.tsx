@@ -43,7 +43,6 @@ import { setPageTitle } from "@/lib/page-title";
 import {
   ArrowLeft,
   Loader2,
-  Package,
   Pencil,
   Plus,
   Trash2,
