@@ -20,6 +20,14 @@ func SetupPrintRoutes(api *gin.RouterGroup) {
 		print.GET("/patient-label/:patientId", handlers.PrintPatientLabel)
 		// Informed consent / General consent PDF
 		print.GET("/informed-consent/:patientId", handlers.PrintInformedConsent)
+		// MR.1 - Ringkasan Masuk dan Keluar Pasien
+		print.GET("/admission-discharge-summary/:registrationId", handlers.PrintAdmissionDischargeSummary)
+		// Bukti Registrasi / Tanda Pendaftaran
+		print.GET("/registration-receipt/:registrationId", handlers.PrintRegistrationReceipt)
+		// Formulir Permohonan DPJP
+		print.GET("/dpjp-request/:visitId", handlers.PrintDPJPRequest)
+		// Bukti Pemberian Informed Consent per Kunjungan
+		print.GET("/informed-consent-receipt/:visitId", handlers.PrintInformedConsentReceipt)
 
 		// B. Rawat Jalan
 		// Outpatient resume PDF

@@ -73,6 +73,41 @@ export const printApi = {
     return fetchPdf(`${BASE_URL}/informed-consent/${patientId}`);
   },
 
+  /**
+   * Print MR.1 - Ringkasan Masuk dan Keluar Pasien
+   * @param registrationId - Registration ID
+   */
+  admissionDischargeSummary: async (registrationId: number, visitId?: number) => {
+    const url = visitId
+      ? `${BASE_URL}/admission-discharge-summary/${registrationId}?visit_id=${visitId}`
+      : `${BASE_URL}/admission-discharge-summary/${registrationId}`;
+    return fetchPdf(url);
+  },
+
+  /**
+   * Print Bukti Registrasi / Tanda Pendaftaran
+   * @param registrationId - Registration ID
+   */
+  registrationReceipt: async (registrationId: number) => {
+    return fetchPdf(`${BASE_URL}/registration-receipt/${registrationId}`);
+  },
+
+  /**
+   * Print Formulir Permohonan DPJP
+   * @param visitId - Visit ID
+   */
+  dpjpRequest: async (visitId: number) => {
+    return fetchPdf(`${BASE_URL}/dpjp-request/${visitId}`);
+  },
+
+  /**
+   * Print Bukti Pemberian Informed Consent per Kunjungan
+   * @param visitId - Visit ID
+   */
+  informedConsentReceipt: async (visitId: number) => {
+    return fetchPdf(`${BASE_URL}/informed-consent-receipt/${visitId}`);
+  },
+
   // =========================================================================
   // B. RAWAT JALAN
   // =========================================================================
@@ -317,6 +352,13 @@ export const printApi = {
 
   blob: {
     informedConsent: (patientId: number) => fetchPdfBlob(`${BASE_URL}/informed-consent/${patientId}`),
+    admissionDischargeSummary: (registrationId: number, visitId?: number) => {
+      const url = visitId
+        ? `${BASE_URL}/admission-discharge-summary/${registrationId}?visit_id=${visitId}`
+        : `${BASE_URL}/admission-discharge-summary/${registrationId}`;
+      return fetchPdfBlob(url);
+    },
+    registrationReceipt: (registrationId: number) => fetchPdfBlob(`${BASE_URL}/registration-receipt/${registrationId}`),
     outpatientResume: (visitId: number) => fetchPdfBlob(`${BASE_URL}/outpatient-resume/${visitId}`),
     inpatientResume: (visitId: number) => fetchPdfBlob(`${BASE_URL}/inpatient-resume/${visitId}`),
     sickLetter: (visitId: number, days: number, startDate: string) =>

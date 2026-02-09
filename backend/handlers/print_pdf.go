@@ -17,6 +17,31 @@ import (
 	"gorm.io/gorm"
 )
 
+// formatInpatientClass converts kelas_1 etc to display format
+func formatInpatientClass(class string) string {
+	classMap := map[string]string{
+		"kelas_1":   "Kelas 1",
+		"kelas_2":   "Kelas 2",
+		"kelas_3":   "Kelas 3",
+		"non_kelas": "Non Kelas",
+		"vip":       "VIP",
+		"vvip":      "VVIP",
+		"hcu":       "HCU",
+		"intensif":  "Intensif",
+		"isolasi":   "Isolasi",
+		"icu":       "ICU",
+		"nicu":      "NICU",
+		"picu":      "PICU",
+	}
+	if label, ok := classMap[class]; ok {
+		return label
+	}
+	if class == "" {
+		return "-"
+	}
+	return class
+}
+
 // formatDateIndonesian formats date to Indonesian format (e.g. "31 Januari 2026")
 func formatDateIndonesian(t time.Time) string {
 	months := []string{
@@ -6179,5 +6204,1920 @@ func PrintInformedConsent(c *gin.Context) {
 	filename := fmt.Sprintf("Informed_Consent_%s.pdf", patient.NoRM)
 	c.Header("Content-Type", "application/pdf")
 	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=%s", filename))
+	c.Data(http.StatusOK, "application/pdf", buf.Bytes())
+}
+
+// PrintAdmissionDischargeSummary generates MR.1 - Ringkasan Masuk dan Keluar Pasien
+// Uses registrationId to track the full patient journey across all visits
+func PrintAdmissionDischargeSummary(c *gin.Context) {
+	registrationID := c.Param("registrationId")
+
+	// Load registration with patient
+	var registration models.Registration
+	if err := database.DB.
+		Preload("Patient").
+		Preload("DestinationRoom").
+		Preload("Doctor").
+		First(&registration, registrationID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Registration not found"})
+		return
+	}
+	if registration.Patient == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Patient data not found"})
+		return
+	}
+	patient := registration.Patient
+
+	// Optional visit_id filter — if provided, show only that visit's MR.1
+	filterVisitID := c.Query("visit_id")
+
+	// Load ALL visits under this registration, ordered by creation time
+	var visits []models.Visit
+	database.DB.Where("registration_id = ?", registrationID).
+		Preload("Room").
+		Preload("Doctor").
+		Preload("Bed.RoomUnit").
+		Order("created_at ASC").
+		Find(&visits)
+
+	if len(visits) == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "No visits found for this registration"})
+		return
+	}
+
+	// If a specific visit_id is requested, filter visits to only include that one
+	var singleVisitMode bool
+	if filterVisitID != "" {
+		var filtered []models.Visit
+		for _, v := range visits {
+			if fmt.Sprintf("%d", v.ID) == filterVisitID {
+				filtered = append(filtered, v)
+				break
+			}
+		}
+		if len(filtered) == 0 {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Visit not found in this registration"})
+			return
+		}
+		visits = filtered
+		singleVisitMode = true
+	}
+
+	// Collect all visit IDs for aggregated queries
+	visitIDs := make([]uint, len(visits))
+	for i, v := range visits {
+		visitIDs[i] = v.ID
+	}
+
+	// Load discharge medicine orders (from any visit under registration)
+	var dischargeMedicineOrders []models.MedicineOrder
+	database.DB.Where("source_visit_id IN ? AND prescription_type = ?", visitIDs, "discharge").
+		Preload("Items.Medicine").Find(&dischargeMedicineOrders)
+
+	hospitalInfo := getHospitalInfo()
+
+	// Create PDF
+	pdf := gofpdf.New("P", "mm", "A4", "")
+	pdf.SetMargins(marginLeft, marginTop, marginRight)
+	pdf.SetAutoPageBreak(false, 0)
+	pdf.AddPage()
+
+	// KOP Header
+	subtitle := "(MR.1)"
+	if singleVisitMode && len(visits) > 0 {
+		mvLbl := visits[0].VisitType
+		switch visits[0].VisitType {
+		case "outpatient", "consultation":
+			mvLbl = "Rawat Jalan"
+		case "inpatient":
+			mvLbl = "Rawat Inap"
+		case "emergency":
+			mvLbl = "Gawat Darurat (IGD)"
+		}
+		subtitle = "(MR.1 - " + mvLbl + ")"
+	}
+	addHeader(pdf, hospitalInfo, "RINGKASAN MASUK DAN KELUAR", subtitle)
+
+	// =================== DATA PASIEN ===================
+	col1 := 35.0
+	col2 := 55.0
+	col3 := 35.0
+	col4 := 55.0
+
+	pdf.SetFont("Arial", "B", 9)
+	pdf.SetFillColor(220, 220, 220)
+	pdf.SetDrawColor(0, 0, 0)
+	pdf.SetLineWidth(0.3)
+	pdf.CellFormat(contentWidth, 6, " DATA PASIEN", "1", 1, "L", true, 0, "")
+	pdf.SetLineWidth(0.2)
+	pdf.SetFont("Arial", "", 9)
+	pdf.SetFillColor(245, 245, 245)
+
+	// Row 1: No RM | Jenis Kelamin
+	pdf.CellFormat(col1, rowHeight, " No. Rekam Medis", "1", 0, "L", true, 0, "")
+	pdf.SetFont("Arial", "B", 9)
+	pdf.CellFormat(col2, rowHeight, " "+patient.NoRM, "1", 0, "L", false, 0, "")
+	pdf.SetFont("Arial", "", 9)
+	pdf.CellFormat(col3, rowHeight, " Jenis Kelamin", "1", 0, "L", true, 0, "")
+	gender := string(patient.JenisKelamin)
+	if gender == "L" {
+		gender = "Laki-laki"
+	} else if gender == "P" {
+		gender = "Perempuan"
+	}
+	pdf.CellFormat(col4, rowHeight, " "+gender, "1", 1, "L", false, 0, "")
+
+	// Row 2: Nama | TTL
+	pdf.CellFormat(col1, rowHeight, " Nama Lengkap", "1", 0, "L", true, 0, "")
+	pdf.SetFont("Arial", "B", 9)
+	pdf.CellFormat(col2, rowHeight, " "+truncateText(patient.NamaLengkap, 28), "1", 0, "L", false, 0, "")
+	pdf.SetFont("Arial", "", 9)
+	pdf.CellFormat(col3, rowHeight, " Tanggal Lahir", "1", 0, "L", true, 0, "")
+	birthDate := "-"
+	age := ""
+	if patient.TanggalLahir != nil && !patient.TanggalLahir.IsZero() {
+		birthDate = patient.TanggalLahir.Format("02-01-2006")
+		age = fmt.Sprintf(" (%d th)", calculateAgeYears(patient.TanggalLahir.Time))
+	}
+	pdf.CellFormat(col4, rowHeight, " "+birthDate+age, "1", 1, "L", false, 0, "")
+
+	// Row 3: NIK | Gol Darah
+	pdf.CellFormat(col1, rowHeight, " NIK", "1", 0, "L", true, 0, "")
+	nik := patient.NIK
+	if nik == "" {
+		nik = "-"
+	}
+	pdf.CellFormat(col2, rowHeight, " "+nik, "1", 0, "L", false, 0, "")
+	pdf.CellFormat(col3, rowHeight, " Gol. Darah", "1", 0, "L", true, 0, "")
+	bloodType := string(patient.GolonganDarah)
+	if bloodType == "" {
+		bloodType = "-"
+	}
+	pdf.CellFormat(col4, rowHeight, " "+bloodType, "1", 1, "L", false, 0, "")
+
+	// Row 4: Alamat (full width)
+	pdf.CellFormat(col1, rowHeight, " Alamat", "1", 0, "L", true, 0, "")
+	alamat := patient.AlamatKTP
+	if alamat == "" {
+		alamat = "-"
+	}
+	pdf.CellFormat(col2+col3+col4, rowHeight, " "+truncateText(alamat, 72), "1", 1, "L", false, 0, "")
+
+	// Row 5: No HP | Penanggung Jawab
+	pdf.CellFormat(col1, rowHeight, " No. HP", "1", 0, "L", true, 0, "")
+	phone := patient.NoHP
+	if phone == "" {
+		phone = "-"
+	}
+	pdf.CellFormat(col2, rowHeight, " "+phone, "1", 0, "L", false, 0, "")
+	pdf.CellFormat(col3, rowHeight, " Penanggung Jawab", "1", 0, "L", true, 0, "")
+	pj := patient.NamaPenanggungJawab
+	if pj == "" {
+		pj = "-"
+	}
+	hubPj := patient.HubunganPenanggungJawab
+	if hubPj != "" {
+		pj = pj + " (" + hubPj + ")"
+	}
+	pdf.CellFormat(col4, rowHeight, " "+truncateText(pj, 28), "1", 1, "L", false, 0, "")
+
+	// Row 6: Jaminan | No BPJS
+	pdf.CellFormat(col1, rowHeight, " Jaminan", "1", 0, "L", true, 0, "")
+	jaminan := string(patient.JenisJaminan)
+	if jaminan == "" {
+		jaminan = "Umum"
+	}
+	payMethod := registration.PaymentMethod
+	if payMethod != "" {
+		jaminan = strings.ToUpper(payMethod)
+	}
+	pdf.CellFormat(col2, rowHeight, " "+jaminan, "1", 0, "L", false, 0, "")
+	pdf.CellFormat(col3, rowHeight, " No. BPJS/Asuransi", "1", 0, "L", true, 0, "")
+	noBpjs := registration.BPJSNumber
+	if noBpjs == "" {
+		noBpjs = patient.NoBPJS
+	}
+	if noBpjs == "" {
+		noBpjs = registration.InsuranceNumber
+	}
+	if noBpjs == "" {
+		noBpjs = patient.NoPolisAsuransi
+	}
+	if noBpjs == "" {
+		noBpjs = "-"
+	}
+	pdf.CellFormat(col4, rowHeight, " "+noBpjs, "1", 1, "L", false, 0, "")
+
+	// Row 7: No Registrasi
+	pdf.CellFormat(col1, rowHeight, " No. Registrasi", "1", 0, "L", true, 0, "")
+	pdf.SetFont("Arial", "B", 9)
+	pdf.CellFormat(col2, rowHeight, " "+registration.RegistrationNumber, "1", 0, "L", false, 0, "")
+	pdf.SetFont("Arial", "", 9)
+	pdf.CellFormat(col3, rowHeight, " Jumlah Kunjungan", "1", 0, "L", true, 0, "")
+	pdf.CellFormat(col4, rowHeight, fmt.Sprintf(" %d kunjungan", len(visits)), "1", 1, "L", false, 0, "")
+
+	pdf.SetY(pdf.GetY() + 2)
+
+	// =================== FILTER MAIN VISITS ===================
+	// Main visit types: emergency, consultation/outpatient, inpatient
+	var mainVisits []models.Visit
+	for _, v := range visits {
+		switch v.VisitType {
+		case "emergency", "consultation", "outpatient", "inpatient":
+			mainVisits = append(mainVisits, v)
+		}
+	}
+	if len(mainVisits) == 0 {
+		// Fallback: use all visits
+		mainVisits = visits
+	}
+
+	// =================== ALUR PELAYANAN (PERJALANAN KUNJUNGAN) ===================
+	if !singleVisitMode {
+	checkPageBreak(pdf, 20)
+	addTableHeader(pdf, "ALUR PELAYANAN")
+	pdf.SetFont("Arial", "B", 8)
+	pdf.SetFillColor(235, 235, 235)
+	noW := 10.0
+	kunjW := 30.0
+	tipeW := 30.0
+	ruangW := 40.0
+	dokterW := 40.0
+	tglW := 30.0
+	pdf.CellFormat(noW, rowHeight, " No", "1", 0, "C", true, 0, "")
+	pdf.CellFormat(kunjW, rowHeight, " No. Kunjungan", "1", 0, "L", true, 0, "")
+	pdf.CellFormat(tipeW, rowHeight, " Jenis", "1", 0, "L", true, 0, "")
+	pdf.CellFormat(ruangW, rowHeight, " Ruangan", "1", 0, "L", true, 0, "")
+	pdf.CellFormat(dokterW, rowHeight, " Dokter", "1", 0, "L", true, 0, "")
+	pdf.CellFormat(tglW, rowHeight, " Status", "1", 1, "L", true, 0, "")
+	pdf.SetFont("Arial", "", 8)
+
+	for i, v := range visits {
+		checkPageBreak(pdf, 6)
+		vType := v.VisitType
+		switch v.VisitType {
+		case "outpatient", "consultation":
+			vType = "Rajal"
+		case "inpatient":
+			vType = "Ranap"
+		case "emergency":
+			vType = "IGD"
+		case "pharmacy":
+			vType = "Farmasi"
+		case "lab", "laboratory":
+			vType = "Lab"
+		case "radiology":
+			vType = "Radiologi"
+		}
+		vRoom := "-"
+		if v.Room != nil {
+			vRoom = v.Room.Name
+		}
+		vDoctor := "-"
+		if v.Doctor != nil {
+			vDoctor = v.Doctor.NamaLengkap
+		}
+		vStatus := v.Status
+		switch v.Status {
+		case "completed":
+			vStatus = "Selesai"
+		case "in_progress":
+			vStatus = "Berlangsung"
+		case "waiting":
+			vStatus = "Menunggu"
+		case "cancelled":
+			vStatus = "Batal"
+		}
+		pdf.CellFormat(noW, rowHeight, fmt.Sprintf(" %d", i+1), "1", 0, "C", false, 0, "")
+		pdf.CellFormat(kunjW, rowHeight, " "+truncateText(v.VisitNumber, 14), "1", 0, "L", false, 0, "")
+		pdf.CellFormat(tipeW, rowHeight, " "+vType, "1", 0, "L", false, 0, "")
+		pdf.CellFormat(ruangW, rowHeight, " "+truncateText(vRoom, 18), "1", 0, "L", false, 0, "")
+		pdf.CellFormat(dokterW, rowHeight, " "+truncateText(vDoctor, 18), "1", 0, "L", false, 0, "")
+		pdf.CellFormat(tglW, rowHeight, " "+vStatus, "1", 1, "L", false, 0, "")
+	}
+	addTableEnd(pdf)
+	} // end !singleVisitMode
+
+	// =================== PER-VISIT DETAIL SECTIONS ===================
+	lastMainDoctor := "-"
+	for mvIdx, mv := range mainVisits {
+		// Visit type label
+		mvTypeLabel := mv.VisitType
+		switch mv.VisitType {
+		case "outpatient", "consultation":
+			mvTypeLabel = "RAWAT JALAN"
+		case "inpatient":
+			mvTypeLabel = "RAWAT INAP"
+		case "emergency":
+			mvTypeLabel = "GAWAT DARURAT (IGD)"
+		}
+
+		sectionTitle := mvTypeLabel
+		if !singleVisitMode {
+			sectionTitle = fmt.Sprintf("PELAYANAN %d: %s", mvIdx+1, mvTypeLabel)
+		}
+
+		// ---- Section Header (colored) ----
+		checkPageBreak(pdf, 50)
+		pdf.SetY(pdf.GetY() + 3)
+		pdf.SetFont("Arial", "B", 10)
+		pdf.SetFillColor(60, 60, 60) // dark gray header
+		pdf.SetTextColor(255, 255, 255)
+		pdf.SetDrawColor(60, 60, 60)
+		pdf.SetLineWidth(0.3)
+		pdf.CellFormat(contentWidth, 7, " "+sectionTitle, "1", 1, "L", true, 0, "")
+		pdf.SetTextColor(0, 0, 0)
+		pdf.SetDrawColor(0, 0, 0)
+		pdf.SetLineWidth(0.2)
+		pdf.SetFont("Arial", "", 9)
+
+		// ---- Load per-visit medical data ----
+		var mvAnamnesis models.Anamnesis
+		database.DB.Where("visit_id = ?", mv.ID).First(&mvAnamnesis)
+
+		var mvPhysicalExam models.PhysicalExamination
+		database.DB.Where("visit_id = ?", mv.ID).First(&mvPhysicalExam)
+
+		var mvDiagnoses []models.Diagnosis
+		database.DB.Where("visit_id = ?", mv.ID).Order("type ASC, created_at ASC").Find(&mvDiagnoses)
+
+		var mvDisposition models.Disposition
+		database.DB.Where("visit_id = ?", mv.ID).First(&mvDisposition)
+
+		var mvVisitProcedures []models.VisitProcedure
+		database.DB.Where("visit_id = ?", mv.ID).Preload("Procedure").Find(&mvVisitProcedures)
+
+		var mvProcedureOrders []models.ProcedureOrder
+		database.DB.Where("source_visit_id = ?", mv.ID).Find(&mvProcedureOrders)
+
+		var mvMedicineOrders []models.MedicineOrder
+		database.DB.Where("source_visit_id = ? AND (prescription_type IS NULL OR prescription_type != ?)", mv.ID, "discharge").
+			Preload("Items.Medicine").Find(&mvMedicineOrders)
+
+		// ---- DATA MASUK ----
+		addTableHeader(pdf, "DATA MASUK")
+
+		// Tanggal & Jam Masuk
+		admitDate := "-"
+		if mv.CheckInTime != nil {
+			admitDate = formatDateTimeIndonesian(*mv.CheckInTime)
+		} else if mv.StartTime != nil {
+			admitDate = formatDateTimeIndonesian(*mv.StartTime)
+		} else if mv.AdmissionTime != nil {
+			admitDate = formatDateTimeIndonesian(*mv.AdmissionTime)
+		} else {
+			admitDate = formatDateTimeIndonesian(mv.CreatedAt)
+		}
+		addTableRow(pdf, "Tanggal & Jam Masuk", admitDate, 40)
+
+		// Ruangan
+		mvRoom := "-"
+		if mv.Room != nil {
+			mvRoom = mv.Room.Name
+		}
+		addTableRow(pdf, "Ruangan", mvRoom, 40)
+
+		// Tempat Tidur & Kelas (for inpatient)
+		if mv.Bed != nil {
+			bedInfo := "Bed " + mv.Bed.BedNumber
+			if mv.Bed.RoomUnit != nil {
+				bedInfo = mv.Bed.RoomUnit.Name + " - " + bedInfo
+			}
+			addTableRow(pdf, "Tempat Tidur", bedInfo, 40)
+		}
+		if mv.InpatientClass != "" {
+			addTableRow(pdf, "Kelas Rawat", formatInpatientClass(mv.InpatientClass), 40)
+		}
+
+		// DPJP
+		mvDoctor := "-"
+		if mv.Doctor != nil {
+			mvDoctor = mv.Doctor.NamaLengkap
+			lastMainDoctor = mvDoctor
+		} else if registration.Doctor != nil {
+			mvDoctor = registration.Doctor.NamaLengkap
+			lastMainDoctor = mvDoctor
+		}
+		addTableRow(pdf, "DPJP", mvDoctor, 40)
+
+		// Keluhan Utama
+		chiefComplaint := "-"
+		if mvAnamnesis.ID > 0 && mvAnamnesis.ChiefComplaint != "" {
+			chiefComplaint = mvAnamnesis.ChiefComplaint
+		} else if mv.Complaint != "" {
+			chiefComplaint = mv.Complaint
+		} else if registration.Complaint != "" {
+			chiefComplaint = registration.Complaint
+		}
+		addTableMultiRow(pdf, "Keluhan Utama", chiefComplaint, 40)
+
+		// Riwayat Penyakit
+		if mvAnamnesis.ID > 0 && mvAnamnesis.HistoryOfPresentIllness != "" {
+			addTableMultiRow(pdf, "Riwayat Penyakit", mvAnamnesis.HistoryOfPresentIllness, 40)
+		}
+
+		// Alergi (only on first visit)
+		if mvIdx == 0 {
+			allergyText := "-"
+			if mvAnamnesis.ID > 0 && mvAnamnesis.Allergies != "" {
+				allergyText = mvAnamnesis.Allergies
+			} else {
+				allergyParts := []string{}
+				if patient.AlergiObat != "" {
+					allergyParts = append(allergyParts, "Obat: "+patient.AlergiObat)
+				}
+				if patient.AlergiMakanan != "" {
+					allergyParts = append(allergyParts, "Makanan: "+patient.AlergiMakanan)
+				}
+				if patient.AlergiLainnya != "" {
+					allergyParts = append(allergyParts, "Lainnya: "+patient.AlergiLainnya)
+				}
+				if len(allergyParts) > 0 {
+					allergyText = strings.Join(allergyParts, "; ")
+				}
+			}
+			addTableRow(pdf, "Alergi", allergyText, 40)
+		}
+
+		// Diagnosis Masuk
+		diagMasuk := "-"
+		for _, d := range mvDiagnoses {
+			if d.Type == "primary" {
+				diagMasuk = d.ICD10Code + " - " + d.ICD10Name
+				break
+			}
+		}
+		if diagMasuk == "-" && registration.Complaint != "" && mvIdx == 0 {
+			diagMasuk = registration.Complaint
+		}
+		addTableMultiRow(pdf, "Diagnosis Masuk", diagMasuk, 40)
+		addTableEnd(pdf)
+
+		// ---- PEMERIKSAAN FISIK ----
+		checkPageBreak(pdf, 25)
+		addTableHeader(pdf, "PEMERIKSAAN FISIK")
+		if mvPhysicalExam.ID > 0 {
+			addTableRow(pdf, "Keadaan Umum", safeString(mvPhysicalExam.GeneralCondition), 40)
+			addTableRow(pdf, "Kesadaran", safeString(mvPhysicalExam.Consciousness), 40)
+
+			vitalSigns := []string{}
+			if mvPhysicalExam.BloodPressure != "" {
+				vitalSigns = append(vitalSigns, "TD: "+mvPhysicalExam.BloodPressure+" mmHg")
+			}
+			if mvPhysicalExam.HeartRate != "" {
+				vitalSigns = append(vitalSigns, "Nadi: "+mvPhysicalExam.HeartRate+" x/mnt")
+			}
+			if mvPhysicalExam.RespiratoryRate != "" {
+				vitalSigns = append(vitalSigns, "RR: "+mvPhysicalExam.RespiratoryRate+" x/mnt")
+			}
+			if mvPhysicalExam.Temperature != "" {
+				vitalSigns = append(vitalSigns, "Suhu: "+mvPhysicalExam.Temperature+" C")
+			}
+			if mvPhysicalExam.OxygenSaturation != "" {
+				vitalSigns = append(vitalSigns, "SpO2: "+mvPhysicalExam.OxygenSaturation+"%")
+			}
+			if len(vitalSigns) > 0 {
+				addTableRow(pdf, "Tanda Vital", strings.Join(vitalSigns, " | "), 40)
+			}
+
+			anthro := []string{}
+			if mvPhysicalExam.Weight != "" {
+				anthro = append(anthro, "BB: "+mvPhysicalExam.Weight+" kg")
+			}
+			if mvPhysicalExam.Height != "" {
+				anthro = append(anthro, "TB: "+mvPhysicalExam.Height+" cm")
+			}
+			if len(anthro) > 0 {
+				addTableRow(pdf, "Antropometri", strings.Join(anthro, " | "), 40)
+			}
+		} else {
+			addTableFullRow(pdf, "Tidak ada data pemeriksaan fisik", false)
+		}
+		addTableEnd(pdf)
+
+		// ---- DIAGNOSIS ----
+		checkPageBreak(pdf, 15)
+		addTableHeader(pdf, "DIAGNOSIS")
+		if len(mvDiagnoses) > 0 {
+			for _, diag := range mvDiagnoses {
+				diagType := ""
+				switch diag.Type {
+				case "primary":
+					diagType = "[Utama] "
+				case "secondary":
+					diagType = "[Sekunder] "
+				case "complication":
+					diagType = "[Komplikasi] "
+				}
+				addTableFullRow(pdf, fmt.Sprintf("%s%s - %s", diagType, diag.ICD10Code, diag.ICD10Name), false)
+			}
+		} else {
+			addTableFullRow(pdf, "Belum ada diagnosis", false)
+		}
+		addTableEnd(pdf)
+
+		// ---- TINDAKAN / PROSEDUR ----
+		checkPageBreak(pdf, 15)
+		addTableHeader(pdf, "TINDAKAN / PROSEDUR")
+		hasTindakan := false
+		for _, vp := range mvVisitProcedures {
+			procName := "-"
+			if vp.Procedure != nil {
+				procName = vp.Procedure.Name
+			}
+			dateStr := ""
+			if vp.PerformedAt != nil {
+				dateStr = " (" + vp.PerformedAt.Format("02-01-2006") + ")"
+			}
+			addTableFullRow(pdf, procName+dateStr, false)
+			hasTindakan = true
+		}
+		for _, po := range mvProcedureOrders {
+			if po.OrderType == "surgery" && po.Status == "completed" {
+				dateStr := ""
+				if po.CompletedAt != nil {
+					dateStr = " (" + po.CompletedAt.Format("02-01-2006") + ")"
+				}
+				addTableFullRow(pdf, "[Operasi] "+po.ClinicalNotes+dateStr, false)
+				hasTindakan = true
+			}
+		}
+		if !hasTindakan {
+			addTableFullRow(pdf, "Tidak ada tindakan", false)
+		}
+		addTableEnd(pdf)
+
+		// ---- HASIL PENUNJANG ----
+		hasPenunjang := false
+		for _, po := range mvProcedureOrders {
+			if (po.OrderType == "laboratory" || po.OrderType == "radiology") && po.ResultSummary != "" {
+				hasPenunjang = true
+				break
+			}
+		}
+		if hasPenunjang {
+			checkPageBreak(pdf, 15)
+			addTableHeader(pdf, "HASIL PENUNJANG")
+			for _, po := range mvProcedureOrders {
+				if (po.OrderType == "laboratory" || po.OrderType == "radiology") && po.ResultSummary != "" {
+					orderLabel := "[Lab] "
+					if po.OrderType == "radiology" {
+						orderLabel = "[Radiologi] "
+					}
+					addTableFullRow(pdf, orderLabel+po.ResultSummary, false)
+				}
+			}
+			addTableEnd(pdf)
+		}
+
+		// ---- TERAPI / PENGOBATAN ----
+		checkPageBreak(pdf, 15)
+		addTableHeader(pdf, "TERAPI / PENGOBATAN")
+		hasMedicine := false
+		for _, mo := range mvMedicineOrders {
+			for _, item := range mo.Items {
+				medName := "-"
+				if item.Medicine != nil {
+					medName = item.Medicine.Name
+				}
+				detail := medName
+				if item.Dosage != "" {
+					detail += " " + item.Dosage
+				}
+				if item.Frequency != "" {
+					detail += " " + item.Frequency
+				}
+				addTableFullRow(pdf, detail, false)
+				hasMedicine = true
+			}
+		}
+		if !hasMedicine {
+			addTableFullRow(pdf, "Tidak ada data terapi", false)
+		}
+		addTableEnd(pdf)
+
+		// ---- DATA KELUAR ----
+		checkPageBreak(pdf, 30)
+		addTableHeader(pdf, "DATA KELUAR")
+
+		// Tanggal & Jam Keluar
+		dischargeDate := "-"
+		if mv.DischargeTime != nil {
+			dischargeDate = formatDateTimeIndonesian(*mv.DischargeTime)
+		} else if mv.EndTime != nil {
+			dischargeDate = formatDateTimeIndonesian(*mv.EndTime)
+		}
+		addTableRow(pdf, "Tanggal & Jam Keluar", dischargeDate, 40)
+
+		// Lama Rawat per-visit
+		mvLos := "-"
+		var mvStartT *time.Time
+		if mv.CheckInTime != nil {
+			mvStartT = mv.CheckInTime
+		} else if mv.StartTime != nil {
+			mvStartT = mv.StartTime
+		} else if mv.AdmissionTime != nil {
+			mvStartT = mv.AdmissionTime
+		} else {
+			mvStartT = &mv.CreatedAt
+		}
+		var mvEndT *time.Time
+		if mv.DischargeTime != nil {
+			mvEndT = mv.DischargeTime
+		} else if mv.EndTime != nil {
+			mvEndT = mv.EndTime
+		}
+		if mvStartT != nil && mvEndT != nil {
+			duration := mvEndT.Sub(*mvStartT)
+			days := int(duration.Hours() / 24)
+			if days < 1 {
+				hours := int(duration.Hours())
+				if hours < 1 {
+					minutes := int(duration.Minutes())
+					mvLos = fmt.Sprintf("%d menit", minutes)
+				} else {
+					mvLos = fmt.Sprintf("%d jam", hours)
+				}
+			} else {
+				mvLos = fmt.Sprintf("%d hari", days)
+			}
+		}
+		addTableRow(pdf, "Lama Rawat", mvLos, 40)
+
+		// Kondisi Keluar
+		mvKondisi := "-"
+		if mvDisposition.ID > 0 {
+			if mvDisposition.DischargeCondition != "" {
+				mvKondisi = mvDisposition.DischargeCondition
+			} else if mvDisposition.DischargeStatus != "" {
+				mvKondisi = mvDisposition.DischargeStatus
+			}
+		}
+		addTableRow(pdf, "Kondisi Keluar", mvKondisi, 40)
+
+		// Cara Keluar
+		mvCaraKeluar := "-"
+		if mvDisposition.ID > 0 && mvDisposition.DispositionType != "" {
+			switch mvDisposition.DispositionType {
+			case "pulang":
+				mvCaraKeluar = "Pulang (Sembuh/Membaik)"
+			case "rawat_inap":
+				mvCaraKeluar = "Rawat Inap"
+			case "rujuk":
+				mvCaraKeluar = "Dirujuk ke " + safeString(mvDisposition.ReferralFacility)
+			case "meninggal":
+				mvCaraKeluar = "Meninggal"
+			case "aps":
+				mvCaraKeluar = "Atas Permintaan Sendiri (APS)"
+			case "dod":
+				mvCaraKeluar = "Meninggal (DOD)"
+			default:
+				mvCaraKeluar = mvDisposition.DispositionType
+			}
+		}
+		addTableRow(pdf, "Cara Keluar", mvCaraKeluar, 40)
+
+		// Diagnosis Akhir
+		mvDiagAkhir := "-"
+		for i := len(mvDiagnoses) - 1; i >= 0; i-- {
+			if mvDiagnoses[i].Type == "primary" {
+				mvDiagAkhir = mvDiagnoses[i].ICD10Code + " - " + mvDiagnoses[i].ICD10Name
+				break
+			}
+		}
+		addTableMultiRow(pdf, "Diagnosis Akhir", mvDiagAkhir, 40)
+		addTableEnd(pdf)
+	} // end per-visit loop
+
+	// =================== TOTAL LAMA RAWAT ===================
+	if len(mainVisits) > 1 {
+		checkPageBreak(pdf, 15)
+		pdf.SetY(pdf.GetY() + 2)
+		addTableHeader(pdf, "RINGKASAN TOTAL")
+		// Total lama rawat from first main visit entry to last main visit exit
+		totalLos := "-"
+		firstMV := mainVisits[0]
+		lastMV := mainVisits[len(mainVisits)-1]
+		var totalStart *time.Time
+		if firstMV.CheckInTime != nil {
+			totalStart = firstMV.CheckInTime
+		} else if firstMV.StartTime != nil {
+			totalStart = firstMV.StartTime
+		} else if firstMV.AdmissionTime != nil {
+			totalStart = firstMV.AdmissionTime
+		} else {
+			totalStart = &firstMV.CreatedAt
+		}
+		var totalEnd *time.Time
+		if lastMV.DischargeTime != nil {
+			totalEnd = lastMV.DischargeTime
+		} else if lastMV.EndTime != nil {
+			totalEnd = lastMV.EndTime
+		} else if registration.DischargedAt != nil {
+			totalEnd = registration.DischargedAt
+		}
+		if totalStart != nil && totalEnd != nil {
+			duration := totalEnd.Sub(*totalStart)
+			days := int(duration.Hours() / 24)
+			if days < 1 {
+				hours := int(duration.Hours())
+				if hours < 1 {
+					minutes := int(duration.Minutes())
+					totalLos = fmt.Sprintf("%d menit", minutes)
+				} else {
+					totalLos = fmt.Sprintf("%d jam", hours)
+				}
+			} else {
+				totalLos = fmt.Sprintf("%d hari", days)
+			}
+		}
+		addTableRow(pdf, "Total Lama Perawatan", totalLos, 40)
+		addTableRow(pdf, "Jumlah Pelayanan Utama", fmt.Sprintf("%d pelayanan", len(mainVisits)), 40)
+		addTableEnd(pdf)
+	}
+
+	// =================== OBAT PULANG ===================
+	checkPageBreak(pdf, 20)
+	addTableHeader(pdf, "OBAT PULANG")
+	hasObatPulang := false
+	if len(dischargeMedicineOrders) > 0 {
+		pdf.SetFont("Arial", "B", 8)
+		pdf.SetFillColor(235, 235, 235)
+		obatNoW := 10.0
+		namaW := 65.0
+		dosisW := 35.0
+		frekW := 35.0
+		instrW := 35.0
+		pdf.CellFormat(obatNoW, rowHeight, " No", "1", 0, "C", true, 0, "")
+		pdf.CellFormat(namaW, rowHeight, " Nama Obat", "1", 0, "L", true, 0, "")
+		pdf.CellFormat(dosisW, rowHeight, " Dosis", "1", 0, "L", true, 0, "")
+		pdf.CellFormat(frekW, rowHeight, " Frekuensi", "1", 0, "L", true, 0, "")
+		pdf.CellFormat(instrW, rowHeight, " Instruksi", "1", 1, "L", true, 0, "")
+		pdf.SetFont("Arial", "", 8)
+
+		no := 1
+		for _, mo := range dischargeMedicineOrders {
+			for _, item := range mo.Items {
+				checkPageBreak(pdf, 6)
+				medName := "-"
+				if item.Medicine != nil {
+					medName = item.Medicine.Name
+				}
+				pdf.CellFormat(obatNoW, rowHeight, fmt.Sprintf(" %d", no), "1", 0, "C", false, 0, "")
+				pdf.CellFormat(namaW, rowHeight, " "+truncateText(medName, 32), "1", 0, "L", false, 0, "")
+				pdf.CellFormat(dosisW, rowHeight, " "+truncateText(item.Dosage, 16), "1", 0, "L", false, 0, "")
+				pdf.CellFormat(frekW, rowHeight, " "+truncateText(item.Frequency, 16), "1", 0, "L", false, 0, "")
+				pdf.CellFormat(instrW, rowHeight, " "+truncateText(item.Instructions, 16), "1", 1, "L", false, 0, "")
+				no++
+				hasObatPulang = true
+			}
+		}
+	}
+	if !hasObatPulang {
+		addTableFullRow(pdf, "Tidak ada obat pulang", false)
+	}
+	addTableEnd(pdf)
+
+	// =================== INSTRUKSI PULANG ===================
+	// Find disposition from last main visit that has one
+	var finalDisposition models.Disposition
+	for i := len(mainVisits) - 1; i >= 0; i-- {
+		database.DB.Where("visit_id = ?", mainVisits[i].ID).First(&finalDisposition)
+		if finalDisposition.ID > 0 {
+			break
+		}
+	}
+	checkPageBreak(pdf, 20)
+	addTableHeader(pdf, "INSTRUKSI PULANG / TINDAK LANJUT")
+	if finalDisposition.ID > 0 && finalDisposition.DischargeInstruction != "" {
+		addTableMultiRow(pdf, "Instruksi", finalDisposition.DischargeInstruction, 40)
+	} else {
+		addTableFullRow(pdf, "-", false)
+	}
+	if finalDisposition.ID > 0 && finalDisposition.FollowUpDate != nil {
+		addTableRow(pdf, "Jadwal Kontrol", formatDateIndonesian(*finalDisposition.FollowUpDate), 40)
+	}
+	if finalDisposition.ID > 0 && finalDisposition.FollowUpInstruction != "" {
+		addTableMultiRow(pdf, "Catatan Kontrol", finalDisposition.FollowUpInstruction, 40)
+	}
+	addTableEnd(pdf)
+
+	// =================== TANDA TANGAN ===================
+	addSignature(pdf, hospitalInfo.City, lastMainDoctor, "Pasien/Keluarga")
+
+	// Output PDF
+	var buf bytes.Buffer
+	if err := pdf.Output(&buf); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate PDF"})
+		return
+	}
+
+	filename := fmt.Sprintf("MR1_Ringkasan_Masuk_Keluar_%s_%s.pdf", patient.NoRM, registration.RegistrationNumber)
+	c.Header("Content-Type", "application/pdf")
+	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
+	c.Data(http.StatusOK, "application/pdf", buf.Bytes())
+}
+
+// PrintRegistrationReceipt generates Bukti Registrasi / Tanda Pendaftaran
+func PrintRegistrationReceipt(c *gin.Context) {
+	registrationID := c.Param("registrationId")
+
+	var registration models.Registration
+	if err := database.DB.
+		Preload("Patient").
+		Preload("DestinationRoom").
+		Preload("Doctor").
+		Preload("RegisteredBy").
+		First(&registration, registrationID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Registration not found"})
+		return
+	}
+	if registration.Patient == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Patient data not found"})
+		return
+	}
+	patient := registration.Patient
+
+	hospitalInfo := getHospitalInfo()
+
+	// Create PDF
+	pdf := gofpdf.New("P", "mm", "A4", "")
+	pdf.SetMargins(marginLeft, marginTop, marginRight)
+	pdf.SetAutoPageBreak(false, 0)
+	pdf.AddPage()
+
+	// KOP Header
+	addHeader(pdf, hospitalInfo, "BUKTI REGISTRASI / TANDA PENDAFTARAN", "")
+
+	// =================== DATA PASIEN ===================
+	col1 := 40.0
+	col2 := 50.0
+	col3 := 40.0
+	col4 := 50.0
+
+	pdf.SetFont("Arial", "B", 9)
+	pdf.SetFillColor(220, 220, 220)
+	pdf.SetDrawColor(0, 0, 0)
+	pdf.SetLineWidth(0.3)
+	pdf.CellFormat(contentWidth, 6, " DATA PASIEN", "1", 1, "L", true, 0, "")
+	pdf.SetLineWidth(0.2)
+	pdf.SetFont("Arial", "", 9)
+	pdf.SetFillColor(245, 245, 245)
+
+	// Row 1: No RM | Jenis Kelamin
+	pdf.CellFormat(col1, rowHeight, " No. Rekam Medis", "1", 0, "L", true, 0, "")
+	pdf.SetFont("Arial", "B", 9)
+	pdf.CellFormat(col2, rowHeight, " "+patient.NoRM, "1", 0, "L", false, 0, "")
+	pdf.SetFont("Arial", "", 9)
+	pdf.CellFormat(col3, rowHeight, " Jenis Kelamin", "1", 0, "L", true, 0, "")
+	gender := string(patient.JenisKelamin)
+	if gender == "L" {
+		gender = "Laki-laki"
+	} else if gender == "P" {
+		gender = "Perempuan"
+	}
+	pdf.CellFormat(col4, rowHeight, " "+gender, "1", 1, "L", false, 0, "")
+
+	// Row 2: Nama | TTL
+	pdf.CellFormat(col1, rowHeight, " Nama Lengkap", "1", 0, "L", true, 0, "")
+	pdf.SetFont("Arial", "B", 9)
+	pdf.CellFormat(col2, rowHeight, " "+truncateText(patient.NamaLengkap, 25), "1", 0, "L", false, 0, "")
+	pdf.SetFont("Arial", "", 9)
+	pdf.CellFormat(col3, rowHeight, " Tanggal Lahir", "1", 0, "L", true, 0, "")
+	birthDate := "-"
+	age := ""
+	if patient.TanggalLahir != nil && !patient.TanggalLahir.IsZero() {
+		birthDate = patient.TanggalLahir.Format("02-01-2006")
+		age = fmt.Sprintf(" (%d th)", calculateAgeYears(patient.TanggalLahir.Time))
+	}
+	pdf.CellFormat(col4, rowHeight, " "+birthDate+age, "1", 1, "L", false, 0, "")
+
+	// Row 3: NIK | Gol Darah
+	pdf.CellFormat(col1, rowHeight, " NIK", "1", 0, "L", true, 0, "")
+	nik := patient.NIK
+	if nik == "" {
+		nik = "-"
+	}
+	pdf.CellFormat(col2, rowHeight, " "+nik, "1", 0, "L", false, 0, "")
+	pdf.CellFormat(col3, rowHeight, " Gol. Darah", "1", 0, "L", true, 0, "")
+	bloodType := string(patient.GolonganDarah)
+	if bloodType == "" {
+		bloodType = "-"
+	}
+	pdf.CellFormat(col4, rowHeight, " "+bloodType, "1", 1, "L", false, 0, "")
+
+	// Row 4: Tempat Lahir | Agama
+	pdf.CellFormat(col1, rowHeight, " Tempat Lahir", "1", 0, "L", true, 0, "")
+	tempatLahir := patient.TempatLahir
+	if tempatLahir == "" {
+		tempatLahir = "-"
+	}
+	pdf.CellFormat(col2, rowHeight, " "+tempatLahir, "1", 0, "L", false, 0, "")
+	pdf.CellFormat(col3, rowHeight, " Agama", "1", 0, "L", true, 0, "")
+	agama := patient.Agama
+	if agama == "" {
+		agama = "-"
+	}
+	pdf.CellFormat(col4, rowHeight, " "+agama, "1", 1, "L", false, 0, "")
+
+	// Row 5: Alamat
+	pdf.CellFormat(col1, rowHeight, " Alamat", "1", 0, "L", true, 0, "")
+	alamat := patient.AlamatKTP
+	if alamat == "" {
+		alamat = patient.AlamatDomisili
+	}
+	if alamat == "" {
+		alamat = "-"
+	}
+	pdf.CellFormat(col2+col3+col4, rowHeight, " "+truncateText(alamat, 70), "1", 1, "L", false, 0, "")
+
+	// Row 6: Kelurahan/Kecamatan | Kota
+	kelurahan := patient.KelurahanKTP
+	if kelurahan == "" {
+		kelurahan = patient.KelurahanDomisili
+	}
+	kecamatan := patient.KecamatanKTP
+	if kecamatan == "" {
+		kecamatan = patient.KecamatanDomisili
+	}
+	kelKec := "-"
+	if kelurahan != "" || kecamatan != "" {
+		parts := []string{}
+		if kelurahan != "" {
+			parts = append(parts, kelurahan)
+		}
+		if kecamatan != "" {
+			parts = append(parts, kecamatan)
+		}
+		kelKec = strings.Join(parts, ", ")
+	}
+	pdf.CellFormat(col1, rowHeight, " Kel./Kec.", "1", 0, "L", true, 0, "")
+	pdf.CellFormat(col2, rowHeight, " "+truncateText(kelKec, 25), "1", 0, "L", false, 0, "")
+	kota := patient.KotaKTP
+	if kota == "" {
+		kota = patient.KotaDomisili
+	}
+	if kota == "" {
+		kota = "-"
+	}
+	pdf.CellFormat(col3, rowHeight, " Kota/Kab.", "1", 0, "L", true, 0, "")
+	pdf.CellFormat(col4, rowHeight, " "+kota, "1", 1, "L", false, 0, "")
+
+	// Row 7: No. HP | Pekerjaan
+	pdf.CellFormat(col1, rowHeight, " No. HP", "1", 0, "L", true, 0, "")
+	phone := patient.NoHP
+	if phone == "" {
+		phone = patient.NoTelepon
+	}
+	if phone == "" {
+		phone = "-"
+	}
+	pdf.CellFormat(col2, rowHeight, " "+phone, "1", 0, "L", false, 0, "")
+	pdf.CellFormat(col3, rowHeight, " Pekerjaan", "1", 0, "L", true, 0, "")
+	pekerjaan := patient.Pekerjaan
+	if pekerjaan == "" {
+		pekerjaan = "-"
+	}
+	pdf.CellFormat(col4, rowHeight, " "+pekerjaan, "1", 1, "L", false, 0, "")
+
+	// Row 8: Status Perkawinan | Pendidikan
+	pdf.CellFormat(col1, rowHeight, " Status Perkawinan", "1", 0, "L", true, 0, "")
+	statusKawin := patient.StatusPerkawinan
+	if statusKawin == "" {
+		statusKawin = "-"
+	}
+	pdf.CellFormat(col2, rowHeight, " "+statusKawin, "1", 0, "L", false, 0, "")
+	pdf.CellFormat(col3, rowHeight, " Pendidikan", "1", 0, "L", true, 0, "")
+	pendidikan := patient.PendidikanTerakhir
+	if pendidikan == "" {
+		pendidikan = "-"
+	}
+	pdf.CellFormat(col4, rowHeight, " "+pendidikan, "1", 1, "L", false, 0, "")
+
+	// Row 9: Penanggung Jawab | Hub. dgn Pasien
+	pdf.CellFormat(col1, rowHeight, " Penanggung Jawab", "1", 0, "L", true, 0, "")
+	pj := patient.NamaPenanggungJawab
+	if pj == "" {
+		pj = "-"
+	}
+	pdf.CellFormat(col2, rowHeight, " "+truncateText(pj, 25), "1", 0, "L", false, 0, "")
+	pdf.CellFormat(col3, rowHeight, " Hub. dgn Pasien", "1", 0, "L", true, 0, "")
+	hubPj := patient.HubunganPenanggungJawab
+	if hubPj == "" {
+		hubPj = "-"
+	}
+	pdf.CellFormat(col4, rowHeight, " "+hubPj, "1", 1, "L", false, 0, "")
+
+	// Row 10: Telp. Penanggung Jawab | Alamat PJ
+	pdf.CellFormat(col1, rowHeight, " Telp. Peng. Jawab", "1", 0, "L", true, 0, "")
+	telpPJ := patient.TeleponPenanggungJawab
+	if telpPJ == "" {
+		telpPJ = "-"
+	}
+	pdf.CellFormat(col2, rowHeight, " "+telpPJ, "1", 0, "L", false, 0, "")
+	pdf.CellFormat(col3, rowHeight, " Alamat Peng. Jawab", "1", 0, "L", true, 0, "")
+	alamatPJ := patient.AlamatPenanggungJawab
+	if alamatPJ == "" {
+		alamatPJ = "-"
+	}
+	pdf.CellFormat(col4, rowHeight, " "+truncateText(alamatPJ, 25), "1", 1, "L", false, 0, "")
+
+	pdf.SetY(pdf.GetY() + 3)
+
+	// =================== DATA REGISTRASI ===================
+	pdf.SetFont("Arial", "B", 9)
+	pdf.SetFillColor(220, 220, 220)
+	pdf.SetLineWidth(0.3)
+	pdf.CellFormat(contentWidth, 6, " DATA REGISTRASI", "1", 1, "L", true, 0, "")
+	pdf.SetLineWidth(0.2)
+	pdf.SetFont("Arial", "", 9)
+	pdf.SetFillColor(245, 245, 245)
+
+	// No. Registrasi
+	pdf.CellFormat(col1, rowHeight, " No. Registrasi", "1", 0, "L", true, 0, "")
+	pdf.SetFont("Arial", "B", 9)
+	pdf.CellFormat(col2, rowHeight, " "+registration.RegistrationNumber, "1", 0, "L", false, 0, "")
+	pdf.SetFont("Arial", "", 9)
+	pdf.CellFormat(col3, rowHeight, " Tanggal Daftar", "1", 0, "L", true, 0, "")
+	regDate := formatDateIndonesian(registration.RegistrationDate)
+	pdf.CellFormat(col4, rowHeight, " "+regDate, "1", 1, "L", false, 0, "")
+
+	// Tipe Layanan | Ruangan Tujuan
+	regType := registration.RegistrationType
+	switch registration.RegistrationType {
+	case "outpatient":
+		regType = "Rawat Jalan"
+	case "inpatient":
+		regType = "Rawat Inap"
+	case "emergency":
+		regType = "Gawat Darurat (IGD)"
+	}
+	pdf.CellFormat(col1, rowHeight, " Tipe Layanan", "1", 0, "L", true, 0, "")
+	pdf.CellFormat(col2, rowHeight, " "+regType, "1", 0, "L", false, 0, "")
+	pdf.CellFormat(col3, rowHeight, " Ruangan Tujuan", "1", 0, "L", true, 0, "")
+	roomName := "-"
+	if registration.DestinationRoom != nil {
+		roomName = registration.DestinationRoom.Name
+	}
+	pdf.CellFormat(col4, rowHeight, " "+roomName, "1", 1, "L", false, 0, "")
+
+	// Dokter | Status
+	pdf.CellFormat(col1, rowHeight, " Dokter", "1", 0, "L", true, 0, "")
+	doctorName := "-"
+	if registration.Doctor != nil {
+		doctorName = registration.Doctor.NamaLengkap
+	}
+	pdf.CellFormat(col2, rowHeight, " "+truncateText(doctorName, 25), "1", 0, "L", false, 0, "")
+	pdf.CellFormat(col3, rowHeight, " Status", "1", 0, "L", true, 0, "")
+	regStatus := registration.Status
+	switch registration.Status {
+	case "registered":
+		regStatus = "Terdaftar"
+	case "scheduled":
+		regStatus = "Dijadwalkan"
+	case "in_queue":
+		regStatus = "Dalam Antrian"
+	case "in_progress":
+		regStatus = "Berlangsung"
+	case "completed":
+		regStatus = "Selesai"
+	case "discharged":
+		regStatus = "Dipulangkan"
+	case "cancelled":
+		regStatus = "Dibatalkan"
+	case "no_show":
+		regStatus = "Tidak Hadir"
+	}
+	pdf.CellFormat(col4, rowHeight, " "+regStatus, "1", 1, "L", false, 0, "")
+
+	pdf.SetY(pdf.GetY() + 3)
+
+	// =================== DATA PEMBAYARAN ===================
+	pdf.SetFont("Arial", "B", 9)
+	pdf.SetFillColor(220, 220, 220)
+	pdf.SetLineWidth(0.3)
+	pdf.CellFormat(contentWidth, 6, " DATA PEMBAYARAN", "1", 1, "L", true, 0, "")
+	pdf.SetLineWidth(0.2)
+	pdf.SetFont("Arial", "", 9)
+	pdf.SetFillColor(245, 245, 245)
+
+	// Metode Pembayaran
+	payMethod := registration.PaymentMethod
+	payLabel := "Tunai (Cash)"
+	switch payMethod {
+	case "bpjs":
+		payLabel = "BPJS Kesehatan"
+	case "insurance":
+		payLabel = "Asuransi"
+	case "cash":
+		payLabel = "Tunai (Cash)"
+	default:
+		if payMethod != "" {
+			payLabel = strings.ToUpper(payMethod)
+		}
+	}
+	pdf.CellFormat(col1, rowHeight, " Metode Pembayaran", "1", 0, "L", true, 0, "")
+	pdf.SetFont("Arial", "B", 9)
+	pdf.CellFormat(col2+col3+col4, rowHeight, " "+payLabel, "1", 1, "L", false, 0, "")
+	pdf.SetFont("Arial", "", 9)
+
+	// BPJS details
+	if payMethod == "bpjs" {
+		noBpjs := registration.BPJSNumber
+		if noBpjs == "" {
+			noBpjs = patient.NoBPJS
+		}
+		if noBpjs == "" {
+			noBpjs = "-"
+		}
+		pdf.CellFormat(col1, rowHeight, " No. BPJS", "1", 0, "L", true, 0, "")
+		pdf.CellFormat(col2, rowHeight, " "+noBpjs, "1", 0, "L", false, 0, "")
+		pdf.CellFormat(col3, rowHeight, " Kelas BPJS", "1", 0, "L", true, 0, "")
+		kelasBpjs := patient.KelasBPJS
+		if kelasBpjs == "" {
+			kelasBpjs = "-"
+		}
+		pdf.CellFormat(col4, rowHeight, " "+kelasBpjs, "1", 1, "L", false, 0, "")
+
+		// SEP
+		pdf.CellFormat(col1, rowHeight, " No. SEP", "1", 0, "L", true, 0, "")
+		sepNo := registration.SEPNumber
+		if sepNo == "" {
+			sepNo = "-"
+		}
+		pdf.CellFormat(col2, rowHeight, " "+sepNo, "1", 0, "L", false, 0, "")
+		pdf.CellFormat(col3, rowHeight, " No. Rujukan", "1", 0, "L", true, 0, "")
+		noRujukan := registration.NoRujukan
+		if noRujukan == "" {
+			noRujukan = "-"
+		}
+		pdf.CellFormat(col4, rowHeight, " "+noRujukan, "1", 1, "L", false, 0, "")
+
+		// Faskes & tgl rujukan
+		pdf.CellFormat(col1, rowHeight, " Asal Rujukan", "1", 0, "L", true, 0, "")
+		asalRujukan := "-"
+		switch registration.AsalRujukan {
+		case "1":
+			asalRujukan = "Faskes Tingkat 1"
+		case "2":
+			asalRujukan = "Faskes Tingkat 2"
+		default:
+			if registration.AsalRujukan != "" {
+				asalRujukan = registration.AsalRujukan
+			}
+		}
+		pdf.CellFormat(col2, rowHeight, " "+asalRujukan, "1", 0, "L", false, 0, "")
+		pdf.CellFormat(col3, rowHeight, " Tgl. Rujukan", "1", 0, "L", true, 0, "")
+		tglRujukan := registration.TglRujukan
+		if tglRujukan == "" {
+			tglRujukan = "-"
+		}
+		pdf.CellFormat(col4, rowHeight, " "+tglRujukan, "1", 1, "L", false, 0, "")
+	}
+
+	// Insurance details
+	if payMethod == "insurance" {
+		pdf.CellFormat(col1, rowHeight, " Nama Asuransi", "1", 0, "L", true, 0, "")
+		insName := registration.InsuranceName
+		if insName == "" {
+			insName = patient.NamaAsuransi
+		}
+		if insName == "" {
+			insName = "-"
+		}
+		pdf.CellFormat(col2, rowHeight, " "+insName, "1", 0, "L", false, 0, "")
+		pdf.CellFormat(col3, rowHeight, " No. Polis", "1", 0, "L", true, 0, "")
+		insNumber := registration.InsuranceNumber
+		if insNumber == "" {
+			insNumber = patient.NoPolisAsuransi
+		}
+		if insNumber == "" {
+			insNumber = "-"
+		}
+		pdf.CellFormat(col4, rowHeight, " "+insNumber, "1", 1, "L", false, 0, "")
+	}
+
+	pdf.SetY(pdf.GetY() + 3)
+
+	// =================== KELUHAN ===================
+	if registration.Complaint != "" {
+		pdf.SetFont("Arial", "B", 9)
+		pdf.SetFillColor(220, 220, 220)
+		pdf.SetLineWidth(0.3)
+		pdf.CellFormat(contentWidth, 6, " KELUHAN / CATATAN", "1", 1, "L", true, 0, "")
+		pdf.SetLineWidth(0.2)
+		pdf.SetFont("Arial", "", 9)
+		pdf.SetFillColor(255, 255, 255)
+
+		// Multi-line complaint
+		lines := pdf.SplitLines([]byte(registration.Complaint), contentWidth-4)
+		for _, line := range lines {
+			pdf.CellFormat(contentWidth, 5, " "+string(line), "LR", 1, "L", false, 0, "")
+		}
+		// Bottom border
+		pdf.CellFormat(contentWidth, 0.5, "", "T", 1, "", false, 0, "")
+	}
+
+	if registration.Notes != "" {
+		pdf.SetY(pdf.GetY() + 1)
+		pdf.SetFont("Arial", "I", 8)
+		pdf.CellFormat(contentWidth, 5, " Catatan: "+registration.Notes, "", 1, "L", false, 0, "")
+	}
+
+	pdf.SetY(pdf.GetY() + 5)
+
+	// =================== INFO PETUGAS ===================
+	pdf.SetFont("Arial", "", 8)
+	pdf.SetTextColor(100, 100, 100)
+	registeredBy := "-"
+	if registration.RegisteredBy != nil {
+		registeredBy = registration.RegisteredBy.FullName
+	}
+	regTime := registration.CreatedAt.Format("02-01-2006 15:04")
+	pdf.CellFormat(contentWidth, 4, fmt.Sprintf("Didaftarkan oleh: %s  |  Waktu: %s WIB", registeredBy, regTime), "", 1, "L", false, 0, "")
+	pdf.SetTextColor(0, 0, 0)
+
+	pdf.SetY(pdf.GetY() + 5)
+
+	// =================== TANDA TANGAN ===================
+	signY := pdf.GetY()
+	signColWidth := contentWidth / 2
+
+	pdf.SetFont("Arial", "", 9)
+	pdf.SetXY(marginLeft, signY)
+	pdf.CellFormat(signColWidth, 5, hospitalInfo.City+", "+formatDateIndonesian(registration.CreatedAt), "", 1, "C", false, 0, "")
+
+	// Left: Petugas Pendaftaran
+	pdf.SetXY(marginLeft, signY+5)
+	pdf.CellFormat(signColWidth, 5, "Petugas Pendaftaran", "", 1, "C", false, 0, "")
+	pdf.SetXY(marginLeft, signY+30)
+	pdf.CellFormat(signColWidth, 5, "( "+registeredBy+" )", "", 1, "C", false, 0, "")
+
+	// Right: Pasien/Keluarga Pasien
+	pdf.SetXY(marginLeft+signColWidth, signY+5)
+	pdf.CellFormat(signColWidth, 5, "Pasien / Keluarga Pasien", "", 1, "C", false, 0, "")
+	pdf.SetXY(marginLeft+signColWidth, signY+30)
+	pdf.CellFormat(signColWidth, 5, "( "+patient.NamaLengkap+" )", "", 1, "C", false, 0, "")
+
+	// Dashed line for signatures
+	pdf.SetDrawColor(150, 150, 150)
+	pdf.SetDashPattern([]float64{1, 1}, 0)
+	lineLeft := marginLeft + 15
+	lineRight := marginLeft + signColWidth - 15
+	pdf.Line(lineLeft, signY+29, lineRight, signY+29)
+	lineLeft2 := marginLeft + signColWidth + 15
+	lineRight2 := marginLeft + contentWidth - 15
+	pdf.Line(lineLeft2, signY+29, lineRight2, signY+29)
+	pdf.SetDashPattern([]float64{}, 0)
+	pdf.SetDrawColor(0, 0, 0)
+
+	// Footer note
+	pdf.SetY(signY + 38)
+	pdf.SetFont("Arial", "I", 7)
+	pdf.SetTextColor(120, 120, 120)
+	pdf.CellFormat(contentWidth, 4, "* Dokumen ini merupakan bukti pendaftaran yang sah. Harap dibawa saat kunjungan.", "", 1, "C", false, 0, "")
+	pdf.CellFormat(contentWidth, 4, "* Dicetak secara otomatis oleh sistem SIMRS.", "", 1, "C", false, 0, "")
+	pdf.SetTextColor(0, 0, 0)
+
+	// Output PDF
+	var buf bytes.Buffer
+	if err := pdf.Output(&buf); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate PDF"})
+		return
+	}
+
+	filename := fmt.Sprintf("Bukti_Registrasi_%s_%s.pdf", patient.NoRM, registration.RegistrationNumber)
+	c.Header("Content-Type", "application/pdf")
+	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
+	c.Data(http.StatusOK, "application/pdf", buf.Bytes())
+}
+
+// PrintDPJPRequest generates PDF for Formulir Permohonan DPJP (Dokter Penanggung Jawab Pasien)
+func PrintDPJPRequest(c *gin.Context) {
+	visitID := c.Param("visitId")
+
+	var visit models.Visit
+	if err := database.DB.
+		Preload("Registration.Patient").
+		Preload("Registration.DestinationRoom").
+		Preload("Registration.Doctor").
+		Preload("Room").
+		Preload("Doctor").
+		Preload("Bed.RoomUnit").
+		First(&visit, visitID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Visit not found"})
+		return
+	}
+	if visit.Registration == nil || visit.Registration.Patient == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Patient data not found"})
+		return
+	}
+	patient := visit.Registration.Patient
+	registration := visit.Registration
+
+	// DPJP
+	dpjpName := "-"
+	if visit.Doctor != nil {
+		dpjpName = visit.Doctor.NamaLengkap
+	} else if registration.Doctor != nil {
+		dpjpName = registration.Doctor.NamaLengkap
+	}
+
+	// Visit type label
+	visitTypeLabel := visit.VisitType
+	switch visit.VisitType {
+	case "outpatient", "consultation":
+		visitTypeLabel = "Rawat Jalan"
+	case "inpatient":
+		visitTypeLabel = "Rawat Inap"
+	case "emergency":
+		visitTypeLabel = "Gawat Darurat (IGD)"
+	}
+
+	// Room
+	roomName := "-"
+	if visit.Room != nil {
+		roomName = visit.Room.Name
+	}
+
+	// Bed
+	bedName := ""
+	if visit.Bed != nil {
+		if visit.Bed.RoomUnit != nil {
+			bedName = visit.Bed.RoomUnit.Name + " - "
+		}
+		bedName += visit.Bed.BedNumber
+	}
+
+	// Inpatient class
+	kelasRawat := ""
+	if visit.InpatientClass != "" {
+		kelasRawat = formatInpatientClass(visit.InpatientClass)
+	}
+
+	hospitalInfo := getHospitalInfo()
+
+	pdf := gofpdf.New("P", "mm", "A4", "")
+	pdf.SetMargins(marginLeft, marginTop, marginRight)
+	pdf.SetAutoPageBreak(true, marginBottom)
+	pdf.AddPage()
+
+	addHeader(pdf, hospitalInfo, "FORMULIR PERMOHONAN", "DPJP (Dokter Penanggung Jawab Pasien)")
+
+	// DATA PASIEN
+	col1 := 40.0
+	col2 := 50.0
+	col3 := 35.0
+	col4 := 55.0
+
+	pdf.SetFont("Arial", "B", 9)
+	pdf.SetFillColor(220, 220, 220)
+	pdf.SetDrawColor(0, 0, 0)
+	pdf.SetLineWidth(0.3)
+	pdf.CellFormat(contentWidth, 6, " DATA PASIEN", "1", 1, "L", true, 0, "")
+	pdf.SetLineWidth(0.2)
+	pdf.SetFont("Arial", "", 9)
+	pdf.SetFillColor(245, 245, 245)
+
+	// Row 1: No RM | JK
+	pdf.CellFormat(col1, rowHeight, " No. Rekam Medis", "1", 0, "L", true, 0, "")
+	pdf.SetFont("Arial", "B", 9)
+	pdf.CellFormat(col2, rowHeight, " "+patient.NoRM, "1", 0, "L", false, 0, "")
+	pdf.SetFont("Arial", "", 9)
+	pdf.CellFormat(col3, rowHeight, " Jenis Kelamin", "1", 0, "L", true, 0, "")
+	gender := string(patient.JenisKelamin)
+	if gender == "L" {
+		gender = "Laki-laki"
+	} else if gender == "P" {
+		gender = "Perempuan"
+	}
+	pdf.CellFormat(col4, rowHeight, " "+gender, "1", 1, "L", false, 0, "")
+
+	// Row 2: Nama | TTL
+	pdf.CellFormat(col1, rowHeight, " Nama Lengkap", "1", 0, "L", true, 0, "")
+	pdf.SetFont("Arial", "B", 9)
+	pdf.CellFormat(col2, rowHeight, " "+truncateText(patient.NamaLengkap, 28), "1", 0, "L", false, 0, "")
+	pdf.SetFont("Arial", "", 9)
+	pdf.CellFormat(col3, rowHeight, " Tanggal Lahir", "1", 0, "L", true, 0, "")
+	birthDate := "-"
+	age := ""
+	if patient.TanggalLahir != nil && !patient.TanggalLahir.IsZero() {
+		birthDate = patient.TanggalLahir.Format("02-01-2006")
+		age = fmt.Sprintf(" (%d th)", calculateAgeYears(patient.TanggalLahir.Time))
+	}
+	pdf.CellFormat(col4, rowHeight, " "+birthDate+age, "1", 1, "L", false, 0, "")
+
+	// Row 3: Alamat
+	pdf.CellFormat(col1, rowHeight, " Alamat", "1", 0, "L", true, 0, "")
+	alamat := patient.AlamatKTP
+	if alamat == "" {
+		alamat = "-"
+	}
+	pdf.CellFormat(col2+col3+col4, rowHeight, " "+truncateText(alamat, 72), "1", 1, "L", false, 0, "")
+
+	pdf.SetY(pdf.GetY() + 3)
+
+	// DATA PELAYANAN
+	pdf.SetFont("Arial", "B", 9)
+	pdf.SetFillColor(220, 220, 220)
+	pdf.SetLineWidth(0.3)
+	pdf.CellFormat(contentWidth, 6, " DATA PELAYANAN", "1", 1, "L", true, 0, "")
+	pdf.SetLineWidth(0.2)
+	pdf.SetFont("Arial", "", 9)
+	pdf.SetFillColor(245, 245, 245)
+
+	pdf.CellFormat(col1, rowHeight, " No. Registrasi", "1", 0, "L", true, 0, "")
+	pdf.CellFormat(col2, rowHeight, " "+registration.RegistrationNumber, "1", 0, "L", false, 0, "")
+	pdf.CellFormat(col3, rowHeight, " No. Kunjungan", "1", 0, "L", true, 0, "")
+	pdf.CellFormat(col4, rowHeight, " "+visit.VisitNumber, "1", 1, "L", false, 0, "")
+
+	pdf.CellFormat(col1, rowHeight, " Jenis Pelayanan", "1", 0, "L", true, 0, "")
+	pdf.CellFormat(col2, rowHeight, " "+visitTypeLabel, "1", 0, "L", false, 0, "")
+	pdf.CellFormat(col3, rowHeight, " Ruangan", "1", 0, "L", true, 0, "")
+	pdf.CellFormat(col4, rowHeight, " "+truncateText(roomName, 28), "1", 1, "L", false, 0, "")
+
+	if bedName != "" {
+		pdf.CellFormat(col1, rowHeight, " Tempat Tidur", "1", 0, "L", true, 0, "")
+		pdf.CellFormat(col2, rowHeight, " "+truncateText(bedName, 28), "1", 0, "L", false, 0, "")
+		pdf.CellFormat(col3, rowHeight, " Kelas Rawat", "1", 0, "L", true, 0, "")
+		pdf.CellFormat(col4, rowHeight, " "+kelasRawat, "1", 1, "L", false, 0, "")
+	}
+
+	// Tanggal masuk
+	masukDate := visit.CreatedAt.Format("02 Januari 2006, 15:04 WIB")
+	if visit.CheckInTime != nil {
+		masukDate = visit.CheckInTime.Format("02 Januari 2006, 15:04 WIB")
+	} else if visit.AdmissionTime != nil {
+		masukDate = visit.AdmissionTime.Format("02 Januari 2006, 15:04 WIB")
+	}
+	pdf.CellFormat(col1, rowHeight, " Tanggal Masuk", "1", 0, "L", true, 0, "")
+	pdf.CellFormat(col2+col3+col4, rowHeight, " "+masukDate, "1", 1, "L", false, 0, "")
+
+	// Keluhan
+	complaint := visit.Complaint
+	if complaint == "" {
+		complaint = registration.Complaint
+	}
+	if complaint == "" {
+		complaint = "-"
+	}
+	pdf.CellFormat(col1, rowHeight, " Keluhan Utama", "1", 0, "L", true, 0, "")
+	pdf.CellFormat(col2+col3+col4, rowHeight, " "+truncateText(complaint, 72), "1", 1, "L", false, 0, "")
+
+	// Pembayaran
+	paymentLabel := strings.ToUpper(registration.PaymentMethod)
+	if paymentLabel == "" {
+		paymentLabel = "UMUM"
+	}
+	noBpjs := registration.BPJSNumber
+	if noBpjs == "" {
+		noBpjs = patient.NoBPJS
+	}
+	pdf.CellFormat(col1, rowHeight, " Jaminan", "1", 0, "L", true, 0, "")
+	pdf.CellFormat(col2, rowHeight, " "+paymentLabel, "1", 0, "L", false, 0, "")
+	if noBpjs != "" {
+		pdf.CellFormat(col3, rowHeight, " No. BPJS", "1", 0, "L", true, 0, "")
+		pdf.CellFormat(col4, rowHeight, " "+noBpjs, "1", 1, "L", false, 0, "")
+	} else {
+		pdf.CellFormat(col3+col4, rowHeight, "", "1", 1, "L", false, 0, "")
+	}
+
+	pdf.SetY(pdf.GetY() + 3)
+
+	// PERMOHONAN DPJP
+	pdf.SetFont("Arial", "B", 9)
+	pdf.SetFillColor(60, 60, 60)
+	pdf.SetTextColor(255, 255, 255)
+	pdf.SetDrawColor(60, 60, 60)
+	pdf.SetLineWidth(0.3)
+	pdf.CellFormat(contentWidth, 6, " PERMOHONAN DPJP", "1", 1, "L", true, 0, "")
+	pdf.SetTextColor(0, 0, 0)
+	pdf.SetDrawColor(0, 0, 0)
+	pdf.SetLineWidth(0.2)
+	pdf.SetFont("Arial", "", 9)
+	pdf.SetFillColor(245, 245, 245)
+
+	pdf.CellFormat(col1, rowHeight, " DPJP Ditunjuk", "1", 0, "L", true, 0, "")
+	pdf.SetFont("Arial", "B", 10)
+	pdf.CellFormat(col2+col3+col4, rowHeight, " "+dpjpName, "1", 1, "L", false, 0, "")
+	pdf.SetFont("Arial", "", 9)
+
+	// Alasan permohonan (blank line for handwriting)
+	pdf.CellFormat(col1, rowHeight*4, " Alasan Permohonan", "1", 0, "LT", true, 0, "")
+	pdf.CellFormat(col2+col3+col4, rowHeight*4, "", "1", 1, "L", false, 0, "")
+
+	pdf.SetY(pdf.GetY() + 3)
+
+	// Pernyataan
+	pdf.SetFont("Arial", "", 9)
+	pdf.MultiCell(contentWidth, 5, "Dengan ini saya menyatakan bahwa pasien tersebut di atas memerlukan penanganan dari DPJP yang ditunjuk. Pasien/keluarga pasien telah diberikan penjelasan mengenai penunjukan DPJP dan menyetujui penanganan oleh dokter tersebut.", "", "L", false)
+
+	pdf.SetY(pdf.GetY() + 5)
+
+	// Tanda Tangan - 3 kolom
+	signY := pdf.GetY()
+	signColWidth := contentWidth / 3
+
+	pdf.SetFont("Arial", "", 9)
+	dateStr := hospitalInfo.City + ", " + formatDateIndonesian(time.Now())
+	pdf.CellFormat(contentWidth, 5, dateStr, "", 1, "C", false, 0, "")
+
+	pdf.SetY(pdf.GetY() + 2)
+	signY = pdf.GetY()
+
+	// Col 1: Pasien / Keluarga
+	pdf.SetXY(marginLeft, signY)
+	pdf.CellFormat(signColWidth, 5, "Pasien / Keluarga Pasien", "", 1, "C", false, 0, "")
+	pdf.SetXY(marginLeft, signY+28)
+	pdf.CellFormat(signColWidth, 5, "( "+truncateText(patient.NamaLengkap, 22)+" )", "", 1, "C", false, 0, "")
+
+	// Col 2: Perawat
+	pdf.SetXY(marginLeft+signColWidth, signY)
+	pdf.CellFormat(signColWidth, 5, "Perawat / Petugas", "", 1, "C", false, 0, "")
+	pdf.SetXY(marginLeft+signColWidth, signY+28)
+	pdf.CellFormat(signColWidth, 5, "( ................................ )", "", 1, "C", false, 0, "")
+
+	// Col 3: DPJP
+	pdf.SetXY(marginLeft+signColWidth*2, signY)
+	pdf.CellFormat(signColWidth, 5, "DPJP", "", 1, "C", false, 0, "")
+	pdf.SetXY(marginLeft+signColWidth*2, signY+28)
+	pdf.CellFormat(signColWidth, 5, "( "+truncateText(dpjpName, 22)+" )", "", 1, "C", false, 0, "")
+
+	// Dashed lines
+	pdf.SetDrawColor(150, 150, 150)
+	pdf.SetDashPattern([]float64{1, 1}, 0)
+	for i := 0; i < 3; i++ {
+		lx := marginLeft + float64(i)*signColWidth + 10
+		rx := marginLeft + float64(i)*signColWidth + signColWidth - 10
+		pdf.Line(lx, signY+27, rx, signY+27)
+	}
+	pdf.SetDashPattern([]float64{}, 0)
+	pdf.SetDrawColor(0, 0, 0)
+
+	// Footer
+	pdf.SetY(signY + 36)
+	pdf.SetFont("Arial", "I", 7)
+	pdf.SetTextColor(120, 120, 120)
+	pdf.CellFormat(contentWidth, 4, "* Formulir ini merupakan bukti permohonan penunjukan DPJP yang sah.", "", 1, "C", false, 0, "")
+	pdf.CellFormat(contentWidth, 4, "* Dicetak secara otomatis oleh sistem SIMRS.", "", 1, "C", false, 0, "")
+	pdf.SetTextColor(0, 0, 0)
+
+	var buf bytes.Buffer
+	if err := pdf.Output(&buf); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate PDF"})
+		return
+	}
+
+	filename := fmt.Sprintf("Permohonan_DPJP_%s_%s.pdf", patient.NoRM, visit.VisitNumber)
+	c.Header("Content-Type", "application/pdf")
+	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
+	c.Data(http.StatusOK, "application/pdf", buf.Bytes())
+}
+
+// PrintInformedConsentReceipt generates PDF for Bukti Pemberian Informed Consent / Informasi
+func PrintInformedConsentReceipt(c *gin.Context) {
+	visitID := c.Param("visitId")
+
+	var visit models.Visit
+	if err := database.DB.
+		Preload("Registration.Patient").
+		Preload("Registration.DestinationRoom").
+		Preload("Registration.Doctor").
+		Preload("Room").
+		Preload("Doctor").
+		First(&visit, visitID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Visit not found"})
+		return
+	}
+	if visit.Registration == nil || visit.Registration.Patient == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Patient data not found"})
+		return
+	}
+	patient := visit.Registration.Patient
+	registration := visit.Registration
+
+	// DPJP
+	dpjpName := "-"
+	if visit.Doctor != nil {
+		dpjpName = visit.Doctor.NamaLengkap
+	} else if registration.Doctor != nil {
+		dpjpName = registration.Doctor.NamaLengkap
+	}
+
+	// Visit type label
+	visitTypeLabel := visit.VisitType
+	switch visit.VisitType {
+	case "outpatient", "consultation":
+		visitTypeLabel = "Rawat Jalan"
+	case "inpatient":
+		visitTypeLabel = "Rawat Inap"
+	case "emergency":
+		visitTypeLabel = "Gawat Darurat (IGD)"
+	}
+
+	roomName := "-"
+	if visit.Room != nil {
+		roomName = visit.Room.Name
+	}
+
+	// Load diagnoses for this visit
+	var diagnoses []models.Diagnosis
+	database.DB.Where("visit_id = ?", visit.ID).Order("type ASC, id ASC").Find(&diagnoses)
+
+	hospitalInfo := getHospitalInfo()
+
+	pdf := gofpdf.New("P", "mm", "A4", "")
+	pdf.SetMargins(marginLeft, marginTop, marginRight)
+	pdf.SetAutoPageBreak(true, marginBottom)
+	pdf.AddPage()
+
+	addHeader(pdf, hospitalInfo, "BUKTI PEMBERIAN INFORMASI", "DAN PERSETUJUAN TINDAKAN MEDIS (INFORMED CONSENT)")
+
+	// DATA PASIEN
+	col1 := 40.0
+	col2 := 50.0
+	col3 := 35.0
+	col4 := 55.0
+
+	pdf.SetFont("Arial", "B", 9)
+	pdf.SetFillColor(220, 220, 220)
+	pdf.SetDrawColor(0, 0, 0)
+	pdf.SetLineWidth(0.3)
+	pdf.CellFormat(contentWidth, 6, " DATA PASIEN", "1", 1, "L", true, 0, "")
+	pdf.SetLineWidth(0.2)
+	pdf.SetFont("Arial", "", 9)
+	pdf.SetFillColor(245, 245, 245)
+
+	// Row 1: No RM | JK
+	pdf.CellFormat(col1, rowHeight, " No. Rekam Medis", "1", 0, "L", true, 0, "")
+	pdf.SetFont("Arial", "B", 9)
+	pdf.CellFormat(col2, rowHeight, " "+patient.NoRM, "1", 0, "L", false, 0, "")
+	pdf.SetFont("Arial", "", 9)
+	pdf.CellFormat(col3, rowHeight, " Jenis Kelamin", "1", 0, "L", true, 0, "")
+	gender := string(patient.JenisKelamin)
+	if gender == "L" {
+		gender = "Laki-laki"
+	} else if gender == "P" {
+		gender = "Perempuan"
+	}
+	pdf.CellFormat(col4, rowHeight, " "+gender, "1", 1, "L", false, 0, "")
+
+	// Row 2: Nama | TTL
+	pdf.CellFormat(col1, rowHeight, " Nama Lengkap", "1", 0, "L", true, 0, "")
+	pdf.SetFont("Arial", "B", 9)
+	pdf.CellFormat(col2, rowHeight, " "+truncateText(patient.NamaLengkap, 28), "1", 0, "L", false, 0, "")
+	pdf.SetFont("Arial", "", 9)
+	pdf.CellFormat(col3, rowHeight, " Tanggal Lahir", "1", 0, "L", true, 0, "")
+	birthDate := "-"
+	age := ""
+	if patient.TanggalLahir != nil && !patient.TanggalLahir.IsZero() {
+		birthDate = patient.TanggalLahir.Format("02-01-2006")
+		age = fmt.Sprintf(" (%d th)", calculateAgeYears(patient.TanggalLahir.Time))
+	}
+	pdf.CellFormat(col4, rowHeight, " "+birthDate+age, "1", 1, "L", false, 0, "")
+
+	// Row 3: Alamat
+	pdf.CellFormat(col1, rowHeight, " Alamat", "1", 0, "L", true, 0, "")
+	alamat := patient.AlamatKTP
+	if alamat == "" {
+		alamat = "-"
+	}
+	pdf.CellFormat(col2+col3+col4, rowHeight, " "+truncateText(alamat, 72), "1", 1, "L", false, 0, "")
+
+	// Row 4: No HP | Penanggung Jawab
+	phone := patient.NoHP
+	if phone == "" {
+		phone = "-"
+	}
+	pdf.CellFormat(col1, rowHeight, " No. HP", "1", 0, "L", true, 0, "")
+	pdf.CellFormat(col2, rowHeight, " "+phone, "1", 0, "L", false, 0, "")
+	pj := patient.NamaPenanggungJawab
+	if pj == "" {
+		pj = "-"
+	}
+	hubPj := patient.HubunganPenanggungJawab
+	if hubPj != "" {
+		pj = pj + " (" + hubPj + ")"
+	}
+	pdf.CellFormat(col3, rowHeight, " Penanggung Jawab", "1", 0, "L", true, 0, "")
+	pdf.CellFormat(col4, rowHeight, " "+truncateText(pj, 28), "1", 1, "L", false, 0, "")
+
+	pdf.SetY(pdf.GetY() + 3)
+
+	// DATA PELAYANAN
+	pdf.SetFont("Arial", "B", 9)
+	pdf.SetFillColor(220, 220, 220)
+	pdf.SetLineWidth(0.3)
+	pdf.CellFormat(contentWidth, 6, " DATA PELAYANAN", "1", 1, "L", true, 0, "")
+	pdf.SetLineWidth(0.2)
+	pdf.SetFont("Arial", "", 9)
+	pdf.SetFillColor(245, 245, 245)
+
+	pdf.CellFormat(col1, rowHeight, " No. Kunjungan", "1", 0, "L", true, 0, "")
+	pdf.CellFormat(col2, rowHeight, " "+visit.VisitNumber, "1", 0, "L", false, 0, "")
+	pdf.CellFormat(col3, rowHeight, " Jenis Pelayanan", "1", 0, "L", true, 0, "")
+	pdf.CellFormat(col4, rowHeight, " "+visitTypeLabel, "1", 1, "L", false, 0, "")
+
+	pdf.CellFormat(col1, rowHeight, " Ruangan", "1", 0, "L", true, 0, "")
+	pdf.CellFormat(col2, rowHeight, " "+truncateText(roomName, 28), "1", 0, "L", false, 0, "")
+	pdf.CellFormat(col3, rowHeight, " DPJP", "1", 0, "L", true, 0, "")
+	pdf.CellFormat(col4, rowHeight, " "+truncateText(dpjpName, 28), "1", 1, "L", false, 0, "")
+
+	pdf.SetY(pdf.GetY() + 3)
+
+	// INFORMASI JAMINAN / PEMBAYARAN
+	pdf.SetFont("Arial", "B", 9)
+	pdf.SetFillColor(60, 60, 60)
+	pdf.SetTextColor(255, 255, 255)
+	pdf.SetDrawColor(60, 60, 60)
+	pdf.SetLineWidth(0.3)
+	pdf.CellFormat(contentWidth, 6, " INFORMASI JAMINAN / PEMBAYARAN", "1", 1, "L", true, 0, "")
+	pdf.SetTextColor(0, 0, 0)
+	pdf.SetDrawColor(0, 0, 0)
+	pdf.SetLineWidth(0.2)
+	pdf.SetFont("Arial", "", 8)
+
+	// Payment rules per type
+	switch strings.ToLower(registration.PaymentMethod) {
+	case "bpjs":
+		bpjsRules := []string{
+			"1. Pelayanan kesehatan dijamin sesuai dengan ketentuan program JKN-KIS yang berlaku.",
+			"2. Pasien wajib membawa kartu BPJS Kesehatan dan identitas (KTP) yang masih berlaku.",
+			"3. Pelayanan mengikuti prosedur rujukan berjenjang sesuai ketentuan BPJS Kesehatan.",
+			"4. Obat yang diberikan sesuai Formularium Nasional (FORNAS) yang berlaku.",
+			"5. Tindakan medis di luar ketentuan BPJS menjadi tanggung jawab pasien/keluarga.",
+			"6. Kenaikan kelas perawatan di atas hak kelas menjadi tanggung jawab pasien.",
+			"7. Pasien berhak mendapatkan informasi tentang cakupan manfaat JKN-KIS.",
+		}
+		for _, rule := range bpjsRules {
+			checkPageBreak(pdf, 5)
+			pdf.MultiCell(contentWidth, 4.5, " "+rule, "", "L", false)
+		}
+	case "insurance":
+		insuranceRules := []string{
+			"1. Pelayanan kesehatan dijamin sesuai dengan polis asuransi yang dimiliki pasien.",
+			"2. Pasien wajib membawa kartu asuransi dan identitas yang masih berlaku.",
+			"3. Klaim asuransi akan diproses sesuai prosedur perusahaan asuransi terkait.",
+			"4. Selisih biaya di luar cakupan polis menjadi tanggung jawab pasien/keluarga.",
+			"5. Pasien bertanggung jawab atas kelebihan biaya yang tidak ditanggung asuransi.",
+			"6. Pasien berhak mendapatkan informasi tentang cakupan manfaat asuransi.",
+		}
+		for _, rule := range insuranceRules {
+			checkPageBreak(pdf, 5)
+			pdf.MultiCell(contentWidth, 4.5, " "+rule, "", "L", false)
+		}
+	default: // umum / cash
+		cashRules := []string{
+			"1. Seluruh biaya pelayanan kesehatan menjadi tanggung jawab pasien/keluarga.",
+			"2. Pembayaran dilakukan sesuai tarif rumah sakit yang berlaku.",
+			"3. Pasien berhak mendapatkan rincian biaya pelayanan sebelum dan sesudah tindakan.",
+			"4. Pembayaran dapat dilakukan secara tunai, kartu debit, atau kartu kredit.",
+			"5. Pasien berhak mendapatkan kuitansi/bukti pembayaran yang sah.",
+			"6. Estimasi biaya dapat berubah sesuai kondisi klinis dan tindakan yang diperlukan.",
+		}
+		for _, rule := range cashRules {
+			checkPageBreak(pdf, 5)
+			pdf.MultiCell(contentWidth, 4.5, " "+rule, "", "L", false)
+		}
+	}
+
+	pdf.SetFont("Arial", "", 9)
+	pdf.SetY(pdf.GetY() + 3)
+
+	// ISI INFORMASI YANG DIBERIKAN
+	pdf.SetFont("Arial", "B", 9)
+	pdf.SetFillColor(60, 60, 60)
+	pdf.SetTextColor(255, 255, 255)
+	pdf.SetDrawColor(60, 60, 60)
+	pdf.SetLineWidth(0.3)
+	pdf.CellFormat(contentWidth, 6, " INFORMASI YANG TELAH DIBERIKAN", "1", 1, "L", true, 0, "")
+	pdf.SetTextColor(0, 0, 0)
+	pdf.SetDrawColor(0, 0, 0)
+	pdf.SetLineWidth(0.2)
+
+	pdf.SetFont("Arial", "", 9)
+	infoItems := []struct {
+		No   string
+		Item string
+	}{
+		{"1", "Diagnosis dan kondisi pasien"},
+		{"2", "Rencana tindakan / terapi yang akan dilakukan"},
+		{"3", "Tujuan tindakan / terapi"},
+		{"4", "Alternatif tindakan lain dan risikonya"},
+		{"5", "Risiko dan komplikasi yang mungkin terjadi"},
+		{"6", "Prognosis / perkiraan hasil pengobatan"},
+		{"7", "Perkiraan biaya yang diperlukan"},
+	}
+
+	noW := 10.0
+	itemW := contentWidth - noW - 30
+	checkW := 30.0
+
+	pdf.SetFont("Arial", "B", 8)
+	pdf.SetFillColor(235, 235, 235)
+	pdf.CellFormat(noW, rowHeight, " No", "1", 0, "C", true, 0, "")
+	pdf.CellFormat(itemW, rowHeight, " Jenis Informasi", "1", 0, "L", true, 0, "")
+	pdf.CellFormat(checkW, rowHeight, " Diberikan", "1", 1, "C", true, 0, "")
+	pdf.SetFont("Arial", "", 9)
+
+	for _, item := range infoItems {
+		pdf.CellFormat(noW, rowHeight, " "+item.No, "1", 0, "C", false, 0, "")
+		pdf.CellFormat(itemW, rowHeight, " "+item.Item, "1", 0, "L", false, 0, "")
+		// Checkbox checked
+		pdf.CellFormat(checkW, rowHeight, " [v]", "1", 1, "C", false, 0, "")
+	}
+
+	pdf.SetY(pdf.GetY() + 3)
+
+	// PERNYATAAN
+	pdf.SetFont("Arial", "B", 9)
+	pdf.SetFillColor(220, 220, 220)
+	pdf.SetLineWidth(0.3)
+	pdf.CellFormat(contentWidth, 6, " PERNYATAAN PASIEN / KELUARGA", "1", 1, "L", true, 0, "")
+	pdf.SetLineWidth(0.2)
+	pdf.SetFont("Arial", "", 9)
+
+	pdf.SetY(pdf.GetY() + 2)
+	pdf.MultiCell(contentWidth, 5, "Dengan ini saya menyatakan bahwa saya telah menerima dan memahami penjelasan informasi mengenai kondisi, rencana tindakan medis, risiko, komplikasi, alternatif dan biaya yang diperlukan sebagaimana tercantum di atas.", "", "L", false)
+
+	pdf.SetY(pdf.GetY() + 2)
+	pdf.MultiCell(contentWidth, 5, "Berdasarkan informasi tersebut, dengan penuh kesadaran dan tanpa paksaan, saya:", "", "L", false)
+
+	pdf.SetY(pdf.GetY() + 2)
+	pdf.SetFont("Arial", "", 9)
+	cbSize := 4.0
+
+	// Option 1: Menyetujui
+	cbX := marginLeft + 5
+	cbY := pdf.GetY()
+	pdf.Rect(cbX, cbY+0.5, cbSize, cbSize, "D")
+	pdf.SetXY(cbX+cbSize+3, cbY)
+	pdf.CellFormat(contentWidth-cbSize-8, 5, "MENYETUJUI untuk dilakukan tindakan medis sebagaimana telah dijelaskan di atas", "", 1, "L", false, 0, "")
+
+	// Option 2: Menolak
+	cbY2 := pdf.GetY() + 1
+	pdf.Rect(cbX, cbY2+0.5, cbSize, cbSize, "D")
+	pdf.SetXY(cbX+cbSize+3, cbY2)
+	pdf.CellFormat(contentWidth-cbSize-8, 5, "MENOLAK untuk dilakukan tindakan medis sebagaimana telah dijelaskan di atas", "", 1, "L", false, 0, "")
+
+	pdf.SetY(pdf.GetY() + 8)
+
+	// Tanda Tangan - 3 kolom
+	signY := pdf.GetY()
+	signColWidth := contentWidth / 3
+
+	pdf.SetFont("Arial", "", 9)
+	dateStr := hospitalInfo.City + ", " + formatDateIndonesian(time.Now())
+	pdf.CellFormat(contentWidth, 5, dateStr, "", 1, "C", false, 0, "")
+
+	pdf.SetY(pdf.GetY() + 2)
+	signY = pdf.GetY()
+
+	// Col 1: Pasien / Keluarga
+	pdf.SetXY(marginLeft, signY)
+	pdf.CellFormat(signColWidth, 5, "Pasien / Keluarga Pasien", "", 1, "C", false, 0, "")
+	pdf.SetXY(marginLeft, signY+28)
+	pdf.CellFormat(signColWidth, 5, "( "+truncateText(patient.NamaLengkap, 22)+" )", "", 1, "C", false, 0, "")
+
+	// Col 2: Saksi
+	pdf.SetXY(marginLeft+signColWidth, signY)
+	pdf.CellFormat(signColWidth, 5, "Saksi", "", 1, "C", false, 0, "")
+	pdf.SetXY(marginLeft+signColWidth, signY+28)
+	pdf.CellFormat(signColWidth, 5, "( ................................ )", "", 1, "C", false, 0, "")
+
+	// Col 3: DPJP
+	pdf.SetXY(marginLeft+signColWidth*2, signY)
+	pdf.CellFormat(signColWidth, 5, "DPJP / Dokter", "", 1, "C", false, 0, "")
+	pdf.SetXY(marginLeft+signColWidth*2, signY+28)
+	pdf.CellFormat(signColWidth, 5, "( "+truncateText(dpjpName, 22)+" )", "", 1, "C", false, 0, "")
+
+	// Dashed lines
+	pdf.SetDrawColor(150, 150, 150)
+	pdf.SetDashPattern([]float64{1, 1}, 0)
+	for i := 0; i < 3; i++ {
+		lx := marginLeft + float64(i)*signColWidth + 10
+		rx := marginLeft + float64(i)*signColWidth + signColWidth - 10
+		pdf.Line(lx, signY+27, rx, signY+27)
+	}
+	pdf.SetDashPattern([]float64{}, 0)
+	pdf.SetDrawColor(0, 0, 0)
+
+	// Footer
+	pdf.SetY(signY + 36)
+	pdf.SetFont("Arial", "I", 7)
+	pdf.SetTextColor(120, 120, 120)
+	pdf.CellFormat(contentWidth, 4, "* Formulir ini merupakan bukti pemberian informasi dan persetujuan tindakan medis yang sah.", "", 1, "C", false, 0, "")
+	pdf.CellFormat(contentWidth, 4, "* Dicetak secara otomatis oleh sistem SIMRS.", "", 1, "C", false, 0, "")
+	pdf.SetTextColor(0, 0, 0)
+
+	var buf bytes.Buffer
+	if err := pdf.Output(&buf); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate PDF"})
+		return
+	}
+
+	filename := fmt.Sprintf("Informed_Consent_%s_%s.pdf", patient.NoRM, visit.VisitNumber)
+	c.Header("Content-Type", "application/pdf")
+	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
 	c.Data(http.StatusOK, "application/pdf", buf.Bytes())
 }
