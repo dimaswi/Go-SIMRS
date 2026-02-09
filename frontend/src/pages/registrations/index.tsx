@@ -18,7 +18,9 @@ import {
   Check,
   ChevronsUpDown,
   SlidersHorizontal,
+  CalendarClock,
 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import {
   Collapsible,
   CollapsibleContent,
@@ -73,6 +75,17 @@ export default function RegistrationIndex() {
   const [roomPopoverOpen, setRoomPopoverOpen] = useState(false);
   const [mjknQueueMap, setMjknQueueMap] = useState<Map<number, BPJSQueue>>(new Map());
   const [activatingCheckin, setActivatingCheckin] = useState<number | null>(null);
+  const [scheduledTodayCount, setScheduledTodayCount] = useState(0);
+
+  const loadScheduledCount = useCallback(async () => {
+    try {
+      const today = new Date().toISOString().split("T")[0];
+      const response = await registrationApi.getScheduled({ date: today, status: "scheduled" });
+      setScheduledTodayCount(response.data.summary?.today || response.data.data?.length || 0);
+    } catch {
+      // Silently fail
+    }
+  }, []);
 
   const loadMjknQueues = useCallback(async () => {
     try {
@@ -216,7 +229,8 @@ export default function RegistrationIndex() {
     setPageTitle("Pendaftaran");
     loadRooms();
     loadMjknQueues();
-  }, [loadRooms, loadMjknQueues]);
+    loadScheduledCount();
+  }, [loadRooms, loadMjknQueues, loadScheduledCount]);
 
   useEffect(() => {
     loadData();
@@ -339,6 +353,20 @@ export default function RegistrationIndex() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => navigate("/registrations/scheduled")}
+          className="relative"
+        >
+          <CalendarClock className="mr-2 h-4 w-4" />
+          Jadwal Kontrol
+          {scheduledTodayCount > 0 && (
+            <Badge className="ml-2 h-5 min-w-5 px-1.5 text-[10px] font-semibold bg-blue-500 hover:bg-blue-500 text-white rounded-full">
+              {scheduledTodayCount}
+            </Badge>
+          )}
+        </Button>
         {hasPermission("registrations.create") && (
           <Button
             onClick={() => navigate("/registrations/create")}

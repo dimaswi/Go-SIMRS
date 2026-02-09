@@ -445,6 +445,19 @@ export default function PatientSearchShow() {
     }
   };
 
+  const handlePrintInformedConsent = async () => {
+    if (!patient) return;
+    try {
+      await printApi.informedConsent(patient.id);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.response?.data?.error || "Gagal mencetak informed consent",
+      });
+    }
+  };
+
   const handlePrintQueue = async (registration: Registration) => {
     const regId = registration.ID || registration.id;
     if (!regId) return;
@@ -516,10 +529,9 @@ export default function PatientSearchShow() {
     <div className="flex flex-1 flex-col gap-4 p-6">
       <div>
         {/* Patient Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-4 pb-4">
             <div className="flex items-center gap-4">
-              <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center">
+              <div className="h-16 w-16 shrink-0 rounded-full bg-muted flex items-center justify-center">
                 {patient.foto ? (
                   <img
                     src={`/${patient.foto}`}
@@ -567,6 +579,20 @@ export default function PatientSearchShow() {
                     <Button
                       variant="outline"
                       size="icon"
+                      onClick={handlePrintInformedConsent}
+                    >
+                      <FileCheck className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Informed Consent</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
                       onClick={() => navigate(`/patients/${patient.id}/edit`)}
                       className="text-white bg-yellow-600 hover:bg-yellow-700"
                     >
@@ -593,52 +619,33 @@ export default function PatientSearchShow() {
                 </TooltipProvider>
               )}
             </div>
-          </div>
         </div>
 
         <div className="rounded-lg border p-6 space-y-6">
           {/* Tabs Navigation */}
-          <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-            <TabsList className="w-full justify-start h-auto p-0 bg-transparent border-b rounded-none">
-              <TabsTrigger
-                value="detail"
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2"
-              >
+          <Tabs value={activeTab} onValueChange={handleTabChange} variant="inline" className="w-full">
+            <TabsList>
+              <TabsTrigger value="detail">
                 <FileText className="mr-2 h-4 w-4" />
                 Detail Pasien
               </TabsTrigger>
-              <TabsTrigger
-                value="kunjungan"
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2"
-              >
+              <TabsTrigger value="kunjungan">
                 <History className="mr-2 h-4 w-4" />
                 Riwayat Kunjungan
               </TabsTrigger>
-              <TabsTrigger
-                value="pembayaran"
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2"
-              >
+              <TabsTrigger value="pembayaran">
                 <CreditCard className="mr-2 h-4 w-4" />
                 Riwayat Pembayaran
               </TabsTrigger>
-              <TabsTrigger
-                value="pendaftaran"
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2"
-              >
+              <TabsTrigger value="pendaftaran">
                 <ClipboardList className="mr-2 h-4 w-4" />
                 Riwayat Pendaftaran
               </TabsTrigger>
-              <TabsTrigger
-                value="sep"
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2"
-              >
+              <TabsTrigger value="sep">
                 <FileCheck className="mr-2 h-4 w-4" />
                 Riwayat SEP
               </TabsTrigger>
-              <TabsTrigger
-                value="rawat-inap"
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2"
-              >
+              <TabsTrigger value="rawat-inap">
                 <BedDouble className="mr-2 h-4 w-4" />
                 Permintaan Rawat Inap
                 {admissionRequests.filter(r => r.status === 'pending').length > 0 && (

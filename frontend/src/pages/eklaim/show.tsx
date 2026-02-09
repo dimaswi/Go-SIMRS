@@ -612,17 +612,17 @@ export default function EKlaimShow() {
       </div>
 
       {/* Tabs for Details */}
-      <Tabs defaultValue="diagnoses" className="space-y-4">
+      <Tabs defaultValue="diagnoses" variant="inline">
         <TabsList>
-          <TabsTrigger value="diagnoses" className="flex items-center gap-2">
+          <TabsTrigger value="diagnoses" className="gap-2">
             <Stethoscope className="h-4 w-4" />
             Diagnoses ({diagnoses.length})
           </TabsTrigger>
-          <TabsTrigger value="procedures" className="flex items-center gap-2">
+          <TabsTrigger value="procedures" className="gap-2">
             <Clipboard className="h-4 w-4" />
             Procedures ({procedures.length})
           </TabsTrigger>
-          <TabsTrigger value="history" className="flex items-center gap-2">
+          <TabsTrigger value="history" className="gap-2">
             <History className="h-4 w-4" />
             Riwayat
           </TabsTrigger>

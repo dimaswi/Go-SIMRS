@@ -18,6 +18,8 @@ func SetupPrintRoutes(api *gin.RouterGroup) {
 		// A. Umum
 		// Patient label PDF
 		print.GET("/patient-label/:patientId", handlers.PrintPatientLabel)
+		// Informed consent / General consent PDF
+		print.GET("/informed-consent/:patientId", handlers.PrintInformedConsent)
 
 		// B. Rawat Jalan
 		// Outpatient resume PDF

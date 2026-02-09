@@ -912,74 +912,69 @@ export default function VisitShow() {
   return (
     <div>
       {/* Patient Info Header - Sticky */}
-      <div className="sticky top-0 z-40 bg-background px-6 pt-6 pb-3">
+      <div className="sticky top-0 z-40 bg-background px-6 pt-4 pb-2 border-b">
         <PatientInfo visit={visit} />
       </div>
 
       {/* Main Content Area with Tabs and Form */}
       <div className="px-6 pb-6 pt-4">
-        <div className="flex gap-4">
-          {/* Left Sidebar: Menu Navigation - Clean without Card */}
-          <div className={`self-start sticky top-[120px] z-30 transition-all duration-300 ease-in-out ${
-            sidebarHidden ? 'w-0 overflow-hidden opacity-0' : 'w-[200px] opacity-100'
+        <div className="flex gap-6">
+          {/* Left Sidebar: Menu Navigation */}
+          <div className={`self-start sticky top-[80px] z-30 transition-all duration-300 ease-in-out ${
+            sidebarHidden ? 'w-0 overflow-hidden opacity-0' : 'w-[190px] opacity-100'
           } flex-shrink-0`}>
-            <div className="w-[200px]">
+            <div className="w-[190px]">
               {/* Sidebar Header */}
-              <div className="flex items-center justify-between mb-3 px-1">
-                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider px-2.5">
                   Menu
                 </h3>
                 <div className="flex items-center gap-0.5">
-                  {/* History Button */}
                   {patientId && (
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-7 w-7 p-0"
+                      className="h-6 w-6 p-0 rounded-full"
                       onClick={() => setHistoryDrawerOpen(true)}
                       title="Riwayat Kunjungan"
                     >
-                      <History className="h-4 w-4 text-muted-foreground" />
+                      <History className="h-3.5 w-3.5 text-muted-foreground" />
                     </Button>
                   )}
-                  {/* Hide Sidebar Button */}
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-7 w-7 p-0"
+                    className="h-6 w-6 p-0 rounded-full"
                     onClick={() => setSidebarHidden(true)}
                     title="Sembunyikan sidebar"
                   >
-                    <PanelLeftClose className="h-4 w-4 text-muted-foreground" />
+                    <PanelLeftClose className="h-3.5 w-3.5 text-muted-foreground" />
                   </Button>
                 </div>
               </div>
               
-              {/* Menu Tabs - Direct without Card wrapper */}
-              <div className="bg-muted/30 rounded-lg p-2 border border-border/50">
-                <MedicalRecordTabs
-                  activeTab={activeTab}
-                  onTabChange={handleTabChange}
-                  isEmergency={isEmergency}
-                  isPharmacy={isPharmacy}
-                  isRadiology={isRadiology}
-                  isLaboratory={isLaboratory}
-                  isConsultation={isConsultation}
-                  isSurgery={isSurgery}
-                  showProcedureTab={showProcedureTab}
-                  isInpatient={isInpatient}
-                />
-              </div>
+              <MedicalRecordTabs
+                activeTab={activeTab}
+                onTabChange={handleTabChange}
+                isEmergency={isEmergency}
+                isPharmacy={isPharmacy}
+                isRadiology={isRadiology}
+                isLaboratory={isLaboratory}
+                isConsultation={isConsultation}
+                isSurgery={isSurgery}
+                showProcedureTab={showProcedureTab}
+                isInpatient={isInpatient}
+              />
             </div>
           </div>
 
-          {/* Toggle Button to Show Sidebar - Attached to left edge */}
+          {/* Toggle Button to Show Sidebar */}
           {sidebarHidden && (
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
               onClick={() => setSidebarHidden(false)}
-              className="self-start sticky top-[120px] -ml-6 h-auto py-3 px-1.5 rounded-l-none border-l-0 z-30"
+              className="self-start sticky top-[80px] h-8 w-8 p-0 rounded-full z-30 flex-shrink-0"
               title="Tampilkan sidebar"
             >
               <PanelLeft className="h-4 w-4" />

@@ -86,7 +86,7 @@ export function createCounterColumns(options: ColumnOptions): ColumnDef<Counter>
         const hasViewPermission = hasPermission("counters.view");
         const hasUpdatePermission = hasPermission("counters.update");
         const hasDeletePermission = hasPermission("counters.delete");
-        
+
         return (
           <div className="flex items-center gap-1">
             {hasViewPermission && (

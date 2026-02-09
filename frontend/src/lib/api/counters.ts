@@ -6,6 +6,7 @@ export interface Counter {
   code: string;
   description?: string;
   is_active: boolean;
+  is_open: boolean;
   display_order: number;
   location?: string;
   created_at: string;
@@ -65,5 +66,26 @@ export const counterApi = {
   // Delete counter
   deleteCounter: async (id: number): Promise<void> => {
     await client.delete(`/counters/${id}`);
+  },
+
+  // Get open counters only (for kiosk)
+  getOpenCounters: async (): Promise<Counter[]> => {
+    const response = await client.get<{ data: Counter[] }>('/counters/open');
+    return response.data.data;
+  },
+
+  // Toggle counter open/close
+  toggleOpen: async (id: number): Promise<{ data: Counter; message: string }> => {
+    const response = await client.post<{ data: Counter; message: string }>(`/counters/${id}/toggle-open`);
+    return response.data;
+  },
+
+  // Bulk toggle open/close
+  bulkToggleOpen: async (counterIds: number[], isOpen: boolean): Promise<{ message: string }> => {
+    const response = await client.post<{ message: string }>('/counters/bulk-toggle-open', {
+      counter_ids: counterIds,
+      is_open: isOpen,
+    });
+    return response.data;
   },
 };

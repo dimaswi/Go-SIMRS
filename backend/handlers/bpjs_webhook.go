@@ -9,9 +9,11 @@ import (
 	"starter/backend/models"
 	bpjsService "starter/backend/services/bpjs"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // ================================================
@@ -20,8 +22,11 @@ import (
 // ================================================
 
 // BPJSWebhookToken stores active tokens for BPJS authentication
-var bpjsWebhookTokens = make(map[string]time.Time)
-var bpjsWebhookUsernames = make(map[string]string) // token -> username
+var (
+	bpjsWebhookTokens    = make(map[string]time.Time)
+	bpjsWebhookUsernames = make(map[string]string) // token -> username
+	bpjsWebhookMu        sync.RWMutex
+)
 
 // Response wrapper untuk BPJS
 type BPJSWebhookResponse struct {
@@ -98,6 +103,7 @@ func BPJSWebhookGetToken(c *gin.Context) {
 	token := hex.EncodeToString(tokenBytes)
 
 	// Store token with expiry (24 hours) along with username
+	bpjsWebhookMu.Lock()
 	bpjsWebhookTokens[token] = time.Now().Add(24 * time.Hour)
 	bpjsWebhookUsernames[token] = username
 
@@ -108,6 +114,7 @@ func BPJSWebhookGetToken(c *gin.Context) {
 			delete(bpjsWebhookUsernames, t)
 		}
 	}
+	bpjsWebhookMu.Unlock()
 
 	c.JSON(http.StatusOK, newBPJSResponse(200, "Ok", gin.H{
 		"token": token,
@@ -127,7 +134,11 @@ func ValidateBPJSWebhookToken() gin.HandlerFunc {
 		}
 
 		// Check token validity
+		bpjsWebhookMu.RLock()
 		expiry, exists := bpjsWebhookTokens[token]
+		storedUsername, hasUsername := bpjsWebhookUsernames[token]
+		bpjsWebhookMu.RUnlock()
+
 		if !exists || time.Now().After(expiry) {
 			c.JSON(http.StatusOK, newBPJSResponse(201, "Token tidak valid atau sudah expired", nil))
 			c.Abort()
@@ -135,7 +146,6 @@ func ValidateBPJSWebhookToken() gin.HandlerFunc {
 		}
 
 		// Validate username matches the one used to generate token
-		storedUsername, hasUsername := bpjsWebhookUsernames[token]
 		if hasUsername && storedUsername != username {
 			c.JSON(http.StatusOK, newBPJSResponse(201, "Username tidak valid", nil))
 			c.Abort()
@@ -228,7 +238,7 @@ func BPJSWebhookStatusAntrean(c *gin.Context) {
 		Count(&jknCount)
 	database.DB.Model(&models.BPJSQueue{}).
 		Where("kode_poli = ? AND kode_dokter = ? AND DATE(tanggal_periksa) = ? AND jenis_pasien = ? AND status != ?",
-			req.KodePoli, fmt.Sprintf("%d", req.KodeDokter), tanggal.Format("2006-01-02"), "NON-JKN", "batal").
+			req.KodePoli, fmt.Sprintf("%d", req.KodeDokter), tanggal.Format("2006-01-02"), "NON JKN", "batal").
 		Count(&nonJknCount)
 
 	c.JSON(http.StatusOK, newBPJSResponse(200, "Ok", gin.H{
@@ -386,8 +396,8 @@ func BPJSWebhookAmbilAntrean(c *gin.Context) {
 	// Start transaction untuk create semua data sekaligus
 	tx := database.DB.Begin()
 
-	// 1. Generate kode booking
-	kodeBooking := generateKodeBooking(tanggal, req.KodePoli)
+	// 1. Generate kode booking (transaction-safe)
+	kodeBooking := generateKodeBookingTx(tx, tanggal, req.KodePoli)
 
 	// 2. Generate nomor antrean SIMRS (sama dengan on-site)
 	room := poliMapping.Room
@@ -406,10 +416,11 @@ func BPJSWebhookAmbilAntrean(c *gin.Context) {
 		queueCode = "A"
 	}
 
-	// Hitung nomor antrian dari RoomQueue (bukan BPJSQueue) agar sama dengan on-site
+	// Hitung nomor antrian dari RoomQueue dengan row locking (SELECT FOR UPDATE) untuk hindari race condition
 	var lastRoomQueue models.RoomQueue
 	var queueNum int
-	if err := tx.Where("room_id = ? AND queue_date = ?", poliMapping.RoomID, tanggal).
+	if err := tx.Set("gorm:query_option", "FOR UPDATE").
+		Where("room_id = ? AND queue_date = ?", poliMapping.RoomID, tanggal).
 		Order("queue_number DESC").First(&lastRoomQueue).Error; err != nil {
 		queueNum = 1
 	} else {
@@ -433,7 +444,7 @@ func BPJSWebhookAmbilAntrean(c *gin.Context) {
 	estimasiDilayani := estimasiTime.UnixMilli()
 
 	// 4. Buat Registration (status: scheduled untuk MJKN)
-	regNumber := generateRegistrationNumberForBPJS(tanggal)
+	regNumber := generateRegistrationNumberForBPJSTx(tx, tanggal)
 	var visitCount int64
 	tx.Model(&models.Registration{}).Where("patient_id = ?", patient.ID).Count(&visitCount)
 
@@ -494,7 +505,7 @@ func BPJSWebhookAmbilAntrean(c *gin.Context) {
 	}
 
 	// 5. Buat Visit (status: scheduled untuk MJKN)
-	visitNumber := generateVisitNumberForBPJS(tanggal)
+	visitNumber := generateVisitNumberForBPJSTx(tx, tanggal)
 	visit := models.Visit{
 		VisitNumber:    visitNumber,
 		RegistrationID: registration.ID,
@@ -578,7 +589,7 @@ func BPJSWebhookAmbilAntrean(c *gin.Context) {
 	var nonJknCount int64
 	database.DB.Model(&models.BPJSQueue{}).
 		Where("kode_poli = ? AND kode_dokter = ? AND DATE(tanggal_periksa) = ? AND jenis_pasien = ? AND status != ?",
-			req.KodePoli, fmt.Sprintf("%d", req.KodeDokter), tanggal.Format("2006-01-02"), "NON-JKN", "batal").
+			req.KodePoli, fmt.Sprintf("%d", req.KodeDokter), tanggal.Format("2006-01-02"), "NON JKN", "batal").
 		Count(&nonJknCount)
 
 	c.JSON(http.StatusOK, newBPJSResponse(200, "Ok", gin.H{
@@ -844,13 +855,30 @@ func BPJSWebhookCheckIn(c *gin.Context) {
 		}
 	}
 
+	// 5. Daftarkan antrean ke BPJS (AddAntrean) sebelum kirim task
+	// BPJS requires /antrean/add sebelum /antrean/updatewaktu
+	addSuccess, _, addMsg := bpjsService.AddAntrean(&queue)
+	if !addSuccess {
+		// AddAntrean gagal, rollback semua perubahan
+		tx.Rollback()
+		c.JSON(http.StatusOK, newBPJSResponse(201, "Gagal mendaftarkan antrean ke BPJS: "+addMsg, nil))
+		return
+	}
+
+	// Save perubahan AddAntrean (AddAntreanSent, SyncStatus, dll) ke queue
+	if err := tx.Save(&queue).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusOK, newBPJSResponse(201, "Gagal update data antrean: "+err.Error(), nil))
+		return
+	}
+
 	// Commit transaction
 	if err := tx.Commit().Error; err != nil {
 		c.JSON(http.StatusOK, newBPJSResponse(201, "Gagal commit transaksi: "+err.Error(), nil))
 		return
 	}
 
-	// 5. Trigger Task 3 ke BPJS secara async
+	// 6. Trigger Task 3 ke BPJS secara async (setelah AddAntrean sukses)
 	// Task 3: Menunggu di Poli
 	go func() {
 		bpjsService.UpdateTaskAsync(queue.KodeBooking, 3, waktuCheckin, nil)
@@ -1106,53 +1134,62 @@ func BPJSWebhookStatusAntreanFarmasi(c *gin.Context) {
 // HELPER FUNCTIONS
 // ================================================
 
-func generateKodeBooking(tanggal time.Time, kodePoli string) string {
+// generateKodeBookingTx generates kode booking within a transaction to avoid race conditions
+func generateKodeBookingTx(tx *gorm.DB, tanggal time.Time, kodePoli string) string {
 	// Format: DDMMYYYYPPP001
 	dateStr := tanggal.Format("02012006")
 
-	// Cari nomor urut terakhir hari ini
+	// Cari nomor urut terakhir hari ini (within transaction for safety)
 	var count int64
-	database.DB.Model(&models.BPJSQueue{}).
+	tx.Model(&models.BPJSQueue{}).
 		Where("DATE(tanggal_periksa) = ?", tanggal.Format("2006-01-02")).
 		Count(&count)
 
 	return fmt.Sprintf("%s%s%03d", dateStr, kodePoli, count+1)
 }
 
-func generateRegistrationNumberForBPJS(tanggal time.Time) string {
+// generateRegistrationNumberForBPJSTx generates registration number within a transaction
+func generateRegistrationNumberForBPJSTx(tx *gorm.DB, tanggal time.Time) string {
 	// Format: REG{YYMMDD}{seq}
 	dateStr := tanggal.Format("060102")
 
 	var count int64
-	database.DB.Model(&models.Registration{}).
+	tx.Model(&models.Registration{}).
 		Where("DATE(registration_date) = ?", tanggal.Format("2006-01-02")).
 		Count(&count)
 
 	return fmt.Sprintf("REG%s%04d", dateStr, count+1)
 }
 
-func generateVisitNumberForBPJS(tanggal time.Time) string {
+// generateVisitNumberForBPJSTx generates visit number within a transaction
+func generateVisitNumberForBPJSTx(tx *gorm.DB, tanggal time.Time) string {
 	// Format: VIS{YYMMDD}{seq}
 	dateStr := tanggal.Format("060102")
 
 	var count int64
-	database.DB.Model(&models.Visit{}).
+	tx.Model(&models.Visit{}).
 		Where("DATE(created_at) = ?", tanggal.Format("2006-01-02")).
 		Count(&count)
 
 	return fmt.Sprintf("VIS%s%04d", dateStr, count+1)
 }
 
-func generateNoRM() string {
+// generateNoRMTx generates NoRM within a transaction to avoid race conditions
+func generateNoRMTx(tx *gorm.DB) string {
 	// Format: YYMMDD + 4 digit sequence
 	now := time.Now()
 	dateStr := now.Format("060102")
 
 	// Cari nomor urut terakhir hari ini
 	var count int64
-	database.DB.Model(&models.Patient{}).
+	tx.Model(&models.Patient{}).
 		Where("DATE(created_at) = ?", now.Format("2006-01-02")).
 		Count(&count)
 
 	return fmt.Sprintf("%s%04d", dateStr, count+1)
+}
+
+// generateNoRM generates NoRM (non-transaction version for PasienBaru)
+func generateNoRM() string {
+	return generateNoRMTx(database.DB)
 }

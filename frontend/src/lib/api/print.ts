@@ -65,6 +65,14 @@ export const printApi = {
     return fetchPdf(`${BASE_URL}/patient-label/${patientId}?copies=${copies}`);
   },
 
+  /**
+   * Print informed consent / general consent (Persetujuan Umum)
+   * @param patientId - Patient ID
+   */
+  informedConsent: async (patientId: number) => {
+    return fetchPdf(`${BASE_URL}/informed-consent/${patientId}`);
+  },
+
   // =========================================================================
   // B. RAWAT JALAN
   // =========================================================================
@@ -308,6 +316,7 @@ export const printApi = {
   // =========================================================================
 
   blob: {
+    informedConsent: (patientId: number) => fetchPdfBlob(`${BASE_URL}/informed-consent/${patientId}`),
     outpatientResume: (visitId: number) => fetchPdfBlob(`${BASE_URL}/outpatient-resume/${visitId}`),
     inpatientResume: (visitId: number) => fetchPdfBlob(`${BASE_URL}/inpatient-resume/${visitId}`),
     sickLetter: (visitId: number, days: number, startDate: string) =>

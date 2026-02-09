@@ -48,8 +48,6 @@ const getVisitTypeLabel = (type: string): string => {
   return labels[type] || type;
 };
 
-// Tab trigger class - underline style
-const tabTriggerClass = "px-0 py-2 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none text-sm font-medium text-muted-foreground data-[state=active]:text-foreground";
 
 export default function QualityCostPage() {
   const [loading, setLoading] = useState(true);
@@ -182,21 +180,21 @@ export default function QualityCostPage() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <Tabs defaultValue="overview" className="w-full">
-            <TabsList className="h-auto p-0 px-6 pt-4 bg-transparent border-b border-border rounded-none w-full justify-start gap-6">
-              <TabsTrigger value="overview" className={tabTriggerClass}>
+          <Tabs defaultValue="overview" variant="inline" className="w-full">
+            <TabsList className="px-6 pt-4">
+              <TabsTrigger value="overview">
                 <PieChartIcon className="h-4 w-4 mr-2" />
                 Ringkasan
               </TabsTrigger>
-              <TabsTrigger value="cost" className={tabTriggerClass}>
+              <TabsTrigger value="cost">
                 <DollarSign className="h-4 w-4 mr-2" />
                 Analisis Biaya
               </TabsTrigger>
-              <TabsTrigger value="quality" className={tabTriggerClass}>
+              <TabsTrigger value="quality">
                 <Activity className="h-4 w-4 mr-2" />
                 Indikator Mutu
               </TabsTrigger>
-              <TabsTrigger value="reports" className={tabTriggerClass}>
+              <TabsTrigger value="reports">
                 <FileText className="h-4 w-4 mr-2" />
                 Laporan
               </TabsTrigger>

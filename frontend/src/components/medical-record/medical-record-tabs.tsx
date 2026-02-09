@@ -306,23 +306,25 @@ export function MedicalRecordTabs({
   const tabs = allTabs.filter(tab => hasPermission(tab.permission));
 
   return (
-    <div className="space-y-1">
+    <nav className="space-y-0.5">
       {tabs.map((tab) => (
         <button
           key={tab.id}
           onClick={() => onTabChange(tab.id)}
           className={cn(
-            "w-full flex items-center gap-2 px-2.5 py-2 rounded-md text-left transition-all",
-            "hover:bg-muted/50",
+            "w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-left transition-colors text-xs",
             activeTab === tab.id
-              ? "bg-primary text-primary-foreground shadow-sm font-medium"
-              : "text-muted-foreground hover:text-foreground"
+              ? "bg-primary/10 text-primary font-medium"
+              : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
           )}
         >
-          <span className="[&>svg]:h-4 [&>svg]:w-4">{tab.icon}</span>
-          <span className="text-xs">{tab.label}</span>
+          <span className={cn(
+            "[&>svg]:h-3.5 [&>svg]:w-3.5",
+            activeTab === tab.id ? "text-primary" : "text-muted-foreground/70"
+          )}>{tab.icon}</span>
+          <span>{tab.label}</span>
         </button>
       ))}
-    </div>
+    </nav>
   );
 }

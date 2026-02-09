@@ -1002,59 +1002,36 @@ export default function SatuSehatSenderPage() {
             </Button>
         </div>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <div className="border-b px-4">
-            <TabsList className="h-12 bg-transparent p-0 w-full justify-start gap-4">
-              <TabsTrigger
-                value="overview"
-                className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-1"
-              >
+        <Tabs value={activeTab} onValueChange={setActiveTab} variant="inline">
+            <TabsList className="px-4">
+              <TabsTrigger value="overview">
                 Overview
               </TabsTrigger>
-              <TabsTrigger
-                value="patients"
-                className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-1"
-              >
+              <TabsTrigger value="patients">
                 <Users className="h-4 w-4 mr-2" />
                 Pasien
               </TabsTrigger>
-              <TabsTrigger
-                value="practitioners"
-                className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-1"
-              >
+              <TabsTrigger value="practitioners">
                 <Stethoscope className="h-4 w-4 mr-2" />
                 Karyawan
               </TabsTrigger>
-              <TabsTrigger
-                value="locations"
-                className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-1"
-              >
+              <TabsTrigger value="locations">
                 <MapPin className="h-4 w-4 mr-2" />
                 Lokasi
               </TabsTrigger>
-              <TabsTrigger
-                value="kfa"
-                className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-1"
-              >
+              <TabsTrigger value="kfa">
                 <Pill className="h-4 w-4 mr-2" />
                 KFA Obat
               </TabsTrigger>
-              <TabsTrigger
-                value="loinc"
-                className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-1"
-              >
+              <TabsTrigger value="loinc">
                 <FlaskConical className="h-4 w-4 mr-2" />
                 LOINC Lab/Rad
               </TabsTrigger>
-              <TabsTrigger
-                value="encounters"
-                className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-1"
-              >
+              <TabsTrigger value="encounters">
                 <Building2 className="h-4 w-4 mr-2" />
                 Encounter
               </TabsTrigger>
             </TabsList>
-          </div>
 
           <div className="rounded-lg border p-6 mx-4 mb-4">
             {/* Overview Tab */}

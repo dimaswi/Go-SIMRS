@@ -24,7 +24,6 @@ import {
   XCircle,
   RefreshCw,
   CreditCard,
-  ChevronDown,
   Printer,
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
@@ -152,12 +151,8 @@ export default function BillingShow() {
   const [cancelling, setCancelling] = useState(false);
   const [printing, setPrinting] = useState(false);
 
-  // Tabs & Sidebar
+  // Tabs
   const [activeTab, setActiveTab] = useState('overview');
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-    const saved = localStorage.getItem('billingTabsCollapsed');
-    return saved ? JSON.parse(saved) : false;
-  });
 
   // Dialogs
   const [discountDialogOpen, setDiscountDialogOpen] = useState(false);
@@ -174,11 +169,6 @@ export default function BillingShow() {
   const [discountReason, setDiscountReason] = useState('');
   const [adjustAmount, setAdjustAmount] = useState(0);
   const [adjustReason, setAdjustReason] = useState('');
-
-  // Save sidebar state
-  useEffect(() => {
-    localStorage.setItem('billingTabsCollapsed', JSON.stringify(sidebarCollapsed));
-  }, [sidebarCollapsed]);
 
   // Breadcrumb: show patient name
   const { setOverride } = useBreadcrumb();
@@ -583,32 +573,24 @@ export default function BillingShow() {
   return (
     <div className="flex flex-col h-full">
       {/* Patient Info Header + Actions - Sticky */}
-      <div className="sticky top-0 z-50 bg-background px-6 pt-6 pb-3 border-b flex-shrink-0">
+      <div className="sticky top-0 z-50 bg-background px-6 pt-4 pb-2 border-b flex-shrink-0">
         <PatientBillingInfo visit={visit} billing={billing} actionButtons={renderActionButtons()} />
       </div>
 
       {/* Main Content Area with Tabs and Form */}
       <div className="flex-1 min-h-0 px-6 pb-6 pt-4">
-        <div className="grid grid-cols-1 lg:grid-cols-[200px_1fr] gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-[190px_1fr] gap-6">
           {/* Left Sidebar: Tabs Navigation - Sticky */}
           <div className="self-start sticky top-[80px] z-30">
-            <div className="space-y-2">
-              <div
-                className="flex items-center justify-between cursor-pointer px-2 py-1.5 hover:bg-muted/40 rounded-md transition-colors" 
-                onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-              >
-                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Menu Billing</h3>
-                <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${sidebarCollapsed ? '' : 'rotate-180'}`} />
-              </div>
-              {!sidebarCollapsed && (
-                <BillingTabs
-                  activeTab={activeTab}
-                  onTabChange={handleTabChange}
-                  hasBilling={!!billing}
-                  billingStatus={billing?.status}
-                />
-              )}
-            </div>
+            <h3 className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider px-2.5 mb-2">
+              Menu
+            </h3>
+            <BillingTabs
+              activeTab={activeTab}
+              onTabChange={handleTabChange}
+              hasBilling={!!billing}
+              billingStatus={billing?.status}
+            />
           </div>
 
           {/* Right Content: Active Tab Form */}

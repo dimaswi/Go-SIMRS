@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
 import { Moon, Sun, UserPlus } from 'lucide-react';
 import { usePermission } from '@/hooks/usePermission';
@@ -14,14 +13,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from '@/components/ui/breadcrumb';
 
 // Route label mapping for better breadcrumb display
 const routeLabels: Record<string, string> = {
@@ -121,32 +112,35 @@ export function AppHeader() {
   };
 
   return (
-    <header className="flex h-14 shrink-0 items-center gap-2 bg-background px-4 border-b">
-      <div className="flex items-center gap-2 flex-1">
-        <SidebarTrigger className="h-7 w-7" />
-        <Separator orientation="vertical" className="h-4" />
-        <Breadcrumb>
-          <BreadcrumbList>
-            {breadcrumbs.map((crumb, index) => (
-              <div key={crumb.path} className="flex items-center gap-2">
-                {index > 0 && <BreadcrumbSeparator />}
-                <BreadcrumbItem>
-                  {index === breadcrumbs.length - 1 ? (
-                    <BreadcrumbPage className="text-sm font-medium">{crumb.label}</BreadcrumbPage>
-                  ) : (
-                    <BreadcrumbLink 
-                      href={crumb.path}
-                      onClick={(e) => handleBreadcrumbClick(e, crumb.path)}
-                      className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      {crumb.label}
-                    </BreadcrumbLink>
-                  )}
-                </BreadcrumbItem>
+    <header className="flex h-12 shrink-0 items-center gap-3 px-4">
+      <div className="flex items-center gap-2 flex-1 min-w-0">
+        <SidebarTrigger className="h-7 w-7 shrink-0 rounded-md" />
+        <nav className="flex items-center gap-1 min-w-0 overflow-hidden">
+          {breadcrumbs.map((crumb, index) => {
+            const isLast = index === breadcrumbs.length - 1;
+            return (
+              <div key={crumb.path + index} className="flex items-center gap-1 min-w-0">
+                {index > 0 && (
+                  <svg className="h-4 w-4 shrink-0 text-muted-foreground/30" viewBox="0 0 16 16" fill="none">
+                    <path d="M6 3l5 5-5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
+                {isLast ? (
+                  <span className="inline-flex items-center h-7 px-2.5 text-xs font-medium text-primary-foreground bg-primary rounded-md truncate">
+                    {crumb.label}
+                  </span>
+                ) : (
+                  <button
+                    onClick={(e) => handleBreadcrumbClick(e, crumb.path)}
+                    className="inline-flex items-center h-7 px-2.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors truncate"
+                  >
+                    {crumb.label}
+                  </button>
+                )}
               </div>
-            ))}
-          </BreadcrumbList>
-        </Breadcrumb>
+            );
+          })}
+        </nav>
       </div>
       
       {/* Patient Search */}
@@ -155,7 +149,7 @@ export function AppHeader() {
       </div>
       
       {/* Quick Actions */}
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-0.5">
         {hasPermission('patients.create') && (
           <TooltipProvider>
             <Tooltip>
@@ -164,7 +158,7 @@ export function AppHeader() {
                   variant="ghost"
                   size="icon"
                   onClick={() => navigate('/patients/create')}
-                  className="h-8 w-8"
+                  className="h-8 w-8 rounded-full"
                 >
                   <UserPlus className="h-4 w-4" />
                   <span className="sr-only">Registrasi Pasien Baru</span>
@@ -185,7 +179,7 @@ export function AppHeader() {
           variant="ghost"
           size="icon"
           onClick={toggleTheme}
-          className="h-8 w-8"
+          className="h-8 w-8 rounded-full"
         >
           {theme === 'light' ? (
             <Moon className="h-4 w-4" />

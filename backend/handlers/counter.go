@@ -229,3 +229,82 @@ func GetActiveCounters(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"data": counters})
 }
+
+// GetOpenCounters godoc
+// @Summary Get open counters
+// @Description Get list of counters that are both active and open for service
+// @Tags Counter
+// @Accept json
+// @Produce json
+// @Success 200 {object} map[string]interface{}
+// @Router /counters/open [get]
+func GetOpenCounters(c *gin.Context) {
+	var counters []models.Counter
+	database.DB.Where("is_active = ? AND is_open = ?", true, true).Order("display_order ASC, name ASC").Find(&counters)
+
+	c.JSON(http.StatusOK, gin.H{"data": counters})
+}
+
+// ToggleCounterOpen godoc
+// @Summary Toggle counter open/close status
+// @Description Toggle whether a counter is open or closed for daily operation
+// @Tags Counter
+// @Accept json
+// @Produce json
+// @Param id path int true "Counter ID"
+// @Success 200 {object} map[string]interface{}
+// @Router /counters/{id}/toggle-open [post]
+func ToggleCounterOpen(c *gin.Context) {
+	id := c.Param("id")
+	var counter models.Counter
+
+	if err := database.DB.First(&counter, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Loket tidak ditemukan"})
+		return
+	}
+
+	counter.IsOpen = !counter.IsOpen
+	database.DB.Model(&counter).Update("is_open", counter.IsOpen)
+
+	status := "ditutup"
+	if counter.IsOpen {
+		status = "dibuka"
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"data":    counter,
+		"message": "Loket " + counter.Name + " berhasil " + status,
+	})
+}
+
+// BulkToggleCounterOpen godoc
+// @Summary Open or close multiple counters at once
+// @Description Set open status for multiple counters
+// @Tags Counter
+// @Accept json
+// @Produce json
+// @Param input body object true "Counter IDs and open status"
+// @Success 200 {object} map[string]interface{}
+// @Router /counters/bulk-toggle-open [post]
+func BulkToggleCounterOpen(c *gin.Context) {
+	var input struct {
+		CounterIDs []uint `json:"counter_ids" binding:"required"`
+		IsOpen     bool   `json:"is_open"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	database.DB.Model(&models.Counter{}).Where("id IN ?", input.CounterIDs).Update("is_open", input.IsOpen)
+
+	status := "ditutup"
+	if input.IsOpen {
+		status = "dibuka"
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": strconv.Itoa(len(input.CounterIDs)) + " loket berhasil " + status,
+	})
+}

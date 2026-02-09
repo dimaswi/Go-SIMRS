@@ -63,7 +63,7 @@ export function PatientSearch() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
-          className="pl-8 pr-8 h-8 w-[220px] lg:w-[280px] bg-muted/50 border-0 focus-visible:ring-1"
+          className="pl-8 pr-8 h-8 w-[220px] lg:w-[280px] bg-muted/40 border-0 rounded-full text-sm placeholder:text-muted-foreground/70 focus-visible:bg-background focus-visible:border focus-visible:border-input"
           disabled={isSearching}
         />
         {isSearching && (

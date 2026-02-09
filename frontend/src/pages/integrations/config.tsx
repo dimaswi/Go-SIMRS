@@ -46,7 +46,16 @@ import {
   Wifi,
   WifiOff,
 } from "lucide-react";
-import { integrationsApi, vclaimApi, type IntegrationConfigMap, type IntegrationType, type VClaimRefPropinsi, BPJS_SERVICE_TYPES, isBPJSType, getBPJSServiceName } from "@/lib/api";
+import {
+  integrationsApi,
+  vclaimApi,
+  type IntegrationConfigMap,
+  type IntegrationType,
+  type VClaimRefPropinsi,
+  BPJS_SERVICE_TYPES,
+  isBPJSType,
+  getBPJSServiceName,
+} from "@/lib/api";
 
 interface IntegrationItem {
   id: string;
@@ -63,11 +72,11 @@ interface IntegrationItem {
 export default function IntegrationsConfigPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  
+
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
   const [testing, setTesting] = useState<string | null>(null);
-  
+
   // Integrations list - General table with all integrations as rows
   const [integrations, setIntegrations] = useState<IntegrationItem[]>([
     // BPJS Integrations
@@ -127,42 +136,56 @@ export default function IntegrationsConfigPage() {
       category: "Kemenkes",
     },
   ]);
-  
+
   // Config Dialog
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
-  const [editingIntegration, setEditingIntegration] = useState<string | null>(null);
-  
+  const [editingIntegration, setEditingIntegration] = useState<string | null>(
+    null,
+  );
+
   // BPJS Config State - now per service
-  const [bpjsConfigs, setBpjsConfigs] = useState<Record<string, IntegrationConfigMap>>({});
+  const [bpjsConfigs, setBpjsConfigs] = useState<
+    Record<string, IntegrationConfigMap>
+  >({});
   const [consId, setConsId] = useState("");
   const [secretKey, setSecretKey] = useState("");
   const [userKey, setUserKey] = useState("");
   const [kodePPK, setKodePPK] = useState("");
   const [namaPPK, setNamaPPK] = useState("");
   const [environment, setEnvironment] = useState("development");
-  const [baseUrlDev, setBaseUrlDev] = useState("https://apijkn-dev.bpjs-kesehatan.go.id");
-  const [baseUrlProd, setBaseUrlProd] = useState("https://apijkn.bpjs-kesehatan.go.id");
+  const [baseUrlDev, setBaseUrlDev] = useState(
+    "https://apijkn-dev.bpjs-kesehatan.go.id",
+  );
+  const [baseUrlProd, setBaseUrlProd] = useState(
+    "https://apijkn.bpjs-kesehatan.go.id",
+  );
   const [syncInterval, setSyncInterval] = useState("5");
   const [autoSyncEnabled, setAutoSyncEnabled] = useState(false);
   // Webhook config (untuk BPJS Antrian Online)
   const [webhookUsername, setWebhookUsername] = useState("");
   const [webhookPassword, setWebhookPassword] = useState("");
   const [showWebhookPassword, setShowWebhookPassword] = useState(false);
-  
+
   // SatuSehat Config State
   const [ssConfig, setSsConfig] = useState<IntegrationConfigMap>({});
   const [ssClientId, setSsClientId] = useState("");
   const [ssClientSecret, setSsClientSecret] = useState("");
   const [ssOrgId, setSsOrgId] = useState("");
   const [ssEnvironment, setSsEnvironment] = useState("development");
-  const [ssBaseUrlDev, setSsBaseUrlDev] = useState("https://api-satusehat-stg.dto.kemkes.go.id");
-  const [ssBaseUrlProd, setSsBaseUrlProd] = useState("https://api-satusehat.kemkes.go.id");
+  const [ssBaseUrlDev, setSsBaseUrlDev] = useState(
+    "https://api-satusehat-stg.dto.kemkes.go.id",
+  );
+  const [ssBaseUrlProd, setSsBaseUrlProd] = useState(
+    "https://api-satusehat.kemkes.go.id",
+  );
   const [ssAutoSync, setSsAutoSync] = useState(false);
   const [showSsClientSecret, setShowSsClientSecret] = useState(false);
 
   // VClaim Test State
   const [vclaimTesting, setVclaimTesting] = useState(false);
-  const [vclaimTestResult, setVclaimTestResult] = useState<VClaimRefPropinsi[] | null>(null);
+  const [vclaimTestResult, setVclaimTestResult] = useState<
+    VClaimRefPropinsi[] | null
+  >(null);
   const [vclaimTestError, setVclaimTestError] = useState<string | null>(null);
 
   // Visibility State for secrets
@@ -184,7 +207,7 @@ export default function IntegrationsConfigPage() {
   const loadAllBPJSConfigs = async () => {
     try {
       setFetching(true);
-      
+
       // Load config for each BPJS service
       const configPromises = BPJS_SERVICE_TYPES.map(async (serviceType) => {
         try {
@@ -206,23 +229,33 @@ export default function IntegrationsConfigPage() {
       });
 
       const results = await Promise.all(configPromises);
-      
+
       // Build configs map
       const newConfigs: Record<string, IntegrationConfigMap> = {};
-      results.forEach(result => {
+      results.forEach((result) => {
         newConfigs[result.type] = result.data;
       });
       setBpjsConfigs(newConfigs);
-      
+
       // Update integration status for each BPJS service
-      setIntegrations(prev => prev.map(i => {
-        if (isBPJSType(i.id)) {
-          const serviceConfig = newConfigs[i.id] || {};
-          const isConfigured = !!(serviceConfig.cons_id?.has_value && serviceConfig.secret_key?.has_value && serviceConfig.user_key?.has_value);
-          return { ...i, isConfigured, environment: serviceConfig.environment?.value };
-        }
-        return i;
-      }));
+      setIntegrations((prev) =>
+        prev.map((i) => {
+          if (isBPJSType(i.id)) {
+            const serviceConfig = newConfigs[i.id] || {};
+            const isConfigured = !!(
+              serviceConfig.cons_id?.has_value &&
+              serviceConfig.secret_key?.has_value &&
+              serviceConfig.user_key?.has_value
+            );
+            return {
+              ...i,
+              isConfigured,
+              environment: serviceConfig.environment?.value,
+            };
+          }
+          return i;
+        }),
+      );
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -247,23 +280,28 @@ export default function IntegrationsConfigPage() {
       const response = await integrationsApi.getConfig("satusehat");
       const data = response.data.data;
       setSsConfig(data);
-      
+
       // Set values from config
       if (data.client_id?.value) setSsClientId(data.client_id.value);
       if (data.organization_id?.value) setSsOrgId(data.organization_id.value);
       if (data.environment?.value) setSsEnvironment(data.environment.value);
       if (data.base_url_dev?.value) setSsBaseUrlDev(data.base_url_dev.value);
       if (data.base_url_prod?.value) setSsBaseUrlProd(data.base_url_prod.value);
-      if (data.auto_sync_enabled?.value) setSsAutoSync(data.auto_sync_enabled.value === "true");
-      
+      if (data.auto_sync_enabled?.value)
+        setSsAutoSync(data.auto_sync_enabled.value === "true");
+
       // Update SatuSehat integration status
-      const isConfigured = !!(data.client_id?.has_value && data.client_secret?.has_value);
-      setIntegrations(prev => prev.map(i => {
-        if (i.id === "satusehat") {
-          return { ...i, isConfigured, environment: data.environment?.value };
-        }
-        return i;
-      }));
+      const isConfigured = !!(
+        data.client_id?.has_value && data.client_secret?.has_value
+      );
+      setIntegrations((prev) =>
+        prev.map((i) => {
+          if (i.id === "satusehat") {
+            return { ...i, isConfigured, environment: data.environment?.value };
+          }
+          return i;
+        }),
+      );
     } catch (error: any) {
       // If 404, initialize config
       if (error.response?.status === 404 || !error.response?.data?.data) {
@@ -279,13 +317,13 @@ export default function IntegrationsConfigPage() {
 
   const handleOpenConfig = (integrationId: string) => {
     setEditingIntegration(integrationId);
-    
+
     // Reset secrets visibility
     setShowSecretKey(false);
     setShowUserKey(false);
     setShowSsClientSecret(false);
     setShowWebhookPassword(false);
-    
+
     if (isBPJSType(integrationId)) {
       // Load data from config for this specific BPJS service
       const config = bpjsConfigs[integrationId] || {};
@@ -295,8 +333,12 @@ export default function IntegrationsConfigPage() {
       setKodePPK(config.kode_ppk?.value || "");
       setNamaPPK(config.nama_ppk?.value || "");
       setEnvironment(config.environment?.value || "development");
-      setBaseUrlDev(config.base_url_dev?.value || "https://apijkn-dev.bpjs-kesehatan.go.id");
-      setBaseUrlProd(config.base_url_prod?.value || "https://apijkn.bpjs-kesehatan.go.id");
+      setBaseUrlDev(
+        config.base_url_dev?.value || "https://apijkn-dev.bpjs-kesehatan.go.id",
+      );
+      setBaseUrlProd(
+        config.base_url_prod?.value || "https://apijkn.bpjs-kesehatan.go.id",
+      );
       setSyncInterval(config.sync_interval_minutes?.value || "5");
       setAutoSyncEnabled(config.auto_sync_enabled?.value === "true");
       // Webhook config (only for bpjs-antrian)
@@ -308,7 +350,7 @@ export default function IntegrationsConfigPage() {
       // Load SatuSehat config values
       setSsClientSecret(ssConfig.client_secret?.value || "");
     }
-    
+
     setConfigDialogOpen(true);
   };
 
@@ -323,7 +365,7 @@ export default function IntegrationsConfigPage() {
 
   const handleSaveBPJS = async () => {
     if (!editingIntegration) return;
-    
+
     setLoading(true);
     try {
       const updateData: Record<string, string> = {
@@ -338,23 +380,26 @@ export default function IntegrationsConfigPage() {
         sync_interval_minutes: syncInterval,
         auto_sync_enabled: autoSyncEnabled ? "true" : "false",
       };
-      
+
       // Add webhook config for bpjs-antrian
       if (editingIntegration === "bpjs-antrian") {
         updateData.webhook_username = webhookUsername;
         updateData.webhook_password = webhookPassword;
       }
-      
+
       // Update config for specific BPJS service
-      await integrationsApi.updateConfig(editingIntegration as IntegrationType, updateData);
-      
+      await integrationsApi.updateConfig(
+        editingIntegration as IntegrationType,
+        updateData,
+      );
+
       const serviceName = getBPJSServiceName(editingIntegration);
       toast({
         variant: "success",
         title: "Berhasil!",
         description: `Konfigurasi ${serviceName} berhasil disimpan.`,
       });
-      
+
       setConfigDialogOpen(false);
       await loadAllBPJSConfigs();
     } catch (error) {
@@ -380,15 +425,15 @@ export default function IntegrationsConfigPage() {
         base_url_prod: ssBaseUrlProd,
         auto_sync_enabled: ssAutoSync ? "true" : "false",
       };
-      
+
       await integrationsApi.updateConfig("satusehat", updateData);
-      
+
       toast({
         variant: "success",
         title: "Berhasil!",
         description: "Konfigurasi SatuSehat berhasil disimpan.",
       });
-      
+
       setConfigDialogOpen(false);
       await loadSatuSehatConfig();
     } catch (error) {
@@ -412,25 +457,29 @@ export default function IntegrationsConfigPage() {
       });
       return;
     }
-    
+
     setTesting(integrationId);
-    
+
     try {
-      const response = await integrationsApi.testConnection(integrationId as IntegrationType);
+      const response = await integrationsApi.testConnection(
+        integrationId as IntegrationType,
+      );
       const result = response.data;
-      
+
       // Update specific integration status
-      setIntegrations(prev => prev.map(i => {
-        if (i.id === integrationId) {
-          return { 
-            ...i, 
-            isConnected: result.success, 
-            lastTested: new Date().toLocaleString("id-ID") 
-          };
-        }
-        return i;
-      }));
-      
+      setIntegrations((prev) =>
+        prev.map((i) => {
+          if (i.id === integrationId) {
+            return {
+              ...i,
+              isConnected: result.success,
+              lastTested: new Date().toLocaleString("id-ID"),
+            };
+          }
+          return i;
+        }),
+      );
+
       if (result.success) {
         toast({
           variant: "success",
@@ -446,13 +495,19 @@ export default function IntegrationsConfigPage() {
       }
     } catch (error: any) {
       const errorMsg = error.response?.data?.error || "Gagal menguji koneksi";
-      
-      setIntegrations(prev => prev.map(i => 
-        i.id === integrationId 
-          ? { ...i, isConnected: false, lastTested: new Date().toLocaleString("id-ID") } 
-          : i
-      ));
-      
+
+      setIntegrations((prev) =>
+        prev.map((i) =>
+          i.id === integrationId
+            ? {
+                ...i,
+                isConnected: false,
+                lastTested: new Date().toLocaleString("id-ID"),
+              }
+            : i,
+        ),
+      );
+
       toast({
         variant: "destructive",
         title: "Error",
@@ -478,7 +533,10 @@ export default function IntegrationsConfigPage() {
         description: `Endpoint /referensi/propinsi berhasil. Ditemukan ${data?.length || 0} propinsi.`,
       });
     } catch (error: any) {
-      const errorMsg = error.response?.data?.error || error.message || "Gagal menghubungi VClaim";
+      const errorMsg =
+        error.response?.data?.error ||
+        error.message ||
+        "Gagal menghubungi VClaim";
       setVclaimTestError(errorMsg);
       toast({
         variant: "destructive",
@@ -511,7 +569,7 @@ export default function IntegrationsConfigPage() {
     if (!integration.isConfigured) {
       return <span className="text-muted-foreground text-sm">-</span>;
     }
-    
+
     if (integration.isConnected === null) {
       return (
         <Badge variant="outline" className="gap-1">
@@ -520,7 +578,7 @@ export default function IntegrationsConfigPage() {
         </Badge>
       );
     }
-    
+
     if (integration.isConnected) {
       return (
         <Badge className="bg-green-100 text-green-800 border-green-300 gap-1">
@@ -529,7 +587,7 @@ export default function IntegrationsConfigPage() {
         </Badge>
       );
     }
-    
+
     return (
       <Badge variant="destructive" className="gap-1">
         <WifiOff className="h-3 w-3" />
@@ -549,47 +607,52 @@ export default function IntegrationsConfigPage() {
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
       <div className="grid gap-4">
-        <div className="rounded-lg border">
-          <div className="flex items-center gap-4 p-6">
-              <div>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => navigate(-1)}
-                  className="h-9 w-9"
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                </Button>
-              </div>
-              <div className="flex-1">
-                <h1 className="text-lg font-semibold">
-                  Konfigurasi Integrasi
-                </h1>
-                <p className="text-sm text-muted-foreground">
-                  Kelola integrasi dengan sistem eksternal
-                </p>
-              </div>
-              <Button variant="outline" size="sm" onClick={() => { loadAllBPJSConfigs(); loadSatuSehatConfig(); }}>
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Refresh
-              </Button>
+        <div className="flex items-center gap-4 p-6">
+          <div>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => navigate(-1)}
+              className="h-9 w-9"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
           </div>
-          <div className="rounded-lg border p-6 mx-4 mb-4">
-            <div className="rounded-md border">
-              <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[280px]">Integrasi</TableHead>
-                  <TableHead className="w-[100px]">Kategori</TableHead>
-                  <TableHead>Status Konfigurasi</TableHead>
-                  <TableHead>Status Koneksi</TableHead>
-                  <TableHead>Environment</TableHead>
-                  <TableHead>Terakhir Diuji</TableHead>
-                  <TableHead className="text-right">Aksi</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {[...integrations].sort((a, b) => a.name.localeCompare(b.name)).map((integration) => (
+          <div className="flex-1">
+            <h1 className="text-lg font-semibold">Konfigurasi Integrasi</h1>
+            <p className="text-sm text-muted-foreground">
+              Kelola integrasi dengan sistem eksternal
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              loadAllBPJSConfigs();
+              loadSatuSehatConfig();
+            }}
+          >
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
+        </div>
+        <div className="rounded-lg border p-6 mx-4 mb-4">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[280px]">Integrasi</TableHead>
+                <TableHead className="w-[100px]">Kategori</TableHead>
+                <TableHead>Status Konfigurasi</TableHead>
+                <TableHead>Status Koneksi</TableHead>
+                <TableHead>Environment</TableHead>
+                <TableHead>Terakhir Diuji</TableHead>
+                <TableHead className="text-right">Aksi</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {[...integrations]
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map((integration) => (
                   <TableRow key={integration.id}>
                     <TableCell>
                       <div className="flex items-center gap-3">
@@ -598,19 +661,31 @@ export default function IntegrationsConfigPage() {
                         </div>
                         <div>
                           <p className="font-medium">{integration.name}</p>
-                          <p className="text-xs text-muted-foreground">{integration.description}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {integration.description}
+                          </p>
                         </div>
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline">{integration.category || "-"}</Badge>
+                      <Badge variant="outline">
+                        {integration.category || "-"}
+                      </Badge>
                     </TableCell>
                     <TableCell>{getStatusBadge(integration)}</TableCell>
                     <TableCell>{getConnectionBadge(integration)}</TableCell>
                     <TableCell>
                       {integration.isConfigured && integration.environment ? (
-                        <Badge variant={integration.environment === "production" ? "default" : "secondary"}>
-                          {integration.environment === "production" ? "Production" : "Development"}
+                        <Badge
+                          variant={
+                            integration.environment === "production"
+                              ? "default"
+                              : "secondary"
+                          }
+                        >
+                          {integration.environment === "production"
+                            ? "Production"
+                            : "Development"}
                         </Badge>
                       ) : (
                         <span className="text-muted-foreground text-sm">-</span>
@@ -618,7 +693,9 @@ export default function IntegrationsConfigPage() {
                     </TableCell>
                     <TableCell>
                       {integration.lastTested ? (
-                        <span className="text-sm text-muted-foreground">{integration.lastTested}</span>
+                        <span className="text-sm text-muted-foreground">
+                          {integration.lastTested}
+                        </span>
                       ) : (
                         <span className="text-muted-foreground text-sm">-</span>
                       )}
@@ -629,7 +706,10 @@ export default function IntegrationsConfigPage() {
                           variant="outline"
                           size="sm"
                           onClick={() => handleTestConnection(integration.id)}
-                          disabled={!integration.isConfigured || testing === integration.id}
+                          disabled={
+                            !integration.isConfigured ||
+                            testing === integration.id
+                          }
                         >
                           {testing === integration.id ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
@@ -643,36 +723,47 @@ export default function IntegrationsConfigPage() {
                           onClick={() => handleOpenConfig(integration.id)}
                         >
                           <Settings className="h-4 w-4" />
-                          <span className="ml-2 hidden sm:inline">Konfigurasi</span>
+                          <span className="ml-2 hidden sm:inline">
+                            Konfigurasi
+                          </span>
                         </Button>
                       </div>
                     </TableCell>
                   </TableRow>
                 ))}
-              </TableBody>
-              </Table>
-            </div>
-          </div>
+            </TableBody>
+          </Table>
         </div>
       </div>
 
       {/* BPJS Config Dialog (each BPJS service has its own config) */}
-      <Dialog open={configDialogOpen && isBPJSType(editingIntegration || "")} onOpenChange={setConfigDialogOpen}>
+      <Dialog
+        open={configDialogOpen && isBPJSType(editingIntegration || "")}
+        onOpenChange={setConfigDialogOpen}
+      >
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Stethoscope className="h-5 w-5" />
-              Konfigurasi BPJS {editingIntegration ? getBPJSServiceName(editingIntegration) : ""}
+              Konfigurasi BPJS{" "}
+              {editingIntegration ? getBPJSServiceName(editingIntegration) : ""}
             </DialogTitle>
             <DialogDescription>
-              Kredensial untuk layanan BPJS {editingIntegration ? getBPJSServiceName(editingIntegration) : ""}. Setiap layanan BPJS memiliki kredensial yang terpisah.
+              Kredensial untuk layanan BPJS{" "}
+              {editingIntegration ? getBPJSServiceName(editingIntegration) : ""}
+              . Setiap layanan BPJS memiliki kredensial yang terpisah.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-6 py-4">
             {/* Kredensial */}
             <div className="space-y-4">
-              <h4 className="text-sm font-semibold">Kredensial BPJS {editingIntegration ? getBPJSServiceName(editingIntegration) : ""}</h4>
+              <h4 className="text-sm font-semibold">
+                Kredensial BPJS{" "}
+                {editingIntegration
+                  ? getBPJSServiceName(editingIntegration)
+                  : ""}
+              </h4>
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="consId" className="text-xs font-medium">
@@ -702,7 +793,11 @@ export default function IntegrationsConfigPage() {
                       type={showSecretKey ? "text" : "password"}
                       value={secretKey}
                       onChange={(e) => setSecretKey(e.target.value)}
-                      placeholder={getCurrentBPJSConfig().secret_key?.has_value ? "••••••••" : "Masukkan Secret Key"}
+                      placeholder={
+                        getCurrentBPJSConfig().secret_key?.has_value
+                          ? "••••••••"
+                          : "Masukkan Secret Key"
+                      }
                       className="pr-10"
                     />
                     <Button
@@ -731,7 +826,11 @@ export default function IntegrationsConfigPage() {
                       type={showUserKey ? "text" : "password"}
                       value={userKey}
                       onChange={(e) => setUserKey(e.target.value)}
-                      placeholder={getCurrentBPJSConfig().user_key?.has_value ? "••••••••" : "Masukkan User Key"}
+                      placeholder={
+                        getCurrentBPJSConfig().user_key?.has_value
+                          ? "••••••••"
+                          : "Masukkan User Key"
+                      }
                       className="pr-10"
                     />
                     <Button
@@ -756,7 +855,9 @@ export default function IntegrationsConfigPage() {
 
             {/* Info Faskes */}
             <div className="space-y-4">
-              <h4 className="text-sm font-semibold">Informasi Fasilitas Kesehatan</h4>
+              <h4 className="text-sm font-semibold">
+                Informasi Fasilitas Kesehatan
+              </h4>
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="kodePPK" className="text-xs font-medium">
@@ -871,13 +972,19 @@ export default function IntegrationsConfigPage() {
               <>
                 <hr />
                 <div className="space-y-4">
-                  <h4 className="text-sm font-semibold">Konfigurasi Webhook RS</h4>
+                  <h4 className="text-sm font-semibold">
+                    Konfigurasi Webhook RS
+                  </h4>
                   <p className="text-xs text-muted-foreground">
-                    Kredensial untuk BPJS mengakses endpoint webhook RS. Jika dikosongkan, akan menggunakan akun user SIMRS.
+                    Kredensial untuk BPJS mengakses endpoint webhook RS. Jika
+                    dikosongkan, akan menggunakan akun user SIMRS.
                   </p>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="webhookUsername" className="text-xs font-medium">
+                      <Label
+                        htmlFor="webhookUsername"
+                        className="text-xs font-medium"
+                      >
                         Webhook Username (Opsional)
                       </Label>
                       <Input
@@ -888,7 +995,10 @@ export default function IntegrationsConfigPage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="webhookPassword" className="text-xs font-medium">
+                      <Label
+                        htmlFor="webhookPassword"
+                        className="text-xs font-medium"
+                      >
                         Webhook Password (Opsional)
                       </Label>
                       <div className="relative">
@@ -904,9 +1014,15 @@ export default function IntegrationsConfigPage() {
                           variant="ghost"
                           size="sm"
                           className="absolute right-0 top-0 h-full px-3"
-                          onClick={() => setShowWebhookPassword(!showWebhookPassword)}
+                          onClick={() =>
+                            setShowWebhookPassword(!showWebhookPassword)
+                          }
                         >
-                          {showWebhookPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          {showWebhookPassword ? (
+                            <EyeOff className="h-4 w-4" />
+                          ) : (
+                            <Eye className="h-4 w-4" />
+                          )}
                         </Button>
                       </div>
                     </div>
@@ -922,7 +1038,8 @@ export default function IntegrationsConfigPage() {
                 <div className="space-y-4">
                   <h4 className="text-sm font-semibold">Test VClaim API</h4>
                   <p className="text-xs text-muted-foreground">
-                    Uji koneksi VClaim dengan mengambil data referensi propinsi dari endpoint <code>/referensi/propinsi</code>
+                    Uji koneksi VClaim dengan mengambil data referensi propinsi
+                    dari endpoint <code>/referensi/propinsi</code>
                   </p>
                   <Button
                     variant="outline"
@@ -944,7 +1061,9 @@ export default function IntegrationsConfigPage() {
                         <AlertCircle className="h-4 w-4" />
                         <span className="text-sm font-medium">Gagal</span>
                       </div>
-                      <p className="text-xs text-red-700 mt-1">{vclaimTestError}</p>
+                      <p className="text-xs text-red-700 mt-1">
+                        {vclaimTestError}
+                      </p>
                     </div>
                   )}
 
@@ -953,22 +1072,34 @@ export default function IntegrationsConfigPage() {
                       <div className="flex items-center gap-2 text-green-800 mb-2">
                         <CheckCircle className="h-4 w-4" />
                         <span className="text-sm font-medium">
-                          Berhasil - {vclaimTestResult.length} propinsi ditemukan
+                          Berhasil - {vclaimTestResult.length} propinsi
+                          ditemukan
                         </span>
                       </div>
                       <div className="max-h-48 overflow-y-auto">
                         <table className="w-full text-xs">
                           <thead>
                             <tr className="border-b border-green-200">
-                              <th className="text-left py-1 px-2 font-medium text-green-800">Kode</th>
-                              <th className="text-left py-1 px-2 font-medium text-green-800">Nama Propinsi</th>
+                              <th className="text-left py-1 px-2 font-medium text-green-800">
+                                Kode
+                              </th>
+                              <th className="text-left py-1 px-2 font-medium text-green-800">
+                                Nama Propinsi
+                              </th>
                             </tr>
                           </thead>
                           <tbody>
                             {vclaimTestResult.map((item, idx) => (
-                              <tr key={idx} className="border-b border-green-100 last:border-0">
-                                <td className="py-1 px-2 text-green-700">{item.kode}</td>
-                                <td className="py-1 px-2 text-green-700">{item.nama}</td>
+                              <tr
+                                key={idx}
+                                className="border-b border-green-100 last:border-0"
+                              >
+                                <td className="py-1 px-2 text-green-700">
+                                  {item.kode}
+                                </td>
+                                <td className="py-1 px-2 text-green-700">
+                                  {item.nama}
+                                </td>
                               </tr>
                             ))}
                           </tbody>
@@ -986,11 +1117,12 @@ export default function IntegrationsConfigPage() {
             <div className="space-y-4">
               <h4 className="text-sm font-semibold">Mapping Data</h4>
               <p className="text-xs text-muted-foreground">
-                Petakan ruangan poliklinik dan dokter SIMRS dengan kode BPJS untuk antrian online
+                Petakan ruangan poliklinik dan dokter SIMRS dengan kode BPJS
+                untuk antrian online
               </p>
               <div className="flex gap-2">
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   size="sm"
                   onClick={() => {
                     setConfigDialogOpen(false);
@@ -1005,7 +1137,10 @@ export default function IntegrationsConfigPage() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setConfigDialogOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setConfigDialogOpen(false)}
+            >
               Batal
             </Button>
             <Button onClick={handleSave} disabled={loading}>
@@ -1026,7 +1161,10 @@ export default function IntegrationsConfigPage() {
       </Dialog>
 
       {/* SatuSehat Config Dialog */}
-      <Dialog open={configDialogOpen && editingIntegration === "satusehat"} onOpenChange={setConfigDialogOpen}>
+      <Dialog
+        open={configDialogOpen && editingIntegration === "satusehat"}
+        onOpenChange={setConfigDialogOpen}
+      >
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -1062,7 +1200,10 @@ export default function IntegrationsConfigPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="ssClientSecret" className="text-xs font-medium">
+                  <Label
+                    htmlFor="ssClientSecret"
+                    className="text-xs font-medium"
+                  >
                     Client Secret
                   </Label>
                   <div className="relative">
@@ -1071,7 +1212,11 @@ export default function IntegrationsConfigPage() {
                       type={showSsClientSecret ? "text" : "password"}
                       value={ssClientSecret}
                       onChange={(e) => setSsClientSecret(e.target.value)}
-                      placeholder={ssConfig.client_secret?.has_value ? "••••••••" : "Masukkan Client Secret"}
+                      placeholder={
+                        ssConfig.client_secret?.has_value
+                          ? "••••••••"
+                          : "Masukkan Client Secret"
+                      }
                       className="pr-10"
                     />
                     <Button
@@ -1114,7 +1259,8 @@ export default function IntegrationsConfigPage() {
                   placeholder="Contoh: 10000001"
                 />
                 <p className="text-xs text-muted-foreground">
-                  ID Organisasi dari SatuSehat, digunakan untuk mengambil data encounter yang sudah dikirim sebelumnya
+                  ID Organisasi dari SatuSehat, digunakan untuk mengambil data
+                  encounter yang sudah dikirim sebelumnya
                 </p>
               </div>
             </div>
@@ -1126,15 +1272,23 @@ export default function IntegrationsConfigPage() {
               <h4 className="text-sm font-semibold">Environment</h4>
               <div className="grid gap-4 md:grid-cols-3">
                 <div className="space-y-2">
-                  <Label htmlFor="ssEnvironment" className="text-xs font-medium">
+                  <Label
+                    htmlFor="ssEnvironment"
+                    className="text-xs font-medium"
+                  >
                     Environment
                   </Label>
-                  <Select value={ssEnvironment} onValueChange={setSsEnvironment}>
+                  <Select
+                    value={ssEnvironment}
+                    onValueChange={setSsEnvironment}
+                  >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="development">Staging/Development</SelectItem>
+                      <SelectItem value="development">
+                        Staging/Development
+                      </SelectItem>
                       <SelectItem value="production">Production</SelectItem>
                     </SelectContent>
                   </Select>
@@ -1153,7 +1307,10 @@ export default function IntegrationsConfigPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="ssBaseUrlProd" className="text-xs font-medium">
+                  <Label
+                    htmlFor="ssBaseUrlProd"
+                    className="text-xs font-medium"
+                  >
                     URL Production
                   </Label>
                   <Input
@@ -1172,14 +1329,18 @@ export default function IntegrationsConfigPage() {
             <div className="space-y-4">
               <h4 className="text-sm font-semibold">Pengaturan Sinkronisasi</h4>
               <div className="space-y-2">
-                <Label className="text-xs font-medium">Auto Sync ke SatuSehat</Label>
+                <Label className="text-xs font-medium">
+                  Auto Sync ke SatuSehat
+                </Label>
                 <div className="flex items-center space-x-2 pt-2">
                   <Switch
                     checked={ssAutoSync}
                     onCheckedChange={setSsAutoSync}
                   />
                   <Label className="text-sm text-muted-foreground">
-                    {ssAutoSync ? "Aktif - Data akan otomatis dikirim ke SatuSehat" : "Nonaktif"}
+                    {ssAutoSync
+                      ? "Aktif - Data akan otomatis dikirim ke SatuSehat"
+                      : "Nonaktif"}
                   </Label>
                 </div>
               </div>
@@ -1187,7 +1348,10 @@ export default function IntegrationsConfigPage() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setConfigDialogOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setConfigDialogOpen(false)}
+            >
               Batal
             </Button>
             <Button onClick={handleSave} disabled={loading}>

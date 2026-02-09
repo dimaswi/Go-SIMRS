@@ -123,7 +123,7 @@ export default function ICDIndexPage() {
           </p>
         </div>
         <div className="flex items-center gap-4">
-          <Tabs value={activeTab} onValueChange={handleTabChange}>
+          <Tabs value={activeTab} onValueChange={handleTabChange} variant="inline">
             <TabsList>
               <TabsTrigger value="icd10" className="gap-2">
                 <Stethoscope className="h-4 w-4" />

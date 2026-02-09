@@ -629,9 +629,9 @@ export default function BPJSQueueMonitoringPage() {
                       { num: 2, name: "Selesai Admisi", field: "task2_at", canSend: false },
                       { num: 3, name: "Tunggu Poli (Check-in)", field: "task3_at", canSend: true, timeSource: "waktu_checkin" },
                       { num: 4, name: "Dipanggil Dokter", field: "task4_at", canSend: true },
-                      { num: 5, name: "Mulai Dilayani", field: "task5_at", canSend: true },
-                      { num: 6, name: "Selesai Periksa", field: "task6_at", canSend: true },
-                      { num: 7, name: "Farmasi/Serah Obat", field: "task7_at", canSend: true },
+                      { num: 5, name: "Selesai Periksa", field: "task5_at", canSend: true },
+                      { num: 6, name: "Mulai Tunggu Farmasi", field: "task6_at", canSend: true },
+                      { num: 7, name: "Selesai Farmasi", field: "task7_at", canSend: true },
                     ].map((task) => {
                       const taskTime = selectedQueue[task.field as keyof BPJSQueue] as string | undefined;
                       const isSent = !!taskTime;

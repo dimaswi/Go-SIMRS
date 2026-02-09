@@ -1,9 +1,15 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams } from "react-router-dom";
-import { roomQueuesApi } from "@/lib/api";
+import { roomQueuesApi, roomsApi, settingsApi } from "@/lib/api";
 import type { RoomQueue } from "@/lib/api/room-queues";
-import { Volume2, Users, Clock, CheckCircle, AlertTriangle } from "lucide-react";
+import { Volume2, Users, Clock, CheckCircle, Megaphone, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+const getBaseUrl = () => {
+  const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8080/api";
+  return apiUrl.replace(/\/api$/, "");
+};
+const BASE_URL = getBaseUrl();
 
 export default function RoomQueueDisplay() {
   const { roomId } = useParams<{ roomId: string }>();
@@ -12,11 +18,14 @@ export default function RoomQueueDisplay() {
   const [allQueues, setAllQueues] = useState<RoomQueue[]>([]);
   const [room, setRoom] = useState<{ id: number; name: string } | null>(null);
   const [currentQueue, setCurrentQueue] = useState<RoomQueue | null>(null);
+  const [hospitalName, setHospitalName] = useState("RUMAH SAKIT");
+  const [hospitalSubtitle, setHospitalSubtitle] = useState("");
+  const [appLogo, setAppLogo] = useState("");
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [isAnnouncing, setIsAnnouncing] = useState(false);
   const announcementRef = useRef<string | null>(null);
 
-  // Update time every second
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
@@ -31,12 +40,10 @@ export default function RoomQueueDisplay() {
       });
       const allData = response.data || [];
 
-      // Filter untuk status called dan serving saja
       const filteredData = allData.filter(
         (q) => q.status === "called" || q.status === "serving"
       );
 
-      // Sort by called_at DESC to get the most recently called
       const calledQueues = filteredData.filter(
         (q) => q.status === "called" && q.called_at
       );
@@ -59,21 +66,20 @@ export default function RoomQueueDisplay() {
 
       setQueues(filteredData);
 
-      // Prioritas: called terbaru, kalau tidak ada baru serving terbaru
       const latest =
         calledQueues.length > 0 ? calledQueues[0] : servingQueues[0];
 
       if (latest && latest.status === "called" && latest.called_at) {
         const uniqueId = `${latest.id}-${latest.called_at}`;
 
-        // Track by both queue ID and called_at to prevent re-announcements
         if (uniqueId !== announcementRef.current) {
           announcementRef.current = uniqueId;
           setCurrentQueue(latest);
 
-          // Only play sound if not initial load
           if (!isInitialLoad) {
-            speakQueue(latest);
+            setTimeout(() => {
+              speakQueue(latest);
+            }, 100);
           } else {
             setIsInitialLoad(false);
           }
@@ -106,15 +112,24 @@ export default function RoomQueueDisplay() {
   }, [roomId]);
 
   useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const response = await settingsApi.getAll();
+        const settings = response.data.data;
+        if (settings.app_name) setHospitalName(settings.app_name);
+        if (settings.app_subtitle) setHospitalSubtitle(settings.app_subtitle);
+        if (settings.app_logo) setAppLogo(settings.app_logo);
+      } catch (error) {
+        console.error("Failed to load settings:", error);
+      }
+    };
+    loadSettings();
+
     const loadRoom = async () => {
       try {
-        const response = await roomQueuesApi.getAll({
-          room_id: parseInt(roomId!),
-          date: new Date().toISOString().split("T")[0],
-        });
-        const data = response.data || [];
-        if (data.length > 0 && data[0].room) {
-          setRoom(data[0].room);
+        const response = await roomsApi.getById(parseInt(roomId!));
+        if (response.data.data) {
+          setRoom(response.data.data);
         }
       } catch (error) {
         console.error("Failed to load room:", error);
@@ -148,11 +163,15 @@ export default function RoomQueueDisplay() {
       utterance.pitch = 1;
       utterance.volume = 1;
 
+      setIsAnnouncing(true);
+      utterance.onend = () => setIsAnnouncing(false);
+      utterance.onerror = () => setIsAnnouncing(false);
+
       window.speechSynthesis.speak(utterance);
     }
   };
 
-  // Calculate statistics
+  // Statistics
   const totalQueues = allQueues.length;
   const waitingQueues = allQueues.filter((q) => q.status === "waiting").length;
   const servingQueues = allQueues.filter(
@@ -166,40 +185,52 @@ export default function RoomQueueDisplay() {
   const getPriorityLabel = (priority: string) => {
     switch (priority) {
       case "emergency":
-        return { label: "DARURAT", color: "bg-black text-white" };
+        return { label: "DARURAT", color: "bg-red-500 text-white" };
       case "urgent":
-        return { label: "PRIORITAS", color: "border-2 border-black" };
+        return { label: "PRIORITAS", color: "bg-amber-500 text-white" };
       default:
         return null;
     }
   };
 
   return (
-    <div className="h-screen overflow-hidden bg-white text-gray-900 flex flex-col">
+    <div className="h-screen overflow-hidden bg-gray-100 flex flex-col select-none">
       {/* Header */}
-      <div className="bg-black text-white py-6 px-8">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-wide">
-              SISTEM ANTREAN RUANGAN
-            </h1>
-            <p className="text-gray-400 text-sm uppercase tracking-wider">
-              Rumah Sakit
-            </p>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold bg-white text-black px-6 py-2">
-              {room?.name || `Ruangan ${roomId}`}
+      <div className="bg-white shadow-sm py-4 px-8 flex-shrink-0">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            {appLogo && (
+              <img
+                src={`${BASE_URL}${appLogo}`}
+                alt="Logo"
+                className="h-14 w-14 object-contain"
+              />
+            )}
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">
+                {hospitalName}
+              </h1>
+              {hospitalSubtitle && (
+                <p className="text-gray-400 text-xs">{hospitalSubtitle}</p>
+              )}
             </div>
           </div>
+
+          {/* Room Name */}
+          <div className="text-center">
+            <div className="text-2xl font-bold text-gray-900">
+              {room?.name || "Memuat..."}
+            </div>
+          </div>
+
           <div className="text-right">
-            <div className="text-4xl font-mono font-bold">
+            <div className="text-4xl font-mono font-bold text-gray-900 leading-tight">
               {currentTime.toLocaleTimeString("id-ID", {
                 hour: "2-digit",
                 minute: "2-digit",
               })}
             </div>
-            <div className="text-gray-400 text-sm">
+            <div className="text-gray-400 text-xs">
               {currentTime.toLocaleDateString("id-ID", {
                 weekday: "long",
                 day: "numeric",
@@ -210,38 +241,45 @@ export default function RoomQueueDisplay() {
         </div>
       </div>
 
-      {/* Statistics Bar */}
-      <div className="border-b-2 border-gray-200 py-3 px-8">
-        <div className="max-w-6xl mx-auto flex items-center justify-center gap-12">
-          <div className="flex items-center gap-3">
-            <Users className="h-5 w-5 text-gray-400" />
-            <span className="text-gray-500 text-sm">Total</span>
-            <span className="text-2xl font-bold">{totalQueues}</span>
+      {/* Stats Bar */}
+      <div className="bg-white shadow-sm mt-3 mx-8 rounded-xl px-6 py-3 flex-shrink-0">
+        <div className="flex items-center justify-center gap-10">
+          <div className="flex items-center gap-2">
+            <Users className="h-4 w-4 text-gray-400" />
+            <span className="text-gray-400 text-sm">Total</span>
+            <span className="text-xl font-bold text-gray-900">
+              {totalQueues}
+            </span>
           </div>
-          <div className="w-px h-6 bg-gray-300" />
-          <div className="flex items-center gap-3">
-            <Clock className="h-5 w-5 text-gray-400" />
-            <span className="text-gray-500 text-sm">Menunggu</span>
-            <span className="text-2xl font-bold">{waitingQueues}</span>
+          <div className="w-px h-5 bg-gray-200" />
+          <div className="flex items-center gap-2">
+            <Clock className="h-4 w-4 text-amber-400" />
+            <span className="text-gray-400 text-sm">Menunggu</span>
+            <span className="text-xl font-bold text-amber-600">
+              {waitingQueues}
+            </span>
           </div>
-          <div className="w-px h-6 bg-gray-300" />
-          <div className="flex items-center gap-3">
-            <Volume2 className="h-5 w-5 text-gray-400" />
-            <span className="text-gray-500 text-sm">Dilayani</span>
-            <span className="text-2xl font-bold">{servingQueues}</span>
+          <div className="w-px h-5 bg-gray-200" />
+          <div className="flex items-center gap-2">
+            <Volume2 className="h-4 w-4 text-blue-400" />
+            <span className="text-gray-400 text-sm">Dilayani</span>
+            <span className="text-xl font-bold text-blue-600">
+              {servingQueues}
+            </span>
           </div>
-          <div className="w-px h-6 bg-gray-300" />
-          <div className="flex items-center gap-3">
-            <CheckCircle className="h-5 w-5 text-gray-400" />
-            <span className="text-gray-500 text-sm">Selesai</span>
-            <span className="text-2xl font-bold">{completedQueues}</span>
+          <div className="w-px h-5 bg-gray-200" />
+          <div className="flex items-center gap-2">
+            <CheckCircle className="h-4 w-4 text-emerald-400" />
+            <span className="text-gray-400 text-sm">Selesai</span>
+            <span className="text-xl font-bold text-emerald-600">
+              {completedQueues}
+            </span>
           </div>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col items-center justify-center p-8">
-        {/* Current Queue Being Called */}
+      <div className="flex-1 flex items-center justify-center p-8">
         {currentQueue ? (
           <div className="text-center">
             {/* Priority Badge */}
@@ -250,7 +288,7 @@ export default function RoomQueueDisplay() {
                 <div className="mb-4">
                   <span
                     className={cn(
-                      "inline-flex items-center gap-2 px-4 py-2 text-sm font-bold uppercase tracking-wider",
+                      "inline-flex items-center gap-2 px-4 py-2 text-sm font-bold uppercase tracking-wider rounded-full",
                       getPriorityLabel(currentQueue.priority)?.color
                     )}
                   >
@@ -260,29 +298,41 @@ export default function RoomQueueDisplay() {
                 </div>
               )}
 
-            {/* Label */}
+            {/* Announcing indicator */}
             <div className="flex items-center justify-center gap-3 mb-6">
-              <Volume2 className="h-8 w-8 text-black animate-pulse" />
-              <span className="text-2xl font-medium text-gray-600 uppercase tracking-wider">
-                Nomor Antrean
-              </span>
-              <Volume2 className="h-8 w-8 text-black animate-pulse" />
+              {isAnnouncing ? (
+                <div className="flex items-center gap-2 bg-amber-100 text-amber-700 px-4 py-2 rounded-full animate-pulse">
+                  <Megaphone className="h-5 w-5" />
+                  <span className="text-sm font-semibold">
+                    Memanggil...
+                  </span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 text-gray-400 px-4 py-2">
+                  <span className="text-lg uppercase tracking-widest font-medium">
+                    Nomor Antrean
+                  </span>
+                </div>
+              )}
             </div>
 
-            {/* Queue Number */}
-            <div className="border-4 border-black inline-block px-20 py-12 mb-6">
-              <div className="text-[12rem] font-black leading-none tracking-wider">
+            {/* Queue Number Card */}
+            <div className="bg-white rounded-3xl shadow-2xl shadow-gray-900/10 inline-block px-20 py-12 mb-8">
+              <div className="text-[10rem] font-black leading-none tracking-wider text-gray-900">
                 {currentQueue.queue_number}
               </div>
             </div>
 
-            {/* Room Info */}
-            <div className="text-3xl font-semibold text-gray-700 mb-4">
-              Silakan menuju {room?.name || `Ruangan ${roomId}`}
+            {/* Direction */}
+            <div className="text-2xl font-semibold text-gray-600 mb-3">
+              Silakan menuju{" "}
+              <span className="text-gray-900 font-bold">
+                {room?.name || "ruangan"}
+              </span>
             </div>
 
             {/* Called Time */}
-            <div className="text-xl text-gray-500">
+            <div className="text-base text-gray-400">
               Dipanggil pukul{" "}
               {currentQueue.called_at
                 ? new Date(currentQueue.called_at).toLocaleTimeString("id-ID", {
@@ -295,8 +345,10 @@ export default function RoomQueueDisplay() {
           </div>
         ) : (
           <div className="text-center">
-            <div className="text-6xl text-gray-300 mb-4">---</div>
-            <p className="text-2xl text-gray-400">
+            <div className="bg-white rounded-3xl shadow-lg inline-block px-16 py-10 mb-6">
+              <div className="text-8xl font-black text-gray-200">---</div>
+            </div>
+            <p className="text-xl text-gray-400">
               Belum ada antrean yang dipanggil
             </p>
           </div>
@@ -304,53 +356,58 @@ export default function RoomQueueDisplay() {
       </div>
 
       {/* Recent Calls */}
-      <div className="border-t-2 border-gray-200 py-4 px-8 bg-gray-50">
-        <div className="max-w-6xl mx-auto">
-          <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-3">
+      <div className="bg-white shadow-sm py-4 px-8 flex-shrink-0">
+        <div className="flex items-center gap-4 mb-3">
+          <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
             Riwayat Panggilan
           </h3>
-          <div className="flex gap-4 overflow-x-auto pb-2">
-            {queues.slice(0, 10).map((queue) => (
+          <div className="flex-1 h-px bg-gray-100" />
+        </div>
+        <div className="flex gap-3 overflow-x-auto pb-1">
+          {queues.slice(0, 10).map((queue) => (
+            <div
+              key={queue.id}
+              className={cn(
+                "flex-shrink-0 px-5 py-2.5 rounded-xl text-center min-w-[100px] transition-all",
+                queue.status === "called"
+                  ? "bg-gray-900 text-white shadow-lg shadow-gray-900/20"
+                  : "bg-gray-100 text-gray-900"
+              )}
+            >
+              <div className="text-xl font-bold">{queue.queue_number}</div>
               <div
-                key={queue.id}
                 className={cn(
-                  "flex-shrink-0 px-6 py-3 border-2 text-center min-w-[120px]",
-                  queue.status === "called"
-                    ? "border-black bg-black text-white"
-                    : "border-gray-300 bg-white"
+                  "text-[10px]",
+                  queue.status === "called" ? "text-gray-400" : "text-gray-400"
                 )}
               >
-                <div className="text-2xl font-bold">{queue.queue_number}</div>
+                {queue.called_at &&
+                  new Date(queue.called_at).toLocaleTimeString("id-ID", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+              </div>
+              {queue.priority && queue.priority !== "normal" && (
                 <div
                   className={cn(
-                    "text-xs",
-                    queue.status === "called" ? "text-gray-400" : "text-gray-500"
+                    "text-[10px] mt-0.5 font-semibold",
+                    queue.status === "called"
+                      ? "text-gray-400"
+                      : queue.priority === "emergency"
+                        ? "text-red-500"
+                        : "text-amber-500"
                   )}
                 >
-                  {queue.called_at &&
-                    new Date(queue.called_at).toLocaleTimeString("id-ID", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
+                  {queue.priority === "emergency" ? "DARURAT" : "PRIORITAS"}
                 </div>
-                {queue.priority && queue.priority !== "normal" && (
-                  <div
-                    className={cn(
-                      "text-xs mt-1 font-medium",
-                      queue.status === "called"
-                        ? "text-gray-300"
-                        : "text-gray-600"
-                    )}
-                  >
-                    {queue.priority === "emergency" ? "DARURAT" : "PRIORITAS"}
-                  </div>
-                )}
-              </div>
-            ))}
-            {queues.length === 0 && (
-              <p className="text-gray-400 text-sm">Belum ada riwayat panggilan</p>
-            )}
-          </div>
+              )}
+            </div>
+          ))}
+          {queues.length === 0 && (
+            <p className="text-gray-300 text-sm py-2">
+              Belum ada riwayat panggilan
+            </p>
+          )}
         </div>
       </div>
     </div>

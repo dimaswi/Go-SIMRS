@@ -327,8 +327,8 @@ export default function InventoryShow() {
       </div>
 
       <div className="rounded-lg border p-6">
-          <Tabs defaultValue="detail">
-            <TabsList className="grid w-full grid-cols-3">
+          <Tabs defaultValue="detail" variant="inline">
+            <TabsList>
               <TabsTrigger value="detail">Detail</TabsTrigger>
               <TabsTrigger value="items">
                 Item ({items.length})

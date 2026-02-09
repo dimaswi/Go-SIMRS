@@ -154,7 +154,7 @@ export default function StockRequestsIndex() {
           </Button>
         )}
       </div>
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={setActiveTab} variant="inline">
         <TabsList>
           <TabsTrigger value="all">
             Semua ({requests.length})
