@@ -6434,68 +6434,68 @@ func PrintAdmissionDischargeSummary(c *gin.Context) {
 
 	// =================== ALUR PELAYANAN (PERJALANAN KUNJUNGAN) ===================
 	if !singleVisitMode {
-	checkPageBreak(pdf, 20)
-	addTableHeader(pdf, "ALUR PELAYANAN")
-	pdf.SetFont("Arial", "B", 8)
-	pdf.SetFillColor(235, 235, 235)
-	noW := 10.0
-	kunjW := 30.0
-	tipeW := 30.0
-	ruangW := 40.0
-	dokterW := 40.0
-	tglW := 30.0
-	pdf.CellFormat(noW, rowHeight, " No", "1", 0, "C", true, 0, "")
-	pdf.CellFormat(kunjW, rowHeight, " No. Kunjungan", "1", 0, "L", true, 0, "")
-	pdf.CellFormat(tipeW, rowHeight, " Jenis", "1", 0, "L", true, 0, "")
-	pdf.CellFormat(ruangW, rowHeight, " Ruangan", "1", 0, "L", true, 0, "")
-	pdf.CellFormat(dokterW, rowHeight, " Dokter", "1", 0, "L", true, 0, "")
-	pdf.CellFormat(tglW, rowHeight, " Status", "1", 1, "L", true, 0, "")
-	pdf.SetFont("Arial", "", 8)
+		checkPageBreak(pdf, 20)
+		addTableHeader(pdf, "ALUR PELAYANAN")
+		pdf.SetFont("Arial", "B", 8)
+		pdf.SetFillColor(235, 235, 235)
+		noW := 10.0
+		kunjW := 30.0
+		tipeW := 30.0
+		ruangW := 40.0
+		dokterW := 40.0
+		tglW := 30.0
+		pdf.CellFormat(noW, rowHeight, " No", "1", 0, "C", true, 0, "")
+		pdf.CellFormat(kunjW, rowHeight, " No. Kunjungan", "1", 0, "L", true, 0, "")
+		pdf.CellFormat(tipeW, rowHeight, " Jenis", "1", 0, "L", true, 0, "")
+		pdf.CellFormat(ruangW, rowHeight, " Ruangan", "1", 0, "L", true, 0, "")
+		pdf.CellFormat(dokterW, rowHeight, " Dokter", "1", 0, "L", true, 0, "")
+		pdf.CellFormat(tglW, rowHeight, " Status", "1", 1, "L", true, 0, "")
+		pdf.SetFont("Arial", "", 8)
 
-	for i, v := range visits {
-		checkPageBreak(pdf, 6)
-		vType := v.VisitType
-		switch v.VisitType {
-		case "outpatient", "consultation":
-			vType = "Rajal"
-		case "inpatient":
-			vType = "Ranap"
-		case "emergency":
-			vType = "IGD"
-		case "pharmacy":
-			vType = "Farmasi"
-		case "lab", "laboratory":
-			vType = "Lab"
-		case "radiology":
-			vType = "Radiologi"
+		for i, v := range visits {
+			checkPageBreak(pdf, 6)
+			vType := v.VisitType
+			switch v.VisitType {
+			case "outpatient", "consultation":
+				vType = "Rajal"
+			case "inpatient":
+				vType = "Ranap"
+			case "emergency":
+				vType = "IGD"
+			case "pharmacy":
+				vType = "Farmasi"
+			case "lab", "laboratory":
+				vType = "Lab"
+			case "radiology":
+				vType = "Radiologi"
+			}
+			vRoom := "-"
+			if v.Room != nil {
+				vRoom = v.Room.Name
+			}
+			vDoctor := "-"
+			if v.Doctor != nil {
+				vDoctor = v.Doctor.NamaLengkap
+			}
+			vStatus := v.Status
+			switch v.Status {
+			case "completed":
+				vStatus = "Selesai"
+			case "in_progress":
+				vStatus = "Berlangsung"
+			case "waiting":
+				vStatus = "Menunggu"
+			case "cancelled":
+				vStatus = "Batal"
+			}
+			pdf.CellFormat(noW, rowHeight, fmt.Sprintf(" %d", i+1), "1", 0, "C", false, 0, "")
+			pdf.CellFormat(kunjW, rowHeight, " "+truncateText(v.VisitNumber, 14), "1", 0, "L", false, 0, "")
+			pdf.CellFormat(tipeW, rowHeight, " "+vType, "1", 0, "L", false, 0, "")
+			pdf.CellFormat(ruangW, rowHeight, " "+truncateText(vRoom, 18), "1", 0, "L", false, 0, "")
+			pdf.CellFormat(dokterW, rowHeight, " "+truncateText(vDoctor, 18), "1", 0, "L", false, 0, "")
+			pdf.CellFormat(tglW, rowHeight, " "+vStatus, "1", 1, "L", false, 0, "")
 		}
-		vRoom := "-"
-		if v.Room != nil {
-			vRoom = v.Room.Name
-		}
-		vDoctor := "-"
-		if v.Doctor != nil {
-			vDoctor = v.Doctor.NamaLengkap
-		}
-		vStatus := v.Status
-		switch v.Status {
-		case "completed":
-			vStatus = "Selesai"
-		case "in_progress":
-			vStatus = "Berlangsung"
-		case "waiting":
-			vStatus = "Menunggu"
-		case "cancelled":
-			vStatus = "Batal"
-		}
-		pdf.CellFormat(noW, rowHeight, fmt.Sprintf(" %d", i+1), "1", 0, "C", false, 0, "")
-		pdf.CellFormat(kunjW, rowHeight, " "+truncateText(v.VisitNumber, 14), "1", 0, "L", false, 0, "")
-		pdf.CellFormat(tipeW, rowHeight, " "+vType, "1", 0, "L", false, 0, "")
-		pdf.CellFormat(ruangW, rowHeight, " "+truncateText(vRoom, 18), "1", 0, "L", false, 0, "")
-		pdf.CellFormat(dokterW, rowHeight, " "+truncateText(vDoctor, 18), "1", 0, "L", false, 0, "")
-		pdf.CellFormat(tglW, rowHeight, " "+vStatus, "1", 1, "L", false, 0, "")
-	}
-	addTableEnd(pdf)
+		addTableEnd(pdf)
 	} // end !singleVisitMode
 
 	// =================== PER-VISIT DETAIL SECTIONS ===================

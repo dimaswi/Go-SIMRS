@@ -21,7 +21,6 @@ import { printApi } from "@/lib/api/print";
 import { admissionRequestApi, type AdmissionRequest } from "@/lib/api/admission-request";
 import { setPageTitle } from "@/lib/page-title";
 import { RegistrationSheet } from "@/components/registration/registration-sheet";
-import { RegistrationDetailSheet } from "@/components/registration/registration-detail-sheet";
 import { SEPDetailSheet } from "@/components/sep/sep-detail-sheet";
 import {
   User,
@@ -31,7 +30,6 @@ import {
   Users,
   Shield,
   Heart,
-  CalendarPlus,
   ChevronDown,
   ChevronRight,
   FileText,
@@ -112,8 +110,6 @@ export default function PatientSearchShow() {
   const [registrationSheetOpen, setRegistrationSheetOpen] = useState(false);
   const [deleteSepId, setDeleteSepId] = useState<SEPLocal | null>(null);
   const [deletingSep, setDeletingSep] = useState(false);
-  const [selectedRegistrationId, setSelectedRegistrationId] = useState<number | null>(null);
-  const [registrationDetailOpen, setRegistrationDetailOpen] = useState(false);
   const [selectedSep, setSelectedSep] = useState<SEPLocal | null>(null);
   const [sepDetailOpen, setSepDetailOpen] = useState(false);
   const [expandedRegistrations, setExpandedRegistrations] = useState<Set<number>>(new Set());
@@ -483,28 +479,6 @@ export default function PatientSearchShow() {
         title: "Error",
         description: error.response?.data?.error || "Gagal mencetak informed consent",
       });
-    }
-  };
-
-  const handlePrintQueue = async (registration: Registration) => {
-    const regId = registration.ID || registration.id;
-    if (!regId) return;
-    try {
-      await printApi.registrationTicket(regId);
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.response?.data?.error || "Gagal mencetak tiket antrian",
-      });
-    }
-  };
-
-  const handleViewRegistration = (registration: Registration) => {
-    const regId = registration.ID || registration.id;
-    if (regId) {
-      setSelectedRegistrationId(regId);
-      setRegistrationDetailOpen(true);
     }
   };
 
@@ -1403,7 +1377,7 @@ export default function PatientSearchShow() {
                                           <div className="relative z-10 h-1.5 w-1.5 rounded-full bg-muted-foreground shrink-0" />
                                           <Badge variant="outline" className={`text-xs shrink-0 ${
                                             visit.visit_type === 'pharmacy' ? 'border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30' :
-                                            (visit.visit_type === 'lab' || visit.visit_type === 'laboratory') ? 'border-cyan-300 text-cyan-700 dark:border-cyan-700 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-950/30' :
+                                            visit.visit_type === 'lab' ? 'border-cyan-300 text-cyan-700 dark:border-cyan-700 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-950/30' :
                                             visit.visit_type === 'radiology' ? 'border-indigo-300 text-indigo-700 dark:border-indigo-700 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/30' :
                                             'border-gray-300 text-gray-700 dark:border-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-950/30'
                                           }`}>
@@ -1713,14 +1687,6 @@ export default function PatientSearchShow() {
           onSEPCreated={() => loadSeps(Number(patientId))}
         />
       )}
-
-      {/* Registration Detail Sheet */}
-      <RegistrationDetailSheet
-        open={registrationDetailOpen}
-        onOpenChange={setRegistrationDetailOpen}
-        registrationId={selectedRegistrationId}
-        onViewSEP={handleViewSep}
-      />
 
       {/* SEP Detail Sheet */}
       <SEPDetailSheet
