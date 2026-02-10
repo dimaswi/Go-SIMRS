@@ -52,6 +52,7 @@ func main() {
 			"http://localhost:5173",
 			"http://localhost:3000",
 			"http://147.93.104.139:3232",
+			"http://192.168.12.122:3232",
 			"https://bpjs_dev.dimaswysnu.com",
 			"http://bpjs_dev.dimaswysnu.com",
 		},
