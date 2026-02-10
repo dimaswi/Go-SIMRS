@@ -786,8 +786,8 @@ export const vclaimApi = {
       params: { bulan, tahun }
     }),
 
-  approvalSEP: (data: VClaimApprovalSEPRequest) =>
-    api.post<{ message: string }>('/bpjs/vclaim/sep/approval', data),
+  // approvalSEP: (data: VClaimApprovalSEPRequest) =>
+  //   api.post<{ message: string }>('/bpjs/vclaim/sep/approval', data),
 
   pengajuanSEP: (data: VClaimApprovalSEPRequest) =>
     api.post<{ message: string }>('/bpjs/vclaim/sep/pengajuan', data),
