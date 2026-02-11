@@ -248,9 +248,10 @@ func VClaimCreateSEP(c *gin.Context) {
 	}
 
 	// Cek apakah SEP sudah ada untuk registration ini (jika ada registration)
+	// Filter: hanya yang statusnya bukan "deleted"
 	var existingSEP models.SEP
 	if input.RegistrationID > 0 {
-		if err := database.DB.Where("registration_id = ?", input.RegistrationID).First(&existingSEP).Error; err == nil {
+		if err := database.DB.Where("registration_id = ? AND status != ?", input.RegistrationID, "deleted").First(&existingSEP).Error; err == nil {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error": "SEP sudah ada untuk pendaftaran ini",
 				"data":  existingSEP,
@@ -569,9 +570,9 @@ func VClaimImportSEP(c *gin.Context) {
 		return
 	}
 
-	// Cek apakah SEP sudah ada
+	// Cek apakah SEP sudah ada (bukan yang sudah dihapus)
 	var existingSEP models.SEP
-	if err := database.DB.Where("no_sep = ?", input.NoSEP).First(&existingSEP).Error; err == nil {
+	if err := database.DB.Where("no_sep = ? AND status != ?", input.NoSEP, "deleted").First(&existingSEP).Error; err == nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "SEP sudah ada di database",
 			"data":  existingSEP,
@@ -1251,6 +1252,28 @@ func VClaimCreateSuratKontrol(c *gin.Context) {
 		}
 	}
 
+	// Prioritaskan NamaDokter dari response BPJS (canonical), fallback ke input
+	namaDokterFinal := result.NamaDokter
+	if namaDokterFinal == "" {
+		namaDokterFinal = input.NamaDokter
+	}
+
+	// FALLBACK TERAKHIR: Jika masih kosong, ambil dari Detail Surat Kontrol BPJS
+	if namaDokterFinal == "" && result.NoSuratKontrol != "" {
+		fmt.Printf("[VClaim] NamaDokter kosong dari Insert & input, fetching dari Detail Surat Kontrol %s\n", result.NoSuratKontrol)
+		detail, err := client.GetSuratKontrolDetail(result.NoSuratKontrol)
+		if err == nil && detail != nil && detail.NamaDokter != "" {
+			namaDokterFinal = detail.NamaDokter
+			fmt.Printf("[VClaim] NamaDokter resolved dari Detail: %s\n", namaDokterFinal)
+		}
+	}
+
+	// Prioritaskan NamaPoli dari input (user selected), karena BPJS result tidak return nama poli
+	namaPoliFinal := input.NamaPoli
+
+	fmt.Printf("[VClaim] CreateSuratKontrol: kodeDokter=%s, namaDokter(input)=%s, namaDokter(bpjs)=%s, namaDokter(final)=%s\n",
+		input.KodeDokter, input.NamaDokter, result.NamaDokter, namaDokterFinal)
+
 	// Save to local database
 	suratKontrol := models.SuratKontrol{
 		NoSuratKontrol:    result.NoSuratKontrol,
@@ -1261,9 +1284,9 @@ func VClaimCreateSuratKontrol(c *gin.Context) {
 		TglLahir:          result.TglLahir,
 		TglRencanaKontrol: result.TglRencanaKontrol,
 		KodePoli:          input.KodePoli,
-		NamaPoli:          input.NamaPoli,
+		NamaPoli:          namaPoliFinal,
 		KodeDokter:        input.KodeDokter,
-		NamaDokter:        input.NamaDokter,
+		NamaDokter:        namaDokterFinal,
 		NamaDiagnosa:      result.NamaDiagnosa,
 		IsPRB:             input.IsPRB,
 		KdStatusPRB:       input.KdStatusPRB,

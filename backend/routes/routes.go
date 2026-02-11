@@ -122,7 +122,13 @@ func SetupRoutes(r *gin.Engine) {
 		// E-Klaim Routes (iDRG & INACBG Grouping per 25 Kriteria KEMENKES)
 		RegisterEKlaimRoutes(api)
 
+		// Digital Signature Routes (PIN Management, Document Signing, Audit Logs)
+		SetupSignatureRoutes(protected)
+
 	}
+
+	// Public Signature Verification (for external parties)
+	SetupPublicSignatureRoutes(api)
 
 	// Notification Routes (with SSE)
 	SetupNotificationRoutes(r)

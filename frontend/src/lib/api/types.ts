@@ -25,4 +25,6 @@ export interface User {
   role_id?: number;
   role?: Role;
   employee_id?: number;
+  has_signature_pin?: boolean;
+  signature_pin_set_at?: string;
 }

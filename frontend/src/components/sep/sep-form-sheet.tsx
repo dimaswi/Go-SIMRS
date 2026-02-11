@@ -55,6 +55,9 @@ interface SEPFormSheetProps {
   registrationId?: number;
   visitId?: number;
   onSEPCreated?: (noSEP: string, sepData: any) => void;
+  // Override default submit behavior (vclaimApi.createSEP).
+  // Receives the sepRequest object, should return { noSep: string } on success or throw on error.
+  onSubmitOverride?: (sepRequest: Record<string, any>) => Promise<{ noSep: string }>;
   initialValues?: {
     kodePoli?: string;
     namaPoli?: string;
@@ -78,6 +81,7 @@ export function SEPFormSheet({
   registrationId,
   visitId,
   onSEPCreated,
+  onSubmitOverride,
   initialValues,
 }: SEPFormSheetProps) {
   const { toast } = useToast();
@@ -425,9 +429,16 @@ export function SEPFormSheet({
         catatan: catatan,
       };
 
-      const res = await vclaimApi.createSEP(sepRequest as any);
-      // Backend returns SEP model with json tag "no_sep"
-      const noSep = (res.data.data as any)?.no_sep;
+      let noSep: string;
+      if (onSubmitOverride) {
+        // Use custom submit handler (e.g., BPJS checkin with SEP: AddAntrean → SEP → CheckIn)
+        const result = await onSubmitOverride(sepRequest);
+        noSep = result.noSep;
+      } else {
+        const res = await vclaimApi.createSEP(sepRequest as any);
+        // Backend returns SEP model with json tag "no_sep"
+        noSep = (res.data.data as any)?.no_sep;
+      }
 
       toast({
         title: "SEP Berhasil Dibuat",

@@ -21,8 +21,6 @@ import {
   CheckCircle2,
   XCircle,
   Calendar,
-  Stethoscope,
-  Building2,
   Hospital,
   UserCheck,
   Pill,
@@ -33,11 +31,9 @@ import {
   type SEPLocal,
   type VClaimSPRIResponse,
   type SuratKontrolResponse,
-  type VClaimRefPoli,
-  type VClaimRefDokter,
   type PRBFormData,
 } from "@/lib/api/vclaim";
-import { SearchModal } from "@/components/sep/search-modal";
+import { PoliDokterSelector } from "@/components/sep/poli-dokter-selector";
 
 // PRB status options
 const PRB_STATUS_OPTIONS = [
@@ -178,9 +174,7 @@ export function BPJSControlSection({
   const [kdStatusPRB, setKdStatusPRB] = useState("");
   const [dataPRB, setDataPRB] = useState<PRBFormData>({});
 
-  // Modal state
-  const [poliModalOpen, setPoliModalOpen] = useState(false);
-  const [dokterModalOpen, setDokterModalOpen] = useState(false);
+  // Modal state (managed by PoliDokterSelector now)
 
   // Result state
   const [spriResult, setSPRIResult] = useState<VClaimSPRIResponse | null>(existingSPRI || null);
@@ -533,7 +527,7 @@ export function BPJSControlSection({
           )}
 
           {/* Date, Poli, Dokter */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-4">
             {/* Tanggal Kontrol */}
             <div className="space-y-2">
               <Label className="text-sm flex items-center gap-1">
@@ -550,58 +544,30 @@ export function BPJSControlSection({
               />
             </div>
 
-            {/* Poli */}
-            <div className="space-y-2">
-              <Label className="text-sm flex items-center gap-1">
-                <Building2 className="h-3.5 w-3.5" />
-                Poli Tujuan
-              </Label>
-              <div className="flex gap-2">
-                <Input
-                  value={namaPoli || kodePoli}
-                  placeholder="Pilih poli..."
-                  readOnly
-                  className="bg-white flex-1"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  onClick={() => setPoliModalOpen(true)}
-                  disabled={isDisabled}
-                >
-                  <Search className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-
-            {/* Dokter */}
-            <div className="space-y-2 md:col-span-2">
-              <Label className="text-sm flex items-center gap-1">
-                <Stethoscope className="h-3.5 w-3.5" />
-                Dokter
-              </Label>
-              <div className="flex gap-2">
-                <Input
-                  value={namaDokter || kodeDokter}
-                  placeholder="Pilih dokter..."
-                  readOnly
-                  className="bg-white flex-1"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  onClick={() => setDokterModalOpen(true)}
-                  disabled={isDisabled || !kodePoli}
-                >
-                  <Search className="h-4 w-4" />
-                </Button>
-              </div>
-              {!kodePoli && (
-                <p className="text-xs text-muted-foreground">Pilih poli terlebih dahulu</p>
-              )}
-            </div>
+            {/* Poli & Dokter Selector with Tabs */}
+            <PoliDokterSelector
+              kodePoli={kodePoli}
+              namaPoli={namaPoli}
+              kodeDokter={kodeDokter}
+              namaDokter={namaDokter}
+              tglRencanaKontrol={tglRencanaKontrol}
+              onPoliChange={(kode, nama) => {
+                setKodePoli(kode);
+                setNamaPoli(nama);
+                setKodeDokter("");
+                setNamaDokter("");
+              }}
+              onDokterChange={(kode, nama) => {
+                setKodeDokter(kode);
+                setNamaDokter(nama);
+              }}
+              searchPoliBPJS={handleSearchPoli}
+              searchDokterBPJS={handleSearchDokter}
+              poliModalTitle={`Cari Poli ${isRawatInap ? "SPRI" : "Kontrol"} BPJS`}
+              dokterModalTitle={`Cari Dokter ${isRawatInap ? "SPRI" : "Kontrol"} BPJS`}
+              disabled={isDisabled}
+              compact
+            />
           </div>
 
           {/* PRB Section - Only for Surat Kontrol v2 */}
@@ -709,41 +675,7 @@ export function BPJSControlSection({
         </p>
       )}
 
-      {/* Search Modals */}
-      <SearchModal
-        open={poliModalOpen}
-        onOpenChange={setPoliModalOpen}
-        title={`Cari Poli ${isRawatInap ? "SPRI" : "Kontrol"}`}
-        placeholder="Ketik nama poli..."
-        columns={[
-          { key: "kode", label: "Kode", width: "100px" },
-          { key: "nama", label: "Nama Poli" },
-        ]}
-        onSearch={handleSearchPoli}
-        onSelect={(item: VClaimRefPoli) => {
-          setKodePoli(item.kode);
-          setNamaPoli(item.nama);
-          // Reset dokter
-          setKodeDokter("");
-          setNamaDokter("");
-        }}
-      />
-
-      <SearchModal
-        open={dokterModalOpen}
-        onOpenChange={setDokterModalOpen}
-        title={`Cari Dokter ${isRawatInap ? "SPRI" : "Kontrol"}`}
-        placeholder="Ketik nama dokter..."
-        columns={[
-          { key: "kode", label: "Kode", width: "100px" },
-          { key: "nama", label: "Nama Dokter" },
-        ]}
-        onSearch={handleSearchDokter}
-        onSelect={(item: VClaimRefDokter) => {
-          setKodeDokter(item.kode);
-          setNamaDokter(item.nama);
-        }}
-      />
+      {/* Search modals are now managed inside PoliDokterSelector */}
     </div>
   );
 }

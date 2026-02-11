@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { usePermission } from "@/hooks/usePermission";
+import { usePINVerification, PINVerificationDialog } from "@/components/medical-record/edit-mode-controller";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -40,9 +41,11 @@ import {
   User,
   ChevronDown,
   ChevronRight,
+  ShieldCheck,
 } from "lucide-react";
-import { procedureOrdersApi, PROCEDURE_ORDER_STATUS } from "@/lib/api";
+import { procedureOrdersApi, PROCEDURE_ORDER_STATUS, signatureApi, DOCUMENT_TYPES } from "@/lib/api";
 import type { ProcedureOrder, ProcedureOrderItem, ProcedureParameter } from "@/lib/api/procedure-orders";
+import { SignaturePINDialog } from "@/components/signature/signature-pin-dialog";
 
 interface SurgeryWorkstationProps {
   visitId: number;
@@ -72,6 +75,17 @@ const WOUND_CLASSES = [
 export function SurgeryWorkstation({ visitId, readOnly: _readOnly = false }: SurgeryWorkstationProps) {
   const { toast } = useToast();
   const { hasPermission } = usePermission();
+  const {
+    showPINDialog,
+    setShowPINDialog,
+    pin,
+    verifyingPIN,
+    pinInputRefs,
+    handlePINChange,
+    handlePINKeyDown,
+    handleVerifyPIN,
+    requestPINVerification,
+  } = usePINVerification({ isRequired: true });
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [orders, setOrders] = useState<ProcedureOrder[]>([]);
@@ -99,6 +113,14 @@ export function SurgeryWorkstation({ visitId, readOnly: _readOnly = false }: Sur
     report: true,
     parameters: false,
   });
+
+  // Signature state
+  const [showSignatureDialog, setShowSignatureDialog] = useState(false);
+  const [signatureStatus, setSignatureStatus] = useState<{
+    is_signed: boolean;
+    signed_at?: string;
+    signer_name?: string;
+  } | null>(null);
 
   const canPerform = hasPermission("procedure_orders.perform");
 
@@ -131,6 +153,23 @@ export function SurgeryWorkstation({ visitId, readOnly: _readOnly = false }: Sur
     setSelectedOrder(order);
     parseResultFields(order);
     initializeParameterResults(order);
+    checkSignatureStatus(order.id);
+  };
+
+  const checkSignatureStatus = async (orderId: number) => {
+    try {
+      const res = await signatureApi.getDocumentSignature(DOCUMENT_TYPES.OPERATIVE_REPORT, orderId);
+      setSignatureStatus(res.data);
+    } catch {
+      setSignatureStatus(null);
+    }
+  };
+
+  const handleSignatureSuccess = () => {
+    if (selectedOrder) {
+      checkSignatureStatus(selectedOrder.id);
+    }
+    toast({ variant: "success", title: "Berhasil", description: "Laporan operasi berhasil ditandatangani" });
   };
 
   const parseResultFields = (order: ProcedureOrder) => {
@@ -630,14 +669,68 @@ export function SurgeryWorkstation({ visitId, readOnly: _readOnly = false }: Sur
 
                 {/* Save Button */}
                 {isEditable && (
-                  <Button onClick={handleSaveAllResults} disabled={submitting} className="w-full" size="sm">
+                  <Button onClick={() => requestPINVerification(handleSaveAllResults)} disabled={submitting} className="w-full" size="sm">
                     {submitting && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
                     <Save className="h-4 w-4 mr-1" />
                     Simpan Laporan Operasi
                   </Button>
                 )}
+
+                {/* Signature Status & Button - Only when completed */}
+                {selectedOrder.status === "completed" && (
+                  <div className="border-t pt-3 mt-3 space-y-2">
+                    {signatureStatus?.is_signed ? (
+                      <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 dark:bg-green-950 p-3 rounded">
+                        <CheckCircle2 className="h-4 w-4" />
+                        <div>
+                          <span className="font-medium">Ditandatangani oleh {signatureStatus.signer_name}</span>
+                          {signatureStatus.signed_at && (
+                            <span className="text-xs text-muted-foreground ml-2">
+                              {new Date(signatureStatus.signed_at).toLocaleString("id-ID")}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <Button 
+                        onClick={() => setShowSignatureDialog(true)} 
+                        variant="outline" 
+                        className="w-full" 
+                        size="sm"
+                      >
+                        <ShieldCheck className="h-4 w-4 mr-1" />
+                        Tanda Tangani Laporan Operasi
+                      </Button>
+                    )}
+                  </div>
+                )}
           </CardContent>
         </Card>
+      )}
+
+      <PINVerificationDialog
+        open={showPINDialog}
+        onOpenChange={setShowPINDialog}
+        pin={pin}
+        verifying={verifyingPIN}
+        pinInputRefs={pinInputRefs}
+        onPINChange={handlePINChange}
+        onPINKeyDown={handlePINKeyDown}
+        onVerify={handleVerifyPIN}
+      />
+
+      {/* Signature Dialog */}
+      {selectedOrder && (
+        <SignaturePINDialog
+          open={showSignatureDialog}
+          onOpenChange={setShowSignatureDialog}
+          documentType={DOCUMENT_TYPES.OPERATIVE_REPORT}
+          documentId={selectedOrder.id}
+          visitId={visitId}
+          documentTitle={selectedOrder.order_number}
+          patientName={selectedOrder.source_visit?.registration?.patient?.nama_lengkap}
+          onSuccess={handleSignatureSuccess}
+        />
       )}
     </div>
   );

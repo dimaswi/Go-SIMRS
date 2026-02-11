@@ -71,7 +71,6 @@ import {
   Loader2,
   Plus,
   Building2,
-  ArrowLeft,
   Edit,
   Trash2,
   Download,
@@ -83,10 +82,8 @@ import {
   Check,
   ChevronsUpDown,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
 
 export default function BPJSMappingPage() {
-  const navigate = useNavigate();
   const { toast } = useToast();
   const { hasPermission } = usePermission();
   const canManage = hasPermission("integrations.manage");
@@ -551,17 +548,6 @@ export default function BPJSMappingPage() {
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
       <div className="flex items-center gap-4">
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => navigate("/integrations/config")}
-          className="h-9 w-9"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-          <Building2 className="h-5 w-5 text-primary" />
-        </div>
         <div className="flex-1">
           <h1 className="text-lg font-semibold flex items-center gap-2">
             Mapping Poli & Dokter BPJS

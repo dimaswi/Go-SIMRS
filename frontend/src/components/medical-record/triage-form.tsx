@@ -6,11 +6,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Combobox } from "@/components/ui/combobox";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Save, AlertTriangle, Loader2 } from "lucide-react";
+import { Save, AlertTriangle, Loader2, ShieldCheck } from "lucide-react";
 import { useMultipleMasterData } from "@/hooks/useMasterData";
-import { medicalRecordsApi } from "@/lib/api";
+import { medicalRecordsApi, signatureApi, DOCUMENT_TYPES } from "@/lib/api";
 import { medicalRecordEditLogApi } from "@/lib/api/visits";
-import { useEditMode, EditModeBanner, EditConfirmDialog } from "./edit-mode-controller";
+import { useEditMode, EditModeBanner, EditConfirmDialog, PINVerificationDialog } from "./edit-mode-controller";
+import { SignaturePINDialog } from "@/components/signature/signature-pin-dialog";
 import type { Triage } from "@/lib/api";
 
 interface TriageFormProps {
@@ -58,16 +59,30 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
   const [formData, setFormData] = useState(defaultFormData);
   const [triageId, setTriageId] = useState<number | undefined>();
 
+  // Signature state
+  const [showSignatureDialog, setShowSignatureDialog] = useState(false);
+  const [signatureStatus, setSignatureStatus] = useState<{ is_signed: boolean; signer_name?: string } | null>(null);
+
   // Edit mode controller for post-discharge edits
   const {
     isEditing,
     editReason,
     showEditDialog,
+    showPINDialog,
     setShowEditDialog,
+    setShowPINDialog,
     setEditReason,
     handleRequestEdit,
     handleConfirmEdit,
     resetEditMode,
+    requestPINVerification,
+    // PIN related
+    pin,
+    verifyingPIN,
+    pinInputRefs,
+    handlePINChange,
+    handlePINKeyDown,
+    handleVerifyPIN,
   } = useEditMode({
     isPatientDischarged,
     recordType: "triage",
@@ -84,6 +99,28 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
     'breathing_status',
     'circulation_status',
   ]);
+
+  // Check signature status when triageId changes
+  useEffect(() => {
+    if (triageId) {
+      checkSignatureStatus(triageId);
+    }
+  }, [triageId]);
+
+  const checkSignatureStatus = async (id: number) => {
+    try {
+      const res = await signatureApi.getDocumentSignature(DOCUMENT_TYPES.TRIAGE, id);
+      setSignatureStatus(res.data);
+    } catch {
+      setSignatureStatus({ is_signed: false });
+    }
+  };
+
+  const handleSignatureSuccess = () => {
+    if (triageId) {
+      checkSignatureStatus(triageId);
+    }
+  };
 
   // Load existing data on mount
   useEffect(() => {
@@ -137,9 +174,7 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
+  const doSave = async () => {
     // Log edit if patient is discharged
     if (isPatientDischarged && triageId) {
       try {
@@ -156,6 +191,18 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
     
     onSave?.(formData);
     resetEditMode();
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // If patient is discharged, verify PIN before saving
+    if (isPatientDischarged) {
+      requestPINVerification(doSave);
+      return;
+    }
+    
+    doSave();
   };
 
   const gcsTotal = formData.gcs_e + formData.gcs_v + formData.gcs_m;
@@ -513,6 +560,23 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
                 <Save className="h-4 w-4" />
                 Simpan Triase
               </Button>
+              {triageId && !signatureStatus?.is_signed && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="gap-2"
+                  onClick={() => setShowSignatureDialog(true)}
+                >
+                  <ShieldCheck className="h-4 w-4" />
+                  Tanda Tangan
+                </Button>
+              )}
+              {signatureStatus?.is_signed && (
+                <Badge variant="default" className="gap-1 bg-green-600 h-9 px-3">
+                  <ShieldCheck className="h-4 w-4" />
+                  Sudah Ditandatangani
+                </Badge>
+              )}
             </div>
           )}
           </fieldset>
@@ -527,6 +591,29 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
         onEditReasonChange={setEditReason}
         onConfirm={handleConfirmEdit}
       />
+      <PINVerificationDialog
+        open={showPINDialog}
+        onOpenChange={setShowPINDialog}
+        pin={pin}
+        verifying={verifyingPIN}
+        pinInputRefs={pinInputRefs}
+        onPINChange={handlePINChange}
+        onPINKeyDown={handlePINKeyDown}
+        onVerify={handleVerifyPIN}
+      />
+
+      {/* Signature Dialog */}
+      {triageId && (
+        <SignaturePINDialog
+          open={showSignatureDialog}
+          onOpenChange={setShowSignatureDialog}
+          documentType={DOCUMENT_TYPES.TRIAGE}
+          documentId={triageId}
+          visitId={visitId}
+          documentTitle="Form Triage"
+          onSuccess={handleSignatureSuccess}
+        />
+      )}
     </Card>
   );
 }

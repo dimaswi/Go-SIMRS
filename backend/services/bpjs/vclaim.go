@@ -811,11 +811,8 @@ type ApprovalSEPRequest struct {
 
 // ApprovalSEPResponse adalah response dari approval SEP
 type ApprovalSEPResponse struct {
-	Metadata struct {
-		Code    string `json:"code"`
-		Message string `json:"message"`
-	} `json:"metadata"`
-	Response string `json:"response"` // Nomor kartu BPJS
+	NoKartu string `json:"noKartu,omitempty"` // Nomor kartu BPJS yang disetujui
+	Message string `json:"message,omitempty"` // Pesan dari BPJS
 }
 
 // ApprovalSEP mengajukan approval SEP (backdate atau finger print)
@@ -842,9 +839,13 @@ func (c *VClaimClient) ApprovalSEP(noKartu, tglSep, jnsPelayanan, jnsPengajuan, 
 		return nil, fmt.Errorf("VClaim response code: %d", code)
 	}
 
+	// Response bisa berupa string (nomor kartu) atau JSON object
+	// Coba parse sebagai JSON dulu, jika gagal anggap sebagai string plain
 	var result ApprovalSEPResponse
 	if err := json.Unmarshal(respBody, &result); err != nil {
-		return nil, fmt.Errorf("parse approval SEP response: %w", err)
+		// Response adalah string plain (nomor kartu)
+		result.NoKartu = strings.Trim(string(respBody), "\"")
+		result.Message = "Pengajuan berhasil"
 	}
 
 	return &result, nil
@@ -869,9 +870,13 @@ func (c *VClaimClient) PengajuanSEP(noKartu, tglSep, jnsPelayanan, jnsPengajuan,
 		return nil, fmt.Errorf("VClaim response code: %d", code)
 	}
 
+	// Response bisa berupa string (nomor kartu) atau JSON object
+	// Coba parse sebagai JSON dulu, jika gagal anggap sebagai string plain
 	var result ApprovalSEPResponse
 	if err := json.Unmarshal(respBody, &result); err != nil {
-		return nil, fmt.Errorf("parse pengajuan SEP response: %w", err)
+		// Response adalah string plain (nomor kartu)
+		result.NoKartu = strings.Trim(string(respBody), "\"")
+		result.Message = "Pengajuan berhasil"
 	}
 
 	return &result, nil

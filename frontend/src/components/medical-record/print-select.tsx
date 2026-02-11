@@ -14,9 +14,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Printer, ChevronDown } from "lucide-react";
-import { visitsApi, medicalRecordsApi, medicineOrdersApi, procedureOrdersApi, printApi } from "@/lib/api";
+import { Loader2, Printer, ChevronDown, ShieldCheck } from "lucide-react";
+import { visitsApi, medicalRecordsApi, medicineOrdersApi, procedureOrdersApi, printApi, signatureApi, DOCUMENT_TYPES } from "@/lib/api";
+import { SignaturePINDialog } from "@/components/signature/signature-pin-dialog";
 import { format } from "date-fns";
 import { id as localeId } from "date-fns/locale";
 
@@ -32,6 +34,8 @@ interface PrintOption {
   label: string;
   category: string;
   handler: () => Promise<void>;
+  documentType?: string; // For signature
+  documentId?: number;   // For signature
 }
 
 // Format date to Indonesian short
@@ -59,6 +63,11 @@ export function MedicalRecordPrintSelect({
   const [medicineOrders, setMedicineOrders] = useState<any[]>([]);
   const [procedureOrders, setProcedureOrders] = useState<any[]>([]);
   const [sickLetters, setSickLetters] = useState<any[]>([]);
+  
+  // Signature state
+  const [signatureStatuses, setSignatureStatuses] = useState<Record<string, { is_signed: boolean; signer_name?: string }>>({});
+  const [showSignatureDialog, setShowSignatureDialog] = useState(false);
+  const [signatureDoc, setSignatureDoc] = useState<{ type: string; id: number; title: string } | null>(null);
 
   // Load data when component mounts or refreshTrigger changes
   useEffect(() => {
@@ -136,6 +145,44 @@ export function MedicalRecordPrintSelect({
     } finally {
       setLoading(false);
     }
+  };
+
+  // Check signature status for a document
+  const checkSignatureStatus = async (docType: string, docId: number) => {
+    try {
+      const res = await signatureApi.getDocumentSignature(docType, docId);
+      setSignatureStatuses(prev => ({ ...prev, [`${docType}-${docId}`]: res.data }));
+    } catch {
+      setSignatureStatuses(prev => ({ ...prev, [`${docType}-${docId}`]: { is_signed: false } }));
+    }
+  };
+
+  // Check signatures for visit-level documents
+  useEffect(() => {
+    if (visitId) {
+      // Check resume signature
+      checkSignatureStatus(DOCUMENT_TYPES.VISIT_RESUME, visitId);
+      // Check referral if exists
+      if (medicalRecord?.disposition?.disposition_type === "rujuk") {
+        checkSignatureStatus(DOCUMENT_TYPES.REFERRAL_LETTER, visitId);
+      }
+    }
+  }, [visitId, medicalRecord]);
+
+  const handleSignDocument = (docType: string, docId: number, title: string) => {
+    setSignatureDoc({ type: docType, id: docId, title });
+    setShowSignatureDialog(true);
+  };
+
+  const handleSignatureSuccess = () => {
+    if (signatureDoc) {
+      checkSignatureStatus(signatureDoc.type, signatureDoc.id);
+    }
+    setSignatureDoc(null);
+  };
+
+  const isDocumentSigned = (docType: string, docId: number) => {
+    return signatureStatuses[`${docType}-${docId}`]?.is_signed || false;
   };
 
   const handlePrint = async (printFn: () => Promise<void>, description: string) => {
@@ -222,6 +269,8 @@ export function MedicalRecordPrintSelect({
           label: "Resume Medis",
           category: "UGD",
           handler: () => printApi.outpatientResume(visitId),
+          documentType: DOCUMENT_TYPES.VISIT_RESUME,
+          documentId: visitId,
         });
       } else if (isInpatientVisit) {
         options.push({
@@ -229,6 +278,8 @@ export function MedicalRecordPrintSelect({
           label: "Resume Medis",
           category: "Rawat Inap",
           handler: () => printApi.inpatientResume(visitId),
+          documentType: DOCUMENT_TYPES.VISIT_RESUME,
+          documentId: visitId,
         });
       } else {
         options.push({
@@ -236,6 +287,8 @@ export function MedicalRecordPrintSelect({
           label: "Resume Medis",
           category: "Rawat Jalan",
           handler: () => printApi.outpatientResume(visitId),
+          documentType: DOCUMENT_TYPES.VISIT_RESUME,
+          documentId: visitId,
         });
       }
     }
@@ -371,6 +424,8 @@ export function MedicalRecordPrintSelect({
         label: "Surat Rujukan",
         category: "Surat",
         handler: () => printApi.referralLetter(visitId),
+        documentType: DOCUMENT_TYPES.REFERRAL_LETTER,
+        documentId: visitId,
       });
     }
     
@@ -380,6 +435,8 @@ export function MedicalRecordPrintSelect({
         label: "Surat Keterangan Rawat Inap",
         category: "Surat",
         handler: () => printApi.inpatientCertificate(visitId),
+        documentType: DOCUMENT_TYPES.INPATIENT_CERT,
+        documentId: visitId,
       });
     }
 
@@ -416,6 +473,7 @@ export function MedicalRecordPrintSelect({
   }
 
   return (
+    <>
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="outline" size="sm" disabled={printing} className="gap-1.5">
@@ -428,7 +486,7 @@ export function MedicalRecordPrintSelect({
           <ChevronDown className="h-3 w-3 opacity-50" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
+      <DropdownMenuContent align="end" className="w-64">
         {sortedCategories.map((category, idx) => (
           <div key={category}>
             {idx > 0 && <DropdownMenuSeparator />}
@@ -436,15 +494,40 @@ export function MedicalRecordPrintSelect({
               {category}
             </DropdownMenuLabel>
             <DropdownMenuGroup>
-              {groupedOptions[category].map((option) => (
+              {groupedOptions[category].map((option) => {
+                const isSigned = option.documentType && option.documentId 
+                  ? isDocumentSigned(option.documentType, option.documentId) 
+                  : false;
+                return (
                 <DropdownMenuItem
                   key={option.value}
                   onClick={() => handleItemClick(option)}
-                  className="cursor-pointer"
+                  className="cursor-pointer flex justify-between items-center"
                 >
-                  {option.label}
+                  <span>{option.label}</span>
+                  <div className="flex items-center gap-1">
+                    {option.documentType && option.documentId && (
+                      isSigned ? (
+                        <Badge variant="default" className="text-[10px] h-5 bg-green-600 gap-0.5">
+                          <ShieldCheck className="h-3 w-3" />
+                        </Badge>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-5 px-1 text-muted-foreground hover:text-primary"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSignDocument(option.documentType!, option.documentId!, option.label);
+                          }}
+                        >
+                          <ShieldCheck className="h-3 w-3" />
+                        </Button>
+                      )
+                    )}
+                  </div>
                 </DropdownMenuItem>
-              ))}
+              );})}
             </DropdownMenuGroup>
           </div>
         ))}
@@ -455,5 +538,19 @@ export function MedicalRecordPrintSelect({
         )}
       </DropdownMenuContent>
     </DropdownMenu>
+
+    {/* Signature Dialog */}
+    {signatureDoc && (
+      <SignaturePINDialog
+        open={showSignatureDialog}
+        onOpenChange={setShowSignatureDialog}
+        documentType={signatureDoc.type}
+        documentId={signatureDoc.id}
+        visitId={visitId}
+        documentTitle={signatureDoc.title}
+        onSuccess={handleSignatureSuccess}
+      />
+    )}
+    </>
   );
 }

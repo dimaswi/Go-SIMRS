@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, Building2, Save, Loader2, Upload, Image, FileImage, Hospital, Phone, Mail, Globe } from "lucide-react";
+import { ArrowLeft, Building2, Save, Loader2, Upload, Image, FileImage, Hospital, Phone, Mail, Globe, ShieldCheck, FileEdit, ExternalLink } from "lucide-react";
 import { settingsApi } from "@/lib/api";
 
 // Get base URL without /api suffix
@@ -39,6 +40,10 @@ export default function SettingsPage() {
   const [uploadingFavicon, setUploadingFavicon] = useState(false);
   const [uploadingBpjsLogo, setUploadingBpjsLogo] = useState(false);
   const [fetching, setFetching] = useState(true);
+  
+  // Digital Signature settings
+  const [signaturePinRequired, setSignaturePinRequired] = useState(true);
+  const [savingSignature, setSavingSignature] = useState(false);
   
   const logoInputRef = useRef<HTMLInputElement>(null);
   const faviconInputRef = useRef<HTMLInputElement>(null);
@@ -89,6 +94,10 @@ export default function SettingsPage() {
       if (settings.hospital_fax) setHospitalFax(settings.hospital_fax);
       if (settings.hospital_email) setHospitalEmail(settings.hospital_email);
       if (settings.hospital_website) setHospitalWebsite(settings.hospital_website);
+      // Digital Signature settings
+      if (settings.signature_pin_required !== undefined) {
+        setSignaturePinRequired(settings.signature_pin_required === "true" || settings.signature_pin_required === true);
+      }
     } catch (error) {
       console.error("Failed to load settings:", error);
     } finally {
@@ -246,6 +255,33 @@ export default function SettingsPage() {
       });
     } finally {
       setSavingHospital(false);
+    }
+  };
+
+  const handleSaveSignatureSettings = async (value: boolean) => {
+    setSignaturePinRequired(value);
+    setSavingSignature(true);
+    try {
+      await settingsApi.update({
+        signature_pin_required: value ? "true" : "false",
+      });
+      toast({
+        variant: value ? "success" : "default",
+        title: value ? "Diaktifkan" : "Dinonaktifkan",
+        description: value 
+          ? "PIN tanda tangan sekarang wajib untuk menandatangani dokumen" 
+          : "PIN tanda tangan tidak lagi diwajibkan",
+      });
+    } catch {
+      // Revert on error
+      setSignaturePinRequired(!value);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Gagal menyimpan pengaturan tanda tangan.",
+      });
+    } finally {
+      setSavingSignature(false);
     }
   };
 
@@ -719,6 +755,69 @@ export default function SettingsPage() {
                       </>
                     )}
                   </Button>
+                </div>
+              </div>
+            </div>
+
+            {/* Digital Signature Settings */}
+            <div className="rounded-lg border">
+              <div className="flex items-center gap-2 px-6 py-4">
+                <h3 className="text-sm font-medium">
+                  Tanda Tangan Digital
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  Pengaturan tanda tangan digital dan audit log
+                </p>
+              </div>
+              <div className="px-6 pb-6">
+                <div className="space-y-6">
+                  {/* PIN Required Toggle */}
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2">
+                        <ShieldCheck className="h-4 w-4 text-muted-foreground" />
+                        <Label className="text-sm font-medium">Wajib PIN Tanda Tangan</Label>
+                        {signaturePinRequired ? (
+                          <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+                            Aktif
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+                            Nonaktif
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Jika diaktifkan, user harus memasukkan PIN 6 digit untuk menandatangani dokumen
+                      </p>
+                    </div>
+                    <Switch
+                      checked={signaturePinRequired}
+                      onCheckedChange={handleSaveSignatureSettings}
+                      disabled={savingSignature}
+                    />
+                  </div>
+
+                  <Separator />
+
+                  {/* Links */}
+                  <div className="space-y-3">
+                    <Link 
+                      to="/settings/audit-log"
+                      className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <FileEdit className="h-5 w-5 text-muted-foreground" />
+                        <div>
+                          <p className="text-sm font-medium">Audit Log</p>
+                          <p className="text-xs text-muted-foreground">
+                            Pantau aktivitas tanda tangan dan perubahan rekam medis
+                          </p>
+                        </div>
+                      </div>
+                      <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                    </Link>
+                  </div>
                 </div>
               </div>
             </div>

@@ -18,8 +18,15 @@ import {
   Check,
   Minus,
   ShieldCheck,
+  ListOrdered,
+  X,
+  Eye,
+  ClipboardList,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { vclaimApi, type VClaimListRencanaKontrolItem, type VClaimPersetujuanSEPItem } from "@/lib/api/vclaim";
+import { bpjsApi, type BPJSPendaftaranAntreanItem, type BPJSListTaskItem } from "@/lib/api/bpjs";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import {
@@ -102,6 +109,21 @@ export default function BPJSToolsPage() {
   const [pengajuanJnsPengajuan, setPengajuanJnsPengajuan] = useState("1"); // 1=Backdate, 2=Finger Print
   const [pengajuanKeterangan, setPengajuanKeterangan] = useState("");
   const [pengajuanSubmitting, setPengajuanSubmitting] = useState(false);
+
+  // Antrian Online state
+  const [antreanTanggal, setAntreanTanggal] = useState(() => new Date().toISOString().slice(0, 10));
+  const [antreanLoading, setAntreanLoading] = useState(false);
+  const [antreanData, setAntreanData] = useState<BPJSPendaftaranAntreanItem[]>([]);
+  const [antreanSearched, setAntreanSearched] = useState(false);
+  const [antreanCancelling, setAntreanCancelling] = useState<string | null>(null);
+  const [antreanCancelConfirm, setAntreanCancelConfirm] = useState<BPJSPendaftaranAntreanItem | null>(null);
+  const [antreanCancelKeterangan, setAntreanCancelKeterangan] = useState("");
+  const [antreanExpandedItem, setAntreanExpandedItem] = useState<string | null>(null);
+  const [antreanDetailTab, setAntreanDetailTab] = useState<"tasks" | "detail">("tasks");
+  const [antreanTasks, setAntreanTasks] = useState<Record<string, BPJSListTaskItem[]>>({});
+  const [antreanTasksLoading, setAntreanTasksLoading] = useState<string | null>(null);
+  const [antreanBookingDetail, setAntreanBookingDetail] = useState<Record<string, BPJSPendaftaranAntreanItem[]>>({});
+  const [antreanDetailLoading, setAntreanDetailLoading] = useState<string | null>(null);
 
   const form = useForm<GetSEPForm>({
     resolver: zodResolver(getSEPSchema),
@@ -266,6 +288,77 @@ export default function BPJSToolsPage() {
     }
   };
 
+  // Antrian Online handlers
+  const handleSearchAntrean = async () => {
+    if (!antreanTanggal) {
+      toast({ variant: "destructive", title: "Tanggal wajib diisi" });
+      return;
+    }
+    setAntreanLoading(true);
+    setAntreanData([]);
+    setAntreanSearched(true);
+    try {
+      const res = await bpjsApi.getPendaftaranAntrean(antreanTanggal);
+      setAntreanData(res.data.data || []);
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Gagal", description: error.response?.data?.error || "Gagal mengambil data antrean" });
+    } finally {
+      setAntreanLoading(false);
+    }
+  };
+
+  const handleBatalAntrean = async (item: BPJSPendaftaranAntreanItem) => {
+    if (!antreanCancelKeterangan.trim()) {
+      toast({ variant: "destructive", title: "Keterangan wajib diisi" });
+      return;
+    }
+    setAntreanCancelling(item.kodebooking);
+    try {
+      await bpjsApi.batalAntrean(item.kodebooking, antreanCancelKeterangan);
+      toast({ title: "Berhasil", description: `Antrean ${item.kodebooking} berhasil dibatalkan` });
+      setAntreanData(prev => prev.filter(a => a.kodebooking !== item.kodebooking));
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Gagal", description: error.response?.data?.error || "Gagal membatalkan antrean" });
+    } finally {
+      setAntreanCancelling(null);
+      setAntreanCancelConfirm(null);
+      setAntreanCancelKeterangan("");
+    }
+  };
+
+  const handleToggleAntreanDetail = async (kodebooking: string, tab: "tasks" | "detail") => {
+    if (antreanExpandedItem === kodebooking && antreanDetailTab === tab) {
+      setAntreanExpandedItem(null);
+      return;
+    }
+    setAntreanExpandedItem(kodebooking);
+    setAntreanDetailTab(tab);
+
+    if (tab === "tasks" && !antreanTasks[kodebooking]) {
+      setAntreanTasksLoading(kodebooking);
+      try {
+        const res = await bpjsApi.getListTask(kodebooking);
+        setAntreanTasks(prev => ({ ...prev, [kodebooking]: res.data.data || [] }));
+      } catch (error: any) {
+        toast({ variant: "destructive", title: "Gagal", description: error.response?.data?.error || "Gagal mengambil list task" });
+      } finally {
+        setAntreanTasksLoading(null);
+      }
+    }
+
+    if (tab === "detail" && !antreanBookingDetail[kodebooking]) {
+      setAntreanDetailLoading(kodebooking);
+      try {
+        const res = await bpjsApi.getPendaftaranByKodeBooking(kodebooking);
+        setAntreanBookingDetail(prev => ({ ...prev, [kodebooking]: res.data.data || [] }));
+      } catch (error: any) {
+        toast({ variant: "destructive", title: "Gagal", description: error.response?.data?.error || "Gagal mengambil detail pendaftaran" });
+      } finally {
+        setAntreanDetailLoading(null);
+      }
+    }
+  };
+
   const handleSaveSEP = async () => {
     if (!sepData) return;
     setSaving(true);
@@ -332,6 +425,10 @@ export default function BPJSToolsPage() {
             <TabsTrigger value="pengajuan-sep">
               <FileText className="mr-2 h-4 w-4" />
               Pengajuan SEP
+            </TabsTrigger>
+            <TabsTrigger value="antrian-online">
+              <ListOrdered className="mr-2 h-4 w-4" />
+              Antrian Online
             </TabsTrigger>
           </TabsList>
 
@@ -823,10 +920,356 @@ export default function BPJSToolsPage() {
               </div>
             </div>
           </TabsContent>
+
+          {/* ===== ANTRIAN ONLINE ===== */}
+          <TabsContent value="antrian-online" className="mt-6 space-y-5">
+            <div>
+              <h2 className="text-sm font-semibold">Pendaftaran Antrean Online</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">Lihat daftar antrean yang terdaftar di BPJS Antrian Online per tanggal</p>
+            </div>
+
+            <div className="flex gap-2 items-end max-w-lg">
+              <div className="flex-1">
+                <label className="text-xs text-muted-foreground mb-1 block">Tanggal</label>
+                <Input
+                  type="date"
+                  value={antreanTanggal}
+                  onChange={(e) => setAntreanTanggal(e.target.value)}
+                />
+              </div>
+              <Button onClick={handleSearchAntrean} variant="outline" disabled={antreanLoading}>
+                {antreanLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Search className="h-4 w-4 mr-2" />}
+                Cari
+              </Button>
+            </div>
+
+            {/* Results */}
+            {antreanSearched && !antreanLoading && antreanData.length === 0 && (
+              <p className="text-xs text-muted-foreground py-4 text-center">Tidak ada data antrean untuk tanggal ini</p>
+            )}
+
+            {antreanData.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground">{antreanData.length} antrean ditemukan</p>
+                <div className="border rounded-lg divide-y">
+                  {antreanData.map((item) => (
+                    <div key={item.kodebooking}>
+                      <div className="px-4 py-3 flex items-center gap-4">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm font-mono font-medium">{item.kodebooking}</span>
+                            <Badge variant="outline" className={cn("text-[10px]",
+                              item.status === "Belum" ? "bg-amber-50 text-amber-700 border-amber-200" :
+                              item.status === "Hadir" ? "bg-green-50 text-green-700 border-green-200" :
+                              item.status === "Selesai dilayani" ? "bg-blue-50 text-blue-700 border-blue-200" :
+                              "bg-muted text-muted-foreground"
+                            )}>
+                              {item.status}
+                            </Badge>
+                            <Badge variant="secondary" className="text-[10px]">
+                              {item.sumberdata}
+                            </Badge>
+                          </div>
+                          <div className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
+                            <span>Poli: <strong className="text-foreground">{item.kodepoli}</strong></span>
+                            <span>Dokter: <strong className="text-foreground">{item.kodedokter}</strong></span>
+                            <span>Jam: {item.jampraktek}</span>
+                            <span>No. Antrean: <strong className="text-foreground">{item.noantrean}</strong></span>
+                          </div>
+                          <div className="mt-0.5 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
+                            <span>NIK: {item.nik}</span>
+                            <span>No. BPJS: {item.nokapst}</span>
+                            <span>No. RM: {item.norekammedis}</span>
+                            <span>No. HP: {item.nohp}</span>
+                          </div>
+                          {item.nomorreferensi && (
+                            <div className="mt-0.5 text-xs text-muted-foreground">
+                              Referensi: <span className="font-mono">{item.nomorreferensi}</span>
+                              <span className="ml-2">
+                                (Jenis: {item.jeniskunjungan === 1 ? "Rujukan FKTP" : item.jeniskunjungan === 2 ? "Rujukan Internal" : item.jeniskunjungan === 3 ? "Kontrol" : item.jeniskunjungan === 4 ? "Rujukan Antar RS" : item.jeniskunjungan})
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                            onClick={() => handleToggleAntreanDetail(item.kodebooking, "tasks")}
+                            title="List Task"
+                          >
+                            {antreanTasksLoading === item.kodebooking ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <ClipboardList className="h-4 w-4" />
+                            )}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                            onClick={() => handleToggleAntreanDetail(item.kodebooking, "detail")}
+                            title="Detail Pendaftaran"
+                          >
+                            {antreanDetailLoading === item.kodebooking ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Eye className="h-4 w-4" />
+                            )}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            disabled={antreanCancelling === item.kodebooking}
+                            onClick={() => setAntreanCancelConfirm(item)}
+                            title="Batalkan Antrean"
+                          >
+                            {antreanCancelling === item.kodebooking ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <X className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Expanded detail panel */}
+                      {antreanExpandedItem === item.kodebooking && (
+                        <div className="border-t bg-muted/20 px-4 py-3">
+                          {/* Tab switcher */}
+                          <div className="flex items-center gap-2 mb-3">
+                            <button
+                              type="button"
+                              onClick={() => handleToggleAntreanDetail(item.kodebooking, "tasks")}
+                              className={cn(
+                                "px-3 py-1 text-xs rounded-md transition-colors",
+                                antreanDetailTab === "tasks" ? "bg-background border font-medium shadow-sm" : "text-muted-foreground hover:bg-background/50"
+                              )}
+                            >
+                              <ClipboardList className="h-3 w-3 inline mr-1" />
+                              List Task
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleAntreanDetail(item.kodebooking, "detail")}
+                              className={cn(
+                                "px-3 py-1 text-xs rounded-md transition-colors",
+                                antreanDetailTab === "detail" ? "bg-background border font-medium shadow-sm" : "text-muted-foreground hover:bg-background/50"
+                              )}
+                            >
+                              <Eye className="h-3 w-3 inline mr-1" />
+                              Detail Pendaftaran
+                            </button>
+                            <div className="flex-1" />
+                            <button
+                              type="button"
+                              onClick={() => setAntreanExpandedItem(null)}
+                              className="text-muted-foreground hover:text-foreground"
+                            >
+                              <ChevronUp className="h-4 w-4" />
+                            </button>
+                          </div>
+
+                          {/* Tasks view */}
+                          {antreanDetailTab === "tasks" && (
+                            <>
+                              {antreanTasksLoading === item.kodebooking ? (
+                                <div className="flex items-center justify-center py-4">
+                                  <Loader2 className="h-4 w-4 animate-spin mr-2 text-muted-foreground" />
+                                  <span className="text-xs text-muted-foreground">Memuat list task...</span>
+                                </div>
+                              ) : antreanTasks[item.kodebooking]?.length ? (
+                                <div className="border rounded-md overflow-hidden bg-background">
+                                  <table className="w-full text-xs">
+                                    <thead>
+                                      <tr className="border-b bg-muted/40 text-muted-foreground">
+                                        <th className="text-left font-medium px-3 py-1.5 w-16">Task ID</th>
+                                        <th className="text-left font-medium px-3 py-1.5">Task Name</th>
+                                        <th className="text-left font-medium px-3 py-1.5">Waktu</th>
+                                        <th className="text-left font-medium px-3 py-1.5">Waktu RS</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {antreanTasks[item.kodebooking].map((task) => (
+                                        <tr key={task.taskid} className="border-b last:border-0">
+                                          <td className="px-3 py-1.5 font-mono font-medium">{task.taskid}</td>
+                                          <td className="px-3 py-1.5">{task.taskname}</td>
+                                          <td className="px-3 py-1.5 tabular-nums">
+                                            {task.waktu || "-"}
+                                          </td>
+                                          <td className="px-3 py-1.5 font-mono text-muted-foreground">{task.wakturs || "-"}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              ) : (
+                                <p className="text-xs text-muted-foreground text-center py-4">Tidak ada data task</p>
+                              )}
+                            </>
+                          )}
+
+                          {/* Detail view */}
+                          {antreanDetailTab === "detail" && (
+                            <>
+                              {antreanDetailLoading === item.kodebooking ? (
+                                <div className="flex items-center justify-center py-4">
+                                  <Loader2 className="h-4 w-4 animate-spin mr-2 text-muted-foreground" />
+                                  <span className="text-xs text-muted-foreground">Memuat detail pendaftaran...</span>
+                                </div>
+                              ) : antreanBookingDetail[item.kodebooking]?.length ? (
+                                <div className="space-y-3">
+                                  {antreanBookingDetail[item.kodebooking].map((d, idx) => (
+                                    <div key={idx} className="border rounded-md bg-background px-4 py-3">
+                                      <dl className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-2 text-xs">
+                                        <div>
+                                          <dt className="text-muted-foreground">Kode Booking</dt>
+                                          <dd className="font-mono font-medium">{d.kodebooking}</dd>
+                                        </div>
+                                        <div>
+                                          <dt className="text-muted-foreground">Tanggal</dt>
+                                          <dd>{d.tanggal}</dd>
+                                        </div>
+                                        <div>
+                                          <dt className="text-muted-foreground">Kode Poli</dt>
+                                          <dd className="font-medium">{d.kodepoli}</dd>
+                                        </div>
+                                        <div>
+                                          <dt className="text-muted-foreground">Kode Dokter</dt>
+                                          <dd>{d.kodedokter}</dd>
+                                        </div>
+                                        <div>
+                                          <dt className="text-muted-foreground">Jam Praktek</dt>
+                                          <dd>{d.jampraktek}</dd>
+                                        </div>
+                                        <div>
+                                          <dt className="text-muted-foreground">NIK</dt>
+                                          <dd className="font-mono">{d.nik}</dd>
+                                        </div>
+                                        <div>
+                                          <dt className="text-muted-foreground">No. Kartu BPJS</dt>
+                                          <dd className="font-mono">{d.nokapst}</dd>
+                                        </div>
+                                        <div>
+                                          <dt className="text-muted-foreground">No. HP</dt>
+                                          <dd>{d.nohp}</dd>
+                                        </div>
+                                        <div>
+                                          <dt className="text-muted-foreground">No. Rekam Medis</dt>
+                                          <dd className="font-mono">{d.norekammedis}</dd>
+                                        </div>
+                                        <div>
+                                          <dt className="text-muted-foreground">No. Antrean</dt>
+                                          <dd className="font-medium">{d.noantrean}</dd>
+                                        </div>
+                                        <div>
+                                          <dt className="text-muted-foreground">Jenis Kunjungan</dt>
+                                          <dd>{d.jeniskunjungan === 1 ? "Rujukan FKTP" : d.jeniskunjungan === 2 ? "Rujukan Internal" : d.jeniskunjungan === 3 ? "Kontrol" : d.jeniskunjungan === 4 ? "Rujukan Antar RS" : d.jeniskunjungan}</dd>
+                                        </div>
+                                        <div>
+                                          <dt className="text-muted-foreground">No. Referensi</dt>
+                                          <dd className="font-mono">{d.nomorreferensi || "-"}</dd>
+                                        </div>
+                                        <div>
+                                          <dt className="text-muted-foreground">Sumber Data</dt>
+                                          <dd>{d.sumberdata}</dd>
+                                        </div>
+                                        <div>
+                                          <dt className="text-muted-foreground">Status</dt>
+                                          <dd>
+                                            <Badge variant="outline" className={cn("text-[10px]",
+                                              d.status === "Belum" ? "bg-amber-50 text-amber-700 border-amber-200" :
+                                              d.status === "Hadir" ? "bg-green-50 text-green-700 border-green-200" :
+                                              d.status === "Selesai dilayani" ? "bg-blue-50 text-blue-700 border-blue-200" :
+                                              "bg-muted text-muted-foreground"
+                                            )}>
+                                              {d.status}
+                                            </Badge>
+                                          </dd>
+                                        </div>
+                                        <div>
+                                          <dt className="text-muted-foreground">Estimasi Dilayani</dt>
+                                          <dd>{d.estimasidilayani ? new Date(d.estimasidilayani).toLocaleString("id-ID", { dateStyle: "short", timeStyle: "medium" }) : "-"}</dd>
+                                        </div>
+                                        <div>
+                                          <dt className="text-muted-foreground">Created</dt>
+                                          <dd>{d.createdtime ? new Date(d.createdtime).toLocaleString("id-ID", { dateStyle: "short", timeStyle: "medium" }) : "-"}</dd>
+                                        </div>
+                                      </dl>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="text-xs text-muted-foreground text-center py-4">Tidak ada data detail pendaftaran</p>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </TabsContent>
         </Tabs>
       </div>
 
-      {/* Delete Confirmation */}
+      {/* Batal Antrean Confirmation */}
+      <AlertDialog open={!!antreanCancelConfirm} onOpenChange={(open) => { if (!open) { setAntreanCancelConfirm(null); setAntreanCancelKeterangan(""); } }}>
+        <AlertDialogContent className="max-w-sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-sm">Batalkan Antrean?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 text-xs">
+                <p>Antrean ini akan dibatalkan di BPJS Antrian Online.</p>
+                {antreanCancelConfirm && (
+                  <dl className="border rounded-md px-3 py-2 space-y-1 bg-muted/30 font-mono text-xs">
+                    <div className="flex justify-between">
+                      <dt className="text-muted-foreground">Kode Booking</dt>
+                      <dd>{antreanCancelConfirm.kodebooking}</dd>
+                    </div>
+                    <div className="flex justify-between">
+                      <dt className="text-muted-foreground">Poli</dt>
+                      <dd>{antreanCancelConfirm.kodepoli}</dd>
+                    </div>
+                    <div className="flex justify-between">
+                      <dt className="text-muted-foreground">No. Antrean</dt>
+                      <dd>{antreanCancelConfirm.noantrean}</dd>
+                    </div>
+                  </dl>
+                )}
+                <div className="space-y-1.5">
+                  <Label htmlFor="batal-keterangan" className="text-xs">Keterangan <span className="text-destructive">*</span></Label>
+                  <Textarea
+                    id="batal-keterangan"
+                    placeholder="Alasan pembatalan antrean..."
+                    value={antreanCancelKeterangan}
+                    onChange={(e) => setAntreanCancelKeterangan(e.target.value)}
+                    rows={2}
+                    className="text-xs"
+                  />
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="h-8 text-xs">Batal</AlertDialogCancel>
+            <Button
+              size="sm"
+              variant="destructive"
+              className="h-8 text-xs"
+              disabled={!antreanCancelKeterangan.trim() || antreanCancelling !== null}
+              onClick={() => antreanCancelConfirm && handleBatalAntrean(antreanCancelConfirm)}
+            >
+              {antreanCancelling ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <X className="h-3 w-3 mr-1" />}
+              Batalkan Antrean
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <AlertDialog open={!!skDeleteConfirm} onOpenChange={(open) => !open && setSkDeleteConfirm(null)}>
         <AlertDialogContent className="max-w-sm">
           <AlertDialogHeader>

@@ -257,6 +257,26 @@ export const bpjsApi = {
   // Cancel BPJS queue (from internal system)
   cancelQueue: (queueId: number) =>
     api.post<{ message: string; data: BPJSQueue }>(`/bpjs/queue/${queueId}/cancel`),
+
+  // === Antrian Online (direct BPJS API calls) ===
+
+  // Get pendaftaran antrean by date from BPJS Antrian Online
+  getPendaftaranAntrean: (tanggal: string) =>
+    api.get<{ data: BPJSPendaftaranAntreanItem[] }>(`/bpjs/antrean/pendaftaran/${tanggal}`),
+
+  // Batal antrean at BPJS Antrian Online
+  batalAntrean: (kodebooking: string, keterangan: string) =>
+    api.post<{ message: string; response_code: number; response_msg: string }>(
+      '/bpjs/antrean/batal', { kodebooking, keterangan }
+    ),
+
+  // Get pendaftaran detail by kode booking
+  getPendaftaranByKodeBooking: (kodebooking: string) =>
+    api.get<{ data: BPJSPendaftaranAntreanItem[] }>(`/bpjs/antrean/pendaftaran-detail/${kodebooking}`),
+
+  // Get list task by kode booking
+  getListTask: (kodebooking: string) =>
+    api.post<{ data: BPJSListTaskItem[] }>('/bpjs/antrean/getlisttask', { kodebooking }),
 };
 
 // BPJS Queue Types (Antrian MJKN)
@@ -288,6 +308,12 @@ export interface BPJSQueue {
   // Farmasi
   nomor_antrean_farmasi: number;
   status_farmasi: string;
+  
+  // Farmasi BPJS Task Buffer
+  // Jika ada: farmasi sudah di-order/selesai tapi Task 5/6 belum terkirim, menunggu auto-chain
+  farmasi_ready_at?: string;
+  farmasi_jenis_resep?: string;
+  farmasi_selesai_at?: string;
   
   // Task tracking
   task1_at?: string;
@@ -347,4 +373,34 @@ export interface BPJSQueue {
   
   created_at: string;
   updated_at: string;
+}
+
+// BPJS Pendaftaran Antrean Item (from Antrian Online API)
+export interface BPJSPendaftaranAntreanItem {
+  kodebooking: string;
+  tanggal: string;
+  kodepoli: string;
+  kodedokter: number;
+  jampraktek: string;
+  nik: string;
+  nokapst: string;
+  nohp: string;
+  norekammedis: string;
+  jeniskunjungan: number;
+  nomorreferensi: string;
+  sumberdata: string;
+  ispeserta: boolean | number;
+  noantrean: string;
+  estimasidilayani: number;
+  createdtime: number;
+  status: string;
+}
+
+// BPJS List Task Item (from Antrian Online getlisttask API)
+export interface BPJSListTaskItem {
+  taskid: number;
+  taskname: string;
+  waktu: string;
+  wakturs: string;
+  wpidr: string;
 }

@@ -19,7 +19,7 @@ import {
 import { Save, Loader2, FileText, Pill, AlertCircle, Search, X, Plus, AlertTriangle } from "lucide-react";
 import { medicalRecordsApi, patientAllergyApi, ALLERGY_CATEGORY_LABELS, ALLERGY_CRITICALITY_LABELS, ALLERGY_CRITICALITY_COLORS } from "@/lib/api";
 import { medicalRecordEditLogApi } from "@/lib/api/visits";
-import { useEditMode, EditModeBanner, EditConfirmDialog } from "./edit-mode-controller";
+import { useEditMode, EditModeBanner, EditConfirmDialog, PINVerificationDialog } from "./edit-mode-controller";
 import type { Anamnesis, PatientAllergy, AllergyCategory, AllergyCriticality } from "@/lib/api";
 import type { SnomedMaster } from "@/lib/api/loinc";
 import { useDebounce } from "@/hooks/use-debounce";
@@ -68,11 +68,21 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false, is
     isEditing,
     editReason,
     showEditDialog,
+    showPINDialog,
     setShowEditDialog,
+    setShowPINDialog,
     setEditReason,
     handleRequestEdit,
     handleConfirmEdit,
     resetEditMode,
+    requestPINVerification,
+    // PIN related
+    pin,
+    verifyingPIN,
+    pinInputRefs,
+    handlePINChange,
+    handlePINKeyDown,
+    handleVerifyPIN,
   } = useEditMode({
     isPatientDischarged,
     recordType: "anamnesis",
@@ -252,9 +262,7 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false, is
     setFormData(prev => ({ ...prev, allergies: summary }));
   }, []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
+  const doSave = async () => {
     // Log edit if patient is discharged
     if (isPatientDischarged && anamnesisId) {
       try {
@@ -271,6 +279,18 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false, is
     
     onSave?.(formData);
     resetEditMode();
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // If patient is discharged, verify PIN before saving
+    if (isPatientDischarged) {
+      requestPINVerification(doSave);
+      return;
+    }
+    
+    doSave();
   };
 
   const filledFields = Object.values(formData).filter(v => v && v.trim() !== "").length;
@@ -699,6 +719,18 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false, is
         editReason={editReason}
         onEditReasonChange={setEditReason}
         onConfirm={handleConfirmEdit}
+      />
+
+      {/* PIN Verification Dialog */}
+      <PINVerificationDialog
+        open={showPINDialog}
+        onOpenChange={setShowPINDialog}
+        pin={pin}
+        verifying={verifyingPIN}
+        pinInputRefs={pinInputRefs}
+        onPINChange={handlePINChange}
+        onPINKeyDown={handlePINKeyDown}
+        onVerify={handleVerifyPIN}
       />
 
       {/* Duplicate Allergy Alert Dialog */}

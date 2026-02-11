@@ -28,6 +28,19 @@ export type { Province, Regency, District, Village, RegionStats } from './region
 // Settings
 export { settingsApi } from './settings';
 
+// Digital Signature & Audit Logs
+export { signatureApi, DOCUMENT_TYPES, DOCUMENT_TYPE_LABELS } from './signature';
+export type {
+  SetupPINRequest,
+  ChangePINRequest,
+  VerifyPINRequest,
+  SignDocumentRequest,
+  SignatureLog,
+  MedicalRecordEditLog,
+  DocumentSignatureStatus,
+  VerifySignatureResponse,
+} from './signature';
+
 // BPJS (Legacy - use integrationsApi for new code)
 export { bpjsApi } from './bpjs';
 export type { 

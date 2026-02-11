@@ -299,6 +299,9 @@ func Migrate() error {
 		&models.EKlaimDiagnosis{}, // E-Klaim Diagnoses (ICD-10)
 		&models.EKlaimProcedure{}, // E-Klaim Procedures (ICD-9-CM)
 		&models.EKlaimLog{},       // E-Klaim Activity Logs
+		// Digital Signatures & Audit Trail
+		&models.SignatureLog{},      // Signature Activity Logs
+		&models.DocumentSignature{}, // Document Signature Status
 	)
 
 	if err != nil {
@@ -822,6 +825,8 @@ func seedRolesAndAdmin() error {
 		{Key: "hospital_fax", Value: "(021) 1234568"},
 		{Key: "hospital_email", Value: "info@rscontoh.co.id"},
 		{Key: "hospital_website", Value: "www.rscontoh.co.id"},
+		// Digital Signature Settings
+		{Key: "signature_pin_required", Value: "true"}, // true = PIN diperlukan untuk tanda tangan, false = tidak perlu PIN
 	}
 
 	for _, setting := range defaultSettings {

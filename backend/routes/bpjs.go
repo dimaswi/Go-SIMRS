@@ -78,6 +78,16 @@ func SetupBPJSRoutes(api *gin.RouterGroup) {
 			queue.POST("/:id/cancel", middleware.RequirePermission("registrations.delete"), handlers.CancelBPJSQueue)
 		}
 
+		// Antrian Online (direct BPJS Antrian API calls)
+		antrean := bpjs.Group("/antrean")
+		antrean.Use(middleware.RequirePermission("integrations.view"))
+		{
+			antrean.GET("/pendaftaran/:tanggal", handlers.GetBPJSPendaftaranAntrean)
+			antrean.GET("/pendaftaran-detail/:kodebooking", handlers.GetBPJSPendaftaranByKodeBooking)
+			antrean.POST("/getlisttask", handlers.GetBPJSListTask)
+			antrean.POST("/batal", middleware.RequirePermission("registrations.delete"), handlers.BatalAntreanOnline)
+		}
+
 		// ==================== VCLAIM ====================
 		vclaim := bpjs.Group("/vclaim")
 		vclaim.Use(middleware.RequirePermission("registrations.view"))
