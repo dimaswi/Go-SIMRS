@@ -29,9 +29,13 @@ import {
   Clock,
   User,
   Printer,
+  ShieldCheck,
+  CheckCircle2,
 } from "lucide-react";
-import { procedureOrdersApi, PROCEDURE_ORDER_STATUS, printApi } from "@/lib/api";
+import { procedureOrdersApi, PROCEDURE_ORDER_STATUS, printApi, signatureApi, DOCUMENT_TYPES } from "@/lib/api";
 import type { ProcedureOrder, ProcedureOrderItem, ProcedureParameter } from "@/lib/api/procedure-orders";
+import { usePINVerification, PINVerificationDialog } from "./edit-mode-controller";
+import { SignaturePINDialog } from "@/components/signature/signature-pin-dialog";
 
 interface RadiologyWorkstationProps {
   visitId: number;
@@ -41,6 +45,20 @@ interface RadiologyWorkstationProps {
 export function RadiologyWorkstation({ visitId, readOnly: _readOnly = false }: RadiologyWorkstationProps) {
   const { toast } = useToast();
   const { hasPermission } = usePermission();
+  
+  // PIN verification for saving results
+  const {
+    showPINDialog,
+    setShowPINDialog,
+    pin,
+    verifyingPIN,
+    pinInputRefs,
+    handlePINChange,
+    handlePINKeyDown,
+    handleVerifyPIN,
+    requestPINVerification,
+  } = usePINVerification({ isRequired: true });
+  
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [orders, setOrders] = useState<ProcedureOrder[]>([]);
@@ -55,6 +73,14 @@ export function RadiologyWorkstation({ visitId, readOnly: _readOnly = false }: R
   const [suggestion, setSuggestion] = useState("");
   const [isCritical, setIsCritical] = useState(false);
   const [criticalNotes, setCriticalNotes] = useState("");
+
+  // Signature state
+  const [showSignatureDialog, setShowSignatureDialog] = useState(false);
+  const [signatureStatus, setSignatureStatus] = useState<{
+    is_signed: boolean;
+    signed_at?: string;
+    signer_name?: string;
+  } | null>(null);
 
   const canPerform = hasPermission("procedure_orders.perform");
 
@@ -80,8 +106,27 @@ export function RadiologyWorkstation({ visitId, readOnly: _readOnly = false }: R
         });
       });
       setInlineResults(results);
+      
+      // Check signature status
+      checkSignatureStatus(selectedOrder.id);
     }
   }, [selectedOrder]);
+
+  const checkSignatureStatus = async (orderId: number) => {
+    try {
+      const res = await signatureApi.getDocumentSignature(DOCUMENT_TYPES.RADIOLOGY_RESULT, orderId);
+      setSignatureStatus(res.data);
+    } catch {
+      setSignatureStatus(null);
+    }
+  };
+
+  const handleSignatureSuccess = () => {
+    if (selectedOrder) {
+      checkSignatureStatus(selectedOrder.id);
+    }
+    toast({ variant: "success", title: "Berhasil", description: "Hasil radiologi berhasil ditandatangani" });
+  };
 
   const loadOrders = async () => {
     setLoading(true);
@@ -132,7 +177,7 @@ export function RadiologyWorkstation({ visitId, readOnly: _readOnly = false }: R
     }));
   };
 
-  const handleSaveAllResults = async () => {
+  const doSaveAllResults = async () => {
     if (!selectedOrder) return;
     setSubmitting(true);
     try {
@@ -165,6 +210,11 @@ export function RadiologyWorkstation({ visitId, readOnly: _readOnly = false }: R
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleSaveAllResults = () => {
+    if (!selectedOrder) return;
+    requestPINVerification(doSaveAllResults);
   };
 
   const renderInlineInput = (item: ProcedureOrderItem, param: ProcedureParameter) => {
@@ -430,8 +480,63 @@ export function RadiologyWorkstation({ visitId, readOnly: _readOnly = false }: R
                     Simpan Semua Hasil
                   </Button>
                 )}
+
+                {/* Signature Status & Button - Only when completed */}
+                {selectedOrder.status === "completed" && (
+                  <div className="border-t pt-3 mt-3 space-y-2">
+                    {signatureStatus?.is_signed ? (
+                      <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 dark:bg-green-950 p-3 rounded">
+                        <CheckCircle2 className="h-4 w-4" />
+                        <div>
+                          <span className="font-medium">Ditandatangani oleh {signatureStatus.signer_name}</span>
+                          {signatureStatus.signed_at && (
+                            <span className="text-xs text-muted-foreground ml-2">
+                              {new Date(signatureStatus.signed_at).toLocaleString("id-ID")}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <Button 
+                        onClick={() => setShowSignatureDialog(true)} 
+                        variant="outline" 
+                        className="w-full" 
+                        size="sm"
+                      >
+                        <ShieldCheck className="h-4 w-4 mr-1" />
+                        Tanda Tangani Hasil Radiologi
+                      </Button>
+                    )}
+                  </div>
+                )}
           </CardContent>
         </Card>
+      )}
+
+      {/* PIN Verification Dialog */}
+      <PINVerificationDialog
+        open={showPINDialog}
+        onOpenChange={setShowPINDialog}
+        pin={pin}
+        verifying={verifyingPIN}
+        pinInputRefs={pinInputRefs}
+        onPINChange={handlePINChange}
+        onPINKeyDown={handlePINKeyDown}
+        onVerify={handleVerifyPIN}
+      />
+
+      {/* Signature Dialog */}
+      {selectedOrder && (
+        <SignaturePINDialog
+          open={showSignatureDialog}
+          onOpenChange={setShowSignatureDialog}
+          documentType={DOCUMENT_TYPES.RADIOLOGY_RESULT}
+          documentId={selectedOrder.id}
+          visitId={visitId}
+          documentTitle={selectedOrder.order_number}
+          patientName={selectedOrder.source_visit?.registration?.patient?.nama_lengkap}
+          onSuccess={handleSignatureSuccess}
+        />
       )}
     </div>
   );

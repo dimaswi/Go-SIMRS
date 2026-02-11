@@ -77,6 +77,12 @@ func SetupRegistrationRoutes(router *gin.RouterGroup) {
 		// Check-in scheduled registration (for follow-up)
 		registrations.POST("/:id/checkin", middleware.RequirePermission("registrations.update"), handlers.CheckInScheduledRegistration)
 
+		// BPJS check-in with SEP: AddAntrean → Create SEP → Activate Visit (sequential, no race condition)
+		registrations.POST("/:id/bpjs-checkin", middleware.RequirePermission("registrations.update"), handlers.BPJSCheckinWithSEP)
+
+		// Send BPJS Antrean only (Step 1 of check-in flow)
+		registrations.POST("/:id/send-antrean", middleware.RequirePermission("registrations.update"), handlers.SendAntrean)
+
 		// Get kontrol info for check-in drawer - uses read permission since it's just fetching data
 		registrations.GET("/:id/kontrol-info", handlers.GetKontrolInfo)
 

@@ -1204,6 +1204,18 @@ func SaveDisposition(c *gin.Context) {
 		database.DB.Exec(`UPDATE room_queues SET status = ?, completed_at = ?, updated_at = ? WHERE visit_id = ?`,
 			models.RoomQueueStatusCompleted, now, now, visit.ID)
 
+		// Trigger BPJS Task 5 (selesai periksa) — cari via room_queue_id atau visit_id
+		go func() {
+			// Coba cari room queue ID untuk trigger via UpdateBPJSQueueFromRoomQueueStatus
+			var roomQueue models.RoomQueue
+			if err := database.DB.Where("visit_id = ?", visit.ID).First(&roomQueue).Error; err == nil {
+				bpjs.UpdateBPJSQueueFromRoomQueueStatus(roomQueue.ID, models.RoomQueueStatusCompleted, &now)
+			} else {
+				// Fallback: trigger via visit_id langsung
+				bpjs.TriggerTask5FromVisit(visit.ID, now)
+			}
+		}()
+
 		// Update SEP status to 'deleted' (visit is now discharged)
 		database.DB.Exec(`UPDATE seps SET status = 'deleted', updated_at = ? WHERE visit_id = ?`, now, visit.ID)
 
@@ -1616,15 +1628,15 @@ func createFollowUpRegistration(db *gorm.DB, sourceVisit *models.Visit, followUp
 		}
 	}
 
-	// Generate registration number
-	var lastReg models.Registration
-	regNumber := fmt.Sprintf("REG%s0001", followUpDate.Format("20060102"))
-	if err := database.DB.Order("id DESC").First(&lastReg).Error; err == nil {
-		if strings.HasPrefix(lastReg.RegistrationNumber, "REG"+followUpDate.Format("20060102")) {
-			num := 1
-			fmt.Sscanf(lastReg.RegistrationNumber, "REG"+followUpDate.Format("20060102")+"%d", &num)
-			regNumber = fmt.Sprintf("REG%s%04d", followUpDate.Format("20060102"), num+1)
-		}
+	// Generate registration number - use MAX of same-date prefix to avoid duplicates
+	datePrefix := "REG" + followUpDate.Format("20060102")
+	var lastRegSameDate models.Registration
+	regNumber := fmt.Sprintf("%s0001", datePrefix)
+	if err := database.DB.Unscoped().Where("registration_number LIKE ?", datePrefix+"%").
+		Order("registration_number DESC").First(&lastRegSameDate).Error; err == nil {
+		num := 1
+		fmt.Sscanf(lastRegSameDate.RegistrationNumber, datePrefix+"%d", &num)
+		regNumber = fmt.Sprintf("%s%04d", datePrefix, num+1)
 	}
 
 	// Count patient visits
@@ -1732,6 +1744,134 @@ func createFollowUpRegistration(db *gorm.DB, sourceVisit *models.Visit, followUp
 
 	if err := db.Create(&roomQueue).Error; err != nil {
 		return nil, fmt.Errorf("failed to create follow-up room queue: %w", err)
+	}
+
+	// === BPJS: Langsung AddAntrean saat membuat jadwal kontrol ===
+	// Ini dilakukan di sini agar saat check-in tidak ada race condition dengan pembuatan SEP
+	if strings.EqualFold(sourceReg.PaymentMethod, "bpjs") && sourceReg.BPJSNumber != "" {
+		// Cari Surat Kontrol yang terkait dengan sourceVisit
+		var suratKontrol models.SuratKontrol
+		err := database.DB.Where("visit_id = ? AND status = ?", sourceVisit.ID, "active").
+			Order("created_at DESC").First(&suratKontrol).Error
+
+		if err == nil && suratKontrol.ID > 0 {
+			// Generate kode booking untuk BPJS
+			kodeBooking := fmt.Sprintf("%s%s", followUpDate.Format("20060102"), followUpReg.RegistrationNumber)
+
+			// Ambil patient untuk data NIK dan NoHP
+			var patient models.Patient
+			database.DB.First(&patient, sourceReg.PatientID)
+
+			// Cari poli mapping untuk mendapatkan jadwal praktek
+			var poliMapping models.BPJSPoliMapping
+			database.DB.Where("room_id = ?", *roomID).First(&poliMapping)
+
+			jamPraktek := "08:00-12:00" // default
+			if poliMapping.ID > 0 {
+				// Cari jadwal dokter untuk tanggal kontrol
+				dayOfWeek := int(followUpDate.Weekday())
+				var doctorSchedule models.DoctorSchedule
+				if database.DB.Where("room_id = ? AND employee_id = ? AND day_of_week = ? AND is_active = ?",
+					*roomID, *followUpDoctorID, dayOfWeek, true).First(&doctorSchedule).Error == nil {
+					jamPraktek = fmt.Sprintf("%s-%s", doctorSchedule.StartTime, doctorSchedule.EndTime)
+				}
+			}
+
+			// Handle NoHP kosong - gunakan default
+			noHP := patient.NoTelepon
+			if noHP == "" {
+				noHP = "000000000000"
+			}
+
+			// Resolve NamaDokter: ambil dari Surat Kontrol, kalau kosong fetch dari VClaim Detail
+			namaDokterSK := suratKontrol.NamaDokter
+			if namaDokterSK == "" && suratKontrol.NoSuratKontrol != "" {
+				fmt.Printf("[FollowUp] NamaDokter kosong di Surat Kontrol %s, fetch dari VClaim Detail\n", suratKontrol.NoSuratKontrol)
+				vclaimClient, vErr := bpjs.NewVClaimClient()
+				if vErr == nil {
+					detail, dErr := vclaimClient.GetSuratKontrolDetail(suratKontrol.NoSuratKontrol)
+					if dErr == nil && detail != nil && detail.NamaDokter != "" {
+						namaDokterSK = detail.NamaDokter
+						fmt.Printf("[FollowUp] NamaDokter resolved: %s\n", namaDokterSK)
+						// Update DB supaya tidak kosong lagi
+						database.DB.Model(&suratKontrol).Update("nama_dokter", namaDokterSK)
+					}
+				}
+			}
+
+			// Buat BPJSQueue dengan data dari Surat Kontrol
+			bpjsQueue := models.BPJSQueue{
+				KodeBooking:    kodeBooking,
+				NomorAntrean:   queueNumber,
+				AngkaAntrean:   queueNum,
+				NoKartu:        suratKontrol.NoKartu,
+				NIK:            patient.NIK,
+				NamaPasien:     patient.NamaLengkap,
+				NoHP:           noHP,
+				TanggalPeriksa: *followUpDate,
+				KodePoli:       suratKontrol.KodePoli,
+				NamaPoli:       suratKontrol.NamaPoli,
+				KodeDokter:     suratKontrol.KodeDokter, // Kode dokter BPJS dari Surat Kontrol
+				NamaDokter:     namaDokterSK,            // Nama dokter BPJS dari Surat Kontrol (resolved)
+				JamPraktek:     jamPraktek,
+				JenisKunjungan: 3, // 3 = Kontrol
+				NomorReferensi: suratKontrol.NoSuratKontrol,
+				NoRM:           patient.NoRM,
+				JenisPasien:    "JKN",
+				PatientID:      &sourceReg.PatientID,
+				RegistrationID: &followUpReg.ID,
+				VisitID:        &followUpVisit.ID,
+				RoomQueueID:    &roomQueue.ID,
+				RoomID:         roomID,
+				Status:         "scheduled",
+				SyncStatus:     "pending",
+			}
+
+			// Set poli mapping jika ada
+			if poliMapping.ID > 0 {
+				bpjsQueue.PoliMappingID = &poliMapping.ID
+			}
+
+			// Hitung estimasi dilayani (milliseconds)
+			// Asumsi 10 menit per pasien
+			baseTime, _ := time.Parse("15:04", "08:00")
+			estimasiMenit := queueNum * 10
+			estimasiTime := time.Date(
+				followUpDate.Year(), followUpDate.Month(), followUpDate.Day(),
+				baseTime.Hour(), baseTime.Minute()+estimasiMenit, 0, 0, time.Local)
+			bpjsQueue.EstimasiDilayani = estimasiTime.UnixMilli()
+
+			// Save BPJSQueue
+			if err := db.Create(&bpjsQueue).Error; err != nil {
+				fmt.Printf("Warning: Failed to create BPJSQueue for follow-up: %v\n", err)
+			} else {
+				// Langsung AddAntrean ke BPJS (tanpa task, langsung add)
+				go func(q models.BPJSQueue) {
+					success, code, msg := bpjs.AddAntrean(&q)
+					now := time.Now()
+
+					// Update hasil AddAntrean
+					updates := map[string]interface{}{
+						"add_antrean_sent": true,
+						"add_antrean_code": code,
+						"add_antrean_msg":  msg,
+						"last_sync_at":     now,
+					}
+					if success {
+						updates["sync_status"] = "synced"
+					} else {
+						updates["sync_status"] = "failed"
+						updates["sync_error"] = msg
+					}
+					database.DB.Model(&models.BPJSQueue{}).Where("id = ?", q.ID).Updates(updates)
+
+					fmt.Printf("[BPJS] AddAntrean untuk jadwal kontrol %s: success=%v, code=%d, msg=%s\n",
+						q.KodeBooking, success, code, msg)
+				}(bpjsQueue)
+			}
+		} else {
+			fmt.Printf("Warning: No active Surat Kontrol found for visit %d, skipping BPJS AddAntrean\n", sourceVisit.ID)
+		}
 	}
 
 	return &followUpReg, nil

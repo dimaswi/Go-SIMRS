@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"starter/backend/database"
 	"starter/backend/models"
+	bpjsService "starter/backend/services/bpjs"
 	"strconv"
 	"strings"
 	"time"
@@ -515,6 +516,16 @@ func CompleteVisit(c *gin.Context) {
 		visit.RoomQueue.Status = "completed"
 		visit.RoomQueue.CompletedAt = &now
 		database.DB.Save(visit.RoomQueue)
+
+		// Trigger BPJS Task 5 (selesai periksa) jika ini adalah visit utama yang terhubung ke BPJSQueue
+		go func() {
+			bpjsService.UpdateBPJSQueueFromRoomQueueStatus(visit.RoomQueue.ID, models.RoomQueueStatusCompleted, &now)
+		}()
+	} else {
+		// Visit tanpa room queue — cek langsung via visit_id
+		go func() {
+			bpjsService.TriggerTask5FromVisit(visit.ID, now)
+		}()
 	}
 
 	// Load relationships for response
@@ -590,7 +601,54 @@ func CancelVisit(c *gin.Context) {
 		// Note: Source visit (UGD) tetap selesai, tidak direaktivasi
 	}
 
-	// Cancel the visit
+	// Check if this is a jadwal kontrol (scheduled follow-up)
+	// If so, revert the registration and room queue back to scheduled/reserved status
+	if visit.Registration != nil && visit.Registration.IsFollowUp {
+		// Revert registration status back to scheduled
+		tx.Model(&visit.Registration).Updates(map[string]interface{}{
+			"status":           models.RegistrationStatusScheduled,
+			"checked_in_at":    nil,
+			"checked_in_by_id": nil,
+		})
+
+		// Revert room queue to reserved instead of cancelled
+		tx.Model(&models.RoomQueue{}).
+			Where("visit_id = ?", visit.ID).
+			Update("status", models.RoomQueueStatusReserved)
+
+		// Revert visit to scheduled status instead of cancelled
+		visit.Status = models.VisitStatusScheduled
+		visit.CheckInTime = nil
+		tx.Save(&visit)
+
+		// Update BPJSQueue status to scheduled (jangan dihapus, akan dipakai lagi saat check-in ulang)
+		tx.Model(&models.BPJSQueue{}).
+			Where("registration_id = ?", visit.Registration.ID).
+			Updates(map[string]interface{}{
+				"status":        "scheduled",
+				"waktu_checkin": nil,
+				"task3_at":      nil,
+			})
+
+		if err := tx.Commit().Error; err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membatalkan kunjungan"})
+			return
+		}
+
+		// Reload with associations
+		database.DB.Preload("Registration").Preload("Registration.Patient").
+			Preload("Room").Preload("Doctor").Preload("RoomQueue").
+			First(&visit, visit.ID)
+
+		c.JSON(http.StatusOK, gin.H{
+			"data":    visit,
+			"message": "Kunjungan dibatalkan dan jadwal kontrol dikembalikan ke status terjadwal",
+		})
+		return
+	}
+
+	// Cancel the visit (for non-follow-up visits)
 	visit.Status = "cancelled"
 	tx.Save(&visit)
 

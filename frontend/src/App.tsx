@@ -22,6 +22,8 @@ const LoginPage = lazy(() => import('./pages/auth/login'));
 const DashboardPage = lazy(() => import('./pages/dashboard/index'));
 const AccountPage = lazy(() => import('./pages/account/index'));
 const SettingsPage = lazy(() => import('./pages/settings/index'));
+const SignaturePINSetupPage = lazy(() => import('./pages/account/signature-pin'));
+const AuditLogPage = lazy(() => import('./pages/settings/audit-log'));
 
 // Public Bed Monitoring
 const PublicBedMonitoring = lazy(() => import('./pages/rooms/public-monitoring'));
@@ -116,7 +118,9 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
           <Route path="/account" element={<ProtectedRoute><AccountPage /></ProtectedRoute>} />
+          <Route path="/account/signature-pin" element={<ProtectedRoute><SignaturePINSetupPage /></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+          <Route path="/settings/audit-log" element={<ProtectedRoute><AuditLogPage /></ProtectedRoute>} />
           
           {/* Bed Monitoring (Protected) */}
           <Route path="/bed-monitoring" element={<ProtectedRoute><BedMonitoringIndex /></ProtectedRoute>} />

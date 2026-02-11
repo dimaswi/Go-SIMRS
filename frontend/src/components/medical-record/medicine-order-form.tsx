@@ -241,6 +241,7 @@ function OrderCollapsible({ order }: { order: MedicineOrder }) {
 export function MedicineOrderForm({ visitId, readOnly = false }: MedicineOrderFormProps) {
   const { toast } = useToast();
   const { hasPermission } = usePermission();
+  
   const [activeTab, setActiveTab] = useState<"form" | "history">("form");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);

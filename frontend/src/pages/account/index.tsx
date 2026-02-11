@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { useAuthStore } from '@/lib/store';
 import { useToast } from '@/hooks/use-toast';
 import { usersApi } from '@/lib/api';
-import { ArrowLeft, User, Mail, Lock, Shield, Loader2 } from 'lucide-react';
+import { ArrowLeft, User, Mail, Lock, Shield, Loader2, ShieldCheck, ExternalLink } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { setPageTitle } from '@/lib/page-title';
 
@@ -246,6 +246,42 @@ export default function AccountPage() {
                 Change Password
               </Button>
             </form>
+          </div>
+        </div>
+
+        {/* Digital Signature PIN */}
+        <div className="rounded-lg border md:col-span-2">
+          <div className="flex items-center gap-2 px-6 py-4">
+            <h3 className="text-sm font-medium">Tanda Tangan Digital</h3>
+            <p className="text-sm text-muted-foreground">Kelola PIN untuk tanda tangan dokumen digital</p>
+          </div>
+          <div className="px-6 pb-6">
+            <Link 
+              to="/account/signature-pin"
+              className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <ShieldCheck className="h-5 w-5 text-primary" />
+                <div>
+                  <p className="text-sm font-medium">
+                    {user?.has_signature_pin ? 'Ubah PIN Tanda Tangan' : 'Atur PIN Tanda Tangan'}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {user?.has_signature_pin 
+                      ? 'PIN sudah diatur. Klik untuk mengubah.' 
+                      : 'Anda belum mengatur PIN. Klik untuk setup.'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {user?.has_signature_pin ? (
+                  <Badge variant="default" className="text-xs">Aktif</Badge>
+                ) : (
+                  <Badge variant="secondary" className="text-xs">Belum Diatur</Badge>
+                )}
+                <ExternalLink className="h-4 w-4 text-muted-foreground" />
+              </div>
+            </Link>
           </div>
         </div>
       </div>

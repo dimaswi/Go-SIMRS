@@ -31,8 +31,6 @@ import {
   XCircle,
   ClipboardList,
   Calendar,
-  Stethoscope,
-  Building2,
   HeartPulse,
 } from "lucide-react";
 import {
@@ -43,7 +41,7 @@ import {
   type PRBStatusOption,
   type PRBFormData,
 } from "@/lib/api/vclaim";
-import { SearchModal } from "./search-modal";
+import { PoliDokterSelector } from "./poli-dokter-selector";
 
 interface SuratKontrolFormSheetProps {
   open: boolean;
@@ -147,9 +145,7 @@ export function SuratKontrolFormSheet({
   const [peserta, setPeserta] = useState<VClaimPeserta | null>(null);
   const [pesertaError, setPesertaError] = useState<string | null>(null);
 
-  // Modal states
-  const [poliModalOpen, setPoliModalOpen] = useState(false);
-  const [dokterModalOpen, setDokterModalOpen] = useState(false);
+  // Modal states (managed by PoliDokterSelector now)
 
   // Form fields
   const [tglRencanaKontrol, setTglRencanaKontrol] = useState("");
@@ -480,61 +476,28 @@ export function SuratKontrolFormSheet({
                   </p>
                 </div>
 
-                {/* Poli Kontrol */}
-                <div className="space-y-2">
-                  <Label className="text-sm flex items-center gap-2">
-                    <Building2 className="h-4 w-4 text-muted-foreground" />
-                    Poli Kontrol <span className="text-destructive">*</span>
-                  </Label>
-                  <div className="flex gap-2">
-                    <Input
-                      value={namaPoli ? `${kodePoli} - ${namaPoli}` : ""}
-                      placeholder="Pilih poli kontrol"
-                      readOnly
-                      className="h-10 bg-muted/50 cursor-pointer"
-                      onClick={() => setPoliModalOpen(true)}
-                    />
-                    <Button 
-                      size="sm" 
-                      variant="outline"
-                      onClick={() => setPoliModalOpen(true)}
-                      className="h-10 px-3"
-                    >
-                      <Search className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Dokter Kontrol */}
-                <div className="space-y-2">
-                  <Label className="text-sm flex items-center gap-2">
-                    <Stethoscope className="h-4 w-4 text-muted-foreground" />
-                    Dokter Kontrol <span className="text-destructive">*</span>
-                  </Label>
-                  <div className="flex gap-2">
-                    <Input
-                      value={namaDokter ? `${kodeDokter} - ${namaDokter}` : ""}
-                      placeholder={kodePoli && tglRencanaKontrol ? "Pilih dokter kontrol" : "Pilih poli & tanggal dulu"}
-                      readOnly
-                      className="h-10 bg-muted/50 cursor-pointer"
-                      onClick={() => kodePoli && tglRencanaKontrol && setDokterModalOpen(true)}
-                    />
-                    <Button 
-                      size="sm" 
-                      variant="outline"
-                      onClick={() => setDokterModalOpen(true)}
-                      disabled={!kodePoli || !tglRencanaKontrol}
-                      className="h-10 px-3"
-                    >
-                      <Search className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  {(!kodePoli || !tglRencanaKontrol) && (
-                    <p className="text-xs text-amber-600">
-                      Pilih poli dan tanggal kontrol terlebih dahulu untuk mencari dokter
-                    </p>
-                  )}
-                </div>
+                {/* Poli & Dokter Selector with Tabs */}
+                <PoliDokterSelector
+                  kodePoli={kodePoli}
+                  namaPoli={namaPoli}
+                  kodeDokter={kodeDokter}
+                  namaDokter={namaDokter}
+                  tglRencanaKontrol={tglRencanaKontrol}
+                  onPoliChange={(kode, nama) => {
+                    setKodePoli(kode);
+                    setNamaPoli(nama);
+                    setKodeDokter("");
+                    setNamaDokter("");
+                  }}
+                  onDokterChange={(kode, nama) => {
+                    setKodeDokter(kode);
+                    setNamaDokter(nama);
+                  }}
+                  searchPoliBPJS={handleSearchPoli}
+                  searchDokterBPJS={handleSearchDokter}
+                  poliModalTitle="Cari Poli Surat Kontrol BPJS"
+                  dokterModalTitle="Cari Dokter Surat Kontrol BPJS"
+                />
               </div>
 
               {/* === PRB (Program Rujuk Balik) === */}
@@ -666,42 +629,7 @@ export function SuratKontrolFormSheet({
         </SheetContent>
       </Sheet>
 
-      {/* Modal Search Poli */}
-      <SearchModal
-        open={poliModalOpen}
-        onOpenChange={setPoliModalOpen}
-        title="Cari Poli Kontrol"
-        placeholder="Ketik nama poli..."
-        columns={[
-          { key: "kode", label: "Kode", width: "120px" },
-          { key: "nama", label: "Nama Poli" },
-        ]}
-        onSearch={handleSearchPoli}
-        onSelect={(item) => {
-          setKodePoli(item.kode);
-          setNamaPoli(item.nama);
-          // Reset dokter when poli changes
-          setKodeDokter("");
-          setNamaDokter("");
-        }}
-      />
-
-      {/* Modal Search Dokter */}
-      <SearchModal
-        open={dokterModalOpen}
-        onOpenChange={setDokterModalOpen}
-        title="Cari Dokter Kontrol"
-        placeholder="Ketik nama dokter..."
-        columns={[
-          { key: "kode", label: "Kode", width: "120px" },
-          { key: "nama", label: "Nama Dokter" },
-        ]}
-        onSearch={handleSearchDokter}
-        onSelect={(item) => {
-          setKodeDokter(item.kode);
-          setNamaDokter(item.nama);
-        }}
-      />
+      {/* Search modals are now managed inside PoliDokterSelector */}
     </>
   );
 }

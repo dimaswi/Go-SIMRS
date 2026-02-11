@@ -21,9 +21,11 @@ import {
   Trash2,
   Clock,
   Plus,
-  Edit
+  Edit,
+  ShieldCheck
 } from "lucide-react";
-import { medicalRecordsApi, printApi } from "@/lib/api";
+import { medicalRecordsApi, printApi, signatureApi, DOCUMENT_TYPES } from "@/lib/api";
+import { SignaturePINDialog } from "@/components/signature/signature-pin-dialog";
 import type { SickLetter } from "@/lib/api/medical-records";
 import { useToast } from "@/hooks/use-toast";
 import { format, addDays, differenceInDays } from "date-fns";
@@ -83,16 +85,41 @@ export function SickLetterForm({ visitId, onSave, readOnly = false }: SickLetter
   // Active tab
   const [activeTab, setActiveTab] = useState<"form" | "history">("form");
 
+  // Signature state
+  const [signatureLetterId, setSignatureLetterId] = useState<number | null>(null);
+  const [showSignatureDialog, setShowSignatureDialog] = useState(false);
+  const [signatureStatuses, setSignatureStatuses] = useState<Record<number, { is_signed: boolean; signer_name?: string }>>({});
+
   // Load existing sick letters on mount
   useEffect(() => {
     loadSickLetters();
   }, [visitId]);
 
+  const checkSignatureStatus = async (letterId: number) => {
+    try {
+      const res = await signatureApi.getDocumentSignature(DOCUMENT_TYPES.SICK_LETTER, letterId);
+      setSignatureStatuses(prev => ({ ...prev, [letterId]: res.data }));
+    } catch {
+      setSignatureStatuses(prev => ({ ...prev, [letterId]: { is_signed: false } }));
+    }
+  };
+
+  const handleSignatureSuccess = () => {
+    if (signatureLetterId) {
+      checkSignatureStatus(signatureLetterId);
+    }
+    setSignatureLetterId(null);
+    toast({ variant: "success", title: "Berhasil", description: "Surat sakit berhasil ditandatangani" });
+  };
+
   const loadSickLetters = async () => {
     try {
       setLoading(true);
       const response = await medicalRecordsApi.getSickLetters(visitId);
-      setSickLetters(response.data || []);
+      const letters = response.data || [];
+      setSickLetters(letters);
+      // Check signature status for each letter
+      letters.forEach((letter: SickLetter) => checkSignatureStatus(letter.id));
     } catch (error) {
       console.error("Error loading sick letters:", error);
       setSickLetters([]);
@@ -465,6 +492,7 @@ export function SickLetterForm({ visitId, onSave, readOnly = false }: SickLetter
                     <TableHead>Tanggal</TableHead>
                     <TableHead>Lama</TableHead>
                     <TableHead>Tujuan</TableHead>
+                    <TableHead>Status</TableHead>
                     <TableHead className="text-right">Aksi</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -490,6 +518,16 @@ export function SickLetterForm({ visitId, onSave, readOnly = false }: SickLetter
                       <TableCell className="max-w-[200px] truncate">
                         {letter.institution || letter.purpose || "-"}
                       </TableCell>
+                      <TableCell>
+                        {signatureStatuses[letter.id]?.is_signed ? (
+                          <Badge variant="default" className="gap-1 bg-green-600">
+                            <ShieldCheck className="h-3 w-3" />
+                            Signed
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary">Belum</Badge>
+                        )}
+                      </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
                           <Button
@@ -501,6 +539,20 @@ export function SickLetterForm({ visitId, onSave, readOnly = false }: SickLetter
                           >
                             <Printer className="h-4 w-4" />
                           </Button>
+                          {!signatureStatuses[letter.id]?.is_signed && !readOnly && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                setSignatureLetterId(letter.id);
+                                setShowSignatureDialog(true);
+                              }}
+                              title="Tanda Tangan"
+                              className="text-primary"
+                            >
+                              <ShieldCheck className="h-4 w-4" />
+                            </Button>
+                          )}
                           {!readOnly && (
                             <>
                               <Button
@@ -566,6 +618,19 @@ export function SickLetterForm({ visitId, onSave, readOnly = false }: SickLetter
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Signature Dialog */}
+      {signatureLetterId && (
+        <SignaturePINDialog
+          open={showSignatureDialog}
+          onOpenChange={setShowSignatureDialog}
+          documentType={DOCUMENT_TYPES.SICK_LETTER}
+          documentId={signatureLetterId}
+          visitId={visitId}
+          documentTitle={sickLetters.find(l => l.id === signatureLetterId)?.letter_number || "Surat Sakit"}
+          onSuccess={handleSignatureSuccess}
+        />
+      )}
     </Card>
   );
 }

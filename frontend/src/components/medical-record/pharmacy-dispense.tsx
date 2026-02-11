@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { usePermission } from "@/hooks/usePermission";
 import { useAuthStore } from "@/lib/store";
+import { usePINVerification, PINVerificationDialog } from "@/components/medical-record/edit-mode-controller";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -16,9 +17,11 @@ import {
   CheckCircle2,
   AlertCircle,
   Printer,
+  ShieldCheck,
 } from "lucide-react";
-import { medicineOrdersApi } from "@/lib/api";
+import { medicineOrdersApi, signatureApi, DOCUMENT_TYPES } from "@/lib/api";
 import type { MedicineOrder, MedicineOrderItem } from "@/lib/api";
+import { SignaturePINDialog } from "@/components/signature/signature-pin-dialog";
 
 interface PharmacyDispenseProps {
   visitId: number;
@@ -57,11 +60,30 @@ export function PharmacyDispense({ visitId, readOnly = false }: PharmacyDispense
   const { toast } = useToast();
   const { hasPermission } = usePermission();
   const { user } = useAuthStore();
+  const {
+    showPINDialog,
+    setShowPINDialog,
+    pin,
+    verifyingPIN,
+    pinInputRefs,
+    handlePINChange,
+    handlePINKeyDown,
+    handleVerifyPIN,
+    requestPINVerification,
+  } = usePINVerification({ isRequired: true });
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [orders, setOrders] = useState<MedicineOrder[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<MedicineOrder | null>(null);
   const [dispenseItems, setDispenseItems] = useState<DispenseItem[]>([]);
+
+  // Signature state
+  const [showSignatureDialog, setShowSignatureDialog] = useState(false);
+  const [signatureStatus, setSignatureStatus] = useState<{
+    is_signed: boolean;
+    signed_at?: string;
+    signer_name?: string;
+  } | null>(null);
 
   useEffect(() => {
     loadOrders();
@@ -70,8 +92,18 @@ export function PharmacyDispense({ visitId, readOnly = false }: PharmacyDispense
   useEffect(() => {
     if (selectedOrder) {
       initializeDispenseItems(selectedOrder);
+      checkSignatureStatus(selectedOrder.id);
     }
   }, [selectedOrder]);
+
+  const checkSignatureStatus = async (orderId: number) => {
+    try {
+      const res = await signatureApi.getDocumentSignature(DOCUMENT_TYPES.PHARMACY_HANDOVER, orderId);
+      setSignatureStatus(res.data);
+    } catch {
+      setSignatureStatus(null);
+    }
+  };
 
   const loadOrders = async () => {
     setLoading(true);
@@ -579,7 +611,7 @@ export function PharmacyDispense({ visitId, readOnly = false }: PharmacyDispense
                 {canDispense && !allDelivered && (
                   <Button
                     className="flex-1"
-                    onClick={handleSubmitDispense}
+                    onClick={() => requestPINVerification(handleSubmitDispense)}
                     disabled={submitting || dispenseItems.filter((i) => i.selected).length === 0 || readOnly}
                   >
                     {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
@@ -587,11 +619,58 @@ export function PharmacyDispense({ visitId, readOnly = false }: PharmacyDispense
                     Serahkan Obat Terpilih
                   </Button>
                 )}
+
+                {/* Signature button - show when all delivered */}
+                {allDelivered && (
+                  signatureStatus?.is_signed ? (
+                    <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 dark:bg-green-950 p-3 rounded flex-1">
+                      <CheckCircle2 className="h-4 w-4" />
+                      <span className="font-medium">Ditandatangani: {signatureStatus.signer_name}</span>
+                    </div>
+                  ) : (
+                    <Button 
+                      onClick={() => setShowSignatureDialog(true)} 
+                      variant="outline" 
+                      className="flex-1"
+                    >
+                      <ShieldCheck className="h-4 w-4 mr-2" />
+                      Tanda Tangani Serah Terima
+                    </Button>
+                  )
+                )}
               </div>
             </div>
           </div>
         </>
       )}      </CardContent>
+
+      <PINVerificationDialog
+        open={showPINDialog}
+        onOpenChange={setShowPINDialog}
+        pin={pin}
+        verifying={verifyingPIN}
+        pinInputRefs={pinInputRefs}
+        onPINChange={handlePINChange}
+        onPINKeyDown={handlePINKeyDown}
+        onVerify={handleVerifyPIN}
+      />
+
+      {/* Signature Dialog */}
+      {selectedOrder && (
+        <SignaturePINDialog
+          open={showSignatureDialog}
+          onOpenChange={setShowSignatureDialog}
+          documentType={DOCUMENT_TYPES.PHARMACY_HANDOVER}
+          documentId={selectedOrder.id}
+          visitId={visitId}
+          documentTitle={selectedOrder.order_number}
+          patientName={selectedOrder.source_visit?.registration?.patient?.nama_lengkap}
+          onSuccess={() => {
+            loadOrders();
+            toast({ variant: "success", title: "Berhasil", description: "Serah terima obat berhasil ditandatangani" });
+          }}
+        />
+      )}
     </Card>
   );
 }

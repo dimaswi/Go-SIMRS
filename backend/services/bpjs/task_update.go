@@ -1,11 +1,10 @@
 package bpjs
 
 import (
-	"encoding/json"
 	"fmt"
+	"math/rand"
 	"starter/backend/database"
 	"starter/backend/models"
-	"strings"
 	"time"
 )
 
@@ -17,15 +16,6 @@ type TaskUpdateRequest struct {
 	JenisResep  string `json:"jenisresep,omitempty"`  // For task 6 only
 	WaktuTunggu int    `json:"waktutunggu,omitempty"` // For task 6 only (in seconds)
 	WaktuLayan  int    `json:"waktulayan,omitempty"`  // For task 6 only (in seconds)
-}
-
-// TaskUpdateResponse represents the response from BPJS task update
-type TaskUpdateResponse struct {
-	Metadata struct {
-		Code    int    `json:"code"`
-		Message string `json:"message"`
-	} `json:"metadata"`
-	Response interface{} `json:"response"`
 }
 
 // SendTaskManual sends task update to BPJS and returns response details (for manual sending)
@@ -46,41 +36,28 @@ func SendTaskManual(kodeBooking string, taskID int, waktuMs int64) (bool, int, s
 
 	// Make request to BPJS
 	endpoint := "/antrean/updatewaktu"
-	response, statusCode, err := client.Request("POST", endpoint, reqBody)
-
-	// If error but we got response, try to parse it for the code
+	_, _, err = client.Request("POST", endpoint, reqBody)
 	if err != nil {
-		// Extract code from error message if possible (format: "BPJS error [201]: message")
 		errStr := err.Error()
-		if strings.Contains(errStr, "BPJS error [") {
-			// Parse code from error
-			var code int
-			var msg string
-			fmt.Sscanf(errStr, "BPJS error [%d]: %s", &code, &msg)
-			if code > 0 {
-				// Get full message after the code
-				idx := strings.Index(errStr, "]: ")
-				if idx > 0 {
-					msg = errStr[idx+3:]
-				}
-				return false, code, msg
-			}
+		code := 0
+		msg := errStr
+		if idx := extractBPJSErrorCode(errStr); idx > 0 {
+			code = idx
+			msg = extractBPJSErrorMessage(errStr)
 		}
-		return false, statusCode, "Gagal request ke BPJS: " + err.Error()
+
+		// Code 208 = task sudah ada di BPJS, treat as success
+		// Ini terjadi ketika BPJS sudah terima tapi lokal belum terupdate
+		if code == 208 {
+			fmt.Printf("[BPJS SendTaskManual] Task %d untuk %s: code 208 (sudah ada), treated as success\n", taskID, kodeBooking)
+			return true, 200, msg
+		}
+
+		return false, code, msg
 	}
 
-	// Parse response
-	var result TaskUpdateResponse
-	if err := json.Unmarshal(response, &result); err != nil {
-		return false, statusCode, "Gagal parse response: " + err.Error()
-	}
-
-	// Check metadata.code - 200 = success, others = failed
-	if result.Metadata.Code == 200 {
-		return true, result.Metadata.Code, result.Metadata.Message
-	}
-
-	return false, result.Metadata.Code, result.Metadata.Message
+	// client.Request returns nil error only when metadata.code == 200
+	return true, 200, "Berhasil"
 }
 
 // UpdateTask sends task update to BPJS Antrian Online
@@ -123,33 +100,26 @@ func UpdateTask(kodeBooking string, taskID int, waktu time.Time, additionalData 
 
 	// Make request to BPJS - pass struct directly, client.Request will marshal it
 	endpoint := "/antrean/updatewaktu"
-	response, _, err := client.Request("POST", endpoint, reqBody)
+	_, _, err = client.Request("POST", endpoint, reqBody)
 	if err != nil {
-		// GAGAL - JANGAN update database
-		fmt.Printf("[BPJS Task %d] GAGAL untuk %s: %s - TIDAK update database\n", taskID, kodeBooking, err.Error())
+		errStr := err.Error()
+		code := extractBPJSErrorCode(errStr)
+
+		// Code 208 = task sudah ada di BPJS, treat as success dan update DB
+		if code == 208 {
+			fmt.Printf("[BPJS Task %d] Code 208 (sudah ada) untuk %s - update database\n", taskID, kodeBooking)
+			logTaskUpdate(kodeBooking, taskID, waktu, 200)
+			return nil
+		}
+
+		fmt.Printf("[BPJS Task %d] GAGAL untuk %s: %s - TIDAK update database\n", taskID, kodeBooking, errStr)
 		return fmt.Errorf("gagal update task ke BPJS: %w", err)
 	}
 
-	// Debug log response
-	fmt.Printf("BPJS Task Update Response [%s][Task %d]: %s\n", kodeBooking, taskID, string(response))
-
-	// Parse response
-	var result TaskUpdateResponse
-	if err := json.Unmarshal(response, &result); err != nil {
-		// GAGAL parse - JANGAN update database
-		fmt.Printf("[BPJS Task %d] GAGAL parse untuk %s: %s - TIDAK update database\n", taskID, kodeBooking, err.Error())
-		return fmt.Errorf("gagal parse response BPJS: %w", err)
-	}
-
-	// CEK METADATA.CODE - HANYA 200 YANG SUKSES
-	if result.Metadata.Code != 200 {
-		// metadata.code BUKAN 200 - JANGAN update database
-		fmt.Printf("[BPJS Task %d] GAGAL untuk %s: metadata.code=%d, msg=%s - TIDAK update database\n", taskID, kodeBooking, result.Metadata.Code, result.Metadata.Message)
-		return fmt.Errorf("BPJS error: %s", result.Metadata.Message)
-	}
-
-	// SUKSES - metadata.code == 200, BARU update database
-	logTaskUpdate(kodeBooking, taskID, waktu, result.Metadata.Code)
+	// client.Request returns nil error only when metadata.code == 200
+	// SUKSES - update database
+	fmt.Printf("[BPJS Task %d] SUKSES untuk %s\n", taskID, kodeBooking)
+	logTaskUpdate(kodeBooking, taskID, waktu, 200)
 	return nil
 }
 
@@ -160,6 +130,37 @@ func UpdateTaskAsync(kodeBooking string, taskID int, waktu time.Time, additional
 			fmt.Printf("BPJS Task Update Error [%s][Task %d]: %v\n", kodeBooking, taskID, err)
 		}
 	}()
+}
+
+// ensureSequentialTime memastikan waktu task selalu lebih besar dari task sebelumnya.
+// BPJS mensyaratkan timestamp harus urut: T1 < T2 < T3 < T4 < T5 < T6 < T7.
+// Jika waktu yang diberikan <= task sebelumnya, bump ke previousTask + 1 menit.
+func ensureSequentialTime(queue *models.BPJSQueue, taskID int, waktu time.Time) time.Time {
+	var prevTime *time.Time
+
+	switch taskID {
+	case 2:
+		prevTime = queue.Task1At
+	case 3:
+		prevTime = queue.Task2At
+	case 4:
+		prevTime = queue.Task3At
+	case 5:
+		prevTime = queue.Task4At
+	case 6:
+		prevTime = queue.Task5At
+	case 7:
+		prevTime = queue.Task6At
+	}
+
+	if prevTime != nil && !waktu.After(*prevTime) {
+		adjusted := prevTime.Add(1 * time.Minute)
+		fmt.Printf("[BPJS Task %d] Waktu %s <= task sebelumnya %s, adjusted ke %s\n",
+			taskID, waktu.Format("15:04:05"), prevTime.Format("15:04:05"), adjusted.Format("15:04:05"))
+		return adjusted
+	}
+
+	return waktu
 }
 
 // logTaskUpdate logs task update to database
@@ -220,7 +221,8 @@ func UpdateBPJSQueueFromRoomQueueStatus(roomQueueID uint, newStatus string, wakt
 	switch newStatus {
 	case models.RoomQueueStatusCalled:
 		// Pasien dipanggil dokter -> Task 4
-		UpdateTaskAsync(bpjsQueue.KodeBooking, 4, taskTime, nil)
+		adjusted := ensureSequentialTime(&bpjsQueue, 4, taskTime)
+		UpdateTaskAsync(bpjsQueue.KodeBooking, 4, adjusted, nil)
 
 	case models.RoomQueueStatusServing:
 		// Pasien mulai dilayani -> tidak ada task khusus
@@ -228,45 +230,96 @@ func UpdateBPJSQueueFromRoomQueueStatus(roomQueueID uint, newStatus string, wakt
 
 	case models.RoomQueueStatusCompleted:
 		// Selesai periksa -> Task 5
-		UpdateTaskAsync(bpjsQueue.KodeBooking, 5, taskTime, nil)
+		adjusted := ensureSequentialTime(&bpjsQueue, 5, taskTime)
+
+		// Kirim Task 5, lalu auto-chain Task 6 & 7 (tetap lanjut walaupun Task 5 gagal)
+		go func() {
+			err := UpdateTask(bpjsQueue.KodeBooking, 5, adjusted, nil)
+			if err != nil {
+				fmt.Printf("BPJS Task Update Error [%s][Task 5]: %v (tetap lanjut ke Task 6 & 7)\n", bpjsQueue.KodeBooking, err)
+			}
+
+			// Auto-chain Task 6 & 7 — selalu dicoba walaupun Task 5 error
+			AutoChainFarmasiTasks(bpjsQueue.KodeBooking, adjusted)
+		}()
 	}
 }
 
-// UpdateBPJSQueueForFarmasi updates BPJS task 6 and 7 for pharmacy
-func UpdateBPJSQueueForFarmasi(kodeBooking string, jenisResep string, waktuMulai time.Time) {
-	// Task 6 - Mulai tunggu farmasi
-	UpdateTaskAsync(kodeBooking, 6, waktuMulai, map[string]interface{}{
-		"jenis_resep":  jenisResep,
-		"waktu_tunggu": 0,
-		"waktu_layan":  0,
-	})
+// AutoChainFarmasiTasks otomatis kirim Task 6 dan Task 7 setelah Task 5 di-attempt.
+// Task 6 = baseTime + random 0-2 menit
+// Task 7 = task6Time + random 5-10 menit
+// Selalu dicoba walaupun Task 5 gagal — BPJS mungkin sudah punya Task 5 dari sebelumnya.
+func AutoChainFarmasiTasks(kodeBooking string, task5Time time.Time) {
+	var queue models.BPJSQueue
+	if err := database.DB.Where("kode_booking = ?", kodeBooking).First(&queue).Error; err != nil {
+		return
+	}
 
-	// Task 7 - Serah obat (5 menit setelah task 6 sesuai dokumen)
-	go func() {
-		time.Sleep(5 * time.Minute)
-		UpdateTaskAsync(kodeBooking, 7, time.Now(), nil)
-	}()
+	// Gunakan task5_at dari DB jika ada, fallback ke parameter
+	baseTime := task5Time
+	if queue.Task5At != nil {
+		baseTime = *queue.Task5At
+	}
+
+	// ---- Task 6: baseTime + random 0-2 menit ----
+	task6Time := baseTime // fallback
+	if queue.Task6At == nil {
+		offset6 := time.Duration(rand.Intn(121)) * time.Second // 0-120 detik
+		task6Time = baseTime.Add(offset6)
+
+		fmt.Printf("[BPJS AutoChain] Kirim Task 6 untuk %s (base + %v)\n", kodeBooking, offset6)
+		err := UpdateTask(kodeBooking, 6, task6Time, map[string]interface{}{
+			"jenis_resep":  "non racikan",
+			"waktu_tunggu": 0,
+			"waktu_layan":  0,
+		})
+		if err != nil {
+			fmt.Printf("BPJS Task Update Error [%s][Task 6]: %v (tetap lanjut ke Task 7)\n", kodeBooking, err)
+		}
+	} else {
+		task6Time = *queue.Task6At
+	}
+
+	// Reload untuk dapat task6_at terbaru
+	if err := database.DB.Where("kode_booking = ?", kodeBooking).First(&queue).Error; err != nil {
+		return
+	}
+	if queue.Task6At != nil {
+		task6Time = *queue.Task6At
+	}
+
+	// ---- Task 7: task6Time + random 5-10 menit ----
+	if queue.Task7At == nil {
+		offset7 := time.Duration(300+rand.Intn(301)) * time.Second // 300-600 detik (5-10 menit)
+		task7Time := task6Time.Add(offset7)
+
+		fmt.Printf("[BPJS AutoChain] Kirim Task 7 untuk %s (T6 + %v)\n", kodeBooking, offset7)
+		err := UpdateTask(kodeBooking, 7, task7Time, nil)
+		if err != nil {
+			fmt.Printf("BPJS Task Update Error [%s][Task 7]: %v\n", kodeBooking, err)
+		}
+	}
 }
 
-// TriggerFarmasiTask triggers BPJS task 6 & 7 when medicine is delivered
-// Called from medicine order handler
-func TriggerFarmasiTask(visitID uint, deliveredAt time.Time) {
-	// Find BPJSQueue linked to this Visit
+// TriggerTask5FromVisit triggers BPJS Task 5 when a visit is completed directly
+// (without going through room queue status change).
+func TriggerTask5FromVisit(visitID uint, completedAt time.Time) {
 	var bpjsQueue models.BPJSQueue
 	if err := database.DB.Where("visit_id = ?", visitID).First(&bpjsQueue).Error; err != nil {
-		// No BPJS queue linked (pasien bukan MJKN), skip
+		return // bukan pasien MJKN
+	}
+
+	if bpjsQueue.Task5At != nil {
+		fmt.Printf("[BPJS Task 5] Sudah terkirim untuk visit %d, skip\n", visitID)
 		return
 	}
 
-	// Check if already processed (prevent duplicate)
-	if bpjsQueue.Task6At != nil {
-		return
+	adjusted := ensureSequentialTime(&bpjsQueue, 5, completedAt)
+	err := UpdateTask(bpjsQueue.KodeBooking, 5, adjusted, nil)
+	if err != nil {
+		fmt.Printf("BPJS Task Update Error [%s][Task 5 from Visit]: %v (tetap lanjut ke Task 6 & 7)\n", bpjsQueue.KodeBooking, err)
 	}
 
-	// Determine jenis resep (racikan/non-racikan)
-	// For simplicity, we use "non racikan" as default
-	jenisResep := "non racikan"
-
-	// Update Task 6 & 7
-	UpdateBPJSQueueForFarmasi(bpjsQueue.KodeBooking, jenisResep, deliveredAt)
+	// Auto-chain Task 6 & 7 — selalu dicoba walaupun Task 5 error
+	AutoChainFarmasiTasks(bpjsQueue.KodeBooking, adjusted)
 }

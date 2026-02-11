@@ -23,8 +23,6 @@ import {
   XCircle,
   ClipboardList,
   Calendar,
-  Stethoscope,
-  Building2,
 } from "lucide-react";
 import {
   vclaimApi,
@@ -32,7 +30,7 @@ import {
   type SEPLocal,
   type VClaimSPRIResponse,
 } from "@/lib/api/vclaim";
-import { SearchModal } from "./search-modal";
+import { PoliDokterSelector } from "./poli-dokter-selector";
 
 interface SPRIFormSheetProps {
   open: boolean;
@@ -70,9 +68,7 @@ export function SPRIFormSheet({
   const [peserta, setPeserta] = useState<VClaimPeserta | null>(null);
   const [pesertaError, setPesertaError] = useState<string | null>(null);
 
-  // Modal states
-  const [poliModalOpen, setPoliModalOpen] = useState(false);
-  const [dokterModalOpen, setDokterModalOpen] = useState(false);
+  // Modal states (managed by PoliDokterSelector now)
 
   // Form fields
   const [tglRencanaKontrol, setTglRencanaKontrol] = useState("");
@@ -354,61 +350,30 @@ export function SPRIFormSheet({
                   </p>
                 </div>
 
-                {/* Poli Kontrol */}
-                <div className="space-y-2">
-                  <Label className="text-sm flex items-center gap-2">
-                    <Building2 className="h-4 w-4 text-muted-foreground" />
-                    Poli Kontrol <span className="text-destructive">*</span>
-                  </Label>
-                  <div className="flex gap-2">
-                    <Input
-                      value={namaPoli ? `${kodePoli} - ${namaPoli}` : ""}
-                      placeholder="Pilih poli kontrol"
-                      readOnly
-                      className="h-10 bg-muted/50 cursor-pointer"
-                      onClick={() => setPoliModalOpen(true)}
-                    />
-                    <Button 
-                      size="sm" 
-                      variant="outline"
-                      onClick={() => setPoliModalOpen(true)}
-                      className="h-10 px-3"
-                    >
-                      <Search className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Dokter Kontrol */}
-                <div className="space-y-2">
-                  <Label className="text-sm flex items-center gap-2">
-                    <Stethoscope className="h-4 w-4 text-muted-foreground" />
-                    Dokter Kontrol <span className="text-destructive">*</span>
-                  </Label>
-                  <div className="flex gap-2">
-                    <Input
-                      value={namaDokter ? `${kodeDokter} - ${namaDokter}` : ""}
-                      placeholder={kodePoli && tglRencanaKontrol ? "Pilih dokter kontrol" : "Pilih poli & tanggal dulu"}
-                      readOnly
-                      className="h-10 bg-muted/50 cursor-pointer"
-                      onClick={() => kodePoli && tglRencanaKontrol && setDokterModalOpen(true)}
-                    />
-                    <Button 
-                      size="sm" 
-                      variant="outline"
-                      onClick={() => setDokterModalOpen(true)}
-                      disabled={!kodePoli || !tglRencanaKontrol}
-                      className="h-10 px-3"
-                    >
-                      <Search className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  {(!kodePoli || !tglRencanaKontrol) && (
-                    <p className="text-xs text-amber-600">
-                      Pilih poli dan tanggal kontrol terlebih dahulu untuk mencari dokter
-                    </p>
-                  )}
-                </div>
+                {/* Poli & Dokter Selector with Tabs */}
+                <PoliDokterSelector
+                  kodePoli={kodePoli}
+                  namaPoli={namaPoli}
+                  kodeDokter={kodeDokter}
+                  namaDokter={namaDokter}
+                  tglRencanaKontrol={tglRencanaKontrol}
+                  onPoliChange={(kode, nama) => {
+                    setKodePoli(kode);
+                    setNamaPoli(nama);
+                    setKodeDokter("");
+                    setNamaDokter("");
+                  }}
+                  onDokterChange={(kode, nama) => {
+                    setKodeDokter(kode);
+                    setNamaDokter(nama);
+                  }}
+                  searchPoliBPJS={handleSearchPoli}
+                  searchDokterBPJS={handleSearchDokter}
+                  poliModalTitle="Cari Poli SPRI BPJS"
+                  dokterModalTitle="Cari Dokter SPRI BPJS"
+                  poliBPJSMinSearch={3}
+                  dokterBPJSMinSearch={1}
+                />
               </div>
 
               {/* === INFO RINGKASAN === */}
@@ -448,44 +413,7 @@ export function SPRIFormSheet({
         </SheetContent>
       </Sheet>
 
-      {/* Poli Search Modal */}
-      <SearchModal
-        open={poliModalOpen}
-        onOpenChange={setPoliModalOpen}
-        title="Cari Poli Kontrol BPJS"
-        placeholder="Ketik nama poli (min. 3 karakter)..."
-        columns={[
-          { key: "kode", label: "Kode", width: "100px" },
-          { key: "nama", label: "Nama Poli" },
-        ]}
-        onSearch={handleSearchPoli}
-        onSelect={(item) => {
-          setKodePoli(item.kode);
-          setNamaPoli(item.nama);
-          // Reset dokter when poli changes
-          setKodeDokter("");
-          setNamaDokter("");
-        }}
-        minSearchLength={3}
-      />
-
-      {/* Dokter Search Modal */}
-      <SearchModal
-        open={dokterModalOpen}
-        onOpenChange={setDokterModalOpen}
-        title="Cari Dokter Kontrol BPJS"
-        placeholder="Ketik nama dokter (min. 1 karakter)..."
-        columns={[
-          { key: "kode", label: "Kode", width: "100px" },
-          { key: "nama", label: "Nama Dokter" },
-        ]}
-        onSearch={handleSearchDokter}
-        onSelect={(item) => {
-          setKodeDokter(item.kode);
-          setNamaDokter(item.nama);
-        }}
-        minSearchLength={1}
-      />
+      {/* Search modals are now managed inside PoliDokterSelector */}
     </>
   );
 }

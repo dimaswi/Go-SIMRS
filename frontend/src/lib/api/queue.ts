@@ -273,6 +273,19 @@ export const registrationApi = {
   checkIn: (id: number) =>
     api.post<{ data: ScheduledRegistration; message: string }>(`/registrations/${id}/checkin`),
 
+  // BPJS check-in with SEP: AddAntrean → Create SEP → Activate Visit (sequential)
+  bpjsCheckinWithSEP: (id: number, sepData: Record<string, any>) =>
+    api.post<{ data: ScheduledRegistration; message: string; no_sep: string; queue_number: string }>(
+      `/registrations/${id}/bpjs-checkin`,
+      sepData
+    ),
+
+  // Send BPJS Antrean only (Step 1 of check-in)
+  sendAntrean: (id: number) =>
+    api.post<{ success: boolean; message?: string; error?: string; antreanStatus: AntreanStatus }>(
+      `/registrations/${id}/send-antrean`
+    ),
+
   // Reschedule registration
   reschedule: (id: number, data: { new_date: string; new_room_id?: number; reason?: string }) =>
     api.put<{ data: ScheduledRegistration; message: string }>(`/registrations/${id}/reschedule`, data),
@@ -308,6 +321,24 @@ export interface ScheduledRegistration extends Registration {
     username: string;
     full_name?: string;
   };
+}
+
+// BPJS Antrean Status
+export interface AntreanStatus {
+  id: number;
+  kodeBooking: string;
+  addAntreanSent: boolean;
+  addAntreanCode: number;
+  addAntreanMsg: string;
+  syncStatus: string;
+  status?: string;
+  kodeDokter?: string;
+  namaDokter?: string;
+  kodePoli?: string;
+  namaPoli?: string;
+  nomorAntrean?: string;
+  nomorReferensi?: string;
+  jenisKunjungan?: number;
 }
 
 // Queue Status Labels

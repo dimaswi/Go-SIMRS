@@ -1423,6 +1423,14 @@ func SendBPJSTaskManual(c *gin.Context) {
 	queue.LastSyncAt = &now
 	database.DB.Save(&queue)
 
+	// Jika Task 5 berhasil dikirim manual, auto-chain Task 6 & 7
+	if req.TaskID == 5 {
+		go func() {
+			fmt.Printf("[BPJS Manual Task 5] Auto-chain Task 6 & 7 untuk %s\n", queue.KodeBooking)
+			bpjs.AutoChainFarmasiTasks(queue.KodeBooking, waktuTime)
+		}()
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"success":       true,
 		"message":       fmt.Sprintf("Task %d berhasil dikirim ke BPJS", req.TaskID),
@@ -1545,9 +1553,26 @@ func RetryAddAntrean(c *gin.Context) {
 	queueID := c.Param("id")
 
 	var queue models.BPJSQueue
-	if err := database.DB.First(&queue, queueID).Error; err != nil {
+	if err := database.DB.Preload("Patient").First(&queue, queueID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Antrian BPJS tidak ditemukan"})
 		return
+	}
+
+	// Update NoHP dari data pasien terbaru (jika sebelumnya kosong)
+	if queue.Patient != nil {
+		noHP := queue.Patient.NoHP
+		if noHP == "" {
+			noHP = queue.Patient.NoTelepon
+		}
+		if noHP == "" {
+			noHP = queue.Patient.NoHPAlternatif
+		}
+		if noHP == "" {
+			noHP = queue.Patient.TeleponPenanggungJawab
+		}
+		if noHP != "" && noHP != queue.NoHP {
+			queue.NoHP = noHP
+		}
 	}
 
 	// Call AddAntrean (modifies queue struct fields)
@@ -1578,4 +1603,99 @@ func RetryAddAntrean(c *gin.Context) {
 		"response_msg":  msg,
 		"data":          queue,
 	})
+}
+
+// GetBPJSPendaftaranAntrean fetches registered antrean list from BPJS by date
+// GET /bpjs/antrean/pendaftaran/:tanggal
+func GetBPJSPendaftaranAntrean(c *gin.Context) {
+	tanggal := c.Param("tanggal")
+	if tanggal == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Parameter tanggal wajib diisi (format: YYYY-MM-DD)"})
+		return
+	}
+
+	items, err := bpjsService.GetPendaftaranAntrean(tanggal)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": items})
+}
+
+// BatalAntreanOnline sends cancellation to BPJS Antrian Online
+// POST /bpjs/antrean/batal
+func BatalAntreanOnline(c *gin.Context) {
+	var input struct {
+		KodeBooking string `json:"kodebooking" binding:"required"`
+		Keterangan  string `json:"keterangan" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "kodebooking dan keterangan wajib diisi"})
+		return
+	}
+
+	success, code, msg := bpjsService.BatalAntrean(input.KodeBooking, input.Keterangan)
+	if !success {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":         fmt.Sprintf("[%d] %s", code, msg),
+			"response_code": code,
+			"response_msg":  msg,
+		})
+		return
+	}
+
+	// Update local BPJSQueue if exists
+	var bpjsQueue models.BPJSQueue
+	if err := database.DB.Where("kode_booking = ?", input.KodeBooking).First(&bpjsQueue).Error; err == nil {
+		bpjsQueue.Status = "batal"
+		bpjsQueue.SyncStatus = "synced"
+		now := time.Now()
+		bpjsQueue.LastSyncAt = &now
+		database.DB.Save(&bpjsQueue)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":       "Antrean berhasil dibatalkan",
+		"response_code": code,
+		"response_msg":  msg,
+	})
+}
+
+// GetBPJSPendaftaranByKodeBooking fetches a single antrean detail by kode booking
+// GET /bpjs/antrean/pendaftaran-detail/:kodebooking
+func GetBPJSPendaftaranByKodeBooking(c *gin.Context) {
+	kodeBooking := c.Param("kodebooking")
+	if kodeBooking == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Parameter kodebooking wajib diisi"})
+		return
+	}
+
+	items, err := bpjsService.GetPendaftaranByKodeBooking(kodeBooking)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": items})
+}
+
+// GetBPJSListTask fetches task list for a kode booking
+// POST /bpjs/antrean/getlisttask
+func GetBPJSListTask(c *gin.Context) {
+	var input struct {
+		KodeBooking string `json:"kodebooking" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "kodebooking wajib diisi"})
+		return
+	}
+
+	items, err := bpjsService.GetListTask(input.KodeBooking)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": items})
 }

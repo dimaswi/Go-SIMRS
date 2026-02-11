@@ -23,7 +23,7 @@ import {
 import { useMultipleMasterData } from "@/hooks/useMasterData";
 import { medicalRecordsApi } from "@/lib/api";
 import { medicalRecordEditLogApi } from "@/lib/api/visits";
-import { useEditMode, EditModeBanner, EditConfirmDialog } from "./edit-mode-controller";
+import { useEditMode, EditModeBanner, EditConfirmDialog, PINVerificationDialog } from "./edit-mode-controller";
 import { icd10Api, type ICD10 } from "@/lib/api/icd";
 import { useDebounce } from "@/hooks/use-debounce";
 import type { Diagnosis as DiagnosisData, DiagnosisItem } from "@/lib/api";
@@ -81,11 +81,21 @@ export function DiagnosisForm({ visitId, onSave, readOnly = false, isPatientDisc
     isEditing,
     editReason,
     showEditDialog,
+    showPINDialog,
     setShowEditDialog,
+    setShowPINDialog,
     setEditReason,
     handleRequestEdit,
     handleConfirmEdit,
     resetEditMode,
+    requestPINVerification,
+    // PIN related
+    pin,
+    verifyingPIN,
+    pinInputRefs,
+    handlePINChange,
+    handlePINKeyDown,
+    handleVerifyPIN,
   } = useEditMode({
     isPatientDischarged,
     recordType: "diagnosis",
@@ -182,9 +192,7 @@ export function DiagnosisForm({ visitId, onSave, readOnly = false, isPatientDisc
     setDiagnoses(updated);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
+  const doSave = async () => {
     // Log edit if patient is discharged
     if (isPatientDischarged && diagnosisId) {
       try {
@@ -205,6 +213,18 @@ export function DiagnosisForm({ visitId, onSave, readOnly = false, isPatientDisc
       items: diagnoses 
     });
     resetEditMode();
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // If patient is discharged, verify PIN before saving
+    if (isPatientDischarged) {
+      requestPINVerification(doSave);
+      return;
+    }
+    
+    doSave();
   };
 
   const primaryDiagnoses = diagnoses.filter((d) => d.diagnosis_type === "primary");
@@ -627,6 +647,16 @@ export function DiagnosisForm({ visitId, onSave, readOnly = false, isPatientDisc
         editReason={editReason}
         onEditReasonChange={setEditReason}
         onConfirm={handleConfirmEdit}
+      />
+      <PINVerificationDialog
+        open={showPINDialog}
+        onOpenChange={setShowPINDialog}
+        pin={pin}
+        verifying={verifyingPIN}
+        pinInputRefs={pinInputRefs}
+        onPINChange={handlePINChange}
+        onPINKeyDown={handlePINKeyDown}
+        onVerify={handleVerifyPIN}
       />
     </Card>
   );

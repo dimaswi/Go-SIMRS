@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { 
   Pencil, 
@@ -20,9 +21,12 @@ import {
   AlertTriangle,
   Clock,
   User,
-  FileText
+  FileText,
+  ShieldCheck,
+  Loader2
 } from "lucide-react";
 import { medicalRecordEditLogApi } from "@/lib/api/visits";
+import { signatureApi } from "@/lib/api";
 import type { MedicalRecordEditLog } from "@/lib/api/visits";
 import { useToast } from "@/hooks/use-toast";
 
@@ -46,10 +50,15 @@ export function EditableFormWrapper({
   const { toast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showPINDialog, setShowPINDialog] = useState(false);
   const [showHistoryDialog, setShowHistoryDialog] = useState(false);
   const [editReason, setEditReason] = useState("");
   const [editLogs, setEditLogs] = useState<MedicalRecordEditLog[]>([]);
   const [loadingLogs, setLoadingLogs] = useState(false);
+  const [pinRequired, setPinRequired] = useState(true);
+  const [pin, setPin] = useState(["", "", "", "", "", ""]);
+  const [verifyingPIN, setVerifyingPIN] = useState(false);
+  const pinInputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   // If patient is not discharged, always allow editing
   useEffect(() => {
@@ -59,6 +68,19 @@ export function EditableFormWrapper({
       setIsEditing(false);
     }
   }, [isPatientDischarged]);
+
+  // Check if PIN is required
+  useEffect(() => {
+    const checkPINRequired = async () => {
+      try {
+        const response = await signatureApi.checkPINRequired();
+        setPinRequired(response.data.signature_pin_required);
+      } catch {
+        setPinRequired(true);
+      }
+    };
+    checkPINRequired();
+  }, []);
 
   const loadEditLogs = useCallback(async () => {
     setLoadingLogs(true);
@@ -94,6 +116,71 @@ export function EditableFormWrapper({
       return;
     }
 
+    // If PIN is required, show PIN dialog
+    if (pinRequired) {
+      setShowEditDialog(false);
+      setShowPINDialog(true);
+      setPin(["", "", "", "", "", ""]);
+      setTimeout(() => pinInputRefs.current[0]?.focus(), 100);
+      return;
+    }
+
+    // If PIN not required, proceed directly
+    await proceedWithEdit();
+  };
+
+  const handlePINChange = (index: number, value: string) => {
+    if (value && !/^\d$/.test(value)) return;
+
+    const newPin = [...pin];
+    newPin[index] = value;
+    setPin(newPin);
+
+    if (value && index < 5) {
+      pinInputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handlePINKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Backspace" && !pin[index] && index > 0) {
+      pinInputRefs.current[index - 1]?.focus();
+    }
+    if (e.key === "Enter" && pin.every(d => d)) {
+      handleVerifyPIN();
+    }
+  };
+
+  const handleVerifyPIN = async () => {
+    const pinValue = pin.join("");
+    if (pinValue.length !== 6) {
+      toast({
+        variant: "destructive",
+        title: "PIN tidak lengkap",
+        description: "Masukkan 6 digit PIN",
+      });
+      return;
+    }
+
+    setVerifyingPIN(true);
+    try {
+      await signatureApi.verifyPIN({ pin: pinValue });
+      setShowPINDialog(false);
+      await proceedWithEdit();
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { error?: string } } };
+      toast({
+        variant: "destructive",
+        title: "Verifikasi gagal",
+        description: err.response?.data?.error || "PIN tidak valid",
+      });
+      setPin(["", "", "", "", "", ""]);
+      pinInputRefs.current[0]?.focus();
+    } finally {
+      setVerifyingPIN(false);
+    }
+  };
+
+  const proceedWithEdit = async () => {
     // Log the edit request
     try {
       if (recordId) {
@@ -313,6 +400,60 @@ export function EditableFormWrapper({
               </div>
             )}
           </ScrollArea>
+        </DialogContent>
+      </Dialog>
+
+      {/* PIN Verification Dialog */}
+      <Dialog open={showPINDialog} onOpenChange={setShowPINDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-primary" />
+              Verifikasi PIN
+            </DialogTitle>
+            <DialogDescription>
+              Masukkan PIN tanda tangan untuk mengonfirmasi identitas Anda
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">PIN (6 digit)</Label>
+              <div className="flex justify-center gap-2">
+                {pin.map((digit, index) => (
+                  <Input
+                    key={index}
+                    ref={(el) => { pinInputRefs.current[index] = el; }}
+                    type="password"
+                    inputMode="numeric"
+                    maxLength={1}
+                    value={digit}
+                    onChange={(e) => handlePINChange(index, e.target.value)}
+                    onKeyDown={(e) => handlePINKeyDown(index, e)}
+                    className="w-10 h-10 text-center text-lg font-mono"
+                    disabled={verifyingPIN}
+                  />
+                ))}
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground text-center">
+              PIN digunakan untuk memverifikasi bahwa Anda yang melakukan perubahan rekam medis
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPINDialog(false)} disabled={verifyingPIN}>
+              Batal
+            </Button>
+            <Button onClick={handleVerifyPIN} disabled={verifyingPIN || pin.some(d => !d)}>
+              {verifyingPIN ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Memverifikasi...
+                </>
+              ) : (
+                "Verifikasi"
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

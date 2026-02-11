@@ -23,7 +23,7 @@ import { medicalRecordsApi } from "@/lib/api";
 import { medicalRecordEditLogApi } from "@/lib/api/visits";
 import type { PhysicalExam } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { useEditMode, EditModeBanner, EditConfirmDialog } from "./edit-mode-controller";
+import { useEditMode, EditModeBanner, EditConfirmDialog, PINVerificationDialog } from "./edit-mode-controller";
 
 interface PhysicalExamFormProps {
   visitId: number;
@@ -110,11 +110,21 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
     isEditing,
     editReason,
     showEditDialog,
+    showPINDialog,
     setShowEditDialog,
+    setShowPINDialog,
     setEditReason,
     handleRequestEdit,
     handleConfirmEdit,
     resetEditMode,
+    requestPINVerification,
+    // PIN related
+    pin,
+    verifyingPIN,
+    pinInputRefs,
+    handlePINChange,
+    handlePINKeyDown,
+    handleVerifyPIN,
   } = useEditMode({
     isPatientDischarged,
     recordType: "physical_exam",
@@ -250,9 +260,7 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
+  const doSave = async () => {
     // Log edit if patient is discharged
     if (isPatientDischarged && physicalExamId) {
       try {
@@ -269,6 +277,18 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
     
     onSave?.(formData);
     resetEditMode();
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // If patient is discharged, verify PIN before saving
+    if (isPatientDischarged) {
+      requestPINVerification(doSave);
+      return;
+    }
+    
+    doSave();
   };
 
   const bmiCategory = getBMICategory(formData.bmi);
@@ -848,6 +868,16 @@ Kesimpulan: EKG dalam batas normal`}
         editReason={editReason}
         onEditReasonChange={setEditReason}
         onConfirm={handleConfirmEdit}
+      />
+      <PINVerificationDialog
+        open={showPINDialog}
+        onOpenChange={setShowPINDialog}
+        pin={pin}
+        verifying={verifyingPIN}
+        pinInputRefs={pinInputRefs}
+        onPINChange={handlePINChange}
+        onPINKeyDown={handlePINKeyDown}
+        onVerify={handleVerifyPIN}
       />
     </Card>
   );

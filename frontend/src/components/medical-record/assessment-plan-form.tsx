@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { medicalRecordsApi, type AssessmentPlan } from "@/lib/api/medical-records";
 import { medicalRecordEditLogApi } from "@/lib/api/visits";
-import { useEditMode, EditModeBanner, EditConfirmDialog } from "./edit-mode-controller";
+import { useEditMode, EditModeBanner, EditConfirmDialog, PINVerificationDialog } from "./edit-mode-controller";
 import { useToast } from "@/hooks/use-toast";
 
 interface AssessmentPlanFormProps {
@@ -40,11 +40,21 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
     isEditing,
     editReason,
     showEditDialog,
+    showPINDialog,
     setShowEditDialog,
+    setShowPINDialog,
     setEditReason,
     handleRequestEdit,
     handleConfirmEdit,
     resetEditMode,
+    requestPINVerification,
+    // PIN related
+    pin,
+    verifyingPIN,
+    pinInputRefs,
+    handlePINChange,
+    handlePINKeyDown,
+    handleVerifyPIN,
   } = useEditMode({
     isPatientDischarged,
     recordType: "assessment_plan",
@@ -102,8 +112,7 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const doSave = async () => {
     setSaving(true);
     
     // Log edit if patient is discharged
@@ -140,6 +149,18 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // If patient is discharged, verify PIN before saving
+    if (isPatientDischarged) {
+      requestPINVerification(doSave);
+      return;
+    }
+    
+    doSave();
   };
 
   const filledMainFields = [
@@ -388,6 +409,16 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
         editReason={editReason}
         onEditReasonChange={setEditReason}
         onConfirm={handleConfirmEdit}
+      />
+      <PINVerificationDialog
+        open={showPINDialog}
+        onOpenChange={setShowPINDialog}
+        pin={pin}
+        verifying={verifyingPIN}
+        pinInputRefs={pinInputRefs}
+        onPINChange={handlePINChange}
+        onPINKeyDown={handlePINKeyDown}
+        onVerify={handleVerifyPIN}
       />
     </Card>
   );

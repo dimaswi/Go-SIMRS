@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"starter/backend/database"
 	"starter/backend/models"
-	bpjsService "starter/backend/services/bpjs"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -1099,13 +1098,6 @@ func DispenseMedicine(c *gin.Context) {
 	// Do not auto-finalize pharmacy visit when medicines are delivered
 
 	tx.Commit()
-
-	// Trigger BPJS Task 6 & 7 jika semua obat sudah diserahkan (async)
-	if orderStatus == models.OrderStatusDelivered {
-		go func() {
-			bpjsService.TriggerFarmasiTask(order.SourceVisitID, now)
-		}()
-	}
 
 	// Reload order
 	database.DB.

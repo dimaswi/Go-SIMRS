@@ -60,14 +60,21 @@ type BPJSQueue struct {
 	NomorAntreanFarmasi int    `gorm:"default:0" json:"nomor_antrean_farmasi"`
 	StatusFarmasi       string `gorm:"size:20" json:"status_farmasi"` // menunggu, dipanggil, dilayani, selesai
 
+	// Farmasi BPJS Task Buffer
+	// Ketika Task 5 belum terkirim tapi farmasi sudah dimulai/selesai,
+	// simpan di sini. Task 6 & 7 akan otomatis dikirim setelah Task 5 sukses.
+	FarmasiReadyAt    *time.Time `json:"farmasi_ready_at"`                   // Waktu resep dibuat / mulai tunggu farmasi (buffer Task 6)
+	FarmasiJenisResep string     `gorm:"size:20" json:"farmasi_jenis_resep"` // racikan / non racikan (buffer)
+	FarmasiSelesaiAt  *time.Time `json:"farmasi_selesai_at"`                 // Waktu serah obat selesai (buffer Task 7)
+
 	// Task Tracking (BPJS Task IDs - untuk kirim update ke BPJS)
 	Task1At *time.Time `json:"task1_at"` // Mulai tunggu admisi
 	Task2At *time.Time `json:"task2_at"` // Selesai tunggu admisi / mulai pendaftaran
 	Task3At *time.Time `json:"task3_at"` // Selesai pendaftaran / mulai tunggu poli
 	Task4At *time.Time `json:"task4_at"` // Dipanggil dokter
-	Task5At *time.Time `json:"task5_at"` // Mulai periksa
-	Task6At *time.Time `json:"task6_at"` // Selesai periksa
-	Task7At *time.Time `json:"task7_at"` // Mulai tunggu farmasi / serah obat
+	Task5At *time.Time `json:"task5_at"` // Selesai periksa
+	Task6At *time.Time `json:"task6_at"` // Mulai tunggu farmasi
+	Task7At *time.Time `json:"task7_at"` // Selesai farmasi / serah obat
 
 	// Link to SIMRS
 	PatientID       *uint `gorm:"index" json:"patient_id"`
