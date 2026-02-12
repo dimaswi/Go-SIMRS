@@ -169,7 +169,7 @@ func CreateDistribution(c *gin.Context) {
 		// Parse expiry date
 		var expiryDate *time.Time
 		if item.ExpiryDate != "" {
-			parsedDate, err := time.Parse("2006-01-02", item.ExpiryDate)
+			parsedDate, err := ParseLocalDate(item.ExpiryDate)
 			if err != nil {
 				parsedDate, _ = time.Parse(time.RFC3339, item.ExpiryDate)
 			}

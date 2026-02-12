@@ -33,7 +33,7 @@ func GetQueues(c *gin.Context) {
 	dateStr := c.Query("date")
 	var queueDate time.Time
 	if dateStr != "" {
-		parsed, err := time.Parse("2006-01-02", dateStr)
+		parsed, err := ParseLocalDate(dateStr)
 		if err == nil {
 			queueDate = parsed
 		} else {

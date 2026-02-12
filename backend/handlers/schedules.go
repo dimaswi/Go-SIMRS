@@ -623,7 +623,7 @@ func CreateScheduleException(c *gin.Context) {
 	}
 
 	// Parse date
-	exceptionDate, err := time.Parse("2006-01-02", req.ExceptionDate)
+	exceptionDate, err := ParseLocalDate(req.ExceptionDate)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Format tanggal tidak valid (gunakan YYYY-MM-DD)"})
 		return
@@ -752,7 +752,7 @@ func GetAvailableDoctorsByDate(c *gin.Context) {
 	}
 
 	// Parse the date
-	date, err := time.Parse("2006-01-02", dateStr)
+	date, err := ParseLocalDate(dateStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Format tanggal tidak valid (gunakan YYYY-MM-DD)"})
 		return

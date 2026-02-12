@@ -196,7 +196,7 @@ func CreateStockRequest(c *gin.Context) {
 	// Parse required_date
 	var requiredDate *time.Time
 	if input.RequiredDate != "" {
-		parsedDate, err := time.Parse("2006-01-02", input.RequiredDate)
+		parsedDate, err := ParseLocalDate(input.RequiredDate)
 		if err != nil {
 			// Try other formats
 			parsedDate, err = time.Parse(time.RFC3339, input.RequiredDate)
@@ -291,7 +291,7 @@ func UpdateStockRequest(c *gin.Context) {
 		updates["priority"] = input.Priority
 	}
 	if input.RequiredDate != "" {
-		parsedDate, err := time.Parse("2006-01-02", input.RequiredDate)
+		parsedDate, err := ParseLocalDate(input.RequiredDate)
 		if err != nil {
 			parsedDate, _ = time.Parse(time.RFC3339, input.RequiredDate)
 		}

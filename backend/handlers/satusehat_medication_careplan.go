@@ -867,7 +867,7 @@ func GetMedicationStatementMonitoring(c *gin.Context) {
 	var err error
 
 	if startDateStr != "" {
-		startDate, err = time.Parse("2006-01-02", startDateStr)
+		startDate, err = ParseLocalDate(startDateStr)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Format tanggal tidak valid"})
 			return
@@ -877,7 +877,7 @@ func GetMedicationStatementMonitoring(c *gin.Context) {
 	}
 
 	if endDateStr != "" {
-		endDate, err = time.Parse("2006-01-02", endDateStr)
+		endDate, err = ParseLocalDate(endDateStr)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Format tanggal tidak valid"})
 			return
@@ -965,7 +965,7 @@ func GetCarePlanMonitoring(c *gin.Context) {
 	var err error
 
 	if startDateStr != "" {
-		startDate, err = time.Parse("2006-01-02", startDateStr)
+		startDate, err = ParseLocalDate(startDateStr)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Format tanggal tidak valid"})
 			return
@@ -975,7 +975,7 @@ func GetCarePlanMonitoring(c *gin.Context) {
 	}
 
 	if endDateStr != "" {
-		endDate, err = time.Parse("2006-01-02", endDateStr)
+		endDate, err = ParseLocalDate(endDateStr)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Format tanggal tidak valid"})
 			return

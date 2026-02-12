@@ -419,7 +419,7 @@ func ReceivePurchase(c *gin.Context) {
 		// Parse expiry date if provided
 		var expiryDate *time.Time
 		if itemInput.ExpiryDate != "" {
-			parsed, err := time.Parse("2006-01-02", itemInput.ExpiryDate)
+			parsed, err := ParseLocalDate(itemInput.ExpiryDate)
 			if err == nil {
 				expiryDate = &parsed
 			}

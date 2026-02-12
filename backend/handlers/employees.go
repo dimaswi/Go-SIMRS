@@ -121,10 +121,10 @@ func parseDate(dateStr string) *time.Time {
 	if dateStr == "" {
 		return nil
 	}
-	// Try multiple date formats
+	// Try multiple date formats with WIB timezone
 	formats := []string{"2006-01-02", "02-01-2006", "2006/01/02"}
 	for _, format := range formats {
-		t, err := time.Parse(format, dateStr)
+		t, err := time.ParseInLocation(format, dateStr, WIB)
 		if err == nil {
 			return &t
 		}

@@ -42,7 +42,7 @@ func GetRegistrations(c *gin.Context) {
 
 	// Filter by date
 	if dateStr := c.Query("date"); dateStr != "" {
-		parsed, err := time.Parse("2006-01-02", dateStr)
+		parsed, err := ParseLocalDate(dateStr)
 		if err == nil {
 			startOfDay := time.Date(parsed.Year(), parsed.Month(), parsed.Day(), 0, 0, 0, 0, parsed.Location())
 			endOfDay := startOfDay.Add(24 * time.Hour)
@@ -378,7 +378,7 @@ func CreateRegistration(c *gin.Context) {
 			}
 
 			todayDate := time.Now().Format("2006-01-02")
-			parsedDate, _ := time.Parse("2006-01-02", todayDate)
+			parsedDate, _ := ParseLocalDate(todayDate)
 			var lastQueue models.RoomQueue
 			var queueNum int
 
@@ -1471,7 +1471,7 @@ func GetScheduledRegistrations(c *gin.Context) {
 
 	// Filter by date
 	if dateStr := c.Query("date"); dateStr != "" {
-		parsed, err := time.Parse("2006-01-02", dateStr)
+		parsed, err := ParseLocalDate(dateStr)
 		if err == nil {
 			query = query.Where("scheduled_date = ?", parsed)
 		}
@@ -2741,7 +2741,7 @@ func RescheduleRegistration(c *gin.Context) {
 	}
 
 	// Parse new date
-	newDate, err := time.Parse("2006-01-02", input.NewDate)
+	newDate, err := ParseLocalDate(input.NewDate)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Format tanggal tidak valid (gunakan YYYY-MM-DD)"})
 		return

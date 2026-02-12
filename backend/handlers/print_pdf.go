@@ -1789,7 +1789,7 @@ func PrintSickLetter(c *gin.Context) {
 			fmt.Sscanf(c.Query("days"), "%d", &days)
 		}
 		if c.Query("start_date") != "" {
-			if t, err := time.Parse("2006-01-02", c.Query("start_date")); err == nil {
+			if t, err := ParseLocalDate(c.Query("start_date")); err == nil {
 				startDate = t
 			}
 		}
@@ -8233,7 +8233,7 @@ func PrintSEP(c *gin.Context) {
 	// Tgl. SEP
 	tglSEP := sep.TglSEP
 	if tglSEP != "" {
-		if t, err := time.Parse("2006-01-02", tglSEP); err == nil {
+		if t, err := ParseLocalDate(tglSEP); err == nil {
 			tglSEP = t.Format("02-01-2006")
 		}
 	}
@@ -8265,7 +8265,7 @@ func PrintSEP(c *gin.Context) {
 	if tglLahir == "" && sep.Patient != nil && sep.Patient.TanggalLahir != nil {
 		tglLahir = sep.Patient.TanggalLahir.Time.Format("02-01-2006")
 	} else if tglLahir != "" {
-		if t, err := time.Parse("2006-01-02", tglLahir); err == nil {
+		if t, err := ParseLocalDate(tglLahir); err == nil {
 			tglLahir = t.Format("02-01-2006")
 		}
 	}

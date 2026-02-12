@@ -641,7 +641,7 @@ func SaveDiagnoses(c *gin.Context) {
 
 		var onsetDate *time.Time
 		if diag.OnsetDate != "" {
-			parsed, err := time.Parse("2006-01-02", diag.OnsetDate)
+			parsed, err := ParseLocalDate(diag.OnsetDate)
 			if err == nil {
 				onsetDate = &parsed
 			}
@@ -1093,7 +1093,7 @@ func SaveDisposition(c *gin.Context) {
 	// Parse dates
 	var followUpDate *time.Time
 	if input.FollowUpDate != "" {
-		parsed, err := time.Parse("2006-01-02", input.FollowUpDate)
+		parsed, err := ParseLocalDate(input.FollowUpDate)
 		if err == nil {
 			followUpDate = &parsed
 		}
@@ -1101,8 +1101,7 @@ func SaveDisposition(c *gin.Context) {
 
 	var deathTime *time.Time
 	if input.DeathTime != "" {
-		parsed, err := time.Parse("2006-01-02T15:04", input.DeathTime)
-		if err == nil {
+		if parsed, ok := TryParseLocalDatetime(input.DeathTime); ok {
 			deathTime = &parsed
 		}
 	}
@@ -2194,13 +2193,13 @@ func SaveSickLetter(c *gin.Context) {
 	}
 
 	// Parse dates
-	startDate, err := time.Parse("2006-01-02", input.StartDate)
+	startDate, err := ParseLocalDate(input.StartDate)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Format tanggal mulai tidak valid"})
 		return
 	}
 
-	endDate, err := time.Parse("2006-01-02", input.EndDate)
+	endDate, err := ParseLocalDate(input.EndDate)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Format tanggal selesai tidak valid"})
 		return

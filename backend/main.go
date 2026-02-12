@@ -2,16 +2,29 @@ package main
 
 import (
 	"log"
+	"os"
 	"starter/backend/config"
 	"starter/backend/database"
 	"starter/backend/handlers"
 	"starter/backend/middleware"
 	"starter/backend/routes"
+	"time"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 )
+
+func init() {
+	// Set default timezone to Asia/Jakarta (WIB) for the entire application
+	loc, err := time.LoadLocation("Asia/Jakarta")
+	if err != nil {
+		log.Println("Warning: failed to load Asia/Jakarta timezone, falling back to UTC+7")
+		loc = time.FixedZone("WIB", 7*60*60)
+	}
+	time.Local = loc
+	os.Setenv("TZ", "Asia/Jakarta")
+}
 
 func main() {
 	// Load .env file

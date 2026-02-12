@@ -156,15 +156,15 @@ func CreateEKlaim(c *gin.Context) {
 	// Parse dates
 	var tglMasuk, tglPulang, tglLahir *time.Time
 	if input.TglMasuk != "" {
-		t, _ := time.Parse("2006-01-02", input.TglMasuk)
+		t, _ := ParseLocalDate(input.TglMasuk)
 		tglMasuk = &t
 	}
 	if input.TglPulang != "" {
-		t, _ := time.Parse("2006-01-02", input.TglPulang)
+		t, _ := ParseLocalDate(input.TglPulang)
 		tglPulang = &t
 	}
 	if input.TglLahir != "" {
-		t, _ := time.Parse("2006-01-02", input.TglLahir)
+		t, _ := ParseLocalDate(input.TglLahir)
 		tglLahir = &t
 	}
 

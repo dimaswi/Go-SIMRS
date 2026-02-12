@@ -175,7 +175,7 @@ func BPJSWebhookStatusAntrean(c *gin.Context) {
 	}
 
 	// Parse tanggal
-	tanggal, err := time.Parse("2006-01-02", req.TanggalPeriksa)
+	tanggal, err := ParseLocalDate(req.TanggalPeriksa)
 	if err != nil {
 		c.JSON(http.StatusOK, newBPJSResponse(201, "Format tanggal tidak valid", nil))
 		return
@@ -307,7 +307,7 @@ func BPJSWebhookAmbilAntrean(c *gin.Context) {
 	}
 
 	// Parse tanggal
-	tanggal, err := time.Parse("2006-01-02", req.TanggalPeriksa)
+	tanggal, err := ParseLocalDate(req.TanggalPeriksa)
 	if err != nil {
 		c.JSON(http.StatusOK, newBPJSResponse(201, "Format tanggal tidak valid", nil))
 		return
@@ -930,7 +930,7 @@ func BPJSWebhookPasienBaru(c *gin.Context) {
 	}
 
 	// Parse tanggal lahir
-	tglLahir, err := time.Parse("2006-01-02", req.TanggalLahir)
+	tglLahir, err := ParseLocalDate(req.TanggalLahir)
 	var tanggalLahirPtr *models.DateOnly
 	if err == nil {
 		dateOnly := models.DateOnly{Time: tglLahir}

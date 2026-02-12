@@ -317,17 +317,15 @@ func CreateProcedureOrder(c *gin.Context) {
 	var scheduledDate *time.Time
 	if input.ScheduledDate != "" {
 		// Try parsing with time
-		parsed, err := time.Parse("2006-01-02T15:04", input.ScheduledDate)
-		if err != nil {
-			// Try parsing date only
-			parsed, err = time.Parse("2006-01-02", input.ScheduledDate)
-			if err != nil {
-				tx.Rollback()
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid scheduled_date format. Use YYYY-MM-DD or YYYY-MM-DDTHH:MM"})
-				return
-			}
+		if parsed, ok := TryParseLocalDatetime(input.ScheduledDate); ok {
+			scheduledDate = &parsed
+		} else if parsed, err := ParseLocalDate(input.ScheduledDate); err == nil {
+			scheduledDate = &parsed
+		} else {
+			tx.Rollback()
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid scheduled_date format. Use YYYY-MM-DD or YYYY-MM-DDTHH:MM"})
+			return
 		}
-		scheduledDate = &parsed
 	}
 
 	// Validate surgery schedule: check doctor's schedule matches the selected date/time

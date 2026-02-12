@@ -138,7 +138,7 @@ func CreateRoomQueue(c *gin.Context) {
 
 	// Get last queue number for this room today
 	today := time.Now().Format("2006-01-02")
-	todayDate, _ := time.Parse("2006-01-02", today)
+	todayDate, _ := ParseLocalDate(today)
 	var lastQueue models.RoomQueue
 	var queueNum int
 

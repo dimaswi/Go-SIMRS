@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 import {
   Dialog,
@@ -44,7 +43,6 @@ import {
   BedDouble,
   Loader2,
   Move,
-  User,
   ChevronRight,
   X,
   Plus,

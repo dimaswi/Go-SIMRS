@@ -242,7 +242,7 @@ func PatientPortalLogin(c *gin.Context) {
 	}
 
 	// Parse tanggal lahir
-	tanggalLahir, err := time.Parse("2006-01-02", req.TanggalLahir)
+	tanggalLahir, err := ParseLocalDate(req.TanggalLahir)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Format tanggal lahir tidak valid (gunakan yyyy-mm-dd)"})
 		return

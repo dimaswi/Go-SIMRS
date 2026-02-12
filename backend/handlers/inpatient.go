@@ -119,14 +119,7 @@ func CreateCPPT(c *gin.Context) {
 	}
 
 	// Parse record date
-	recordDate, err := time.Parse("2006-01-02T15:04", input.RecordDate)
-	if err != nil {
-		// Try another format
-		recordDate, err = time.Parse("2006-01-02 15:04", input.RecordDate)
-		if err != nil {
-			recordDate = time.Now()
-		}
-	}
+	recordDate := ParseLocalDatetime(input.RecordDate)
 
 	var createdByID *uint
 	if userID > 0 {
@@ -218,11 +211,9 @@ func UpdateCPPT(c *gin.Context) {
 	}
 
 	if input.RecordDate != "" {
-		recordDate, err := time.Parse("2006-01-02T15:04", input.RecordDate)
-		if err != nil {
-			recordDate, _ = time.Parse("2006-01-02 15:04", input.RecordDate)
+		if rd, ok := TryParseLocalDatetime(input.RecordDate); ok {
+			updates["record_date"] = rd
 		}
-		updates["record_date"] = recordDate
 	}
 
 	if err := database.DB.Model(&cppt).Updates(updates).Error; err != nil {
@@ -447,7 +438,7 @@ func CreateFluidBalance(c *gin.Context) {
 	}
 
 	// Parse record date
-	recordDate, err := time.Parse("2006-01-02", input.RecordDate)
+	recordDate, err := ParseLocalDate(input.RecordDate)
 	if err != nil {
 		recordDate = time.Now()
 	}
@@ -592,7 +583,7 @@ func UpdateFluidBalance(c *gin.Context) {
 	balance.Notes = input.Notes
 
 	if input.RecordDate != "" {
-		recordDate, err := time.Parse("2006-01-02", input.RecordDate)
+		recordDate, err := ParseLocalDate(input.RecordDate)
 		if err == nil {
 			balance.RecordDate = recordDate
 		}
@@ -777,18 +768,12 @@ func CreateNursingCare(c *gin.Context) {
 	}
 
 	// Parse record date
-	recordDate, err := time.Parse("2006-01-02T15:04", input.RecordDate)
-	if err != nil {
-		recordDate, err = time.Parse("2006-01-02 15:04", input.RecordDate)
-		if err != nil {
-			recordDate = time.Now()
-		}
-	}
+	recordDate := ParseLocalDatetime(input.RecordDate)
 
 	// Parse implementation time if provided
 	var implTime time.Time
 	if input.ImplementationTime != "" {
-		implTime, _ = time.Parse("2006-01-02T15:04", input.ImplementationTime)
+		implTime, _ = TryParseLocalDatetime(input.ImplementationTime)
 	}
 
 	var createdByID *uint
@@ -961,17 +946,14 @@ func UpdateNursingCare(c *gin.Context) {
 	}
 
 	if input.RecordDate != "" {
-		recordDate, err := time.Parse("2006-01-02T15:04", input.RecordDate)
-		if err != nil {
-			recordDate, _ = time.Parse("2006-01-02 15:04", input.RecordDate)
+		if rd, ok := TryParseLocalDatetime(input.RecordDate); ok {
+			updates["record_date"] = rd
 		}
-		updates["record_date"] = recordDate
 	}
 
 	if input.ImplementationTime != "" {
-		implTime, err := time.Parse("2006-01-02T15:04", input.ImplementationTime)
-		if err == nil {
-			updates["implementation_time"] = implTime
+		if it, ok := TryParseLocalDatetime(input.ImplementationTime); ok {
+			updates["implementation_time"] = it
 		}
 	}
 
