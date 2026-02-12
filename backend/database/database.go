@@ -415,18 +415,20 @@ func createPerformanceIndexes() {
 
 	// Medicine Orders
 	DB.Exec("CREATE INDEX IF NOT EXISTS idx_medicine_orders_status ON medicine_orders(status)")
-	DB.Exec("CREATE INDEX IF NOT EXISTS idx_medicine_orders_visit_id ON medicine_orders(visit_id)")
+	DB.Exec("CREATE INDEX IF NOT EXISTS idx_medicine_orders_source_visit_id ON medicine_orders(source_visit_id)")
 
 	// Procedure Orders
 	DB.Exec("CREATE INDEX IF NOT EXISTS idx_procedure_orders_status ON procedure_orders(status)")
-	DB.Exec("CREATE INDEX IF NOT EXISTS idx_procedure_orders_visit_id ON procedure_orders(visit_id)")
+	DB.Exec("CREATE INDEX IF NOT EXISTS idx_procedure_orders_source_visit_id ON procedure_orders(source_visit_id)")
 
-	// Surgery Bookings
-	DB.Exec("CREATE INDEX IF NOT EXISTS idx_surgery_bookings_status ON surgery_bookings(status)")
-	DB.Exec("CREATE INDEX IF NOT EXISTS idx_surgery_bookings_scheduled_date ON surgery_bookings(scheduled_date)")
-	DB.Exec("CREATE INDEX IF NOT EXISTS idx_surgery_bookings_surgeon_id ON surgery_bookings(surgeon_id)")
-	DB.Exec("CREATE INDEX IF NOT EXISTS idx_surgery_bookings_operating_room_id ON surgery_bookings(operating_room_id)")
-	DB.Exec("CREATE INDEX IF NOT EXISTS idx_surgery_bookings_priority ON surgery_bookings(priority)")
+	// Surgery Bookings - only create indexes if table exists
+	if DB.Migrator().HasTable("surgery_bookings") {
+		DB.Exec("CREATE INDEX IF NOT EXISTS idx_surgery_bookings_status ON surgery_bookings(status)")
+		DB.Exec("CREATE INDEX IF NOT EXISTS idx_surgery_bookings_scheduled_date ON surgery_bookings(scheduled_date)")
+		DB.Exec("CREATE INDEX IF NOT EXISTS idx_surgery_bookings_surgeon_id ON surgery_bookings(surgeon_id)")
+		DB.Exec("CREATE INDEX IF NOT EXISTS idx_surgery_bookings_operating_room_id ON surgery_bookings(operating_room_id)")
+		DB.Exec("CREATE INDEX IF NOT EXISTS idx_surgery_bookings_priority ON surgery_bookings(priority)")
+	}
 
 	log.Println("Performance indexes created")
 }
