@@ -390,9 +390,10 @@ export default function BedDetailModal({ open, onClose, bed, unit }: BedDetailMo
     const loadVisits = async () => {
       setLoadingVisits(true);
       try {
-        const res = await visitsApi.getAll({ patient_id: patient.patient_id!, status: "completed" });
+        const res = await visitsApi.getAll({ patient_id: patient.patient_id! });
         const mainVisits = (res.data || []).filter(
           (v: Visit) => !["lab", "radiology", "pharmacy", "surgery", "consultation", "procedure"].includes(v.visit_type)
+            && v.status !== "cancelled"
         );
         setVisits(mainVisits);
       } catch {
@@ -1105,7 +1106,7 @@ export default function BedDetailModal({ open, onClose, bed, unit }: BedDetailMo
             <div className="w-80 shrink-0 border-r bg-muted/30 flex flex-col">
               <div className="border-b px-4 py-3">
                 <h3 className="text-sm font-semibold">Riwayat Kunjungan</h3>
-                <p className="text-xs text-muted-foreground">{visits.length} kunjungan selesai</p>
+                <p className="text-xs text-muted-foreground">{visits.length} kunjungan</p>
               </div>
               <ScrollArea className="flex-1">
                 {loadingVisits ? (
@@ -1148,6 +1149,16 @@ export default function BedDetailModal({ open, onClose, bed, unit }: BedDetailMo
                                   >
                                     {getVisitTypeLabel(visit.visit_type)}
                                   </Badge>
+                                  {visit.status === "in_progress" && (
+                                    <Badge variant="default" className="text-[10px] px-1 py-0 bg-green-600">
+                                      Aktif
+                                    </Badge>
+                                  )}
+                                  {(visit.status === "waiting" || visit.status === "in_queue") && (
+                                    <Badge variant="default" className="text-[10px] px-1 py-0 bg-amber-500">
+                                      Menunggu
+                                    </Badge>
+                                  )}
                                   <span className="text-[11px] text-muted-foreground truncate">
                                     {visit.room?.name || "-"}
                                   </span>

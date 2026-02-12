@@ -873,6 +873,7 @@ export default function FloorPlanPage() {
       <div
         ref={containerRef}
         className="flex-1 overflow-hidden bg-muted/30 relative cursor-grab active:cursor-grabbing"
+        style={{ touchAction: "none" }}
         onWheel={handleWheel}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
