@@ -46,6 +46,15 @@ func GetRooms(c *gin.Context) {
 		db = db.Where("is_active = ?", isActive == "true")
 	}
 
+	// Building filter
+	if buildingID := c.Query("building_id"); buildingID != "" {
+		if buildingID == "none" {
+			db = db.Where("building_id IS NULL")
+		} else {
+			db = db.Where("building_id = ?", buildingID)
+		}
+	}
+
 	// Count total
 	db.Count(&total)
 

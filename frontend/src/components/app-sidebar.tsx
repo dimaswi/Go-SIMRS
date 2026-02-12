@@ -34,6 +34,7 @@ import {
   Stethoscope,
   Archive,
   Circle,
+  Map,
 } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
 import { usePermission } from '@/hooks/usePermission';
@@ -87,6 +88,7 @@ const menuItems: MenuItem[] = [
     ]
   },
   { path: '/bed-monitoring', label: 'Monitoring Bed', icon: Hotel, permission: 'rooms.view' },
+  { path: '/floor-plan', label: 'Floor Plan', icon: Map, permission: 'rooms.view' },
   {
     path: '/master',
     label: 'Master Data',
@@ -95,6 +97,7 @@ const menuItems: MenuItem[] = [
       { path: '/patients', label: 'Pasien', icon: UserRound, permission: 'patients.view' },
       { path: '/employees', label: 'Pegawai', icon: UserCog, permission: 'employees.view' },
       { path: '/rooms', label: 'Ruangan', icon: BedDouble, permission: 'rooms.view' },
+      { path: '/buildings', label: 'Gedung', icon: Building2, permission: 'rooms.view' },
       { path: '/counters', label: 'Loket', icon: Monitor, permission: 'counters.view' },
       { path: '/inventories', label: 'Inventaris', icon: Package, permission: 'inventories.view' },
       { path: '/medicines', label: 'Obat', icon: Pill, permission: 'medicines.view' },

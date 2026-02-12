@@ -30,11 +30,14 @@ type Room struct {
 	IsActive        bool           `gorm:"default:true" json:"is_active"`
 	PICEmployeeID   *uint          `gorm:"index" json:"pic_employee_id"`                           // Penanggung Jawab Ruangan
 	PICEmployee     *Employee      `gorm:"foreignKey:PICEmployeeID" json:"pic_employee,omitempty"` // Person In Charge
-	Units           []RoomUnit     `gorm:"foreignKey:RoomID" json:"units,omitempty"`               // Daftar kamar (untuk ruangan dengan bed)
-	Schedules       []Schedule     `gorm:"foreignKey:RoomID" json:"schedules,omitempty"`           // Jadwal operasional ruangan
-	Tariffs         []RoomTariff   `gorm:"foreignKey:RoomID" json:"tariffs,omitempty"`             // Tarif per kelas pasien
-	TotalBeds       int            `gorm:"-" json:"total_beds"`                                    // Computed field
-	AvailableBeds   int            `gorm:"-" json:"available_beds"`                                // Computed field
+	// Building Reference (Gedung)
+	BuildingID    *uint        `gorm:"index" json:"building_id,omitempty"` // Gedung tempat ruangan ini berada
+	Building      *Building    `gorm:"foreignKey:BuildingID" json:"building,omitempty"`
+	Units         []RoomUnit   `gorm:"foreignKey:RoomID" json:"units,omitempty"`     // Daftar kamar (untuk ruangan dengan bed)
+	Schedules     []Schedule   `gorm:"foreignKey:RoomID" json:"schedules,omitempty"` // Jadwal operasional ruangan
+	Tariffs       []RoomTariff `gorm:"foreignKey:RoomID" json:"tariffs,omitempty"`   // Tarif per kelas pasien
+	TotalBeds     int          `gorm:"-" json:"total_beds"`                          // Computed field
+	AvailableBeds int          `gorm:"-" json:"available_beds"`                      // Computed field
 }
 
 // TableName sets the table name for Room
@@ -97,7 +100,12 @@ type RoomUnit struct {
 	Capacity  int            `gorm:"default:1" json:"capacity"`     // kapasitas bed di kamar ini
 	IsActive  bool           `gorm:"default:true" json:"is_active"`
 	Notes     string         `gorm:"type:text" json:"notes"`
-	Beds      []Bed          `gorm:"foreignKey:RoomUnitID" json:"beds,omitempty"`
+	// Floor plan layout position & size (relative to room/building)
+	PositionX int   `gorm:"default:0" json:"position_x"`
+	PositionY int   `gorm:"default:0" json:"position_y"`
+	Width     int   `gorm:"default:200" json:"width"`
+	Height    int   `gorm:"default:150" json:"height"`
+	Beds      []Bed `gorm:"foreignKey:RoomUnitID" json:"beds,omitempty"`
 }
 
 // TableName sets the table name for RoomUnit
@@ -107,17 +115,22 @@ func (RoomUnit) TableName() string {
 
 // Bed represents a bed within a room unit (Tempat Tidur)
 type Bed struct {
-	ID             uint           `gorm:"primarykey" json:"id"`
-	CreatedAt      time.Time      `json:"created_at"`
-	UpdatedAt      time.Time      `json:"updated_at"`
-	DeletedAt      gorm.DeletedAt `gorm:"index" json:"-"`
-	RoomUnitID     uint           `gorm:"not null;index;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"room_unit_id"`
-	RoomUnit       *RoomUnit      `gorm:"foreignKey:RoomUnitID" json:"room_unit,omitempty"`
-	BedNumber      string         `gorm:"not null;size:20" json:"bed_number"`        // e.g., "A", "B", "1", "2"
-	BedType        string         `gorm:"size:50" json:"bed_type"`                   // bed_type from master data
-	Status         string         `gorm:"size:50;default:'available'" json:"status"` // bed_status from master data
-	Notes          string         `gorm:"type:text" json:"notes"`
-	CurrentPatient *BedPatient    `gorm:"-" json:"current_patient,omitempty"` // Virtual field: patient currently occupying this bed
+	ID         uint           `gorm:"primarykey" json:"id"`
+	CreatedAt  time.Time      `json:"created_at"`
+	UpdatedAt  time.Time      `json:"updated_at"`
+	DeletedAt  gorm.DeletedAt `gorm:"index" json:"-"`
+	RoomUnitID uint           `gorm:"not null;index;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"room_unit_id"`
+	RoomUnit   *RoomUnit      `gorm:"foreignKey:RoomUnitID" json:"room_unit,omitempty"`
+	BedNumber  string         `gorm:"not null;size:20" json:"bed_number"`        // e.g., "A", "B", "1", "2"
+	BedType    string         `gorm:"size:50" json:"bed_type"`                   // bed_type from master data
+	Status     string         `gorm:"size:50;default:'available'" json:"status"` // bed_status from master data
+	Notes      string         `gorm:"type:text" json:"notes"`
+	// Floor plan layout position & size (relative to room unit)
+	PositionX      int         `gorm:"default:0" json:"position_x"`
+	PositionY      int         `gorm:"default:0" json:"position_y"`
+	Width          int         `gorm:"default:80" json:"width"`
+	Height         int         `gorm:"default:50" json:"height"`
+	CurrentPatient *BedPatient `gorm:"-" json:"current_patient,omitempty"` // Virtual field: patient currently occupying this bed
 }
 
 // BedPatient represents patient info for bed occupancy display

@@ -32,6 +32,12 @@ const PublicBedMonitoring = lazy(() => import('./pages/rooms/public-monitoring')
 const BedMonitoringIndex = lazy(() => import('./pages/bed-monitoring/index'));
 const BedMonitoringShow = lazy(() => import('./pages/rooms/monitoring'));
 
+// Floor Plan
+const FloorPlanPage = lazy(() => import('./pages/floor-plan/index'));
+
+// Buildings
+const BuildingsPage = lazy(() => import('./pages/buildings/index'));
+
 // Users
 const UsersIndex = lazy(() => import('./pages/users/index'));
 const UsersCreate = lazy(() => import('./pages/users/create'));
@@ -125,6 +131,12 @@ function App() {
           {/* Bed Monitoring (Protected) */}
           <Route path="/bed-monitoring" element={<ProtectedRoute><BedMonitoringIndex /></ProtectedRoute>} />
           <Route path="/bed-monitoring/:id" element={<ProtectedRoute><BedMonitoringShow /></ProtectedRoute>} />
+          
+          {/* Floor Plan */}
+          <Route path="/floor-plan" element={<ProtectedRoute><FloorPlanPage /></ProtectedRoute>} />
+          
+          {/* Buildings */}
+          <Route path="/buildings" element={<ProtectedRoute><BuildingsPage /></ProtectedRoute>} />
           
           {/* Check-in Scanner */}
           <Route path="/checkin" element={<ProtectedRoute><CheckInScannerPage /></ProtectedRoute>} />

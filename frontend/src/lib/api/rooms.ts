@@ -15,6 +15,7 @@ export interface Room {
   tariff_per_day: number;
   facilities: string;
   description: string;
+  building_id?: number | null;
   has_bed: boolean;
   has_schedule: boolean;
   is_active: boolean;
@@ -277,6 +278,7 @@ export const roomsApi = {
     room_type?: string;
     room_class?: string;
     is_active?: string;
+    building_id?: string;
   }) => {
     const searchParams = new URLSearchParams();
     if (params?.page) searchParams.append('page', params.page.toString());
@@ -285,6 +287,7 @@ export const roomsApi = {
     if (params?.room_type) searchParams.append('room_type', params.room_type);
     if (params?.room_class) searchParams.append('room_class', params.room_class);
     if (params?.is_active) searchParams.append('is_active', params.is_active);
+    if (params?.building_id) searchParams.append('building_id', params.building_id);
     const queryString = searchParams.toString();
     return api.get<RoomListResponse>(`/rooms${queryString ? `?${queryString}` : ''}`);
   },

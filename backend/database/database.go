@@ -176,6 +176,7 @@ func Migrate() error {
 		// Master Data
 		&models.MasterData{}, // Master data for dropdown options
 		// Room Management
+		&models.Building{},          // Buildings (Gedung)
 		&models.Room{},              // Rooms (Ruangan/Bangsal)
 		&models.RoomUnit{},          // Room Units (Kamar)
 		&models.Bed{},               // Beds (Tempat Tidur)

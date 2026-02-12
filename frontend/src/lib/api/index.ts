@@ -84,6 +84,16 @@ export type {
   RoomListResponse 
 } from './rooms';
 
+// Buildings & Floor Plan
+export { buildingsApi, floorPlanApi, bedsideApi } from './buildings';
+export type {
+  Building, FloorPlanBed, FloorPlanUnit, FloorPlanRoom, FloorPlanBuilding,
+  LayoutItem, SaveLayoutPayload, BedsideSummary,
+  BedsidePatientAllergy, BedsideDiagnosis, BedsideCPPT, BedsideVitalSign,
+  BedsideMedicineOrder, BedsideMedicineOrderItem, BedsideProcedureOrder,
+  BedsideProcedureOrderItem, BedsideProcedureResult, BedsideVisit,
+} from './buildings';
+
 // Procedures
 export { 
   proceduresApi, 
