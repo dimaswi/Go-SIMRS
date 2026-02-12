@@ -28,6 +28,8 @@ export interface AdmissionRequest {
   registration_id: number;
   registration?: {
     id: number;
+    payment_method?: string;
+    bpjs_number?: string;
     patient?: AdmissionRequestPatient;
   };
   patient?: AdmissionRequestPatient; // Preloaded from registration
@@ -85,6 +87,7 @@ export interface ProcessAdmissionRequestInput {
   bed_id: number;
   doctor_id: number;
   admin_notes?: string;
+  payment_method?: string; // cash, bpjs, insurance
 }
 
 export interface RejectAdmissionRequestInput {

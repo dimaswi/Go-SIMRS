@@ -251,10 +251,11 @@ func ProcessAdmissionRequest(c *gin.Context) {
 	userID, _ := userIDVal.(uint)
 
 	var input struct {
-		RoomID     uint   `json:"room_id" binding:"required"`
-		BedID      uint   `json:"bed_id" binding:"required"`
-		DoctorID   uint   `json:"doctor_id" binding:"required"` // DPJP
-		AdminNotes string `json:"admin_notes"`
+		RoomID        uint   `json:"room_id" binding:"required"`
+		BedID         uint   `json:"bed_id" binding:"required"`
+		DoctorID      uint   `json:"doctor_id" binding:"required"` // DPJP
+		AdminNotes    string `json:"admin_notes"`
+		PaymentMethod string `json:"payment_method"` // cash, bpjs, insurance — override metode bayar
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -306,6 +307,9 @@ func ProcessAdmissionRequest(c *gin.Context) {
 	tx := database.DB.Begin()
 
 	// Create inpatient visit (same logic as before)
+	// Determine payment method
+	paymentMethod := input.PaymentMethod
+
 	inpatientVisit, err := createInpatientVisitFromRequest(tx, &request, input.RoomID, input.BedID, input.DoctorID, room.RoomClass)
 	if err != nil {
 		tx.Rollback()
@@ -318,6 +322,11 @@ func ProcessAdmissionRequest(c *gin.Context) {
 		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengupdate status tempat tidur"})
 		return
+	}
+
+	// Update registration payment_method jika dikirim dari frontend
+	if paymentMethod != "" {
+		tx.Model(&models.Registration{}).Where("id = ?", request.RegistrationID).Update("payment_method", paymentMethod)
 	}
 
 	// Update request

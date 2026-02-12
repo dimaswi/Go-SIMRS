@@ -100,6 +100,8 @@ export interface Registration {
     telepon?: string;
     alamat?: string;
     foto?: string;
+    no_bpjs?: string;
+    kelas_bpjs?: string;
     // English fallbacks
     name?: string;
     medical_record_number?: string;

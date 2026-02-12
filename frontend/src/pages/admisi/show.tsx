@@ -40,6 +40,7 @@ import {
   Calendar,
   FileText,
   ChevronLeft,
+  Wallet,
 } from "lucide-react";
 import {
   admissionRequestApi,
@@ -322,12 +323,12 @@ export default function AdmissionRequestShowPage() {
       return;
     }
 
-    // Validasi: harus ada SEP terlebih dahulu
-    if (!sepNumber) {
+    // Validasi: harus ada SEP terlebih dahulu (kecuali umum)
+    if (!sepNumber && isBPJS) {
       toast({
         variant: "destructive",
         title: "Validasi Gagal",
-        description: "Buat SEP terlebih dahulu sebelum memproses admisi",
+        description: "Buat SEP terlebih dahulu sebelum memproses admisi BPJS",
       });
       return;
     }
@@ -339,6 +340,7 @@ export default function AdmissionRequestShowPage() {
         bed_id: selectedBedId,
         doctor_id: selectedDoctorId,
         admin_notes: processNotes,
+        payment_method: sepNumber ? "bpjs" : "cash",
       });
 
       // Get updated request with inpatient_visit_id from response
@@ -503,6 +505,11 @@ export default function AdmissionRequestShowPage() {
 
   const patient = getPatient(request);
   const isPending = request.status === "pending";
+  // Check payment method from registration first, fallback to patient jenis_jaminan
+  const registrationPaymentMethod = request.registration?.payment_method;
+  const isBPJS = registrationPaymentMethod 
+    ? registrationPaymentMethod === "bpjs"
+    : patientDetail && (patientDetail.jenis_jaminan === "BPJS" || patientDetail.jenis_jaminan === "JKN");
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
@@ -607,7 +614,7 @@ export default function AdmissionRequestShowPage() {
               )}
 
               {/* SEP Section - Only show for BPJS patients */}
-              {patientDetail && (patientDetail.jenis_jaminan === "BPJS" || patientDetail.jenis_jaminan === "JKN") && (
+              {isBPJS && (
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">SEP</span>
                   {sepNumber ? (
@@ -1068,6 +1075,31 @@ export default function AdmissionRequestShowPage() {
                   </Alert>
                 )}
 
+                {/* Info: Opsi Daftar Umum */}
+                {!sepNumber && isBPJS && selectedRoomId && selectedBedId && selectedDoctorId && (
+                  <Alert className="border-amber-200 bg-amber-50">
+                    <AlertTriangle className="h-4 w-4 text-amber-600" />
+                    <AlertDescription className="text-amber-800">
+                      <p className="text-sm">
+                        Pasien ini terdaftar BPJS. Anda bisa <strong>Buat SEP Rawat Inap</strong> untuk jaminan BPJS,
+                        atau pilih <strong>Daftar Umum</strong> untuk mendaftarkan tanpa jaminan BPJS.
+                      </p>
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {/* Info: Pasien Non-BPJS */}
+                {!isBPJS && !sepNumber && selectedRoomId && selectedBedId && selectedDoctorId && (
+                  <Alert className="border-blue-200 bg-blue-50">
+                    <Wallet className="h-4 w-4 text-blue-600" />
+                    <AlertDescription className="text-blue-800">
+                      <p className="text-sm">
+                        Pasien akan didaftarkan sebagai pasien <strong>Umum</strong> (non-BPJS).
+                      </p>
+                    </AlertDescription>
+                  </Alert>
+                )}
+
                 {/* Action Buttons */}
                 <div className="flex justify-end gap-3 pt-4 border-t">
                   {request.status === "pending" && (
@@ -1080,15 +1112,9 @@ export default function AdmissionRequestShowPage() {
                         <XCircle className="h-4 w-4 mr-2" />
                         Tolak
                       </Button>
-                      {!sepNumber ? (
-                        <Button
-                          onClick={() => setSepSheetOpen(true)}
-                          disabled={!selectedRoomId || !selectedBedId || !selectedDoctorId}
-                        >
-                          <FileText className="h-4 w-4 mr-2" />
-                          Buat SEP Rawat Inap
-                        </Button>
-                      ) : (
+
+                      {sepNumber ? (
+                        /* SEP sudah ada → langsung proses admisi BPJS */
                         <Button
                           onClick={handleProcess}
                           disabled={processing}
@@ -1105,6 +1131,38 @@ export default function AdmissionRequestShowPage() {
                             </>
                           )}
                         </Button>
+                      ) : (
+                        <>
+                          {/* Opsi Buat SEP untuk pasien BPJS (secondary) */}
+                          {isBPJS && (
+                            <Button
+                              variant="outline"
+                              onClick={() => setSepSheetOpen(true)}
+                              disabled={!selectedRoomId || !selectedBedId || !selectedDoctorId}
+                            >
+                              <FileText className="h-4 w-4 mr-2" />
+                              Buat SEP Rawat Inap
+                            </Button>
+                          )}
+
+                          {/* Tombol utama: Proses Admisi (Umum) */}
+                          <Button
+                            onClick={handleProcess}
+                            disabled={processing || !selectedRoomId || !selectedBedId || !selectedDoctorId}
+                          >
+                            {processing ? (
+                              <>
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                Memproses...
+                              </>
+                            ) : (
+                              <>
+                                <Wallet className="h-4 w-4 mr-2" />
+                                Proses Admisi (Umum)
+                              </>
+                            )}
+                          </Button>
+                        </>
                       )}
                     </>
                   )}
