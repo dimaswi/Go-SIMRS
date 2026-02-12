@@ -22,7 +22,6 @@ import {
   X,
   Eye,
   ClipboardList,
-  ChevronDown,
   ChevronUp,
 } from "lucide-react";
 import { vclaimApi, type VClaimListRencanaKontrolItem, type VClaimPersetujuanSEPItem } from "@/lib/api/vclaim";
