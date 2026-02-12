@@ -67,19 +67,19 @@ type ViewLevel = "buildings" | "rooms" | "beds";
 
 // Colors for bed status
 const BED_STATUS_COLORS: Record<string, { fill: string; stroke: string; text: string; label: string }> = {
-  available: { fill: "#dcfce7", stroke: "#16a34a", text: "#166534", label: "Tersedia" },
-  occupied: { fill: "#dbeafe", stroke: "#2563eb", text: "#1e40af", label: "Terisi" },
-  maintenance: { fill: "#f3f4f6", stroke: "#6b7280", text: "#374151", label: "Maintenance" },
-  reserved: { fill: "#fef9c3", stroke: "#ca8a04", text: "#854d0e", label: "Reserved" },
-  cleaning: { fill: "#fce7f3", stroke: "#db2777", text: "#9d174d", label: "Cleaning" },
+  available: { fill: "#bbf7d0", stroke: "#15803d", text: "#14532d", label: "Tersedia" },
+  occupied: { fill: "#bfdbfe", stroke: "#1d4ed8", text: "#1e3a8a", label: "Terisi" },
+  maintenance: { fill: "#e5e7eb", stroke: "#4b5563", text: "#1f2937", label: "Maintenance" },
+  reserved: { fill: "#fde68a", stroke: "#a16207", text: "#713f12", label: "Reserved" },
+  cleaning: { fill: "#fbcfe8", stroke: "#be185d", text: "#831843", label: "Cleaning" },
 };
 
-const DEFAULT_BED_COLOR = { fill: "#f3f4f6", stroke: "#9ca3af", text: "#4b5563", label: "Unknown" };
+const DEFAULT_BED_COLOR = { fill: "#e5e7eb", stroke: "#6b7280", text: "#1f2937", label: "Unknown" };
 
 // Palette for auto-coloring buildings that have no color set
 const BUILDING_PALETTE = [
-  "#e3f2fd", "#fce4ec", "#e8f5e9", "#fff8e1", "#f3e5f5",
-  "#e0f7fa", "#fbe9e7", "#f1f8e9", "#ede7f6", "#e8eaf6",
+  "#bbdefb", "#f8bbd0", "#c8e6c9", "#fff9c4", "#e1bee7",
+  "#b2ebf2", "#ffccbc", "#dcedc8", "#d1c4e9", "#c5cae9",
 ];
 
 // ===========================================================================
@@ -1009,19 +1009,19 @@ export default function FloorPlanPage() {
                       height={bh}
                       rx={12}
                       fill={bgColor}
-                      fillOpacity={0.25}
+                      fillOpacity={0.3}
                       stroke={bgColor}
-                      strokeOpacity={0.5}
-                      strokeWidth={2}
-                      strokeDasharray="8 4"
+                      strokeOpacity={0.8}
+                      strokeWidth={3}
+                      strokeDasharray="10 5"
                       className="pointer-events-none"
                     />
                     <text
                       x={bw / 2}
                       y={bh / 2}
-                      fontSize={Math.min(20, bw / 12)}
+                      fontSize={Math.max(18, Math.min(30, bw / 8))}
                       fontWeight="bold"
-                      fill="rgba(0,0,0,0.15)"
+                      fill="rgba(0,0,0,0.25)"
                       textAnchor="middle"
                       dominantBaseline="middle"
                       className="select-none pointer-events-none"
@@ -1045,19 +1045,19 @@ export default function FloorPlanPage() {
                       height={uh}
                       rx={10}
                       fill="#f1f5f9"
-                      fillOpacity={0.4}
-                      stroke="#94a3b8"
-                      strokeOpacity={0.4}
-                      strokeWidth={1.5}
-                      strokeDasharray="6 3"
+                      fillOpacity={0.5}
+                      stroke="#64748b"
+                      strokeOpacity={0.7}
+                      strokeWidth={2.5}
+                      strokeDasharray="8 4"
                       className="pointer-events-none"
                     />
                     <text
                       x={uw / 2}
                       y={uh / 2}
-                      fontSize={Math.min(16, uw / 12)}
+                      fontSize={Math.max(14, Math.min(24, uw / 8))}
                       fontWeight="bold"
-                      fill="rgba(0,0,0,0.12)"
+                      fill="rgba(0,0,0,0.2)"
                       textAnchor="middle"
                       dominantBaseline="middle"
                       className="select-none pointer-events-none"
@@ -1580,7 +1580,7 @@ function BuildingCardNode({
   return (
     <g transform={`translate(${building.position_x}, ${building.position_y})`}>
       {/* Shadow */}
-      <rect x={3} y={3} width={w} height={h} rx={10} fill="rgba(0,0,0,0.08)" />
+      <rect x={3} y={3} width={w} height={h} rx={10} fill="rgba(0,0,0,0.12)" />
 
       {/* Background */}
       <rect
@@ -1590,8 +1590,8 @@ function BuildingCardNode({
         height={h}
         rx={10}
         fill={bgColor}
-        stroke={isSelected ? "#2563eb" : "rgba(0,0,0,0.15)"}
-        strokeWidth={isSelected ? 2.5 : 1}
+        stroke={isSelected ? "#2563eb" : "rgba(0,0,0,0.3)"}
+        strokeWidth={isSelected ? 3 : 1.5}
         className={cn(editMode ? "cursor-move" : "cursor-pointer")}
         onMouseDown={(e) => {
           e.stopPropagation();
@@ -1612,9 +1612,9 @@ function BuildingCardNode({
       <text
         x={w / 2}
         y={h / 2}
-        fontSize={Math.min(18, w / 10)}
+        fontSize={Math.max(16, Math.min(28, w / 7))}
         fontWeight="bold"
-        fill="rgba(0,0,0,0.25)"
+        fill="rgba(0,0,0,0.45)"
         textAnchor="middle"
         dominantBaseline="middle"
         className="select-none pointer-events-none"
@@ -1638,15 +1638,16 @@ function BuildingCardNode({
                     width={uw}
                     height={uh}
                     rx={6}
-                    fill="rgba(255,255,255,0.5)"
-                    stroke="rgba(0,0,0,0.12)"
-                    strokeWidth={0.5}
+                    fill="rgba(255,255,255,0.6)"
+                    stroke="rgba(0,0,0,0.2)"
+                    strokeWidth={1}
                   />
                   <text
                     x={uw / 2}
                     y={uh / 2}
-                    fontSize={Math.min(12, uw / 12)}
-                    fill="rgba(0,0,0,0.18)"
+                    fontSize={Math.max(11, Math.min(16, uw / 8))}
+                    fontWeight="600"
+                    fill="rgba(0,0,0,0.35)"
                     textAnchor="middle"
                     dominantBaseline="middle"
                     className="select-none"
@@ -1715,7 +1716,7 @@ function UnitCardNode({
   return (
     <g transform={`translate(${unit.position_x}, ${unit.position_y})`}>
       {/* Shadow */}
-      <rect x={2} y={2} width={w} height={h} rx={8} fill="rgba(0,0,0,0.06)" />
+      <rect x={2} y={2} width={w} height={h} rx={8} fill="rgba(0,0,0,0.10)" />
 
       {/* Background */}
       <rect
@@ -1725,8 +1726,8 @@ function UnitCardNode({
         height={h}
         rx={8}
         fill="white"
-        stroke={isSelected ? "#2563eb" : "#d1d5db"}
-        strokeWidth={isSelected ? 2 : 1}
+        stroke={isSelected ? "#2563eb" : "#9ca3af"}
+        strokeWidth={isSelected ? 3 : 1.5}
         className={cn(editMode ? "cursor-move" : "cursor-pointer")}
         onMouseDown={(e) => {
           e.stopPropagation();
@@ -1747,9 +1748,9 @@ function UnitCardNode({
       <text
         x={w / 2}
         y={h / 2}
-        fontSize={Math.min(14, w / 10)}
+        fontSize={Math.max(14, Math.min(22, w / 7))}
         fontWeight="bold"
-        fill="rgba(0,0,0,0.2)"
+        fill="rgba(0,0,0,0.4)"
         textAnchor="middle"
         dominantBaseline="middle"
         className="select-none pointer-events-none"
@@ -1776,18 +1777,19 @@ function UnitCardNode({
                     rx={4}
                     fill={colors.fill}
                     stroke={colors.stroke}
-                    strokeWidth={0.5}
+                    strokeWidth={1}
                   />
                   <text
                     x={bw2 / 2}
                     y={bh2 / 2}
-                    fontSize={Math.min(10, bw2 / 10)}
+                    fontSize={Math.max(9, Math.min(13, bw2 / 8))}
+                    fontWeight="600"
                     fill={colors.text}
                     textAnchor="middle"
                     dominantBaseline="middle"
                     className="select-none"
                   >
-                    {b.bed_number}
+                    {b.current_patient?.medical_record_number || b.bed_number}
                   </text>
                 </g>
               );
@@ -1896,29 +1898,61 @@ function BedNode({
         rx={6}
         fill={colors.fill}
         stroke={isSelected ? "#2563eb" : colors.stroke}
-        strokeWidth={isSelected ? 2.5 : 1}
+        strokeWidth={isSelected ? 3 : 2}
       />
 
-      {/* Bed number centered */}
+      {/* Main label: MR number (occupied) or bed number */}
       <text
         x={bedW / 2}
-        y={bedH / 2}
-        fontSize={Math.min(14, bedW / 8)}
+        y={patient ? bedH / 2 - Math.max(6, bedH / 12) : bedH / 2}
+        fontSize={Math.max(13, Math.min(20, bedW / 6))}
         fontWeight="bold"
         fill={colors.text}
         textAnchor="middle"
         dominantBaseline="middle"
         className="select-none pointer-events-none"
       >
-        {bed.bed_number}
+        {patient ? patient.medical_record_number : bed.bed_number}
       </text>
+
+      {/* Patient name (if occupied) */}
+      {patient && (
+        <text
+          x={bedW / 2}
+          y={bedH / 2 + Math.max(8, bedH / 8)}
+          fontSize={Math.max(10, Math.min(14, bedW / 10))}
+          fill={colors.text}
+          textAnchor="middle"
+          dominantBaseline="middle"
+          className="select-none pointer-events-none"
+          opacity={0.7}
+        >
+          {patient.name && patient.name.length > Math.floor(bedW / 8)
+            ? patient.name.substring(0, Math.floor(bedW / 8)) + "…"
+            : patient.name || "-"}
+        </text>
+      )}
+
+      {/* Bed number small label (when occupied, show at top-left) */}
+      {patient && (
+        <text
+          x={6}
+          y={12}
+          fontSize={Math.max(9, Math.min(11, bedW / 14))}
+          fill={colors.text}
+          className="select-none pointer-events-none"
+          opacity={0.5}
+        >
+          {bed.bed_number}
+        </text>
+      )}
 
       {/* Status for non-occupied non-available */}
       {!patient && bed.status !== "available" && (
         <text
           x={bedW / 2}
-          y={bedH / 2 + 14}
-          fontSize={9}
+          y={bedH / 2 + Math.max(12, bedH / 6)}
+          fontSize={Math.max(9, Math.min(12, bedW / 12))}
           fill={colors.text}
           textAnchor="middle"
           className="select-none pointer-events-none"
