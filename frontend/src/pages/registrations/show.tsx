@@ -103,6 +103,14 @@ export default function RegistrationShow() {
   const [editSEPOpen, setEditSEPOpen] = useState(false);
   const [deleteSEPOpen, setDeleteSEPOpen] = useState(false);
   const [updatingSEP, setUpdatingSEP] = useState(false);
+  const [editPaymentOpen, setEditPaymentOpen] = useState(false);
+  const [updatingPayment, setUpdatingPayment] = useState(false);
+  const [paymentForm, setPaymentForm] = useState({
+    payment_method: "cash" as string,
+    bpjs_number: "",
+    insurance_name: "",
+    insurance_number: "",
+  });
   const [sepEditForm, setSepEditForm] = useState({
     catatan: "",
     diag_awal: "",
@@ -167,6 +175,46 @@ export default function RegistrationShow() {
       navigate("/registrations");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleOpenEditPayment = () => {
+    if (registration) {
+      setPaymentForm({
+        payment_method: registration.payment_method || "cash",
+        bpjs_number: registration.bpjs_number || registration.patient?.no_bpjs || "",
+        insurance_name: registration.insurance_name || "",
+        insurance_number: registration.insurance_number || "",
+      });
+      setEditPaymentOpen(true);
+    }
+  };
+
+  const handleUpdatePayment = async () => {
+    if (!id) return;
+
+    setUpdatingPayment(true);
+    try {
+      await registrationApi.update(parseInt(id), {
+        payment_method: paymentForm.payment_method,
+        bpjs_number: paymentForm.payment_method === "bpjs" ? paymentForm.bpjs_number : undefined,
+        insurance_name: paymentForm.payment_method === "insurance" ? paymentForm.insurance_name : undefined,
+        insurance_number: paymentForm.payment_method === "insurance" ? paymentForm.insurance_number : undefined,
+      });
+      toast({
+        title: "Berhasil",
+        description: "Metode pembayaran berhasil diubah",
+      });
+      setEditPaymentOpen(false);
+      await loadRegistration();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.response?.data?.error || "Gagal mengubah metode pembayaran",
+      });
+    } finally {
+      setUpdatingPayment(false);
     }
   };
 
@@ -468,10 +516,25 @@ export default function RegistrationShow() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
               <div>
                 <label className="text-xs text-muted-foreground">Metode Pembayaran</label>
-                <div className="mt-1">
+                <div className="mt-1 flex items-center gap-2">
                   <Badge variant={registration.payment_method === "cash" ? "default" : "secondary"}>
                     {paymentMethodLabels[registration.payment_method]}
                   </Badge>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={handleOpenEditPayment}
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Ubah Penjamin</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 </div>
               </div>
               {registration.payment_method === "bpjs" && registration.bpjs_number && (
@@ -908,6 +971,82 @@ export default function RegistrationShow() {
             <Button onClick={handleUpdateSEP} disabled={updatingSEP}>
               {updatingSEP && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Update SEP
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Edit Pembayaran */}
+      <Dialog open={editPaymentOpen} onOpenChange={setEditPaymentOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Ubah Metode Pembayaran</DialogTitle>
+            <DialogDescription>
+              Ubah penjamin / asuransi untuk pendaftaran ini.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>Metode Pembayaran</Label>
+              <Select
+                value={paymentForm.payment_method}
+                onValueChange={(val) => setPaymentForm(prev => ({ ...prev, payment_method: val }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Pilih metode pembayaran" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cash">Umum / Cash</SelectItem>
+                  <SelectItem value="bpjs">BPJS</SelectItem>
+                  <SelectItem value="insurance">Asuransi Lain</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {paymentForm.payment_method === "bpjs" && (
+              <div className="space-y-2">
+                <Label htmlFor="bpjs_number">Nomor BPJS</Label>
+                <Input
+                  id="bpjs_number"
+                  placeholder="Masukkan nomor kartu BPJS"
+                  value={paymentForm.bpjs_number}
+                  onChange={(e) => setPaymentForm(prev => ({ ...prev, bpjs_number: e.target.value }))}
+                />
+              </div>
+            )}
+
+            {paymentForm.payment_method === "insurance" && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="insurance_name">Nama Asuransi</Label>
+                  <Input
+                    id="insurance_name"
+                    placeholder="Masukkan nama asuransi"
+                    value={paymentForm.insurance_name}
+                    onChange={(e) => setPaymentForm(prev => ({ ...prev, insurance_name: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="insurance_number">Nomor Polis</Label>
+                  <Input
+                    id="insurance_number"
+                    placeholder="Masukkan nomor polis asuransi"
+                    value={paymentForm.insurance_number}
+                    onChange={(e) => setPaymentForm(prev => ({ ...prev, insurance_number: e.target.value }))}
+                  />
+                </div>
+              </>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditPaymentOpen(false)}>
+              Batal
+            </Button>
+            <Button onClick={handleUpdatePayment} disabled={updatingPayment}>
+              {updatingPayment && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Simpan
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -965,15 +965,23 @@ func UpdateRegistration(c *gin.Context) {
 		return
 	}
 
-	// Only allow updates for certain statuses
-	if registration.Status == "completed" || registration.Status == "cancelled" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Pendaftaran yang sudah selesai atau dibatalkan tidak bisa diubah"})
-		return
-	}
-
 	var input UpdateRegistrationInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Only allow updates for certain statuses
+	// Exception: payment-related fields can always be updated (for billing corrections)
+	isPaymentOnlyUpdate := (input.PaymentMethod != nil || input.BPJSNumber != nil || input.InsuranceName != nil || input.InsuranceNumber != nil) &&
+		input.DoctorID == nil &&
+		input.DestinationRoomID == nil &&
+		input.Complaint == nil &&
+		input.Notes == nil &&
+		input.Status == nil
+
+	if (registration.Status == "completed" || registration.Status == "cancelled") && !isPaymentOnlyUpdate {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Pendaftaran yang sudah selesai atau dibatalkan tidak bisa diubah"})
 		return
 	}
 
