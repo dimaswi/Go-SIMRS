@@ -44,9 +44,9 @@ func main() {
 	}
 
 	// Run migrations
-	if err := database.Migrate(); err != nil {
-		log.Fatal("Failed to migrate database:", err)
-	}
+	// if err := database.Migrate(); err != nil {
+	// 	log.Fatal("Failed to migrate database:", err)
+	// }
 
 	// Initialize SSE Hub for real-time notifications
 	handlers.InitSSEHub()
