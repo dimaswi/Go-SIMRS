@@ -95,7 +95,11 @@ func GetBilling(c *gin.Context) {
 		Preload("Visit.Room").
 		Preload("Registration").
 		Preload("Registration.Patient").
-		Preload("Items").
+		Preload("Items", func(db *gorm.DB) *gorm.DB {
+			return db.Order("source_visit_id ASC, item_type ASC")
+		}).
+		Preload("Items.SourceVisit").
+		Preload("Items.SourceVisit.Room").
 		Preload("Payments").
 		Preload("Payments.Cashier").
 		Preload("GeneratedBy").
@@ -127,7 +131,11 @@ func GetBillingByVisit(c *gin.Context) {
 		Preload("Visit.Room").
 		Preload("Registration").
 		Preload("Registration.Patient").
-		Preload("Items").
+		Preload("Items", func(db *gorm.DB) *gorm.DB {
+			return db.Order("source_visit_id ASC, item_type ASC")
+		}).
+		Preload("Items.SourceVisit").
+		Preload("Items.SourceVisit.Room").
 		Preload("Payments").
 		Preload("Payments.Cashier").
 		Preload("GeneratedBy").
@@ -294,9 +302,9 @@ func GenerateBilling(c *gin.Context) {
 
 // regenerateBillingItemsFromRegistration regenerates items for existing billing based on registration
 func regenerateBillingItemsFromRegistration(c *gin.Context, billing *models.Billing, registration *models.Registration, userID uint) {
-	// Allow regenerate for draft and cancelled status
-	if billing.Status != models.BillingStatusDraft && billing.Status != models.BillingStatusCancelled {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Billing sudah difinalisasi atau lunas, tidak dapat di-regenerate"})
+	// Allow regenerate for draft, pending, partial, and cancelled status (not paid)
+	if billing.Status == models.BillingStatusPaid {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Billing sudah lunas, tidak dapat di-regenerate"})
 		return
 	}
 
@@ -528,6 +536,7 @@ func generateAdministrasiFee(tx *gorm.DB, billing *models.Billing, visit *models
 		if room.RegistrationFee > 0 {
 			item := models.BillingItem{
 				BillingID:     billing.ID,
+				SourceVisitID: &visit.ID,
 				ItemType:      models.BillingItemTypeRegistration,
 				ReferenceID:   room.ID,
 				ReferenceType: "room",
@@ -551,6 +560,7 @@ func generateAdministrasiFee(tx *gorm.DB, billing *models.Billing, visit *models
 			// No tariff and no legacy fee - create 0 amount registration item
 			item := models.BillingItem{
 				BillingID:     billing.ID,
+				SourceVisitID: &visit.ID,
 				ItemType:      models.BillingItemTypeRegistration,
 				ReferenceID:   room.ID,
 				ReferenceType: "room",
@@ -582,6 +592,7 @@ func generateAdministrasiFee(tx *gorm.DB, billing *models.Billing, visit *models
 
 	item := models.BillingItem{
 		BillingID:     billing.ID,
+		SourceVisitID: &visit.ID,
 		ItemType:      models.BillingItemTypeRegistration,
 		ReferenceID:   roomTariff.ID,
 		ReferenceType: "room_tariff",
@@ -662,6 +673,7 @@ func generateInpatientRoomCharges(tx *gorm.DB, billing *models.Billing, visit *m
 
 			item := models.BillingItem{
 				BillingID:     billing.ID,
+				SourceVisitID: &visit.ID,
 				ItemType:      models.BillingItemTypeRoom,
 				ReferenceID:   room.ID,
 				ReferenceType: "room",
@@ -695,6 +707,7 @@ func generateInpatientRoomCharges(tx *gorm.DB, billing *models.Billing, visit *m
 
 	item := models.BillingItem{
 		BillingID:     billing.ID,
+		SourceVisitID: &visit.ID,
 		ItemType:      models.BillingItemTypeRoom,
 		ReferenceID:   room.ID,
 		ReferenceType: "room",
@@ -769,6 +782,7 @@ func generateVisitProcedureItems(tx *gorm.DB, billing *models.Billing, visit *mo
 		var unitPrice float64 = 0
 		billingItem := models.BillingItem{
 			BillingID:     billing.ID,
+			SourceVisitID: &visit.ID,
 			ItemType:      models.BillingItemTypeProcedure,
 			ReferenceID:   vp.ID,
 			ReferenceType: "visit_procedure",
@@ -848,6 +862,7 @@ func generateProcedureOrderItems(tx *gorm.DB, billing *models.Billing, visit *mo
 		var tariffItem models.BillingItem
 
 		tariffItem.BillingID = billing.ID
+		tariffItem.SourceVisitID = &visit.ID
 		tariffItem.ReferenceID = item.ID
 		tariffItem.ReferenceType = "procedure_order_item"
 		tariffItem.ReferenceCode = item.Procedure.Code
@@ -935,6 +950,7 @@ func generateMedicineOrderItems(tx *gorm.DB, billing *models.Billing, visit *mod
 
 		billingItem := models.BillingItem{
 			BillingID:     billing.ID,
+			SourceVisitID: &visit.ID,
 			ItemType:      models.BillingItemTypeMedicine,
 			ReferenceID:   item.ID,
 			ReferenceType: "medicine_order_item",

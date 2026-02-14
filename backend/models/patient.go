@@ -365,6 +365,13 @@ type Patient struct {
 	// Catatan Khusus
 	CatatanKhusus string `gorm:"type:text" json:"catatan_khusus,omitempty"`
 
+	// ==========================================
+	// SUMBER PENDAFTARAN (Registration Source)
+	// ==========================================
+
+	// Sumber pendaftaran pasien: "manual" (default), "mjkn" (Mobile JKN)
+	RegistrationSource string `gorm:"size:20;default:'manual'" json:"registration_source"`
+
 	// Data Final - menandakan data pasien sudah lengkap dan diverifikasi
 	IsFinal     bool       `gorm:"default:false" json:"is_final"`
 	FinalizedAt *time.Time `json:"finalized_at,omitempty"`

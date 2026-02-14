@@ -3,7 +3,14 @@ import { api } from './client';
 export interface BillingItem {
   id: number;
   billing_id: number;
-  item_type: 'registration' | 'procedure' | 'radiology' | 'laboratory' | 'medicine' | 'room' | 'room_charge' | 'other';
+  source_visit_id?: number;
+  source_visit?: {
+    id: number;
+    visit_type: string;
+    room?: { id: number; code: string; name: string };
+    doctor?: { id: number; nama_lengkap: string };
+  };
+  item_type: 'registration' | 'procedure' | 'radiology' | 'laboratory' | 'consultation' | 'medicine' | 'room' | 'other';
   reference_id: number;
   reference_type: string;
   reference_code: string;

@@ -328,6 +328,25 @@ func BPJSWebhookAmbilAntrean(c *gin.Context) {
 		return
 	}
 
+	// Hitung kuota (dibutuhkan semua response termasuk dedup)
+	kuotaJKN := dokterMapping.KuotaJKN
+	kuotaNonJKN := dokterMapping.KuotaNonJKN
+	if kuotaJKN == 0 {
+		kuotaJKN = 30
+	}
+	if kuotaNonJKN == 0 {
+		kuotaNonJKN = 10
+	}
+	var jknCount, nonJknCount int64
+	database.DB.Model(&models.BPJSQueue{}).
+		Where("kode_poli = ? AND kode_dokter = ? AND DATE(tanggal_periksa) = ? AND jenis_pasien = ? AND status != ?",
+			req.KodePoli, fmt.Sprintf("%d", req.KodeDokter), tanggal.Format("2006-01-02"), "JKN", "batal").
+		Count(&jknCount)
+	database.DB.Model(&models.BPJSQueue{}).
+		Where("kode_poli = ? AND kode_dokter = ? AND DATE(tanggal_periksa) = ? AND jenis_pasien = ? AND status != ?",
+			req.KodePoli, fmt.Sprintf("%d", req.KodeDokter), tanggal.Format("2006-01-02"), "NON JKN", "batal").
+		Count(&nonJknCount)
+
 	// Cek duplikat booking
 	var existingQueue models.BPJSQueue
 	if err := database.DB.Where("no_kartu = ? AND DATE(tanggal_periksa) = ? AND kode_poli = ? AND status != ?",
@@ -342,6 +361,10 @@ func BPJSWebhookAmbilAntrean(c *gin.Context) {
 			"namapoli":         existingQueue.NamaPoli,
 			"namadokter":       existingQueue.NamaDokter,
 			"estimasidilayani": existingQueue.EstimasiDilayani,
+			"sisakuotajkn":     kuotaJKN - int(jknCount),
+			"kuotajkn":         kuotaJKN,
+			"sisakuotanonjkn":  kuotaNonJKN - int(nonJknCount),
+			"kuotanonjkn":      kuotaNonJKN,
 			"keterangan":       "Anda sudah memiliki booking",
 		}))
 		return
@@ -366,27 +389,160 @@ func BPJSWebhookAmbilAntrean(c *gin.Context) {
 	}
 
 	// Jika pasien tidak ditemukan, return code 202 (pasien baru)
+	// MJKN akan menampilkan dialog daftar pasien baru dan hit webhook /antrean/pasien-baru
+	// Setelah pasien dibuat, MJKN akan retry Ambil Antrean otomatis
 	if !patientFound {
-		c.JSON(http.StatusOK, newBPJSResponse(202, "Pasien belum terdaftar di sistem RS", nil))
+		c.JSON(http.StatusOK, newBPJSResponse(202, "Pasien belum memiliki rekam medis, silakan daftar ke faskes.", nil))
 		return
 	}
 
-	// Kuota dari mapping
-	kuotaJKN := dokterMapping.KuotaJKN
-	kuotaNonJKN := dokterMapping.KuotaNonJKN
-	if kuotaJKN == 0 {
-		kuotaJKN = 30
-	}
-	if kuotaNonJKN == 0 {
-		kuotaNonJKN = 10
+	// =====================================================================
+	// DEDUP KONTROL: Cek apakah sudah ada registrasi scheduled (dari follow-up
+	// kontrol dokter) untuk pasien ini di poli dan tanggal yang sama.
+	// Jika ada, gunakan data tersebut — tidak buat Registration/Visit/RoomQueue baru.
+	//
+	// Alur:
+	// 1. Cek Registration scheduled → ketemu?
+	// 2. Cari Visit + RoomQueue terkait → lengkap?
+	// 3. Cek BPJSQueue sudah ada untuk registration ini?
+	//    → Sudah ada: return langsung (zero create)
+	//    → Belum ada: buat BPJSQueue saja (MJKN butuh kodebooking), link ke data existing
+	// =====================================================================
+	var existingScheduledReg models.Registration
+	if err := database.DB.Where(
+		"patient_id = ? AND destination_room_id = ? AND DATE(scheduled_date) = ? AND status = ?",
+		patient.ID, poliMapping.RoomID, tanggal.Format("2006-01-02"), models.RegistrationStatusScheduled,
+	).First(&existingScheduledReg).Error; err == nil {
+		// Ada registrasi scheduled, cari Visit dan RoomQueue terkait
+		var existingVisit models.Visit
+		var existingRoomQueue models.RoomQueue
+
+		visitFound := database.DB.Where("registration_id = ? AND status = ?",
+			existingScheduledReg.ID, models.VisitStatusScheduled).
+			First(&existingVisit).Error == nil
+
+		roomQueueFound := false
+		if visitFound {
+			roomQueueFound = database.DB.Where("visit_id = ? AND status = ?",
+				existingVisit.ID, models.RoomQueueStatusReserved).
+				First(&existingRoomQueue).Error == nil
+		}
+
+		if visitFound && roomQueueFound {
+			// Data Reg+Visit+RoomQueue lengkap — cek apakah BPJSQueue juga sudah ada
+			var existingBQ models.BPJSQueue
+			if database.DB.Where("registration_id = ? AND status != ?",
+				existingScheduledReg.ID, "batal").
+				First(&existingBQ).Error == nil {
+				// BPJSQueue sudah ada — return langsung, zero create
+				fmt.Printf("[BPJS MJKN AmbilAntrean] Data kontrol sudah lengkap, return existing booking %s\n",
+					existingBQ.KodeBooking)
+
+				c.JSON(http.StatusOK, newBPJSResponse(200, "Ok", gin.H{
+					"nomorantrean":     existingBQ.NomorAntrean,
+					"angkaantrean":     existingBQ.AngkaAntrean,
+					"kodebooking":      existingBQ.KodeBooking,
+					"norm":             existingBQ.NoRM,
+					"namapoli":         existingBQ.NamaPoli,
+					"namadokter":       existingBQ.NamaDokter,
+					"estimasidilayani": existingBQ.EstimasiDilayani,
+					"sisakuotajkn":     kuotaJKN - int(jknCount),
+					"kuotajkn":         kuotaJKN,
+					"sisakuotanonjkn":  kuotaNonJKN - int(nonJknCount),
+					"kuotanonjkn":      kuotaNonJKN,
+					"keterangan":       "Anda sudah memiliki jadwal kontrol",
+				}))
+				return
+			}
+
+			// BPJSQueue belum ada (edge case: follow-up tanpa SuratKontrol)
+			// Buat BPJSQueue saja — link ke data existing, karena MJKN butuh kodebooking
+			kodeBooking := generateKodeBookingTx(database.DB, tanggal, req.KodePoli)
+			nomorAntrean := existingRoomQueue.QueueNumber
+			angkaAntrean := 0
+			fmt.Sscanf(nomorAntrean, existingRoomQueue.QueueCode+"%d", &angkaAntrean)
+
+			jamPraktekParts := strings.Split(req.JamPraktek, "-")
+			jamMulai := "08:00"
+			if len(jamPraktekParts) > 0 {
+				jamMulai = jamPraktekParts[0]
+			}
+			startTime, _ := time.Parse("15:04", jamMulai)
+			estimasiTime := time.Date(tanggal.Year(), tanggal.Month(), tanggal.Day(),
+				startTime.Hour(), startTime.Minute(), 0, 0, time.Local)
+			estimasiTime = estimasiTime.Add(time.Duration((angkaAntrean-1)*15) * time.Minute)
+			estimasiDilayani := estimasiTime.UnixMilli()
+
+			bpjsQueue := models.BPJSQueue{
+				KodeBooking:      kodeBooking,
+				NomorAntrean:     nomorAntrean,
+				AngkaAntrean:     angkaAntrean,
+				TanggalPeriksa:   tanggal,
+				JamPraktek:       req.JamPraktek,
+				KodePoli:         req.KodePoli,
+				NamaPoli:         poliMapping.NamaPoliBPJS,
+				KodeDokter:       fmt.Sprintf("%d", req.KodeDokter),
+				NamaDokter:       dokterMapping.NamaDokterBPJS,
+				JenisPasien:      "JKN",
+				NoKartu:          req.NomorKartu,
+				NIK:              req.NIK,
+				NoHP:             req.NoHP,
+				NoRM:             patient.NoRM,
+				NamaPasien:       patient.NamaLengkap,
+				JenisKunjungan:   req.JenisKunjungan,
+				NomorReferensi:   req.NomorReferensi,
+				EstimasiDilayani: estimasiDilayani,
+				Status:           "booking",
+				PatientID:        &patient.ID,
+				PoliMappingID:    &poliMapping.ID,
+				DoctorMappingID:  &dokterMapping.ID,
+				RoomID:           &poliMapping.RoomID,
+				RegistrationID:   &existingScheduledReg.ID,
+				VisitID:          &existingVisit.ID,
+				RoomQueueID:      &existingRoomQueue.ID,
+			}
+
+			if err := database.DB.Create(&bpjsQueue).Error; err != nil {
+				c.JSON(http.StatusOK, newBPJSResponse(201, "Gagal menyimpan antrean BPJS: "+err.Error(), nil))
+				return
+			}
+
+			// AddAntrean sinkron
+			addSuccess, addCode, addMsg := bpjsService.AddAntrean(&bpjsQueue)
+			bpjsQueue.AddAntreanSent = true
+			bpjsQueue.AddAntreanCode = addCode
+			bpjsQueue.AddAntreanMsg = addMsg
+			if addSuccess {
+				bpjsQueue.SyncStatus = "synced"
+				bpjsQueue.SyncError = ""
+			} else {
+				bpjsQueue.SyncStatus = "failed"
+				bpjsQueue.SyncError = addMsg
+			}
+			database.DB.Save(&bpjsQueue)
+
+			fmt.Printf("[BPJS MJKN AmbilAntrean] Reuse follow-up registration %s, buat BPJSQueue %s\n",
+				existingScheduledReg.RegistrationNumber, kodeBooking)
+
+			c.JSON(http.StatusOK, newBPJSResponse(200, "Ok", gin.H{
+				"nomorantrean":     nomorAntrean,
+				"angkaantrean":     angkaAntrean,
+				"kodebooking":      kodeBooking,
+				"norm":             patient.NoRM,
+				"namapoli":         poliMapping.NamaPoliBPJS,
+				"namadokter":       dokterMapping.NamaDokterBPJS,
+				"estimasidilayani": estimasiDilayani,
+				"sisakuotajkn":     kuotaJKN - int(jknCount),
+				"kuotajkn":         kuotaJKN,
+				"sisakuotanonjkn":  kuotaNonJKN - int(nonJknCount),
+				"kuotanonjkn":      kuotaNonJKN,
+				"keterangan":       "Peserta harap datang ke loket pendaftaran untuk check-in",
+			}))
+			return
+		}
 	}
 
 	// Cek kuota
-	var jknCount int64
-	database.DB.Model(&models.BPJSQueue{}).
-		Where("kode_poli = ? AND kode_dokter = ? AND DATE(tanggal_periksa) = ? AND jenis_pasien = ? AND status != ?",
-			req.KodePoli, fmt.Sprintf("%d", req.KodeDokter), tanggal.Format("2006-01-02"), "JKN", "batal").
-		Count(&jknCount)
 
 	if int(jknCount) >= kuotaJKN {
 		c.JSON(http.StatusOK, newBPJSResponse(201, "Kuota JKN untuk dokter ini sudah habis", nil))
@@ -585,8 +741,36 @@ func BPJSWebhookAmbilAntrean(c *gin.Context) {
 		return
 	}
 
-	// Hitung sisa kuota
-	var nonJknCount int64
+	// ================================================
+	// PENTING: Kirim AddAntrean ke BPJS secara SINKRON sebelum kirim response
+	// AddAntrean HARUS berhasil sebelum kita return kodebooking ke MJKN,
+	// karena kodebooking ini akan dipakai untuk semua updatewaktu (task ID)
+	// dan harus sama antara RS dan BPJS.
+	// ================================================
+	addSuccess, addCode, addMsg := bpjsService.AddAntrean(&bpjsQueue)
+	bpjsQueue.AddAntreanSent = true
+	bpjsQueue.AddAntreanCode = addCode
+	bpjsQueue.AddAntreanMsg = addMsg
+	if addSuccess {
+		bpjsQueue.SyncStatus = "synced"
+		bpjsQueue.SyncError = ""
+		fmt.Printf("[BPJS MJKN AmbilAntrean] AddAntrean berhasil untuk booking: %s\n", bpjsQueue.KodeBooking)
+	} else {
+		bpjsQueue.SyncStatus = "failed"
+		bpjsQueue.SyncError = addMsg
+		fmt.Printf("[BPJS MJKN AmbilAntrean] AddAntrean gagal untuk booking: %s - [%d] %s\n", bpjsQueue.KodeBooking, addCode, addMsg)
+	}
+	database.DB.Save(&bpjsQueue)
+
+	// Jika AddAntrean gagal, tetap return success ke MJKN karena data lokal sudah tersimpan
+	// Kodebooking tetap valid di sisi RS, akan retry AddAntrean saat check-in
+	// Catatan: Tidak return error karena pasien sudah terlanjur dapat nomor antrean
+
+	// Hitung ulang sisa kuota (setelah create baru)
+	database.DB.Model(&models.BPJSQueue{}).
+		Where("kode_poli = ? AND kode_dokter = ? AND DATE(tanggal_periksa) = ? AND jenis_pasien = ? AND status != ?",
+			req.KodePoli, fmt.Sprintf("%d", req.KodeDokter), tanggal.Format("2006-01-02"), "JKN", "batal").
+		Count(&jknCount)
 	database.DB.Model(&models.BPJSQueue{}).
 		Where("kode_poli = ? AND kode_dokter = ? AND DATE(tanggal_periksa) = ? AND jenis_pasien = ? AND status != ?",
 			req.KodePoli, fmt.Sprintf("%d", req.KodeDokter), tanggal.Format("2006-01-02"), "NON JKN", "batal").
@@ -600,7 +784,7 @@ func BPJSWebhookAmbilAntrean(c *gin.Context) {
 		"namapoli":         poliMapping.NamaPoliBPJS,
 		"namadokter":       dokterMapping.NamaDokterBPJS,
 		"estimasidilayani": estimasiDilayani,
-		"sisakuotajkn":     kuotaJKN - int(jknCount) - 1,
+		"sisakuotajkn":     kuotaJKN - int(jknCount),
 		"kuotajkn":         kuotaJKN,
 		"sisakuotanonjkn":  kuotaNonJKN - int(nonJknCount),
 		"kuotanonjkn":      kuotaNonJKN,
@@ -855,33 +1039,30 @@ func BPJSWebhookCheckIn(c *gin.Context) {
 		}
 	}
 
-	// 5. Daftarkan antrean ke BPJS (AddAntrean) sebelum kirim task
-	// BPJS requires /antrean/add sebelum /antrean/updatewaktu
-	addSuccess, _, addMsg := bpjsService.AddAntrean(&queue)
-	if !addSuccess {
-		// AddAntrean gagal, rollback semua perubahan
-		tx.Rollback()
-		c.JSON(http.StatusOK, newBPJSResponse(201, "Gagal mendaftarkan antrean ke BPJS: "+addMsg, nil))
-		return
-	}
-
-	// Save perubahan AddAntrean (AddAntreanSent, SyncStatus, dll) ke queue
-	if err := tx.Save(&queue).Error; err != nil {
-		tx.Rollback()
-		c.JSON(http.StatusOK, newBPJSResponse(201, "Gagal update data antrean: "+err.Error(), nil))
-		return
-	}
-
-	// Commit transaction
+	// 5. Commit transaction (check-in berhasil secara lokal)
 	if err := tx.Commit().Error; err != nil {
 		c.JSON(http.StatusOK, newBPJSResponse(201, "Gagal commit transaksi: "+err.Error(), nil))
 		return
 	}
 
-	// 6. Trigger Task 3 ke BPJS secara async (setelah AddAntrean sukses)
-	// Task 3: Menunggu di Poli
+	// 6. Async: Retry AddAntrean jika belum berhasil + Trigger Task 3
+	// AddAntrean seharusnya sudah dikirim saat webhook AmbilAntrean,
+	// tapi retry di sini sebagai safety net jika gagal sebelumnya.
+	// Check-in TIDAK diblokir oleh kegagalan AddAntrean.
 	go func() {
-		bpjsService.UpdateTaskAsync(queue.KodeBooking, 3, waktuCheckin, nil)
+		// Retry AddAntrean jika belum berhasil saat AmbilAntrean
+		if !queue.AddAntreanSent || queue.AddAntreanCode != 200 {
+			addSuccess, _, addMsg := bpjsService.AddAntrean(&queue)
+			if addSuccess {
+				fmt.Printf("[BPJS MJKN CheckIn] AddAntrean retry berhasil untuk: %s\n", queue.KodeBooking)
+			} else {
+				fmt.Printf("[BPJS MJKN CheckIn] AddAntrean retry gagal untuk: %s - %s\n", queue.KodeBooking, addMsg)
+			}
+			database.DB.Save(&queue)
+		}
+
+		// Task 3: Menunggu di Poli
+		bpjsService.UpdateTask(queue.KodeBooking, 3, waktuCheckin, nil)
 	}()
 
 	c.JSON(http.StatusOK, newBPJSResponse(200, "Ok", nil))
@@ -937,9 +1118,6 @@ func BPJSWebhookPasienBaru(c *gin.Context) {
 		tanggalLahirPtr = &dateOnly
 	}
 
-	// Generate No RM baru
-	noRM := generateNoRM()
-
 	// Convert jenis kelamin to Gender type
 	var jenisKelamin models.Gender
 	if req.JenisKelamin == "P" {
@@ -959,22 +1137,22 @@ func BPJSWebhookPasienBaru(c *gin.Context) {
 
 	// Buat pasien baru dengan field yang ada di Patient model
 	patient := models.Patient{
-		NoRM:         noRM,
-		NIK:          req.NIK,
-		NoBPJS:       req.NomorKartu,
-		NamaLengkap:  req.Nama,
-		JenisKelamin: jenisKelamin,
-		TanggalLahir: tanggalLahirPtr,
-		NoHP:         req.NoHP,
-		AlamatKTP:    alamatLengkap,
-		RTKTP:        req.RT,
-		RWKTP:        req.RW,
-		KelurahanKTP: req.NamaKel,
-		KecamatanKTP: req.NamaKec,
-		KotaKTP:      req.NamaDati2,
-		ProvinsiKTP:  req.NamaProp,
-		JenisJaminan: models.InsuranceTypeBPJS,
-		Status:       models.PatientStatusActive,
+		NIK:                req.NIK,
+		NoBPJS:             req.NomorKartu,
+		NamaLengkap:        req.Nama,
+		JenisKelamin:       jenisKelamin,
+		TanggalLahir:       tanggalLahirPtr,
+		NoHP:               req.NoHP,
+		AlamatKTP:          alamatLengkap,
+		RTKTP:              req.RT,
+		RWKTP:              req.RW,
+		KelurahanKTP:       req.NamaKel,
+		KecamatanKTP:       req.NamaKec,
+		KotaKTP:            req.NamaDati2,
+		ProvinsiKTP:        req.NamaProp,
+		JenisJaminan:       models.InsuranceTypeBPJS,
+		Status:             models.PatientStatusActive,
+		RegistrationSource: "mjkn",
 	}
 
 	if err := database.DB.Create(&patient).Error; err != nil {
@@ -983,7 +1161,7 @@ func BPJSWebhookPasienBaru(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, newBPJSResponse(200, "Harap datang ke admisi untuk melengkapi data rekam medis", gin.H{
-		"norm": noRM,
+		"norm": patient.NoRM,
 	}))
 }
 
@@ -1172,24 +1350,4 @@ func generateVisitNumberForBPJSTx(tx *gorm.DB, tanggal time.Time) string {
 		Count(&count)
 
 	return fmt.Sprintf("VIS%s%04d", dateStr, count+1)
-}
-
-// generateNoRMTx generates NoRM within a transaction to avoid race conditions
-func generateNoRMTx(tx *gorm.DB) string {
-	// Format: YYMMDD + 4 digit sequence
-	now := time.Now()
-	dateStr := now.Format("060102")
-
-	// Cari nomor urut terakhir hari ini
-	var count int64
-	tx.Model(&models.Patient{}).
-		Where("DATE(created_at) = ?", now.Format("2006-01-02")).
-		Count(&count)
-
-	return fmt.Sprintf("%s%04d", dateStr, count+1)
-}
-
-// generateNoRM generates NoRM (non-transaction version for PasienBaru)
-func generateNoRM() string {
-	return generateNoRMTx(database.DB)
 }

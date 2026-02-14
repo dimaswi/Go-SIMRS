@@ -442,6 +442,12 @@ func SeedMasterData(db *gorm.DB) error {
 		{Category: models.CategoryTriageLevel, Code: "4", Name: "Level 4 - Less Urgent", Description: "Membutuhkan pemeriksaan, dapat menunggu", SortOrder: 4, IsActive: true},
 		{Category: models.CategoryTriageLevel, Code: "5", Name: "Level 5 - Non-Urgent", Description: "Tidak mendesak, dapat ditangani di poliklinik", SortOrder: 5, IsActive: true},
 
+		// Keadaan Umum (General Condition)
+		{Category: models.CategoryGeneralCondition, Code: "baik", Name: "Baik", Description: "Keadaan umum baik", SortOrder: 1, IsActive: true, IsDefault: true},
+		{Category: models.CategoryGeneralCondition, Code: "sedang", Name: "Sedang", Description: "Keadaan umum sedang", SortOrder: 2, IsActive: true},
+		{Category: models.CategoryGeneralCondition, Code: "lemah", Name: "Lemah", Description: "Keadaan umum lemah", SortOrder: 3, IsActive: true},
+		{Category: models.CategoryGeneralCondition, Code: "buruk", Name: "Buruk", Description: "Keadaan umum buruk/kritis", SortOrder: 4, IsActive: true},
+
 		// Tingkat Kesadaran (Consciousness Level)
 		{Category: models.CategoryConsciousnessLevel, Code: "composmentis", Name: "Composmentis", Description: "Sadar penuh", SortOrder: 1, IsActive: true},
 		{Category: models.CategoryConsciousnessLevel, Code: "apatis", Name: "Apatis", Description: "Acuh tak acuh terhadap lingkungan", SortOrder: 2, IsActive: true},

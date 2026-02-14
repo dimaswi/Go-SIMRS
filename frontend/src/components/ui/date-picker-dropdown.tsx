@@ -54,23 +54,31 @@ export function DatePickerDropdown({
   const currentDay = new Date().getDate();
   const effectiveMaxYear = maxYear || currentYear;
 
-  // Parse value
-  const [selectedYear, setSelectedYear] = React.useState<string>("");
-  const [selectedMonth, setSelectedMonth] = React.useState<string>("");
-  const [selectedDay, setSelectedDay] = React.useState<string>("");
-
-  React.useEffect(() => {
+  // Parse value directly from prop to avoid sync issues with useEffect + internal state
+  const parsedDate = React.useMemo(() => {
     if (value) {
       const [year, month, day] = value.split("-");
-      setSelectedYear(year || "");
-      setSelectedMonth(month || "");
-      setSelectedDay(day || "");
-    } else {
-      setSelectedYear("");
-      setSelectedMonth("");
-      setSelectedDay("");
+      return { year: year || "", month: month || "", day: day || "" };
     }
+    return { year: "", month: "", day: "" };
   }, [value]);
+
+  // Track partial selections (when user is picking year/month/day individually)
+  const [partialYear, setPartialYear] = React.useState<string | null>(null);
+  const [partialMonth, setPartialMonth] = React.useState<string | null>(null);
+  const [partialDay, setPartialDay] = React.useState<string | null>(null);
+
+  // Reset partial selections when value changes (e.g. loaded from API)
+  React.useEffect(() => {
+    setPartialYear(null);
+    setPartialMonth(null);
+    setPartialDay(null);
+  }, [value]);
+
+  // Effective values: use partial selection if user is actively picking, otherwise use parsed value
+  const selectedYear = partialYear !== null ? partialYear : parsedDate.year;
+  const selectedMonth = partialMonth !== null ? partialMonth : parsedDate.month;
+  const selectedDay = partialDay !== null ? partialDay : parsedDate.day;
 
   // Generate years (descending order for easier selection of old years)
   const years = React.useMemo(() => {
@@ -119,12 +127,12 @@ export function DatePickerDropdown({
   }, [selectedYear, selectedMonth, days, disableFuture, currentYear, currentMonth, currentDay]);
 
   const handleYearChange = (year: string) => {
-    setSelectedYear(year);
+    setPartialYear(year);
     // Reset month and day if they become invalid
     if (disableFuture && year === currentYear.toString()) {
       if (parseInt(selectedMonth) > currentMonth) {
-        setSelectedMonth("");
-        setSelectedDay("");
+        setPartialMonth("");
+        setPartialDay("");
         onChange(undefined);
         return;
       }
@@ -136,18 +144,18 @@ export function DatePickerDropdown({
       if (validDay) {
         onChange(`${year}-${selectedMonth}-${validDay}`);
       } else {
-        setSelectedDay("");
+        setPartialDay("");
         onChange(undefined);
       }
     }
   };
 
   const handleMonthChange = (month: string) => {
-    setSelectedMonth(month);
+    setPartialMonth(month);
     // Reset day if it becomes invalid
     if (disableFuture && selectedYear === currentYear.toString() && month === currentMonth.toString().padStart(2, "0")) {
       if (parseInt(selectedDay) > currentDay) {
-        setSelectedDay("");
+        setPartialDay("");
         onChange(undefined);
         return;
       }
@@ -158,14 +166,14 @@ export function DatePickerDropdown({
       if (validDay) {
         onChange(`${selectedYear}-${month}-${validDay}`);
       } else {
-        setSelectedDay("");
+        setPartialDay("");
         onChange(undefined);
       }
     }
   };
 
   const handleDayChange = (day: string) => {
-    setSelectedDay(day);
+    setPartialDay(day);
     if (selectedYear && selectedMonth) {
       onChange(`${selectedYear}-${selectedMonth}-${day}`);
     }

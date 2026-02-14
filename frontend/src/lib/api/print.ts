@@ -349,9 +349,24 @@ export const printApi = {
   /**
    * Print billing invoice (Faktur/Kuitansi Pembayaran)
    * @param billingId - Billing ID
+   * @param options - Optional: mode ('per_visit') or visit_id filter
    */
-  billing: async (billingId: number) => {
-    return fetchPdf(`${BASE_URL}/billing/${billingId}`);
+  billing: async (billingId: number, options?: { mode?: string; visit_id?: number }) => {
+    let url = `${BASE_URL}/billing/${billingId}`;
+    const params = new URLSearchParams();
+    if (options?.mode) params.set('mode', options.mode);
+    if (options?.visit_id) params.set('visit_id', String(options.visit_id));
+    const qs = params.toString();
+    if (qs) url += `?${qs}`;
+    return fetchPdf(url);
+  },
+
+  /**
+   * Print nutrition food etiket (thermal label)
+   * @param orderId - Nutrition order ID
+   */
+  nutritionEtiket: async (orderId: number) => {
+    return fetchPdf(`${BASE_URL}/nutrition-etiket/${orderId}`);
   },
 
   // =========================================================================
@@ -392,5 +407,6 @@ export const printApi = {
     medicineLabel: (itemId: number) => fetchPdfBlob(`${BASE_URL}/medicine-label/${itemId}`),
     medicineLabels: (orderId: number) => fetchPdfBlob(`${BASE_URL}/medicine-labels/${orderId}`),
     billing: (billingId: number) => fetchPdfBlob(`${BASE_URL}/billing/${billingId}`),
+    nutritionEtiket: (orderId: number) => fetchPdfBlob(`${BASE_URL}/nutrition-etiket/${orderId}`),
   },
 };

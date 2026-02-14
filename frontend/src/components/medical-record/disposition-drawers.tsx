@@ -137,7 +137,7 @@ export function DischargeDrawer({
   onSubmit,
   saving,
   isDisabled,
-  isInpatient,
+  isInpatient: _isInpatient,
   poliRooms,
   availableDoctors,
   loadingDoctors,
@@ -186,8 +186,7 @@ export function DischargeDrawer({
         <ScrollArea className="flex-1 px-6 py-4">
           <div className="space-y-6">
             {/* Pilihan Jenis Surat Kontrol */}
-            {isInpatient && (
-              <div className="space-y-3">
+            <div className="space-y-3">
                 <Label className="text-sm font-semibold">Jenis Surat Kontrol</Label>
                 <RadioGroup
                   value={kontrolType}
@@ -265,7 +264,6 @@ export function DischargeDrawer({
                   </label>
                 </RadioGroup>
               </div>
-            )}
 
             {/* BPJS Control Section - Surat Kontrol */}
             {showBPJSKontrol && (

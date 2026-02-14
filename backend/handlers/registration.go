@@ -96,6 +96,7 @@ func GetRegistration(c *gin.Context) {
 	if err := database.DB.Preload("Patient").Preload("DestinationRoom").
 		Preload("Doctor").Preload("RegisteredBy").Preload("Queue").
 		Preload("Visit").Preload("Visit.RoomQueue").
+		Preload("Visits").Preload("Visits.Room").
 		First(&registration, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Registration not found"})
 		return

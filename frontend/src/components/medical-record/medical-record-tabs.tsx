@@ -21,6 +21,7 @@ import {
   HeartPulse,
   ArrowRightLeft,
   Skull,
+  UtensilsCrossed,
 } from "lucide-react";
 
 interface Tab {
@@ -239,6 +240,13 @@ export function MedicalRecordTabs({
       label: "Mutasi Pasien",
       icon: <ArrowRightLeft />,
       permission: "medical_records.bed_transfer",
+    }] : []),
+    // Nutrition Order tab - show for rawat_inap only
+    ...(isInpatient ? [{
+      id: "nutrition-order",
+      label: "Order Gizi",
+      icon: <UtensilsCrossed />,
+      permission: "medical_records.nutrition_order",
     }] : []),
     {
       id: "medicine-order",

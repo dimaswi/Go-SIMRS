@@ -173,7 +173,7 @@ export default function PatientEdit() {
           nama_panggilan: patient.nama_panggilan || "",
           jenis_kelamin: patient.jenis_kelamin || "L",
           tempat_lahir: patient.tempat_lahir || "",
-          tanggal_lahir: patient.tanggal_lahir || undefined,
+          tanggal_lahir: patient.tanggal_lahir ? patient.tanggal_lahir.substring(0, 10) : undefined,
           golongan_darah: patient.golongan_darah || undefined,
           rhesus: patient.rhesus || undefined,
           agama: patient.agama || "",
@@ -233,7 +233,7 @@ export default function PatientEdit() {
 
         // Calculate age from DOB
         if (patient.tanggal_lahir) {
-          calculateAgeFromDOB(patient.tanggal_lahir);
+          calculateAgeFromDOB(patient.tanggal_lahir.substring(0, 10));
         }
 
         // Load region data for KTP

@@ -98,6 +98,7 @@ export interface Patient {
   // Data Tambahan
   foto?: string;
   status: PatientStatus;
+  registration_source?: string; // "manual" | "mjkn"
   tanggal_registrasi?: string;
   tanggal_kunjungan_terakhir?: string;
   catatan_khusus?: string;

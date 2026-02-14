@@ -32,6 +32,7 @@ import {
   ClipboardList,
   Calendar,
   HeartPulse,
+  Smartphone,
 } from "lucide-react";
 import {
   vclaimApi,
@@ -154,6 +155,9 @@ export function SuratKontrolFormSheet({
   const [kodeDokter, setKodeDokter] = useState("");
   const [namaDokter, setNamaDokter] = useState("");
 
+  // Antrean MJKN
+  const [buatkanAntrean, setBuatkanAntrean] = useState(false);
+
   // PRB fields
   const [isPRB, setIsPRB] = useState(false);
   const [prbOptions, setPrbOptions] = useState<PRBStatusOption[]>([]);
@@ -175,6 +179,7 @@ export function SuratKontrolFormSheet({
       setNamaPoli("");
       setKodeDokter("");
       setNamaDokter("");
+      setBuatkanAntrean(false);
       setIsPRB(false);
       setKdStatusPRB("");
       setDataPRB({});
@@ -322,13 +327,26 @@ export function SuratKontrolFormSheet({
         is_prb: isPRB,
         kd_status_prb: isPRB ? kdStatusPRB : undefined,
         data_prb: isPRB && kdStatusPRB ? dataPRB : undefined,
+        buatkan_antrean: buatkanAntrean,
       });
 
       const data = res.data.data;
+      const antrean = res.data.antrean;
+
+      // Build description with antrean info if available
+      let toastDesc = `No. Surat Kontrol: ${data.noSuratKontrol}`;
+      if (antrean) {
+        if (antrean.success) {
+          toastDesc += `\nAntrean MJKN: ${antrean.kode_booking} (No. ${antrean.nomor_antrean})`;
+        } else {
+          toastDesc += `\nAntrean MJKN gagal: ${antrean.message}`;
+        }
+      }
 
       toast({
         title: "Surat Kontrol Berhasil Dibuat",
-        description: `No. Surat Kontrol: ${data.noSuratKontrol}`,
+        description: toastDesc,
+        duration: antrean ? 8000 : 5000,
       });
 
       if (onSuratKontrolCreated) {
@@ -587,6 +605,33 @@ export function SuratKontrolFormSheet({
                 )}
               </div>
 
+              {/* === ANTREAN MJKN (Optional) === */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide flex items-center gap-2">
+                    <Smartphone className="h-4 w-4" />
+                    Antrean Mobile JKN
+                  </h3>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="buatkan-antrean" className="text-sm">Buatkan Antrean</Label>
+                    <Switch
+                      id="buatkan-antrean"
+                      checked={buatkanAntrean}
+                      onCheckedChange={setBuatkanAntrean}
+                    />
+                  </div>
+                </div>
+                {buatkanAntrean && (
+                  <Alert className="bg-blue-50 border-blue-200">
+                    <Smartphone className="h-4 w-4 text-blue-600" />
+                    <AlertDescription className="text-blue-700 text-sm">
+                      Antrean akan didaftarkan ke BPJS Antrian Online sehingga pasien dapat melihat jadwal kontrol di aplikasi Mobile JKN.
+                      Pastikan mapping poli dan dokter BPJS sudah dikonfigurasi.
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </div>
+
               {/* === INFO RINGKASAN === */}
               {tglRencanaKontrol && kodePoli && kodeDokter && (
                 <Alert className="bg-green-50 border-green-200">
@@ -602,6 +647,9 @@ export function SuratKontrolFormSheet({
                           PRB: <strong>{prbOptions.find(p => p.kode === kdStatusPRB)?.nama || kdStatusPRB}</strong>
                         </div>
                       )}
+                      <div className="col-span-2">
+                        Antrean MJKN: <strong>{buatkanAntrean ? "Ya, buatkan antrean" : "Tidak"}</strong>
+                      </div>
                     </div>
                   </AlertDescription>
                 </Alert>

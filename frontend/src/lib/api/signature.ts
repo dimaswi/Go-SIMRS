@@ -198,6 +198,9 @@ export const signatureApi = {
   signDocument: (data: SignDocumentRequest) =>
     api.post<SignatureResponse>('/signature/sign', data),
 
+  revokeSignature: (data: { document_type: string; document_id: number; pin: string; reason?: string }) =>
+    api.post<{ message: string; revoked_at: string; revoked_by: string }>('/signature/revoke', data),
+
   getDocumentSignature: (documentType: string, documentId: number) =>
     api.get<DocumentSignatureStatus>('/signature/status', {
       params: { document_type: documentType, document_id: documentId }

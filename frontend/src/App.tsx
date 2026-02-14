@@ -7,7 +7,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { Toaster as SonnerToaster } from '@/components/ui/sonner';
 import { NotificationProvider } from '@/contexts/notification-context';
 import { Loader2 } from 'lucide-react';
-import { EmployeeRoutes, RegionRoutes, MasterDataRoutes, RoomRoutes, ProcedureRoutes, PatientRoutes, InventoryRoutes, MedicineRoutes, StockRequestRoutes, DistributionRoutes, PurchaseRoutes, StockOpnameRoutes, SupplierRoutes, RoomStockRoutes, QueueRoutes, RegistrationRoutes, IntegrationsRoutes, ArchiveRoutes } from './routes';
+import { EmployeeRoutes, RegionRoutes, MasterDataRoutes, RoomRoutes, ProcedureRoutes, PatientRoutes, InventoryRoutes, MedicineRoutes, StockRequestRoutes, DistributionRoutes, PurchaseRoutes, StockOpnameRoutes, SupplierRoutes, RoomStockRoutes, QueueRoutes, RegistrationRoutes, IntegrationsRoutes, ArchiveRoutes, NutritionRoutes } from './routes';
 import { KioskRoutes } from './routes/KioskRoutes';
 import { QueueDisplayRoutes } from './routes/QueueDisplayRoutes';
 import { CounterRoutes } from './routes/CounterRoutes';
@@ -16,6 +16,7 @@ import VisitRoutes from './routes/VisitRoutes';
 import BillingRoutes from './routes/BillingRoutes';
 import { ICDRoutes } from './routes/ICDRoutes';
 import EKlaimRoutes from './routes/EKlaimRoutes';
+import ReportRoutes from './routes/ReportRoutes';
 
 // Lazy load pages
 const LoginPage = lazy(() => import('./pages/auth/login'));
@@ -27,6 +28,9 @@ const AuditLogPage = lazy(() => import('./pages/settings/audit-log'));
 
 // Public Bed Monitoring
 const PublicBedMonitoring = lazy(() => import('./pages/rooms/public-monitoring'));
+
+// Public Signature Verification
+const VerifySignaturePage = lazy(() => import('./pages/verify/index'));
 
 // Bed Monitoring (Protected)
 const BedMonitoringIndex = lazy(() => import('./pages/bed-monitoring/index'));
@@ -116,6 +120,9 @@ function App() {
           
           {/* Public Bed Monitoring Display (for TV/public display) */}
           <Route path="/display/bed-monitoring/:id" element={<PublicBedMonitoring />} />
+          
+          {/* Public Signature Verification */}
+          <Route path="/verify/:hash" element={<VerifySignaturePage />} />
           
           {/* Patient Portal (Public with patient authentication) */}
           <Route path="/portal" element={<PatientPortalLogin />} />
@@ -286,9 +293,15 @@ function App() {
           
           {/* Archives */}
           {ArchiveRoutes(ProtectedRoute)}
+
+          {/* Nutrition / Gizi */}
+          {NutritionRoutes(ProtectedRoute)}
           
           {/* Quality Control & Cost Management */}
           <Route path="/quality-cost" element={<ProtectedRoute><QualityCostPage /></ProtectedRoute>} />
+
+          {/* Reports / Laporan */}
+          <Route path="/reports/*" element={<ProtectedRoute><ReportRoutes /></ProtectedRoute>} />
 
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
         </Routes>

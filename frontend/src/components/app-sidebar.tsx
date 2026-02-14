@@ -35,6 +35,16 @@ import {
   Archive,
   Circle,
   Map,
+  UtensilsCrossed,
+  ChefHat,
+  BarChart3,
+  TrendingUp,
+  DollarSign,
+  HeartPulse,
+  FlaskConical,
+  Boxes,
+  UserCheck,
+  Landmark,
 } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
 import { usePermission } from '@/hooks/usePermission';
@@ -121,8 +131,27 @@ const menuItems: MenuItem[] = [
       { path: '/room-stock/inventories', label: 'Stok Inventaris Ruangan', icon: Package, permission: 'room-inventories.view' },
     ]
   },
+  {
+    path: '/nutrition',
+    label: 'Gizi',
+    icon: UtensilsCrossed,
+    submenu: [
+      { path: '/nutrition/menus', label: 'Menu Makanan', icon: UtensilsCrossed },
+      { path: '/nutrition/meal-packages', label: 'Paket Makanan', icon: Package },
+      { path: '/nutrition/kitchen', label: 'Dapur', icon: ChefHat },
+    ]
+  },
   { path: '/archives', label: 'Arsip Rekam Medis', icon: Archive, permission: 'archives.view' },
   { path: '/quality-cost', label: 'Kendali Mutu & Biaya', icon: Activity, permission: 'dashboard.view' },
+  {
+    path: '/reports',
+    label: 'Laporan',
+    icon: BarChart3,
+    permission: 'dashboard.view',
+    submenu: [
+      { path: '/reports', label: 'Semua Laporan', icon: BarChart3, permission: 'dashboard.view' },
+    ]
+  },
   {
     path: '/users',
     label: 'User Management',

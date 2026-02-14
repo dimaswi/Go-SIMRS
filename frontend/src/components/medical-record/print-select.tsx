@@ -16,9 +16,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Printer, ChevronDown, ShieldCheck } from "lucide-react";
+import { Loader2, Printer, ChevronDown, ShieldCheck, ShieldX } from "lucide-react";
 import { visitsApi, medicalRecordsApi, medicineOrdersApi, procedureOrdersApi, printApi, signatureApi, DOCUMENT_TYPES } from "@/lib/api";
 import { SignaturePINDialog } from "@/components/signature/signature-pin-dialog";
+import { RevokePINDialog } from "@/components/signature/revoke-pin-dialog";
 import { format } from "date-fns";
 import { id as localeId } from "date-fns/locale";
 
@@ -68,6 +69,8 @@ export function MedicalRecordPrintSelect({
   const [signatureStatuses, setSignatureStatuses] = useState<Record<string, { is_signed: boolean; signer_name?: string }>>({});
   const [showSignatureDialog, setShowSignatureDialog] = useState(false);
   const [signatureDoc, setSignatureDoc] = useState<{ type: string; id: number; title: string } | null>(null);
+  const [showRevokeDialog, setShowRevokeDialog] = useState(false);
+  const [revokeDoc, setRevokeDoc] = useState<{ type: string; id: number; title: string } | null>(null);
 
   // Load data when component mounts or refreshTrigger changes
   useEffect(() => {
@@ -162,12 +165,39 @@ export function MedicalRecordPrintSelect({
     if (visitId) {
       // Check resume signature
       checkSignatureStatus(DOCUMENT_TYPES.VISIT_RESUME, visitId);
+      // Check emergency summary if UGD
+      if (isEmergency) {
+        checkSignatureStatus(DOCUMENT_TYPES.EMERGENCY_SUMMARY, visitId);
+      }
       // Check referral if exists
       if (medicalRecord?.disposition?.disposition_type === "rujuk") {
         checkSignatureStatus(DOCUMENT_TYPES.REFERRAL_LETTER, visitId);
       }
+      // Check sick letter
+      checkSignatureStatus(DOCUMENT_TYPES.SICK_LETTER, visitId);
+      // Check inpatient cert
+      if (isInpatient) {
+        checkSignatureStatus(DOCUMENT_TYPES.INPATIENT_CERT, visitId);
+      }
     }
   }, [visitId, medicalRecord]);
+
+  // Check signatures for order-level documents  
+  useEffect(() => {
+    medicineOrders.forEach((order) => {
+      if (order.status === "completed" || order.status === "dispensed") {
+        checkSignatureStatus(DOCUMENT_TYPES.PRESCRIPTION, order.id);
+      }
+    });
+    procedureOrders.forEach((order) => {
+      if (order.order_type === "laboratory" && (order.status === "completed" || order.status === "validated")) {
+        checkSignatureStatus(DOCUMENT_TYPES.LAB_RESULT, order.id);
+      }
+      if (order.order_type === "radiology" && (order.status === "completed" || order.status === "validated")) {
+        checkSignatureStatus(DOCUMENT_TYPES.RADIOLOGY_RESULT, order.id);
+      }
+    });
+  }, [medicineOrders, procedureOrders]);
 
   const handleSignDocument = (docType: string, docId: number, title: string) => {
     setSignatureDoc({ type: docType, id: docId, title });
@@ -179,6 +209,18 @@ export function MedicalRecordPrintSelect({
       checkSignatureStatus(signatureDoc.type, signatureDoc.id);
     }
     setSignatureDoc(null);
+  };
+
+  const handleRevokeDocument = (docType: string, docId: number, title: string) => {
+    setRevokeDoc({ type: docType, id: docId, title });
+    setShowRevokeDialog(true);
+  };
+
+  const handleRevokeSuccess = () => {
+    if (revokeDoc) {
+      checkSignatureStatus(revokeDoc.type, revokeDoc.id);
+    }
+    setRevokeDoc(null);
   };
 
   const isDocumentSigned = (docType: string, docId: number) => {
@@ -309,6 +351,8 @@ export function MedicalRecordPrintSelect({
           label: "Ringkasan Pelayanan",
           category: "UGD",
           handler: () => printApi.emergencySummary(visitId),
+          documentType: DOCUMENT_TYPES.EMERGENCY_SUMMARY,
+          documentId: visitId,
         });
       }
     }
@@ -372,6 +416,8 @@ export function MedicalRecordPrintSelect({
           label: `Resep ${orderDate || `#${idx + 1}`}`,
           category: "Farmasi",
           handler: () => printApi.prescription(order.id),
+          documentType: DOCUMENT_TYPES.PRESCRIPTION,
+          documentId: order.id,
         });
       });
     }
@@ -383,6 +429,8 @@ export function MedicalRecordPrintSelect({
         label: `Hasil Laboratorium`,
         category: "Laboratorium",
         handler: () => printApi.laboratoryResult(order.id),
+        documentType: DOCUMENT_TYPES.LAB_RESULT,
+        documentId: order.id,
       });
     });
 
@@ -393,6 +441,8 @@ export function MedicalRecordPrintSelect({
         label: `Hasil Radiologi`,
         category: "Radiologi",
         handler: () => printApi.radiologyResult(order.id),
+        documentType: DOCUMENT_TYPES.RADIOLOGY_RESULT,
+        documentId: order.id,
       });
     });
 
@@ -415,6 +465,8 @@ export function MedicalRecordPrintSelect({
         label: `Surat Sakit ${letterDate || `#${idx + 1}`} (${letter.days} hari)`,
         category: "Surat",
         handler: () => printApi.sickLetterById(visitId, letter.id),
+        documentType: DOCUMENT_TYPES.SICK_LETTER,
+        documentId: visitId,
       });
     });
     
@@ -508,9 +560,23 @@ export function MedicalRecordPrintSelect({
                   <div className="flex items-center gap-1">
                     {option.documentType && option.documentId && (
                       isSigned ? (
-                        <Badge variant="default" className="text-[10px] h-5 bg-green-600 gap-0.5">
-                          <ShieldCheck className="h-3 w-3" />
-                        </Badge>
+                        <div className="flex items-center gap-0.5">
+                          <Badge variant="default" className="text-[10px] h-5 bg-green-600 gap-0.5">
+                            <ShieldCheck className="h-3 w-3" />
+                          </Badge>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-5 px-1 text-red-500 hover:text-red-700 hover:bg-red-50"
+                            title="Batalkan tanda tangan"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRevokeDocument(option.documentType!, option.documentId!, option.label);
+                            }}
+                          >
+                            <ShieldX className="h-3 w-3" />
+                          </Button>
+                        </div>
                       ) : (
                         <Button
                           variant="ghost"
@@ -549,6 +615,17 @@ export function MedicalRecordPrintSelect({
         visitId={visitId}
         documentTitle={signatureDoc.title}
         onSuccess={handleSignatureSuccess}
+      />
+    )}
+
+    {revokeDoc && (
+      <RevokePINDialog
+        open={showRevokeDialog}
+        onOpenChange={setShowRevokeDialog}
+        documentType={revokeDoc.type}
+        documentId={revokeDoc.id}
+        documentTitle={revokeDoc.title}
+        onSuccess={handleRevokeSuccess}
       />
     )}
     </>

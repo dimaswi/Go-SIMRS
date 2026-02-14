@@ -31,6 +31,7 @@ import { CPPTForm } from "@/components/medical-record/cppt-form";
 import { FluidBalanceForm } from "@/components/medical-record/fluid-balance-form";
 import { NursingCareForm } from "@/components/medical-record/nursing-care-form";
 import { BedTransferForm } from "@/components/medical-record/bed-transfer-form";
+import { NutritionOrderForm } from "@/components/medical-record/nutrition-order-form";
 import { FinalVisit } from "@/components/medical-record/final-visit";
 import { ConsultationForm } from "@/components/medical-record/consultation-form";
 import { SurgeryOrderForm } from "@/components/medical-record/surgery-order-form";
@@ -533,6 +534,27 @@ export default function VisitShow() {
             currentBedId={visit.bed_id}
             readOnly={isPatientDischarged}
             onTransferComplete={() => loadVisit(true)}
+          />
+        );
+      case "nutrition-order":
+        // Nutrition order only for inpatient visits
+        if (!isInpatient) {
+          return renderWrongVisitTypeMessage("Rawat Inap");
+        }
+        if (!hasPermission("medical_records.nutrition_order")) {
+          return (
+            <Card className="p-6">
+              <p className="text-center text-muted-foreground">
+                Anda tidak memiliki akses untuk Order Gizi
+              </p>
+            </Card>
+          );
+        }
+        return (
+          <NutritionOrderForm
+            key={`nutrition-order-${visit.id}-${tabRefreshKey}`}
+            visitId={visit.id}
+            readOnly={isPatientDischarged}
           />
         );
       case "medicine-order":

@@ -303,10 +303,21 @@ func Migrate() error {
 		// Digital Signatures & Audit Trail
 		&models.SignatureLog{},      // Signature Activity Logs
 		&models.DocumentSignature{}, // Document Signature Status
+		// Nutrition/Gizi Management
+		&models.NutritionMenu{},        // Master Menu Makanan
+		&models.NutritionPackage{},     // Master Paket Makanan
+		&models.NutritionPackageItem{}, // Item Paket Makanan
+		&models.NutritionOrder{},       // Order Gizi Pasien
+		&models.NutritionOrderItem{},   // Item Order Gizi
 	)
 
 	if err != nil {
 		return err
+	}
+
+	// Drop old unique index on nutrition_package_items if exists (replaced with regular composite index)
+	if DB.Migrator().HasTable(&models.NutritionPackageItem{}) {
+		DB.Exec("DROP INDEX IF EXISTS idx_package_menu")
 	}
 
 	log.Println("Database migrated successfully")
@@ -336,6 +347,11 @@ func Migrate() error {
 		}
 	} else {
 		log.Println("Skipping master data seed - data already exists")
+	}
+
+	// Add general_condition master data (untuk update tanpa drop table)
+	if err := migrations.AddGeneralConditionData(DB); err != nil {
+		log.Printf("Error adding general_condition data: %v", err)
 	}
 
 	// Check inventory/medicine/supplier data
@@ -682,6 +698,7 @@ func SeedData() error {
 		{Name: "medical_records.nursing_care", Module: "Medical Record Management", Category: "Medical", Description: "Create and manage nursing care (asuhan keperawatan) records", Actions: `["create", "update", "delete"]`},
 		{Name: "medical_records.fluid_balance", Module: "Medical Record Management", Category: "Medical", Description: "Create and manage fluid balance records", Actions: `["create", "update", "delete"]`},
 		{Name: "medical_records.bed_transfer", Module: "Medical Record Management", Category: "Medical", Description: "Create and manage bed transfer (mutasi pasien) records", Actions: `["create", "update", "delete"]`},
+		{Name: "medical_records.nutrition_order", Module: "Medical Record Management", Category: "Medical", Description: "Create and manage nutrition orders for inpatient", Actions: `["create", "read", "delete"]`},
 		{Name: "medical_records.medicine_order", Module: "Medical Record Management", Category: "Medical", Description: "Create and view medicine orders from medical record", Actions: `["create", "read"]`},
 		{Name: "medical_records.radiology_order", Module: "Medical Record Management", Category: "Medical", Description: "Create and view radiology orders from medical record", Actions: `["create", "read"]`},
 		{Name: "medical_records.laboratory_order", Module: "Medical Record Management", Category: "Medical", Description: "Create and view laboratory orders from medical record", Actions: `["create", "read"]`},

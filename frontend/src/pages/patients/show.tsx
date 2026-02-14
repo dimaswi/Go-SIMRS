@@ -21,6 +21,7 @@ import {
   Heart,
   CheckCircle,
   XCircle,
+  Smartphone,
 } from 'lucide-react';
 import { format, parseISO, differenceInYears } from 'date-fns';
 import { id } from 'date-fns/locale';
@@ -213,9 +214,17 @@ export default function PatientShow() {
                   )}
                 </div>
                 <div className="space-y-1">
-                  <h1 className="text-lg font-semibold">
-                    {patient.nama_lengkap}
-                  </h1>
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-lg font-semibold">
+                      {patient.nama_lengkap}
+                    </h1>
+                    {patient.registration_source === 'mjkn' && (
+                      <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800 gap-1">
+                        <Smartphone className="h-3 w-3" />
+                        Mobile JKN
+                      </Badge>
+                    )}
+                  </div>
                   <p className="text-sm text-muted-foreground">
                     No. RM: {patient.no_rm} • {patient.jenis_kelamin === 'L' ? 'Laki-laki' : 'Perempuan'} • {calculateAge(patient.tanggal_lahir)}
                   </p>

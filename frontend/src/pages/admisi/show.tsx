@@ -102,6 +102,9 @@ export default function AdmissionRequestShowPage() {
   const [rejectReason, setRejectReason] = useState("");
   const [rejecting, setRejecting] = useState(false);
 
+  // BPJS Warning Dialog (pasien BPJS tanpa SEP)
+  const [bpjsWarningOpen, setBpjsWarningOpen] = useState(false);
+
   // SEP Form
   const [sepSheetOpen, setSepSheetOpen] = useState(false);
   const [sepNumber, setSepNumber] = useState("");
@@ -172,9 +175,10 @@ export default function AdmissionRequestShowPage() {
     }
   };
 
-  const fetchExistingSEP = async (patientId: number, sourceVisitId?: number) => {
+  const fetchExistingSEP = async (_patientId: number, sourceVisitId?: number) => {
     try {
-      // First try to get SEP by source_visit_id
+      // Cari SEP rawat inap yang SUDAH terhubung ke source visit ini
+      // Tidak boleh ambil SEP dari visit/registrasi lain
       if (sourceVisitId) {
         try {
           const visitSEPRes = await vclaimApi.getSEPByVisit(sourceVisitId);
@@ -186,24 +190,27 @@ export default function AdmissionRequestShowPage() {
             }
           }
         } catch {
-          // No SEP found by visit, try by patient
+          // No SEP found for this visit — SEP belum dibuat, biarkan kosong
         }
       }
 
-      // Fallback: search active rawat inap SEP by patient
-      const sepListRes = await vclaimApi.getSEPList({
-        patient_id: patientId,
-        status: "active",
-        limit: 10,
-      });
-      const sepList = sepListRes.data?.data || [];
-      // Find rawat inap SEP (jns_pelayanan = "1" or "Rawat Inap")
-      const ranapSEP = sepList.find(
-        (sep) => sep.jns_pelayanan === "1" || sep.jns_pelayanan?.toLowerCase().includes("inap")
-      );
-      if (ranapSEP) {
-        setSepNumber(ranapSEP.no_sep);
+      // Cari SEP rawat inap by registration_id dari admission request
+      if (request?.registration_id) {
+        try {
+          const regSEPRes = await vclaimApi.getSEPByRegistration(request.registration_id);
+          if (regSEPRes.data?.data?.no_sep) {
+            if (regSEPRes.data.data.jns_pelayanan === "1") {
+              setSepNumber(regSEPRes.data.data.no_sep);
+              return;
+            }
+          }
+        } catch {
+          // No SEP found for this registration — biarkan kosong
+        }
       }
+
+      // SEP belum ada — user harus buat SEP baru via form
+      // TIDAK fallback ke SEP pasien lain agar tidak salah ambil
     } catch (error) {
       console.error("Failed to fetch existing SEP:", error);
     }
@@ -313,7 +320,7 @@ export default function AdmissionRequestShowPage() {
     }
   };
 
-  const handleProcess = async () => {
+  const handleProcessClick = () => {
     if (!request || !selectedRoomId || !selectedBedId || !selectedDoctorId) {
       toast({
         variant: "destructive",
@@ -323,13 +330,18 @@ export default function AdmissionRequestShowPage() {
       return;
     }
 
-    // Validasi: harus ada SEP terlebih dahulu (kecuali umum)
+    // Jika BPJS dan belum ada SEP → tampilkan warning dialog
     if (!sepNumber && isBPJS) {
-      toast({
-        variant: "destructive",
-        title: "Validasi Gagal",
-        description: "Buat SEP terlebih dahulu sebelum memproses admisi BPJS",
-      });
+      setBpjsWarningOpen(true);
+      return;
+    }
+
+    // Langsung proses
+    handleProcess();
+  };
+
+  const handleProcess = async () => {
+    if (!request || !selectedRoomId || !selectedBedId || !selectedDoctorId) {
       return;
     }
 
@@ -1075,19 +1087,6 @@ export default function AdmissionRequestShowPage() {
                   </Alert>
                 )}
 
-                {/* Info: Opsi Daftar Umum */}
-                {!sepNumber && isBPJS && selectedRoomId && selectedBedId && selectedDoctorId && (
-                  <Alert className="border-amber-200 bg-amber-50">
-                    <AlertTriangle className="h-4 w-4 text-amber-600" />
-                    <AlertDescription className="text-amber-800">
-                      <p className="text-sm">
-                        Pasien ini terdaftar BPJS. Anda bisa <strong>Buat SEP Rawat Inap</strong> untuk jaminan BPJS,
-                        atau pilih <strong>Daftar Umum</strong> untuk mendaftarkan tanpa jaminan BPJS.
-                      </p>
-                    </AlertDescription>
-                  </Alert>
-                )}
-
                 {/* Info: Pasien Non-BPJS */}
                 {!isBPJS && !sepNumber && selectedRoomId && selectedBedId && selectedDoctorId && (
                   <Alert className="border-blue-200 bg-blue-50">
@@ -1113,57 +1112,22 @@ export default function AdmissionRequestShowPage() {
                         Tolak
                       </Button>
 
-                      {sepNumber ? (
-                        /* SEP sudah ada → langsung proses admisi BPJS */
-                        <Button
-                          onClick={handleProcess}
-                          disabled={processing}
-                        >
-                          {processing ? (
-                            <>
-                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                              Memproses...
-                            </>
-                          ) : (
-                            <>
-                              <CheckCircle className="h-4 w-4 mr-2" />
-                              Proses Admisi
-                            </>
-                          )}
-                        </Button>
-                      ) : (
-                        <>
-                          {/* Opsi Buat SEP untuk pasien BPJS (secondary) */}
-                          {isBPJS && (
-                            <Button
-                              variant="outline"
-                              onClick={() => setSepSheetOpen(true)}
-                              disabled={!selectedRoomId || !selectedBedId || !selectedDoctorId}
-                            >
-                              <FileText className="h-4 w-4 mr-2" />
-                              Buat SEP Rawat Inap
-                            </Button>
-                          )}
-
-                          {/* Tombol utama: Proses Admisi (Umum) */}
-                          <Button
-                            onClick={handleProcess}
-                            disabled={processing || !selectedRoomId || !selectedBedId || !selectedDoctorId}
-                          >
-                            {processing ? (
-                              <>
-                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                Memproses...
-                              </>
-                            ) : (
-                              <>
-                                <Wallet className="h-4 w-4 mr-2" />
-                                Proses Admisi (Umum)
-                              </>
-                            )}
-                          </Button>
-                        </>
-                      )}
+                      <Button
+                        onClick={handleProcessClick}
+                        disabled={processing || !selectedRoomId || !selectedBedId || !selectedDoctorId}
+                      >
+                        {processing ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Memproses...
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle className="h-4 w-4 mr-2" />
+                            Proses Admisi
+                          </>
+                        )}
+                      </Button>
                     </>
                   )}
                 </div>
@@ -1265,6 +1229,51 @@ export default function AdmissionRequestShowPage() {
                   Tolak Permintaan
                 </>
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* BPJS Warning Dialog - Pasien BPJS tanpa SEP */}
+      <Dialog open={bpjsWarningOpen} onOpenChange={setBpjsWarningOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-600">
+              <AlertTriangle className="h-5 w-5" />
+              Pasien BPJS Tanpa SEP
+            </DialogTitle>
+            <DialogDescription>
+              Pasien ini terdaftar sebagai pasien <strong>BPJS</strong>, namun belum dibuatkan SEP Rawat Inap.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2">
+            <Alert className="border-amber-200 bg-amber-50">
+              <AlertTriangle className="h-4 w-4 text-amber-600" />
+              <AlertDescription className="text-amber-800 text-sm">
+                Jika dilanjutkan tanpa SEP, kunjungan rawat inap akan didaftarkan sebagai pasien <strong>Umum (non-BPJS)</strong>. Anda masih bisa assign SEP nanti melalui halaman detail pendaftaran.
+              </AlertDescription>
+            </Alert>
+          </div>
+
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setBpjsWarningOpen(false)}
+              className="flex-1"
+            >
+              Batal, Buat SEP Dulu
+            </Button>
+            <Button
+              onClick={() => {
+                setBpjsWarningOpen(false);
+                handleProcess();
+              }}
+              variant="secondary"
+              className="flex-1"
+            >
+              <Wallet className="h-4 w-4 mr-2" />
+              Lanjut Tanpa SEP (Umum)
             </Button>
           </DialogFooter>
         </DialogContent>

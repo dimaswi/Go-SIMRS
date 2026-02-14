@@ -72,6 +72,9 @@ func SetupRoutes(r *gin.Engine) {
 
 			// Procedure Order (Radiology & Laboratory) Management
 			SetupProcedureOrderRoutes(protected)
+
+			// Nutrition/Gizi Management
+			setupNutritionRoutes(protected)
 		}
 
 		// Queue & Registration (mixed public/protected routes)
@@ -118,6 +121,9 @@ func SetupRoutes(r *gin.Engine) {
 
 		// Dashboard Routes (Statistics, Charts, Summary)
 		SetupDashboardRoutes(api)
+
+		// Report Routes (Comprehensive SIMRS Reporting System)
+		SetupReportRoutes(api)
 
 		// Quality Control & Cost Management Routes (Kendali Mutu & Biaya)
 		SetupQualityCostRoutes(api)

@@ -18,6 +18,7 @@ func SetupSignatureRoutes(protected *gin.RouterGroup) {
 
 		// Document Signing
 		signature.POST("/sign", handlers.SignDocument)                       // Sign a document
+		signature.POST("/revoke", handlers.RevokeDocumentSignature)          // Revoke/cancel a signature
 		signature.GET("/status", handlers.GetDocumentSignature)              // Get signature status of a document
 		signature.GET("/check-required", handlers.CheckSignaturePINRequired) // Check if PIN is required
 

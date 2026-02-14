@@ -55,6 +55,7 @@ const (
 	// Medical Record Categories (SATUSEHAT Compliant)
 	CategoryArrivalMode        MasterDataCategory = "arrival_mode"        // Moda Kedatangan
 	CategoryTriageLevel        MasterDataCategory = "triage_level"        // Level Triase (ESI)
+	CategoryGeneralCondition   MasterDataCategory = "general_condition"   // Keadaan Umum
 	CategoryConsciousnessLevel MasterDataCategory = "consciousness_level" // Tingkat Kesadaran
 	CategoryAirwayStatus       MasterDataCategory = "airway_status"       // Status Jalan Napas
 	CategoryBreathingStatus    MasterDataCategory = "breathing_status"    // Status Pernapasan
@@ -129,6 +130,7 @@ func GetCategoryLabel(category MasterDataCategory) string {
 		// Medical Record
 		CategoryArrivalMode:        "Moda Kedatangan",
 		CategoryTriageLevel:        "Level Triase",
+		CategoryGeneralCondition:   "Keadaan Umum",
 		CategoryConsciousnessLevel: "Tingkat Kesadaran",
 		CategoryAirwayStatus:       "Status Jalan Napas",
 		CategoryBreathingStatus:    "Status Pernapasan",
@@ -183,6 +185,7 @@ func GetCategoryDescription(category MasterDataCategory) string {
 		CategoryAnesthesiaType:       "Jenis anestesi untuk tindakan",
 		// Medical Record
 		CategoryArrivalMode:        "Cara kedatangan pasien ke UGD (ambulans, kendaraan pribadi, dll)",
+		CategoryGeneralCondition:   "Keadaan umum pasien (Baik, Sedang, Lemah, Buruk)",
 		CategoryTriageLevel:        "Level triase berdasarkan ESI (Emergency Severity Index)",
 		CategoryConsciousnessLevel: "Tingkat kesadaran pasien (Composmentis, Apatis, Somnolen, dll)",
 		CategoryAirwayStatus:       "Status jalan napas pasien (bebas, tersumbat, dll)",
@@ -233,6 +236,7 @@ func GetAllCategories() []map[string]string {
 		CategoryAnesthesiaType,
 		// Medical Record
 		CategoryArrivalMode,
+		CategoryGeneralCondition,
 		CategoryTriageLevel,
 		CategoryConsciousnessLevel,
 		CategoryAirwayStatus,
@@ -285,6 +289,7 @@ func GetAllCategoriesInfo() []map[string]string {
 		CategoryPatientClass,
 		CategoryAnesthesiaType,
 		// Medical Record
+		CategoryGeneralCondition,
 		CategoryArrivalMode,
 		CategoryTriageLevel,
 		CategoryConsciousnessLevel,

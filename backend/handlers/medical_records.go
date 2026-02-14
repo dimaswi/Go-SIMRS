@@ -1218,8 +1218,10 @@ func SaveDisposition(c *gin.Context) {
 		// Update SEP status to 'deleted' (visit is now discharged)
 		database.DB.Exec(`UPDATE seps SET status = 'deleted', updated_at = ? WHERE visit_id = ?`, now, visit.ID)
 
-		// Update registration status to completed
-		if visit.RegistrationID != 0 {
+		// Update registration status based on disposition type:
+		// - rawat_inap: keep in_progress because patient continues under the same registration
+		// - others (pulang, rujuk, meninggal, dod): set to completed, billing will set to discharged when paid
+		if visit.RegistrationID != 0 && input.DispositionType != "rawat_inap" {
 			database.DB.Exec(`UPDATE registrations SET status = ?, updated_at = ? WHERE id = ?`,
 				models.RegistrationStatusCompleted, now, visit.RegistrationID)
 		}
@@ -1579,9 +1581,13 @@ func createInpatientVisit(tx *gorm.DB, sourceVisit *models.Visit, roomID *uint, 
 		}
 	}
 
-	// Update registration type to inpatient
-	if sourceVisit.Registration != nil {
-		tx.Model(&models.Registration{}).Where("id = ?", sourceVisit.RegistrationID).Update("registration_type", "inpatient")
+	// Update registration type to inpatient and ensure status is in_progress
+	// (SaveDisposition should NOT mark it completed for rawat_inap, but this is a safety net)
+	if sourceVisit.RegistrationID != 0 {
+		tx.Model(&models.Registration{}).Where("id = ?", sourceVisit.RegistrationID).Updates(map[string]interface{}{
+			"registration_type": "inpatient",
+			"status":            models.RegistrationStatusInProgress,
+		})
 	}
 
 	return &inpatientVisit, nil
@@ -1595,6 +1601,34 @@ func createFollowUpRegistration(db *gorm.DB, sourceVisit *models.Visit, followUp
 	// Use database.DB instead of tx to read existing data
 	if err := database.DB.First(&sourceReg, sourceVisit.RegistrationID).Error; err != nil {
 		return nil, fmt.Errorf("source registration not found: %w", err)
+	}
+
+	// =====================================================================
+	// DEDUP: Cek apakah sudah ada registrasi scheduled dari MJKN untuk pasien
+	// ini di ruangan dan tanggal yang sama. Jika ada, gunakan data tersebut
+	// agar tidak terjadi registrasi/kunjungan ganda.
+	// =====================================================================
+	var existingMjknReg models.Registration
+	if err := database.DB.Where(
+		"patient_id = ? AND destination_room_id = ? AND DATE(scheduled_date) = ? AND status = ?",
+		sourceReg.PatientID, *roomID, followUpDate.Format("2006-01-02"), models.RegistrationStatusScheduled,
+	).First(&existingMjknReg).Error; err == nil {
+		// Registrasi sudah ada — link follow-up fields ke registrasi yang ada
+		updates := map[string]interface{}{
+			"is_follow_up":    true,
+			"source_visit_id": sourceVisit.ID,
+		}
+		// Preserve payment method dari source jika belum di-set
+		if existingMjknReg.BPJSNumber == "" && sourceReg.BPJSNumber != "" {
+			updates["bpjs_number"] = sourceReg.BPJSNumber
+		}
+		if err := db.Model(&existingMjknReg).Updates(updates).Error; err != nil {
+			return nil, fmt.Errorf("gagal update registrasi yang sudah ada: %w", err)
+		}
+
+		fmt.Printf("[FollowUp] Reuse registrasi %s dari MJKN untuk follow-up dari visit %d\n",
+			existingMjknReg.RegistrationNumber, sourceVisit.ID)
+		return &existingMjknReg, nil
 	}
 
 	// Get destination room for queue code

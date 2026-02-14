@@ -536,30 +536,32 @@ func VClaimGetSEP(c *gin.Context) {
 
 // SEPImportInput adalah input untuk import SEP dari BPJS ke database lokal
 type SEPImportInput struct {
-	NoSEP        string `json:"no_sep" binding:"required"`
-	NoKartu      string `json:"no_kartu"`
-	NamaPasien   string `json:"nama_pasien"`
-	NIK          string `json:"nik"`
-	TglLahir     string `json:"tgl_lahir"`
-	JenisKelamin string `json:"jenis_kelamin"`
-	TglSEP       string `json:"tgl_sep"`
-	JnsPelayanan string `json:"jns_pelayanan"`
-	KlsRawatHak  string `json:"kls_rawat_hak"`
-	NoMR         string `json:"no_mr"`
-	AsalRujukan  string `json:"asal_rujukan"`
-	NoRujukan    string `json:"no_rujukan"`
-	TglRujukan   string `json:"tgl_rujukan"`
-	PPKRujukan   string `json:"ppk_rujukan"`
-	NamaRujukan  string `json:"nama_rujukan"`
-	KodePoli     string `json:"kode_poli"`
-	NamaPoli     string `json:"nama_poli"`
-	KodeDPJP     string `json:"kode_dpjp"`
-	NamaDPJP     string `json:"nama_dpjp"`
-	PPKPelayanan string `json:"ppk_pelayanan"`
-	DiagAwal     string `json:"diag_awal"`
-	NamaDiagnosa string `json:"nama_diagnosa"`
-	Catatan      string `json:"catatan"`
-	PatientID    uint   `json:"patient_id"`
+	NoSEP          string `json:"no_sep" binding:"required"`
+	NoKartu        string `json:"no_kartu"`
+	NamaPasien     string `json:"nama_pasien"`
+	NIK            string `json:"nik"`
+	TglLahir       string `json:"tgl_lahir"`
+	JenisKelamin   string `json:"jenis_kelamin"`
+	TglSEP         string `json:"tgl_sep"`
+	JnsPelayanan   string `json:"jns_pelayanan"`
+	KlsRawatHak    string `json:"kls_rawat_hak"`
+	NoMR           string `json:"no_mr"`
+	AsalRujukan    string `json:"asal_rujukan"`
+	NoRujukan      string `json:"no_rujukan"`
+	TglRujukan     string `json:"tgl_rujukan"`
+	PPKRujukan     string `json:"ppk_rujukan"`
+	NamaRujukan    string `json:"nama_rujukan"`
+	KodePoli       string `json:"kode_poli"`
+	NamaPoli       string `json:"nama_poli"`
+	KodeDPJP       string `json:"kode_dpjp"`
+	NamaDPJP       string `json:"nama_dpjp"`
+	PPKPelayanan   string `json:"ppk_pelayanan"`
+	DiagAwal       string `json:"diag_awal"`
+	NamaDiagnosa   string `json:"nama_diagnosa"`
+	Catatan        string `json:"catatan"`
+	PatientID      uint   `json:"patient_id"`
+	RegistrationID uint   `json:"registration_id"` // Optional - untuk link ke registration SIMRS
+	VisitID        uint   `json:"visit_id"`        // Optional - untuk link ke visit SIMRS
 }
 
 // VClaimImportSEP menyimpan data SEP dari BPJS ke database lokal
@@ -596,38 +598,56 @@ func VClaimImportSEP(c *gin.Context) {
 		}
 	}
 
+	// Handle nullable registration_id dan visit_id
+	var regID *uint
+	if input.RegistrationID > 0 {
+		regID = &input.RegistrationID
+	}
+	var visitID *uint
+	if input.VisitID > 0 {
+		visitID = &input.VisitID
+	}
+
 	// Buat SEP baru
 	sep := models.SEP{
-		NoSEP:        input.NoSEP,
-		PatientID:    patientID,
-		NoKartu:      input.NoKartu,
-		NamaPasien:   input.NamaPasien,
-		NIK:          input.NIK,
-		TglLahir:     input.TglLahir,
-		JenisKelamin: input.JenisKelamin,
-		TglSEP:       input.TglSEP,
-		JnsPelayanan: input.JnsPelayanan,
-		KlsRawatHak:  input.KlsRawatHak,
-		NoMR:         input.NoMR,
-		AsalRujukan:  input.AsalRujukan,
-		NoRujukan:    input.NoRujukan,
-		TglRujukan:   input.TglRujukan,
-		PPKRujukan:   input.PPKRujukan,
-		NamaRujukan:  input.NamaRujukan,
-		KodePoli:     input.KodePoli,
-		NamaPoli:     input.NamaPoli,
-		KodeDPJP:     input.KodeDPJP,
-		NamaDPJP:     input.NamaDPJP,
-		PPKPelayanan: input.PPKPelayanan,
-		DiagAwal:     input.DiagAwal,
-		NamaDiagnosa: input.NamaDiagnosa,
-		Catatan:      input.Catatan,
-		Status:       "active",
+		NoSEP:          input.NoSEP,
+		PatientID:      patientID,
+		RegistrationID: regID,
+		VisitID:        visitID,
+		NoKartu:        input.NoKartu,
+		NamaPasien:     input.NamaPasien,
+		NIK:            input.NIK,
+		TglLahir:       input.TglLahir,
+		JenisKelamin:   input.JenisKelamin,
+		TglSEP:         input.TglSEP,
+		JnsPelayanan:   input.JnsPelayanan,
+		KlsRawatHak:    input.KlsRawatHak,
+		NoMR:           input.NoMR,
+		AsalRujukan:    input.AsalRujukan,
+		NoRujukan:      input.NoRujukan,
+		TglRujukan:     input.TglRujukan,
+		PPKRujukan:     input.PPKRujukan,
+		NamaRujukan:    input.NamaRujukan,
+		KodePoli:       input.KodePoli,
+		NamaPoli:       input.NamaPoli,
+		KodeDPJP:       input.KodeDPJP,
+		NamaDPJP:       input.NamaDPJP,
+		PPKPelayanan:   input.PPKPelayanan,
+		DiagAwal:       input.DiagAwal,
+		NamaDiagnosa:   input.NamaDiagnosa,
+		Catatan:        input.Catatan,
+		Status:         "active",
 	}
 
 	if err := database.DB.Create(&sep).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan SEP: " + err.Error()})
 		return
+	}
+
+	// Update registration sep_number jika registration_id ada
+	if input.RegistrationID > 0 {
+		database.DB.Model(&models.Registration{}).Where("id = ?", input.RegistrationID).
+			Update("sep_number", input.NoSEP)
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -1160,6 +1180,9 @@ type SuratKontrolInput struct {
 
 	// Version: "v1" atau "v2" (default: v2)
 	Version string `json:"version"`
+
+	// Optional: Buatkan antrean MJKN (Mobile JKN) sekaligus
+	BuatkanAntrean bool `json:"buatkan_antrean"`
 }
 
 // VClaimCreateSuratKontrol membuat surat kontrol baru
@@ -1319,11 +1342,177 @@ func VClaimCreateSuratKontrol(c *gin.Context) {
 	// SEP status will be updated to 'deleted' when disposition is saved (SaveDisposition handler)
 	// And reverted to 'active' when disposition is cancelled (CancelDisposition handler)
 
-	c.JSON(http.StatusOK, gin.H{
+	// === OPTIONAL: Buatkan Antrean MJKN ===
+	var antreanResult map[string]interface{}
+	if input.BuatkanAntrean {
+		antreanResult = buatAntreanDariSuratKontrol(
+			&suratKontrol, &patient, &sep, input,
+		)
+	}
+
+	response := gin.H{
 		"message":          "Surat Kontrol berhasil dibuat",
 		"data":             result,
 		"surat_kontrol_id": suratKontrol.ID,
-	})
+	}
+	if antreanResult != nil {
+		response["antrean"] = antreanResult
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
+// buatAntreanDariSuratKontrol membuat BPJSQueue dan mengirim AddAntrean ke BPJS
+// saat pembuatan Surat Kontrol (opsional). Antrean ini untuk kunjungan kontrol di masa depan via Mobile JKN.
+func buatAntreanDariSuratKontrol(
+	suratKontrol *models.SuratKontrol,
+	patient *models.Patient,
+	sep *models.SEP,
+	input SuratKontrolInput,
+) map[string]interface{} {
+	result := map[string]interface{}{
+		"success": false,
+		"message": "",
+	}
+
+	// Parse tanggal rencana kontrol
+	tglKontrol, err := time.Parse("2006-01-02", input.TglRencanaKontrol)
+	if err != nil {
+		result["message"] = "Format tanggal rencana kontrol tidak valid"
+		fmt.Printf("[BPJS Antrean SK] %s\n", result["message"])
+		return result
+	}
+
+	// Find poli mapping by BPJS poli code
+	var poliMapping models.BPJSPoliMapping
+	if err := database.DB.Where("kode_poli_bpjs = ? AND is_active = ?", input.KodePoli, true).
+		First(&poliMapping).Error; err != nil {
+		result["message"] = fmt.Sprintf("Poli mapping tidak ditemukan untuk kode poli BPJS %s. Pastikan mapping poli sudah dikonfigurasi.", input.KodePoli)
+		fmt.Printf("[BPJS Antrean SK] %s\n", result["message"])
+		return result
+	}
+
+	// Find doctor mapping by BPJS doctor code in this poli
+	var dokterMapping models.BPJSDoctorMapping
+	if err := database.DB.Where("poli_mapping_id = ? AND kode_dokter_bpjs = ? AND is_active = ?",
+		poliMapping.ID, input.KodeDokter, true).First(&dokterMapping).Error; err != nil {
+		result["message"] = fmt.Sprintf("Dokter mapping tidak ditemukan untuk dokter %s di poli %s. Pastikan mapping dokter sudah dikonfigurasi.", input.KodeDokter, poliMapping.NamaPoliBPJS)
+		fmt.Printf("[BPJS Antrean SK] %s\n", result["message"])
+		return result
+	}
+
+	// Generate kode booking
+	kodeBooking := generateKodeBookingSuratKontrol(tglKontrol, input.KodePoli)
+
+	// Calculate angka antrean: count existing queues for this date + poli + dokter + 1
+	var existingCount int64
+	database.DB.Model(&models.BPJSQueue{}).
+		Where("tanggal_periksa = ? AND kode_poli = ? AND kode_dokter = ? AND deleted_at IS NULL",
+			tglKontrol, input.KodePoli, input.KodeDokter).
+		Count(&existingCount)
+	angkaAntrean := int(existingCount) + 1
+	nomorAntrean := fmt.Sprintf("%s-%d", input.KodePoli, angkaAntrean)
+
+	// Calculate estimasi dilayani (15 menit per pasien)
+	jamPraktek := dokterMapping.JamPraktek
+	if jamPraktek == "" {
+		jamPraktek = "08:00-17:00"
+	}
+	jamPraktekParts := strings.Split(jamPraktek, "-")
+	jamMulai := "08:00"
+	if len(jamPraktekParts) > 0 {
+		jamMulai = jamPraktekParts[0]
+	}
+	startTime, _ := time.Parse("15:04", jamMulai)
+	estimasiTime := time.Date(tglKontrol.Year(), tglKontrol.Month(), tglKontrol.Day(),
+		startTime.Hour(), startTime.Minute(), 0, 0, time.Local)
+	estimasiTime = estimasiTime.Add(time.Duration((angkaAntrean-1)*15) * time.Minute)
+	estimasiDilayani := estimasiTime.UnixMilli()
+
+	// Create BPJSQueue record
+	bpjsQueue := models.BPJSQueue{
+		KodeBooking:      kodeBooking,
+		NomorAntrean:     nomorAntrean,
+		AngkaAntrean:     angkaAntrean,
+		TanggalPeriksa:   tglKontrol,
+		JamPraktek:       jamPraktek,
+		KodePoli:         input.KodePoli,
+		NamaPoli:         input.NamaPoli,
+		KodeDokter:       input.KodeDokter,
+		NamaDokter:       input.NamaDokter,
+		JenisPasien:      "JKN",
+		NoKartu:          sep.NoKartu,
+		NIK:              patient.NIK,
+		NoHP:             patient.NoHP,
+		NoRM:             patient.NoRM,
+		NamaPasien:       patient.NamaLengkap,
+		JenisKunjungan:   3, // 3 = Kontrol
+		NomorReferensi:   suratKontrol.NoSuratKontrol,
+		EstimasiDilayani: estimasiDilayani,
+		Status:           "booking",
+		PatientID:        &input.PatientID,
+		PoliMappingID:    &poliMapping.ID,
+		DoctorMappingID:  &dokterMapping.ID,
+		SyncStatus:       "pending",
+	}
+
+	// Set optional links
+	if input.VisitID > 0 {
+		bpjsQueue.VisitID = &input.VisitID
+	}
+	if input.RegistrationID > 0 {
+		bpjsQueue.RegistrationID = &input.RegistrationID
+	}
+
+	if err := database.DB.Create(&bpjsQueue).Error; err != nil {
+		result["message"] = fmt.Sprintf("Gagal menyimpan BPJSQueue: %s", err.Error())
+		fmt.Printf("[BPJS Antrean SK] %s\n", result["message"])
+		return result
+	}
+
+	// Call AddAntrean to BPJS
+	addSuccess, addCode, addMsg := bpjs.AddAntrean(&bpjsQueue)
+
+	// Update BPJSQueue with result
+	now := time.Now()
+	bpjsQueue.AddAntreanSent = true
+	bpjsQueue.AddAntreanCode = addCode
+	bpjsQueue.AddAntreanMsg = addMsg
+	bpjsQueue.LastSyncAt = &now
+
+	if addSuccess {
+		bpjsQueue.SyncStatus = "synced"
+		fmt.Printf("[BPJS Antrean SK] AddAntrean berhasil untuk kode_booking: %s, no_surat_kontrol: %s\n", kodeBooking, suratKontrol.NoSuratKontrol)
+	} else {
+		bpjsQueue.SyncStatus = "failed"
+		bpjsQueue.SyncError = addMsg
+		fmt.Printf("[BPJS Antrean SK] AddAntrean gagal untuk kode_booking: %s - [%d] %s\n", kodeBooking, addCode, addMsg)
+	}
+
+	database.DB.Save(&bpjsQueue)
+
+	result["success"] = addSuccess
+	result["kode_booking"] = kodeBooking
+	result["nomor_antrean"] = nomorAntrean
+	result["angka_antrean"] = angkaAntrean
+	result["estimasi_dilayani"] = estimasiDilayani
+	result["tanggal_periksa"] = input.TglRencanaKontrol
+	result["bpjs_queue_id"] = bpjsQueue.ID
+	if addSuccess {
+		result["message"] = fmt.Sprintf("Antrean MJKN berhasil dibuat dengan kode booking: %s", kodeBooking)
+	} else {
+		result["message"] = fmt.Sprintf("Antrean lokal tersimpan, namun sinkronisasi ke BPJS gagal: [%d] %s", addCode, addMsg)
+	}
+
+	return result
+}
+
+// generateKodeBookingSuratKontrol generates unique booking code for Surat Kontrol queue
+// Format: SK + DDMMYYYY + kodePoli + HHmmss
+func generateKodeBookingSuratKontrol(tanggal time.Time, kodePoli string) string {
+	dateStr := tanggal.Format("02012006")     // DDMMYYYY
+	timeSuffix := time.Now().Format("150405") // HHmmss - unique per second
+	return fmt.Sprintf("SK%s%s%s", dateStr, kodePoli, timeSuffix)
 }
 
 // GetSuratKontrolByVisit mendapatkan surat kontrol berdasarkan visit ID

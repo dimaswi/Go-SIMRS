@@ -48,7 +48,9 @@ const statusColors: Record<string, string> = {
   in_queue: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
   in_progress: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
   completed: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+  discharged: "bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200",
   cancelled: "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400",
+  no_show: "bg-red-100 text-red-600 dark:bg-red-900 dark:text-red-300",
 };
 
 const paymentColors: Record<string, string> = {
@@ -141,11 +143,16 @@ export function createRegistrationColumns(
     {
       accessorKey: "status",
       header: "Status",
-      cell: ({ row }) => (
-        <Badge className={statusColors[row.original.status]}>
-          {registrationStatusLabels[row.original.status]}
-        </Badge>
-      ),
+      cell: ({ row }) => {
+        const status = row.original.status;
+        const colorClass = statusColors[status] || "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300";
+        const label = registrationStatusLabels[status] || status || "-";
+        return (
+          <Badge className={colorClass}>
+            {label}
+          </Badge>
+        );
+      },
     },
     {
       id: "actions",

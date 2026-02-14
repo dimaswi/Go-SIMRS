@@ -10,7 +10,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Eye, Pencil, Trash2, User, ArrowUpDown, CheckCircle, XCircle } from "lucide-react";
+import { MoreHorizontal, Eye, Pencil, Trash2, User, ArrowUpDown, CheckCircle, XCircle, Smartphone } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { format, differenceInYears, parseISO } from "date-fns";
 import { id } from "date-fns/locale";
 
@@ -79,9 +85,25 @@ export const createPatientColumns = ({
       </Button>
     ),
     cell: ({ row }) => (
-      <span className="font-mono text-sm font-medium">
-        {row.original.no_rm}
-      </span>
+      <div className="flex items-center gap-2">
+        <span className="font-mono text-sm font-medium">
+          {row.original.no_rm}
+        </span>
+        {row.original.registration_source === 'mjkn' && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex items-center justify-center h-5 w-5 rounded bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300 flex-shrink-0">
+                  <Smartphone className="h-3.5 w-3.5" />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Pasien terdaftar dari Mobile JKN</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
+      </div>
     ),
   },
   {

@@ -105,7 +105,7 @@ func ChangeSignaturePIN(c *gin.Context) {
 
 	// Verify old PIN
 	if !user.CheckSignaturePin(req.OldPIN) {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "PIN lama salah"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "PIN lama salah"})
 		return
 	}
 
@@ -213,7 +213,7 @@ func SignDocument(c *gin.Context) {
 		}
 
 		if !user.CheckSignaturePin(req.PIN) {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "PIN salah"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "PIN salah"})
 			return
 		}
 	}
@@ -322,7 +322,7 @@ func VerifySignaturePIN(c *gin.Context) {
 	}
 
 	if !user.CheckSignaturePin(req.PIN) {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "PIN salah", "valid": false})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "PIN salah", "valid": false})
 		return
 	}
 
@@ -527,4 +527,132 @@ func generateHMAC(data, secret string) string {
 	h := hmac.New(sha256.New, []byte(secret))
 	h.Write([]byte(data))
 	return hex.EncodeToString(h.Sum(nil))
+}
+
+// RevokeDocumentSignature revokes/cancels a document signature
+// Requires PIN verification and creates an audit log entry
+type RevokeSignatureRequest struct {
+	DocumentType string `json:"document_type" binding:"required"`
+	DocumentID   uint   `json:"document_id" binding:"required"`
+	PIN          string `json:"pin" binding:"required,len=6,numeric"`
+	Reason       string `json:"reason"` // Optional reason for revocation
+}
+
+func RevokeDocumentSignature(c *gin.Context) {
+	userID := c.MustGet("user_id").(uint)
+
+	var req RevokeSignatureRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Get user
+	var user models.User
+	if err := database.DB.Preload("Employee").First(&user, userID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User tidak ditemukan"})
+		return
+	}
+
+	// Verify PIN (always required for revocation)
+	if user.SignaturePin == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":    "Anda belum mengatur PIN tanda tangan",
+			"code":     "PIN_NOT_SET",
+			"redirect": "/settings/signature-pin",
+		})
+		return
+	}
+
+	if !user.CheckSignaturePin(req.PIN) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "PIN salah"})
+		return
+	}
+
+	// Check if document is signed
+	var docSignature models.DocumentSignature
+	if err := database.DB.Where("document_type = ? AND document_id = ?", req.DocumentType, req.DocumentID).
+		First(&docSignature).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Tanda tangan tidak ditemukan"})
+		return
+	}
+
+	if docSignature.SignedAt == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Dokumen belum ditandatangani"})
+		return
+	}
+
+	// Get signer info
+	var signerName, signerNIP, signerSTR, signerSIP, signerRole string
+	var signerEmployeeID *uint
+	if user.Employee != nil {
+		signerName = user.Employee.NamaLengkap
+		signerNIP = user.Employee.NIP
+		signerSTR = user.Employee.NoSTR
+		signerSIP = user.Employee.NoSIP
+		signerRole = user.Employee.Jabatan
+		signerEmployeeID = &user.Employee.ID
+	} else {
+		signerName = user.FullName
+	}
+
+	revokedAt := time.Now()
+	revokeData := fmt.Sprintf("revoke:%s:%d:%d:%s", req.DocumentType, req.DocumentID, userID, revokedAt.Format(time.RFC3339))
+	secretKey := os.Getenv("JWT_SECRET")
+	if secretKey == "" {
+		secretKey = "default-signature-secret"
+	}
+	revokeHash := generateHMAC(revokeData, secretKey)
+
+	notes := "Pembatalan tanda tangan digital"
+	if req.Reason != "" {
+		notes = req.Reason
+	}
+
+	// Get the original sign log to retrieve correct VisitID
+	var originalSignLog models.SignatureLog
+	var visitID *uint
+	if err := database.DB.Where("document_type = ? AND document_id = ? AND action = ?",
+		req.DocumentType, req.DocumentID, models.SignActionSign).
+		Order("signed_at DESC").First(&originalSignLog).Error; err == nil {
+		visitID = originalSignLog.VisitID
+	}
+
+	// Create revoke audit log
+	revokeLog := models.SignatureLog{
+		UserID:           userID,
+		DocumentType:     req.DocumentType,
+		DocumentID:       req.DocumentID,
+		VisitID:          visitID,
+		SignedAt:         revokedAt,
+		SignatureHash:    revokeHash,
+		Action:           models.SignActionRevoke,
+		SignerName:       signerName,
+		SignerNIP:        signerNIP,
+		SignerSTR:        signerSTR,
+		SignerSIP:        signerSIP,
+		SignerRole:       signerRole,
+		SignerEmployeeID: signerEmployeeID,
+		IPAddress:        c.ClientIP(),
+		UserAgent:        c.Request.UserAgent(),
+		Notes:            notes,
+	}
+
+	if err := database.DB.Create(&revokeLog).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan log pembatalan"})
+		return
+	}
+
+	// Clear the document signature
+	docSignature.SignedAt = nil
+	docSignature.SignedByID = nil
+	docSignature.SignatureHash = ""
+	docSignature.IsLocked = false
+	database.DB.Save(&docSignature)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":    "Tanda tangan berhasil dibatalkan",
+		"revoked_at": revokedAt,
+		"revoked_by": signerName,
+	})
 }

@@ -20,6 +20,7 @@ import { QueueRoutes } from './QueueRoutes';
 import { RegistrationRoutes } from './RegistrationRoutes';
 import { IntegrationsRoutes } from './IntegrationsRoutes';
 import { ArchiveRoutes } from './ArchiveRoutes';
+import { NutritionRoutes } from './NutritionRoutes';
 
 export {
   UserRoutes,
@@ -44,4 +45,5 @@ export {
   RegistrationRoutes,
   IntegrationsRoutes,
   ArchiveRoutes,
+  NutritionRoutes,
 };

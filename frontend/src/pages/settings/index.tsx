@@ -7,8 +7,9 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, Building2, Save, Loader2, Upload, Image, FileImage, Hospital, Phone, Mail, Globe, ShieldCheck, FileEdit, ExternalLink } from "lucide-react";
+import { ArrowLeft, Building2, Save, Loader2, Upload, Image, FileImage, Hospital, Phone, Mail, Globe, ShieldCheck, FileEdit, ExternalLink, QrCode } from "lucide-react";
 import { settingsApi } from "@/lib/api";
+import { QRCodeSVG } from "qrcode.react";
 
 // Get base URL without /api suffix
 const getBaseUrl = () => {
@@ -796,6 +797,49 @@ export default function SettingsPage() {
                       onCheckedChange={handleSaveSignatureSettings}
                       disabled={savingSignature}
                     />
+                  </div>
+
+                  <Separator />
+
+                  {/* QR Code Preview with Logo */}
+                  <div className="space-y-3">
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2">
+                        <QrCode className="h-4 w-4 text-muted-foreground" />
+                        <Label className="text-sm font-medium">QR Code Verifikasi</Label>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        QR code ini akan muncul pada cetakan dokumen yang sudah ditandatangani digital. Logo rumah sakit otomatis ditampilkan di tengah QR code.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-6">
+                      <div className="border rounded-lg p-3 bg-white">
+                        <QRCodeSVG
+                          value={`${window.location.origin}/verify/example-hash`}
+                          size={120}
+                          level="M"
+                          imageSettings={appLogo ? {
+                            src: `${BASE_URL}${appLogo}`,
+                            height: 24,
+                            width: 24,
+                            excavate: true,
+                          } : undefined}
+                        />
+                      </div>
+                      <div className="space-y-1.5 text-xs text-muted-foreground">
+                        <p>Preview QR code pada cetakan PDF:</p>
+                        <ul className="list-disc list-inside space-y-0.5">
+                          <li>Logo RS otomatis diambil dari Application Logo</li>
+                          <li>QR mengarah ke halaman verifikasi tanda tangan</li>
+                          <li>Tampil hanya pada dokumen yang sudah ditandatangani</li>
+                        </ul>
+                        {!appLogo && (
+                          <p className="text-amber-600 font-medium mt-2">
+                            Upload logo aplikasi terlebih dahulu untuk menampilkan logo di QR code
+                          </p>
+                        )}
+                      </div>
+                    </div>
                   </div>
 
                   <Separator />

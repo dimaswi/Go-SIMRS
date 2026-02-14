@@ -102,6 +102,7 @@ export interface Registration {
     foto?: string;
     no_bpjs?: string;
     kelas_bpjs?: string;
+    registration_source?: string; // "manual" | "mjkn"
     // English fallbacks
     name?: string;
     medical_record_number?: string;
@@ -159,6 +160,22 @@ export interface Registration {
       status: string;
     };
   };
+  // All visits for this registration
+  visits?: {
+    id: number;
+    ID?: number;
+    visit_number: string;
+    visit_type: string;
+    status: string;
+    room_id?: number;
+    room?: {
+      id?: number;
+      ID?: number;
+      code: string;
+      name: string;
+    };
+    created_at?: string;
+  }[];
   // GORM fields - both cases supported
   created_at?: string;
   updated_at?: string;
@@ -366,6 +383,7 @@ export const registrationStatusLabels: Record<string, string> = {
   in_queue: "Dalam Antrean",
   in_progress: "Sedang Dilayani",
   completed: "Selesai",
+  discharged: "Sudah Pulang",
   cancelled: "Dibatalkan",
   scheduled: "Terjadwal",
   no_show: "Tidak Datang",

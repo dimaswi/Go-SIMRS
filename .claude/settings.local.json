@@ -6,7 +6,8 @@
       "Bash(grep:*)",
       "Bash(npx tsc:*)",
       "Bash(go build:*)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(npx vite build)"
     ]
   }
 }

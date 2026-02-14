@@ -65,6 +65,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { api } from "@/lib/api";
+import { vclaimApi, type VClaimSEP } from "@/lib/api/vclaim";
+import { Search } from "lucide-react";
 
 interface SEPLocal {
   id: number;
@@ -111,6 +113,13 @@ export default function RegistrationShow() {
     insurance_name: "",
     insurance_number: "",
   });
+  // SEP lookup states
+  const [sepInputNumber, setSepInputNumber] = useState("");
+  const [searchingSEP, setSearchingSEP] = useState(false);
+  const [foundSEP, setFoundSEP] = useState<VClaimSEP | null>(null);
+  const [sepSearchError, setSepSearchError] = useState("");
+  const [savingSEP, setSavingSEP] = useState(false);
+  const [selectedVisitId, setSelectedVisitId] = useState<string>("");
   const [sepEditForm, setSepEditForm] = useState({
     catatan: "",
     diag_awal: "",
@@ -186,7 +195,84 @@ export default function RegistrationShow() {
         insurance_name: registration.insurance_name || "",
         insurance_number: registration.insurance_number || "",
       });
+      // Reset SEP lookup states
+      setSepInputNumber("");
+      setFoundSEP(null);
+      setSepSearchError("");
+      setSelectedVisitId("");
       setEditPaymentOpen(true);
+    }
+  };
+
+  const handleSearchSEP = async () => {
+    if (!sepInputNumber.trim()) return;
+
+    setSearchingSEP(true);
+    setSepSearchError("");
+    setFoundSEP(null);
+    try {
+      const response = await vclaimApi.getSEP(sepInputNumber.trim());
+      if (response.data.data) {
+        setFoundSEP(response.data.data);
+      } else {
+        setSepSearchError("SEP tidak ditemukan");
+      }
+    } catch (error: any) {
+      setSepSearchError(error.response?.data?.error || "Gagal mencari SEP");
+    } finally {
+      setSearchingSEP(false);
+    }
+  };
+
+  const handleSaveSEP = async () => {
+    if (!foundSEP || !registration || !id) return;
+
+    setSavingSEP(true);
+    try {
+      const patientId = registration.patient?.ID || registration.patient?.id || 0;
+      const visitId = selectedVisitId && selectedVisitId !== "none" ? parseInt(selectedVisitId) : undefined;
+
+      // Import SEP ke database lokal
+      await api.post("/bpjs/vclaim/sep/import", {
+        no_sep: foundSEP.noSep,
+        no_kartu: foundSEP.peserta?.noKartu || "",
+        nama_pasien: foundSEP.peserta?.nama || "",
+        nik: foundSEP.peserta?.nik || "",
+        tgl_lahir: foundSEP.peserta?.tglLahir || "",
+        jenis_kelamin: foundSEP.peserta?.jnsKelamin || "",
+        tgl_sep: foundSEP.tglSep || "",
+        jns_pelayanan: foundSEP.jnsPelayanan || "",
+        kls_rawat_hak: foundSEP.peserta?.klsRawat?.klsRawatHak || "",
+        no_mr: foundSEP.peserta?.noMr || "",
+        kode_poli: foundSEP.poli || "",
+        nama_poli: foundSEP.poli || "",
+        diag_awal: foundSEP.diagnosa || "",
+        nama_diagnosa: foundSEP.diagnosa || "",
+        catatan: foundSEP.catatan || "",
+        patient_id: patientId,
+        registration_id: parseInt(id),
+        visit_id: visitId,
+      });
+
+      toast({
+        title: "Berhasil",
+        description: "SEP berhasil disimpan dan di-assign ke pendaftaran",
+      });
+
+      // Reset and close
+      setFoundSEP(null);
+      setSepInputNumber("");
+      setSelectedVisitId("");
+      setEditPaymentOpen(false);
+      await loadRegistration();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.response?.data?.error || "Gagal menyimpan SEP",
+      });
+    } finally {
+      setSavingSEP(false);
     }
   };
 
@@ -978,7 +1064,7 @@ export default function RegistrationShow() {
 
       {/* Modal Edit Pembayaran */}
       <Dialog open={editPaymentOpen} onOpenChange={setEditPaymentOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Ubah Metode Pembayaran</DialogTitle>
             <DialogDescription>
@@ -1005,15 +1091,151 @@ export default function RegistrationShow() {
             </div>
 
             {paymentForm.payment_method === "bpjs" && (
-              <div className="space-y-2">
-                <Label htmlFor="bpjs_number">Nomor BPJS</Label>
-                <Input
-                  id="bpjs_number"
-                  placeholder="Masukkan nomor kartu BPJS"
-                  value={paymentForm.bpjs_number}
-                  onChange={(e) => setPaymentForm(prev => ({ ...prev, bpjs_number: e.target.value }))}
-                />
-              </div>
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="bpjs_number">Nomor BPJS</Label>
+                  <Input
+                    id="bpjs_number"
+                    placeholder="Masukkan nomor kartu BPJS"
+                    value={paymentForm.bpjs_number}
+                    onChange={(e) => setPaymentForm(prev => ({ ...prev, bpjs_number: e.target.value }))}
+                  />
+                </div>
+
+                {/* SEP Lookup Section */}
+                <div className="space-y-3 rounded-lg border p-3 bg-blue-50/50 border-blue-200">
+                  <Label className="text-sm font-medium flex items-center gap-2">
+                    <ShieldCheck className="h-4 w-4 text-blue-600" />
+                    Assign SEP (Opsional)
+                  </Label>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Masukkan nomor SEP"
+                      value={sepInputNumber}
+                      onChange={(e) => {
+                        setSepInputNumber(e.target.value);
+                        if (foundSEP) {
+                          setFoundSEP(null);
+                          setSepSearchError("");
+                          setSelectedVisitId("");
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleSearchSEP();
+                        }
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={handleSearchSEP}
+                      disabled={searchingSEP || !sepInputNumber.trim()}
+                    >
+                      {searchingSEP ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Search className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+
+                  {sepSearchError && (
+                    <p className="text-xs text-destructive flex items-center gap-1">
+                      <AlertCircle className="h-3 w-3" />
+                      {sepSearchError}
+                    </p>
+                  )}
+
+                  {/* SEP Preview */}
+                  {foundSEP && (
+                    <div className="space-y-3">
+                      <div className="rounded-md border bg-white p-3 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <ShieldCheck className="h-4 w-4 text-green-600" />
+                          <span className="text-sm font-medium text-green-700">SEP Ditemukan</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div>
+                            <span className="text-muted-foreground">No. SEP:</span>
+                            <p className="font-mono font-medium">{foundSEP.noSep}</p>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Tanggal:</span>
+                            <p className="font-medium">{foundSEP.tglSep}</p>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Peserta:</span>
+                            <p className="font-medium">{foundSEP.peserta?.nama || "-"}</p>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">No. Kartu:</span>
+                            <p className="font-mono font-medium">{foundSEP.peserta?.noKartu || "-"}</p>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Poli:</span>
+                            <p className="font-medium">{foundSEP.poli || "-"}</p>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Diagnosa:</span>
+                            <p className="font-medium">{foundSEP.diagnosa || "-"}</p>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Jenis Pelayanan:</span>
+                            <p className="font-medium">
+                              {foundSEP.jnsPelayanan === "1" ? "Rawat Inap" : foundSEP.jnsPelayanan === "2" ? "Rawat Jalan" : foundSEP.jnsPelayanan}
+                            </p>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Kelas Rawat:</span>
+                            <p className="font-medium">Kelas {foundSEP.peserta?.klsRawat?.klsRawatHak || "-"}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Visit Selector */}
+                      {registration?.visits && registration.visits.length > 0 && (
+                        <div className="space-y-2">
+                          <Label className="text-xs">Assign ke Visit (Opsional)</Label>
+                          <Select
+                            value={selectedVisitId}
+                            onValueChange={setSelectedVisitId}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Pilih visit untuk assign SEP" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">Tidak assign ke visit</SelectItem>
+                              {registration.visits.map((v) => (
+                                <SelectItem key={v.id || v.ID} value={String(v.id || v.ID)}>
+                                  {v.visit_number} - {v.visit_type === "emergency" ? "UGD" : v.visit_type === "inpatient" ? "Rawat Inap" : v.visit_type === "outpatient" ? "Rawat Jalan" : v.visit_type}
+                                  {v.room?.name ? ` (${v.room.name})` : ""}
+                                  {" "}- {v.status}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+
+                      <Button
+                        className="w-full"
+                        onClick={handleSaveSEP}
+                        disabled={savingSEP}
+                      >
+                        {savingSEP ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <ShieldCheck className="mr-2 h-4 w-4" />
+                        )}
+                        Simpan SEP & Assign ke Pendaftaran
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </>
             )}
 
             {paymentForm.payment_method === "insurance" && (

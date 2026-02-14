@@ -88,5 +88,9 @@ func SetupPrintRoutes(api *gin.RouterGroup) {
 		// H. Billing & Kasir
 		// Billing/Invoice PDF (Kwitansi)
 		print.GET("/billing/:billingId", handlers.PrintBilling)
+
+		// I. Gizi / Nutrisi
+		// Nutrition food etiket (Thermal 100mm width)
+		print.GET("/nutrition-etiket/:orderId", handlers.PrintNutritionEtiket)
 	}
 }

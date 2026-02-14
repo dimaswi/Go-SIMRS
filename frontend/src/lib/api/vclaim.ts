@@ -559,6 +559,7 @@ export interface SuratKontrolRequest {
   kd_status_prb?: string;
   data_prb?: PRBFormData;
   version?: 'v1' | 'v2'; // v1 = tanpa PRB, v2 = dengan PRB (default)
+  buatkan_antrean?: boolean; // Opsional: Buatkan antrean MJKN sekaligus
 }
 
 // Surat Kontrol Response from BPJS
@@ -721,7 +722,7 @@ export const vclaimApi = {
 
   // Surat Kontrol (SKDP Rawat Jalan) - untuk disposisi pulang
   createSuratKontrol: (data: SuratKontrolRequest) =>
-    api.post<{ data: SuratKontrolResponse; message: string; surat_kontrol_id: number }>('/bpjs/vclaim/surat-kontrol', data),
+    api.post<{ data: SuratKontrolResponse; message: string; surat_kontrol_id: number; antrean?: { success: boolean; message: string; kode_booking?: string; nomor_antrean?: string } }>('/bpjs/vclaim/surat-kontrol', data),
 
   deleteSuratKontrol: (noSuratKontrol: string) =>
     api.delete<{ message: string }>(`/bpjs/vclaim/surat-kontrol/${noSuratKontrol}`),

@@ -130,6 +130,10 @@ type BillingItem struct {
 	BillingID uint     `gorm:"not null;index" json:"billing_id"`
 	Billing   *Billing `gorm:"foreignKey:BillingID" json:"billing,omitempty"`
 
+	// Source Visit Reference (which visit generated this item)
+	SourceVisitID *uint  `gorm:"index" json:"source_visit_id"`
+	SourceVisit   *Visit `gorm:"foreignKey:SourceVisitID" json:"source_visit,omitempty"`
+
 	// Item Type
 	ItemType string `gorm:"not null;size:20" json:"item_type"` // registration, procedure, radiology, laboratory, medicine, room, other
 

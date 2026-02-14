@@ -3,6 +3,7 @@ package handlers
 import (
 	"bytes"
 	"fmt"
+	"image/png"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/jung-kurt/gofpdf"
+	qrcode "github.com/skip2/go-qrcode"
 	"gorm.io/gorm"
 )
 
@@ -693,7 +695,7 @@ const (
 	marginTop       = 15.0
 	marginBottom    = 15.0
 	contentWidth    = pageWidth - marginLeft - marginRight // 180mm
-	signatureHeight = 45.0                                 // Space needed for signature area
+	signatureHeight = 55.0                                 // Space needed for signature area (increased for QR)
 	rowHeight       = 5.0                                  // Standard row height
 )
 
@@ -894,9 +896,9 @@ func addTableEnd(pdf *gofpdf.Fpdf) {
 	pdf.SetY(pdf.GetY() + 3)
 }
 
-// addSignature menambahkan area tanda tangan dalam format sederhana
-// Hanya menampilkan kota, tanggal (Indonesia) dan nama dokter
-func addSignature(pdf *gofpdf.Fpdf, city, doctorName, patientLabel string) {
+// addSignature menambahkan area tanda tangan - selalu di tengah/kanan
+// Jika sudah ditandatangani digital, QR code di area TTD + footer validasi di bawah halaman terakhir
+func addSignature(pdf *gofpdf.Fpdf, city, doctorName, patientLabel, docType string, docID uint) {
 	// Check if we have enough space for signature
 	checkPageBreak(pdf, signatureHeight)
 
@@ -908,24 +910,317 @@ func addSignature(pdf *gofpdf.Fpdf, city, doctorName, patientLabel string) {
 		dateStr = city + ", " + dateStr
 	}
 
-	// Simple signature area - right aligned
-	pdf.SetFont("Arial", "", 10)
+	// Check if document is digitally signed
+	var signatureLog models.SignatureLog
+	isSigned := false
+	if docType != "" && docID > 0 {
+		if err := database.DB.Where("document_type = ? AND document_id = ?", docType, docID).
+			Order("signed_at DESC").First(&signatureLog).Error; err == nil {
+			if signatureLog.Action != models.SignActionRevoke {
+				isSigned = true
+				signedDate := formatDateIndonesian(signatureLog.SignedAt)
+				if city != "" {
+					dateStr = city + ", " + signedDate
+				} else {
+					dateStr = signedDate
+				}
+				if signatureLog.SignerName != "" {
+					doctorName = signatureLog.SignerName
+				}
+			}
+		}
+	}
+
+	sigAreaWidth := 70.0
+	sigAreaX := marginLeft + contentWidth - sigAreaWidth
 
 	// City and Date
-	pdf.SetX(marginLeft + contentWidth - 70)
-	pdf.CellFormat(70, 6, dateStr, "", 1, "C", false, 0, "")
+	pdf.SetFont("Arial", "", 10)
+	pdf.SetX(sigAreaX)
+	pdf.CellFormat(sigAreaWidth, 6, dateStr, "", 1, "C", false, 0, "")
 
-	// Label (Dokter Pemeriksa)
-	pdf.SetX(marginLeft + contentWidth - 70)
-	pdf.CellFormat(70, 6, "Dokter Pemeriksa,", "", 1, "C", false, 0, "")
+	// Label
+	pdf.SetX(sigAreaX)
+	if patientLabel != "" {
+		pdf.CellFormat(sigAreaWidth, 6, patientLabel+",", "", 1, "C", false, 0, "")
+	} else {
+		pdf.CellFormat(sigAreaWidth, 6, "Dokter Pemeriksa,", "", 1, "C", false, 0, "")
+	}
 
-	// Signature space (25mm)
-	pdf.SetY(pdf.GetY() + 25)
+	// ============ Signature space with QR if signed ============
+	if isSigned {
+		qrSize := 20.0
+		spaceStartY := pdf.GetY()
+
+		// Generate QR code
+		appURL := os.Getenv("APP_URL")
+		if appURL == "" {
+			appURL = "http://localhost:5173"
+		}
+		verifyURL := fmt.Sprintf("%s/verify/%s", appURL, signatureLog.SignatureHash)
+		qrImgBytes := generateQRCode(verifyURL)
+
+		if qrImgBytes != nil {
+			imgName := fmt.Sprintf("qr_%s_%d", docType, docID)
+			reader := bytes.NewReader(qrImgBytes)
+			pdf.RegisterImageReader(imgName, "PNG", reader)
+
+			// QR code centered in signature space
+			qrX := sigAreaX + (sigAreaWidth-qrSize)/2
+			qrY := spaceStartY + (25-qrSize)/2
+			pdf.Image(imgName, qrX, qrY, qrSize, qrSize, false, "PNG", 0, "")
+
+			// Overlay hospital logo on top of QR code center
+			addLogoOverlayOnQR(pdf, qrX, qrY, qrSize)
+		}
+
+		pdf.SetY(spaceStartY + 25)
+	} else {
+		// Empty signature space
+		pdf.SetY(pdf.GetY() + 25)
+	}
 
 	// Doctor name with underline
 	pdf.SetFont("Arial", "B", 10)
-	pdf.SetX(marginLeft + contentWidth - 70)
-	pdf.CellFormat(70, 6, doctorName, "B", 1, "C", false, 0, "")
+	pdf.SetX(sigAreaX)
+	pdf.CellFormat(sigAreaWidth, 6, doctorName, "B", 1, "C", false, 0, "")
+
+	// SIP info if signed
+	if isSigned && signatureLog.SignerSIP != "" {
+		pdf.SetFont("Arial", "", 7)
+		pdf.SetX(sigAreaX)
+		pdf.CellFormat(sigAreaWidth, 4, "SIP: "+signatureLog.SignerSIP, "", 1, "C", false, 0, "")
+	}
+
+	// ============ DIGITAL SIGNATURE FOOTER on last page ============
+	if isSigned {
+		addDigitalSignatureFooter(pdf, signatureLog, docType, docID)
+	}
+}
+
+// addDualSignature menambahkan area tanda tangan ganda: Pasien/Keluarga di kiri, Dokter di kanan
+// Digunakan untuk resume medis, consent, dsb.
+func addDualSignature(pdf *gofpdf.Fpdf, city, doctorName, docType string, docID uint) {
+	checkPageBreak(pdf, signatureHeight)
+
+	pdf.SetY(pdf.GetY() + 10)
+
+	// Date
+	dateStr := formatDateIndonesian(time.Now())
+	if city != "" {
+		dateStr = city + ", " + dateStr
+	}
+
+	// Check if signed
+	var signatureLog models.SignatureLog
+	isSigned := false
+	if docType != "" && docID > 0 {
+		if err := database.DB.Where("document_type = ? AND document_id = ?", docType, docID).
+			Order("signed_at DESC").First(&signatureLog).Error; err == nil {
+			if signatureLog.Action != models.SignActionRevoke {
+				isSigned = true
+				signedDate := formatDateIndonesian(signatureLog.SignedAt)
+				if city != "" {
+					dateStr = city + ", " + signedDate
+				} else {
+					dateStr = signedDate
+				}
+				if signatureLog.SignerName != "" {
+					doctorName = signatureLog.SignerName
+				}
+			}
+		}
+	}
+
+	sigAreaWidth := 70.0
+	leftX := marginLeft + 10
+	rightX := marginLeft + contentWidth - sigAreaWidth
+
+	startY := pdf.GetY()
+
+	// ─── Date (right side) ───
+	pdf.SetFont("Arial", "", 10)
+	pdf.SetXY(rightX, startY)
+	pdf.CellFormat(sigAreaWidth, 6, dateStr, "", 0, "C", false, 0, "")
+	pdf.Ln(6)
+
+	// ─── Labels ───
+	labelY := startY + 6
+	pdf.SetFont("Arial", "", 10)
+	// Left: Pasien/Keluarga
+	pdf.SetXY(leftX, labelY)
+	pdf.CellFormat(sigAreaWidth, 6, "Pasien/Keluarga,", "", 0, "C", false, 0, "")
+	// Right: Dokter Pemeriksa
+	pdf.SetXY(rightX, labelY)
+	pdf.CellFormat(sigAreaWidth, 6, "Dokter Pemeriksa,", "", 0, "C", false, 0, "")
+
+	// ─── Signature space ───
+	spaceStartY := labelY + 6
+
+	// Right side: QR if signed
+	if isSigned {
+		qrSize := 20.0
+		appURL := os.Getenv("APP_URL")
+		if appURL == "" {
+			appURL = "http://localhost:5173"
+		}
+		verifyURL := fmt.Sprintf("%s/verify/%s", appURL, signatureLog.SignatureHash)
+		qrImgBytes := generateQRCode(verifyURL)
+
+		if qrImgBytes != nil {
+			imgName := fmt.Sprintf("qr_%s_%d", docType, docID)
+			reader := bytes.NewReader(qrImgBytes)
+			pdf.RegisterImageReader(imgName, "PNG", reader)
+
+			qrX := rightX + (sigAreaWidth-qrSize)/2
+			qrY := spaceStartY + (25-qrSize)/2
+			pdf.Image(imgName, qrX, qrY, qrSize, qrSize, false, "PNG", 0, "")
+			addLogoOverlayOnQR(pdf, qrX, qrY, qrSize)
+		}
+	}
+
+	// Move past signature space (25mm)
+	nameY := spaceStartY + 25
+
+	// ─── Names ───
+	pdf.SetFont("Arial", "B", 10)
+	// Left: blank line for wet signature (ttd basah)
+	pdf.SetXY(leftX, nameY)
+	pdf.CellFormat(sigAreaWidth, 6, "", "B", 0, "C", false, 0, "")
+	// Right: doctor name
+	pdf.SetXY(rightX, nameY)
+	pdf.CellFormat(sigAreaWidth, 6, doctorName, "B", 0, "C", false, 0, "")
+
+	pdf.SetY(nameY + 6)
+
+	// SIP if signed
+	if isSigned && signatureLog.SignerSIP != "" {
+		pdf.SetFont("Arial", "", 7)
+		pdf.SetXY(rightX, nameY+6)
+		pdf.CellFormat(sigAreaWidth, 4, "SIP: "+signatureLog.SignerSIP, "", 1, "C", false, 0, "")
+	}
+
+	pdf.SetY(nameY + 10)
+
+	// Footer
+	if isSigned {
+		addDigitalSignatureFooter(pdf, signatureLog, docType, docID)
+	}
+}
+
+// addLogoOverlayOnQR overlays the hospital logo directly on the PDF, centered on the QR code
+func addLogoOverlayOnQR(pdf *gofpdf.Fpdf, qrX, qrY, qrSize float64) {
+	var logoSetting models.Setting
+	if err := database.DB.Where("key = ?", "app_logo").First(&logoSetting).Error; err != nil || logoSetting.Value == "" {
+		return
+	}
+
+	logoFile := strings.TrimPrefix(logoSetting.Value, "/")
+	logoFile = strings.TrimPrefix(logoFile, "uploads/")
+	logoPath := filepath.Join("uploads", logoFile)
+
+	if _, err := os.Stat(logoPath); err != nil {
+		return
+	}
+
+	ext := strings.ToLower(filepath.Ext(logoPath))
+	imgType := ""
+	switch ext {
+	case ".png":
+		imgType = "PNG"
+	case ".jpg", ".jpeg":
+		imgType = "JPG"
+	default:
+		return
+	}
+
+	// Logo size: 20% of QR code size
+	logoSize := qrSize * 0.20
+	// White background padding (minimal)
+	bgPadding := 0.3
+
+	// Center of QR code
+	centerX := qrX + qrSize/2
+	centerY := qrY + qrSize/2
+
+	// Draw white rectangle background behind logo
+	pdf.SetFillColor(255, 255, 255)
+	pdf.Rect(
+		centerX-logoSize/2-bgPadding,
+		centerY-logoSize/2-bgPadding,
+		logoSize+bgPadding*2,
+		logoSize+bgPadding*2,
+		"F",
+	)
+	pdf.SetFillColor(0, 0, 0) // Reset
+
+	// Draw logo image centered
+	pdf.Image(logoPath, centerX-logoSize/2, centerY-logoSize/2, logoSize, logoSize, false, imgType, 0, "")
+}
+
+// addDigitalSignatureFooter menambahkan footer validasi tanda tangan digital
+// di bagian bawah halaman terakhir dengan QR code dan info verifikasi
+func addDigitalSignatureFooter(pdf *gofpdf.Fpdf, signatureLog models.SignatureLog, docType string, docID uint) {
+	footerY := pageHeight - marginBottom - 20
+
+	// Thin separator line
+	pdf.SetDrawColor(180, 180, 180)
+	pdf.SetLineWidth(0.3)
+	pdf.Line(marginLeft, footerY, marginLeft+contentWidth, footerY)
+	pdf.SetDrawColor(0, 0, 0)
+
+	footerY += 2
+
+	appURL := os.Getenv("APP_URL")
+	if appURL == "" {
+		appURL = "http://localhost:5173"
+	}
+	verifyURL := fmt.Sprintf("%s/verify/%s", appURL, signatureLog.SignatureHash)
+
+	qrSize := 15.0
+	qrImgBytes := generateQRCode(verifyURL)
+	if qrImgBytes != nil {
+		imgName := fmt.Sprintf("qrf_%s_%d", docType, docID) // "qrf" to avoid name collision with sig QR
+		reader := bytes.NewReader(qrImgBytes)
+		pdf.RegisterImageReader(imgName, "PNG", reader)
+		pdf.Image(imgName, marginLeft, footerY, qrSize, qrSize, false, "PNG", 0, "")
+
+		// Overlay logo on footer QR too
+		addLogoOverlayOnQR(pdf, marginLeft, footerY, qrSize)
+	}
+
+	// Verification text next to QR code
+	textX := marginLeft + qrSize + 3
+	pdf.SetFont("Arial", "I", 7)
+	pdf.SetTextColor(34, 139, 34)
+	pdf.SetXY(textX, footerY)
+	pdf.CellFormat(0, 3.5, "Dokumen ini telah ditandatangani secara digital", "", 1, "L", false, 0, "")
+	pdf.SetTextColor(80, 80, 80)
+	pdf.SetFont("Arial", "", 6)
+	pdf.SetXY(textX, footerY+3.5)
+	signedTimeStr := signatureLog.SignedAt.Format("02/01/2006 15:04 WIB")
+	pdf.CellFormat(0, 3, fmt.Sprintf("Ditandatangani oleh: %s  |  %s", signatureLog.SignerName, signedTimeStr), "", 1, "L", false, 0, "")
+	pdf.SetXY(textX, footerY+6.5)
+	pdf.CellFormat(0, 3, fmt.Sprintf("Hash: %s", truncateText(signatureLog.SignatureHash, 40)), "", 1, "L", false, 0, "")
+	pdf.SetXY(textX, footerY+9.5)
+	pdf.CellFormat(0, 3, fmt.Sprintf("Verifikasi: %s", verifyURL), "", 1, "L", false, 0, "")
+	pdf.SetTextColor(0, 0, 0)
+}
+
+// generateQRCode generates a plain QR code PNG
+func generateQRCode(content string) []byte {
+	qr, err := qrcode.New(content, qrcode.Medium)
+	if err != nil {
+		return nil
+	}
+	qr.DisableBorder = true
+	qrImg := qr.Image(256)
+
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, qrImg); err != nil {
+		return nil
+	}
+	return buf.Bytes()
 }
 
 func calculateAgeYears(birthDate time.Time) int {
@@ -1328,7 +1623,7 @@ func PrintOutpatientResume(c *gin.Context) {
 	if visit.Doctor != nil {
 		doctorName = visit.Doctor.NamaLengkap
 	}
-	addSignature(pdf, hospitalInfo.City, doctorName, "Pasien/Keluarga")
+	addDualSignature(pdf, hospitalInfo.City, doctorName, models.DocTypeVisitResume, visit.ID)
 
 	// Output PDF
 	var buf bytes.Buffer
@@ -1740,7 +2035,7 @@ func PrintInpatientResume(c *gin.Context) {
 	if visit.Doctor != nil {
 		doctorName = visit.Doctor.NamaLengkap
 	}
-	addSignature(pdf, hospitalInfo.City, doctorName, "Pasien/Keluarga")
+	addDualSignature(pdf, hospitalInfo.City, doctorName, models.DocTypeVisitResume, visit.ID)
 
 	// Output PDF
 	var buf bytes.Buffer
@@ -1928,15 +2223,7 @@ func PrintSickLetter(c *gin.Context) {
 	if visit.Doctor != nil {
 		doctorName = visit.Doctor.NamaLengkap
 	}
-	pdf.SetY(pdf.GetY() + 15)
-	pdf.SetX(130)
-	pdf.CellFormat(60, 5, hospitalInfo.City+", "+formatDateIndonesian(time.Now()), "", 1, "C", false, 0, "")
-	pdf.SetX(130)
-	pdf.CellFormat(60, 5, "Dokter Pemeriksa,", "", 1, "C", false, 0, "")
-	pdf.SetY(pdf.GetY() + 20)
-	pdf.SetX(130)
-	pdf.SetFont("Arial", "B", 11)
-	pdf.CellFormat(60, 5, doctorName, "", 1, "C", false, 0, "")
+	addSignature(pdf, hospitalInfo.City, doctorName, "Dokter Pemeriksa", models.DocTypeSickLetter, visit.ID)
 
 	// Output PDF
 	var buf bytes.Buffer
@@ -2184,15 +2471,7 @@ func PrintDeathCertificate(c *gin.Context) {
 	if visit.Doctor != nil {
 		doctorName = visit.Doctor.NamaLengkap
 	}
-	pdf.SetY(pdf.GetY() + 15)
-	pdf.SetX(130)
-	pdf.CellFormat(60, 5, hospitalInfo.City+", "+formatDateIndonesian(time.Now()), "", 1, "C", false, 0, "")
-	pdf.SetX(130)
-	pdf.CellFormat(60, 5, "Dokter Pemeriksa,", "", 1, "C", false, 0, "")
-	pdf.SetY(pdf.GetY() + 20)
-	pdf.SetX(130)
-	pdf.SetFont("Arial", "B", 11)
-	pdf.CellFormat(60, 5, doctorName, "", 1, "C", false, 0, "")
+	addSignature(pdf, hospitalInfo.City, doctorName, "Dokter Pemeriksa", models.DocTypeDeathCertificate, visit.ID)
 
 	// Output PDF
 	var buf bytes.Buffer
@@ -2288,7 +2567,7 @@ func PrintPrescription(c *gin.Context) {
 	if visit.Doctor != nil {
 		doctorName = visit.Doctor.NamaLengkap
 	}
-	addSignature(pdf, hospitalInfo.City, doctorName, "")
+	addSignature(pdf, hospitalInfo.City, doctorName, "", models.DocTypePrescription, order.ID)
 
 	// Output PDF
 	var buf bytes.Buffer
@@ -2381,7 +2660,7 @@ func PrintLabOrder(c *gin.Context) {
 	if visit.Doctor != nil {
 		doctorName = visit.Doctor.NamaLengkap
 	}
-	addSignature(pdf, hospitalInfo.City, doctorName, "")
+	addSignature(pdf, hospitalInfo.City, doctorName, "", models.DocTypeLabResult, order.ID)
 
 	// Output PDF
 	var buf bytes.Buffer
@@ -2851,7 +3130,7 @@ func PrintEmergencySummary(c *gin.Context) {
 	if visit.Doctor != nil {
 		doctorName = visit.Doctor.NamaLengkap
 	}
-	addSignature(pdf, hospitalInfo.City, doctorName, "Dokter Jaga UGD")
+	addSignature(pdf, hospitalInfo.City, doctorName, "Dokter Jaga UGD", models.DocTypeEmergencySummary, visit.ID)
 
 	// Output PDF
 	var buf bytes.Buffer
@@ -3980,15 +4259,7 @@ func PrintReferralLetter(c *gin.Context) {
 	if visit.Doctor != nil {
 		doctorName = visit.Doctor.NamaLengkap
 	}
-	pdf.SetY(pdf.GetY() + 10)
-	pdf.SetX(marginLeft + contentWidth - 70)
-	pdf.CellFormat(70, 6, hospitalInfo.City+", "+formatDateIndonesian(time.Now()), "", 1, "C", false, 0, "")
-	pdf.SetX(marginLeft + contentWidth - 70)
-	pdf.CellFormat(70, 6, "Dokter yang merujuk,", "", 1, "C", false, 0, "")
-	pdf.SetY(pdf.GetY() + 25)
-	pdf.SetFont("Arial", "B", 10)
-	pdf.SetX(marginLeft + contentWidth - 70)
-	pdf.CellFormat(70, 6, doctorName, "B", 1, "C", false, 0, "")
+	addSignature(pdf, hospitalInfo.City, doctorName, "Dokter yang merujuk", models.DocTypeReferralLetter, visit.ID)
 
 	// Output PDF
 	var buf bytes.Buffer
@@ -4159,16 +4430,7 @@ func PrintInpatientCertificate(c *gin.Context) {
 	pdf.MultiCell(contentWidth, 6, "Demikian surat keterangan ini dibuat dengan sebenarnya untuk dapat dipergunakan sebagaimana mestinya.", "", "L", false)
 
 	// Signature
-	pdf.SetY(pdf.GetY() + 10)
-	pdf.SetFont("Arial", "", 10)
-	pdf.SetX(marginLeft + contentWidth - 70)
-	pdf.CellFormat(70, 6, hospitalInfo.City+", "+formatDateIndonesian(time.Now()), "", 1, "C", false, 0, "")
-	pdf.SetX(marginLeft + contentWidth - 70)
-	pdf.CellFormat(70, 6, "Dokter yang merawat,", "", 1, "C", false, 0, "")
-	pdf.SetY(pdf.GetY() + 25)
-	pdf.SetFont("Arial", "B", 10)
-	pdf.SetX(marginLeft + contentWidth - 70)
-	pdf.CellFormat(70, 6, doctorName, "B", 1, "C", false, 0, "")
+	addSignature(pdf, hospitalInfo.City, doctorName, "Dokter yang merawat", models.DocTypeInpatientCert, visit.ID)
 
 	// Output PDF
 	var buf bytes.Buffer
@@ -5609,8 +5871,13 @@ func PrintRadiologyResultItem(c *gin.Context) {
 }
 
 // PrintBilling generates PDF for billing/invoice
+// Query params:
+//   - mode=per_visit : group items by visit (one section per kunjungan)
+//   - visit_id=123   : print only items for a specific visit
 func PrintBilling(c *gin.Context) {
 	billingID := c.Param("billingId")
+	printMode := c.Query("mode")       // "per_visit" or empty (default: by type)
+	visitFilter := c.Query("visit_id") // filter to single visit
 
 	// Load billing with all relations
 	var billing models.Billing
@@ -5620,7 +5887,12 @@ func PrintBilling(c *gin.Context) {
 		Preload("Visit.Doctor").
 		Preload("Registration").
 		Preload("Registration.Patient").
-		Preload("Items").
+		Preload("Items", func(db *gorm.DB) *gorm.DB {
+			return db.Order("source_visit_id ASC, item_type ASC")
+		}).
+		Preload("Items.SourceVisit").
+		Preload("Items.SourceVisit.Room").
+		Preload("Items.SourceVisit.Doctor").
 		Preload("Payments").
 		Preload("Payments.Cashier").
 		Preload("GeneratedBy").
@@ -5628,6 +5900,24 @@ func PrintBilling(c *gin.Context) {
 		First(&billing, billingID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Billing not found"})
 		return
+	}
+
+	// If visit_id filter, only keep items for that visit
+	if visitFilter != "" {
+		var filtered []models.BillingItem
+		for _, item := range billing.Items {
+			if item.SourceVisitID != nil && fmt.Sprintf("%d", *item.SourceVisitID) == visitFilter {
+				filtered = append(filtered, item)
+			}
+		}
+		billing.Items = filtered
+		// Recalculate total for filtered items
+		var filteredTotal float64
+		for _, item := range filtered {
+			filteredTotal += item.Subtotal
+		}
+		billing.TotalAmount = filteredTotal
+		billing.FinalAmount = filteredTotal - billing.DiscountAmount + billing.AdjustAmount
 	}
 
 	// Get patient data
@@ -5647,7 +5937,11 @@ func PrintBilling(c *gin.Context) {
 	pdf.AddPage()
 
 	// Header
-	addHeader(pdf, hospitalInfo, "KWITANSI / INVOICE", "No: "+billing.BillingNumber)
+	headerSubtitle := "No: " + billing.BillingNumber
+	if visitFilter != "" {
+		headerSubtitle += " (Per Kunjungan)"
+	}
+	addHeader(pdf, hospitalInfo, "KWITANSI / INVOICE", headerSubtitle)
 
 	// Patient Info Section
 	pdf.SetY(pdf.GetY() + 8)
@@ -5746,49 +6040,147 @@ func PrintBilling(c *gin.Context) {
 	pdf.CellFormat(35, 7, "Harga Satuan", "1", 0, "C", true, 0, "")
 	pdf.CellFormat(40, 7, "Subtotal", "1", 1, "C", true, 0, "")
 
-	// Group items by type
-	itemTypes := []string{"registration", "procedure", "radiology", "laboratory", "medicine", "room", "other"}
+	// Item type labels
 	itemTypeLabels := map[string]string{
 		"registration": "Pendaftaran",
 		"procedure":    "Tindakan",
 		"radiology":    "Radiologi",
 		"laboratory":   "Laboratorium",
+		"consultation": "Konsultasi",
 		"medicine":     "Obat",
 		"room":         "Kamar",
 		"other":        "Lain-lain",
 	}
 
+	visitTypeLabels := map[string]string{
+		"outpatient": "Rawat Jalan",
+		"inpatient":  "Rawat Inap",
+		"emergency":  "UGD",
+		"lab":        "Lab",
+		"radiology":  "Radiologi",
+		"surgery":    "Operasi",
+	}
+
 	// Table Body
 	pdf.SetFont("Arial", "", 9)
 	no := 1
-	for _, itemType := range itemTypes {
-		var typeItems []models.BillingItem
+
+	if printMode == "per_visit" {
+		// === PER VISIT MODE: group items by source_visit_id, then by type within each visit ===
+		type visitGroup struct {
+			visit *models.Visit
+			items []models.BillingItem
+			total float64
+		}
+		visitOrder := []uint{}
+		visitMap := map[uint]*visitGroup{}
+
 		for _, item := range billing.Items {
-			if item.ItemType == itemType {
-				typeItems = append(typeItems, item)
+			vid := uint(0)
+			if item.SourceVisitID != nil {
+				vid = *item.SourceVisitID
+			}
+			if _, ok := visitMap[vid]; !ok {
+				visitMap[vid] = &visitGroup{visit: item.SourceVisit}
+				visitOrder = append(visitOrder, vid)
+			}
+			g := visitMap[vid]
+			g.items = append(g.items, item)
+			g.total += item.Subtotal
+		}
+
+		for _, vid := range visitOrder {
+			g := visitMap[vid]
+
+			// Visit header row
+			visitLabel := "Kunjungan"
+			if g.visit != nil {
+				vtLabel := visitTypeLabels[g.visit.VisitType]
+				if vtLabel == "" {
+					vtLabel = g.visit.VisitType
+				}
+				visitLabel = vtLabel
+				if g.visit.Room != nil {
+					visitLabel += " - " + g.visit.Room.Name
+				}
+				if g.visit.Doctor != nil {
+					visitLabel += " (" + g.visit.Doctor.NamaLengkap + ")"
+				}
+			}
+
+			pdf.SetFont("Arial", "B", 9)
+			pdf.SetFillColor(220, 235, 250)
+			pdf.CellFormat(140, 6, visitLabel, "1", 0, "L", true, 0, "")
+			pdf.CellFormat(40, 6, formatCurrency(g.total), "1", 1, "R", true, 0, "")
+			pdf.SetFont("Arial", "", 9)
+
+			// Group items within visit by type
+			itemTypes := []string{"registration", "procedure", "radiology", "laboratory", "consultation", "medicine", "room", "other"}
+			for _, it := range itemTypes {
+				var typeItems []models.BillingItem
+				for _, item := range g.items {
+					if item.ItemType == it {
+						typeItems = append(typeItems, item)
+					}
+				}
+				if len(typeItems) == 0 {
+					continue
+				}
+
+				// Type sub-header
+				pdf.SetFont("Arial", "B", 8)
+				pdf.SetFillColor(248, 248, 248)
+				label := itemTypeLabels[it]
+				if label == "" {
+					label = it
+				}
+				pdf.CellFormat(180, 5, "  "+label, "LR", 1, "L", true, 0, "")
+				pdf.SetFont("Arial", "", 9)
+
+				for _, item := range typeItems {
+					pdf.CellFormat(10, 6, fmt.Sprintf("%d", no), "1", 0, "C", false, 0, "")
+					desc := truncateText(item.Description, 50)
+					pdf.CellFormat(80, 6, desc, "1", 0, "L", false, 0, "")
+					pdf.CellFormat(15, 6, fmt.Sprintf("%d", item.Quantity), "1", 0, "C", false, 0, "")
+					pdf.CellFormat(35, 6, formatCurrency(item.UnitPrice), "1", 0, "R", false, 0, "")
+					pdf.CellFormat(40, 6, formatCurrency(item.Subtotal), "1", 1, "R", false, 0, "")
+					no++
+				}
 			}
 		}
-		if len(typeItems) == 0 {
-			continue
-		}
+	} else {
+		// === DEFAULT MODE: group items by type ===
+		itemTypes := []string{"registration", "procedure", "radiology", "laboratory", "consultation", "medicine", "room", "other"}
+		for _, itemType := range itemTypes {
+			var typeItems []models.BillingItem
+			for _, item := range billing.Items {
+				if item.ItemType == itemType {
+					typeItems = append(typeItems, item)
+				}
+			}
+			if len(typeItems) == 0 {
+				continue
+			}
 
-		// Type header
-		pdf.SetFont("Arial", "B", 9)
-		pdf.SetFillColor(250, 250, 250)
-		pdf.CellFormat(180, 6, itemTypeLabels[itemType], "1", 1, "L", true, 0, "")
-		pdf.SetFont("Arial", "", 9)
+			// Type header
+			pdf.SetFont("Arial", "B", 9)
+			pdf.SetFillColor(250, 250, 250)
+			label := itemTypeLabels[itemType]
+			if label == "" {
+				label = itemType
+			}
+			pdf.CellFormat(180, 6, label, "1", 1, "L", true, 0, "")
+			pdf.SetFont("Arial", "", 9)
 
-		for _, item := range typeItems {
-			pdf.CellFormat(10, 6, fmt.Sprintf("%d", no), "1", 0, "C", false, 0, "")
-
-			// Handle long description with MultiCell
-			desc := truncateText(item.Description, 50)
-			pdf.CellFormat(80, 6, desc, "1", 0, "L", false, 0, "")
-
-			pdf.CellFormat(15, 6, fmt.Sprintf("%d", item.Quantity), "1", 0, "C", false, 0, "")
-			pdf.CellFormat(35, 6, formatCurrency(item.UnitPrice), "1", 0, "R", false, 0, "")
-			pdf.CellFormat(40, 6, formatCurrency(item.Subtotal), "1", 1, "R", false, 0, "")
-			no++
+			for _, item := range typeItems {
+				pdf.CellFormat(10, 6, fmt.Sprintf("%d", no), "1", 0, "C", false, 0, "")
+				desc := truncateText(item.Description, 50)
+				pdf.CellFormat(80, 6, desc, "1", 0, "L", false, 0, "")
+				pdf.CellFormat(15, 6, fmt.Sprintf("%d", item.Quantity), "1", 0, "C", false, 0, "")
+				pdf.CellFormat(35, 6, formatCurrency(item.UnitPrice), "1", 0, "R", false, 0, "")
+				pdf.CellFormat(40, 6, formatCurrency(item.Subtotal), "1", 1, "R", false, 0, "")
+				no++
+			}
 		}
 	}
 
@@ -5923,6 +6315,11 @@ func PrintBilling(c *gin.Context) {
 	}
 
 	filename := fmt.Sprintf("Kwitansi_%s.pdf", billing.BillingNumber)
+	if visitFilter != "" {
+		filename = fmt.Sprintf("Kwitansi_%s_visit_%s.pdf", billing.BillingNumber, visitFilter)
+	} else if printMode == "per_visit" {
+		filename = fmt.Sprintf("Kwitansi_%s_per_kunjungan.pdf", billing.BillingNumber)
+	}
 	c.Header("Content-Type", "application/pdf")
 	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
 	c.Data(http.StatusOK, "application/pdf", buf.Bytes())
@@ -7009,7 +7406,11 @@ func PrintAdmissionDischargeSummary(c *gin.Context) {
 	addTableEnd(pdf)
 
 	// =================== TANDA TANGAN ===================
-	addSignature(pdf, hospitalInfo.City, lastMainDoctor, "Pasien/Keluarga")
+	lastVisitID := uint(0)
+	if len(mainVisits) > 0 {
+		lastVisitID = mainVisits[len(mainVisits)-1].ID
+	}
+	addDualSignature(pdf, hospitalInfo.City, lastMainDoctor, models.DocTypeVisitResume, lastVisitID)
 
 	// Output PDF
 	var buf bytes.Buffer
@@ -8499,6 +8900,378 @@ func PrintSEP(c *gin.Context) {
 	}
 
 	filename := fmt.Sprintf("SEP_%s_%s.pdf", sep.NoSEP, sep.TglSEP)
+	c.Header("Content-Type", "application/pdf")
+	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
+	c.Data(http.StatusOK, "application/pdf", buf.Bytes())
+}
+
+// ===========================================================================
+// NUTRITION ETIKET (100mm width thermal)
+// ===========================================================================
+
+// PrintNutritionEtiket generates a food label/etiket PDF for a nutrition order
+func PrintNutritionEtiket(c *gin.Context) {
+	orderID := c.Param("orderId")
+
+	var order models.NutritionOrder
+	if err := database.DB.
+		Preload("Patient").
+		Preload("Items.Menu").
+		Preload("Package.Items.Menu").
+		Preload("Visit.Room").
+		Preload("Visit.Bed.RoomUnit").
+		First(&order, orderID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Order tidak ditemukan"})
+		return
+	}
+
+	hospitalInfo := getHospitalInfo()
+
+	// Thermal: 100mm width, auto height
+	pageWidth := 100.0
+	pageHeight := 140.0
+
+	pdf := gofpdf.NewCustom(&gofpdf.InitType{
+		UnitStr: "mm",
+		Size:    gofpdf.SizeType{Wd: pageWidth, Ht: pageHeight},
+	})
+	pdf.SetMargins(3, 3, 3)
+	pdf.SetAutoPageBreak(false, 0)
+	pdf.AddPage()
+
+	contentWidth := 94.0
+	marginL := 3.0
+
+	// === KOP HEADER ===
+	headerStartY := 3.0
+
+	// Border box
+	pdf.SetDrawColor(0, 0, 0)
+	pdf.SetLineWidth(0.3)
+
+	// Logo
+	logoWidth := 10.0
+	if hospitalInfo.Logo != "" {
+		logoFile := strings.TrimPrefix(hospitalInfo.Logo, "/")
+		logoFile = strings.TrimPrefix(logoFile, "uploads/")
+		logoPath := filepath.Join("uploads", logoFile)
+		if _, err := os.Stat(logoPath); err == nil {
+			ext := strings.ToLower(filepath.Ext(logoPath))
+			imgType := ""
+			switch ext {
+			case ".png":
+				imgType = "PNG"
+			case ".jpg", ".jpeg":
+				imgType = "JPG"
+			}
+			if imgType != "" {
+				pdf.Image(logoPath, marginL, headerStartY, logoWidth, logoWidth, false, imgType, 0, "")
+			}
+		}
+	}
+
+	// Hospital name
+	textStartX := marginL + logoWidth + 2
+	textWidth := contentWidth - logoWidth - 2
+	pdf.SetFont("Arial", "B", 8)
+	pdf.SetXY(textStartX, headerStartY+1)
+	pdf.MultiCell(textWidth, 3.5, hospitalInfo.Name, "", "C", false)
+
+	// Address
+	pdf.SetFont("Arial", "", 5.5)
+	address := hospitalInfo.Address
+	if hospitalInfo.City != "" {
+		address += ", " + hospitalInfo.City
+	}
+	pdf.SetX(textStartX)
+	pdf.MultiCell(textWidth, 2.5, address, "", "C", false)
+
+	// Phone
+	if hospitalInfo.Phone != "" {
+		pdf.SetX(textStartX)
+		pdf.CellFormat(textWidth, 2.5, "Telp: "+hospitalInfo.Phone, "", 1, "C", false, 0, "")
+	}
+
+	// Double line
+	lineY := headerStartY + logoWidth + 1
+	if pdf.GetY() > lineY {
+		lineY = pdf.GetY() + 0.5
+	}
+	pdf.SetDrawColor(0, 0, 0)
+	pdf.SetLineWidth(0.4)
+	pdf.Line(marginL, lineY, marginL+contentWidth, lineY)
+	pdf.SetLineWidth(0.15)
+	pdf.Line(marginL, lineY+0.5, marginL+contentWidth, lineY+0.5)
+
+	// Title
+	currentY := lineY + 2
+	pdf.SetY(currentY)
+	pdf.SetFont("Arial", "B", 10)
+	pdf.CellFormat(0, 5, "ETIKET MAKANAN", "", 1, "C", false, 0, "")
+	currentY = pdf.GetY() + 1
+
+	// === PATIENT INFO ===
+	labelW := 22.0
+	valueW := contentWidth - labelW
+
+	// Nama Pasien
+	pdf.SetY(currentY)
+	pdf.SetX(marginL)
+	pdf.SetFont("Arial", "", 7)
+	pdf.CellFormat(labelW, 4, "Nama", "", 0, "L", false, 0, "")
+	pdf.SetFont("Arial", "B", 8)
+	patientName := "-"
+	if order.Patient != nil {
+		patientName = order.Patient.NamaLengkap
+	}
+	pdf.CellFormat(valueW, 4, ": "+patientName, "", 1, "L", false, 0, "")
+
+	// No. RM
+	pdf.SetX(marginL)
+	pdf.SetFont("Arial", "", 7)
+	pdf.CellFormat(labelW, 4, "No. RM", "", 0, "L", false, 0, "")
+	pdf.SetFont("Arial", "B", 8)
+	noRM := "-"
+	if order.Patient != nil {
+		noRM = order.Patient.NoRM
+	}
+	pdf.CellFormat(valueW, 4, ": "+noRM, "", 1, "L", false, 0, "")
+
+	// Ruangan / Kamar / Bed (from visit relations)
+	pdf.SetX(marginL)
+	pdf.SetFont("Arial", "", 7)
+	pdf.CellFormat(labelW, 4, "Ruangan", "", 0, "L", false, 0, "")
+	pdf.SetFont("Arial", "", 8)
+	var locationParts []string
+	if order.Visit != nil && order.Visit.Room != nil {
+		locationParts = append(locationParts, order.Visit.Room.Name)
+	} else if order.RoomName != "" {
+		locationParts = append(locationParts, order.RoomName)
+	}
+	if order.Visit != nil && order.Visit.Bed != nil {
+		if order.Visit.Bed.RoomUnit != nil {
+			locationParts = append(locationParts, order.Visit.Bed.RoomUnit.Name)
+		}
+		locationParts = append(locationParts, order.Visit.Bed.BedNumber)
+	} else if order.BedName != "" {
+		locationParts = append(locationParts, order.BedName)
+	}
+	roomBed := strings.Join(locationParts, " / ")
+	pdf.CellFormat(valueW, 4, ": "+roomBed, "", 1, "L", false, 0, "")
+
+	// JK / Umur
+	pdf.SetX(marginL)
+	pdf.SetFont("Arial", "", 7)
+	pdf.CellFormat(labelW, 4, "JK / Umur", "", 0, "L", false, 0, "")
+	pdf.SetFont("Arial", "", 8)
+	genderAge := "-"
+	if order.Patient != nil {
+		gender := string(order.Patient.JenisKelamin)
+		if order.Patient.TanggalLahir != nil && !order.Patient.TanggalLahir.IsZero() {
+			age := calculateAgeYears(order.Patient.TanggalLahir.Time)
+			genderAge = fmt.Sprintf("%s / %d tahun", gender, age)
+		} else {
+			genderAge = gender
+		}
+	}
+	pdf.CellFormat(valueW, 4, ": "+genderAge, "", 1, "L", false, 0, "")
+
+	// Divider
+	currentY = pdf.GetY() + 0.5
+	pdf.SetDrawColor(150, 150, 150)
+	pdf.SetLineWidth(0.2)
+	pdf.Line(marginL, currentY, marginL+contentWidth, currentY)
+
+	// Waktu Makan
+	currentY += 1
+	pdf.SetY(currentY)
+	pdf.SetX(marginL)
+	pdf.SetFont("Arial", "", 7)
+	pdf.CellFormat(labelW, 4, "Waktu Makan", "", 0, "L", false, 0, "")
+	pdf.SetFont("Arial", "B", 8)
+	mealTimeLabel := order.MealTime
+	if label, ok := models.NutritionMealTimeLabels[order.MealTime]; ok {
+		mealTimeLabel = label
+	}
+	pdf.CellFormat(valueW, 4, ": "+mealTimeLabel, "", 1, "L", false, 0, "")
+
+	// Diet
+	pdf.SetX(marginL)
+	pdf.SetFont("Arial", "", 7)
+	pdf.CellFormat(labelW, 4, "Jenis Diet", "", 0, "L", false, 0, "")
+	pdf.SetFont("Arial", "B", 8)
+	dietLabel := order.DietType
+	if label, ok := models.NutritionDietTypeLabels[order.DietType]; ok {
+		dietLabel = label
+	}
+	pdf.CellFormat(valueW, 4, ": "+dietLabel, "", 1, "L", false, 0, "")
+
+	// Paket (if any)
+	if order.Package != nil {
+		pdf.SetX(marginL)
+		pdf.SetFont("Arial", "", 7)
+		pdf.CellFormat(labelW, 4, "Paket", "", 0, "L", false, 0, "")
+		pdf.SetFont("Arial", "B", 8)
+		pdf.CellFormat(valueW, 4, ": "+order.Package.Name, "", 1, "L", false, 0, "")
+	}
+
+	// === MENU ITEMS TABLE ===
+	currentY = pdf.GetY() + 1.5
+	pdf.SetY(currentY)
+	pdf.SetFont("Arial", "B", 8)
+	pdf.SetX(marginL)
+	pdf.CellFormat(contentWidth, 4, "RINCIAN MENU", "B", 1, "L", false, 0, "")
+
+	// Table header
+	currentY = pdf.GetY() + 0.5
+	pdf.SetY(currentY)
+	pdf.SetFont("Arial", "B", 7)
+	pdf.SetFillColor(240, 240, 240)
+	col1W := 38.0 // Menu name
+	col2W := 20.0 // Kategori
+	col3W := 10.0 // Qty
+	col4W := 14.0 // Kalori
+	col5W := 12.0 // Porsi
+	pdf.SetX(marginL)
+	pdf.CellFormat(col1W, 4, "Menu", "B", 0, "L", true, 0, "")
+	pdf.CellFormat(col2W, 4, "Kategori", "B", 0, "L", true, 0, "")
+	pdf.CellFormat(col3W, 4, "Qty", "B", 0, "C", true, 0, "")
+	pdf.CellFormat(col4W, 4, "Kalori", "B", 0, "R", true, 0, "")
+	pdf.CellFormat(col5W, 4, "Porsi", "B", 1, "C", true, 0, "")
+
+	// Collect items: from order items or package items
+	type menuRow struct {
+		Name     string
+		Category string
+		Qty      float64
+		Calories float64
+		Serving  string
+	}
+	var menuRows []menuRow
+
+	if len(order.Items) > 0 {
+		for _, item := range order.Items {
+			row := menuRow{Qty: item.Quantity}
+			if item.Menu != nil {
+				row.Name = item.Menu.Name
+				cat := item.Menu.Category
+				if label, ok := models.NutritionCategoryLabels[cat]; ok {
+					cat = label
+				}
+				row.Category = cat
+				row.Calories = item.Menu.Calories * item.Quantity
+				row.Serving = item.Menu.ServingSize
+			}
+			menuRows = append(menuRows, row)
+		}
+	} else if order.Package != nil {
+		for _, item := range order.Package.Items {
+			row := menuRow{Qty: item.Quantity}
+			if item.Menu != nil {
+				row.Name = item.Menu.Name
+				cat := item.Menu.Category
+				if label, ok := models.NutritionCategoryLabels[cat]; ok {
+					cat = label
+				}
+				row.Category = cat
+				row.Calories = item.Menu.Calories * item.Quantity
+				row.Serving = item.Menu.ServingSize
+			}
+			menuRows = append(menuRows, row)
+		}
+	}
+
+	// Table rows
+	pdf.SetFont("Arial", "", 7)
+	totalCalories := 0.0
+	for _, row := range menuRows {
+		pdf.SetX(marginL)
+		name := row.Name
+		if len(name) > 22 {
+			name = name[:19] + "..."
+		}
+		cat := row.Category
+		if len(cat) > 12 {
+			cat = cat[:9] + "..."
+		}
+		pdf.CellFormat(col1W, 3.5, name, "", 0, "L", false, 0, "")
+		pdf.CellFormat(col2W, 3.5, cat, "", 0, "L", false, 0, "")
+		pdf.CellFormat(col3W, 3.5, fmt.Sprintf("%.0f", row.Qty), "", 0, "C", false, 0, "")
+		calStr := "-"
+		if row.Calories > 0 {
+			calStr = fmt.Sprintf("%.0f kkal", row.Calories)
+			totalCalories += row.Calories
+		}
+		pdf.CellFormat(col4W, 3.5, calStr, "", 0, "R", false, 0, "")
+		serving := row.Serving
+		if len(serving) > 8 {
+			serving = serving[:5] + "..."
+		}
+		pdf.CellFormat(col5W, 3.5, serving, "", 1, "C", false, 0, "")
+	}
+
+	if len(menuRows) == 0 {
+		pdf.SetX(marginL)
+		pdf.SetFont("Arial", "I", 7)
+		pdf.CellFormat(contentWidth, 4, "Tidak ada item menu", "", 1, "C", false, 0, "")
+	}
+
+	// Total calories line
+	if totalCalories > 0 {
+		pdf.SetX(marginL)
+		pdf.SetFont("Arial", "B", 7)
+		pdf.SetDrawColor(0, 0, 0)
+		pdf.CellFormat(col1W+col2W+col3W, 3.5, "Total Kalori", "T", 0, "R", false, 0, "")
+		pdf.CellFormat(col4W, 3.5, fmt.Sprintf("%.0f kkal", totalCalories), "T", 0, "R", false, 0, "")
+		pdf.CellFormat(col5W, 3.5, "", "T", 1, "C", false, 0, "")
+	}
+
+	// === ALLERGY WARNING ===
+	if order.AllergyNotes != "" {
+		currentY = pdf.GetY() + 2
+		pdf.SetY(currentY)
+		pdf.SetX(marginL)
+		pdf.SetFont("Arial", "B", 7)
+		pdf.SetTextColor(198, 40, 40)
+		pdf.SetFillColor(255, 235, 238)
+		pdf.CellFormat(contentWidth, 4.5, "!! ALERGI: "+order.AllergyNotes+" !!", "", 1, "C", true, 0, "")
+		pdf.SetTextColor(0, 0, 0)
+	}
+
+	// === SPECIAL NOTES ===
+	if order.SpecialNotes != "" {
+		currentY = pdf.GetY() + 1
+		pdf.SetY(currentY)
+		pdf.SetX(marginL)
+		pdf.SetFont("Arial", "", 6.5)
+		pdf.MultiCell(contentWidth, 3, "Catatan: "+order.SpecialNotes, "", "L", false)
+	}
+
+	// === FOOTER ===
+	currentY = pdf.GetY() + 2
+	pdf.SetDrawColor(150, 150, 150)
+	pdf.SetLineWidth(0.2)
+	pdf.Line(marginL, currentY, marginL+contentWidth, currentY)
+
+	currentY += 1
+	pdf.SetY(currentY)
+	pdf.SetFont("Arial", "", 6)
+	pdf.SetTextColor(120, 120, 120)
+	pdf.CellFormat(0, 3, fmt.Sprintf("Dicetak: %s", formatDateTimeIndonesian(time.Now())), "", 1, "C", false, 0, "")
+	pdf.SetTextColor(0, 0, 0)
+
+	// Output PDF
+	var buf bytes.Buffer
+	if err := pdf.Output(&buf); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate PDF"})
+		return
+	}
+
+	rmSafe := "unknown"
+	if order.Patient != nil {
+		rmSafe = order.Patient.NoRM
+	}
+	filename := fmt.Sprintf("Etiket_Makanan_%s_%s.pdf", rmSafe, order.MealTime)
 	c.Header("Content-Type", "application/pdf")
 	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
 	c.Data(http.StatusOK, "application/pdf", buf.Bytes())

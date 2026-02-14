@@ -414,3 +414,16 @@ export type {
   PatientAllergy as PortalPatientAllergy,
   AllergiesResponse
 } from './patient-portal';
+
+// Reports
+export {
+  reportVisitsApi,
+  reportBpjsApi,
+  reportBillingApi,
+  reportInpatientApi,
+  reportPharmacyApi,
+  reportPenunjangApi,
+  reportInventoryApi,
+  reportHrApi,
+  reportKemenkesApi,
+} from './reports';

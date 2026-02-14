@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
+import { Combobox } from "@/components/ui/combobox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { 
   Save, 
@@ -21,6 +22,7 @@ import {
 } from "lucide-react";
 import { medicalRecordsApi } from "@/lib/api";
 import { medicalRecordEditLogApi } from "@/lib/api/visits";
+import { useMultipleMasterData } from "@/hooks/useMasterData";
 import type { PhysicalExam } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useEditMode, EditModeBanner, EditConfirmDialog, PINVerificationDialog } from "./edit-mode-controller";
@@ -104,6 +106,12 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
   const [checkedSections, setCheckedSections] = useState<Record<string, boolean>>({});
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
   const [physicalExamId, setPhysicalExamId] = useState<number | undefined>();
+
+  // Fetch master data for general condition and consciousness
+  const { getOptions } = useMultipleMasterData([
+    'general_condition',
+    'consciousness_level',
+  ]);
 
   // Edit mode controller for post-discharge edits
   const {
@@ -346,20 +354,24 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="general_condition" className="text-sm">Keadaan Umum</Label>
-                      <Input
-                        id="general_condition"
-                        placeholder="Baik / Sedang / Buruk"
+                      <Combobox
+                        options={getOptions('general_condition')}
                         value={formData.general_condition}
-                        onChange={(e) => handleChange("general_condition", e.target.value)}
+                        onValueChange={(v) => handleChange("general_condition", v)}
+                        placeholder="Pilih keadaan umum"
+                        searchPlaceholder="Cari keadaan umum..."
+                        disabled={isFormDisabled}
                       />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="consciousness" className="text-sm">Kesadaran</Label>
-                      <Input
-                        id="consciousness"
-                        placeholder="Compos Mentis / Apatis / Somnolen"
+                      <Combobox
+                        options={getOptions('consciousness_level')}
                         value={formData.consciousness}
-                        onChange={(e) => handleChange("consciousness", e.target.value)}
+                        onValueChange={(v) => handleChange("consciousness", v)}
+                        placeholder="Pilih tingkat kesadaran"
+                        searchPlaceholder="Cari tingkat kesadaran..."
+                        disabled={isFormDisabled}
                       />
                     </div>
                   </div>
@@ -524,7 +536,9 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
                       </div>
                     </div>
                     <div className="space-y-1 col-span-2">
-                      <Label className="text-xs">BMI</Label>
+                      <Label className="text-xs flex items-center gap-1.5">
+                        BMI
+                      </Label>
                       <div className="flex items-center gap-2 h-10 px-3 bg-muted rounded-md">
                         <span className="font-medium">{formData.bmi || "-"}</span>
                         <span className="text-xs text-muted-foreground">kg/m²</span>
