@@ -48,6 +48,11 @@ func main() {
 	// 	log.Fatal("Failed to migrate database:", err)
 	// }
 
+	// Migrate E-Klaim Local tables (targeted migration)
+	if err := database.MigrateEKlaimLocal(); err != nil {
+		log.Fatal("Failed to migrate E-Klaim Local tables:", err)
+	}
+
 	// Initialize SSE Hub for real-time notifications
 	handlers.InitSSEHub()
 	handlers.InitNotificationService()

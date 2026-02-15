@@ -38,13 +38,7 @@ import {
   UtensilsCrossed,
   ChefHat,
   BarChart3,
-  TrendingUp,
-  DollarSign,
-  HeartPulse,
-  FlaskConical,
-  Boxes,
-  UserCheck,
-  Landmark,
+  ScrollText,
 } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
 import { usePermission } from '@/hooks/usePermission';
@@ -94,7 +88,17 @@ const menuItems: MenuItem[] = [
       { path: '/admisi', label: 'Permintaan Rawat Inap', icon: BedDouble, permission: 'registrations.view' },
       { path: '/visits', label: 'Kunjungan', icon: Activity, permission: 'visits.view' },
       { path: '/billing', label: 'Kasir & Billing', icon: Receipt, permission: 'billing.view' },
-      { path: '/eklaim', label: 'E-Klaim BPJS', icon: FileCheck, permission: 'eklaim.view' },
+    ]
+  },
+  {
+    path: '/eklaim',
+    label: 'E-Klaim',
+    icon: FileCheck,
+    submenu: [
+      { path: '/eklaim/list-sep', label: 'List SEP', icon: FileText, permission: 'eklaim.view' },
+      { path: '/eklaim/data-klaim', label: 'Data Klaim', icon: FileCheck, permission: 'eklaim.view' },
+      { path: '/eklaim/report', label: 'Laporan', icon: BarChart3, permission: 'eklaim.view' },
+      { path: '/eklaim/log', label: 'Log', icon: ScrollText, permission: 'eklaim.view' },
     ]
   },
   { path: '/bed-monitoring', label: 'Monitoring Bed', icon: Hotel, permission: 'rooms.view' },

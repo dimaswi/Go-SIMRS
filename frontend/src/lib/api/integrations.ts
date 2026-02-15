@@ -9,7 +9,8 @@ export type IntegrationType =
   | 'bpjs-apotek' 
   | 'bpjs-rme' 
   | 'satusehat' 
-  | 'pcare';
+  | 'pcare'
+  | 'eklaim';
 
 // BPJS Service Types
 export const BPJS_SERVICE_TYPES: IntegrationType[] = [

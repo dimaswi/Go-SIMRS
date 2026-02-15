@@ -408,5 +408,6 @@ export const printApi = {
     medicineLabels: (orderId: number) => fetchPdfBlob(`${BASE_URL}/medicine-labels/${orderId}`),
     billing: (billingId: number) => fetchPdfBlob(`${BASE_URL}/billing/${billingId}`),
     nutritionEtiket: (orderId: number) => fetchPdfBlob(`${BASE_URL}/nutrition-etiket/${orderId}`),
+    sep: (sepId: number) => fetchPdfBlob(`${BASE_URL}/sep/${sepId}`),
   },
 };

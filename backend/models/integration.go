@@ -18,6 +18,7 @@ const (
 	IntegrationTypeBPJSRME     IntegrationType = "bpjs-rme"     // BPJS RME (Rekam Medis Elektronik)
 	IntegrationTypeSatuSehat   IntegrationType = "satusehat"
 	IntegrationTypePCare       IntegrationType = "pcare"
+	IntegrationTypeEKlaim      IntegrationType = "eklaim" // E-Klaim Local Server
 )
 
 // BPJSServiceTypes returns all BPJS service integration types
@@ -148,6 +149,13 @@ var BPJSICareConfigKeys = createBPJSConfigKeys(IntegrationTypeBPJSICare, "I-Care
 var BPJSApotekConfigKeys = createBPJSConfigKeys(IntegrationTypeBPJSApotek, "Apotek Online")
 var BPJSRMEConfigKeys = createBPJSConfigKeys(IntegrationTypeBPJSRME, "RME")
 
+// E-Klaim Config Keys
+var EKlaimConfigKeys = []IntegrationConfigKey{
+	{Integration: IntegrationTypeEKlaim, Key: "eklaim_local_url", Description: "URL E-Klaim Local Server (contoh: http://192.168.56.101/E-Klaim/ws.php)", IsEncrypted: false, IsSecret: false, Default: "http://localhost/E-Klaim/ws.php"},
+	{Integration: IntegrationTypeEKlaim, Key: "eklaim_secret_key", Description: "Secret Key Enkripsi (64 karakter hex dari BPJS)", IsEncrypted: false, IsSecret: true, Default: ""},
+	{Integration: IntegrationTypeEKlaim, Key: "eklaim_coder_nik", Description: "NIK Koder Default", IsEncrypted: false, IsSecret: false, Default: ""},
+}
+
 // SatuSehat Config Keys - TANPA enkripsi, simpan plain text
 var SatuSehatConfigKeys = []IntegrationConfigKey{
 	{Integration: IntegrationTypeSatuSehat, Key: "client_id", Description: "Client ID dari SatuSehat", IsEncrypted: false, IsSecret: false, Default: ""},
@@ -169,6 +177,7 @@ func GetAllIntegrationConfigKeys() []IntegrationConfigKey {
 	all = append(all, BPJSApotekConfigKeys...)
 	all = append(all, BPJSRMEConfigKeys...)
 	all = append(all, SatuSehatConfigKeys...)
+	all = append(all, EKlaimConfigKeys...)
 	return all
 }
 
@@ -189,6 +198,8 @@ func GetIntegrationConfigKeys(integration IntegrationType) []IntegrationConfigKe
 		return BPJSRMEConfigKeys
 	case IntegrationTypeSatuSehat:
 		return SatuSehatConfigKeys
+	case IntegrationTypeEKlaim:
+		return EKlaimConfigKeys
 	default:
 		return nil
 	}

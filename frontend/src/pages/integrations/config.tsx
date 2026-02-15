@@ -43,6 +43,7 @@ import {
   RefreshCw,
   Stethoscope,
   Building2,
+  FileText,
   Wifi,
   WifiOff,
 } from "lucide-react";
@@ -135,6 +136,16 @@ export default function IntegrationsConfigPage() {
       isConnected: null,
       category: "Kemenkes",
     },
+    // E-Klaim Integration
+    {
+      id: "eklaim",
+      name: "E-Klaim",
+      description: "E-Klaim Local Server (INA-CBG/iDRG)",
+      icon: <Stethoscope className="h-5 w-5" />,
+      isConfigured: false,
+      isConnected: null,
+      category: "BPJS",
+    },
   ]);
 
   // Config Dialog
@@ -181,6 +192,13 @@ export default function IntegrationsConfigPage() {
   const [ssAutoSync, setSsAutoSync] = useState(false);
   const [showSsClientSecret, setShowSsClientSecret] = useState(false);
 
+  // E-Klaim Config State
+  const [ekConfig, setEkConfig] = useState<IntegrationConfigMap>({});
+  const [ekLocalUrl, setEkLocalUrl] = useState("http://localhost/E-Klaim/ws.php");
+  const [ekSecretKey, setEkSecretKey] = useState("");
+  const [ekCoderNik, setEkCoderNik] = useState("");
+  const [showEkSecretKey, setShowEkSecretKey] = useState(false);
+
   // VClaim Test State
   const [vclaimTesting, setVclaimTesting] = useState(false);
   const [vclaimTestResult, setVclaimTestResult] = useState<
@@ -202,6 +220,7 @@ export default function IntegrationsConfigPage() {
   useEffect(() => {
     loadAllBPJSConfigs();
     loadSatuSehatConfig();
+    loadEKlaimConfig();
   }, []);
 
   const loadAllBPJSConfigs = async () => {
@@ -315,6 +334,38 @@ export default function IntegrationsConfigPage() {
     }
   };
 
+  const loadEKlaimConfig = async () => {
+    try {
+      const response = await integrationsApi.getConfig("eklaim");
+      const data = response.data.data;
+      setEkConfig(data);
+
+      if (data.eklaim_local_url?.value) setEkLocalUrl(data.eklaim_local_url.value);
+      if (data.eklaim_coder_nik?.value) setEkCoderNik(data.eklaim_coder_nik.value);
+
+      const isConfigured = !!(
+        data.eklaim_local_url?.has_value && data.eklaim_secret_key?.has_value
+      );
+      setIntegrations((prev) =>
+        prev.map((i) => {
+          if (i.id === "eklaim") {
+            return { ...i, isConfigured };
+          }
+          return i;
+        }),
+      );
+    } catch (error: any) {
+      if (error.response?.status === 404 || !error.response?.data?.data) {
+        try {
+          await integrationsApi.initConfig("eklaim");
+          await loadEKlaimConfig();
+        } catch {
+          // Silent fail
+        }
+      }
+    }
+  };
+
   const handleOpenConfig = (integrationId: string) => {
     setEditingIntegration(integrationId);
 
@@ -349,6 +400,11 @@ export default function IntegrationsConfigPage() {
     } else if (integrationId === "satusehat") {
       // Load SatuSehat config values
       setSsClientSecret(ssConfig.client_secret?.value || "");
+    } else if (integrationId === "eklaim") {
+      // Load E-Klaim config values
+      setEkLocalUrl(ekConfig.eklaim_local_url?.value || "http://localhost/E-Klaim/ws.php");
+      setEkCoderNik(ekConfig.eklaim_coder_nik?.value || "");
+      setShowEkSecretKey(false);
     }
 
     setConfigDialogOpen(true);
@@ -360,6 +416,8 @@ export default function IntegrationsConfigPage() {
       await handleSaveBPJS();
     } else if (editingIntegration === "satusehat") {
       await handleSaveSatuSehat();
+    } else if (editingIntegration === "eklaim") {
+      await handleSaveEKlaim();
     }
   };
 
@@ -447,9 +505,39 @@ export default function IntegrationsConfigPage() {
     }
   };
 
+  const handleSaveEKlaim = async () => {
+    setLoading(true);
+    try {
+      const updateData: Record<string, string> = {
+        eklaim_local_url: ekLocalUrl,
+        eklaim_secret_key: ekSecretKey,
+        eklaim_coder_nik: ekCoderNik,
+      };
+
+      await integrationsApi.updateConfig("eklaim", updateData);
+
+      toast({
+        variant: "success",
+        title: "Berhasil!",
+        description: "Konfigurasi E-Klaim berhasil disimpan.",
+      });
+
+      setConfigDialogOpen(false);
+      await loadEKlaimConfig();
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Gagal menyimpan konfigurasi E-Klaim",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleTestConnection = async (integrationId: string) => {
     // Check if integration type is valid
-    if (!isBPJSType(integrationId) && integrationId !== "satusehat") {
+    if (!isBPJSType(integrationId) && integrationId !== "satusehat" && integrationId !== "eklaim") {
       toast({
         variant: "destructive",
         title: "Belum Tersedia",
@@ -630,6 +718,7 @@ export default function IntegrationsConfigPage() {
             onClick={() => {
               loadAllBPJSConfigs();
               loadSatuSehatConfig();
+              loadEKlaimConfig();
             }}
           >
             <RefreshCw className="h-4 w-4 mr-2" />
@@ -1343,6 +1432,149 @@ export default function IntegrationsConfigPage() {
                       : "Nonaktif"}
                   </Label>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setConfigDialogOpen(false)}
+            >
+              Batal
+            </Button>
+            <Button onClick={handleSave} disabled={loading}>
+              {loading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Menyimpan...
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4 mr-2" />
+                  Simpan
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* E-Klaim Config Dialog */}
+      <Dialog
+        open={configDialogOpen && editingIntegration === "eklaim"}
+        onOpenChange={setConfigDialogOpen}
+      >
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Konfigurasi E-Klaim
+            </DialogTitle>
+            <DialogDescription>
+              Integrasi dengan E-Klaim Local Server (INACBGs)
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6 py-4">
+            {/* Server URL */}
+            <div className="space-y-4">
+              <h4 className="text-sm font-semibold">Server E-Klaim</h4>
+              <div className="space-y-2">
+                <Label htmlFor="ekLocalUrl" className="text-xs font-medium">
+                  URL E-Klaim Local Server
+                </Label>
+                <Input
+                  id="ekLocalUrl"
+                  value={ekLocalUrl}
+                  onChange={(e) => setEkLocalUrl(e.target.value)}
+                  placeholder="http://localhost/E-Klaim/ws.php"
+                />
+                {ekConfig.eklaim_local_url?.has_value && (
+                  <p className="text-xs text-green-600 flex items-center gap-1">
+                    <CheckCircle className="h-3 w-3" />
+                    Sudah dikonfigurasi
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Alamat penuh ke endpoint ws.php pada server E-Klaim lokal
+                </p>
+              </div>
+            </div>
+
+            <hr />
+
+            {/* Secret Key */}
+            <div className="space-y-4">
+              <h4 className="text-sm font-semibold">Kredensial</h4>
+              <div className="space-y-2">
+                <Label htmlFor="ekSecretKey" className="text-xs font-medium">
+                  Secret Key
+                </Label>
+                <div className="relative">
+                  <Input
+                    id="ekSecretKey"
+                    type={showEkSecretKey ? "text" : "password"}
+                    value={ekSecretKey}
+                    onChange={(e) => setEkSecretKey(e.target.value)}
+                    placeholder={
+                      ekConfig.eklaim_secret_key?.has_value
+                        ? "••••••••"
+                        : "Masukkan Secret Key"
+                    }
+                    className="pr-10"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-0 top-0 h-full px-3"
+                    onClick={() => setShowEkSecretKey(!showEkSecretKey)}
+                  >
+                    {showEkSecretKey ? (
+                      <EyeOff className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <Eye className="h-4 w-4 text-muted-foreground" />
+                    )}
+                  </Button>
+                </div>
+                {ekConfig.eklaim_secret_key?.has_value && (
+                  <p className="text-xs text-green-600 flex items-center gap-1">
+                    <CheckCircle className="h-3 w-3" />
+                    Terenkripsi
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Secret key yang digunakan untuk mengenkripsi data ke E-Klaim
+                </p>
+              </div>
+            </div>
+
+            <hr />
+
+            {/* Coder NIK */}
+            <div className="space-y-4">
+              <h4 className="text-sm font-semibold">Koder Default</h4>
+              <div className="space-y-2">
+                <Label htmlFor="ekCoderNik" className="text-xs font-medium">
+                  NIK Koder Default
+                </Label>
+                <Input
+                  id="ekCoderNik"
+                  value={ekCoderNik}
+                  onChange={(e) => setEkCoderNik(e.target.value)}
+                  placeholder="Masukkan NIK Koder"
+                />
+                {ekConfig.eklaim_coder_nik?.has_value && (
+                  <p className="text-xs text-green-600 flex items-center gap-1">
+                    <CheckCircle className="h-3 w-3" />
+                    Sudah dikonfigurasi
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  NIK koder BPJS yang digunakan sebagai default saat mengirim
+                  klaim
+                </p>
               </div>
             </div>
           </div>

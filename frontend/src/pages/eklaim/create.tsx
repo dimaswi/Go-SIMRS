@@ -142,7 +142,7 @@ export default function EKlaimCreate() {
         title: 'Berhasil!',
         description: 'E-Klaim berhasil dibuat.',
       });
-      navigate(`/eklaim/${response.data.id}`);
+      navigate(`/eklaim/bpjs/${response.data.id}`);
     } catch (error: any) {
       toast({
         variant: 'destructive',

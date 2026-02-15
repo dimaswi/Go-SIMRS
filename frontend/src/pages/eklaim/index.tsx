@@ -186,7 +186,7 @@ export default function EKlaimIndex() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => navigate(`/eklaim/${row.original.id}`)}
+            onClick={() => navigate(`/eklaim/bpjs/${row.original.id}`)}
           >
             <Eye className="mr-1 h-4 w-4" />
             Detail

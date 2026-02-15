@@ -279,7 +279,7 @@ function App() {
           {/* Billing & Kasir */}
           <Route path="/billing/*" element={<ProtectedRoute><BillingRoutes /></ProtectedRoute>} />
           
-          {/* E-Klaim BPJS */}
+          {/* E-Klaim */}
           <Route path="/eklaim/*" element={<ProtectedRoute><EKlaimRoutes /></ProtectedRoute>} />
           
           {/* Room Stock */}

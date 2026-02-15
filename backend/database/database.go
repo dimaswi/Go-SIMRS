@@ -300,6 +300,12 @@ func Migrate() error {
 		&models.EKlaimDiagnosis{}, // E-Klaim Diagnoses (ICD-10)
 		&models.EKlaimProcedure{}, // E-Klaim Procedures (ICD-9-CM)
 		&models.EKlaimLog{},       // E-Klaim Activity Logs
+		// E-Klaim Local Server
+		&models.EKlaimLocal{},       // E-Klaim Local Claims
+		&models.EKlaimRMDuplicate{}, // E-Klaim RM Duplicate
+		&models.EKlaimRMDiagnosis{}, // E-Klaim RM Diagnosis
+		&models.EKlaimRMProcedure{}, // E-Klaim RM Procedure
+		&models.EKlaimLocalLog{},    // E-Klaim Local Communication Logs
 		// Digital Signatures & Audit Trail
 		&models.SignatureLog{},      // Signature Activity Logs
 		&models.DocumentSignature{}, // Document Signature Status
@@ -912,4 +918,19 @@ func SeedCounters() error {
 
 	log.Println("Counter seeding completed")
 	return nil
+}
+
+// MigrateEKlaimLocal creates/updates only E-Klaim Local tables.
+// Called from main.go since the full Migrate() is disabled.
+func MigrateEKlaimLocal() error {
+	return DB.AutoMigrate(
+		&models.EKlaimLocal{},
+		&models.EKlaimRMDuplicate{},
+		&models.EKlaimRMDiagnosis{},
+		&models.EKlaimRMProcedure{},
+		&models.EKlaimRMLabResult{},
+		&models.EKlaimRMRadiologyResult{},
+		&models.EKlaimRMSurgeryNote{},
+		&models.EKlaimLocalLog{},
+	)
 }

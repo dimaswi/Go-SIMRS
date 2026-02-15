@@ -9,6 +9,7 @@ import (
 	"starter/backend/database"
 	"starter/backend/models"
 	"starter/backend/services/bpjs"
+	eklaimSvcPkg "starter/backend/services/eklaim"
 	"strconv"
 	"strings"
 	"time"
@@ -186,6 +187,8 @@ func TestIntegrationConnection(c *gin.Context) {
 	switch integrationTypeEnum {
 	case models.IntegrationTypeSatuSehat:
 		testSatuSehatConnection(c, startTime)
+	case models.IntegrationTypeEKlaim:
+		testEKlaimConnection(c, startTime)
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
@@ -357,11 +360,11 @@ func testVClaimConnection(c *gin.Context, startTime time.Time) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"success":         true,
-		"message":         fmt.Sprintf("Koneksi ke BPJS VClaim berhasil! Ditemukan %d propinsi.", len(propinsi)),
-		"response_time":   duration.String(),
-		"test_endpoint":   "/referensi/propinsi",
-		"propinsi_count":  len(propinsi),
+		"success":        true,
+		"message":        fmt.Sprintf("Koneksi ke BPJS VClaim berhasil! Ditemukan %d propinsi.", len(propinsi)),
+		"response_time":  duration.String(),
+		"test_endpoint":  "/referensi/propinsi",
+		"propinsi_count": len(propinsi),
 	})
 }
 
@@ -373,6 +376,46 @@ func testBPJSConnection(c *gin.Context, startTime time.Time) {
 func testSatuSehatConnection(c *gin.Context, startTime time.Time) {
 	// Use the dedicated SatuSehat test function
 	TestSatuSehatConnection(c)
+}
+
+func testEKlaimConnection(c *gin.Context, startTime time.Time) {
+	eklaimSvc := getEKlaimService()
+	if eklaimSvc == nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"error":   "Gagal membuat E-Klaim client. Periksa konfigurasi.",
+		})
+		return
+	}
+
+	err := eklaimSvc.Ping()
+	duration := time.Since(startTime)
+
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success":       false,
+			"error":         "Gagal terhubung ke server E-Klaim: " + err.Error(),
+			"base_url":      eklaimSvc.BaseURL,
+			"response_time": duration.String(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":       true,
+		"message":       "Koneksi ke server E-Klaim berhasil!",
+		"base_url":      eklaimSvc.BaseURL,
+		"response_time": duration.String(),
+	})
+}
+
+// getEKlaimService creates an E-Klaim client from integration configs
+func getEKlaimService() *eklaimSvcPkg.Client {
+	client, err := eklaimSvcPkg.NewClient()
+	if err != nil {
+		return nil
+	}
+	return client
 }
 
 // createHMACSHA256 creates HMAC-SHA256 signature
@@ -489,6 +532,13 @@ func GetAllIntegrations(c *gin.Context) {
 			"category":    "Kemenkes",
 			"available":   true,
 		},
+		{
+			"id":          "eklaim",
+			"name":        "E-Klaim",
+			"description": "E-Klaim Local Server (INA-CBG/iDRG)",
+			"category":    "BPJS",
+			"available":   true,
+		},
 	}
 
 	// Check if each integration is configured (has cons_id/client_id AND secret_key/client_secret filled)
@@ -507,6 +557,12 @@ func GetAllIntegrations(c *gin.Context) {
 			// For SatuSehat: check client_id and client_secret
 			database.DB.Model(&models.IntegrationConfig{}).
 				Where("integration = ? AND key IN (?, ?) AND value != ''", integrationID, "client_id", "client_secret").
+				Count(&count)
+			integrations[i]["configured"] = count >= 2
+		} else if integrationID == "eklaim" {
+			// For E-Klaim: check eklaim_local_url and eklaim_secret_key
+			database.DB.Model(&models.IntegrationConfig{}).
+				Where("integration = ? AND key IN (?, ?) AND value != ''", integrationID, "eklaim_local_url", "eklaim_secret_key").
 				Count(&count)
 			integrations[i]["configured"] = count >= 2
 		} else {

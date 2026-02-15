@@ -1,0 +1,4 @@
+# CORE
+1. Buatkan navigasi untuk Eklaim sendiri jadi nanti memiliki child [List SEP, Eklaim, Report, Log]
+2. List SEP adalah list kunjungan yang memiliki SEP lalu nanti ada list untuk detail kunjungan tersebut dan detail duplikasi Rekam Medis, Rekam Medis khusus eklaim ini dapat di edit jadi tidak mempengaruhi rekam medis asli, disini akan  bisa kirim eklaim dengan endpoint new_claim, jika sukses maka akan membuat lokal eklaim yang berisi detail untuk kunjungan mana SEP mana dan detail response dari eklaim
+3. Setelah sukses untuk new_claim nanti data akan masuk ke sini dan akan melakukan pengisian untuk set_claim_data
