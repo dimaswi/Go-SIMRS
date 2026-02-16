@@ -74,156 +74,77 @@ func dropAllForeignKeys() {
 	log.Printf("Dropped %d foreign key constraints", len(constraints))
 }
 
-// cleanOrphanedForeignKeys nullifies FK columns that reference non-existent rows.
-// This prevents "violates foreign key constraint" errors when AutoMigrate recreates FK constraints.
+// cleanOrphanedForeignKeys automatically discovers ALL FK relationships from information_schema
+// and cleans orphaned references. For nullable columns: SET NULL. For non-nullable columns: DELETE the row.
 func cleanOrphanedForeignKeys() {
 	log.Println("Cleaning orphaned foreign key references...")
 
-	// Each entry: {table, fk_column, referenced_table}
-	// Only nullable FK columns (*uint) need cleaning — non-nullable ones should not have orphans
-	// if the referenced table exists. If referenced table doesn't exist yet, AutoMigrate will create it first.
-	orphanChecks := []struct {
-		table      string
-		column     string
-		refTable   string
-	}{
-		// visits
-		{"visits", "bed_id", "beds"},
-		{"visits", "doctor_id", "employees"},
-		{"visits", "referral_from", "visits"},
-		// registrations
-		{"registrations", "queue_id", "queues"},
-		{"registrations", "doctor_id", "employees"},
-		{"registrations", "source_visit_id", "visits"},
-		{"registrations", "checked_in_by_id", "users"},
-		// rooms
-		{"rooms", "pic_employee_id", "employees"},
-		{"rooms", "building_id", "buildings"},
-		// bed_transfers
-		{"bed_transfers", "from_room_id", "rooms"},
-		{"bed_transfers", "from_bed_id", "beds"},
-		{"bed_transfers", "created_by_id", "users"},
-		// admission_requests
-		{"admission_requests", "approved_room_id", "rooms"},
-		{"admission_requests", "approved_bed_id", "beds"},
-		{"admission_requests", "doctor_id", "employees"},
-		{"admission_requests", "inpatient_visit_id", "visits"},
-		{"admission_requests", "processed_by_id", "users"},
-		// dispositions
-		{"dispositions", "follow_up_room_id", "rooms"},
-		{"dispositions", "admission_room_id", "rooms"},
-		{"dispositions", "admission_bed_id", "beds"},
-		{"dispositions", "inpatient_visit_id", "visits"},
-		{"dispositions", "follow_up_registration_id", "registrations"},
-		{"dispositions", "discharged_by_id", "users"},
-		// billing
-		{"billings", "generated_by_id", "users"},
-		{"billings", "finalized_by_id", "users"},
-		{"billing_items", "source_visit_id", "visits"},
-		{"billing_payments", "voided_by_id", "users"},
-		// medicine orders
-		{"medicine_orders", "pharmacy_visit_id", "visits"},
-		{"medicine_orders", "reviewed_by_id", "employees"},
-		{"medicine_orders", "delivered_by_id", "employees"},
-		{"medicine_order_items", "medicine_batch_id", "medicine_batches"},
-		{"medicine_order_items", "dispensed_by_id", "employees"},
-		{"medicine_returns", "medicine_order_item_id", "medicine_order_items"},
-		{"medicine_returns", "restock_room_id", "rooms"},
-		// procedure orders
-		{"procedure_orders", "target_visit_id", "visits"},
-		{"procedure_orders", "surgeon_doctor_id", "employees"},
-		{"procedure_orders", "performed_by_id", "employees"},
-		{"procedure_orders", "validated_by_id", "employees"},
-		{"procedure_order_items", "performed_by_id", "employees"},
-		// bpjs
-		{"bpjs_queues", "patient_id", "patients"},
-		{"bpjs_queues", "registration_id", "registrations"},
-		{"bpjs_queues", "visit_id", "visits"},
-		{"bpjs_queues", "room_queue_id", "room_queues"},
-		{"bpjs_queues", "room_id", "rooms"},
-		{"bpjs_queues", "poli_mapping_id", "bpjs_poli_mappings"},
-		{"bpjs_queues", "doctor_mapping_id", "bpjs_doctor_mappings"},
-		{"bpjs_doctor_mappings", "doctor_schedule_id", "doctor_schedules"},
-		// inventory
-		{"inventory_items", "room_id", "rooms"},
-		{"inventory_items", "room_unit_id", "room_units"},
-		{"inventory_transactions", "inventory_item_id", "inventory_items"},
-		{"inventory_transactions", "from_room_id", "rooms"},
-		{"inventory_transactions", "to_room_id", "rooms"},
-		// medicine
-		{"medicine_transactions", "medicine_batch_id", "medicine_batches"},
-		{"medicine_transactions", "from_room_id", "rooms"},
-		{"medicine_transactions", "to_room_id", "rooms"},
-		// nutrition
-		{"nutrition_orders", "package_id", "nutrition_packages"},
-		{"nutrition_orders", "ordered_by_id", "employees"},
-		// consultation
-		{"consultations", "procedure_order_id", "procedure_orders"},
-		{"consultations", "consultant_id", "employees"},
-		{"consultations", "created_by_id", "users"},
-		// archive
-		{"medical_record_archives", "digitized_by_id", "users"},
-		{"medical_record_archives", "created_by_id", "users"},
-		{"medical_record_archives", "updated_by_id", "users"},
-		{"archive_movements", "borrowed_by_id", "users"},
-		{"archive_movements", "processed_by_id", "users"},
-		{"archive_destructions", "proposed_by_id", "users"},
-		{"archive_destructions", "approved_by_id", "users"},
-		{"archive_destructions", "executed_by_id", "users"},
-		// eklaim
-		{"eklaim_logs", "user_id", "users"},
-		{"eklaim_locals", "created_by_id", "users"},
-		{"eklaim_rm_duplicates", "duplicated_by_id", "users"},
-		// medical records
-		{"triages", "triaged_by_id", "users"},
-		{"anamneses", "recorded_by_id", "users"},
-		{"physical_examinations", "examined_by_id", "users"},
-		{"diagnoses", "diagnosed_by_id", "users"},
-		{"diagnosis_summaries", "created_by_id", "users"},
-		{"assessment_plans", "assessed_by_id", "users"},
-		{"vital_signs", "measured_by_id", "users"},
-		{"sick_letters", "issued_by_id", "employees"},
-		{"death_certificates", "declaring_doctor_id", "employees"},
-		{"death_certificates", "issued_by_id", "employees"},
-		// inpatient
-		{"cppts", "verified_by_id", "users"},
-		{"cppts", "created_by_id", "users"},
-		{"fluid_balances", "created_by_id", "users"},
-		{"nursing_cares", "verified_by_id", "users"},
-		{"nursing_cares", "created_by_id", "users"},
-		// schedule
-		{"schedule_exceptions", "room_id", "rooms"},
-		{"schedule_exceptions", "employee_id", "employees"},
-		// signatures
-		{"signature_logs", "user_id", "users"},
-		// kfa
-		{"medicine_kfa_mappings", "verified_by_id", "users"},
-		// loinc
-		{"procedure_loinc_mappings", "verified_by_id", "users"},
-		// notifications
-		{"notifications", "room_id", "rooms"},
-		// patient allergy
-		{"patient_allergies", "recorded_by", "users"},
+	// Query all FK relationships from information_schema
+	var fkRelations []struct {
+		SourceTable    string
+		SourceColumn   string
+		TargetTable    string
+		TargetColumn   string
+		IsNullable     string
 	}
 
-	cleaned := 0
-	for _, o := range orphanChecks {
-		// Only clean if both tables exist
-		if !DB.Migrator().HasTable(o.table) || !DB.Migrator().HasTable(o.refTable) {
-			continue
-		}
-		result := DB.Exec(fmt.Sprintf(
-			`UPDATE %q SET %q = NULL WHERE %q IS NOT NULL AND %q NOT IN (SELECT id FROM %q)`,
-			o.table, o.column, o.column, o.column, o.refTable,
-		))
-		if result.RowsAffected > 0 {
-			log.Printf("Cleaned %d orphaned %s.%s references", result.RowsAffected, o.table, o.column)
-			cleaned += int(result.RowsAffected)
+	DB.Raw(`
+		SELECT
+			kcu.table_name AS source_table,
+			kcu.column_name AS source_column,
+			ccu.table_name AS target_table,
+			ccu.column_name AS target_column,
+			col.is_nullable
+		FROM information_schema.key_column_usage kcu
+		JOIN information_schema.table_constraints tc
+			ON kcu.constraint_name = tc.constraint_name
+			AND kcu.table_schema = tc.table_schema
+		JOIN information_schema.constraint_column_usage ccu
+			ON tc.constraint_name = ccu.constraint_name
+			AND tc.table_schema = ccu.table_schema
+		JOIN information_schema.columns col
+			ON col.table_name = kcu.table_name
+			AND col.column_name = kcu.column_name
+			AND col.table_schema = kcu.table_schema
+		WHERE tc.constraint_type = 'FOREIGN KEY'
+			AND kcu.table_schema = 'public'
+		ORDER BY kcu.table_name, kcu.column_name
+	`).Scan(&fkRelations)
+
+	if len(fkRelations) == 0 {
+		log.Println("No foreign key relationships found to clean")
+		return
+	}
+
+	nullified := 0
+	deleted := 0
+
+	for _, fk := range fkRelations {
+		if fk.IsNullable == "YES" {
+			// Nullable column: SET NULL for orphaned references
+			result := DB.Exec(fmt.Sprintf(
+				`UPDATE %q SET %q = NULL WHERE %q IS NOT NULL AND %q NOT IN (SELECT %q FROM %q)`,
+				fk.SourceTable, fk.SourceColumn, fk.SourceColumn, fk.SourceColumn, fk.TargetColumn, fk.TargetTable,
+			))
+			if result.RowsAffected > 0 {
+				log.Printf("Nullified %d orphaned %s.%s → %s", result.RowsAffected, fk.SourceTable, fk.SourceColumn, fk.TargetTable)
+				nullified += int(result.RowsAffected)
+			}
+		} else {
+			// Non-nullable column: DELETE rows with orphaned references
+			result := DB.Exec(fmt.Sprintf(
+				`DELETE FROM %q WHERE %q NOT IN (SELECT %q FROM %q)`,
+				fk.SourceTable, fk.SourceColumn, fk.TargetColumn, fk.TargetTable,
+			))
+			if result.RowsAffected > 0 {
+				log.Printf("Deleted %d orphaned rows from %s (invalid %s → %s)", result.RowsAffected, fk.SourceTable, fk.SourceColumn, fk.TargetTable)
+				deleted += int(result.RowsAffected)
+			}
 		}
 	}
 
-	if cleaned > 0 {
-		log.Printf("Total orphaned FK references cleaned: %d", cleaned)
+	if nullified > 0 || deleted > 0 {
+		log.Printf("Orphan cleanup: %d nullified, %d deleted", nullified, deleted)
 	} else {
 		log.Println("No orphaned FK references found")
 	}
@@ -231,15 +152,20 @@ func cleanOrphanedForeignKeys() {
 
 func Migrate() error {
 	// ==========================================
-	// STEP 1: Drop ALL existing foreign key constraints before AutoMigrate
-	// This prevents FK violation errors when tables have orphaned data
-	// from previous failed migrations or schema changes.
+	// STEP 1: Clean orphaned FK references FIRST (while FK info is still in information_schema)
+	// For nullable columns: SET NULL. For non-nullable columns: DELETE the orphaned row.
+	// ==========================================
+	cleanOrphanedForeignKeys()
+
+	// ==========================================
+	// STEP 2: Drop ALL existing foreign key constraints before AutoMigrate
+	// This prevents FK violation errors from any remaining edge cases.
 	// AutoMigrate will recreate all FK constraints from model tags.
 	// ==========================================
 	dropAllForeignKeys()
 
 	// ==========================================
-	// STEP 2: Handle legacy schema migrations
+	// STEP 3: Handle legacy schema migrations
 	// ==========================================
 
 	// Handle room module restructure - drop old tables if they exist with old schema
@@ -350,13 +276,6 @@ func Migrate() error {
 			log.Println("Queue counter migration completed")
 		}
 	}
-
-	// ==========================================
-	// STEP 3: Clean orphaned FK references
-	// Nullify any FK column that references a non-existent row.
-	// This prevents "violates foreign key constraint" errors during AutoMigrate.
-	// ==========================================
-	cleanOrphanedForeignKeys()
 
 	// ==========================================
 	// STEP 4: Auto-migrate all models with proper order for foreign key dependencies
