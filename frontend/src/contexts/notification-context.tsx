@@ -157,19 +157,11 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:8080/api";
     const sseUrl = `${baseUrl}/sse/notifications`;
 
-    // Create EventSource with authorization
-    // Note: EventSource doesn't support custom headers, so we use URL param
-    const url = new URL(sseUrl);
-    
-    // We need to use fetch with credentials for auth, then create EventSource
-    // Alternative: Use a polyfill like eventsource-polyfill
-    // For now, we'll create a custom implementation using fetch
-
     const controller = new AbortController();
 
     const connect = async () => {
       try {
-        const response = await fetch(url.toString(), {
+        const response = await fetch(sseUrl, {
           method: "GET",
           headers: {
             Authorization: `Bearer ${token}`,
