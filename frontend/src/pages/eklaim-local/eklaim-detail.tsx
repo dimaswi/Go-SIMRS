@@ -2,7 +2,16 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -14,6 +23,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   eklaimLocalApi,
   eklaimLocalStatusLabels,
@@ -27,6 +42,8 @@ import type {
 import RMDuplicateTab from './rm-duplicate-tab';
 import CetakanTab from './cetakan-tab';
 import ClaimDataTab from './claim-data-tab';
+import IDRGCodingTab from './idrg-coding-tab';
+import INACBGCodingTab from './inacbg-coding-tab';
 import { useToast } from '@/hooks/use-toast';
 import { setPageTitle } from '@/lib/page-title';
 import {
@@ -41,6 +58,9 @@ import {
   Trash2,
   ScrollText,
   AlertTriangle,
+  RotateCcw,
+  MoreVertical,
+  UserPen,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { id as localeId } from 'date-fns/locale';
@@ -58,18 +78,44 @@ export default function EklaimDetailPage() {
   // Claim form payload builder (provided by ClaimDataTab)
   const claimPayloadBuilderRef = useRef<(() => Record<string, any>) | null>(null);
 
+  // Active tab state — persisted in localStorage per claim
+  const [activeTab, setActiveTabRaw] = useState(() => {
+    try {
+      return localStorage.getItem(`eklaim-tab-${id}`) || 'rm-duplicate';
+    } catch {
+      return 'rm-duplicate';
+    }
+  });
+  const setActiveTab = useCallback((tab: string) => {
+    setActiveTabRaw(tab);
+    try { localStorage.setItem(`eklaim-tab-${id}`, tab); } catch { /* ignore */ }
+  }, [id]);
+
   // Dialogs
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [updatePatientOpen, setUpdatePatientOpen] = useState(false);
+  const [updatePatientForm, setUpdatePatientForm] = useState({
+    nomor_kartu: '',
+    nomor_rm: '',
+    nama_pasien: '',
+    tgl_lahir: '',
+    gender: 0,
+  });
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (showLoading = true) => {
     if (!id) return;
-    setLoading(true);
+    if (showLoading) setLoading(true);
     try {
       const response = await eklaimLocalApi.getDetail(Number(id));
       const d: EKlaimLocal = response.data || response;
       const orm: OriginalRM = response.original_rm || {};
+
+      // Merge buttons from response into detail (for workflow action visibility)
+      if (response.buttons) {
+        d.buttons = response.buttons;
+      }
 
       // Patch rm_duplicate from original RM if fields are empty
       if (d.rm_duplicate && !d.rm_duplicate.chief_complaint && !d.rm_duplicate.history_of_present_illness) {
@@ -147,6 +193,17 @@ export default function EklaimDetailPage() {
     loadData();
   }, [loadData]);
 
+  // Guard: if stored tab is no longer valid, fall back
+  useEffect(() => {
+    if (!detail) return;
+    if (activeTab === 'inacbg' && !detail.idrg_final_success) {
+      setActiveTab('idrg');
+    }
+  }, [detail, activeTab, setActiveTab]);
+
+  // Refresh without loading spinner (for child tab callbacks)
+  const refreshData = useCallback(() => loadData(false), [loadData]);
+
   // ========= E-Klaim Actions =========
   const handleAction = async (action: string, actionData?: any) => {
     if (!id) return;
@@ -156,6 +213,10 @@ export default function EklaimDetailPage() {
       switch (action) {
         case 'new_claim':
           response = await eklaimLocalApi.sendNewClaim(Number(id));
+          break;
+        case 'update_patient':
+          response = await eklaimLocalApi.sendUpdatePatient(Number(id), actionData);
+          setUpdatePatientOpen(false);
           break;
         case 'set_claim_data': {
           const payload = claimPayloadBuilderRef.current ? claimPayloadBuilderRef.current() : {};
@@ -167,6 +228,12 @@ export default function EklaimDetailPage() {
           break;
         case 'final':
           response = await eklaimLocalApi.sendFinal(Number(id));
+          break;
+        case 'claim_send':
+          response = await eklaimLocalApi.sendClaimSend(Number(id));
+          break;
+        case 'claim_reedit':
+          response = await eklaimLocalApi.sendClaimReedit(Number(id));
           break;
         case 'cancel':
           response = await eklaimLocalApi.sendCancel(Number(id), actionData?.reason);
@@ -181,9 +248,16 @@ export default function EklaimDetailPage() {
           return;
       }
       toast({ variant: 'success', title: 'Berhasil!', description: response?.message || `Aksi ${action} berhasil.` });
-      loadData();
+      refreshData();
     } catch (err: any) {
-      toast({ variant: 'destructive', title: 'Error!', description: err?.response?.data?.error || `Gagal menjalankan ${action}.` });
+      const errData = err?.response?.data;
+      toast({ variant: 'destructive', title: 'Error!', description: errData?.error || `Gagal menjalankan ${action}.` });
+      // If error response includes saved eklaim_local (e.g. form data saved but E-Klaim server failed),
+      // update detail immediately so form shows the saved values
+      if (errData?.eklaim_local) {
+        setDetail(errData.eklaim_local);
+      }
+      refreshData();
     } finally {
       setSubmitting(false);
     }
@@ -247,14 +321,106 @@ export default function EklaimDetailPage() {
           <Badge className={`text-sm px-3 py-1 ${eklaimLocalStatusColors[status] || ''}`}>
             {eklaimLocalStatusLabels[status] || status}
           </Badge>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => navigate(`/eklaim/data-klaim/${id}/logs`)}
-          >
-            <ScrollText className="mr-2 h-4 w-4" />
-            Log
-          </Button>
+
+          {/* Workflow action buttons */}
+          {status === 'draft' && (
+            <Button
+              size="sm"
+              disabled={submitting}
+              onClick={() => handleAction('new_claim')}
+            >
+              {submitting ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Play className="mr-1 h-4 w-4" />}
+              Buat Klaim
+            </Button>
+          )}
+          {detail.buttons?.final_claim && (
+            <Button
+              size="sm"
+              disabled={submitting}
+              onClick={() => handleAction('final')}
+            >
+              {submitting ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-1 h-4 w-4" />}
+              Finalisasi Klaim
+            </Button>
+          )}
+          {detail.buttons?.send_claim && (
+            <Button
+              size="sm"
+              disabled={submitting}
+              onClick={() => handleAction('claim_send')}
+            >
+              {submitting ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Send className="mr-1 h-4 w-4" />}
+              Kirim Klaim
+            </Button>
+          )}
+
+          {/* Secondary actions dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon" className="h-8 w-8">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onClick={() => navigate(`/eklaim/data-klaim/${id}/logs`)}
+              >
+                <ScrollText className="mr-2 h-4 w-4" />
+                Lihat Log
+              </DropdownMenuItem>
+              {status !== 'draft' && (
+                <DropdownMenuItem
+                  onClick={() => {
+                    const sep = detail?.sep;
+                    const patient = sep?.patient;
+                    const tglLahirRaw = sep?.tgl_lahir || patient?.tanggal_lahir || '';
+                    const tglLahir = tglLahirRaw.length >= 10 ? tglLahirRaw.substring(0, 10) : tglLahirRaw;
+                    const jk = sep?.jenis_kelamin || patient?.jenis_kelamin || '';
+                    setUpdatePatientForm({
+                      nomor_kartu: sep?.no_kartu || detail?.no_kartu || '',
+                      nomor_rm: sep?.no_mr || patient?.no_rm || '',
+                      nama_pasien: sep?.nama_pasien || detail?.nama_pasien || patient?.nama_lengkap || '',
+                      tgl_lahir: tglLahir,
+                      gender: jk === 'L' ? 1 : jk === 'P' ? 2 : 0,
+                    });
+                    setUpdatePatientOpen(true);
+                  }}
+                  disabled={submitting}
+                >
+                  <UserPen className="mr-2 h-4 w-4" />
+                  Update Pasien
+                </DropdownMenuItem>
+              )}
+              {detail.buttons?.reedit_claim && (
+                <DropdownMenuItem
+                  onClick={() => handleAction('claim_reedit')}
+                  disabled={submitting}
+                >
+                  <RotateCcw className="mr-2 h-4 w-4" />
+                  Edit Ulang Klaim
+                </DropdownMenuItem>
+              )}
+              {status !== 'draft' && (
+                <DropdownMenuItem
+                  onClick={() => setCancelDialogOpen(true)}
+                  disabled={submitting}
+                >
+                  <XCircle className="mr-2 h-4 w-4" />
+                  Batal Klaim
+                </DropdownMenuItem>
+              )}
+              {status !== 'draft' && (
+                <DropdownMenuItem
+                  onClick={() => setDeleteDialogOpen(true)}
+                  disabled={submitting}
+                  className="text-destructive focus:text-destructive"
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Hapus Klaim
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -272,58 +438,110 @@ export default function EklaimDetailPage() {
         </div>
       )}
 
-      {/* Status Timeline */}
-      <div className="rounded-lg border p-4 space-y-3">
-        <h3 className="text-sm font-medium">Progress Klaim</h3>
-        <div className="flex items-center gap-2 flex-wrap">
-          {(['draft', 'new_claim', 'set_claim_data', 'grouped', 'finalized'] as EKlaimLocalStatus[]).map((s, i) => {
-            const stepOrder = ['draft', 'new_claim', 'set_claim_data', 'grouped', 'finalized'];
-            const currentIdx = stepOrder.indexOf(status);
-            const stepIdx = stepOrder.indexOf(s);
-            const isActive = stepIdx <= currentIdx;
-            return (
-              <div key={s} className="flex items-center gap-2">
-                {i > 0 && <Separator className="w-6" />}
-                <Badge variant={isActive ? 'default' : 'outline'} className={isActive ? eklaimLocalStatusColors[s] : ''}>
-                  {eklaimLocalStatusLabels[s]}
-                </Badge>
-              </div>
-            );
-          })}
-        </div>
-        {/* Grouper result */}
-        {detail.cbg_code && (
-          <div className="p-3 rounded-md bg-muted/50">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-              <div>
-                <p className="text-muted-foreground text-xs">Kode CBG</p>
-                <p className="font-mono font-medium">{detail.cbg_code}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground text-xs">Deskripsi</p>
-                <p className="font-medium">{detail.cbg_description || '-'}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground text-xs">Tarif CBG</p>
-                <p className="font-mono font-medium text-green-700">{formatCurrency(detail.cbg_tariff)}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground text-xs">Tarif RS</p>
-                <p className="font-mono">{formatCurrency(detail.hospital_tariff)}</p>
-              </div>
+      {/* Progress Timeline — compact, DRY */}
+      {(() => {
+        const ORDER: EKlaimLocalStatus[] = ['draft', 'new_claim', 'set_claim_data', 'idrg_coded', 'idrg_grouped', 'idrg_final', 'inacbg_imported', 'inacbg_coded', 'inacbg_grouped', 'inacbg_final', 'claim_final', 'claim_sent'];
+        const currentIdx = ORDER.indexOf(status);
+        const stepIsActive = (s: EKlaimLocalStatus) => ORDER.indexOf(s) <= currentIdx;
+        const allSteps: EKlaimLocalStatus[] = [
+          'draft', 'new_claim', 'set_claim_data',
+          'idrg_coded', 'idrg_grouped', 'idrg_final',
+          'inacbg_imported', 'inacbg_coded', 'inacbg_grouped', 'inacbg_final',
+          'claim_final', 'claim_sent',
+        ];
+        return (
+          <div className="rounded-lg border p-3 space-y-2">
+            {/* Progress steps — single flow */}
+            <div className="flex flex-wrap items-center gap-1">
+              {allSteps.map((s, i) => (
+                <div key={s} className="flex items-center gap-1">
+                  {i > 0 && <span className="text-muted-foreground text-[8px]">→</span>}
+                  <Badge variant={stepIsActive(s) ? 'default' : 'outline'} className={`text-[10px] px-1.5 py-0 h-5 ${stepIsActive(s) ? eklaimLocalStatusColors[s] : ''}`}>
+                    {eklaimLocalStatusLabels[s]}
+                  </Badge>
+                </div>
+              ))}
             </div>
+
+            {/* Result summaries — side-by-side cards */}
+            {(detail.idrg_code || detail.inacbg_cbg_code || (detail.cbg_code && !detail.idrg_code && !detail.inacbg_cbg_code)) && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                {/* iDRG result */}
+                {detail.idrg_code && (
+                  <div className="px-3 py-2 rounded-md bg-indigo-50 dark:bg-indigo-950/20 text-xs">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-indigo-600 dark:text-indigo-400 font-semibold text-[10px] uppercase">iDRG Result</span>
+                      <Badge variant={detail.idrg_status_cd === 'normal' ? 'default' : 'destructive'} className="text-[10px] px-1.5 py-0 h-4">
+                        {detail.idrg_status_cd || '-'}
+                      </Badge>
+                    </div>
+                    <div className="flex items-baseline gap-2">
+                      <span className="font-mono font-bold text-indigo-700 dark:text-indigo-300">{detail.idrg_code}</span>
+                      <span className="text-muted-foreground truncate">{detail.idrg_description || '-'}</span>
+                    </div>
+                    <div className="text-muted-foreground mt-0.5">
+                      Cost Weight: <span className="font-mono font-medium text-foreground">{detail.idrg_cost_weight || '-'}</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* INACBG result */}
+                {detail.inacbg_cbg_code && (
+                  <div className="px-3 py-2 rounded-md bg-orange-50 dark:bg-orange-950/20 text-xs">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-orange-600 dark:text-orange-400 font-semibold text-[10px] uppercase">INACBG Result</span>
+                      <span className="font-mono font-medium text-green-700 dark:text-green-400">{formatCurrency(parseFloat(detail.inacbg_tariff) || 0)}</span>
+                    </div>
+                    <div className="flex items-baseline gap-2">
+                      <span className="font-mono font-bold text-orange-700 dark:text-orange-300">{detail.inacbg_cbg_code}</span>
+                      <span className="text-muted-foreground truncate">{detail.inacbg_cbg_description || '-'}</span>
+                    </div>
+                    <div className="text-muted-foreground mt-0.5">
+                      Base Tarif: <span className="font-mono text-foreground">{formatCurrency(parseFloat(detail.inacbg_base_tariff) || 0)}</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Legacy CBG */}
+                {detail.cbg_code && !detail.idrg_code && !detail.inacbg_cbg_code && (
+                  <div className="px-3 py-2 rounded-md bg-muted/50 text-xs">
+                    <div className="flex items-baseline gap-2">
+                      <span className="font-mono font-bold">{detail.cbg_code}</span>
+                      <span className="text-muted-foreground truncate">{detail.cbg_description || '-'}</span>
+                    </div>
+                    <div className="flex gap-4 mt-0.5 text-muted-foreground">
+                      <span>Tarif CBG: <span className="font-mono font-medium text-green-700">{formatCurrency(detail.cbg_tariff)}</span></span>
+                      <span>Tarif RS: <span className="font-mono text-foreground">{formatCurrency(detail.hospital_tariff)}</span></span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        );
+      })()}
 
       {/* Tabs */}
-      <Tabs defaultValue="rm-duplicate" className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="bg-transparent border-b rounded-none w-full justify-start h-auto p-0 gap-0">
-          <TabsTrigger value="claim-data" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5">Data Klaim</TabsTrigger>
-          <TabsTrigger value="rm-duplicate" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5">RM Duplikat</TabsTrigger>
+          <TabsTrigger value="rm-duplicate" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5">Rekam Medis</TabsTrigger>
           <TabsTrigger value="cetakan" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5">Cetakan</TabsTrigger>
-          <TabsTrigger value="actions" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5">Aksi</TabsTrigger>
+          <TabsTrigger value="claim-data" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5">Data Klaim</TabsTrigger>
+          <TabsTrigger value="idrg" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5">Coding iDRG</TabsTrigger>
+          {detail.idrg_final_success && (
+            <TabsTrigger value="inacbg" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5">Coding INACBG</TabsTrigger>
+          )}
+          <TabsTrigger value="status" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5">Status</TabsTrigger>
         </TabsList>
+
+        {/* Tab: RM Duplicate */}
+        <TabsContent value="rm-duplicate" className="space-y-6">
+          <RMDuplicateTab
+            eklaimId={Number(id)}
+            rmDuplicate={detail.rm_duplicate}
+            onSaved={refreshData}
+          />
+        </TabsContent>
 
         {/* Tab: Claim Data */}
         <TabsContent value="claim-data" className="space-y-4">
@@ -331,34 +549,41 @@ export default function EklaimDetailPage() {
             detail={detail}
             originalRM={originalRM}
             onBuildPayload={(builder) => { claimPayloadBuilderRef.current = builder; }}
-            onRefresh={loadData}
+            onRefresh={refreshData}
+            disabled={detail.idrg_final_success}
+            onSubmitClaimData={() => handleAction('set_claim_data')}
+            submitting={submitting}
           />
         </TabsContent>
 
-        {/* Tab: RM Duplicate */}
-        <TabsContent value="rm-duplicate" className="space-y-6">
-          <RMDuplicateTab
-            eklaimId={Number(id)}
-            rmDuplicate={detail.rm_duplicate}
-            onSaved={loadData}
-          />
+        {/* Tab: Coding iDRG */}
+        <TabsContent value="idrg" className="space-y-6">
+          <IDRGCodingTab detail={detail} onRefresh={refreshData} />
         </TabsContent>
+
+        {/* Tab: Coding INACBG */}
+        {detail.idrg_final_success && (
+          <TabsContent value="inacbg" className="space-y-6">
+            <INACBGCodingTab detail={detail} onRefresh={refreshData} />
+          </TabsContent>
+        )}
 
         {/* Tab: Cetakan */}
         <TabsContent value="cetakan" className="space-y-6">
           <CetakanTab detail={detail} originalRM={originalRM} />
         </TabsContent>
 
-        {/* Tab: Actions */}
-        <TabsContent value="actions" className="space-y-6">
+        {/* Tab: Status (tracking only) */}
+        <TabsContent value="status" className="space-y-6">
           <div className="space-y-3">
             <div>
-              <h3 className="text-sm font-medium">Aksi E-Klaim</h3>
-              <p className="text-xs text-muted-foreground">Jalankan aksi sesuai urutan: New Claim → Set Claim Data → Grouper → Final</p>
+              <h3 className="text-sm font-medium">Tracking Status Klaim</h3>
+              <p className="text-xs text-muted-foreground">Alur: New Claim → Set Claim Data → Coding iDRG → Coding INACBG → Claim Final → Kirim Klaim</p>
             </div>
-            <div className="space-y-3">
-              {/* Step 1: New Claim */}
-              <div className="flex items-center justify-between p-3 rounded-md border">
+
+            {/* Step tracking items (read-only status) */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between p-3 rounded-md border bg-muted/20">
                 <div className="flex items-center gap-3">
                   <Badge variant="outline" className="text-xs">1</Badge>
                   <div>
@@ -370,21 +595,10 @@ export default function EklaimDetailPage() {
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {detail.new_claim_success && <CheckCircle className="h-4 w-4 text-green-600" />}
-                  <Button
-                    size="sm"
-                    disabled={submitting || status !== 'draft'}
-                    onClick={() => handleAction('new_claim')}
-                  >
-                    {submitting ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Play className="mr-1 h-4 w-4" />}
-                    Kirim
-                  </Button>
-                </div>
+                {detail.new_claim_success && <CheckCircle className="h-4 w-4 text-green-600" />}
               </div>
 
-              {/* Step 2: Set Claim Data */}
-              <div className="flex items-center justify-between p-3 rounded-md border">
+              <div className="flex items-center justify-between p-3 rounded-md border bg-muted/20">
                 <div className="flex items-center gap-3">
                   <Badge variant="outline" className="text-xs">2</Badge>
                   <div>
@@ -396,100 +610,65 @@ export default function EklaimDetailPage() {
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {detail.set_claim_data_success && <CheckCircle className="h-4 w-4 text-green-600" />}
-                  <Button
-                    size="sm"
-                    disabled={submitting || status !== 'new_claim'}
-                    onClick={() => handleAction('set_claim_data')}
-                  >
-                    {submitting ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Send className="mr-1 h-4 w-4" />}
-                    Kirim Data
-                  </Button>
-                </div>
+                {detail.set_claim_data_success && <CheckCircle className="h-4 w-4 text-green-600" />}
               </div>
 
-              {/* Step 3: Grouper */}
-              <div className="flex items-center justify-between p-3 rounded-md border">
+              <div className="flex items-center justify-between p-3 rounded-md border bg-muted/20">
                 <div className="flex items-center gap-3">
-                  <Badge variant="outline" className="text-xs">3</Badge>
+                  <Badge variant="outline" className="text-xs">3-4</Badge>
                   <div>
-                    <p className="text-sm font-medium">Grouper</p>
+                    <p className="text-sm font-medium">Coding iDRG & INACBG</p>
+                    <div className="flex gap-2 mt-1">
+                      {detail.idrg_final_success ? (
+                        <Badge className="bg-indigo-100 text-indigo-800 text-xs">iDRG Final</Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-xs">iDRG: Belum</Badge>
+                      )}
+                      {detail.inacbg_final_success ? (
+                        <Badge className="bg-orange-100 text-orange-800 text-xs">INACBG Final</Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-xs">INACBG: Belum</Badge>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                {detail.inacbg_final_success && <CheckCircle className="h-4 w-4 text-green-600" />}
+              </div>
+
+              <div className="flex items-center justify-between p-3 rounded-md border bg-muted/20">
+                <div className="flex items-center gap-3">
+                  <Badge variant="outline" className="text-xs">5</Badge>
+                  <div>
+                    <p className="text-sm font-medium">Claim Final</p>
                     <p className="text-xs text-muted-foreground">
-                      {detail.grouper_sent_at
-                        ? `Dikirim: ${formatDate(detail.grouper_sent_at)}`
+                      {detail.claim_final_sent_at
+                        ? `Dikirim: ${formatDate(detail.claim_final_sent_at)}`
                         : 'Belum dikirim'}
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {detail.grouper_success && <CheckCircle className="h-4 w-4 text-green-600" />}
-                  <Button
-                    size="sm"
-                    disabled={submitting || status !== 'set_claim_data'}
-                    onClick={() => handleAction('grouper')}
-                  >
-                    {submitting ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <BarChart3 className="mr-1 h-4 w-4" />}
-                    Grouping
-                  </Button>
-                </div>
+                {detail.claim_final_success && <CheckCircle className="h-4 w-4 text-green-600" />}
               </div>
 
-              {/* Step 4: Final */}
-              <div className="flex items-center justify-between p-3 rounded-md border">
+              <div className="flex items-center justify-between p-3 rounded-md border bg-muted/20">
                 <div className="flex items-center gap-3">
-                  <Badge variant="outline" className="text-xs">4</Badge>
+                  <Badge variant="outline" className="text-xs">6</Badge>
                   <div>
-                    <p className="text-sm font-medium">Finalisasi</p>
+                    <p className="text-sm font-medium">Kirim Klaim</p>
                     <p className="text-xs text-muted-foreground">
-                      {detail.final_sent_at
-                        ? `Dikirim: ${formatDate(detail.final_sent_at)}`
+                      {detail.claim_send_sent_at
+                        ? `Dikirim: ${formatDate(detail.claim_send_sent_at)}`
                         : 'Belum dikirim'}
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {detail.final_success && <CheckCircle className="h-4 w-4 text-green-600" />}
-                  <Button
-                    size="sm"
-                    disabled={submitting || status !== 'grouped'}
-                    onClick={() => handleAction('final')}
-                  >
-                    {submitting ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-1 h-4 w-4" />}
-                    Finalisasi
-                  </Button>
-                </div>
-              </div>
-
-              <Separator />
-
-              {/* Cancel / Delete / Reedit */}
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCancelDialogOpen(true)}
-                  disabled={submitting || status === 'draft'}
-                >
-                  <XCircle className="mr-1 h-4 w-4" />
-                  Batal Klaim
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setDeleteDialogOpen(true)}
-                  disabled={submitting || status === 'draft'}
-                  className="text-destructive hover:text-destructive"
-                >
-                  <Trash2 className="mr-1 h-4 w-4" />
-                  Hapus Klaim
-                </Button>
+                {detail.claim_send_success && <CheckCircle className="h-4 w-4 text-green-600" />}
               </div>
             </div>
           </div>
 
           {/* Responses */}
-          {(detail.new_claim_response || detail.set_claim_data_response || detail.grouper_response || detail.final_response) && (
+          {(detail.new_claim_response || detail.set_claim_data_response || detail.claim_final_response || detail.claim_send_response) && (
             <>
               <Separator />
               <div className="space-y-3">
@@ -497,25 +676,31 @@ export default function EklaimDetailPage() {
                 {detail.new_claim_response && (
                   <div>
                     <p className="text-xs text-muted-foreground mb-1">New Claim</p>
-                    <pre className="text-xs bg-muted p-2 rounded overflow-x-auto">{detail.new_claim_response}</pre>
+                    <pre className="text-xs bg-muted p-2 rounded overflow-x-auto max-h-32">{detail.new_claim_response}</pre>
                   </div>
                 )}
                 {detail.set_claim_data_response && (
                   <div>
                     <p className="text-xs text-muted-foreground mb-1">Set Claim Data</p>
-                    <pre className="text-xs bg-muted p-2 rounded overflow-x-auto">{detail.set_claim_data_response}</pre>
+                    <pre className="text-xs bg-muted p-2 rounded overflow-x-auto max-h-32">{detail.set_claim_data_response}</pre>
                   </div>
                 )}
-                {detail.grouper_response && (
+                {detail.claim_final_response && (
                   <div>
-                    <p className="text-xs text-muted-foreground mb-1">Grouper</p>
-                    <pre className="text-xs bg-muted p-2 rounded overflow-x-auto">{detail.grouper_response}</pre>
+                    <p className="text-xs text-muted-foreground mb-1">Claim Final</p>
+                    <pre className="text-xs bg-muted p-2 rounded overflow-x-auto max-h-32">{detail.claim_final_response}</pre>
                   </div>
                 )}
-                {detail.final_response && (
+                {detail.claim_send_response && (
                   <div>
-                    <p className="text-xs text-muted-foreground mb-1">Final</p>
-                    <pre className="text-xs bg-muted p-2 rounded overflow-x-auto">{detail.final_response}</pre>
+                    <p className="text-xs text-muted-foreground mb-1">Kirim Klaim</p>
+                    <pre className="text-xs bg-muted p-2 rounded overflow-x-auto max-h-32">{detail.claim_send_response}</pre>
+                  </div>
+                )}
+                {detail.claim_reedit_response && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Reedit Klaim</p>
+                    <pre className="text-xs bg-muted p-2 rounded overflow-x-auto max-h-32">{detail.claim_reedit_response}</pre>
                   </div>
                 )}
               </div>
@@ -547,6 +732,78 @@ export default function EklaimDetailPage() {
             >
               {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Kirim Pembatalan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Update Patient Dialog */}
+      <Dialog open={updatePatientOpen} onOpenChange={setUpdatePatientOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Update Data Pasien</DialogTitle>
+            <DialogDescription>
+              Perbarui data pasien pada klaim E-Klaim. Pastikan data sudah benar sebelum mengirim.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="up-nomor-kartu">Nomor Kartu</Label>
+              <Input
+                id="up-nomor-kartu"
+                value={updatePatientForm.nomor_kartu}
+                onChange={(e) => setUpdatePatientForm((f) => ({ ...f, nomor_kartu: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="up-nomor-rm">Nomor RM</Label>
+              <Input
+                id="up-nomor-rm"
+                value={updatePatientForm.nomor_rm}
+                onChange={(e) => setUpdatePatientForm((f) => ({ ...f, nomor_rm: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="up-nama">Nama Pasien</Label>
+              <Input
+                id="up-nama"
+                value={updatePatientForm.nama_pasien}
+                onChange={(e) => setUpdatePatientForm((f) => ({ ...f, nama_pasien: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="up-tgl-lahir">Tanggal Lahir</Label>
+              <Input
+                id="up-tgl-lahir"
+                type="date"
+                value={updatePatientForm.tgl_lahir}
+                onChange={(e) => setUpdatePatientForm((f) => ({ ...f, tgl_lahir: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Jenis Kelamin</Label>
+              <Select
+                value={String(updatePatientForm.gender)}
+                onValueChange={(v) => setUpdatePatientForm((f) => ({ ...f, gender: Number(v) }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Pilih jenis kelamin" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">Laki-laki</SelectItem>
+                  <SelectItem value="2">Perempuan</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setUpdatePatientOpen(false)}>Batal</Button>
+            <Button
+              disabled={submitting || !updatePatientForm.nama_pasien}
+              onClick={() => handleAction('update_patient', updatePatientForm)}
+            >
+              {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Kirim Update
             </Button>
           </DialogFooter>
         </DialogContent>

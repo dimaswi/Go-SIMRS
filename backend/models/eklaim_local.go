@@ -48,29 +48,88 @@ type EKlaimLocal struct {
 	HospitalTariff  float64    `json:"hospital_tariff"`
 	TariffDiff      float64    `json:"tariff_diff"`
 
-	// Finalization
+	// Finalization (legacy — kept for DB compat, replaced by ClaimFinal* below)
 	FinalSentAt   *time.Time `json:"final_sent_at"`
 	FinalResponse string     `gorm:"type:text" json:"final_response,omitempty"`
 	FinalSuccess  bool       `gorm:"default:false" json:"final_success"`
 
+	// ==================== iDRG Tracking ====================
+	IDRGDiagnosa          string `gorm:"column:idrg_diagnosa;type:text" json:"idrg_diagnosa"`                               // "#"-separated codes sent to E-Klaim
+	IDRGProcedure         string `gorm:"column:idrg_procedure;type:text" json:"idrg_procedure"`                             // "#"-separated codes+multiplicity
+	IDRGDiagnosaResponse  string `gorm:"column:idrg_diagnosa_response;type:text" json:"idrg_diagnosa_response,omitempty"`   // JSON response from idrg_diagnosa_set
+	IDRGProcedureResponse string `gorm:"column:idrg_procedure_response;type:text" json:"idrg_procedure_response,omitempty"` // JSON response from idrg_procedure_set
+
+	IDRGGrouperSentAt   *time.Time `gorm:"column:idrg_grouper_sent_at" json:"idrg_grouper_sent_at"`
+	IDRGGrouperResponse string     `gorm:"column:idrg_grouper_response;type:text" json:"idrg_grouper_response,omitempty"`
+	IDRGGrouperSuccess  bool       `gorm:"column:idrg_grouper_success;default:false" json:"idrg_grouper_success"`
+	IDRGCode            string     `gorm:"column:idrg_code;size:30" json:"idrg_code"`
+	IDRGDescription     string     `gorm:"column:idrg_description;size:500" json:"idrg_description"`
+	IDRGCostWeight      string     `gorm:"column:idrg_cost_weight;size:30" json:"idrg_cost_weight"`
+	IDRGStatusCd        string     `gorm:"column:idrg_status_cd;size:30" json:"idrg_status_cd"` // "normal" or error
+
+	IDRGFinalSentAt  *time.Time `gorm:"column:idrg_final_sent_at" json:"idrg_final_sent_at"`
+	IDRGFinalSuccess bool       `gorm:"column:idrg_final_success;default:false" json:"idrg_final_success"`
+
+	// ==================== INACBG Tracking ====================
+	INACBGDiagnosa          string `gorm:"type:text" json:"inacbg_diagnosa"`                    // "#"-separated codes
+	INACBGProcedure         string `gorm:"type:text" json:"inacbg_procedure"`                   // "#"-separated codes (no multiplicity)
+	INACBGDiagnosaResponse  string `gorm:"type:text" json:"inacbg_diagnosa_response,omitempty"` // JSON response
+	INACBGProcedureResponse string `gorm:"type:text" json:"inacbg_procedure_response,omitempty"`
+	INACBGImportResponse    string `gorm:"type:text" json:"inacbg_import_response,omitempty"` // JSON response from idrg_to_inacbg_import
+
+	INACBGGrouperStage1SentAt   *time.Time `json:"inacbg_grouper_stage1_sent_at"`
+	INACBGGrouperStage1Response string     `gorm:"type:text" json:"inacbg_grouper_stage1_response,omitempty"`
+	INACBGGrouperStage1Success  bool       `gorm:"default:false" json:"inacbg_grouper_stage1_success"`
+
+	SpecialCMGOptions  string `gorm:"type:text" json:"special_cmg_options,omitempty"`  // JSON array of SpecialCMGOption from stage 1
+	SelectedSpecialCMG string `gorm:"type:text" json:"selected_special_cmg,omitempty"` // "#"-separated codes selected by user
+
+	INACBGGrouperStage2SentAt   *time.Time `json:"inacbg_grouper_stage2_sent_at"`
+	INACBGGrouperStage2Response string     `gorm:"type:text" json:"inacbg_grouper_stage2_response,omitempty"`
+	INACBGGrouperStage2Success  bool       `gorm:"default:false" json:"inacbg_grouper_stage2_success"`
+
+	INACBGCBGCode        string `gorm:"column:inacbg_cbg_code;size:30" json:"inacbg_cbg_code"`
+	INACBGCBGDescription string `gorm:"column:inacbg_cbg_description;size:500" json:"inacbg_cbg_description"`
+	INACBGBaseTariff     string `gorm:"size:30" json:"inacbg_base_tariff"`
+	INACBGTariff         string `gorm:"size:30" json:"inacbg_tariff"`
+	INACBGStatusCd       string `gorm:"size:30" json:"inacbg_status_cd"` // "normal" or error
+
+	INACBGFinalSentAt  *time.Time `json:"inacbg_final_sent_at"`
+	INACBGFinalSuccess bool       `gorm:"default:false" json:"inacbg_final_success"`
+
+	// ==================== Claim Final & Send ====================
+	ClaimFinalSentAt   *time.Time `json:"claim_final_sent_at"`
+	ClaimFinalResponse string     `gorm:"type:text" json:"claim_final_response,omitempty"`
+	ClaimFinalSuccess  bool       `gorm:"default:false" json:"claim_final_success"`
+
+	ClaimSendSentAt   *time.Time `json:"claim_send_sent_at"`
+	ClaimSendResponse string     `gorm:"type:text" json:"claim_send_response,omitempty"`
+	ClaimSendSuccess  bool       `gorm:"default:false" json:"claim_send_success"`
+
+	ClaimReeditSentAt   *time.Time `json:"claim_reedit_sent_at"`
+	ClaimReeditResponse string     `gorm:"type:text" json:"claim_reedit_response,omitempty"`
+
+	// Form data saved flag — true once user has saved form data via SendSetClaimData
+	FormDataSaved bool `gorm:"default:false" json:"form_data_saved"`
+
 	// E-Klaim data for set_claim_data (editable form fields)
-	TglMasuk        string  `gorm:"size:10" json:"tgl_masuk"`       // yyyy-mm-dd
-	TglPulang       string  `gorm:"size:10" json:"tgl_pulang"`      // yyyy-mm-dd
-	CaraMasuk       string  `gorm:"size:5" json:"cara_masuk"`       // 1=IGD, 2=Poli, 3=Rujukan, 4=Lahir
-	JenisRawat      string  `gorm:"size:5" json:"jenis_rawat"`      // 1=RI, 2=RJ
-	KelasRawat      string  `gorm:"size:5" json:"kelas_rawat"`      // 1, 2, 3
-	DischargeStatus string  `gorm:"size:5" json:"discharge_status"` // 1=Hidup, 2=Meninggal
+	TglMasuk        string  `gorm:"size:10" json:"tgl_masuk"`        // yyyy-mm-dd
+	TglPulang       string  `gorm:"size:10" json:"tgl_pulang"`       // yyyy-mm-dd
+	CaraMasuk       string  `gorm:"size:20" json:"cara_masuk"`       // gp, hosp-trans, mp, outp, inp, emd, born, nursing, psych, rehab, other
+	JenisRawat      string  `gorm:"size:5" json:"jenis_rawat"`       // 1=RI, 2=RJ
+	KelasRawat      string  `gorm:"size:5" json:"kelas_rawat"`       // 1, 2, 3
+	DischargeStatus string  `gorm:"size:10" json:"discharge_status"` // 1-5
 	TarifRS         float64 `json:"tarif_rs"`
 
 	// Diagnoses & Procedures (comma-separated ICD codes for eklaim)
-	Diagnosa            string `gorm:"type:text" json:"diagnosa"`             // ICD-10 comma-separated
-	Procedure           string `gorm:"type:text" json:"procedure"`            // ICD-9-CM comma-separated
-	DiagnosaINAGrouper  string `gorm:"type:text" json:"diagnosa_inagrouper"`  // for INACBG
-	ProcedureINAGrouper string `gorm:"type:text" json:"procedure_inagrouper"` // for INACBG
+	Diagnosa            string `gorm:"type:text" json:"diagnosa"`                                         // ICD-10 comma-separated
+	Procedure           string `gorm:"type:text" json:"procedure"`                                        // ICD-9-CM comma-separated
+	DiagnosaINAGrouper  string `gorm:"column:diagnosa_inagrouper;type:text" json:"diagnosa_inagrouper"`   // for INACBG
+	ProcedureINAGrouper string `gorm:"column:procedure_inagrouper;type:text" json:"procedure_inagrouper"` // for INACBG
 
 	// ICU fields
-	ICUIndikator   string `gorm:"size:5;default:'0'" json:"icu_indikator"`
-	ICULOS         string `gorm:"size:10;default:'0'" json:"icu_los"`
+	ICUIndikator   string `gorm:"column:icu_indikator;size:5;default:'0'" json:"icu_indikator"`
+	ICULOS         string `gorm:"column:icu_los;size:10;default:'0'" json:"icu_los"`
 	VentilatorHour string `gorm:"size:10;default:'0'" json:"ventilator_hour"`
 
 	// Neonatus
@@ -85,7 +144,7 @@ type EKlaimLocal struct {
 
 	// Upgrade kelas
 	UpgradeClassInd   string `gorm:"size:5;default:'0'" json:"upgrade_class_ind"`
-	UpgradeClassClass string `gorm:"size:5" json:"upgrade_class_class"`
+	UpgradeClassClass string `gorm:"size:10" json:"upgrade_class_class"` // kelas_1, kelas_2, vip, vvip
 	UpgradeClassLOS   string `gorm:"size:10;default:'0'" json:"upgrade_class_los"`
 	UpgradeClassPayor string `gorm:"size:30" json:"upgrade_class_payor"` // peserta, pemberi_kerja, asuransi_tambahan
 	AddPaymentPct     string `gorm:"size:10;default:'0'" json:"add_payment_pct"`
@@ -150,6 +209,143 @@ type EKlaimLocal struct {
 
 func (EKlaimLocal) TableName() string {
 	return "eklaim_locals"
+}
+
+// ==================== Workflow Helper Methods ====================
+
+// CanDoIDRGCoding checks if iDRG diagnosa/procedure coding can be performed
+func (e *EKlaimLocal) CanDoIDRGCoding() bool {
+	return e.SetClaimDataSuccess && !e.IDRGFinalSuccess
+}
+
+// CanGroupIDRG checks if iDRG grouping can be performed
+func (e *EKlaimLocal) CanGroupIDRG() bool {
+	return e.SetClaimDataSuccess && !e.IDRGFinalSuccess
+}
+
+// CanFinalIDRG checks if iDRG can be finalized
+func (e *EKlaimLocal) CanFinalIDRG() bool {
+	return e.IDRGGrouperSuccess && e.IDRGStatusCd == "normal" && !e.IDRGFinalSuccess
+}
+
+// CanReeditIDRG checks if iDRG can be re-edited (unfinalized)
+func (e *EKlaimLocal) CanReeditIDRG() bool {
+	return e.IDRGFinalSuccess && !e.ClaimFinalSuccess
+}
+
+// IsINACBGVisible checks if INACBG section should be visible
+func (e *EKlaimLocal) IsINACBGVisible() bool {
+	return e.IDRGFinalSuccess
+}
+
+// CanDoINACBGCoding checks if INACBG diagnosa/procedure coding can be performed
+func (e *EKlaimLocal) CanDoINACBGCoding() bool {
+	return e.IDRGFinalSuccess && !e.INACBGFinalSuccess
+}
+
+// CanGroupINACBG checks if INACBG grouping can be performed
+func (e *EKlaimLocal) CanGroupINACBG() bool {
+	return e.IDRGFinalSuccess && !e.INACBGFinalSuccess
+}
+
+// CanFinalINACBG checks if INACBG can be finalized
+func (e *EKlaimLocal) CanFinalINACBG() bool {
+	grouped := e.INACBGGrouperStage1Success || e.INACBGGrouperStage2Success
+	return grouped && e.INACBGStatusCd == "normal" && !e.INACBGFinalSuccess
+}
+
+// CanReeditINACBG checks if INACBG can be re-edited (unfinalized)
+func (e *EKlaimLocal) CanReeditINACBG() bool {
+	return e.INACBGFinalSuccess && !e.ClaimFinalSuccess
+}
+
+// CanClaimFinal checks if claim can be finalized
+func (e *EKlaimLocal) CanClaimFinal() bool {
+	return e.INACBGFinalSuccess && !e.ClaimFinalSuccess
+}
+
+// CanClaimSend checks if claim can be sent to BPJS
+func (e *EKlaimLocal) CanClaimSend() bool {
+	return e.ClaimFinalSuccess && !e.ClaimSendSuccess
+}
+
+// CanReeditClaim checks if finalized claim can be re-edited
+func (e *EKlaimLocal) CanReeditClaim() bool {
+	return e.ClaimFinalSuccess && !e.ClaimSendSuccess
+}
+
+// CanPrintClaim checks if claim can be printed
+func (e *EKlaimLocal) CanPrintClaim() bool {
+	return e.ClaimFinalSuccess
+}
+
+// IsFormDisabled checks if claim data form should be disabled (after iDRG final)
+func (e *EKlaimLocal) IsFormDisabled() bool {
+	return e.IDRGFinalSuccess
+}
+
+// GetButtonVisibility returns visibility/enabled state for all workflow buttons
+func (e *EKlaimLocal) GetButtonVisibility() map[string]bool {
+	return map[string]bool{
+		"idrg_coding":     e.CanDoIDRGCoding(),
+		"grouping_idrg":   e.CanGroupIDRG(),
+		"final_idrg":      e.CanFinalIDRG(),
+		"reedit_idrg":     e.CanReeditIDRG(),
+		"inacbg_visible":  e.IsINACBGVisible(),
+		"inacbg_coding":   e.CanDoINACBGCoding(),
+		"grouping_inacbg": e.CanGroupINACBG(),
+		"final_inacbg":    e.CanFinalINACBG(),
+		"reedit_inacbg":   e.CanReeditINACBG(),
+		"final_claim":     e.CanClaimFinal(),
+		"send_claim":      e.CanClaimSend(),
+		"reedit_claim":    e.CanReeditClaim(),
+		"print_claim":     e.CanPrintClaim(),
+		"form_disabled":   e.IsFormDisabled(),
+	}
+}
+
+// ResetIDRGState resets all iDRG final state (used when re-editing iDRG)
+func (e *EKlaimLocal) ResetIDRGState() {
+	e.IDRGFinalSentAt = nil
+	e.IDRGFinalSuccess = false
+	// Also reset all INACBG state since iDRG changed
+	e.ResetINACBGState()
+}
+
+// ResetINACBGState resets all INACBG state (used when re-editing INACBG or cascaded from iDRG reedit)
+func (e *EKlaimLocal) ResetINACBGState() {
+	e.INACBGDiagnosa = ""
+	e.INACBGProcedure = ""
+	e.INACBGDiagnosaResponse = ""
+	e.INACBGProcedureResponse = ""
+	e.INACBGImportResponse = ""
+	e.INACBGGrouperStage1SentAt = nil
+	e.INACBGGrouperStage1Response = ""
+	e.INACBGGrouperStage1Success = false
+	e.SpecialCMGOptions = ""
+	e.SelectedSpecialCMG = ""
+	e.INACBGGrouperStage2SentAt = nil
+	e.INACBGGrouperStage2Response = ""
+	e.INACBGGrouperStage2Success = false
+	e.INACBGCBGCode = ""
+	e.INACBGCBGDescription = ""
+	e.INACBGBaseTariff = ""
+	e.INACBGTariff = ""
+	e.INACBGStatusCd = ""
+	e.INACBGFinalSentAt = nil
+	e.INACBGFinalSuccess = false
+	// Also reset claim final/send
+	e.ResetClaimFinalState()
+}
+
+// ResetClaimFinalState resets claim final and send state
+func (e *EKlaimLocal) ResetClaimFinalState() {
+	e.ClaimFinalSentAt = nil
+	e.ClaimFinalResponse = ""
+	e.ClaimFinalSuccess = false
+	e.ClaimSendSentAt = nil
+	e.ClaimSendResponse = ""
+	e.ClaimSendSuccess = false
 }
 
 // EKlaimRMDuplicate stores the duplicated medical record data for E-Klaim
@@ -397,7 +593,7 @@ type EKlaimLocalLog struct {
 	ID        uint      `gorm:"primarykey" json:"id"`
 	CreatedAt time.Time `json:"created_at"`
 
-	EKlaimLocalID uint `gorm:"not null;index" json:"eklaim_local_id"`
+	EKlaimLocalID uint `gorm:"column:e_klaim_local_id;not null;index" json:"eklaim_local_id"`
 
 	// Request
 	Method      string `gorm:"size:50;not null" json:"method"` // new_claim, set_claim_data, grouper, etc.
@@ -406,7 +602,7 @@ type EKlaimLocalLog struct {
 	// Response
 	ResponseCode string `gorm:"size:10" json:"response_code"`
 	ResponseBody string `gorm:"type:text" json:"response_body,omitempty"`
-	ResponseTime int    `json:"response_time_ms"` // ms
+	ResponseTime int    `gorm:"column:response_time" json:"response_time_ms"` // ms
 
 	// Status
 	IsSuccess    bool   `gorm:"default:false" json:"is_success"`

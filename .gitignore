@@ -35,3 +35,14 @@ docker-compose.override.yml
 # Build
 dist/
 build/
+
+# Docs
+docs/
+
+# Scripts
+scripts/
+
+# Misc
+*.xlsx
+*.csv
+*.pdf

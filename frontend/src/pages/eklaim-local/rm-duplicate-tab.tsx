@@ -1237,7 +1237,7 @@ export default function RMDuplicateTab({ eklaimId, rmDuplicate, onSaved }: RMDup
         </p>
         <Button onClick={handleSave} disabled={!dirty || submitting} size="lg">
           {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-          Simpan RM Duplikat
+          Simpan
         </Button>
       </div>
     </div>

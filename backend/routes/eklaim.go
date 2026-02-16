@@ -51,6 +51,9 @@ func RegisterEKlaimRoutes(r *gin.RouterGroup) {
 	eklaimLocal := r.Group("/eklaim-local")
 	eklaimLocal.Use(middleware.AuthMiddleware())
 	{
+		// Dashboard
+		eklaimLocal.GET("/dashboard", middleware.RequirePermission("eklaim.view"), handlers.GetEKlaimDashboard)
+
 		// Server connectivity
 		eklaimLocal.GET("/ping", middleware.RequirePermission("eklaim.view"), handlers.PingEKlaimServer)
 
@@ -72,6 +75,7 @@ func RegisterEKlaimRoutes(r *gin.RouterGroup) {
 
 		// E-Klaim Local Server API calls
 		eklaimLocal.POST("/:id/new-claim", middleware.RequirePermission("eklaim.create"), handlers.SendNewClaim)
+		eklaimLocal.POST("/:id/update-patient", middleware.RequirePermission("eklaim.edit"), handlers.SendUpdatePatient)
 		eklaimLocal.POST("/:id/set-claim-data", middleware.RequirePermission("eklaim.edit"), handlers.SendSetClaimData)
 		eklaimLocal.POST("/:id/grouper", middleware.RequirePermission("eklaim.grouping"), handlers.SendGrouper)
 		eklaimLocal.POST("/:id/final", middleware.RequirePermission("eklaim.final"), handlers.SendFinalClaim)
@@ -83,13 +87,46 @@ func RegisterEKlaimRoutes(r *gin.RouterGroup) {
 		eklaimLocal.GET("/:id/claim-data", middleware.RequirePermission("eklaim.view"), handlers.GetClaimData)
 		eklaimLocal.GET("/:id/claim-print", middleware.RequirePermission("eklaim.view"), handlers.GetClaimPrint)
 
+		// Search APIs — HARUS sebelum /:id routes untuk menghindari Gin route collision
+		eklaimLocal.GET("/search/idrg-diagnosa", middleware.RequirePermission("eklaim.view"), handlers.SearchIDRGDiagnosa)
+		eklaimLocal.GET("/search/idrg-procedure", middleware.RequirePermission("eklaim.view"), handlers.SearchIDRGProcedure)
+		eklaimLocal.GET("/search/inacbg-diagnosa", middleware.RequirePermission("eklaim.view"), handlers.SearchINACBGDiagnosa)
+		eklaimLocal.GET("/search/inacbg-procedure", middleware.RequirePermission("eklaim.view"), handlers.SearchINACBGProcedure)
+
 		// Report — status klaim per periode
 		eklaimLocal.GET("/claim-status", middleware.RequirePermission("eklaim.view"), handlers.GetClaimStatusList)
+
+		// Defaults — config defaults for form auto-fill
+		eklaimLocal.GET("/defaults", middleware.RequirePermission("eklaim.view"), handlers.GetEKlaimDefaults)
 
 		// Global Logs — semua log komunikasi E-Klaim
 		eklaimLocal.GET("/logs", middleware.RequirePermission("eklaim.view"), handlers.GetAllEKlaimLocalLogs)
 
 		// Per-claim Logs
 		eklaimLocal.GET("/:id/logs", middleware.RequirePermission("eklaim.view"), handlers.GetEKlaimLocalLogs)
+
+		// === iDRG Flow ===
+		eklaimLocal.POST("/:id/idrg-diagnosa", middleware.RequirePermission("eklaim.edit"), handlers.SendIDRGDiagnosaSet)
+		eklaimLocal.GET("/:id/idrg-diagnosa", middleware.RequirePermission("eklaim.view"), handlers.GetIDRGDiagnosa)
+		eklaimLocal.POST("/:id/idrg-procedure", middleware.RequirePermission("eklaim.edit"), handlers.SendIDRGProcedureSet)
+		eklaimLocal.GET("/:id/idrg-procedure", middleware.RequirePermission("eklaim.view"), handlers.GetIDRGProcedure)
+		eklaimLocal.POST("/:id/grouper-idrg", middleware.RequirePermission("eklaim.grouping"), handlers.SendGrouperIDRG)
+		eklaimLocal.POST("/:id/final-idrg", middleware.RequirePermission("eklaim.final"), handlers.SendFinalIDRG)
+		eklaimLocal.POST("/:id/reedit-idrg", middleware.RequirePermission("eklaim.edit"), handlers.SendReeditIDRG)
+
+		// === INACBG Flow ===
+		eklaimLocal.POST("/:id/import-inacbg", middleware.RequirePermission("eklaim.edit"), handlers.SendIDRGToINACBGImport)
+		eklaimLocal.POST("/:id/inacbg-diagnosa", middleware.RequirePermission("eklaim.edit"), handlers.SendINACBGDiagnosaSet)
+		eklaimLocal.GET("/:id/inacbg-diagnosa", middleware.RequirePermission("eklaim.view"), handlers.GetINACBGDiagnosa)
+		eklaimLocal.POST("/:id/inacbg-procedure", middleware.RequirePermission("eklaim.edit"), handlers.SendINACBGProcedureSet)
+		eklaimLocal.GET("/:id/inacbg-procedure", middleware.RequirePermission("eklaim.view"), handlers.GetINACBGProcedure)
+		eklaimLocal.POST("/:id/grouper-inacbg-stage1", middleware.RequirePermission("eklaim.grouping"), handlers.SendGrouperINACBGStage1)
+		eklaimLocal.POST("/:id/grouper-inacbg-stage2", middleware.RequirePermission("eklaim.grouping"), handlers.SendGrouperINACBGStage2)
+		eklaimLocal.POST("/:id/final-inacbg", middleware.RequirePermission("eklaim.final"), handlers.SendFinalINACBG)
+		eklaimLocal.POST("/:id/reedit-inacbg", middleware.RequirePermission("eklaim.edit"), handlers.SendReeditINACBG)
+
+		// === Claim Send & Re-edit ===
+		eklaimLocal.POST("/:id/send-claim", middleware.RequirePermission("eklaim.send"), handlers.SendClaimSend)
+		eklaimLocal.POST("/:id/reedit-claim", middleware.RequirePermission("eklaim.edit"), handlers.SendClaimReeditLocal)
 	}
 }

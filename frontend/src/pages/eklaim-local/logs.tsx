@@ -158,7 +158,6 @@ export default function EklaimLogsPage() {
           data={logs}
           searchPlaceholder="Cari log..."
           pageSize={20}
-          tableId={`eklaim-local-logs-${id}`}
         />
       )}
 

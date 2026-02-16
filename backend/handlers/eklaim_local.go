@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"starter/backend/database"
 	"starter/backend/models"
@@ -37,10 +38,11 @@ func GetListSEP(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	perPage, _ := strconv.Atoi(c.DefaultQuery("per_page", "20"))
 	search := c.Query("search")
-	status := c.Query("status")            // aktif, batal
-	tglFrom := c.Query("tgl_from")         // yyyy-mm-dd
-	tglTo := c.Query("tgl_to")             // yyyy-mm-dd
-	claimStatus := c.Query("claim_status") // has_claim, no_claim (filter apakah sudah dibuat eklaim_local atau belum)
+	status := c.Query("status")              // aktif, batal
+	tglFrom := c.Query("tgl_from")           // yyyy-mm-dd
+	tglTo := c.Query("tgl_to")               // yyyy-mm-dd
+	claimStatus := c.Query("claim_status")   // has_claim, no_claim (filter apakah sudah dibuat eklaim_local atau belum)
+	jnsPelayanan := c.Query("jns_pelayanan") // 1=Ranap, 2=Rajal
 
 	offset := (page - 1) * perPage
 
@@ -67,6 +69,10 @@ func GetListSEP(c *gin.Context) {
 	}
 	if tglTo != "" {
 		query = query.Where("tgl_sep <= ?", tglTo)
+	}
+
+	if jnsPelayanan != "" {
+		query = query.Where("jns_pelayanan = ?", jnsPelayanan)
 	}
 
 	// Filter by claim status (has_claim = already has eklaim_local record)
@@ -200,7 +206,7 @@ func DuplicateRM(c *gin.Context) {
 	// If eklaim_local exists and already has rm_duplicate, skip
 	if err == nil {
 		var existingDup models.EKlaimRMDuplicate
-		if database.DB.Where("eklaim_local_id = ?", eklaimLocal.ID).First(&existingDup).Error == nil {
+		if database.DB.Where("e_klaim_local_id = ?", eklaimLocal.ID).First(&existingDup).Error == nil {
 			c.JSON(http.StatusConflict, gin.H{
 				"error":        "Duplikasi RM sudah ada untuk SEP ini",
 				"eklaim_local": eklaimLocal,
@@ -522,7 +528,7 @@ func CreateClaimFromSEP(c *gin.Context) {
 
 	// Step 2: Create RMDuplicate if not exists
 	var rmDup models.EKlaimRMDuplicate
-	if database.DB.Where("eklaim_local_id = ?", eklaimLocal.ID).First(&rmDup).Error == gorm.ErrRecordNotFound {
+	if database.DB.Where("e_klaim_local_id = ?", eklaimLocal.ID).First(&rmDup).Error == gorm.ErrRecordNotFound {
 		var diagnoses []models.Diagnosis
 		database.DB.Where("visit_id = ?", *sep.VisitID).Order("type ASC, created_at ASC").Find(&diagnoses)
 
@@ -980,7 +986,7 @@ func InitRMDuplicate(c *gin.Context) {
 
 	// Check if already exists
 	var existing models.EKlaimRMDuplicate
-	existingFound := database.DB.Where("eklaim_local_id = ?", eklaimLocal.ID).
+	existingFound := database.DB.Where("e_klaim_local_id = ?", eklaimLocal.ID).
 		Preload("Diagnoses").Preload("Procedures").
 		Preload("LabResults").Preload("RadiologyResults").Preload("SurgeryNotes").
 		First(&existing).Error == nil
@@ -1295,7 +1301,7 @@ func InitRMDuplicate(c *gin.Context) {
 		// Handle race condition: if another request already created the record, load and re-sync it
 		if strings.Contains(err.Error(), "duplicate key") || strings.Contains(err.Error(), "23505") {
 			var raceExisting models.EKlaimRMDuplicate
-			if database.DB.Where("eklaim_local_id = ?", eklaimLocal.ID).First(&raceExisting).Error == nil {
+			if database.DB.Where("e_klaim_local_id = ?", eklaimLocal.ID).First(&raceExisting).Error == nil {
 				// Re-sync fields
 				database.DB.Model(&raceExisting).Updates(map[string]interface{}{
 					"chief_complaint": anamnesis.ChiefComplaint, "history_of_present_illness": anamnesis.HistoryOfPresentIllness,
@@ -1455,7 +1461,7 @@ func SendNewClaim(c *gin.Context) {
 	}
 
 	var eklaimLocal models.EKlaimLocal
-	if err := database.DB.Preload("SEP").First(&eklaimLocal, eklaimID).Error; err != nil {
+	if err := database.DB.Preload("SEP").Preload("SEP.Patient").First(&eklaimLocal, eklaimID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Eklaim local tidak ditemukan"})
 		return
 	}
@@ -1476,6 +1482,13 @@ func SendNewClaim(c *gin.Context) {
 		return
 	}
 
+	// Resolve patient data: SEP first, fallback to master Patient
+	patient := sep.Patient
+
+	nomorKartu := sep.NoKartu
+	nomorRM := sep.NoMR
+	namaPasien := sep.NamaPasien
+
 	gender := 0
 	if sep.JenisKelamin == "L" {
 		gender = 1
@@ -1483,17 +1496,38 @@ func SendNewClaim(c *gin.Context) {
 		gender = 2
 	}
 
-	// Format tgl_lahir: "1940-01-01 02:00:00" (per dokumentasi)
 	tglLahir := sep.TglLahir
+
+	// Fallback ke master data pasien jika field SEP kosong
+	if patient != nil {
+		if namaPasien == "" {
+			namaPasien = patient.NamaLengkap
+		}
+		if nomorRM == "" {
+			nomorRM = patient.NoRM
+		}
+		if tglLahir == "" && patient.TanggalLahir != nil {
+			tglLahir = patient.TanggalLahir.Format("2006-01-02")
+		}
+		if gender == 0 {
+			if patient.JenisKelamin == "L" {
+				gender = 1
+			} else if patient.JenisKelamin == "P" {
+				gender = 2
+			}
+		}
+	}
+
+	// Format tgl_lahir: "1940-01-01 00:00:00" (per dokumentasi)
 	if len(tglLahir) == 10 {
 		tglLahir = tglLahir + " 00:00:00"
 	}
 
 	claimData := eklaimSvc.NewClaimData{
-		NomorKartu: sep.NoKartu,
+		NomorKartu: nomorKartu,
 		NomorSEP:   sep.NoSEP,
-		NomorRM:    sep.NoMR,
-		NamaPasien: sep.NamaPasien,
+		NomorRM:    nomorRM,
+		NamaPasien: namaPasien,
 		TglLahir:   tglLahir,
 		Gender:     gender,
 	}
@@ -1554,6 +1588,163 @@ func SendNewClaim(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"message":      "new_claim berhasil",
+		"eklaim_local": eklaimLocal,
+		"response":     resp,
+	})
+}
+
+// SendUpdatePatient sends update_patient to the E-Klaim local server.
+// POST /eklaim-local/:id/update-patient
+// Memperbarui data pasien (nama, tgl_lahir, gender) pada klaim yang sudah dibuat.
+func SendUpdatePatient(c *gin.Context) {
+	eklaimID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+		return
+	}
+
+	// Accept optional overrides from request body
+	var req struct {
+		NomorKartu string `json:"nomor_kartu"`
+		NomorRM    string `json:"nomor_rm"`
+		NamaPasien string `json:"nama_pasien"`
+		TglLahir   string `json:"tgl_lahir"`
+		Gender     *int   `json:"gender"`
+	}
+	c.ShouldBindJSON(&req)
+
+	var eklaimLocal models.EKlaimLocal
+	if err := database.DB.Preload("SEP").Preload("SEP.Patient").First(&eklaimLocal, eklaimID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Eklaim local tidak ditemukan"})
+		return
+	}
+
+	// Validate: new_claim harus sudah berhasil
+	if !eklaimLocal.NewClaimSuccess {
+		c.JSON(http.StatusConflict, gin.H{
+			"error": "new_claim belum berhasil, tidak bisa update_patient",
+		})
+		return
+	}
+
+	sep := eklaimLocal.SEP
+	if sep == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "SEP data tidak ditemukan"})
+		return
+	}
+
+	// Resolve patient data: SEP first, fallback to master Patient, then override from request
+	patient := sep.Patient
+
+	// Default from SEP
+	nomorKartu := sep.NoKartu
+	nomorRM := sep.NoMR
+	namaPasien := sep.NamaPasien
+
+	gender := 0
+	if sep.JenisKelamin == "L" {
+		gender = 1
+	} else if sep.JenisKelamin == "P" {
+		gender = 2
+	}
+
+	tglLahir := sep.TglLahir
+
+	// Fallback ke master data pasien jika field SEP kosong
+	if patient != nil {
+		if namaPasien == "" {
+			namaPasien = patient.NamaLengkap
+		}
+		if nomorRM == "" {
+			nomorRM = patient.NoRM
+		}
+		if tglLahir == "" && patient.TanggalLahir != nil {
+			tglLahir = patient.TanggalLahir.Format("2006-01-02")
+		}
+		if gender == 0 {
+			if patient.JenisKelamin == "L" {
+				gender = 1
+			} else if patient.JenisKelamin == "P" {
+				gender = 2
+			}
+		}
+	}
+
+	// Override from request body
+	if req.NomorKartu != "" {
+		nomorKartu = req.NomorKartu
+	}
+	if req.NomorRM != "" {
+		nomorRM = req.NomorRM
+	}
+	if req.NamaPasien != "" {
+		namaPasien = req.NamaPasien
+	}
+	if req.Gender != nil {
+		gender = *req.Gender
+	}
+	if req.TglLahir != "" {
+		tglLahir = req.TglLahir
+	}
+
+	// Format tgl_lahir: "1940-01-01 00:00:00" (per dokumentasi)
+	if len(tglLahir) == 10 {
+		tglLahir = tglLahir + " 00:00:00"
+	}
+
+	claimData := eklaimSvc.NewClaimData{
+		NomorKartu: nomorKartu,
+		NomorSEP:   sep.NoSEP,
+		NomorRM:    nomorRM,
+		NamaPasien: namaPasien,
+		TglLahir:   tglLahir,
+		Gender:     gender,
+	}
+
+	client, err := eklaimSvc.NewClient()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal koneksi ke server E-Klaim: " + err.Error()})
+		return
+	}
+
+	resp, reqJSON, respJSON, elapsed, apiErr := client.UpdatePatient(claimData)
+
+	// Log the API call
+	userID := getUserIDValue(c)
+	logEntry := models.EKlaimLocalLog{
+		EKlaimLocalID: eklaimLocal.ID,
+		Method:        "update_patient",
+		RequestBody:   string(reqJSON),
+		ResponseBody:  string(respJSON),
+		ResponseTime:  elapsed,
+		IsSuccess:     apiErr == nil,
+	}
+	if resp != nil {
+		logEntry.ResponseCode = resp.Metadata.Code.String()
+	}
+	if apiErr != nil {
+		logEntry.ErrorMessage = apiErr.Error()
+	}
+	if userID > 0 {
+		logEntry.UserID = &userID
+	}
+	database.DB.Create(&logEntry)
+
+	if apiErr != nil {
+		now := time.Now()
+		eklaimLocal.LastError = apiErr.Error()
+		eklaimLocal.LastErrorAt = &now
+		database.DB.Save(&eklaimLocal)
+		c.JSON(http.StatusBadGateway, gin.H{
+			"error":        "update_patient gagal: " + apiErr.Error(),
+			"eklaim_local": eklaimLocal,
+			"response":     resp,
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":      "update_patient berhasil",
 		"eklaim_local": eklaimLocal,
 		"response":     resp,
 	})
@@ -1654,10 +1845,122 @@ func SendSetClaimData(c *gin.Context) {
 		}
 	}
 
-	// Create client and send
+	// === Save form data to DB FIRST (before E-Klaim call) ===
+	// Use Updates with explicit map to avoid GORM association save issues
+	formFields := map[string]interface{}{
+		"form_data_saved":      true,
+		"tgl_masuk":            req.TglMasuk,
+		"tgl_pulang":           req.TglPulang,
+		"cara_masuk":           req.CaraMasuk,
+		"jenis_rawat":          req.JenisRawat,
+		"kelas_rawat":          req.KelasRawat,
+		"discharge_status":     req.DischargeStatus,
+		"icu_indikator":        req.ICUIndikator,
+		"icu_los":              req.ICULOS,
+		"ventilator_hour":      req.VentilatorHour,
+		"birth_weight":         req.BirthWeight,
+		"adl_sub_acute":        req.ADLSubAcute,
+		"adl_chronic":          req.ADLChronic,
+		"upgrade_class_ind":    req.UpgradeClassInd,
+		"upgrade_class_class":  req.UpgradeClassClass,
+		"upgrade_class_los":    req.UpgradeClassLOS,
+		"upgrade_class_payor":  req.UpgradeClassPayor,
+		"add_payment_pct":      req.AddPaymentPct,
+		"coder_nik":            req.CoderNIK,
+		"sistole":              req.Sistole,
+		"diastole":             req.Diastole,
+		"kode_tarif":           req.KodeTarif,
+		"payor_id":             req.PayorID,
+		"payor_cd":             req.PayorCd,
+		"cob_cd":               req.CobCd,
+		"nama_dokter":          req.NamaDokter,
+		"tarif_poli_eks":       req.TarifPoliEks,
+		"nomor_kartu_t":        req.NomorKartuT,
+		"bayi_lahir_status_cd": req.BayiLahirStatusCd,
+		"dializer_single_use":  req.DializerSingleUse,
+		"kantong_darah":        req.KantongDarah,
+		"alteplase_ind":        req.AlteplaseInd,
+		"diagnosa":             eklaimLocal.Diagnosa,
+		"procedure":            eklaimLocal.Procedure,
+	}
+
+	// Ventilator detail
+	if vd, ok := req.Ventilator.(*eklaimSvc.VentilatorDetail); ok && vd != nil {
+		formFields["ventilator_use_ind"] = vd.UseInd
+		formFields["ventilator_start"] = vd.StartDttm
+		formFields["ventilator_stop"] = vd.StopDttm
+	} else if vdMap, ok := req.Ventilator.(map[string]interface{}); ok {
+		if v, ok := vdMap["use_ind"].(string); ok {
+			formFields["ventilator_use_ind"] = v
+		}
+		if v, ok := vdMap["start_dttm"].(string); ok {
+			formFields["ventilator_start"] = v
+		}
+		if v, ok := vdMap["stop_dttm"].(string); ok {
+			formFields["ventilator_stop"] = v
+		}
+	}
+
+	// APGAR
+	if req.Apgar != nil {
+		if req.Apgar.Menit1 != nil {
+			formFields["apgar_menit1_appearance"] = req.Apgar.Menit1.Appearance
+			formFields["apgar_menit1_pulse"] = req.Apgar.Menit1.Pulse
+			formFields["apgar_menit1_grimace"] = req.Apgar.Menit1.Grimace
+			formFields["apgar_menit1_activity"] = req.Apgar.Menit1.Activity
+			formFields["apgar_menit1_respiration"] = req.Apgar.Menit1.Respiration
+		}
+		if req.Apgar.Menit5 != nil {
+			formFields["apgar_menit5_appearance"] = req.Apgar.Menit5.Appearance
+			formFields["apgar_menit5_pulse"] = req.Apgar.Menit5.Pulse
+			formFields["apgar_menit5_grimace"] = req.Apgar.Menit5.Grimace
+			formFields["apgar_menit5_activity"] = req.Apgar.Menit5.Activity
+			formFields["apgar_menit5_respiration"] = req.Apgar.Menit5.Respiration
+		}
+	}
+
+	// Persalinan
+	if req.Persalinan != nil {
+		formFields["persalinan_usia_kehamilan"] = req.Persalinan.UsiaKehamilan
+		formFields["persalinan_gravida"] = req.Persalinan.Gravida
+		formFields["persalinan_partus"] = req.Persalinan.Partus
+		formFields["persalinan_abortus"] = req.Persalinan.Abortus
+		formFields["persalinan_onset_kontraksi"] = req.Persalinan.OnsetKontraksi
+		if len(req.Persalinan.Delivery) > 0 {
+			deliveryJSON, _ := json.Marshal(req.Persalinan.Delivery)
+			formFields["persalinan_delivery_json"] = string(deliveryJSON)
+		}
+	}
+
+	// Persist form data to DB — use Updates (map) to avoid GORM association issues
+	if saveErr := database.DB.Model(&models.EKlaimLocal{}).Where("id = ?", eklaimLocal.ID).Updates(formFields).Error; saveErr != nil {
+		log.Printf("[SendSetClaimData] ERROR saving form data for ID %d: %v", eklaimLocal.ID, saveErr)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan data form ke database: " + saveErr.Error()})
+		return
+	}
+	log.Printf("[SendSetClaimData] Form data saved to DB for ID %d (tgl_masuk=%s, tgl_pulang=%s)", eklaimLocal.ID, req.TglMasuk, req.TglPulang)
+
+	// Also update the in-memory struct for response
+	eklaimLocal.FormDataSaved = true
+	eklaimLocal.TglMasuk = req.TglMasuk
+	eklaimLocal.TglPulang = req.TglPulang
+	eklaimLocal.CaraMasuk = req.CaraMasuk
+	eklaimLocal.JenisRawat = req.JenisRawat
+	eklaimLocal.KelasRawat = req.KelasRawat
+	eklaimLocal.DischargeStatus = req.DischargeStatus
+
+	// Create client and send to E-Klaim server
 	client, err := eklaimSvc.NewClient()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal koneksi ke server E-Klaim: " + err.Error()})
+		now := time.Now()
+		database.DB.Model(&models.EKlaimLocal{}).Where("id = ?", eklaimLocal.ID).Updates(map[string]interface{}{
+			"last_error":    "Gagal koneksi ke server E-Klaim: " + err.Error(),
+			"last_error_at": now,
+		})
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":        "Gagal koneksi ke server E-Klaim: " + err.Error(),
+			"eklaim_local": eklaimLocal,
+		})
 		return
 	}
 
@@ -1684,16 +1987,21 @@ func SendSetClaimData(c *gin.Context) {
 	}
 	database.DB.Create(&logEntry)
 
-	// Update eklaim_local
+	// Update eklaim_local status based on E-Klaim result
 	now := time.Now()
-	eklaimLocal.SetClaimDataSentAt = &now
-	eklaimLocal.SetClaimDataResponse = string(respJSON)
 
 	if apiErr != nil {
+		database.DB.Model(&models.EKlaimLocal{}).Where("id = ?", eklaimLocal.ID).Updates(map[string]interface{}{
+			"set_claim_data_sent_at":  now,
+			"set_claim_data_response": string(respJSON),
+			"set_claim_data_success":  false,
+			"last_error":              apiErr.Error(),
+			"last_error_at":           now,
+		})
+		eklaimLocal.SetClaimDataSentAt = &now
 		eklaimLocal.SetClaimDataSuccess = false
 		eklaimLocal.LastError = apiErr.Error()
-		eklaimLocal.LastErrorAt = &now
-		database.DB.Save(&eklaimLocal)
+		log.Printf("[SendSetClaimData] E-Klaim API FAILED for ID %d: %v", eklaimLocal.ID, apiErr)
 		c.JSON(http.StatusBadGateway, gin.H{
 			"error":        "set_claim_data gagal: " + apiErr.Error(),
 			"eklaim_local": eklaimLocal,
@@ -1702,92 +2010,21 @@ func SendSetClaimData(c *gin.Context) {
 		return
 	}
 
-	// Save form data to eklaim_local for reference
+	// E-Klaim call succeeded
+	database.DB.Model(&models.EKlaimLocal{}).Where("id = ?", eklaimLocal.ID).Updates(map[string]interface{}{
+		"set_claim_data_sent_at":  now,
+		"set_claim_data_response": string(respJSON),
+		"set_claim_data_success":  true,
+		"status":                  "set_claim_data",
+		"last_error":              "",
+		"last_error_at":           nil,
+	})
+	eklaimLocal.SetClaimDataSentAt = &now
 	eklaimLocal.SetClaimDataSuccess = true
 	eklaimLocal.Status = "set_claim_data"
-	eklaimLocal.TglMasuk = req.TglMasuk
-	eklaimLocal.TglPulang = req.TglPulang
-	eklaimLocal.CaraMasuk = req.CaraMasuk
-	eklaimLocal.JenisRawat = req.JenisRawat
-	eklaimLocal.KelasRawat = req.KelasRawat
-	eklaimLocal.DischargeStatus = req.DischargeStatus
-	eklaimLocal.ICUIndikator = req.ICUIndikator
-	eklaimLocal.ICULOS = req.ICULOS
-	eklaimLocal.VentilatorHour = req.VentilatorHour
-	eklaimLocal.BirthWeight = req.BirthWeight
-	eklaimLocal.ADLSubAcute = req.ADLSubAcute
-	eklaimLocal.ADLChronic = req.ADLChronic
-	eklaimLocal.UpgradeClassInd = req.UpgradeClassInd
-	eklaimLocal.UpgradeClassClass = req.UpgradeClassClass
-	eklaimLocal.UpgradeClassLOS = req.UpgradeClassLOS
-	eklaimLocal.UpgradeClassPayor = req.UpgradeClassPayor
-	eklaimLocal.AddPaymentPct = req.AddPaymentPct
-	eklaimLocal.CoderNIK = req.CoderNIK
-	eklaimLocal.Sistole = req.Sistole
-	eklaimLocal.Diastole = req.Diastole
-	eklaimLocal.KodeTarif = req.KodeTarif
-	eklaimLocal.PayorID = req.PayorID
-	eklaimLocal.PayorCd = req.PayorCd
-	eklaimLocal.CobCd = req.CobCd
-	eklaimLocal.NamaDokter = req.NamaDokter
-	eklaimLocal.TarifPoliEks = req.TarifPoliEks
-	eklaimLocal.NomorKartuT = req.NomorKartuT
-	eklaimLocal.BayiLahirStatusCd = req.BayiLahirStatusCd
-	eklaimLocal.DializerSingleUse = req.DializerSingleUse
-	eklaimLocal.KantongDarah = req.KantongDarah
-	eklaimLocal.AlteplaseInd = req.AlteplaseInd
-
-	// Ventilator detail
-	if vd, ok := req.Ventilator.(*eklaimSvc.VentilatorDetail); ok && vd != nil {
-		eklaimLocal.VentilatorUseInd = vd.UseInd
-		eklaimLocal.VentilatorStart = vd.StartDttm
-		eklaimLocal.VentilatorStop = vd.StopDttm
-	} else if vdMap, ok := req.Ventilator.(map[string]interface{}); ok {
-		if v, ok := vdMap["use_ind"].(string); ok {
-			eklaimLocal.VentilatorUseInd = v
-		}
-		if v, ok := vdMap["start_dttm"].(string); ok {
-			eklaimLocal.VentilatorStart = v
-		}
-		if v, ok := vdMap["stop_dttm"].(string); ok {
-			eklaimLocal.VentilatorStop = v
-		}
-	}
-
-	// APGAR
-	if req.Apgar != nil {
-		if req.Apgar.Menit1 != nil {
-			eklaimLocal.ApgarMenit1Appearance = req.Apgar.Menit1.Appearance
-			eklaimLocal.ApgarMenit1Pulse = req.Apgar.Menit1.Pulse
-			eklaimLocal.ApgarMenit1Grimace = req.Apgar.Menit1.Grimace
-			eklaimLocal.ApgarMenit1Activity = req.Apgar.Menit1.Activity
-			eklaimLocal.ApgarMenit1Respiration = req.Apgar.Menit1.Respiration
-		}
-		if req.Apgar.Menit5 != nil {
-			eklaimLocal.ApgarMenit5Appearance = req.Apgar.Menit5.Appearance
-			eklaimLocal.ApgarMenit5Pulse = req.Apgar.Menit5.Pulse
-			eklaimLocal.ApgarMenit5Grimace = req.Apgar.Menit5.Grimace
-			eklaimLocal.ApgarMenit5Activity = req.Apgar.Menit5.Activity
-			eklaimLocal.ApgarMenit5Respiration = req.Apgar.Menit5.Respiration
-		}
-	}
-
-	// Persalinan
-	if req.Persalinan != nil {
-		eklaimLocal.PersalinanUsiaKehamilan = req.Persalinan.UsiaKehamilan
-		eklaimLocal.PersalinanGravida = req.Persalinan.Gravida
-		eklaimLocal.PersalinanPartus = req.Persalinan.Partus
-		eklaimLocal.PersalinanAbortus = req.Persalinan.Abortus
-		eklaimLocal.PersalinanOnsetKontraksi = req.Persalinan.OnsetKontraksi
-		if len(req.Persalinan.Delivery) > 0 {
-			deliveryJSON, _ := json.Marshal(req.Persalinan.Delivery)
-			eklaimLocal.PersalinanDeliveryJSON = string(deliveryJSON)
-		}
-	}
-
 	eklaimLocal.LastError = ""
 	eklaimLocal.LastErrorAt = nil
-	database.DB.Save(&eklaimLocal)
+	log.Printf("[SendSetClaimData] E-Klaim API SUCCESS for ID %d", eklaimLocal.ID)
 
 	c.JSON(http.StatusOK, gin.H{
 		"message":      "set_claim_data berhasil",
@@ -1903,8 +2140,8 @@ func SendFinalClaim(c *gin.Context) {
 		return
 	}
 
-	if !eklaimLocal.GrouperSuccess {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Harus grouper terlebih dahulu"})
+	if !eklaimLocal.CanClaimFinal() {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "INACBG harus di-final terlebih dahulu"})
 		return
 	}
 
@@ -1942,6 +2179,7 @@ func SendFinalClaim(c *gin.Context) {
 
 	if apiErr != nil {
 		eklaimLocal.FinalSuccess = false
+		eklaimLocal.ClaimFinalSuccess = false
 		eklaimLocal.LastError = apiErr.Error()
 		eklaimLocal.LastErrorAt = &now
 		database.DB.Save(&eklaimLocal)
@@ -1949,12 +2187,16 @@ func SendFinalClaim(c *gin.Context) {
 			"error":        "claim_final gagal: " + apiErr.Error(),
 			"eklaim_local": eklaimLocal,
 			"response":     resp,
+			"buttons":      eklaimLocal.GetButtonVisibility(),
 		})
 		return
 	}
 
 	eklaimLocal.FinalSuccess = true
-	eklaimLocal.Status = "finalized"
+	eklaimLocal.ClaimFinalSentAt = &now
+	eklaimLocal.ClaimFinalResponse = string(respJSON)
+	eklaimLocal.ClaimFinalSuccess = true
+	eklaimLocal.Status = "claim_final"
 	eklaimLocal.LastError = ""
 	eklaimLocal.LastErrorAt = nil
 	database.DB.Save(&eklaimLocal)
@@ -1963,6 +2205,7 @@ func SendFinalClaim(c *gin.Context) {
 		"message":      "claim_final berhasil",
 		"eklaim_local": eklaimLocal,
 		"response":     resp,
+		"buttons":      eklaimLocal.GetButtonVisibility(),
 	})
 }
 
@@ -2236,36 +2479,102 @@ func GetClaimPrint(c *gin.Context) {
 	})
 }
 
-// GetClaimStatusList fetches claim status from E-Klaim local server.
+// GetClaimStatusList returns claim report from local database.
 // GET /eklaim-local/claim-status?tgl_masuk_from=&tgl_masuk_to=&jenis_rawat=&status=
 func GetClaimStatusList(c *gin.Context) {
-	req := eklaimSvc.StatusRequest{
-		TglMasukFrom: c.Query("tgl_masuk_from"),
-		TglMasukTo:   c.Query("tgl_masuk_to"),
-		JenisRawat:   c.DefaultQuery("jenis_rawat", "1"),
-		Status:       c.DefaultQuery("status", "1"),
-	}
+	tglFrom := c.Query("tgl_masuk_from")
+	tglTo := c.Query("tgl_masuk_to")
 
-	if req.TglMasukFrom == "" || req.TglMasukTo == "" {
+	if tglFrom == "" || tglTo == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "tgl_masuk_from dan tgl_masuk_to harus diisi"})
 		return
 	}
 
-	client, err := eklaimSvc.NewClient()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal koneksi ke server E-Klaim: " + err.Error()})
+	query := database.DB.Model(&models.EKlaimLocal{})
+
+	// Date range filter on tgl_masuk
+	query = query.Where("tgl_masuk >= ? AND tgl_masuk <= ?", tglFrom, tglTo)
+
+	// Optional filters
+	if jenisRawat := c.Query("jenis_rawat"); jenisRawat != "" {
+		query = query.Where("jenis_rawat = ?", jenisRawat)
+	}
+	if status := c.Query("status"); status != "" {
+		query = query.Where("status = ?", status)
+	}
+
+	var records []models.EKlaimLocal
+	if err := query.Order("tgl_masuk DESC, created_at DESC").Find(&records).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengambil data laporan: " + err.Error()})
 		return
 	}
 
-	resp, _, _, _, apiErr := client.GetClaimStatus(req)
-	if apiErr != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"error": "get_claim_status gagal: " + apiErr.Error(), "response": resp})
-		return
+	// Map to report items matching frontend ClaimStatusItem interface
+	type ReportItem struct {
+		ID         uint   `json:"id"`
+		NoSEP      string `json:"no_sep"`
+		NamaPasien string `json:"nama_pasien"`
+		TglMasuk   string `json:"tgl_masuk"`
+		TglPulang  string `json:"tgl_pulang"`
+		JenisRawat string `json:"jenis_rawat"`
+		KelasRawat string `json:"kelas_rawat"`
+		Status     string `json:"status"`
+		Diagnosa   string `json:"diagnosa"`
+		Procedure  string `json:"procedure"`
+		NamaDokter string `json:"nama_dokter"`
+		// iDRG grouper result
+		IDRGCode        string `json:"idrg_code"`
+		IDRGDescription string `json:"idrg_description"`
+		IDRGCostWeight  string `json:"idrg_cost_weight"`
+		// INACBG grouper result
+		INACBGCode        string `json:"inacbg_cbg_code"`
+		INACBGDescription string `json:"inacbg_cbg_description"`
+		INACBGTariff      string `json:"inacbg_tariff"`
+		// Tarif RS from set_claim_data
+		TarifRS float64 `json:"tarif_rs"`
+		LOS     int     `json:"los"`
+	}
+
+	items := make([]ReportItem, 0, len(records))
+	for _, r := range records {
+		// Calculate LOS
+		los := 0
+		if r.TglMasuk != "" && r.TglPulang != "" {
+			if tMasuk, err := time.Parse("2006-01-02", r.TglMasuk); err == nil {
+				if tPulang, err := time.Parse("2006-01-02", r.TglPulang); err == nil {
+					los = int(tPulang.Sub(tMasuk).Hours() / 24)
+					if los < 0 {
+						los = 0
+					}
+				}
+			}
+		}
+
+		items = append(items, ReportItem{
+			ID:                r.ID,
+			NoSEP:             r.NoSEP,
+			NamaPasien:        r.NamaPasien,
+			TglMasuk:          r.TglMasuk,
+			TglPulang:         r.TglPulang,
+			JenisRawat:        r.JenisRawat,
+			KelasRawat:        r.KelasRawat,
+			Status:            r.Status,
+			Diagnosa:          r.Diagnosa,
+			Procedure:         r.Procedure,
+			NamaDokter:        r.NamaDokter,
+			IDRGCode:          r.IDRGCode,
+			IDRGDescription:   r.IDRGDescription,
+			IDRGCostWeight:    r.IDRGCostWeight,
+			INACBGCode:        r.INACBGCBGCode,
+			INACBGDescription: r.INACBGCBGDescription,
+			INACBGTariff:      r.INACBGTariff,
+			TarifRS:           r.TarifRS,
+			LOS:               los,
+		})
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message":  "get_claim_status berhasil",
-		"response": resp,
+		"data": items,
 	})
 }
 
@@ -2276,6 +2585,10 @@ func GetEKlaimLocalList(c *gin.Context) {
 	perPage, _ := strconv.Atoi(c.DefaultQuery("per_page", "20"))
 	search := c.Query("search")
 	status := c.Query("status")
+	jenisRawat := c.Query("jenis_rawat") // 1=RI, 2=RJ
+	kelasRawat := c.Query("kelas_rawat") // 1, 2, 3
+	tglFrom := c.Query("tgl_from")       // yyyy-mm-dd
+	tglTo := c.Query("tgl_to")           // yyyy-mm-dd
 
 	offset := (page - 1) * perPage
 
@@ -2283,13 +2596,39 @@ func GetEKlaimLocalList(c *gin.Context) {
 
 	if search != "" {
 		query = query.Where(
-			"no_sep ILIKE ? OR nama_pasien ILIKE ? OR no_kartu ILIKE ? OR cbg_code ILIKE ?",
-			"%"+search+"%", "%"+search+"%", "%"+search+"%", "%"+search+"%",
+			"no_sep ILIKE ? OR nama_pasien ILIKE ? OR no_kartu ILIKE ? OR cbg_code ILIKE ? OR idrg_code ILIKE ? OR inacbg_cbg_code ILIKE ?",
+			"%"+search+"%", "%"+search+"%", "%"+search+"%", "%"+search+"%", "%"+search+"%", "%"+search+"%",
 		)
 	}
 
 	if status != "" {
-		query = query.Where("status = ?", status)
+		// Map frontend filter values to actual DB statuses (including new iDRG/INACBG flow)
+		switch status {
+		case "grouped":
+			// Legacy "grouped" should also match iDRG/INACBG grouped statuses
+			query = query.Where("status IN ?", []string{"grouped", "idrg_coded", "idrg_grouped", "inacbg_imported", "inacbg_coded", "inacbg_grouped"})
+		case "finalized":
+			// Legacy "finalized" should match iDRG final, INACBG final, and claim_final
+			query = query.Where("status IN ?", []string{"finalized", "idrg_final", "inacbg_final", "claim_final"})
+		case "sent":
+			// Legacy "sent" should match claim_sent
+			query = query.Where("status IN ?", []string{"sent", "claim_sent"})
+		default:
+			query = query.Where("status = ?", status)
+		}
+	}
+
+	if jenisRawat != "" {
+		query = query.Where("jenis_rawat = ?", jenisRawat)
+	}
+	if kelasRawat != "" {
+		query = query.Where("kelas_rawat = ?", kelasRawat)
+	}
+	if tglFrom != "" {
+		query = query.Where("tgl_masuk >= ?", tglFrom)
+	}
+	if tglTo != "" {
+		query = query.Where("tgl_masuk <= ?", tglTo+" 23:59:59")
 	}
 
 	var total int64
@@ -2374,12 +2713,12 @@ func GetEKlaimLocalDetail(c *gin.Context) {
 
 			now := time.Now()
 			rmDup := models.EKlaimRMDuplicate{
-				EKlaimLocalID:         item.ID,
-				VisitID:               visitID,
-				OriginalDiagnosesJSON: string(origDiagJSON),
+				EKlaimLocalID:          item.ID,
+				VisitID:                visitID,
+				OriginalDiagnosesJSON:  string(origDiagJSON),
 				OriginalProceduresJSON: string(origProcJSON),
-				OriginalRMJSON:        string(origRMJSON),
-				DuplicatedAt:          &now,
+				OriginalRMJSON:         string(origRMJSON),
+				DuplicatedAt:           &now,
 				// All clinical fields left empty — user will sync manually
 			}
 
@@ -2392,7 +2731,8 @@ func GetEKlaimLocalDetail(c *gin.Context) {
 
 	// ========== Auto-populate empty claim fields from Visit/SEP/RM ==========
 	// Priority: RM Edit (RMDuplicate) > RM Asli (original) > SEP > Visit
-	if item.TglMasuk == "" && visitID > 0 {
+	// SKIP if user already saved form data (FormDataSaved=true)
+	if !item.FormDataSaved && item.TglMasuk == "" && visitID > 0 {
 		visit := item.Visit
 		sep := item.SEP
 		rm := item.RMDuplicate
@@ -2520,6 +2860,14 @@ func GetEKlaimLocalDetail(c *gin.Context) {
 			}
 		}
 
+		// === Kode Tarif from integration config ===
+		if item.KodeTarif == "" {
+			var tarifCfg models.IntegrationConfig
+			if database.DB.Where("integration = ? AND key = ?", "eklaim", "eklaim_kode_tarif").First(&tarifCfg).Error == nil && tarifCfg.Value != "" {
+				item.KodeTarif = tarifCfg.Value
+			}
+		}
+
 		// === Tarif RS: auto-sync from billing if RM Duplicate tarif is all zero ===
 		if rm != nil && rm.TotalTarif == 0 {
 			if tb := mapBillingToEKlaimTarif(visitID); tb != nil {
@@ -2640,6 +2988,7 @@ func GetEKlaimLocalDetail(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"data":        item,
 		"original_rm": originalRM,
+		"buttons":     item.GetButtonVisibility(),
 	})
 }
 
@@ -2894,6 +3243,25 @@ func SyncRMFromVisit(c *gin.Context) {
 	})
 }
 
+// GetEKlaimDefaults returns default config values for claim form auto-fill.
+// GET /eklaim-local/defaults
+func GetEKlaimDefaults(c *gin.Context) {
+	defaults := make(map[string]string)
+
+	var configs []models.IntegrationConfig
+	database.DB.Where("integration = ?", "eklaim").Find(&configs)
+	for _, cfg := range configs {
+		switch cfg.Key {
+		case "eklaim_coder_nik":
+			defaults["coder_nik"] = cfg.Value
+		case "eklaim_kode_tarif":
+			defaults["kode_tarif"] = cfg.Value
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": defaults})
+}
+
 // GetEKlaimLocalLogs returns logs for an E-Klaim local record.
 // GET /eklaim-local/:id/logs?page=1&per_page=20
 func GetEKlaimLocalLogs(c *gin.Context) {
@@ -2908,15 +3276,18 @@ func GetEKlaimLocalLogs(c *gin.Context) {
 	offset := (page - 1) * perPage
 
 	var total int64
-	database.DB.Model(&models.EKlaimLocalLog{}).Where("eklaim_local_id = ?", eklaimID).Count(&total)
+	if err := database.DB.Model(&models.EKlaimLocalLog{}).Where("e_klaim_local_id = ?", eklaimID).Count(&total).Error; err != nil {
+		log.Printf("[WARN] Count eklaim_local_logs failed: %v", err)
+	}
 
 	var logs []models.EKlaimLocalLog
-	if err := database.DB.Where("eklaim_local_id = ?", eklaimID).
+	if err := database.DB.Where("e_klaim_local_id = ?", eklaimID).
 		Preload("User").
 		Order("created_at DESC").
 		Offset(offset).Limit(perPage).
 		Find(&logs).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengambil logs"})
+		log.Printf("[ERROR] GetEKlaimLocalLogs query failed for id=%d: %v", eklaimID, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengambil logs: " + err.Error()})
 		return
 	}
 
@@ -2959,8 +3330,8 @@ func GetAllEKlaimLocalLogs(c *gin.Context) {
 	if search := c.Query("search"); search != "" {
 		subQuery := database.DB.Model(&models.EKlaimLocal{}).Select("id").
 			Where("no_sep ILIKE ? OR nama_pasien ILIKE ?", "%"+search+"%", "%"+search+"%")
-		query = query.Where("eklaim_local_id IN (?)", subQuery)
-		countQuery = countQuery.Where("eklaim_local_id IN (?)", subQuery)
+		query = query.Where("e_klaim_local_id IN (?)", subQuery)
+		countQuery = countQuery.Where("e_klaim_local_id IN (?)", subQuery)
 	}
 
 	var total int64
@@ -3298,4 +3669,1787 @@ func applyTarifBreakdown(rm *models.EKlaimRMDuplicate, t *eKlaimTarifBreakdown) 
 		rm.TarifRehabilitasi + rm.TarifKamar + rm.TarifRawatIntensif +
 		rm.TarifObat + rm.TarifObatKronis + rm.TarifObatKemoterapi +
 		rm.TarifAlkes + rm.TarifBMHP + rm.TarifSewaAlat
+}
+
+// ==========================================================================
+// iDRG / INACBG WORKFLOW HANDLERS
+//
+// Alur E-Klaim IDRG:
+//   1. iDRG Diagnosa Set/Get
+//   2. iDRG Procedure Set/Get
+//   3. Grouper iDRG
+//   4. Final iDRG
+//   5. (opsional) Reedit iDRG
+//
+// Alur E-Klaim INACBG (setelah iDRG final):
+//   6. Import iDRG → INACBG
+//   7. INACBG Diagnosa Set/Get
+//   8. INACBG Procedure Set/Get
+//   9. Grouper INACBG Stage 1
+//  10. Grouper INACBG Stage 2 (special CMG)
+//  11. Final INACBG
+//  12. (opsional) Reedit INACBG
+//
+// Alur Claim Send:
+//  13. Send Claim Individual
+//  14. Reedit Claim (simple, unfinal)
+//
+// Search:
+//  15-18. Search iDRG/INACBG diagnosa/procedure
+// ==========================================================================
+
+// SendIDRGDiagnosaSet sends idrg_diagnosa_set to E-Klaim local server.
+// POST /eklaim-local/:id/idrg-diagnosa
+// Body: { "diagnosa": "S71.0#S87.9#E11.9" }
+func SendIDRGDiagnosaSet(c *gin.Context) {
+	eklaimID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+		return
+	}
+
+	var req struct {
+		Diagnosa string `json:"diagnosa" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request: " + err.Error()})
+		return
+	}
+
+	var eklaimLocal models.EKlaimLocal
+	if err := database.DB.First(&eklaimLocal, eklaimID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Eklaim local tidak ditemukan"})
+		return
+	}
+
+	if !eklaimLocal.CanDoIDRGCoding() {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Tidak dapat melakukan iDRG coding saat ini"})
+		return
+	}
+
+	client, err := eklaimSvc.NewClient()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal koneksi ke server E-Klaim: " + err.Error()})
+		return
+	}
+
+	resp, reqJSON, respJSON, elapsed, apiErr := client.IDRGDiagnosaSet(eklaimLocal.NoSEP, req.Diagnosa)
+
+	userID := getUserIDValue(c)
+	logEntry := models.EKlaimLocalLog{
+		EKlaimLocalID: eklaimLocal.ID,
+		Method:        "idrg_diagnosa_set",
+		RequestBody:   string(reqJSON),
+		ResponseBody:  string(respJSON),
+		ResponseTime:  elapsed,
+		IsSuccess:     apiErr == nil,
+	}
+	if resp != nil {
+		logEntry.ResponseCode = resp.Metadata.Code.String()
+	}
+	if apiErr != nil {
+		logEntry.ErrorMessage = apiErr.Error()
+	}
+	if userID > 0 {
+		logEntry.UserID = &userID
+	}
+	database.DB.Create(&logEntry)
+
+	now := time.Now()
+
+	if apiErr != nil {
+		eklaimLocal.LastError = apiErr.Error()
+		eklaimLocal.LastErrorAt = &now
+		database.DB.Save(&eklaimLocal)
+		c.JSON(http.StatusBadGateway, gin.H{
+			"error":        "idrg_diagnosa_set gagal: " + apiErr.Error(),
+			"eklaim_local": eklaimLocal,
+			"response":     resp,
+			"buttons":      eklaimLocal.GetButtonVisibility(),
+		})
+		return
+	}
+
+	eklaimLocal.IDRGDiagnosa = req.Diagnosa
+	eklaimLocal.IDRGDiagnosaResponse = string(respJSON)
+	eklaimLocal.Status = "idrg_coded"
+	eklaimLocal.LastError = ""
+	eklaimLocal.LastErrorAt = nil
+	database.DB.Save(&eklaimLocal)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":      "idrg_diagnosa_set berhasil",
+		"eklaim_local": eklaimLocal,
+		"response":     resp,
+		"buttons":      eklaimLocal.GetButtonVisibility(),
+	})
+}
+
+// GetIDRGDiagnosa fetches current iDRG diagnoses from E-Klaim local server.
+// GET /eklaim-local/:id/idrg-diagnosa
+func GetIDRGDiagnosa(c *gin.Context) {
+	eklaimID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+		return
+	}
+
+	var eklaimLocal models.EKlaimLocal
+	if err := database.DB.First(&eklaimLocal, eklaimID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Eklaim local tidak ditemukan"})
+		return
+	}
+
+	if !eklaimLocal.SetClaimDataSuccess {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Harus set_claim_data terlebih dahulu"})
+		return
+	}
+
+	client, err := eklaimSvc.NewClient()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal koneksi ke server E-Klaim: " + err.Error()})
+		return
+	}
+
+	resp, _, respJSON, _, apiErr := client.IDRGDiagnosaGet(eklaimLocal.NoSEP)
+	if apiErr != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "idrg_diagnosa_get gagal: " + apiErr.Error(), "response": resp})
+		return
+	}
+
+	eklaimLocal.IDRGDiagnosaResponse = string(respJSON)
+	database.DB.Save(&eklaimLocal)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":  "idrg_diagnosa_get berhasil",
+		"response": resp,
+	})
+}
+
+// SendIDRGProcedureSet sends idrg_procedure_set to E-Klaim local server.
+// POST /eklaim-local/:id/idrg-procedure
+// Body: { "procedure": "81.51#86.28+2#91.799" }
+func SendIDRGProcedureSet(c *gin.Context) {
+	eklaimID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+		return
+	}
+
+	var req struct {
+		Procedure string `json:"procedure" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request: " + err.Error()})
+		return
+	}
+
+	var eklaimLocal models.EKlaimLocal
+	if err := database.DB.First(&eklaimLocal, eklaimID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Eklaim local tidak ditemukan"})
+		return
+	}
+
+	if !eklaimLocal.CanDoIDRGCoding() {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Tidak dapat melakukan iDRG coding saat ini"})
+		return
+	}
+
+	client, err := eklaimSvc.NewClient()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal koneksi ke server E-Klaim: " + err.Error()})
+		return
+	}
+
+	resp, reqJSON, respJSON, elapsed, apiErr := client.IDRGProcedureSet(eklaimLocal.NoSEP, req.Procedure)
+
+	userID := getUserIDValue(c)
+	logEntry := models.EKlaimLocalLog{
+		EKlaimLocalID: eklaimLocal.ID,
+		Method:        "idrg_procedure_set",
+		RequestBody:   string(reqJSON),
+		ResponseBody:  string(respJSON),
+		ResponseTime:  elapsed,
+		IsSuccess:     apiErr == nil,
+	}
+	if resp != nil {
+		logEntry.ResponseCode = resp.Metadata.Code.String()
+	}
+	if apiErr != nil {
+		logEntry.ErrorMessage = apiErr.Error()
+	}
+	if userID > 0 {
+		logEntry.UserID = &userID
+	}
+	database.DB.Create(&logEntry)
+
+	now := time.Now()
+
+	if apiErr != nil {
+		eklaimLocal.LastError = apiErr.Error()
+		eklaimLocal.LastErrorAt = &now
+		database.DB.Save(&eklaimLocal)
+		c.JSON(http.StatusBadGateway, gin.H{
+			"error":        "idrg_procedure_set gagal: " + apiErr.Error(),
+			"eklaim_local": eklaimLocal,
+			"response":     resp,
+			"buttons":      eklaimLocal.GetButtonVisibility(),
+		})
+		return
+	}
+
+	eklaimLocal.IDRGProcedure = req.Procedure
+	eklaimLocal.IDRGProcedureResponse = string(respJSON)
+	eklaimLocal.Status = "idrg_coded"
+	eklaimLocal.LastError = ""
+	eklaimLocal.LastErrorAt = nil
+	database.DB.Save(&eklaimLocal)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":      "idrg_procedure_set berhasil",
+		"eklaim_local": eklaimLocal,
+		"response":     resp,
+		"buttons":      eklaimLocal.GetButtonVisibility(),
+	})
+}
+
+// GetIDRGProcedure fetches current iDRG procedures from E-Klaim local server.
+// GET /eklaim-local/:id/idrg-procedure
+func GetIDRGProcedure(c *gin.Context) {
+	eklaimID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+		return
+	}
+
+	var eklaimLocal models.EKlaimLocal
+	if err := database.DB.First(&eklaimLocal, eklaimID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Eklaim local tidak ditemukan"})
+		return
+	}
+
+	if !eklaimLocal.SetClaimDataSuccess {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Harus set_claim_data terlebih dahulu"})
+		return
+	}
+
+	client, err := eklaimSvc.NewClient()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal koneksi ke server E-Klaim: " + err.Error()})
+		return
+	}
+
+	resp, _, respJSON, _, apiErr := client.IDRGProcedureGet(eklaimLocal.NoSEP)
+	if apiErr != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "idrg_procedure_get gagal: " + apiErr.Error(), "response": resp})
+		return
+	}
+
+	eklaimLocal.IDRGProcedureResponse = string(respJSON)
+	database.DB.Save(&eklaimLocal)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":  "idrg_procedure_get berhasil",
+		"response": resp,
+	})
+}
+
+// SendGrouperIDRG runs iDRG grouping on E-Klaim local server.
+// POST /eklaim-local/:id/grouper-idrg
+func SendGrouperIDRG(c *gin.Context) {
+	eklaimID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+		return
+	}
+
+	var eklaimLocal models.EKlaimLocal
+	if err := database.DB.First(&eklaimLocal, eklaimID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Eklaim local tidak ditemukan"})
+		return
+	}
+
+	if !eklaimLocal.CanGroupIDRG() {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Tidak dapat melakukan iDRG grouping saat ini"})
+		return
+	}
+
+	client, err := eklaimSvc.NewClient()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal koneksi ke server E-Klaim: " + err.Error()})
+		return
+	}
+
+	resp, reqJSON, respJSON, elapsed, apiErr := client.GrouperIDRG(eklaimLocal.NoSEP)
+
+	userID := getUserIDValue(c)
+	logEntry := models.EKlaimLocalLog{
+		EKlaimLocalID: eklaimLocal.ID,
+		Method:        "grouper_idrg",
+		RequestBody:   string(reqJSON),
+		ResponseBody:  string(respJSON),
+		ResponseTime:  elapsed,
+		IsSuccess:     apiErr == nil,
+	}
+	if resp != nil {
+		logEntry.ResponseCode = resp.Metadata.Code.String()
+	}
+	if apiErr != nil {
+		logEntry.ErrorMessage = apiErr.Error()
+	}
+	if userID > 0 {
+		logEntry.UserID = &userID
+	}
+	database.DB.Create(&logEntry)
+
+	now := time.Now()
+	eklaimLocal.IDRGGrouperSentAt = &now
+	eklaimLocal.IDRGGrouperResponse = string(respJSON)
+
+	if apiErr != nil {
+		eklaimLocal.IDRGGrouperSuccess = false
+		eklaimLocal.LastError = apiErr.Error()
+		eklaimLocal.LastErrorAt = &now
+		database.DB.Save(&eklaimLocal)
+		c.JSON(http.StatusBadGateway, gin.H{
+			"error":        "grouper_idrg gagal: " + apiErr.Error(),
+			"eklaim_local": eklaimLocal,
+			"response":     resp,
+			"buttons":      eklaimLocal.GetButtonVisibility(),
+		})
+		return
+	}
+
+	eklaimLocal.IDRGGrouperSuccess = true
+	eklaimLocal.Status = "idrg_grouped"
+	eklaimLocal.LastError = ""
+	eklaimLocal.LastErrorAt = nil
+
+	if resp != nil && resp.ResponseIDRG != nil {
+		var result eklaimSvc.IDRGGrouperResult
+		if json.Unmarshal(resp.ResponseIDRG, &result) == nil {
+			eklaimLocal.IDRGCode = result.DRGCode
+			eklaimLocal.IDRGDescription = result.DRGDescription
+			eklaimLocal.IDRGCostWeight = result.TotalCostWeight
+			eklaimLocal.IDRGStatusCd = result.StatusCd
+		}
+	}
+
+	database.DB.Save(&eklaimLocal)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":      "grouper_idrg berhasil",
+		"eklaim_local": eklaimLocal,
+		"response":     resp,
+		"buttons":      eklaimLocal.GetButtonVisibility(),
+	})
+}
+
+// SendFinalIDRG finalizes iDRG grouping on E-Klaim local server.
+// POST /eklaim-local/:id/final-idrg
+func SendFinalIDRG(c *gin.Context) {
+	eklaimID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+		return
+	}
+
+	var eklaimLocal models.EKlaimLocal
+	if err := database.DB.First(&eklaimLocal, eklaimID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Eklaim local tidak ditemukan"})
+		return
+	}
+
+	if !eklaimLocal.CanFinalIDRG() {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Tidak dapat memfinalisasi iDRG saat ini"})
+		return
+	}
+
+	client, err := eklaimSvc.NewClient()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal koneksi ke server E-Klaim: " + err.Error()})
+		return
+	}
+
+	resp, reqJSON, respJSON, elapsed, apiErr := client.FinalIDRG(eklaimLocal.NoSEP)
+
+	userID := getUserIDValue(c)
+	logEntry := models.EKlaimLocalLog{
+		EKlaimLocalID: eklaimLocal.ID,
+		Method:        "idrg_grouper_final",
+		RequestBody:   string(reqJSON),
+		ResponseBody:  string(respJSON),
+		ResponseTime:  elapsed,
+		IsSuccess:     apiErr == nil,
+	}
+	if resp != nil {
+		logEntry.ResponseCode = resp.Metadata.Code.String()
+	}
+	if apiErr != nil {
+		logEntry.ErrorMessage = apiErr.Error()
+	}
+	if userID > 0 {
+		logEntry.UserID = &userID
+	}
+	database.DB.Create(&logEntry)
+
+	now := time.Now()
+	eklaimLocal.IDRGFinalSentAt = &now
+
+	if apiErr != nil {
+		eklaimLocal.IDRGFinalSuccess = false
+		eklaimLocal.LastError = apiErr.Error()
+		eklaimLocal.LastErrorAt = &now
+		database.DB.Save(&eklaimLocal)
+		c.JSON(http.StatusBadGateway, gin.H{
+			"error":        "idrg_grouper_final gagal: " + apiErr.Error(),
+			"eklaim_local": eklaimLocal,
+			"response":     resp,
+			"buttons":      eklaimLocal.GetButtonVisibility(),
+		})
+		return
+	}
+
+	eklaimLocal.IDRGFinalSuccess = true
+	eklaimLocal.Status = "idrg_final"
+	eklaimLocal.LastError = ""
+	eklaimLocal.LastErrorAt = nil
+	database.DB.Save(&eklaimLocal)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":      "idrg_grouper_final berhasil",
+		"eklaim_local": eklaimLocal,
+		"response":     resp,
+		"buttons":      eklaimLocal.GetButtonVisibility(),
+	})
+}
+
+// SendReeditIDRG re-opens iDRG for editing (unfinal) on E-Klaim local server.
+// POST /eklaim-local/:id/reedit-idrg
+func SendReeditIDRG(c *gin.Context) {
+	eklaimID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+		return
+	}
+
+	var eklaimLocal models.EKlaimLocal
+	if err := database.DB.First(&eklaimLocal, eklaimID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Eklaim local tidak ditemukan"})
+		return
+	}
+
+	if !eklaimLocal.CanReeditIDRG() {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Tidak dapat reedit iDRG saat ini"})
+		return
+	}
+
+	client, err := eklaimSvc.NewClient()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal koneksi ke server E-Klaim: " + err.Error()})
+		return
+	}
+
+	resp, reqJSON, respJSON, elapsed, apiErr := client.ReeditIDRG(eklaimLocal.NoSEP)
+
+	userID := getUserIDValue(c)
+	logEntry := models.EKlaimLocalLog{
+		EKlaimLocalID: eklaimLocal.ID,
+		Method:        "idrg_grouper_reedit",
+		RequestBody:   string(reqJSON),
+		ResponseBody:  string(respJSON),
+		ResponseTime:  elapsed,
+		IsSuccess:     apiErr == nil,
+	}
+	if resp != nil {
+		logEntry.ResponseCode = resp.Metadata.Code.String()
+	}
+	if apiErr != nil {
+		logEntry.ErrorMessage = apiErr.Error()
+	}
+	if userID > 0 {
+		logEntry.UserID = &userID
+	}
+	database.DB.Create(&logEntry)
+
+	now := time.Now()
+
+	if apiErr != nil {
+		eklaimLocal.LastError = apiErr.Error()
+		eklaimLocal.LastErrorAt = &now
+		database.DB.Save(&eklaimLocal)
+		c.JSON(http.StatusBadGateway, gin.H{
+			"error":        "idrg_grouper_reedit gagal: " + apiErr.Error(),
+			"eklaim_local": eklaimLocal,
+			"response":     resp,
+			"buttons":      eklaimLocal.GetButtonVisibility(),
+		})
+		return
+	}
+
+	eklaimLocal.ResetIDRGState()
+	eklaimLocal.Status = "set_claim_data"
+	eklaimLocal.LastError = ""
+	eklaimLocal.LastErrorAt = nil
+	database.DB.Save(&eklaimLocal)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":      "idrg_grouper_reedit berhasil",
+		"eklaim_local": eklaimLocal,
+		"response":     resp,
+		"buttons":      eklaimLocal.GetButtonVisibility(),
+	})
+}
+
+// SendIDRGToINACBGImport imports iDRG coding to INACBG on E-Klaim local server.
+// POST /eklaim-local/:id/import-inacbg
+func SendIDRGToINACBGImport(c *gin.Context) {
+	eklaimID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+		return
+	}
+
+	var eklaimLocal models.EKlaimLocal
+	if err := database.DB.First(&eklaimLocal, eklaimID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Eklaim local tidak ditemukan"})
+		return
+	}
+
+	if !eklaimLocal.IDRGFinalSuccess || eklaimLocal.INACBGFinalSuccess {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "iDRG harus sudah final dan INACBG belum final"})
+		return
+	}
+
+	client, err := eklaimSvc.NewClient()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal koneksi ke server E-Klaim: " + err.Error()})
+		return
+	}
+
+	resp, reqJSON, respJSON, elapsed, apiErr := client.IDRGToINACBGImport(eklaimLocal.NoSEP)
+
+	userID := getUserIDValue(c)
+	logEntry := models.EKlaimLocalLog{
+		EKlaimLocalID: eklaimLocal.ID,
+		Method:        "idrg_to_inacbg_import",
+		RequestBody:   string(reqJSON),
+		ResponseBody:  string(respJSON),
+		ResponseTime:  elapsed,
+		IsSuccess:     apiErr == nil,
+	}
+	if resp != nil {
+		logEntry.ResponseCode = resp.Metadata.Code.String()
+	}
+	if apiErr != nil {
+		logEntry.ErrorMessage = apiErr.Error()
+	}
+	if userID > 0 {
+		logEntry.UserID = &userID
+	}
+	database.DB.Create(&logEntry)
+
+	now := time.Now()
+
+	if apiErr != nil {
+		eklaimLocal.LastError = apiErr.Error()
+		eklaimLocal.LastErrorAt = &now
+		database.DB.Save(&eklaimLocal)
+		c.JSON(http.StatusBadGateway, gin.H{
+			"error":        "idrg_to_inacbg_import gagal: " + apiErr.Error(),
+			"eklaim_local": eklaimLocal,
+			"response":     resp,
+			"buttons":      eklaimLocal.GetButtonVisibility(),
+		})
+		return
+	}
+
+	eklaimLocal.INACBGImportResponse = string(respJSON)
+	eklaimLocal.Status = "inacbg_imported"
+	eklaimLocal.LastError = ""
+	eklaimLocal.LastErrorAt = nil
+
+	// Parse import response to get diagnosa/procedure strings
+	if resp != nil && resp.Data != nil {
+		var importResp eklaimSvc.ImportINACBGResponse
+		if json.Unmarshal(resp.Data, &importResp) == nil {
+			eklaimLocal.INACBGDiagnosa = importResp.Diagnosa.String
+			eklaimLocal.INACBGProcedure = importResp.Procedure.String
+		}
+	}
+
+	database.DB.Save(&eklaimLocal)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":      "idrg_to_inacbg_import berhasil",
+		"eklaim_local": eklaimLocal,
+		"response":     resp,
+		"buttons":      eklaimLocal.GetButtonVisibility(),
+	})
+}
+
+// SendINACBGDiagnosaSet sends inacbg_diagnosa_set to E-Klaim local server.
+// POST /eklaim-local/:id/inacbg-diagnosa
+// Body: { "diagnosa": "S71.0#S87.9" }
+func SendINACBGDiagnosaSet(c *gin.Context) {
+	eklaimID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+		return
+	}
+
+	var req struct {
+		Diagnosa string `json:"diagnosa" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request: " + err.Error()})
+		return
+	}
+
+	var eklaimLocal models.EKlaimLocal
+	if err := database.DB.First(&eklaimLocal, eklaimID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Eklaim local tidak ditemukan"})
+		return
+	}
+
+	if !eklaimLocal.CanDoINACBGCoding() {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Tidak dapat melakukan INACBG coding saat ini"})
+		return
+	}
+
+	client, err := eklaimSvc.NewClient()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal koneksi ke server E-Klaim: " + err.Error()})
+		return
+	}
+
+	resp, reqJSON, respJSON, elapsed, apiErr := client.INACBGDiagnosaSet(eklaimLocal.NoSEP, req.Diagnosa)
+
+	userID := getUserIDValue(c)
+	logEntry := models.EKlaimLocalLog{
+		EKlaimLocalID: eklaimLocal.ID,
+		Method:        "inacbg_diagnosa_set",
+		RequestBody:   string(reqJSON),
+		ResponseBody:  string(respJSON),
+		ResponseTime:  elapsed,
+		IsSuccess:     apiErr == nil,
+	}
+	if resp != nil {
+		logEntry.ResponseCode = resp.Metadata.Code.String()
+	}
+	if apiErr != nil {
+		logEntry.ErrorMessage = apiErr.Error()
+	}
+	if userID > 0 {
+		logEntry.UserID = &userID
+	}
+	database.DB.Create(&logEntry)
+
+	now := time.Now()
+
+	if apiErr != nil {
+		eklaimLocal.LastError = apiErr.Error()
+		eklaimLocal.LastErrorAt = &now
+		database.DB.Save(&eklaimLocal)
+		c.JSON(http.StatusBadGateway, gin.H{
+			"error":        "inacbg_diagnosa_set gagal: " + apiErr.Error(),
+			"eklaim_local": eklaimLocal,
+			"response":     resp,
+			"buttons":      eklaimLocal.GetButtonVisibility(),
+		})
+		return
+	}
+
+	eklaimLocal.INACBGDiagnosa = req.Diagnosa
+	eklaimLocal.INACBGDiagnosaResponse = string(respJSON)
+	eklaimLocal.Status = "inacbg_coded"
+	eklaimLocal.LastError = ""
+	eklaimLocal.LastErrorAt = nil
+	database.DB.Save(&eklaimLocal)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":      "inacbg_diagnosa_set berhasil",
+		"eklaim_local": eklaimLocal,
+		"response":     resp,
+		"buttons":      eklaimLocal.GetButtonVisibility(),
+	})
+}
+
+// GetINACBGDiagnosa fetches current INACBG diagnoses from E-Klaim local server.
+// GET /eklaim-local/:id/inacbg-diagnosa
+func GetINACBGDiagnosa(c *gin.Context) {
+	eklaimID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+		return
+	}
+
+	var eklaimLocal models.EKlaimLocal
+	if err := database.DB.First(&eklaimLocal, eklaimID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Eklaim local tidak ditemukan"})
+		return
+	}
+
+	if !eklaimLocal.IDRGFinalSuccess {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "iDRG harus sudah final terlebih dahulu"})
+		return
+	}
+
+	client, err := eklaimSvc.NewClient()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal koneksi ke server E-Klaim: " + err.Error()})
+		return
+	}
+
+	resp, _, respJSON, _, apiErr := client.INACBGDiagnosaGet(eklaimLocal.NoSEP)
+	if apiErr != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "inacbg_diagnosa_get gagal: " + apiErr.Error(), "response": resp})
+		return
+	}
+
+	eklaimLocal.INACBGDiagnosaResponse = string(respJSON)
+	database.DB.Save(&eklaimLocal)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":  "inacbg_diagnosa_get berhasil",
+		"response": resp,
+	})
+}
+
+// SendINACBGProcedureSet sends inacbg_procedure_set to E-Klaim local server.
+// POST /eklaim-local/:id/inacbg-procedure
+// Body: { "procedure": "81.51#86.28" }
+func SendINACBGProcedureSet(c *gin.Context) {
+	eklaimID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+		return
+	}
+
+	var req struct {
+		Procedure string `json:"procedure" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request: " + err.Error()})
+		return
+	}
+
+	var eklaimLocal models.EKlaimLocal
+	if err := database.DB.First(&eklaimLocal, eklaimID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Eklaim local tidak ditemukan"})
+		return
+	}
+
+	if !eklaimLocal.CanDoINACBGCoding() {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Tidak dapat melakukan INACBG coding saat ini"})
+		return
+	}
+
+	client, err := eklaimSvc.NewClient()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal koneksi ke server E-Klaim: " + err.Error()})
+		return
+	}
+
+	resp, reqJSON, respJSON, elapsed, apiErr := client.INACBGProcedureSet(eklaimLocal.NoSEP, req.Procedure)
+
+	userID := getUserIDValue(c)
+	logEntry := models.EKlaimLocalLog{
+		EKlaimLocalID: eklaimLocal.ID,
+		Method:        "inacbg_procedure_set",
+		RequestBody:   string(reqJSON),
+		ResponseBody:  string(respJSON),
+		ResponseTime:  elapsed,
+		IsSuccess:     apiErr == nil,
+	}
+	if resp != nil {
+		logEntry.ResponseCode = resp.Metadata.Code.String()
+	}
+	if apiErr != nil {
+		logEntry.ErrorMessage = apiErr.Error()
+	}
+	if userID > 0 {
+		logEntry.UserID = &userID
+	}
+	database.DB.Create(&logEntry)
+
+	now := time.Now()
+
+	if apiErr != nil {
+		eklaimLocal.LastError = apiErr.Error()
+		eklaimLocal.LastErrorAt = &now
+		database.DB.Save(&eklaimLocal)
+		c.JSON(http.StatusBadGateway, gin.H{
+			"error":        "inacbg_procedure_set gagal: " + apiErr.Error(),
+			"eklaim_local": eklaimLocal,
+			"response":     resp,
+			"buttons":      eklaimLocal.GetButtonVisibility(),
+		})
+		return
+	}
+
+	eklaimLocal.INACBGProcedure = req.Procedure
+	eklaimLocal.INACBGProcedureResponse = string(respJSON)
+	eklaimLocal.Status = "inacbg_coded"
+	eklaimLocal.LastError = ""
+	eklaimLocal.LastErrorAt = nil
+	database.DB.Save(&eklaimLocal)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":      "inacbg_procedure_set berhasil",
+		"eklaim_local": eklaimLocal,
+		"response":     resp,
+		"buttons":      eklaimLocal.GetButtonVisibility(),
+	})
+}
+
+// GetINACBGProcedure fetches current INACBG procedures from E-Klaim local server.
+// GET /eklaim-local/:id/inacbg-procedure
+func GetINACBGProcedure(c *gin.Context) {
+	eklaimID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+		return
+	}
+
+	var eklaimLocal models.EKlaimLocal
+	if err := database.DB.First(&eklaimLocal, eklaimID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Eklaim local tidak ditemukan"})
+		return
+	}
+
+	if !eklaimLocal.IDRGFinalSuccess {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "iDRG harus sudah final terlebih dahulu"})
+		return
+	}
+
+	client, err := eklaimSvc.NewClient()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal koneksi ke server E-Klaim: " + err.Error()})
+		return
+	}
+
+	resp, _, respJSON, _, apiErr := client.INACBGProcedureGet(eklaimLocal.NoSEP)
+	if apiErr != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "inacbg_procedure_get gagal: " + apiErr.Error(), "response": resp})
+		return
+	}
+
+	eklaimLocal.INACBGProcedureResponse = string(respJSON)
+	database.DB.Save(&eklaimLocal)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":  "inacbg_procedure_get berhasil",
+		"response": resp,
+	})
+}
+
+// SendGrouperINACBGStage1 runs INACBG grouping stage 1 on E-Klaim local server.
+// POST /eklaim-local/:id/grouper-inacbg-stage1
+func SendGrouperINACBGStage1(c *gin.Context) {
+	eklaimID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+		return
+	}
+
+	var eklaimLocal models.EKlaimLocal
+	if err := database.DB.First(&eklaimLocal, eklaimID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Eklaim local tidak ditemukan"})
+		return
+	}
+
+	if !eklaimLocal.CanGroupINACBG() {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Tidak dapat melakukan INACBG grouping saat ini"})
+		return
+	}
+
+	client, err := eklaimSvc.NewClient()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal koneksi ke server E-Klaim: " + err.Error()})
+		return
+	}
+
+	resp, reqJSON, respJSON, elapsed, apiErr := client.GrouperINACBGStage1(eklaimLocal.NoSEP)
+
+	userID := getUserIDValue(c)
+	logEntry := models.EKlaimLocalLog{
+		EKlaimLocalID: eklaimLocal.ID,
+		Method:        "grouper_inacbg_stage1",
+		RequestBody:   string(reqJSON),
+		ResponseBody:  string(respJSON),
+		ResponseTime:  elapsed,
+		IsSuccess:     apiErr == nil,
+	}
+	if resp != nil {
+		logEntry.ResponseCode = resp.Metadata.Code.String()
+	}
+	if apiErr != nil {
+		logEntry.ErrorMessage = apiErr.Error()
+	}
+	if userID > 0 {
+		logEntry.UserID = &userID
+	}
+	database.DB.Create(&logEntry)
+
+	now := time.Now()
+	eklaimLocal.INACBGGrouperStage1SentAt = &now
+	eklaimLocal.INACBGGrouperStage1Response = string(respJSON)
+
+	if apiErr != nil {
+		eklaimLocal.INACBGGrouperStage1Success = false
+		eklaimLocal.LastError = apiErr.Error()
+		eklaimLocal.LastErrorAt = &now
+		database.DB.Save(&eklaimLocal)
+		c.JSON(http.StatusBadGateway, gin.H{
+			"error":        "grouper_inacbg_stage1 gagal: " + apiErr.Error(),
+			"eklaim_local": eklaimLocal,
+			"response":     resp,
+			"buttons":      eklaimLocal.GetButtonVisibility(),
+		})
+		return
+	}
+
+	eklaimLocal.INACBGGrouperStage1Success = true
+	eklaimLocal.Status = "inacbg_grouped"
+	eklaimLocal.LastError = ""
+	eklaimLocal.LastErrorAt = nil
+
+	// Store special_cmg_option as raw JSON string
+	if resp != nil && resp.SpecialCMGOption != nil {
+		eklaimLocal.SpecialCMGOptions = string(resp.SpecialCMGOption)
+	}
+
+	// Parse INACBG grouper result
+	if resp != nil && resp.ResponseINACBG != nil {
+		var result eklaimSvc.INACBGGrouperResult
+		if json.Unmarshal(resp.ResponseINACBG, &result) == nil {
+			eklaimLocal.INACBGCBGCode = result.CBG.Code
+			eklaimLocal.INACBGCBGDescription = result.CBG.Description
+			eklaimLocal.INACBGBaseTariff = result.BaseTariff
+			eklaimLocal.INACBGTariff = result.Tariff
+			eklaimLocal.INACBGStatusCd = result.StatusCd
+		}
+	}
+
+	database.DB.Save(&eklaimLocal)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":      "grouper_inacbg_stage1 berhasil",
+		"eklaim_local": eklaimLocal,
+		"response":     resp,
+		"buttons":      eklaimLocal.GetButtonVisibility(),
+	})
+}
+
+// SendGrouperINACBGStage2 runs INACBG grouping stage 2 with selected special CMG codes.
+// POST /eklaim-local/:id/grouper-inacbg-stage2
+// Body: { "special_cmg": "code1#code2" }
+func SendGrouperINACBGStage2(c *gin.Context) {
+	eklaimID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+		return
+	}
+
+	var req struct {
+		SpecialCMG string `json:"special_cmg"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request: " + err.Error()})
+		return
+	}
+
+	var eklaimLocal models.EKlaimLocal
+	if err := database.DB.First(&eklaimLocal, eklaimID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Eklaim local tidak ditemukan"})
+		return
+	}
+
+	if !eklaimLocal.INACBGGrouperStage1Success || eklaimLocal.INACBGFinalSuccess {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "INACBG stage 1 harus sudah berhasil dan belum di-final"})
+		return
+	}
+
+	client, err := eklaimSvc.NewClient()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal koneksi ke server E-Klaim: " + err.Error()})
+		return
+	}
+
+	resp, reqJSON, respJSON, elapsed, apiErr := client.GrouperINACBGStage2(eklaimLocal.NoSEP, req.SpecialCMG)
+
+	userID := getUserIDValue(c)
+	logEntry := models.EKlaimLocalLog{
+		EKlaimLocalID: eklaimLocal.ID,
+		Method:        "grouper_inacbg_stage2",
+		RequestBody:   string(reqJSON),
+		ResponseBody:  string(respJSON),
+		ResponseTime:  elapsed,
+		IsSuccess:     apiErr == nil,
+	}
+	if resp != nil {
+		logEntry.ResponseCode = resp.Metadata.Code.String()
+	}
+	if apiErr != nil {
+		logEntry.ErrorMessage = apiErr.Error()
+	}
+	if userID > 0 {
+		logEntry.UserID = &userID
+	}
+	database.DB.Create(&logEntry)
+
+	now := time.Now()
+	eklaimLocal.INACBGGrouperStage2SentAt = &now
+	eklaimLocal.INACBGGrouperStage2Response = string(respJSON)
+
+	if apiErr != nil {
+		eklaimLocal.INACBGGrouperStage2Success = false
+		eklaimLocal.LastError = apiErr.Error()
+		eklaimLocal.LastErrorAt = &now
+		database.DB.Save(&eklaimLocal)
+		c.JSON(http.StatusBadGateway, gin.H{
+			"error":        "grouper_inacbg_stage2 gagal: " + apiErr.Error(),
+			"eklaim_local": eklaimLocal,
+			"response":     resp,
+			"buttons":      eklaimLocal.GetButtonVisibility(),
+		})
+		return
+	}
+
+	eklaimLocal.INACBGGrouperStage2Success = true
+	eklaimLocal.SelectedSpecialCMG = req.SpecialCMG
+	eklaimLocal.Status = "inacbg_grouped"
+	eklaimLocal.LastError = ""
+	eklaimLocal.LastErrorAt = nil
+
+	// Store special_cmg_option from stage 2 as well
+	if resp != nil && resp.SpecialCMGOption != nil {
+		eklaimLocal.SpecialCMGOptions = string(resp.SpecialCMGOption)
+	}
+
+	// Parse INACBG grouper result
+	if resp != nil && resp.ResponseINACBG != nil {
+		var result eklaimSvc.INACBGGrouperResult
+		if json.Unmarshal(resp.ResponseINACBG, &result) == nil {
+			eklaimLocal.INACBGCBGCode = result.CBG.Code
+			eklaimLocal.INACBGCBGDescription = result.CBG.Description
+			eklaimLocal.INACBGBaseTariff = result.BaseTariff
+			eklaimLocal.INACBGTariff = result.Tariff
+			eklaimLocal.INACBGStatusCd = result.StatusCd
+		}
+	}
+
+	database.DB.Save(&eklaimLocal)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":      "grouper_inacbg_stage2 berhasil",
+		"eklaim_local": eklaimLocal,
+		"response":     resp,
+		"buttons":      eklaimLocal.GetButtonVisibility(),
+	})
+}
+
+// SendFinalINACBG finalizes INACBG grouping on E-Klaim local server.
+// POST /eklaim-local/:id/final-inacbg
+func SendFinalINACBG(c *gin.Context) {
+	eklaimID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+		return
+	}
+
+	var eklaimLocal models.EKlaimLocal
+	if err := database.DB.First(&eklaimLocal, eklaimID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Eklaim local tidak ditemukan"})
+		return
+	}
+
+	if !eklaimLocal.CanFinalINACBG() {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Tidak dapat memfinalisasi INACBG saat ini"})
+		return
+	}
+
+	client, err := eklaimSvc.NewClient()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal koneksi ke server E-Klaim: " + err.Error()})
+		return
+	}
+
+	resp, reqJSON, respJSON, elapsed, apiErr := client.FinalINACBG(eklaimLocal.NoSEP)
+
+	userID := getUserIDValue(c)
+	logEntry := models.EKlaimLocalLog{
+		EKlaimLocalID: eklaimLocal.ID,
+		Method:        "inacbg_grouper_final",
+		RequestBody:   string(reqJSON),
+		ResponseBody:  string(respJSON),
+		ResponseTime:  elapsed,
+		IsSuccess:     apiErr == nil,
+	}
+	if resp != nil {
+		logEntry.ResponseCode = resp.Metadata.Code.String()
+	}
+	if apiErr != nil {
+		logEntry.ErrorMessage = apiErr.Error()
+	}
+	if userID > 0 {
+		logEntry.UserID = &userID
+	}
+	database.DB.Create(&logEntry)
+
+	now := time.Now()
+	eklaimLocal.INACBGFinalSentAt = &now
+
+	if apiErr != nil {
+		eklaimLocal.INACBGFinalSuccess = false
+		eklaimLocal.LastError = apiErr.Error()
+		eklaimLocal.LastErrorAt = &now
+		database.DB.Save(&eklaimLocal)
+		c.JSON(http.StatusBadGateway, gin.H{
+			"error":        "inacbg_grouper_final gagal: " + apiErr.Error(),
+			"eklaim_local": eklaimLocal,
+			"response":     resp,
+			"buttons":      eklaimLocal.GetButtonVisibility(),
+		})
+		return
+	}
+
+	eklaimLocal.INACBGFinalSuccess = true
+	eklaimLocal.Status = "inacbg_final"
+	eklaimLocal.LastError = ""
+	eklaimLocal.LastErrorAt = nil
+	database.DB.Save(&eklaimLocal)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":      "inacbg_grouper_final berhasil",
+		"eklaim_local": eklaimLocal,
+		"response":     resp,
+		"buttons":      eklaimLocal.GetButtonVisibility(),
+	})
+}
+
+// SendReeditINACBG re-opens INACBG for editing (unfinal) on E-Klaim local server.
+// POST /eklaim-local/:id/reedit-inacbg
+func SendReeditINACBG(c *gin.Context) {
+	eklaimID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+		return
+	}
+
+	var eklaimLocal models.EKlaimLocal
+	if err := database.DB.First(&eklaimLocal, eklaimID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Eklaim local tidak ditemukan"})
+		return
+	}
+
+	if !eklaimLocal.CanReeditINACBG() {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Tidak dapat reedit INACBG saat ini"})
+		return
+	}
+
+	client, err := eklaimSvc.NewClient()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal koneksi ke server E-Klaim: " + err.Error()})
+		return
+	}
+
+	resp, reqJSON, respJSON, elapsed, apiErr := client.ReeditINACBG(eklaimLocal.NoSEP)
+
+	userID := getUserIDValue(c)
+	logEntry := models.EKlaimLocalLog{
+		EKlaimLocalID: eklaimLocal.ID,
+		Method:        "inacbg_grouper_reedit",
+		RequestBody:   string(reqJSON),
+		ResponseBody:  string(respJSON),
+		ResponseTime:  elapsed,
+		IsSuccess:     apiErr == nil,
+	}
+	if resp != nil {
+		logEntry.ResponseCode = resp.Metadata.Code.String()
+	}
+	if apiErr != nil {
+		logEntry.ErrorMessage = apiErr.Error()
+	}
+	if userID > 0 {
+		logEntry.UserID = &userID
+	}
+	database.DB.Create(&logEntry)
+
+	now := time.Now()
+
+	if apiErr != nil {
+		eklaimLocal.LastError = apiErr.Error()
+		eklaimLocal.LastErrorAt = &now
+		database.DB.Save(&eklaimLocal)
+		c.JSON(http.StatusBadGateway, gin.H{
+			"error":        "inacbg_grouper_reedit gagal: " + apiErr.Error(),
+			"eklaim_local": eklaimLocal,
+			"response":     resp,
+			"buttons":      eklaimLocal.GetButtonVisibility(),
+		})
+		return
+	}
+
+	eklaimLocal.ResetINACBGState()
+	eklaimLocal.Status = "idrg_final"
+	eklaimLocal.LastError = ""
+	eklaimLocal.LastErrorAt = nil
+	database.DB.Save(&eklaimLocal)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":      "inacbg_grouper_reedit berhasil",
+		"eklaim_local": eklaimLocal,
+		"response":     resp,
+		"buttons":      eklaimLocal.GetButtonVisibility(),
+	})
+}
+
+// SendClaimSend sends finalized claim to BPJS via E-Klaim local server.
+// POST /eklaim-local/:id/send-claim
+func SendClaimSend(c *gin.Context) {
+	eklaimID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+		return
+	}
+
+	var eklaimLocal models.EKlaimLocal
+	if err := database.DB.First(&eklaimLocal, eklaimID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Eklaim local tidak ditemukan"})
+		return
+	}
+
+	if !eklaimLocal.CanClaimSend() {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Tidak dapat mengirim klaim saat ini"})
+		return
+	}
+
+	client, err := eklaimSvc.NewClient()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal koneksi ke server E-Klaim: " + err.Error()})
+		return
+	}
+
+	resp, reqJSON, respJSON, elapsed, apiErr := client.SendClaimIndividual(eklaimLocal.NoSEP)
+
+	userID := getUserIDValue(c)
+	logEntry := models.EKlaimLocalLog{
+		EKlaimLocalID: eklaimLocal.ID,
+		Method:        "send_claim_individual",
+		RequestBody:   string(reqJSON),
+		ResponseBody:  string(respJSON),
+		ResponseTime:  elapsed,
+		IsSuccess:     apiErr == nil,
+	}
+	if resp != nil {
+		logEntry.ResponseCode = resp.Metadata.Code.String()
+	}
+	if apiErr != nil {
+		logEntry.ErrorMessage = apiErr.Error()
+	}
+	if userID > 0 {
+		logEntry.UserID = &userID
+	}
+	database.DB.Create(&logEntry)
+
+	now := time.Now()
+	eklaimLocal.ClaimSendSentAt = &now
+	eklaimLocal.ClaimSendResponse = string(respJSON)
+
+	if apiErr != nil {
+		eklaimLocal.ClaimSendSuccess = false
+		eklaimLocal.LastError = apiErr.Error()
+		eklaimLocal.LastErrorAt = &now
+		database.DB.Save(&eklaimLocal)
+		c.JSON(http.StatusBadGateway, gin.H{
+			"error":        "send_claim_individual gagal: " + apiErr.Error(),
+			"eklaim_local": eklaimLocal,
+			"response":     resp,
+			"buttons":      eklaimLocal.GetButtonVisibility(),
+		})
+		return
+	}
+
+	eklaimLocal.ClaimSendSuccess = true
+	eklaimLocal.Status = "claim_sent"
+	eklaimLocal.LastError = ""
+	eklaimLocal.LastErrorAt = nil
+	database.DB.Save(&eklaimLocal)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":      "send_claim_individual berhasil",
+		"eklaim_local": eklaimLocal,
+		"response":     resp,
+		"buttons":      eklaimLocal.GetButtonVisibility(),
+	})
+}
+
+// SendClaimReeditLocal re-opens a finalized claim for editing via simple reedit.
+// POST /eklaim-local/:id/reedit-claim
+// This is the simple reedit (no diagnosa/procedure/reason required), distinct from SendReeditClaim.
+func SendClaimReeditLocal(c *gin.Context) {
+	eklaimID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+		return
+	}
+
+	var eklaimLocal models.EKlaimLocal
+	if err := database.DB.First(&eklaimLocal, eklaimID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Eklaim local tidak ditemukan"})
+		return
+	}
+
+	if !eklaimLocal.CanReeditClaim() {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Tidak dapat reedit klaim saat ini"})
+		return
+	}
+
+	client, err := eklaimSvc.NewClient()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal koneksi ke server E-Klaim: " + err.Error()})
+		return
+	}
+
+	resp, reqJSON, respJSON, elapsed, apiErr := client.ReeditClaimSimple(eklaimLocal.NoSEP)
+
+	userID := getUserIDValue(c)
+	logEntry := models.EKlaimLocalLog{
+		EKlaimLocalID: eklaimLocal.ID,
+		Method:        "reedit_claim_simple",
+		RequestBody:   string(reqJSON),
+		ResponseBody:  string(respJSON),
+		ResponseTime:  elapsed,
+		IsSuccess:     apiErr == nil,
+	}
+	if resp != nil {
+		logEntry.ResponseCode = resp.Metadata.Code.String()
+	}
+	if apiErr != nil {
+		logEntry.ErrorMessage = apiErr.Error()
+	}
+	if userID > 0 {
+		logEntry.UserID = &userID
+	}
+	database.DB.Create(&logEntry)
+
+	now := time.Now()
+	eklaimLocal.ClaimReeditSentAt = &now
+	eklaimLocal.ClaimReeditResponse = string(respJSON)
+
+	if apiErr != nil {
+		eklaimLocal.LastError = apiErr.Error()
+		eklaimLocal.LastErrorAt = &now
+		database.DB.Save(&eklaimLocal)
+		c.JSON(http.StatusBadGateway, gin.H{
+			"error":        "reedit_claim gagal: " + apiErr.Error(),
+			"eklaim_local": eklaimLocal,
+			"response":     resp,
+			"buttons":      eklaimLocal.GetButtonVisibility(),
+		})
+		return
+	}
+
+	eklaimLocal.ResetClaimFinalState()
+	eklaimLocal.Status = "inacbg_final"
+	eklaimLocal.LastError = ""
+	eklaimLocal.LastErrorAt = nil
+	database.DB.Save(&eklaimLocal)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":      "reedit_claim berhasil",
+		"eklaim_local": eklaimLocal,
+		"response":     resp,
+		"buttons":      eklaimLocal.GetButtonVisibility(),
+	})
+}
+
+// ==================== SEARCH HANDLERS ====================
+
+// searchResultItem is a normalized search result from E-Klaim enriched with IM flag.
+type searchResultItem struct {
+	Code        string `json:"code"`
+	Description string `json:"description"`
+	IM          bool   `json:"im"`
+}
+
+// extractSearchItems extracts E-Klaim search response into normalized items.
+func extractSearchItems(resp *eklaimSvc.EKlaimResponse) []searchResultItem {
+	if resp == nil || resp.Response == nil {
+		return []searchResultItem{}
+	}
+	// Try to extract "data" from the {"count":N,"data":[...]} wrapper
+	var wrapper struct {
+		Data json.RawMessage `json:"data"`
+	}
+	rawData := resp.Response
+	if err := json.Unmarshal(resp.Response, &wrapper); err == nil && wrapper.Data != nil {
+		rawData = wrapper.Data
+	}
+
+	// Parse as array — items can be {"code":"...","description":"..."} or ["desc","code"]
+	var rawItems []json.RawMessage
+	if err := json.Unmarshal(rawData, &rawItems); err != nil {
+		return []searchResultItem{}
+	}
+
+	items := make([]searchResultItem, 0, len(rawItems))
+	for _, raw := range rawItems {
+		var obj map[string]interface{}
+		if err := json.Unmarshal(raw, &obj); err == nil {
+			item := searchResultItem{
+				Code:        fmt.Sprintf("%v", obj["code"]),
+				Description: fmt.Sprintf("%v", obj["description"]),
+			}
+			items = append(items, item)
+			continue
+		}
+		// Try array format: [description, code]
+		var arr []interface{}
+		if err := json.Unmarshal(raw, &arr); err == nil && len(arr) >= 2 {
+			items = append(items, searchResultItem{
+				Code:        fmt.Sprintf("%v", arr[1]),
+				Description: fmt.Sprintf("%v", arr[0]),
+			})
+		}
+	}
+	return items
+}
+
+// enrichICD10IM enriches search results with IM flag from ICD-10 local DB.
+func enrichICD10IM(items []searchResultItem) []searchResultItem {
+	if len(items) == 0 {
+		return items
+	}
+	codes := make([]string, len(items))
+	for i, it := range items {
+		codes[i] = it.Code
+	}
+	var icdRows []models.ICD10
+	database.DB.Where("code IN ? OR code2 IN ?", codes, codes).Select("code", "code2", "im").Find(&icdRows)
+
+	imMap := make(map[string]bool)
+	for _, row := range icdRows {
+		if row.IM {
+			imMap[row.Code] = true
+			imMap[row.Code2] = true
+		}
+	}
+	for i := range items {
+		if imMap[items[i].Code] {
+			items[i].IM = true
+		}
+	}
+	return items
+}
+
+// enrichICD9CMIM enriches search results with IM flag from ICD-9-CM local DB.
+func enrichICD9CMIM(items []searchResultItem) []searchResultItem {
+	if len(items) == 0 {
+		return items
+	}
+	codes := make([]string, len(items))
+	for i, it := range items {
+		codes[i] = it.Code
+	}
+	var icdRows []models.ICD9CM
+	database.DB.Where("code IN ? OR code2 IN ?", codes, codes).Select("code", "code2", "im").Find(&icdRows)
+
+	imMap := make(map[string]bool)
+	for _, row := range icdRows {
+		if row.IM {
+			imMap[row.Code] = true
+			imMap[row.Code2] = true
+		}
+	}
+	for i := range items {
+		if imMap[items[i].Code] {
+			items[i].IM = true
+		}
+	}
+	return items
+}
+
+// SearchIDRGDiagnosa searches iDRG diagnoses by keyword.
+// GET /eklaim-local/search/idrg-diagnosa?keyword=
+func SearchIDRGDiagnosa(c *gin.Context) {
+	keyword := strings.TrimSpace(c.Query("keyword"))
+	if len(keyword) < 2 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Keyword minimal 2 karakter"})
+		return
+	}
+
+	client, err := eklaimSvc.NewClient()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal koneksi ke server E-Klaim: " + err.Error()})
+		return
+	}
+
+	resp, _, _, _, apiErr := client.SearchDiagnosisIDRG(keyword)
+	if apiErr != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "search_diagnosis_inagrouper gagal: " + apiErr.Error(), "response": resp})
+		return
+	}
+
+	items := enrichICD10IM(extractSearchItems(resp))
+	c.JSON(http.StatusOK, gin.H{
+		"message": "search_diagnosis_inagrouper berhasil",
+		"data":    items,
+	})
+}
+
+// SearchIDRGProcedure searches iDRG procedures by keyword.
+// GET /eklaim-local/search/idrg-procedure?keyword=
+func SearchIDRGProcedure(c *gin.Context) {
+	keyword := strings.TrimSpace(c.Query("keyword"))
+	if len(keyword) < 2 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Keyword minimal 2 karakter"})
+		return
+	}
+
+	client, err := eklaimSvc.NewClient()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal koneksi ke server E-Klaim: " + err.Error()})
+		return
+	}
+
+	resp, _, _, _, apiErr := client.SearchProceduresIDRG(keyword)
+	if apiErr != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "search_procedures_inagrouper gagal: " + apiErr.Error(), "response": resp})
+		return
+	}
+
+	items := enrichICD9CMIM(extractSearchItems(resp))
+	c.JSON(http.StatusOK, gin.H{
+		"message": "search_procedures_inagrouper berhasil",
+		"data":    items,
+	})
+}
+
+// SearchINACBGDiagnosa searches INACBG diagnoses by keyword.
+// GET /eklaim-local/search/inacbg-diagnosa?keyword=
+func SearchINACBGDiagnosa(c *gin.Context) {
+	keyword := strings.TrimSpace(c.Query("keyword"))
+	if len(keyword) < 2 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Keyword minimal 2 karakter"})
+		return
+	}
+
+	client, err := eklaimSvc.NewClient()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal koneksi ke server E-Klaim: " + err.Error()})
+		return
+	}
+
+	resp, _, _, _, apiErr := client.SearchDiagnosisINACBG(keyword)
+	if apiErr != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "search_diagnosis gagal: " + apiErr.Error(), "response": resp})
+		return
+	}
+
+	items := enrichICD10IM(extractSearchItems(resp))
+	c.JSON(http.StatusOK, gin.H{
+		"message": "search_diagnosis berhasil",
+		"data":    items,
+	})
+}
+
+// SearchINACBGProcedure searches INACBG procedures by keyword.
+// GET /eklaim-local/search/inacbg-procedure?keyword=
+func SearchINACBGProcedure(c *gin.Context) {
+	keyword := strings.TrimSpace(c.Query("keyword"))
+	if len(keyword) < 2 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Keyword minimal 2 karakter"})
+		return
+	}
+
+	client, err := eklaimSvc.NewClient()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal koneksi ke server E-Klaim: " + err.Error()})
+		return
+	}
+
+	resp, _, _, _, apiErr := client.SearchProceduresINACBG(keyword)
+	if apiErr != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "search_procedures gagal: " + apiErr.Error(), "response": resp})
+		return
+	}
+
+	items := enrichICD9CMIM(extractSearchItems(resp))
+	c.JSON(http.StatusOK, gin.H{
+		"message": "search_procedures berhasil",
+		"data":    items,
+	})
+}
+
+// GetEKlaimDashboard returns summary statistics for the E-Klaim dashboard.
+// GET /eklaim-local/dashboard?bulan=2026-02
+func GetEKlaimDashboard(c *gin.Context) {
+	bulan := c.Query("bulan") // format: YYYY-MM
+	if bulan == "" {
+		bulan = time.Now().Format("2006-01")
+	}
+
+	tglFrom := bulan + "-01"
+	t, err := time.Parse("2006-01-02", tglFrom)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Format bulan tidak valid (YYYY-MM)"})
+		return
+	}
+	tglTo := t.AddDate(0, 1, -1).Format("2006-01-02")
+
+	db := database.DB
+	monthFilter := func(q *gorm.DB) *gorm.DB {
+		return q.Where("tgl_masuk >= ? AND tgl_masuk <= ?", tglFrom, tglTo)
+	}
+
+	// 1. Status counts
+	type StatusCount struct {
+		Status string `json:"status"`
+		Count  int64  `json:"count"`
+	}
+	var statusCounts []StatusCount
+	monthFilter(db.Model(&models.EKlaimLocal{})).
+		Select("status, COUNT(*) as count").
+		Group("status").Order("count DESC").
+		Find(&statusCounts)
+
+	// 2. Jenis rawat counts
+	type JenisRawatCount struct {
+		JenisRawat string `json:"jenis_rawat"`
+		Count      int64  `json:"count"`
+	}
+	var jenisRawatCounts []JenisRawatCount
+	monthFilter(db.Model(&models.EKlaimLocal{})).
+		Select("jenis_rawat, COUNT(*) as count").
+		Where("jenis_rawat != ''").
+		Group("jenis_rawat").Order("count DESC").
+		Find(&jenisRawatCounts)
+
+	// 3. Kelas rawat counts
+	type KelasRawatCount struct {
+		KelasRawat string `json:"kelas_rawat"`
+		Count      int64  `json:"count"`
+	}
+	var kelasRawatCounts []KelasRawatCount
+	monthFilter(db.Model(&models.EKlaimLocal{})).
+		Select("kelas_rawat, COUNT(*) as count").
+		Where("kelas_rawat != ''").
+		Group("kelas_rawat").Order("count DESC").
+		Find(&kelasRawatCounts)
+
+	// 4. Financial summary — inacbg_tariff is TEXT, cast to numeric; tarif_rs is float64
+	type FinancialSummary struct {
+		TotalINACBGTariff float64 `json:"total_inacbg_tariff"`
+		TotalTarifRS      float64 `json:"total_tarif_rs"`
+		AvgINACBGTariff   float64 `json:"avg_inacbg_tariff"`
+		AvgTarifRS        float64 `json:"avg_tarif_rs"`
+		ClaimCount        int64   `json:"claim_count"`
+	}
+	var financial FinancialSummary
+	monthFilter(db.Model(&models.EKlaimLocal{})).
+		Select(`COUNT(*) as claim_count,
+			COALESCE(SUM(CASE WHEN inacbg_tariff != '' THEN CAST(inacbg_tariff AS NUMERIC) ELSE 0 END),0) as total_inacbg_tariff,
+			COALESCE(SUM(tarif_rs),0) as total_tarif_rs,
+			COALESCE(AVG(NULLIF(CASE WHEN inacbg_tariff != '' THEN CAST(inacbg_tariff AS NUMERIC) ELSE 0 END,0)),0) as avg_inacbg_tariff,
+			COALESCE(AVG(NULLIF(tarif_rs,0)),0) as avg_tarif_rs`).
+		Scan(&financial)
+
+	// 5. Recent claims (last 10)
+	var recentClaims []models.EKlaimLocal
+	db.Model(&models.EKlaimLocal{}).
+		Order("created_at DESC").Limit(10).
+		Find(&recentClaims)
+
+	type RecentItem struct {
+		ID              uint   `json:"id"`
+		NoSEP           string `json:"no_sep"`
+		NamaPasien      string `json:"nama_pasien"`
+		Status          string `json:"status"`
+		JenisRawat      string `json:"jenis_rawat"`
+		KelasRawat      string `json:"kelas_rawat"`
+		TglMasuk        string `json:"tgl_masuk"`
+		TglPulang       string `json:"tgl_pulang"`
+		INACBGCBGCode   string `json:"inacbg_cbg_code"`
+		INACBGTariff    string `json:"inacbg_tariff"`
+		TarifRS         float64 `json:"tarif_rs"`
+		CreatedAt       string `json:"created_at"`
+	}
+	recentItems := make([]RecentItem, 0, len(recentClaims))
+	for _, r := range recentClaims {
+		recentItems = append(recentItems, RecentItem{
+			ID:            r.ID,
+			NoSEP:         r.NoSEP,
+			NamaPasien:    r.NamaPasien,
+			Status:        r.Status,
+			JenisRawat:    r.JenisRawat,
+			KelasRawat:    r.KelasRawat,
+			TglMasuk:      r.TglMasuk,
+			TglPulang:     r.TglPulang,
+			INACBGCBGCode: r.INACBGCBGCode,
+			INACBGTariff:  r.INACBGTariff,
+			TarifRS:       r.TarifRS,
+			CreatedAt:     r.CreatedAt.Format("2006-01-02 15:04"),
+		})
+	}
+
+	// 6. Top 10 INACBG codes
+	type TopCBG struct {
+		CBGCode        string  `json:"cbg_code"`
+		CBGDescription string  `json:"cbg_description"`
+		Count          int64   `json:"count"`
+		TotalTariff    float64 `json:"total_tariff"`
+	}
+	var topCBGs []TopCBG
+	monthFilter(db.Model(&models.EKlaimLocal{})).
+		Select("inacbg_cbg_code as cbg_code, inacbg_cbg_description as cbg_description, COUNT(*) as count, SUM(CASE WHEN inacbg_tariff != '' THEN CAST(inacbg_tariff AS NUMERIC) ELSE 0 END) as total_tariff").
+		Where("inacbg_cbg_code != ''").
+		Group("inacbg_cbg_code, inacbg_cbg_description").
+		Order("count DESC").Limit(10).
+		Find(&topCBGs)
+
+	// 7. Daily tariff summary
+	type DailyClaim struct {
+		Date         string  `json:"date"`
+		Count        int64   `json:"count"`
+		TotalINACBG  float64 `json:"total_inacbg"`
+		TotalTarifRS float64 `json:"total_tarif_rs"`
+	}
+	var dailyClaims []DailyClaim
+	monthFilter(db.Model(&models.EKlaimLocal{})).
+		Select("tgl_masuk as date, COUNT(*) as count, COALESCE(SUM(CASE WHEN inacbg_tariff != '' THEN CAST(inacbg_tariff AS NUMERIC) ELSE 0 END),0) as total_inacbg, COALESCE(SUM(tarif_rs),0) as total_tarif_rs").
+		Where("tgl_masuk != ''").
+		Group("tgl_masuk").Order("tgl_masuk ASC").
+		Find(&dailyClaims)
+
+	// 8. Pending actions (global, not month-filtered)
+	var pendingDraft, pendingSetData, pendingGrouper, pendingFinal, pendingSend int64
+	db.Model(&models.EKlaimLocal{}).Where("status = ?", "draft").Count(&pendingDraft)
+	db.Model(&models.EKlaimLocal{}).Where("status = ?", "new_claim").Count(&pendingSetData)
+	db.Model(&models.EKlaimLocal{}).Where("status IN ?", []string{"set_claim_data", "idrg_coded"}).Count(&pendingGrouper)
+	db.Model(&models.EKlaimLocal{}).Where("status IN ?", []string{"idrg_grouped", "inacbg_grouped"}).Count(&pendingFinal)
+	db.Model(&models.EKlaimLocal{}).Where("status = ?", "claim_final").Count(&pendingSend)
+
+	c.JSON(http.StatusOK, gin.H{
+		"bulan":              bulan,
+		"tgl_from":           tglFrom,
+		"tgl_to":             tglTo,
+		"total_claims":       financial.ClaimCount,
+		"status_counts":      statusCounts,
+		"jenis_rawat_counts": jenisRawatCounts,
+		"kelas_rawat_counts": kelasRawatCounts,
+		"financial":          financial,
+		"recent_claims":      recentItems,
+		"top_cbg":            topCBGs,
+		"daily_claims":       dailyClaims,
+		"pending_actions": gin.H{
+			"draft":           pendingDraft,
+			"new_claim":       pendingSetData,
+			"pending_grouper": pendingGrouper,
+			"pending_final":   pendingFinal,
+			"pending_send":    pendingSend,
+		},
+	})
 }

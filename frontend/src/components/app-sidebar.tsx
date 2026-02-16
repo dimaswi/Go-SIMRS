@@ -72,6 +72,7 @@ interface MenuItem {
   label: string;
   icon: any;
   permission?: string;
+  exact?: boolean;
   submenu?: MenuItem[];
 }
 
@@ -95,6 +96,7 @@ const menuItems: MenuItem[] = [
     label: 'E-Klaim',
     icon: FileCheck,
     submenu: [
+      { path: '/eklaim', label: 'Dashboard', icon: Monitor, permission: 'eklaim.view', exact: true },
       { path: '/eklaim/list-sep', label: 'List SEP', icon: FileText, permission: 'eklaim.view' },
       { path: '/eklaim/data-klaim', label: 'Data Klaim', icon: FileCheck, permission: 'eklaim.view' },
       { path: '/eklaim/report', label: 'Laporan', icon: BarChart3, permission: 'eklaim.view' },
@@ -301,7 +303,7 @@ function TreeParent({
           {/* Submenu items */}
           {visibleSubmenu.map(subItem => {
             const SubIcon = subItem.icon;
-            const isSubActive = isPathActive(location.pathname, subItem.path);
+            const isSubActive = subItem.exact ? location.pathname === subItem.path : isPathActive(location.pathname, subItem.path);
             return (
               <DropdownMenuItem key={subItem.path} asChild className="py-0 px-0">
                 <Link
@@ -359,7 +361,7 @@ function TreeParent({
               key={subItem.path}
               item={subItem}
               isLast={idx === visibleSubmenu.length - 1}
-              isActive={isPathActive(location.pathname, subItem.path)}
+              isActive={subItem.exact ? location.pathname === subItem.path : isPathActive(location.pathname, subItem.path)}
             />
           ))}
         </ul>

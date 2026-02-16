@@ -154,6 +154,7 @@ var EKlaimConfigKeys = []IntegrationConfigKey{
 	{Integration: IntegrationTypeEKlaim, Key: "eklaim_local_url", Description: "URL E-Klaim Local Server (contoh: http://192.168.56.101/E-Klaim/ws.php)", IsEncrypted: false, IsSecret: false, Default: "http://localhost/E-Klaim/ws.php"},
 	{Integration: IntegrationTypeEKlaim, Key: "eklaim_secret_key", Description: "Secret Key Enkripsi (64 karakter hex dari BPJS)", IsEncrypted: false, IsSecret: true, Default: ""},
 	{Integration: IntegrationTypeEKlaim, Key: "eklaim_coder_nik", Description: "NIK Koder Default", IsEncrypted: false, IsSecret: false, Default: ""},
+	{Integration: IntegrationTypeEKlaim, Key: "eklaim_kode_tarif", Description: "Kode Tarif RS Default (contoh: BP, CS, dll)", IsEncrypted: false, IsSecret: false, Default: ""},
 }
 
 // SatuSehat Config Keys - TANPA enkripsi, simpan plain text

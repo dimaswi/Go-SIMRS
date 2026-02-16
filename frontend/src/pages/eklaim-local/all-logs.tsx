@@ -31,6 +31,10 @@ import {
   CheckCircle,
   XCircle,
   ExternalLink,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { id as localeId } from 'date-fns/locale';
@@ -43,6 +47,7 @@ interface LogEntry extends EKlaimLocalLog {
 const methodOptions = [
   { value: '', label: 'Semua Method' },
   { value: 'new_claim', label: 'new_claim' },
+  { value: 'update_patient', label: 'update_patient' },
   { value: 'set_claim_data', label: 'set_claim_data' },
   { value: 'grouper', label: 'grouper' },
   { value: 'claim_final', label: 'claim_final' },
@@ -68,6 +73,7 @@ export default function AllEklaimLogsPage() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(Number(searchParams.get('page')) || 1);
+  const [perPage, setPerPage] = useState(Number(searchParams.get('per_page')) || 20);
   const [selectedLog, setSelectedLog] = useState<LogEntry | null>(null);
 
   // Filters
@@ -80,7 +86,7 @@ export default function AllEklaimLogsPage() {
     try {
       const response = await eklaimLocalApi.getAllLogs({
         page,
-        per_page: 20,
+        per_page: perPage,
         method: method || undefined,
         status: status || undefined,
         search: search || undefined,
@@ -92,7 +98,7 @@ export default function AllEklaimLogsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, method, status, search, toast]);
+  }, [page, perPage, method, status, search, toast]);
 
   useEffect(() => {
     setPageTitle('Log E-Klaim');
@@ -103,11 +109,12 @@ export default function AllEklaimLogsPage() {
   useEffect(() => {
     const params: Record<string, string> = {};
     if (page > 1) params.page = String(page);
+    if (perPage !== 20) params.per_page = String(perPage);
     if (method) params.method = method;
     if (status) params.status = status;
     if (search) params.search = search;
     setSearchParams(params, { replace: true });
-  }, [page, method, status, search, setSearchParams]);
+  }, [page, perPage, method, status, search, setSearchParams]);
 
   const handleSearch = () => {
     setPage(1);
@@ -228,7 +235,7 @@ export default function AllEklaimLogsPage() {
     },
   ];
 
-  const totalPages = Math.ceil(total / 20);
+  const totalPages = Math.ceil(total / perPage);
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
@@ -310,36 +317,46 @@ export default function AllEklaimLogsPage() {
           <DataTable
             columns={columns}
             data={logs}
-            searchPlaceholder="Cari di tabel..."
-            pageSize={20}
-            tableId="eklaim-all-logs"
+            pageSize={perPage}
+            showPagination={false}
+            showSearch={false}
+            showColumnVisibility={false}
           />
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between px-2">
-              <span className="text-sm text-muted-foreground">
-                Halaman {page} dari {totalPages}
-              </span>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={page <= 1}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                >
-                  Sebelumnya
+          {/* Server-side Pagination */}
+          <div className="flex items-center justify-between space-x-2 py-4">
+            <div className="flex items-center space-x-2">
+              <p className="text-sm text-muted-foreground">Baris per halaman</p>
+              <Select value={String(perPage)} onValueChange={(v) => { setPerPage(Number(v)); setPage(1); }}>
+                <SelectTrigger className="h-8 w-[70px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent side="top">
+                  {[10, 20, 30, 50, 100].map((size) => (
+                    <SelectItem key={size} value={String(size)}>{size}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center space-x-6 lg:space-x-8">
+              <div className="flex w-[100px] items-center justify-center text-sm text-muted-foreground">
+                Halaman {page} dari {Math.max(1, totalPages)}
+              </div>
+              <div className="flex items-center space-x-2">
+                <Button variant="outline" className="hidden h-8 w-8 p-0 lg:flex" onClick={() => setPage(1)} disabled={page <= 1}>
+                  <ChevronsLeft className="h-4 w-4" />
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={page >= totalPages}
-                  onClick={() => setPage((p) => p + 1)}
-                >
-                  Selanjutnya
+                <Button variant="outline" className="h-8 w-8 p-0" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" className="h-8 w-8 p-0" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages}>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" className="hidden h-8 w-8 p-0 lg:flex" onClick={() => setPage(totalPages)} disabled={page >= totalPages}>
+                  <ChevronsRight className="h-4 w-4" />
                 </Button>
               </div>
             </div>
-          )}
+          </div>
         </>
       )}
 

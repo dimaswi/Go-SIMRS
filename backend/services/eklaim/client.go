@@ -80,18 +80,32 @@ type EKlaimRequest struct {
 // EKlaimRequestMetadata for request envelope
 type EKlaimRequestMetadata struct {
 	Method   string `json:"method"`
-	NomorSEP string `json:"nomor_sep,omitempty"` // Required for set_claim_data
+	NomorSEP string `json:"nomor_sep,omitempty"` // Required for set_claim_data, diagnosa_set, procedure_set
+	NomorRM  string `json:"nomor_rm,omitempty"`  // Required for update_patient
+	Stage    string `json:"stage,omitempty"`     // "1" or "2" for grouper
+	Grouper  string `json:"grouper,omitempty"`   // "idrg" or "inacbg" for grouper
 }
 
 // EKlaimResponse is the standard response envelope from E-Klaim API
 // Note: E-Klaim server returns code as number (200, 400), not string.
+// Different methods return responses in different top-level fields:
+//   - response: new_claim, set_claim_data, send_claim_individual
+//   - response_idrg: grouper with grouper="idrg"
+//   - response_inacbg: grouper with grouper="inacbg"
+//   - special_cmg_option: INACBG grouper stage 1 & 2
+//   - data: *_diagnosa_set, *_procedure_set, *_diagnosa_get, *_procedure_get, idrg_to_inacbg_import
 type EKlaimResponse struct {
 	Metadata struct {
 		Code    json.Number `json:"code"`
 		Message string      `json:"message"`
 		ErrorNo string      `json:"error_no,omitempty"`
+		Method  string      `json:"method,omitempty"`
 	} `json:"metadata"`
-	Response json.RawMessage `json:"response"`
+	Response         json.RawMessage `json:"response,omitempty"`
+	ResponseIDRG     json.RawMessage `json:"response_idrg,omitempty"`
+	ResponseINACBG   json.RawMessage `json:"response_inacbg,omitempty"`
+	SpecialCMGOption json.RawMessage `json:"special_cmg_option,omitempty"`
+	Data             json.RawMessage `json:"data,omitempty"`
 }
 
 // NewClaimData contains fields for new_claim request.
@@ -244,7 +258,7 @@ type VentilatorDetail struct {
 	StopDttm  string `json:"stop_dttm"`
 }
 
-// GrouperResult represents grouping result from E-Klaim
+// GrouperResult represents grouping result from E-Klaim (legacy format)
 type GrouperResult struct {
 	SEP string `json:"sep"`
 	CBG struct {
@@ -261,6 +275,85 @@ type GrouperResult struct {
 	SeverityLevel  string  `json:"severity_level"`
 }
 
+// ==================== iDRG/INACBG RESPONSE TYPES ====================
+
+// IDRGGrouperResult represents iDRG grouper response from response_idrg field
+type IDRGGrouperResult struct {
+	MDCNumber       string `json:"mdc_number"`
+	MDCDescription  string `json:"mdc_description"`
+	DRGCode         string `json:"drg_code"`
+	DRGDescription  string `json:"drg_description"`
+	ScriptVersion   string `json:"script_version"`
+	LogicVersion    string `json:"logic_version"`
+	CostWeight      string `json:"cost_weight"`
+	SubAcuteWeight  string `json:"sub_acute_weight"`
+	ChronicWeight   string `json:"chronic_weight"`
+	TotalCostWeight string `json:"total_cost_weight"`
+	NBR             string `json:"nbr"`
+	StatusCd        string `json:"status_cd"` // "normal" or error
+}
+
+// INACBGGrouperResult represents INACBG grouper response from response_inacbg field
+type INACBGGrouperResult struct {
+	CBG struct {
+		Code        string `json:"code"`
+		Description string `json:"description"`
+	} `json:"cbg"`
+	BaseTariff    string           `json:"base_tariff"`
+	Tariff        string           `json:"tariff"`
+	SpecialCMG    []SpecialCMGItem `json:"special_cmg,omitempty"` // only in stage 2
+	Kelas         string           `json:"kelas"`
+	INACBGVersion string           `json:"inacbg_version"`
+	StatusCd      string           `json:"status_cd"`
+}
+
+// SpecialCMGOption is an option returned by INACBG grouper stage 1/2
+type SpecialCMGOption struct {
+	Code        string `json:"code"`
+	Description string `json:"description"`
+	Type        string `json:"type"` // "Special Prosthesis" or "Special Procedure"
+}
+
+// SpecialCMGItem is a selected CMG item with tariff in stage 2 response
+type SpecialCMGItem struct {
+	Code        string  `json:"code"`
+	Description string  `json:"description"`
+	Tariff      float64 `json:"tariff"`
+	Type        string  `json:"type"`
+}
+
+// CodingExpandedItem represents one code in a diagnosa/procedure set/get response
+type CodingExpandedItem struct {
+	Code         string `json:"code"`
+	Display      string `json:"display"`
+	Multiplicity int    `json:"multiplicity,omitempty"` // only for procedures
+	No           string `json:"no"`
+	ValidCode    string `json:"validcode"`
+	Metadata     struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+		ErrorNo string `json:"error_no,omitempty"`
+	} `json:"metadata"`
+}
+
+// CodingSetResponse is the data field of diagnosa_set/procedure_set/get responses
+type CodingSetResponse struct {
+	String   string               `json:"string"`
+	Expanded []CodingExpandedItem `json:"expanded"`
+}
+
+// ImportINACBGResponse is the data field of idrg_to_inacbg_import response
+type ImportINACBGResponse struct {
+	Diagnosa  CodingSetResponse `json:"diagnosa"`
+	Procedure CodingSetResponse `json:"procedure"`
+}
+
+// SearchResult represents the response of search_diagnosis/search_procedures
+type SearchResult struct {
+	Count int        `json:"count"`
+	Data  [][]string `json:"data"` // [[description, code], ...]
+}
+
 // StatusRequest contains fields for get_claim_status
 type StatusRequest struct {
 	TglMasukFrom string `json:"tgl_masuk_from"`
@@ -272,6 +365,21 @@ type StatusRequest struct {
 // ==================== CORE METHODS ====================
 
 // doRequest sends an encrypted request to E-Klaim local server and decrypts the response.
+// This is a convenience wrapper around doRequestFull that constructs metadata from a method string.
+func (c *Client) doRequest(method string, data interface{}) (*EKlaimResponse, []byte, []byte, int, error) {
+	meta := EKlaimRequestMetadata{Method: method}
+	// For set_claim_data, metadata also needs nomor_sep
+	if method == "set_claim_data" {
+		if setData, ok := data.(*SetClaimDataData); ok && setData != nil {
+			meta.NomorSEP = setData.NomorSEP
+		} else if setData, ok := data.(SetClaimDataData); ok {
+			meta.NomorSEP = setData.NomorSEP
+		}
+	}
+	return c.doRequestFull(meta, data)
+}
+
+// doRequestFull sends an encrypted request to E-Klaim local server and decrypts the response.
 //
 // Alur komunikasi (sesuai PHP reference):
 //  1. Build JSON request
@@ -283,22 +391,13 @@ type StatusRequest struct {
 //  7. Parse JSON response
 //
 // Returns: parsed response, raw request JSON, raw response JSON, elapsed ms, error
-func (c *Client) doRequest(method string, data interface{}) (*EKlaimResponse, []byte, []byte, int, error) {
+func (c *Client) doRequestFull(meta EKlaimRequestMetadata, data interface{}) (*EKlaimResponse, []byte, []byte, int, error) {
 	startTime := time.Now()
 
 	// Build request JSON
 	reqBody := EKlaimRequest{
-		Metadata: EKlaimRequestMetadata{Method: method},
+		Metadata: meta,
 		Data:     data,
-	}
-
-	// For set_claim_data, metadata also needs nomor_sep
-	if method == "set_claim_data" {
-		if setData, ok := data.(*SetClaimDataData); ok && setData != nil {
-			reqBody.Metadata.NomorSEP = setData.NomorSEP
-		} else if setData, ok := data.(SetClaimDataData); ok {
-			reqBody.Metadata.NomorSEP = setData.NomorSEP
-		}
 	}
 
 	jsonBody, err := json.Marshal(reqBody)
@@ -429,6 +528,17 @@ func (c *Client) NewClaim(data NewClaimData) (*EKlaimResponse, []byte, []byte, i
 	return c.doRequest("new_claim", data)
 }
 
+// UpdatePatient calls update_patient on the E-Klaim local server.
+// Memperbarui data pasien pada klaim yang sudah dibuat.
+// E-Klaim requires nomor_rm in metadata for update_patient.
+func (c *Client) UpdatePatient(data NewClaimData) (*EKlaimResponse, []byte, []byte, int, error) {
+	meta := EKlaimRequestMetadata{
+		Method:  "update_patient",
+		NomorRM: data.NomorRM,
+	}
+	return c.doRequestFull(meta, data)
+}
+
 // SetClaimData calls set_claim_data on the E-Klaim local server.
 // Update/lengkapi data klaim (diagnosis, prosedur, tarif, dll).
 func (c *Client) SetClaimData(data SetClaimDataData) (*EKlaimResponse, []byte, []byte, int, error) {
@@ -517,4 +627,131 @@ func (c *Client) SendSuplesi(noSEP, jenisSuplesi string, jumlahHari int, tarifSu
 // GenerateSEPInternal calls generate_sep_internal on the E-Klaim local server.
 func (c *Client) GenerateSEPInternal(data map[string]interface{}) (*EKlaimResponse, []byte, []byte, int, error) {
 	return c.doRequest("generate_sep_internal", data)
+}
+
+// ==================== iDRG API METHODS ====================
+
+// IDRGDiagnosaSet sets iDRG diagnoses. Codes separated by "#" (e.g. "S71.0#S87.9#E11.9")
+func (c *Client) IDRGDiagnosaSet(noSEP, diagnosa string) (*EKlaimResponse, []byte, []byte, int, error) {
+	meta := EKlaimRequestMetadata{Method: "idrg_diagnosa_set", NomorSEP: noSEP}
+	return c.doRequestFull(meta, map[string]string{"diagnosa": diagnosa})
+}
+
+// IDRGDiagnosaGet retrieves current iDRG diagnoses.
+func (c *Client) IDRGDiagnosaGet(noSEP string) (*EKlaimResponse, []byte, []byte, int, error) {
+	return c.doRequest("idrg_diagnosa_get", map[string]string{"nomor_sep": noSEP})
+}
+
+// IDRGProcedureSet sets iDRG procedures. Codes separated by "#", multiplicity via "+N" (e.g. "81.51#86.28+2#91.799")
+func (c *Client) IDRGProcedureSet(noSEP, procedure string) (*EKlaimResponse, []byte, []byte, int, error) {
+	meta := EKlaimRequestMetadata{Method: "idrg_procedure_set", NomorSEP: noSEP}
+	return c.doRequestFull(meta, map[string]string{"procedure": procedure})
+}
+
+// IDRGProcedureGet retrieves current iDRG procedures.
+func (c *Client) IDRGProcedureGet(noSEP string) (*EKlaimResponse, []byte, []byte, int, error) {
+	return c.doRequest("idrg_procedure_get", map[string]string{"nomor_sep": noSEP})
+}
+
+// GrouperIDRG runs iDRG grouping. Response in ResponseIDRG field.
+func (c *Client) GrouperIDRG(noSEP string) (*EKlaimResponse, []byte, []byte, int, error) {
+	meta := EKlaimRequestMetadata{Method: "grouper", Stage: "1", Grouper: "idrg"}
+	return c.doRequestFull(meta, map[string]string{"nomor_sep": noSEP})
+}
+
+// FinalIDRG finalizes iDRG grouping.
+func (c *Client) FinalIDRG(noSEP string) (*EKlaimResponse, []byte, []byte, int, error) {
+	return c.doRequest("idrg_grouper_final", map[string]string{"nomor_sep": noSEP})
+}
+
+// ReeditIDRG re-opens iDRG for editing (unfinal).
+func (c *Client) ReeditIDRG(noSEP string) (*EKlaimResponse, []byte, []byte, int, error) {
+	return c.doRequest("idrg_grouper_reedit", map[string]string{"nomor_sep": noSEP})
+}
+
+// ==================== iDRG TO INACBG ====================
+
+// IDRGToINACBGImport imports iDRG coding to INACBG.
+func (c *Client) IDRGToINACBGImport(noSEP string) (*EKlaimResponse, []byte, []byte, int, error) {
+	return c.doRequest("idrg_to_inacbg_import", map[string]string{"nomor_sep": noSEP})
+}
+
+// ==================== INACBG API METHODS ====================
+
+// INACBGDiagnosaSet sets INACBG diagnoses. Codes separated by "#".
+func (c *Client) INACBGDiagnosaSet(noSEP, diagnosa string) (*EKlaimResponse, []byte, []byte, int, error) {
+	meta := EKlaimRequestMetadata{Method: "inacbg_diagnosa_set", NomorSEP: noSEP}
+	return c.doRequestFull(meta, map[string]string{"diagnosa": diagnosa})
+}
+
+// INACBGDiagnosaGet retrieves current INACBG diagnoses.
+func (c *Client) INACBGDiagnosaGet(noSEP string) (*EKlaimResponse, []byte, []byte, int, error) {
+	return c.doRequest("inacbg_diagnosa_get", map[string]string{"nomor_sep": noSEP})
+}
+
+// INACBGProcedureSet sets INACBG procedures. Codes separated by "#". No multiplicity.
+func (c *Client) INACBGProcedureSet(noSEP, procedure string) (*EKlaimResponse, []byte, []byte, int, error) {
+	meta := EKlaimRequestMetadata{Method: "inacbg_procedure_set", NomorSEP: noSEP}
+	return c.doRequestFull(meta, map[string]string{"procedure": procedure})
+}
+
+// INACBGProcedureGet retrieves current INACBG procedures.
+func (c *Client) INACBGProcedureGet(noSEP string) (*EKlaimResponse, []byte, []byte, int, error) {
+	return c.doRequest("inacbg_procedure_get", map[string]string{"nomor_sep": noSEP})
+}
+
+// GrouperINACBGStage1 runs INACBG grouping stage 1. Returns CBG code + special_cmg_option.
+func (c *Client) GrouperINACBGStage1(noSEP string) (*EKlaimResponse, []byte, []byte, int, error) {
+	meta := EKlaimRequestMetadata{Method: "grouper", Stage: "1", Grouper: "inacbg"}
+	return c.doRequestFull(meta, map[string]string{"nomor_sep": noSEP})
+}
+
+// GrouperINACBGStage2 runs INACBG grouping stage 2 with selected special CMG codes ("#"-separated).
+func (c *Client) GrouperINACBGStage2(noSEP, specialCMG string) (*EKlaimResponse, []byte, []byte, int, error) {
+	meta := EKlaimRequestMetadata{Method: "grouper", Stage: "2", Grouper: "inacbg"}
+	return c.doRequestFull(meta, map[string]string{"nomor_sep": noSEP, "special_cmg": specialCMG})
+}
+
+// FinalINACBG finalizes INACBG grouping.
+func (c *Client) FinalINACBG(noSEP string) (*EKlaimResponse, []byte, []byte, int, error) {
+	return c.doRequest("inacbg_grouper_final", map[string]string{"nomor_sep": noSEP})
+}
+
+// ReeditINACBG re-opens INACBG for editing (unfinal).
+func (c *Client) ReeditINACBG(noSEP string) (*EKlaimResponse, []byte, []byte, int, error) {
+	return c.doRequest("inacbg_grouper_reedit", map[string]string{"nomor_sep": noSEP})
+}
+
+// ==================== CLAIM SEND / RE-EDIT ====================
+
+// SendClaimIndividual sends finalized claim to BPJS.
+func (c *Client) SendClaimIndividual(noSEP string) (*EKlaimResponse, []byte, []byte, int, error) {
+	return c.doRequest("send_claim_individual", map[string]string{"nomor_sep": noSEP})
+}
+
+// ReeditClaimSimple re-opens a finalized claim for editing.
+func (c *Client) ReeditClaimSimple(noSEP string) (*EKlaimResponse, []byte, []byte, int, error) {
+	return c.doRequest("reedit_claim", map[string]string{"nomor_sep": noSEP})
+}
+
+// ==================== SEARCH API METHODS ====================
+
+// SearchDiagnosisIDRG searches iDRG diagnoses by keyword.
+func (c *Client) SearchDiagnosisIDRG(keyword string) (*EKlaimResponse, []byte, []byte, int, error) {
+	return c.doRequest("search_diagnosis_inagrouper", map[string]string{"keyword": keyword})
+}
+
+// SearchProceduresIDRG searches iDRG procedures by keyword.
+func (c *Client) SearchProceduresIDRG(keyword string) (*EKlaimResponse, []byte, []byte, int, error) {
+	return c.doRequest("search_procedures_inagrouper", map[string]string{"keyword": keyword})
+}
+
+// SearchDiagnosisINACBG searches INACBG diagnoses by keyword.
+func (c *Client) SearchDiagnosisINACBG(keyword string) (*EKlaimResponse, []byte, []byte, int, error) {
+	return c.doRequest("search_diagnosis", map[string]string{"keyword": keyword})
+}
+
+// SearchProceduresINACBG searches INACBG procedures by keyword.
+func (c *Client) SearchProceduresINACBG(keyword string) (*EKlaimResponse, []byte, []byte, int, error) {
+	return c.doRequest("search_procedures", map[string]string{"keyword": keyword})
 }

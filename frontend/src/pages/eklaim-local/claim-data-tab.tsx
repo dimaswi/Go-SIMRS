@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+﻿import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,11 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible';
+// Collapsible removed â€” all sections always visible
 import {
   caraMasukOptions,
   jenisRawatOptions,
@@ -35,8 +31,9 @@ import {
 } from '@/lib/api/eklaim-local';
 import { eklaimLocalApi } from '@/lib/api/eklaim-local';
 import type { EKlaimLocal, OriginalRM } from '@/lib/api/eklaim-local';
-import { ChevronDown, Plus, Trash2, RefreshCw } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { Plus, Trash2, RefreshCw, Send, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
+import { format } from 'date-fns';
+import { id as localeId } from 'date-fns/locale';
 
 // ========= Types =========
 interface DeliveryEntry {
@@ -74,18 +71,21 @@ interface ClaimDataTabProps {
   originalRM?: OriginalRM;
   onBuildPayload: (builder: () => Record<string, any>) => void;
   onRefresh?: () => void;
+  disabled?: boolean;
+  onSubmitClaimData: () => Promise<void>;
+  submitting?: boolean;
 }
 
-// ========= Section Header Component =========
-function SectionHeader({ title, open, children }: { title: string; open: boolean; children?: React.ReactNode }) {
+// Flat section divider header (no card)
+function SectionHeader({ title, children }: { title: string; children?: React.ReactNode }) {
   return (
-    <CollapsibleTrigger className="flex items-center justify-between w-full p-3 rounded-md hover:bg-muted/50 transition-colors">
-      <span className="text-sm font-medium">{title}</span>
-      <div className="flex items-center gap-2">
-        {children}
-        <ChevronDown className={cn('h-4 w-4 transition-transform', open && 'rotate-180')} />
+    <>
+      <Separator className="my-3" />
+      <div className="flex items-center justify-between py-1">
+        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{title}</h4>
+        {children && <div className="flex items-center gap-2">{children}</div>}
       </div>
-    </CollapsibleTrigger>
+    </>
   );
 }
 
@@ -106,7 +106,7 @@ function formatRp(val: number): string {
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(val);
 }
 
-export default function ClaimDataTab({ detail, originalRM, onBuildPayload, onRefresh }: ClaimDataTabProps) {
+export default function ClaimDataTab({ detail, originalRM, onBuildPayload, onRefresh, disabled, onSubmitClaimData, submitting }: ClaimDataTabProps) {
   // ========= State: Data Umum =========
   const [tglMasuk, setTglMasuk] = useState('');
   const [tglPulang, setTglPulang] = useState('');
@@ -177,23 +177,7 @@ export default function ClaimDataTab({ detail, originalRM, onBuildPayload, onRef
   const [persOnsetKontraksi, setPersOnsetKontraksi] = useState('');
   const [deliveries, setDeliveries] = useState<DeliveryEntry[]>([]);
 
-  // ========= Section open state =========
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
-    umum: false,
-    dokter: false,
-    tarif: false,
-    tarif_rs: false,
-    icu: false,
-    td: false,
-    neonatus: false,
-    upgrade: false,
-    khusus: false,
-    apgar: false,
-    persalinan: false,
-  });
-
-  const toggleSection = (key: string) =>
-    setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }));
+  // Persalinan delivery entries
 
   // ========= Load data from detail, with RM Edit / originalRM fallback =========
   useEffect(() => {
@@ -208,7 +192,7 @@ export default function ClaimDataTab({ detail, originalRM, onBuildPayload, onRef
     setJenisRawat(d.jenis_rawat || '');
     setKelasRawat(d.kelas_rawat || '');
 
-    // discharge_status: detail → RM Edit disposition → original disposition
+    // discharge_status: detail â†’ RM Edit disposition â†’ original disposition
     const ds = d.discharge_status
       || mapDischargeStatus(rmEdit?.disposition_type)
       || mapDischargeStatus(rm?.disposition?.disposition_type);
@@ -228,7 +212,7 @@ export default function ClaimDataTab({ detail, originalRM, onBuildPayload, onRef
     setVentilatorStart(d.ventilator_start || '');
     setVentilatorStop(d.ventilator_stop || '');
 
-    // sistole/diastole: detail → RM Edit → originalRM physical exam
+    // sistole/diastole: detail â†’ RM Edit â†’ originalRM physical exam
     const rawSistole = d.sistole
       || rmEdit?.systolic
       || rm?.physical_examination?.systolic
@@ -280,21 +264,26 @@ export default function ClaimDataTab({ detail, originalRM, onBuildPayload, onRef
       }
     }
 
-    // Auto-open sections with data
-    const hasSistole = rawSistole > 0 || rawDiastole > 0;
-    const rmTarif = d.rm_duplicate;
-    const hasTarifRS = rmTarif && (rmTarif.total_tarif > 0 || rmTarif.tarif_prosedur_non_bedah > 0 || rmTarif.tarif_prosedur_bedah > 0);
-    setOpenSections((prev) => ({
-      ...prev,
-      icu: d.icu_indikator === '1',
-      td: hasSistole,
-      tarif_rs: !!hasTarifRS,
-      neonatus: d.birth_weight !== '0' && d.birth_weight !== '',
-      upgrade: d.upgrade_class_ind === '1',
-      apgar: (d.apgar_menit1_appearance || 0) > 0 || (d.apgar_menit5_appearance || 0) > 0,
-      persalinan: !!d.persalinan_usia_kehamilan,
-    }));
   }, [detail, originalRM]);
+
+  // ========= Load defaults from config (auto-fill empty fields) =========
+  useEffect(() => {
+    const loadDefaults = async () => {
+      try {
+        const defaults = await eklaimLocalApi.getDefaults();
+        // Only fill if the field is still empty (detail didn't provide a value)
+        if (defaults.coder_nik && !detail.coder_nik) {
+          setCoderNik(defaults.coder_nik);
+        }
+        if (defaults.kode_tarif && !detail.kode_tarif) {
+          setKodeTarif(defaults.kode_tarif);
+        }
+      } catch {
+        // Silent fail â€” defaults are optional
+      }
+    };
+    loadDefaults();
+  }, [detail.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ========= Build payload for parent =========
   const buildPayload = useCallback((): Record<string, any> => {
@@ -421,821 +410,605 @@ export default function ClaimDataTab({ detail, originalRM, onBuildPayload, onRef
   };
 
   // ========= Render =========
+  const ApgarSelect = ({ value, onChange }: { value: string; onChange: (v: string) => void }) => (
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+      <SelectContent>
+        <SelectItem value="0">0</SelectItem>
+        <SelectItem value="1">1</SelectItem>
+        <SelectItem value="2">2</SelectItem>
+      </SelectContent>
+    </Select>
+  );
+
   return (
-    <div className="space-y-3">
-      <div>
-        <h3 className="text-sm font-medium">Form Data Klaim</h3>
-        <p className="text-xs text-muted-foreground">Data yang akan dikirim ke E-Klaim server via set_claim_data</p>
+    <div className="space-y-2">
+      {disabled && (
+        <div className="rounded-md bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 p-3">
+          <p className="text-sm text-amber-800 dark:text-amber-200">Data klaim terkunci karena iDRG sudah di-finalisasi. Untuk mengubah, lakukan Edit Ulang iDRG terlebih dahulu.</p>
+        </div>
+      )}
+      {detail.set_claim_data_success && (
+        <div className="flex items-center gap-2 p-3 rounded-md bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800">
+          <CheckCircle className="h-4 w-4 text-green-600 shrink-0" />
+          <div>
+            <p className="text-sm font-medium text-green-800 dark:text-green-200">Data klaim sudah dikirim ke E-Klaim</p>
+            {detail.set_claim_data_sent_at && (
+              <p className="text-xs text-green-600 dark:text-green-400">
+                Terakhir dikirim: {(() => { try { return format(new Date(detail.set_claim_data_sent_at), 'dd MMM yyyy HH:mm', { locale: localeId }); } catch { return detail.set_claim_data_sent_at; } })()}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+      {detail.form_data_saved && !detail.set_claim_data_success && (
+        <div className="flex items-center gap-2 p-3 rounded-md bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800">
+          <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
+          <div>
+            <p className="text-sm font-medium text-amber-800 dark:text-amber-200">Data klaim tersimpan lokal, tapi belum berhasil dikirim ke E-Klaim</p>
+            <p className="text-xs text-amber-600 dark:text-amber-400">Klik &quot;Kirim Data Klaim&quot; untuk mengirim ulang ke server E-Klaim</p>
+          </div>
+        </div>
+      )}
+
+      <div className={disabled ? 'pointer-events-none opacity-60' : ''}>
+
+      {/* ===================== Data Umum ===================== */}
+      <SectionHeader title="Data Umum" />
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="space-y-1.5">
+          <Label>Tanggal &amp; Jam Masuk</Label>
+          <Input type="datetime-local" value={tglMasuk} onChange={(e) => setTglMasuk(e.target.value)} />
+        </div>
+        <div className="space-y-1.5">
+          <Label>Tanggal &amp; Jam Pulang</Label>
+          <Input type="datetime-local" value={tglPulang} onChange={(e) => setTglPulang(e.target.value)} />
+        </div>
+        <div className="space-y-1.5">
+          <Label>Cara Masuk</Label>
+          <Select value={caraMasuk} onValueChange={setCaraMasuk}>
+            <SelectTrigger><SelectValue placeholder="Pilih cara masuk" /></SelectTrigger>
+            <SelectContent>
+              {caraMasukOptions.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label>Jenis Rawat</Label>
+          <Select value={jenisRawat} onValueChange={setJenisRawat}>
+            <SelectTrigger><SelectValue placeholder="Pilih jenis rawat" /></SelectTrigger>
+            <SelectContent>
+              {jenisRawatOptions.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label>Kelas Rawat</Label>
+          <Select value={kelasRawat} onValueChange={setKelasRawat}>
+            <SelectTrigger><SelectValue placeholder="Pilih kelas rawat" /></SelectTrigger>
+            <SelectContent>
+              {kelasRawatOptions.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label>Status Pulang</Label>
+          <Select value={dischargeStatus} onValueChange={setDischargeStatus}>
+            <SelectTrigger><SelectValue placeholder="Pilih status pulang" /></SelectTrigger>
+            <SelectContent>
+              {dischargeStatusOptions.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
-      {/* ===================== SECTION: Data Umum ===================== */}
-      <Collapsible open={openSections.umum} onOpenChange={() => toggleSection('umum')}>
-        <div className="rounded-md border">
-          <SectionHeader title="Data Umum" open={openSections.umum} />
-          <CollapsibleContent>
-            <div className="p-4 pt-2 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="space-y-1.5">
-                  <Label>Tanggal Masuk</Label>
-                  <Input type="date" value={tglMasuk} onChange={(e) => setTglMasuk(e.target.value)} />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Tanggal Pulang</Label>
-                  <Input type="date" value={tglPulang} onChange={(e) => setTglPulang(e.target.value)} />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Cara Masuk</Label>
-                  <Select value={caraMasuk} onValueChange={setCaraMasuk}>
-                    <SelectTrigger><SelectValue placeholder="Pilih cara masuk" /></SelectTrigger>
-                    <SelectContent>
-                      {caraMasukOptions.map((o) => (
-                        <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Jenis Rawat</Label>
-                  <Select value={jenisRawat} onValueChange={setJenisRawat}>
-                    <SelectTrigger><SelectValue placeholder="Pilih jenis rawat" /></SelectTrigger>
-                    <SelectContent>
-                      {jenisRawatOptions.map((o) => (
-                        <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Kelas Rawat</Label>
-                  <Select value={kelasRawat} onValueChange={setKelasRawat}>
-                    <SelectTrigger><SelectValue placeholder="Pilih kelas rawat" /></SelectTrigger>
-                    <SelectContent>
-                      {kelasRawatOptions.map((o) => (
-                        <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Status Pulang</Label>
-                  <Select value={dischargeStatus} onValueChange={setDischargeStatus}>
-                    <SelectTrigger><SelectValue placeholder="Pilih status pulang" /></SelectTrigger>
-                    <SelectContent>
-                      {dischargeStatusOptions.map((o) => (
-                        <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </div>
-          </CollapsibleContent>
+      {/* ===================== Dokter & Coder ===================== */}
+      <SectionHeader title="Dokter &amp; Coder" />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-1.5">
+          <Label>Nama Dokter</Label>
+          <Input value={namaDokter} onChange={(e) => setNamaDokter(e.target.value)} placeholder="Nama dokter penanggung jawab" />
         </div>
-      </Collapsible>
-
-      {/* ===================== SECTION: Dokter & Coder ===================== */}
-      <Collapsible open={openSections.dokter} onOpenChange={() => toggleSection('dokter')}>
-        <div className="rounded-md border">
-          <SectionHeader title="Dokter & Coder" open={openSections.dokter} />
-          <CollapsibleContent>
-            <div className="p-4 pt-2">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label>Nama Dokter</Label>
-                  <Input value={namaDokter} onChange={(e) => setNamaDokter(e.target.value)} placeholder="Nama dokter penanggung jawab" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>NIK Coder <span className="text-destructive">*</span></Label>
-                  <Input value={coderNik} onChange={(e) => setCoderNik(e.target.value)} placeholder="NIK petugas coder (wajib)" />
-                  <p className="text-[10px] text-muted-foreground">NIK harus terdaftar di Personnel Registration E-Klaim</p>
-                </div>
-              </div>
-            </div>
-          </CollapsibleContent>
+        <div className="space-y-1.5">
+          <Label>NIK Coder <span className="text-destructive">*</span></Label>
+          <Input value={coderNik} onChange={(e) => setCoderNik(e.target.value)} placeholder="NIK petugas coder (wajib)" />
+          <p className="text-[10px] text-muted-foreground">NIK harus terdaftar di Personnel Registration E-Klaim</p>
         </div>
-      </Collapsible>
+      </div>
 
-      {/* ===================== SECTION: Tarif & Payor ===================== */}
-      <Collapsible open={openSections.tarif} onOpenChange={() => toggleSection('tarif')}>
-        <div className="rounded-md border">
-          <SectionHeader title="Tarif & Payor" open={openSections.tarif} />
-          <CollapsibleContent>
-            <div className="p-4 pt-2 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="space-y-1.5">
-                  <Label>Kode Tarif</Label>
-                  <Select value={kodeTarif} onValueChange={setKodeTarif}>
-                    <SelectTrigger><SelectValue placeholder="Pilih kode tarif" /></SelectTrigger>
-                    <SelectContent>
-                      {kodeTarifOptions.map((o) => (
-                        <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Payor <span className="text-destructive">*</span></Label>
-                  <Select value={payorId} onValueChange={handlePayorChange}>
-                    <SelectTrigger><SelectValue placeholder="Pilih jaminan" /></SelectTrigger>
-                    <SelectContent>
-                      {payorOptions.map((o) => (
-                        <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label>COB Code</Label>
-                  <Input value={cobCd} onChange={(e) => setCobCd(e.target.value)} placeholder='Kosong / "#" untuk hapus' />
-                  <p className="text-[10px] text-muted-foreground">Coordination of Benefits. Isi "#" untuk menghapus.</p>
-                </div>
-              </div>
-
-              {/* Tarif poli eksekutif - hanya untuk rawat jalan kelas eksekutif */}
-              {jenisRawat === '2' && kelasRawat === '1' && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="space-y-1.5">
-                    <Label>Tarif Poli Eksekutif</Label>
-                    <Input type="number" value={tarifPoliEks} onChange={(e) => setTarifPoliEks(e.target.value)} placeholder="0" />
-                    <p className="text-[10px] text-muted-foreground">Khusus rawat jalan kelas eksekutif</p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </CollapsibleContent>
+      {/* ===================== Tarif & Payor ===================== */}
+      <SectionHeader title="Tarif &amp; Payor" />
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="space-y-1.5">
+            <Label>Kode Tarif</Label>
+            <Select value={kodeTarif} onValueChange={setKodeTarif}>
+              <SelectTrigger><SelectValue placeholder="Pilih kode tarif" /></SelectTrigger>
+              <SelectContent>
+                {kodeTarifOptions.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Payor <span className="text-destructive">*</span></Label>
+            <Select value={payorId} onValueChange={handlePayorChange}>
+              <SelectTrigger><SelectValue placeholder="Pilih jaminan" /></SelectTrigger>
+              <SelectContent>
+                {payorOptions.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>COB Code</Label>
+            <Input value={cobCd} onChange={(e) => setCobCd(e.target.value)} placeholder='Kosong / "#" untuk hapus' />
+            <p className="text-[10px] text-muted-foreground">Coordination of Benefits. Isi &quot;#&quot; untuk menghapus.</p>
+          </div>
         </div>
-      </Collapsible>
-
-      {/* ===================== SECTION: Tarif RS (Breakdown) ===================== */}
-      <Collapsible open={openSections.tarif_rs} onOpenChange={() => toggleSection('tarif_rs')}>
-        <div className="rounded-md border">
-          <SectionHeader title="Tarif RS (Breakdown E-Klaim)" open={openSections.tarif_rs}>
-            <span className="text-xs font-mono text-muted-foreground">
-              {formatRp(detail.rm_duplicate?.total_tarif || detail.tarif_rs || 0)}
-            </span>
-          </SectionHeader>
-          <CollapsibleContent>
-            <div className="p-4 pt-2">
-              {detail.rm_duplicate ? (() => {
-                const rm = detail.rm_duplicate;
-                const rows = [
-                  ['Prosedur Non Bedah', rm.tarif_prosedur_non_bedah],
-                  ['Prosedur Bedah', rm.tarif_prosedur_bedah],
-                  ['Konsultasi', rm.tarif_konsultasi],
-                  ['Tenaga Ahli', rm.tarif_tenaga_ahli],
-                  ['Keperawatan', rm.tarif_keperawatan],
-                  ['Penunjang', rm.tarif_penunjang],
-                  ['Radiologi', rm.tarif_radiologi],
-                  ['Laboratorium', rm.tarif_laboratorium],
-                  ['Pelayanan Darah', rm.tarif_pelayanan_darah],
-                  ['Rehabilitasi', rm.tarif_rehabilitasi],
-                  ['Kamar / Akomodasi', rm.tarif_kamar],
-                  ['Rawat Intensif', rm.tarif_rawat_intensif],
-                  ['Obat', rm.tarif_obat],
-                  ['Obat Kronis', rm.tarif_obat_kronis],
-                  ['Obat Kemoterapi', rm.tarif_obat_kemoterapi],
-                  ['Alkes', rm.tarif_alkes],
-                  ['BMHP', rm.tarif_bmhp],
-                  ['Sewa Alat', rm.tarif_sewa_alat],
-                ] as [string, number][];
-                return (
-                  <div className="space-y-1">
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
-                      {rows.map(([label, val]) => (
-                        <div key={label} className="flex justify-between items-center py-0.5 text-sm">
-                          <span className="text-muted-foreground">{label}</span>
-                          <span className="font-mono">{formatRp(val || 0)}</span>
-                        </div>
-                      ))}
-                    </div>
-                    <Separator />
-                    <div className="flex justify-between items-center py-1 text-sm font-semibold">
-                      <span>Total Tarif RS</span>
-                      <span className="font-mono">{formatRp(rm.total_tarif || 0)}</span>
-                    </div>
-                    <div className="flex items-center justify-between pt-2">
-                      <p className="text-[10px] text-muted-foreground">Tarif dikelola di tab RM Duplikat. Edit di sana untuk mengubah.</p>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-7 text-xs gap-1"
-                        onClick={async (e) => {
-                          e.stopPropagation();
-                          try {
-                            await eklaimLocalApi.syncBillingTarif(detail.id);
-                            onRefresh?.();
-                          } catch (err: any) {
-                            alert(err?.response?.data?.error || 'Gagal sync tarif dari billing');
-                          }
-                        }}
-                      >
-                        <RefreshCw className="h-3 w-3" />
-                        Sync dari Billing
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })() : (
-                <p className="text-sm text-muted-foreground">Belum ada data tarif. Isi di tab RM Duplikat.</p>
-              )}
+        {jenisRawat === '2' && kelasRawat === '1' && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="space-y-1.5">
+              <Label>Tarif Poli Eksekutif</Label>
+              <Input type="number" value={tarifPoliEks} onChange={(e) => setTarifPoliEks(e.target.value)} placeholder="0" />
+              <p className="text-[10px] text-muted-foreground">Khusus rawat jalan kelas eksekutif</p>
             </div>
-          </CollapsibleContent>
-        </div>
-      </Collapsible>
+          </div>
+        )}
+      </div>
 
-      {/* ===================== SECTION: ICU & Ventilator ===================== */}
-      <Collapsible open={openSections.icu} onOpenChange={() => toggleSection('icu')}>
-        <div className="rounded-md border">
-          <SectionHeader title="ICU & Ventilator" open={openSections.icu} />
-          <CollapsibleContent>
-            <div className="p-4 pt-2 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="space-y-1.5">
-                  <Label>ICU Indikator</Label>
-                  <Select value={icuIndikator} onValueChange={setIcuIndikator}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="0">Tidak</SelectItem>
-                      <SelectItem value="1">Ya</SelectItem>
-                    </SelectContent>
-                  </Select>
+      {/* ===================== Tarif RS (Breakdown) ===================== */}
+      <SectionHeader title="Tarif RS (Breakdown E-Klaim)">
+        <span className="text-xs font-mono text-muted-foreground">
+          {formatRp(detail.rm_duplicate?.total_tarif || detail.tarif_rs || 0)}
+        </span>
+      </SectionHeader>
+      {detail.rm_duplicate ? (() => {
+        const rm = detail.rm_duplicate!;
+        const rows = [
+          ['Prosedur Non Bedah', rm.tarif_prosedur_non_bedah],
+          ['Prosedur Bedah', rm.tarif_prosedur_bedah],
+          ['Konsultasi', rm.tarif_konsultasi],
+          ['Tenaga Ahli', rm.tarif_tenaga_ahli],
+          ['Keperawatan', rm.tarif_keperawatan],
+          ['Penunjang', rm.tarif_penunjang],
+          ['Radiologi', rm.tarif_radiologi],
+          ['Laboratorium', rm.tarif_laboratorium],
+          ['Pelayanan Darah', rm.tarif_pelayanan_darah],
+          ['Rehabilitasi', rm.tarif_rehabilitasi],
+          ['Kamar / Akomodasi', rm.tarif_kamar],
+          ['Rawat Intensif', rm.tarif_rawat_intensif],
+          ['Obat', rm.tarif_obat],
+          ['Obat Kronis', rm.tarif_obat_kronis],
+          ['Obat Kemoterapi', rm.tarif_obat_kemoterapi],
+          ['Alkes', rm.tarif_alkes],
+          ['BMHP', rm.tarif_bmhp],
+          ['Sewa Alat', rm.tarif_sewa_alat],
+        ] as [string, number][];
+        return (
+          <div className="space-y-1">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
+              {rows.map(([label, val]) => (
+                <div key={label} className="flex justify-between items-center py-0.5 text-sm">
+                  <span className="text-muted-foreground">{label}</span>
+                  <span className="font-mono">{formatRp(val || 0)}</span>
                 </div>
-                {icuIndikator === '1' && (
-                  <>
-                    <div className="space-y-1.5">
-                      <Label>ICU LOS (hari)</Label>
-                      <Input type="number" value={icuLos} onChange={(e) => setIcuLos(e.target.value)} />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label>Ventilator (jam)</Label>
-                      <Input type="number" value={ventilatorHour} onChange={(e) => setVentilatorHour(e.target.value)} />
-                    </div>
-                  </>
-                )}
-              </div>
+              ))}
+            </div>
+            <Separator />
+            <div className="flex justify-between items-center py-1 text-sm font-semibold">
+              <span>Total Tarif RS</span>
+              <span className="font-mono">{formatRp(rm.total_tarif || 0)}</span>
+            </div>
+            <div className="flex items-center justify-between pt-2">
+              <p className="text-[10px] text-muted-foreground">Tarif dikelola di tab RM Duplikat. Edit di sana untuk mengubah.</p>
+              <Button type="button" variant="outline" size="sm" className="h-7 text-xs gap-1"
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  try { await eklaimLocalApi.syncBillingTarif(detail.id); onRefresh?.(); }
+                  catch (err: any) { alert(err?.response?.data?.error || 'Gagal sync tarif dari billing'); }
+                }}>
+                <RefreshCw className="h-3 w-3" /> Sync dari Billing
+              </Button>
+            </div>
+          </div>
+        );
+      })() : (
+        <p className="text-sm text-muted-foreground">Belum ada data tarif. Isi di tab RM Duplikat.</p>
+      )}
 
-              {icuIndikator === '1' && (
+      {/* ===================== ICU & Ventilator ===================== */}
+      <SectionHeader title="ICU &amp; Ventilator" />
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="space-y-1.5">
+            <Label>ICU Indikator</Label>
+            <Select value={icuIndikator} onValueChange={setIcuIndikator}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="0">Tidak</SelectItem>
+                <SelectItem value="1">Ya</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {icuIndikator === '1' && (
+            <>
+              <div className="space-y-1.5">
+                <Label>ICU LOS (hari)</Label>
+                <Input type="number" value={icuLos} onChange={(e) => setIcuLos(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Ventilator (jam)</Label>
+                <Input type="number" value={ventilatorHour} onChange={(e) => setVentilatorHour(e.target.value)} />
+              </div>
+            </>
+          )}
+        </div>
+        {icuIndikator === '1' && (
+          <>
+            <Separator />
+            <p className="text-xs font-medium text-muted-foreground">Detail Ventilator</p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-1.5">
+                <Label>Pemakaian Ventilator</Label>
+                <Select value={ventilatorUseInd} onValueChange={setVentilatorUseInd}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">Tidak Ada</SelectItem>
+                    <SelectItem value="1">Ada Pemakaian</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {ventilatorUseInd === '1' && (
                 <>
-                  <Separator />
-                  <p className="text-xs font-medium text-muted-foreground">Detail Ventilator</p>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="space-y-1.5">
-                      <Label>Pemakaian Ventilator</Label>
-                      <Select value={ventilatorUseInd} onValueChange={setVentilatorUseInd}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="0">Tidak Ada</SelectItem>
-                          <SelectItem value="1">Ada Pemakaian</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    {ventilatorUseInd === '1' && (
-                      <>
-                        <div className="space-y-1.5">
-                          <Label>Waktu Mulai</Label>
-                          <Input type="datetime-local" value={ventilatorStart} onChange={(e) => setVentilatorStart(e.target.value)} />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label>Waktu Selesai</Label>
-                          <Input type="datetime-local" value={ventilatorStop} onChange={(e) => setVentilatorStop(e.target.value)} />
-                        </div>
-                      </>
-                    )}
+                  <div className="space-y-1.5">
+                    <Label>Waktu Mulai</Label>
+                    <Input type="datetime-local" value={ventilatorStart} onChange={(e) => setVentilatorStart(e.target.value)} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Waktu Selesai</Label>
+                    <Input type="datetime-local" value={ventilatorStop} onChange={(e) => setVentilatorStop(e.target.value)} />
                   </div>
                 </>
               )}
             </div>
-          </CollapsibleContent>
-        </div>
-      </Collapsible>
+          </>
+        )}
+      </div>
 
-      {/* ===================== SECTION: Tekanan Darah ===================== */}
-      <Collapsible open={openSections.td} onOpenChange={() => toggleSection('td')}>
-        <div className="rounded-md border">
-          <SectionHeader title="Tekanan Darah" open={openSections.td} />
-          <CollapsibleContent>
-            <div className="p-4 pt-2">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label>Sistole (mmHg)</Label>
-                  <Input type="number" value={sistole} onChange={(e) => setSistole(e.target.value)} />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Diastole (mmHg)</Label>
-                  <Input type="number" value={diastole} onChange={(e) => setDiastole(e.target.value)} />
-                </div>
-              </div>
+      {/* ===================== Tekanan Darah ===================== */}
+      <SectionHeader title="Tekanan Darah" />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-1.5">
+          <Label>Sistole (mmHg)</Label>
+          <Input type="number" value={sistole} onChange={(e) => setSistole(e.target.value)} />
+        </div>
+        <div className="space-y-1.5">
+          <Label>Diastole (mmHg)</Label>
+          <Input type="number" value={diastole} onChange={(e) => setDiastole(e.target.value)} />
+        </div>
+      </div>
+
+      {/* ===================== Neonatus & ADL ===================== */}
+      <SectionHeader title="Neonatus &amp; ADL" />
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="space-y-1.5">
+          <Label>Berat Lahir (gram)</Label>
+          <Input type="number" value={birthWeight} onChange={(e) => setBirthWeight(e.target.value)} />
+        </div>
+        <div className="space-y-1.5">
+          <Label>ADL Sub-Acute</Label>
+          <Input type="number" min="12" max="60" value={adlSubAcute} onChange={(e) => setAdlSubAcute(e.target.value)} />
+          <p className="text-[10px] text-muted-foreground">Nilai 12 s/d 60</p>
+        </div>
+        <div className="space-y-1.5">
+          <Label>ADL Chronic</Label>
+          <Input type="number" min="12" max="60" value={adlChronic} onChange={(e) => setAdlChronic(e.target.value)} />
+          <p className="text-[10px] text-muted-foreground">Nilai 12 s/d 60</p>
+        </div>
+      </div>
+
+      {/* ===================== Upgrade Kelas ===================== */}
+      <SectionHeader title="Upgrade Kelas" />
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <Label>Naik Kelas?</Label>
+            <Select value={upgradeClassInd} onValueChange={setUpgradeClassInd}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="0">Tidak</SelectItem>
+                <SelectItem value="1">Ya</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        {upgradeClassInd === '1' && (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="space-y-1.5">
+              <Label>Kelas Tujuan</Label>
+              <Select value={upgradeClassClass} onValueChange={setUpgradeClassClass}>
+                <SelectTrigger><SelectValue placeholder="Pilih kelas" /></SelectTrigger>
+                <SelectContent>
+                  {upgradeClassClassOptions.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
-          </CollapsibleContent>
-        </div>
-      </Collapsible>
-
-      {/* ===================== SECTION: Neonatus & ADL ===================== */}
-      <Collapsible open={openSections.neonatus} onOpenChange={() => toggleSection('neonatus')}>
-        <div className="rounded-md border">
-          <SectionHeader title="Neonatus & ADL" open={openSections.neonatus} />
-          <CollapsibleContent>
-            <div className="p-4 pt-2">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="space-y-1.5">
-                  <Label>Berat Lahir (gram)</Label>
-                  <Input type="number" value={birthWeight} onChange={(e) => setBirthWeight(e.target.value)} />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>ADL Sub-Acute</Label>
-                  <Input type="number" min="12" max="60" value={adlSubAcute} onChange={(e) => setAdlSubAcute(e.target.value)} />
-                  <p className="text-[10px] text-muted-foreground">Nilai 12 s/d 60</p>
-                </div>
-                <div className="space-y-1.5">
-                  <Label>ADL Chronic</Label>
-                  <Input type="number" min="12" max="60" value={adlChronic} onChange={(e) => setAdlChronic(e.target.value)} />
-                  <p className="text-[10px] text-muted-foreground">Nilai 12 s/d 60</p>
-                </div>
-              </div>
+            <div className="space-y-1.5">
+              <Label>LOS Naik Kelas (hari)</Label>
+              <Input type="number" value={upgradeClassLos} onChange={(e) => setUpgradeClassLos(e.target.value)} />
             </div>
-          </CollapsibleContent>
-        </div>
-      </Collapsible>
+            <div className="space-y-1.5">
+              <Label>Penanggung Biaya</Label>
+              <Select value={upgradeClassPayor} onValueChange={setUpgradeClassPayor}>
+                <SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger>
+                <SelectContent>
+                  {upgradeClassPayorOptions.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Add Payment %</Label>
+              <Input type="number" value={addPaymentPct} onChange={(e) => setAddPaymentPct(e.target.value)} />
+              <p className="text-[10px] text-muted-foreground">Khusus VIP/VVIP</p>
+            </div>
+          </div>
+        )}
+        {upgradeClassInd === '1' && (
+          <p className="text-[10px] text-amber-600">{'\u26A0'} Semua 5 parameter (ind, class, los, payor, add_payment_pct) harus disertakan bersamaan.</p>
+        )}
+      </div>
 
-      {/* ===================== SECTION: Upgrade Kelas ===================== */}
-      <Collapsible open={openSections.upgrade} onOpenChange={() => toggleSection('upgrade')}>
-        <div className="rounded-md border">
-          <SectionHeader title="Upgrade Kelas" open={openSections.upgrade} />
-          <CollapsibleContent>
-            <div className="p-4 pt-2 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label>Naik Kelas?</Label>
-                  <Select value={upgradeClassInd} onValueChange={setUpgradeClassInd}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="0">Tidak</SelectItem>
-                      <SelectItem value="1">Ya</SelectItem>
-                    </SelectContent>
+      {/* ===================== Field Khusus ===================== */}
+      <SectionHeader title="Field Khusus (COVID/BBL/Hemodialisa/Stroke)" />
+      <div className="space-y-4">
+        {payorId === '71' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label>Jenis Identitas (nomor_kartu_t)</Label>
+              <Select value={nomorKartuT} onValueChange={setNomorKartuT}>
+                <SelectTrigger><SelectValue placeholder="Pilih jenis identitas" /></SelectTrigger>
+                <SelectContent>
+                  {nomorKartuTOptions.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <p className="text-[10px] text-muted-foreground">Khusus Jaminan COVID-19</p>
+            </div>
+          </div>
+        )}
+        {payorId === '73' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label>Status Bayi Lahir</Label>
+              <Select value={bayiLahirStatusCd} onValueChange={setBayiLahirStatusCd}>
+                <SelectTrigger><SelectValue placeholder="Pilih status" /></SelectTrigger>
+                <SelectContent>
+                  {bayiLahirStatusOptions.map((o) => <SelectItem key={String(o.value)} value={String(o.value)}>{o.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <p className="text-[10px] text-muted-foreground">Khusus Jaminan Bayi Baru Lahir</p>
+            </div>
+          </div>
+        )}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="space-y-1.5">
+            <Label>Dializer Single Use</Label>
+            <Select value={dializerSingleUse} onValueChange={setDializerSingleUse}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="0">Multiple Use</SelectItem>
+                <SelectItem value="1">Single Use</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-[10px] text-muted-foreground">Khusus hemodialisa (CBG N-3-15-0)</p>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Kantong Darah</Label>
+            <Input type="number" min="0" value={kantongDarah} onChange={(e) => setKantongDarah(e.target.value)} />
+            <p className="text-[10px] text-muted-foreground">Jumlah kantong darah</p>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Alteplase</Label>
+            <Select value={alteplaseInd} onValueChange={setAlteplaseInd}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="0">Tidak</SelectItem>
+                <SelectItem value="1">Ya</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-[10px] text-muted-foreground">Khusus CBG G-4-14-* (Cedera Pembuluh Darah Otak)</p>
+          </div>
+        </div>
+      </div>
+
+      {/* ===================== APGAR Score ===================== */}
+      <SectionHeader title="APGAR Score (Neonatus)" />
+      <div className="space-y-4">
+        <p className="text-xs text-muted-foreground">Diperhitungkan untuk pasien berumur {'\u2264'} 1 hari. Setiap komponen diisi nilai 0, 1, atau 2.</p>
+        <div>
+          <p className="text-xs font-medium mb-2">Menit ke-1</p>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <div className="space-y-1"><Label className="text-xs">Appearance</Label><ApgarSelect value={apgarM1Appearance} onChange={setApgarM1Appearance} /></div>
+            <div className="space-y-1"><Label className="text-xs">Pulse</Label><ApgarSelect value={apgarM1Pulse} onChange={setApgarM1Pulse} /></div>
+            <div className="space-y-1"><Label className="text-xs">Grimace</Label><ApgarSelect value={apgarM1Grimace} onChange={setApgarM1Grimace} /></div>
+            <div className="space-y-1"><Label className="text-xs">Activity</Label><ApgarSelect value={apgarM1Activity} onChange={setApgarM1Activity} /></div>
+            <div className="space-y-1"><Label className="text-xs">Respiration</Label><ApgarSelect value={apgarM1Respiration} onChange={setApgarM1Respiration} /></div>
+          </div>
+          <p className="text-[10px] text-right text-muted-foreground mt-1">
+            Total: {parseInt(apgarM1Appearance) + parseInt(apgarM1Pulse) + parseInt(apgarM1Grimace) + parseInt(apgarM1Activity) + parseInt(apgarM1Respiration)}
+          </p>
+        </div>
+        <Separator />
+        <div>
+          <p className="text-xs font-medium mb-2">Menit ke-5</p>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <div className="space-y-1"><Label className="text-xs">Appearance</Label><ApgarSelect value={apgarM5Appearance} onChange={setApgarM5Appearance} /></div>
+            <div className="space-y-1"><Label className="text-xs">Pulse</Label><ApgarSelect value={apgarM5Pulse} onChange={setApgarM5Pulse} /></div>
+            <div className="space-y-1"><Label className="text-xs">Grimace</Label><ApgarSelect value={apgarM5Grimace} onChange={setApgarM5Grimace} /></div>
+            <div className="space-y-1"><Label className="text-xs">Activity</Label><ApgarSelect value={apgarM5Activity} onChange={setApgarM5Activity} /></div>
+            <div className="space-y-1"><Label className="text-xs">Respiration</Label><ApgarSelect value={apgarM5Respiration} onChange={setApgarM5Respiration} /></div>
+          </div>
+          <p className="text-[10px] text-right text-muted-foreground mt-1">
+            Total: {parseInt(apgarM5Appearance) + parseInt(apgarM5Pulse) + parseInt(apgarM5Grimace) + parseInt(apgarM5Activity) + parseInt(apgarM5Respiration)}
+          </p>
+        </div>
+      </div>
+
+      {/* ===================== Persalinan ===================== */}
+      <SectionHeader title="Persalinan" />
+      <div className="space-y-4">
+        <p className="text-xs text-muted-foreground">Diperhitungkan untuk rawat inap dengan diagnosa persalinan.</p>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <div className="space-y-1.5">
+            <Label>Usia Kehamilan (minggu)</Label>
+            <Input type="number" value={persUsiaKehamilan} onChange={(e) => setPersUsiaKehamilan(e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Gravida</Label>
+            <Input type="number" value={persGravida} onChange={(e) => setPersGravida(e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Partus</Label>
+            <Input type="number" value={persPartus} onChange={(e) => setPersPartus(e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Abortus</Label>
+            <Input type="number" value={persAbortus} onChange={(e) => setPersAbortus(e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Onset Kontraksi</Label>
+            <Select value={persOnsetKontraksi} onValueChange={setPersOnsetKontraksi}>
+              <SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger>
+              <SelectContent>
+                {onsetKontraksiOptions.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <Separator />
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-medium">Delivery</p>
+            <Button type="button" variant="outline" size="sm" onClick={addDelivery}>
+              <Plus className="mr-1 h-3 w-3" /> Tambah Bayi
+            </Button>
+          </div>
+          {deliveries.map((del, idx) => (
+            <div key={idx} className="rounded-md border p-3 space-y-3 bg-muted/30">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-medium">Bayi #{del.delivery_sequence}</p>
+                <Button type="button" variant="ghost" size="sm" className="h-7 text-destructive" onClick={() => removeDelivery(idx)}>
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Metode Persalinan</Label>
+                  <Select value={del.delivery_method} onValueChange={(v) => updateDelivery(idx, 'delivery_method', v)}>
+                    <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                    <SelectContent>{deliveryMethodOptions.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Waktu Kelahiran</Label>
+                  <Input className="h-8" type="datetime-local" value={del.delivery_dttm} onChange={(e) => updateDelivery(idx, 'delivery_dttm', e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Letak Janin</Label>
+                  <Select value={del.letak_janin} onValueChange={(v) => updateDelivery(idx, 'letak_janin', v)}>
+                    <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                    <SelectContent>{letakJaninOptions.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Kondisi Bayi</Label>
+                  <Select value={del.kondisi} onValueChange={(v) => updateDelivery(idx, 'kondisi', v)}>
+                    <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                    <SelectContent>{kondisiBayiOptions.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
               </div>
-
-              {upgradeClassInd === '1' && (
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <div className="space-y-1.5">
-                    <Label>Kelas Tujuan</Label>
-                    <Select value={upgradeClassClass} onValueChange={setUpgradeClassClass}>
-                      <SelectTrigger><SelectValue placeholder="Pilih kelas" /></SelectTrigger>
-                      <SelectContent>
-                        {upgradeClassClassOptions.map((o) => (
-                          <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>LOS Naik Kelas (hari)</Label>
-                    <Input type="number" value={upgradeClassLos} onChange={(e) => setUpgradeClassLos(e.target.value)} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Penanggung Biaya</Label>
-                    <Select value={upgradeClassPayor} onValueChange={setUpgradeClassPayor}>
-                      <SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger>
-                      <SelectContent>
-                        {upgradeClassPayorOptions.map((o) => (
-                          <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Add Payment %</Label>
-                    <Input type="number" value={addPaymentPct} onChange={(e) => setAddPaymentPct(e.target.value)} />
-                    <p className="text-[10px] text-muted-foreground">Khusus VIP/VVIP</p>
-                  </div>
-                </div>
-              )}
-
-              {upgradeClassInd === '1' && (
-                <p className="text-[10px] text-amber-600">
-                  ⚠ Semua 5 parameter (ind, class, los, payor, add_payment_pct) harus disertakan bersamaan.
-                </p>
-              )}
-            </div>
-          </CollapsibleContent>
-        </div>
-      </Collapsible>
-
-      {/* ===================== SECTION: Field Khusus ===================== */}
-      <Collapsible open={openSections.khusus} onOpenChange={() => toggleSection('khusus')}>
-        <div className="rounded-md border">
-          <SectionHeader title="Field Khusus (COVID/BBL/Hemodialisa/Stroke)" open={openSections.khusus} />
-          <CollapsibleContent>
-            <div className="p-4 pt-2 space-y-4">
-              {/* Nomor Kartu T - untuk COVID-19 */}
-              {payorId === '71' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <Label>Jenis Identitas (nomor_kartu_t)</Label>
-                    <Select value={nomorKartuT} onValueChange={setNomorKartuT}>
-                      <SelectTrigger><SelectValue placeholder="Pilih jenis identitas" /></SelectTrigger>
-                      <SelectContent>
-                        {nomorKartuTOptions.map((o) => (
-                          <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-[10px] text-muted-foreground">Khusus Jaminan COVID-19</p>
-                  </div>
-                </div>
-              )}
-
-              {/* Bayi Lahir Status - untuk BBL (payor_id = 73) */}
-              {payorId === '73' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <Label>Status Bayi Lahir</Label>
-                    <Select value={bayiLahirStatusCd} onValueChange={setBayiLahirStatusCd}>
-                      <SelectTrigger><SelectValue placeholder="Pilih status" /></SelectTrigger>
-                      <SelectContent>
-                        {bayiLahirStatusOptions.map((o) => (
-                          <SelectItem key={String(o.value)} value={String(o.value)}>{o.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-[10px] text-muted-foreground">Khusus Jaminan Bayi Baru Lahir</p>
-                  </div>
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="space-y-1.5">
-                  <Label>Dializer Single Use</Label>
-                  <Select value={dializerSingleUse} onValueChange={setDializerSingleUse}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="0">Multiple Use</SelectItem>
-                      <SelectItem value="1">Single Use</SelectItem>
-                    </SelectContent>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Manual</Label>
+                  <Select value={del.use_manual} onValueChange={(v) => updateDelivery(idx, 'use_manual', v)}>
+                    <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="0">Tidak</SelectItem><SelectItem value="1">Ya</SelectItem></SelectContent>
                   </Select>
-                  <p className="text-[10px] text-muted-foreground">Khusus hemodialisa (CBG N-3-15-0)</p>
                 </div>
-                <div className="space-y-1.5">
-                  <Label>Kantong Darah</Label>
-                  <Input type="number" min="0" value={kantongDarah} onChange={(e) => setKantongDarah(e.target.value)} />
-                  <p className="text-[10px] text-muted-foreground">Jumlah kantong darah</p>
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Alteplase</Label>
-                  <Select value={alteplaseInd} onValueChange={setAlteplaseInd}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="0">Tidak</SelectItem>
-                      <SelectItem value="1">Ya</SelectItem>
-                    </SelectContent>
+                <div className="space-y-1">
+                  <Label className="text-xs">Forcep</Label>
+                  <Select value={del.use_forcep} onValueChange={(v) => updateDelivery(idx, 'use_forcep', v)}>
+                    <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="0">Tidak</SelectItem><SelectItem value="1">Ya</SelectItem></SelectContent>
                   </Select>
-                  <p className="text-[10px] text-muted-foreground">Khusus CBG G-4-14-* (Cedera Pembuluh Darah Otak)</p>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Vacuum</Label>
+                  <Select value={del.use_vacuum} onValueChange={(v) => updateDelivery(idx, 'use_vacuum', v)}>
+                    <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="0">Tidak</SelectItem><SelectItem value="1">Ya</SelectItem></SelectContent>
+                  </Select>
                 </div>
               </div>
-            </div>
-          </CollapsibleContent>
-        </div>
-      </Collapsible>
-
-      {/* ===================== SECTION: APGAR ===================== */}
-      <Collapsible open={openSections.apgar} onOpenChange={() => toggleSection('apgar')}>
-        <div className="rounded-md border">
-          <SectionHeader title="APGAR Score (Neonatus)" open={openSections.apgar} />
-          <CollapsibleContent>
-            <div className="p-4 pt-2 space-y-4">
-              <p className="text-xs text-muted-foreground">
-                Diperhitungkan untuk pasien berumur ≤ 1 hari. Setiap komponen diisi nilai 0, 1, atau 2.
-              </p>
-
-              {/* APGAR Menit 1 */}
-              <div>
-                <p className="text-xs font-medium mb-2">Menit ke-1</p>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                  <div className="space-y-1">
-                    <Label className="text-xs">Appearance</Label>
-                    <Select value={apgarM1Appearance} onValueChange={setApgarM1Appearance}>
-                      <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="0">0</SelectItem>
-                        <SelectItem value="1">1</SelectItem>
-                        <SelectItem value="2">2</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Pulse</Label>
-                    <Select value={apgarM1Pulse} onValueChange={setApgarM1Pulse}>
-                      <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="0">0</SelectItem>
-                        <SelectItem value="1">1</SelectItem>
-                        <SelectItem value="2">2</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Grimace</Label>
-                    <Select value={apgarM1Grimace} onValueChange={setApgarM1Grimace}>
-                      <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="0">0</SelectItem>
-                        <SelectItem value="1">1</SelectItem>
-                        <SelectItem value="2">2</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Activity</Label>
-                    <Select value={apgarM1Activity} onValueChange={setApgarM1Activity}>
-                      <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="0">0</SelectItem>
-                        <SelectItem value="1">1</SelectItem>
-                        <SelectItem value="2">2</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Respiration</Label>
-                    <Select value={apgarM1Respiration} onValueChange={setApgarM1Respiration}>
-                      <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="0">0</SelectItem>
-                        <SelectItem value="1">1</SelectItem>
-                        <SelectItem value="2">2</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <p className="text-[10px] text-right text-muted-foreground mt-1">
-                  Total: {parseInt(apgarM1Appearance) + parseInt(apgarM1Pulse) + parseInt(apgarM1Grimace) + parseInt(apgarM1Activity) + parseInt(apgarM1Respiration)}
-                </p>
-              </div>
-
               <Separator />
-
-              {/* APGAR Menit 5 */}
-              <div>
-                <p className="text-xs font-medium mb-2">Menit ke-5</p>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                  <div className="space-y-1">
-                    <Label className="text-xs">Appearance</Label>
-                    <Select value={apgarM5Appearance} onValueChange={setApgarM5Appearance}>
-                      <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="0">0</SelectItem>
-                        <SelectItem value="1">1</SelectItem>
-                        <SelectItem value="2">2</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Pulse</Label>
-                    <Select value={apgarM5Pulse} onValueChange={setApgarM5Pulse}>
-                      <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="0">0</SelectItem>
-                        <SelectItem value="1">1</SelectItem>
-                        <SelectItem value="2">2</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Grimace</Label>
-                    <Select value={apgarM5Grimace} onValueChange={setApgarM5Grimace}>
-                      <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="0">0</SelectItem>
-                        <SelectItem value="1">1</SelectItem>
-                        <SelectItem value="2">2</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Activity</Label>
-                    <Select value={apgarM5Activity} onValueChange={setApgarM5Activity}>
-                      <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="0">0</SelectItem>
-                        <SelectItem value="1">1</SelectItem>
-                        <SelectItem value="2">2</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Respiration</Label>
-                    <Select value={apgarM5Respiration} onValueChange={setApgarM5Respiration}>
-                      <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="0">0</SelectItem>
-                        <SelectItem value="1">1</SelectItem>
-                        <SelectItem value="2">2</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <p className="text-[10px] text-right text-muted-foreground mt-1">
-                  Total: {parseInt(apgarM5Appearance) + parseInt(apgarM5Pulse) + parseInt(apgarM5Grimace) + parseInt(apgarM5Activity) + parseInt(apgarM5Respiration)}
-                </p>
-              </div>
-            </div>
-          </CollapsibleContent>
-        </div>
-      </Collapsible>
-
-      {/* ===================== SECTION: Persalinan ===================== */}
-      <Collapsible open={openSections.persalinan} onOpenChange={() => toggleSection('persalinan')}>
-        <div className="rounded-md border">
-          <SectionHeader title="Persalinan" open={openSections.persalinan} />
-          <CollapsibleContent>
-            <div className="p-4 pt-2 space-y-4">
-              <p className="text-xs text-muted-foreground">
-                Diperhitungkan untuk rawat inap dengan diagnosa persalinan.
-              </p>
-
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                <div className="space-y-1.5">
-                  <Label>Usia Kehamilan (minggu)</Label>
-                  <Input type="number" value={persUsiaKehamilan} onChange={(e) => setPersUsiaKehamilan(e.target.value)} />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Gravida</Label>
-                  <Input type="number" value={persGravida} onChange={(e) => setPersGravida(e.target.value)} />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Partus</Label>
-                  <Input type="number" value={persPartus} onChange={(e) => setPersPartus(e.target.value)} />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Abortus</Label>
-                  <Input type="number" value={persAbortus} onChange={(e) => setPersAbortus(e.target.value)} />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Onset Kontraksi</Label>
-                  <Select value={persOnsetKontraksi} onValueChange={setPersOnsetKontraksi}>
-                    <SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger>
-                    <SelectContent>
-                      {onsetKontraksiOptions.map((o) => (
-                        <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                      ))}
-                    </SelectContent>
+              <p className="text-[10px] font-medium text-muted-foreground">Skrining Hipotiroid Kongenital (SHK)</p>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Spesimen Diambil?</Label>
+                  <Select value={del.shk_spesimen_ambil} onValueChange={(v) => updateDelivery(idx, 'shk_spesimen_ambil', v)}>
+                    <SelectTrigger className="h-8"><SelectValue placeholder="Pilih" /></SelectTrigger>
+                    <SelectContent><SelectItem value="ya">Ya</SelectItem><SelectItem value="tidak">Tidak</SelectItem></SelectContent>
                   </Select>
                 </div>
-              </div>
-
-              <Separator />
-
-              {/* Delivery entries */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-medium">Delivery</p>
-                  <Button type="button" variant="outline" size="sm" onClick={addDelivery}>
-                    <Plus className="mr-1 h-3 w-3" /> Tambah Bayi
-                  </Button>
-                </div>
-
-                {deliveries.map((del, idx) => (
-                  <div key={idx} className="rounded-md border p-3 space-y-3 bg-muted/30">
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs font-medium">Bayi #{del.delivery_sequence}</p>
-                      <Button type="button" variant="ghost" size="sm" className="h-7 text-destructive" onClick={() => removeDelivery(idx)}>
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
+                {del.shk_spesimen_ambil === 'ya' && (
+                  <>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Lokasi Pengambilan</Label>
+                      <Select value={del.shk_lokasi} onValueChange={(v) => updateDelivery(idx, 'shk_lokasi', v)}>
+                        <SelectTrigger className="h-8"><SelectValue placeholder="Pilih" /></SelectTrigger>
+                        <SelectContent>{shkLokasiOptions.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+                      </Select>
                     </div>
-
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                      <div className="space-y-1">
-                        <Label className="text-xs">Metode Persalinan</Label>
-                        <Select value={del.delivery_method} onValueChange={(v) => updateDelivery(idx, 'delivery_method', v)}>
-                          <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {deliveryMethodOptions.map((o) => (
-                              <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">Waktu Kelahiran</Label>
-                        <Input className="h-8" type="datetime-local" value={del.delivery_dttm} onChange={(e) => updateDelivery(idx, 'delivery_dttm', e.target.value)} />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">Letak Janin</Label>
-                        <Select value={del.letak_janin} onValueChange={(v) => updateDelivery(idx, 'letak_janin', v)}>
-                          <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {letakJaninOptions.map((o) => (
-                              <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">Kondisi Bayi</Label>
-                        <Select value={del.kondisi} onValueChange={(v) => updateDelivery(idx, 'kondisi', v)}>
-                          <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {kondisiBayiOptions.map((o) => (
-                              <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Waktu Pengambilan</Label>
+                      <Input className="h-8" type="datetime-local" value={del.shk_spesimen_dttm} onChange={(e) => updateDelivery(idx, 'shk_spesimen_dttm', e.target.value)} />
                     </div>
-
-                    <div className="grid grid-cols-3 md:grid-cols-3 gap-3">
-                      <div className="space-y-1">
-                        <Label className="text-xs">Manual</Label>
-                        <Select value={del.use_manual} onValueChange={(v) => updateDelivery(idx, 'use_manual', v)}>
-                          <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="0">Tidak</SelectItem>
-                            <SelectItem value="1">Ya</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">Forcep</Label>
-                        <Select value={del.use_forcep} onValueChange={(v) => updateDelivery(idx, 'use_forcep', v)}>
-                          <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="0">Tidak</SelectItem>
-                            <SelectItem value="1">Ya</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">Vacuum</Label>
-                        <Select value={del.use_vacuum} onValueChange={(v) => updateDelivery(idx, 'use_vacuum', v)}>
-                          <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="0">Tidak</SelectItem>
-                            <SelectItem value="1">Ya</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-
-                    {/* SHK (Skrining Hipotiroid Kongenital) */}
-                    <Separator />
-                    <p className="text-[10px] font-medium text-muted-foreground">Skrining Hipotiroid Kongenital (SHK)</p>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                      <div className="space-y-1">
-                        <Label className="text-xs">Spesimen Diambil?</Label>
-                        <Select value={del.shk_spesimen_ambil} onValueChange={(v) => updateDelivery(idx, 'shk_spesimen_ambil', v)}>
-                          <SelectTrigger className="h-8"><SelectValue placeholder="Pilih" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="ya">Ya</SelectItem>
-                            <SelectItem value="tidak">Tidak</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      {del.shk_spesimen_ambil === 'ya' && (
-                        <>
-                          <div className="space-y-1">
-                            <Label className="text-xs">Lokasi Pengambilan</Label>
-                            <Select value={del.shk_lokasi} onValueChange={(v) => updateDelivery(idx, 'shk_lokasi', v)}>
-                              <SelectTrigger className="h-8"><SelectValue placeholder="Pilih" /></SelectTrigger>
-                              <SelectContent>
-                                {shkLokasiOptions.map((o) => (
-                                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-xs">Waktu Pengambilan</Label>
-                            <Input className="h-8" type="datetime-local" value={del.shk_spesimen_dttm} onChange={(e) => updateDelivery(idx, 'shk_spesimen_dttm', e.target.value)} />
-                          </div>
-                        </>
-                      )}
-                      {del.shk_spesimen_ambil === 'tidak' && (
-                        <div className="space-y-1">
-                          <Label className="text-xs">Alasan</Label>
-                          <Select value={del.shk_alasan} onValueChange={(v) => updateDelivery(idx, 'shk_alasan', v)}>
-                            <SelectTrigger className="h-8"><SelectValue placeholder="Pilih" /></SelectTrigger>
-                            <SelectContent>
-                              {shkAlasanOptions.map((o) => (
-                                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      )}
-                    </div>
+                  </>
+                )}
+                {del.shk_spesimen_ambil === 'tidak' && (
+                  <div className="space-y-1">
+                    <Label className="text-xs">Alasan</Label>
+                    <Select value={del.shk_alasan} onValueChange={(v) => updateDelivery(idx, 'shk_alasan', v)}>
+                      <SelectTrigger className="h-8"><SelectValue placeholder="Pilih" /></SelectTrigger>
+                      <SelectContent>{shkAlasanOptions.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+                    </Select>
                   </div>
-                ))}
-
-                {deliveries.length === 0 && (
-                  <p className="text-xs text-muted-foreground text-center py-3">Belum ada data delivery. Klik "Tambah Bayi" untuk menambahkan.</p>
                 )}
               </div>
             </div>
-          </CollapsibleContent>
+          ))}
+          {deliveries.length === 0 && (
+            <p className="text-xs text-muted-foreground text-center py-3">Belum ada data delivery. Klik &quot;Tambah Bayi&quot; untuk menambahkan.</p>
+          )}
         </div>
-      </Collapsible>
+      </div>
+      </div>
+
+      {/* Submit Button */}
+      <Separator className="my-4" />
+      <div className="flex items-center justify-between">
+        <div className="text-sm text-muted-foreground">
+          {!detail.new_claim_success && 'Buat klaim baru terlebih dahulu sebelum mengirim data.'}
+          {detail.new_claim_success && disabled && 'Form terkunci setelah iDRG final. Reedit iDRG untuk mengubah.'}
+        </div>
+        <Button
+          onClick={onSubmitClaimData}
+          disabled={submitting || !detail.new_claim_success || disabled}
+        >
+          {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+          {(detail.set_claim_data_success || detail.form_data_saved) ? 'Update Data Klaim' : 'Kirim Data Klaim'}
+        </Button>
+      </div>
     </div>
   );
 }
+

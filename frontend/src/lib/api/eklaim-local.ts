@@ -41,6 +41,7 @@ export interface EKlaimLocal {
   final_success: boolean;
 
   // Form data
+  form_data_saved: boolean;
   tgl_masuk: string;
   tgl_pulang: string;
   cara_masuk: string;
@@ -120,6 +121,56 @@ export interface EKlaimLocal {
   persalinan_onset_kontraksi: string;
   persalinan_delivery_json: string;
 
+  // === iDRG Tracking ===
+  idrg_diagnosa: string;
+  idrg_procedure: string;
+  idrg_diagnosa_response: string;
+  idrg_procedure_response: string;
+  idrg_grouper_sent_at?: string;
+  idrg_grouper_response: string;
+  idrg_grouper_success: boolean;
+  idrg_code: string;
+  idrg_description: string;
+  idrg_cost_weight: string;
+  idrg_status_cd: string;
+  idrg_final_sent_at?: string;
+  idrg_final_success: boolean;
+
+  // === INACBG Tracking ===
+  inacbg_diagnosa: string;
+  inacbg_procedure: string;
+  inacbg_diagnosa_response: string;
+  inacbg_procedure_response: string;
+  inacbg_import_response: string;
+  inacbg_grouper_stage1_sent_at?: string;
+  inacbg_grouper_stage1_response: string;
+  inacbg_grouper_stage1_success: boolean;
+  special_cmg_options: string;
+  selected_special_cmg: string;
+  inacbg_grouper_stage2_sent_at?: string;
+  inacbg_grouper_stage2_response: string;
+  inacbg_grouper_stage2_success: boolean;
+  inacbg_cbg_code: string;
+  inacbg_cbg_description: string;
+  inacbg_base_tariff: string;
+  inacbg_tariff: string;
+  inacbg_status_cd: string;
+  inacbg_final_sent_at?: string;
+  inacbg_final_success: boolean;
+
+  // === Claim Final & Send ===
+  claim_final_sent_at?: string;
+  claim_final_response: string;
+  claim_final_success: boolean;
+  claim_send_sent_at?: string;
+  claim_send_response: string;
+  claim_send_success: boolean;
+  claim_reedit_sent_at?: string;
+  claim_reedit_response: string;
+
+  // === Button visibility (from GetButtonVisibility) ===
+  buttons?: Record<string, boolean>;
+
   // Error
   last_error?: string;
   last_error_at?: string;
@@ -134,7 +185,23 @@ export interface EKlaimLocal {
   updated_at: string;
 }
 
-export type EKlaimLocalStatus = 'draft' | 'new_claim' | 'set_claim_data' | 'grouped' | 'finalized' | 'sent';
+export type EKlaimLocalStatus =
+  | 'draft'
+  | 'new_claim'
+  | 'set_claim_data'
+  | 'idrg_coded'
+  | 'idrg_grouped'
+  | 'idrg_final'
+  | 'inacbg_imported'
+  | 'inacbg_coded'
+  | 'inacbg_grouped'
+  | 'inacbg_final'
+  | 'claim_final'
+  | 'claim_sent'
+  // Legacy statuses (backward compat)
+  | 'grouped'
+  | 'finalized'
+  | 'sent';
 
 export interface SEPData {
   id: number;
@@ -502,6 +569,16 @@ export const eklaimLocalStatusLabels: Record<EKlaimLocalStatus, string> = {
   draft: 'Draft',
   new_claim: 'New Claim',
   set_claim_data: 'Data Terisi',
+  idrg_coded: 'iDRG Coded',
+  idrg_grouped: 'iDRG Grouped',
+  idrg_final: 'iDRG Final',
+  inacbg_imported: 'INACBG Imported',
+  inacbg_coded: 'INACBG Coded',
+  inacbg_grouped: 'INACBG Grouped',
+  inacbg_final: 'INACBG Final',
+  claim_final: 'Claim Final',
+  claim_sent: 'Terkirim',
+  // Legacy
   grouped: 'Grouped',
   finalized: 'Final',
   sent: 'Terkirim',
@@ -511,6 +588,16 @@ export const eklaimLocalStatusColors: Record<EKlaimLocalStatus, string> = {
   draft: 'bg-gray-100 text-gray-800',
   new_claim: 'bg-blue-100 text-blue-800',
   set_claim_data: 'bg-purple-100 text-purple-800',
+  idrg_coded: 'bg-indigo-100 text-indigo-800',
+  idrg_grouped: 'bg-indigo-200 text-indigo-900',
+  idrg_final: 'bg-cyan-100 text-cyan-800',
+  inacbg_imported: 'bg-teal-100 text-teal-800',
+  inacbg_coded: 'bg-teal-200 text-teal-900',
+  inacbg_grouped: 'bg-orange-100 text-orange-800',
+  inacbg_final: 'bg-amber-100 text-amber-800',
+  claim_final: 'bg-green-100 text-green-800',
+  claim_sent: 'bg-green-600 text-white',
+  // Legacy
   grouped: 'bg-orange-100 text-orange-800',
   finalized: 'bg-green-100 text-green-800',
   sent: 'bg-green-600 text-white',
@@ -646,7 +733,58 @@ export const shkAlasanOptions = [
 
 // ==================== API ====================
 
+export interface DashboardData {
+  bulan: string;
+  tgl_from: string;
+  tgl_to: string;
+  total_claims: number;
+  status_counts: { status: EKlaimLocalStatus; count: number }[];
+  jenis_rawat_counts: { jenis_rawat: string; count: number }[];
+  kelas_rawat_counts: { kelas_rawat: string; count: number }[];
+  financial: {
+    total_inacbg_tariff: number;
+    total_tarif_rs: number;
+    avg_inacbg_tariff: number;
+    avg_tarif_rs: number;
+    claim_count: number;
+  };
+  recent_claims: {
+    id: number;
+    no_sep: string;
+    nama_pasien: string;
+    status: EKlaimLocalStatus;
+    jenis_rawat: string;
+    kelas_rawat: string;
+    tgl_masuk: string;
+    tgl_pulang: string;
+    inacbg_cbg_code: string;
+    inacbg_tariff: string;
+    tarif_rs: number;
+    created_at: string;
+  }[];
+  top_cbg: {
+    cbg_code: string;
+    cbg_description: string;
+    count: number;
+    total_tariff: number;
+  }[];
+  daily_claims: { date: string; count: number; total_inacbg: number; total_tarif_rs: number }[];
+  pending_actions: {
+    draft: number;
+    new_claim: number;
+    pending_grouper: number;
+    pending_final: number;
+    pending_send: number;
+  };
+}
+
 export const eklaimLocalApi = {
+  // Dashboard
+  getDashboard: async (bulan?: string): Promise<DashboardData> => {
+    const response = await api.get('/eklaim-local/dashboard', { params: bulan ? { bulan } : {} });
+    return response.data;
+  },
+
   // Ping server
   ping: async () => {
     const response = await api.get('/eklaim-local/ping');
@@ -662,6 +800,7 @@ export const eklaimLocalApi = {
     tgl_from?: string;
     tgl_to?: string;
     claim_status?: string;
+    jns_pelayanan?: string;
   }) => {
     const response = await api.get('/eklaim-local/list-sep', { params });
     return response.data;
@@ -695,6 +834,10 @@ export const eklaimLocalApi = {
     per_page?: number;
     search?: string;
     status?: string;
+    jenis_rawat?: string;
+    kelas_rawat?: string;
+    tgl_from?: string;
+    tgl_to?: string;
   }) => {
     const response = await api.get('/eklaim-local', { params });
     return response.data;
@@ -728,6 +871,17 @@ export const eklaimLocalApi = {
   // ========= API Calls to E-Klaim Server =========
   sendNewClaim: async (id: number) => {
     const response = await api.post(`/eklaim-local/${id}/new-claim`);
+    return response.data;
+  },
+
+  sendUpdatePatient: async (id: number, data?: {
+    nomor_kartu?: string;
+    nomor_rm?: string;
+    nama_pasien?: string;
+    tgl_lahir?: string;
+    gender?: number;
+  }) => {
+    const response = await api.post(`/eklaim-local/${id}/update-patient`, data || {});
     return response.data;
   },
 
@@ -771,6 +925,120 @@ export const eklaimLocalApi = {
     return response.data;
   },
 
+  // ========= iDRG Flow =========
+  sendIDRGDiagnosaSet: async (id: number, data: { diagnosa: string }) => {
+    const response = await api.post(`/eklaim-local/${id}/idrg-diagnosa`, data);
+    return response.data;
+  },
+
+  getIDRGDiagnosa: async (id: number) => {
+    const response = await api.get(`/eklaim-local/${id}/idrg-diagnosa`);
+    return response.data;
+  },
+
+  sendIDRGProcedureSet: async (id: number, data: { procedure: string }) => {
+    const response = await api.post(`/eklaim-local/${id}/idrg-procedure`, data);
+    return response.data;
+  },
+
+  getIDRGProcedure: async (id: number) => {
+    const response = await api.get(`/eklaim-local/${id}/idrg-procedure`);
+    return response.data;
+  },
+
+  sendGrouperIDRG: async (id: number) => {
+    const response = await api.post(`/eklaim-local/${id}/grouper-idrg`);
+    return response.data;
+  },
+
+  sendFinalIDRG: async (id: number) => {
+    const response = await api.post(`/eklaim-local/${id}/final-idrg`);
+    return response.data;
+  },
+
+  sendReeditIDRG: async (id: number) => {
+    const response = await api.post(`/eklaim-local/${id}/reedit-idrg`);
+    return response.data;
+  },
+
+  // ========= INACBG Flow =========
+  sendImportINACBG: async (id: number) => {
+    const response = await api.post(`/eklaim-local/${id}/import-inacbg`);
+    return response.data;
+  },
+
+  sendINACBGDiagnosaSet: async (id: number, data: { diagnosa: string }) => {
+    const response = await api.post(`/eklaim-local/${id}/inacbg-diagnosa`, data);
+    return response.data;
+  },
+
+  getINACBGDiagnosa: async (id: number) => {
+    const response = await api.get(`/eklaim-local/${id}/inacbg-diagnosa`);
+    return response.data;
+  },
+
+  sendINACBGProcedureSet: async (id: number, data: { procedure: string }) => {
+    const response = await api.post(`/eklaim-local/${id}/inacbg-procedure`, data);
+    return response.data;
+  },
+
+  getINACBGProcedure: async (id: number) => {
+    const response = await api.get(`/eklaim-local/${id}/inacbg-procedure`);
+    return response.data;
+  },
+
+  sendGrouperINACBGStage1: async (id: number) => {
+    const response = await api.post(`/eklaim-local/${id}/grouper-inacbg-stage1`);
+    return response.data;
+  },
+
+  sendGrouperINACBGStage2: async (id: number, data: { special_cmg: string }) => {
+    const response = await api.post(`/eklaim-local/${id}/grouper-inacbg-stage2`, data);
+    return response.data;
+  },
+
+  sendFinalINACBG: async (id: number) => {
+    const response = await api.post(`/eklaim-local/${id}/final-inacbg`);
+    return response.data;
+  },
+
+  sendReeditINACBG: async (id: number) => {
+    const response = await api.post(`/eklaim-local/${id}/reedit-inacbg`);
+    return response.data;
+  },
+
+  // ========= Claim Send & Re-edit =========
+  sendClaimSend: async (id: number) => {
+    const response = await api.post(`/eklaim-local/${id}/send-claim`);
+    return response.data;
+  },
+
+  sendClaimReedit: async (id: number) => {
+    const response = await api.post(`/eklaim-local/${id}/reedit-claim`);
+    return response.data;
+  },
+
+  // ========= Search APIs =========
+  searchDiagnosisIDRG: async (keyword: string) => {
+    const response = await api.get('/eklaim-local/search/idrg-diagnosa', { params: { keyword } });
+    return response.data;
+  },
+
+  searchProceduresIDRG: async (keyword: string) => {
+    const response = await api.get('/eklaim-local/search/idrg-procedure', { params: { keyword } });
+    return response.data;
+  },
+
+  searchDiagnosisINACBG: async (keyword: string) => {
+    const response = await api.get('/eklaim-local/search/inacbg-diagnosa', { params: { keyword } });
+    return response.data;
+  },
+
+  searchProceduresINACBG: async (keyword: string) => {
+    const response = await api.get('/eklaim-local/search/inacbg-procedure', { params: { keyword } });
+    return response.data;
+  },
+
   // ========= Report =========
   getClaimStatus: async (params: {
     tgl_masuk_from: string;
@@ -796,6 +1064,12 @@ export const eklaimLocalApi = {
     search?: string;
   }) => {
     const response = await api.get('/eklaim-local/logs', { params });
+    return response.data;
+  },
+
+  // ========= Defaults =========
+  getDefaults: async (): Promise<{ coder_nik: string; kode_tarif: string }> => {
+    const response = await api.get('/eklaim-local/defaults');
     return response.data;
   },
 };

@@ -9,6 +9,12 @@ import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { printApi } from '@/lib/api/print';
 import { mergePdfs } from '@/lib/pdf-merge';
@@ -514,7 +520,7 @@ export default function CetakanTab({ detail, originalRM }: CetakanTabProps) {
       toast({
         variant: 'success',
         title: 'Merge Berhasil!',
-        description: `${result.totalPages} halaman dari ${result.successCount} dokumen. Lihat preview di bawah.`,
+        description: `${result.totalPages} halaman dari ${result.successCount} dokumen.`,
       });
     } catch (err: any) {
       toast({ variant: 'destructive', title: 'Gagal merge', description: err?.message || 'Terjadi kesalahan saat merge PDF.' });
@@ -530,7 +536,7 @@ export default function CetakanTab({ detail, originalRM }: CetakanTabProps) {
     const url = URL.createObjectURL(previewBlob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `Rekam-Medis-${detail.nama_pasien}-${detail.no_sep}.pdf`;
+    a.download = `${detail.no_sep || 'Rekam-Medis'}.pdf`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -678,61 +684,55 @@ export default function CetakanTab({ detail, originalRM }: CetakanTabProps) {
             </div>
           </div>
 
-          {/* Preview area */}
-          {(loadingPreview || previewUrl) && (
-            <div className="border rounded-lg overflow-hidden">
-              <div className="flex items-center justify-between px-3 py-2 bg-muted/30 border-b">
-                <span className="text-xs font-medium truncate flex-1">{previewLabel || 'Preview'}</span>
-                <div className="flex items-center gap-1 shrink-0">
+          {/* Preview area — modal */}
+          <Dialog open={!!(previewUrl || loadingPreview)} onOpenChange={(open) => { if (!open) closePreview(); }}>
+            <DialogContent className="max-w-5xl w-[95vw] h-[90vh] flex flex-col p-0 gap-0">
+              <DialogHeader className="px-4 py-3 border-b shrink-0">
+                <div className="flex items-center justify-between">
+                  <DialogTitle className="text-sm font-medium truncate pr-4">
+                    {previewLabel || 'Preview PDF'}
+                  </DialogTitle>
                   {previewBlob && (
-                    <>
+                    <div className="flex items-center gap-2 shrink-0">
                       <Button
-                        variant="ghost"
+                        variant="outline"
                         size="sm"
-                        className="h-6 text-xs px-2"
+                        className="h-7 text-xs"
                         onClick={() => {
                           if (previewUrl) window.open(previewUrl, '_blank');
                         }}
-                        title="Buka di tab baru"
                       >
-                        <FileText className="mr-1 h-3 w-3" />
+                        <FileText className="mr-1.5 h-3.5 w-3.5" />
                         Buka Tab
                       </Button>
                       <Button
-                        variant="ghost"
                         size="sm"
-                        className="h-6 text-xs px-2"
+                        className="h-7 text-xs"
                         onClick={handleDownloadPreview}
-                        title="Download PDF"
                       >
-                        <Download className="mr-1 h-3 w-3" />
+                        <Download className="mr-1.5 h-3.5 w-3.5" />
                         Download
                       </Button>
-                    </>
+                    </div>
                   )}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-5 w-5"
-                    onClick={closePreview}
-                  >
-                    ×
-                  </Button>
                 </div>
+              </DialogHeader>
+              <div className="flex-1 min-h-0">
+                {loadingPreview ? (
+                  <div className="flex flex-col items-center justify-center h-full gap-3">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">Memuat dokumen...</p>
+                  </div>
+                ) : previewUrl ? (
+                  <iframe
+                    src={previewUrl}
+                    className="w-full h-full border-0"
+                    title="PDF Preview"
+                  />
+                ) : null}
               </div>
-              {loadingPreview ? (
-                <div className="flex items-center justify-center h-48">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                </div>
-              ) : previewUrl ? (
-                <iframe
-                  src={previewUrl}
-                  className="w-full h-[600px]"
-                  title="PDF Preview"
-                />
-              ) : null}
-            </div>
-          )}
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
     </div>

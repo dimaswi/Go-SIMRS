@@ -9,12 +9,13 @@ import { eklaimLocalApi, eklaimLocalStatusLabels, eklaimLocalStatusColors } from
 import type { SEPWithClaim, EKlaimLocalStatus } from '@/lib/api/eklaim-local';
 import { useToast } from '@/hooks/use-toast';
 import { setPageTitle } from '@/lib/page-title';
-import { Loader2, Eye, Search, Filter, SlidersHorizontal, List } from 'lucide-react';
+import { Loader2, Eye, Search, SlidersHorizontal, List, FilterX } from 'lucide-react';
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
+import { Label } from '@/components/ui/label';
 import type { ColumnDef } from '@tanstack/react-table';
 import { format } from 'date-fns';
 import { id as localeId } from 'date-fns/locale';
@@ -28,8 +29,23 @@ export default function ListSEPPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [claimFilter, setClaimFilter] = useState<string>('all');
+  const [jnsPelayananFilter, setJnsPelayananFilter] = useState<string>('all');
+  const [tglFrom, setTglFrom] = useState('');
+  const [tglTo, setTglTo] = useState('');
   const [page, setPage] = useState(1);
   const [_total, setTotal] = useState(0);
+
+  const hasActiveFilters = statusFilter !== 'all' || claimFilter !== 'all' || jnsPelayananFilter !== 'all' || tglFrom !== '' || tglTo !== '';
+
+  const resetFilters = () => {
+    setStatusFilter('all');
+    setClaimFilter('all');
+    setJnsPelayananFilter('all');
+    setTglFrom('');
+    setTglTo('');
+    setSearchTerm('');
+    setPage(1);
+  };
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -38,6 +54,9 @@ export default function ListSEPPage() {
       if (searchTerm) params.search = searchTerm;
       if (statusFilter !== 'all') params.status = statusFilter;
       if (claimFilter !== 'all') params.claim_status = claimFilter;
+      if (jnsPelayananFilter !== 'all') params.jns_pelayanan = jnsPelayananFilter;
+      if (tglFrom) params.tgl_from = tglFrom;
+      if (tglTo) params.tgl_to = tglTo;
       const response = await eklaimLocalApi.getListSEP(params);
       setData(response.data || []);
       setTotal(response.meta?.total || 0);
@@ -46,7 +65,7 @@ export default function ListSEPPage() {
     } finally {
       setLoading(false);
     }
-  }, [toast, page, searchTerm, statusFilter, claimFilter]);
+  }, [toast, page, searchTerm, statusFilter, claimFilter, jnsPelayananFilter, tglFrom, tglTo]);
 
   useEffect(() => {
     setPageTitle('List SEP - E-Klaim');
@@ -178,51 +197,87 @@ export default function ListSEPPage() {
               Daftar kunjungan yang sudah memiliki SEP untuk diproses E-Klaim
             </p>
           </div>
-          <CollapsibleTrigger asChild>
-            <Button variant="outline" size="sm" className="h-9">
-              <SlidersHorizontal className="h-4 w-4 mr-2" />
-              Filter
-            </Button>
-          </CollapsibleTrigger>
+          <div className="flex items-center gap-2">
+            {hasActiveFilters && (
+              <Button variant="ghost" size="sm" className="h-9 text-muted-foreground" onClick={resetFilters}>
+                <FilterX className="h-4 w-4 mr-1" /> Reset
+              </Button>
+            )}
+            <CollapsibleTrigger asChild>
+              <Button variant="outline" size="sm" className="h-9">
+                <SlidersHorizontal className="h-4 w-4 mr-2" />
+                Filter
+                {hasActiveFilters && <Badge variant="secondary" className="ml-2 h-5 px-1.5 text-[10px]">aktif</Badge>}
+              </Button>
+            </CollapsibleTrigger>
+          </div>
         </div>
         <CollapsibleContent>
-          <div className="flex flex-col sm:flex-row gap-4 pt-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Cari no. SEP, nama pasien, no. BPJS, no. RM..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && loadData()}
-                  className="pl-9"
-                />
+          <div className="space-y-3 pt-4">
+            {/* Row 1: Search */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Cari no. SEP, nama pasien, no. BPJS, no. RM..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && loadData()}
+                className="pl-9"
+              />
+            </div>
+            {/* Row 2: Selects & Date Range */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Status SEP</Label>
+                <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1); }}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="Semua" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua SEP</SelectItem>
+                    <SelectItem value="aktif">Aktif</SelectItem>
+                    <SelectItem value="batal">Batal</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Status Klaim</Label>
+                <Select value={claimFilter} onValueChange={(v) => { setClaimFilter(v); setPage(1); }}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="Semua" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua</SelectItem>
+                    <SelectItem value="has_claim">Sudah Diklaim</SelectItem>
+                    <SelectItem value="no_claim">Belum Diklaim</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Jenis Pelayanan</Label>
+                <Select value={jnsPelayananFilter} onValueChange={(v) => { setJnsPelayananFilter(v); setPage(1); }}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="Semua" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua</SelectItem>
+                    <SelectItem value="1">Rawat Inap</SelectItem>
+                    <SelectItem value="2">Rawat Jalan</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Tgl SEP Dari</Label>
+                <Input type="date" className="h-9" value={tglFrom} onChange={(e) => { setTglFrom(e.target.value); setPage(1); }} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Tgl SEP Sampai</Label>
+                <Input type="date" className="h-9" value={tglTo} onChange={(e) => { setTglTo(e.target.value); setPage(1); }} />
               </div>
             </div>
-            <div className="flex gap-2">
-              <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1); }}>
-                <SelectTrigger className="w-[160px]">
-                  <Filter className="mr-2 h-4 w-4" />
-                  <SelectValue placeholder="Status SEP" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Semua SEP</SelectItem>
-                  <SelectItem value="aktif">Aktif</SelectItem>
-                  <SelectItem value="batal">Batal</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={claimFilter} onValueChange={(v) => { setClaimFilter(v); setPage(1); }}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Status Klaim" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Semua</SelectItem>
-                  <SelectItem value="has_claim">Sudah Diklaim</SelectItem>
-                  <SelectItem value="no_claim">Belum Diklaim</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button variant="outline" onClick={loadData}>
-                <Search className="h-4 w-4" />
+            <div className="flex justify-end">
+              <Button size="sm" onClick={loadData}>
+                <Search className="h-4 w-4 mr-1" /> Cari
               </Button>
             </div>
           </div>

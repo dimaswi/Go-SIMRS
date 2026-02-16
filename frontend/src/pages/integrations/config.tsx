@@ -197,6 +197,7 @@ export default function IntegrationsConfigPage() {
   const [ekLocalUrl, setEkLocalUrl] = useState("http://localhost/E-Klaim/ws.php");
   const [ekSecretKey, setEkSecretKey] = useState("");
   const [ekCoderNik, setEkCoderNik] = useState("");
+  const [ekKodeTarif, setEkKodeTarif] = useState("");
   const [showEkSecretKey, setShowEkSecretKey] = useState(false);
 
   // VClaim Test State
@@ -342,6 +343,7 @@ export default function IntegrationsConfigPage() {
 
       if (data.eklaim_local_url?.value) setEkLocalUrl(data.eklaim_local_url.value);
       if (data.eklaim_coder_nik?.value) setEkCoderNik(data.eklaim_coder_nik.value);
+      if (data.eklaim_kode_tarif?.value) setEkKodeTarif(data.eklaim_kode_tarif.value);
 
       const isConfigured = !!(
         data.eklaim_local_url?.has_value && data.eklaim_secret_key?.has_value
@@ -404,6 +406,7 @@ export default function IntegrationsConfigPage() {
       // Load E-Klaim config values
       setEkLocalUrl(ekConfig.eklaim_local_url?.value || "http://localhost/E-Klaim/ws.php");
       setEkCoderNik(ekConfig.eklaim_coder_nik?.value || "");
+      setEkKodeTarif(ekConfig.eklaim_kode_tarif?.value || "");
       setShowEkSecretKey(false);
     }
 
@@ -512,6 +515,7 @@ export default function IntegrationsConfigPage() {
         eklaim_local_url: ekLocalUrl,
         eklaim_secret_key: ekSecretKey,
         eklaim_coder_nik: ekCoderNik,
+        eklaim_kode_tarif: ekKodeTarif,
       };
 
       await integrationsApi.updateConfig("eklaim", updateData);
@@ -1574,6 +1578,47 @@ export default function IntegrationsConfigPage() {
                 <p className="text-xs text-muted-foreground">
                   NIK koder BPJS yang digunakan sebagai default saat mengirim
                   klaim
+                </p>
+              </div>
+            </div>
+
+            <hr />
+
+            {/* Kode Tarif RS */}
+            <div className="space-y-4">
+              <h4 className="text-sm font-semibold">Kode Tarif RS</h4>
+              <div className="space-y-2">
+                <Label htmlFor="ekKodeTarif" className="text-xs font-medium">
+                  Jenis Tarif RS Default
+                </Label>
+                <select
+                  id="ekKodeTarif"
+                  value={ekKodeTarif}
+                  onChange={(e) => setEkKodeTarif(e.target.value)}
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  <option value="">-- Pilih Kode Tarif --</option>
+                  <option value="AP">AP - RS Kelas A Pemerintah</option>
+                  <option value="AS">AS - RS Kelas A Swasta</option>
+                  <option value="BP">BP - RS Kelas B Pemerintah</option>
+                  <option value="BS">BS - RS Kelas B Swasta</option>
+                  <option value="CP">CP - RS Kelas C Pemerintah</option>
+                  <option value="CS">CS - RS Kelas C Swasta</option>
+                  <option value="DP">DP - RS Kelas D Pemerintah</option>
+                  <option value="DS">DS - RS Kelas D Swasta</option>
+                  <option value="RSCM">RSCM - RSUPN Cipto Mangunkusumo</option>
+                  <option value="RSJP">RSJP - RSJPD Harapan Kita</option>
+                  <option value="RSD">RSD - RS Kanker Dharmais</option>
+                  <option value="RSAB">RSAB - RSAB Harapan Kita</option>
+                </select>
+                {ekConfig.eklaim_kode_tarif?.has_value && (
+                  <p className="text-xs text-green-600 flex items-center gap-1">
+                    <CheckCircle className="h-3 w-3" />
+                    Sudah dikonfigurasi: {ekConfig.eklaim_kode_tarif.value}
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Kode tarif RS yang otomatis terisi saat membuat klaim baru
                 </p>
               </div>
             </div>

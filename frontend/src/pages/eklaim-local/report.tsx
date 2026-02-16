@@ -22,16 +22,28 @@ import { format } from 'date-fns';
 import { id as localeId } from 'date-fns/locale';
 
 interface ClaimStatusItem {
+  id: number;
   no_sep: string;
   nama_pasien: string;
   tgl_masuk: string;
   tgl_pulang: string;
   jenis_rawat: string;
+  kelas_rawat: string;
   status: EKlaimLocalStatus;
-  cbg_code: string;
-  cbg_description: string;
-  cbg_tariff: number;
-  hospital_tariff: number;
+  diagnosa: string;
+  procedure: string;
+  nama_dokter: string;
+  // iDRG
+  idrg_code: string;
+  idrg_description: string;
+  idrg_cost_weight: string;
+  // INACBG
+  inacbg_cbg_code: string;
+  inacbg_cbg_description: string;
+  inacbg_tariff: string;
+  // Tarif RS
+  tarif_rs: number;
+  los: number;
 }
 
 export default function EklaimReportPage() {
@@ -52,6 +64,8 @@ export default function EklaimReportPage() {
 
   useEffect(() => {
     setPageTitle('Laporan E-Klaim');
+    handleSearch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleSearch = async () => {
@@ -91,17 +105,32 @@ export default function EklaimReportPage() {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(value);
   };
 
+  const kelasLabel = (k: string) => {
+    if (k === '1') return 'Kelas 1';
+    if (k === '2') return 'Kelas 2';
+    if (k === '3') return 'Kelas 3';
+    return k || '-';
+  };
+
   const columns: ColumnDef<ClaimStatusItem>[] = [
     {
       accessorKey: 'no_sep',
       header: 'No. SEP',
       cell: ({ row }) => (
-        <span className="font-mono text-sm">{row.original.no_sep}</span>
+        <span className="font-mono text-xs">{row.original.no_sep}</span>
       ),
     },
     {
       accessorKey: 'nama_pasien',
       header: 'Pasien',
+      cell: ({ row }) => (
+        <div>
+          <p className="font-medium text-sm">{row.original.nama_pasien}</p>
+          {row.original.nama_dokter && (
+            <p className="text-xs text-muted-foreground">{row.original.nama_dokter}</p>
+          )}
+        </div>
+      ),
     },
     {
       accessorKey: 'tgl_masuk',
@@ -114,12 +143,30 @@ export default function EklaimReportPage() {
       cell: ({ row }) => formatDate(row.original.tgl_pulang),
     },
     {
+      accessorKey: 'los',
+      header: 'LOS',
+      cell: ({ row }) => (
+        <span className="text-sm">{row.original.los} hr</span>
+      ),
+    },
+    {
       accessorKey: 'jenis_rawat',
       header: 'Jenis',
       cell: ({ row }) => {
         const opt = jenisRawatOptions.find((o) => o.value === row.original.jenis_rawat);
-        return opt?.label || row.original.jenis_rawat || '-';
+        return (
+          <Badge variant="outline" className="text-xs">
+            {opt?.label || row.original.jenis_rawat || '-'}
+          </Badge>
+        );
       },
+    },
+    {
+      accessorKey: 'kelas_rawat',
+      header: 'Kelas',
+      cell: ({ row }) => (
+        <span className="text-sm">{kelasLabel(row.original.kelas_rawat)}</span>
+      ),
     },
     {
       accessorKey: 'status',
@@ -134,40 +181,63 @@ export default function EklaimReportPage() {
       },
     },
     {
-      accessorKey: 'cbg_code',
-      header: 'CBG',
+      accessorKey: 'diagnosa',
+      header: 'Diagnosa',
       cell: ({ row }) => (
-        <div>
-          {row.original.cbg_code ? (
-            <>
-              <p className="font-mono text-sm font-medium">{row.original.cbg_code}</p>
-              <p className="text-xs text-muted-foreground truncate max-w-[180px]">{row.original.cbg_description}</p>
-            </>
-          ) : (
-            <span className="text-muted-foreground">-</span>
-          )}
-        </div>
+        <span className="font-mono text-xs truncate max-w-[120px] block" title={row.original.diagnosa}>
+          {row.original.diagnosa || '-'}
+        </span>
       ),
     },
     {
-      accessorKey: 'cbg_tariff',
-      header: 'Tarif CBG',
-      cell: ({ row }) => (
-        <span className="font-mono text-sm">{row.original.cbg_tariff ? formatCurrency(row.original.cbg_tariff) : '-'}</span>
-      ),
+      id: 'idrg',
+      header: 'iDRG',
+      cell: ({ row }) => {
+        const d = row.original;
+        if (!d.idrg_code) return <span className="text-muted-foreground">-</span>;
+        return (
+          <div>
+            <p className="font-mono text-xs font-medium">{d.idrg_code}</p>
+            <p className="text-xs text-muted-foreground truncate max-w-[150px]">{d.idrg_description}</p>
+            <p className="text-xs text-muted-foreground">CW: {d.idrg_cost_weight}</p>
+          </div>
+        );
+      },
     },
     {
-      accessorKey: 'hospital_tariff',
+      id: 'inacbg',
+      header: 'INACBG',
+      cell: ({ row }) => {
+        const d = row.original;
+        if (!d.inacbg_cbg_code) return <span className="text-muted-foreground">-</span>;
+        return (
+          <div>
+            <p className="font-mono text-xs font-medium">{d.inacbg_cbg_code}</p>
+            <p className="text-xs text-muted-foreground truncate max-w-[150px]">{d.inacbg_cbg_description}</p>
+          </div>
+        );
+      },
+    },
+    {
+      id: 'inacbg_tariff',
+      header: 'Tarif INACBG',
+      cell: ({ row }) => {
+        const val = row.original.inacbg_tariff ? Number(row.original.inacbg_tariff) : 0;
+        return <span className="font-mono text-sm">{val ? formatCurrency(val) : '-'}</span>;
+      },
+    },
+    {
+      accessorKey: 'tarif_rs',
       header: 'Tarif RS',
       cell: ({ row }) => (
-        <span className="font-mono text-sm">{row.original.hospital_tariff ? formatCurrency(row.original.hospital_tariff) : '-'}</span>
+        <span className="font-mono text-sm">{row.original.tarif_rs ? formatCurrency(row.original.tarif_rs) : '-'}</span>
       ),
     },
   ];
 
   // Summary
-  const totalCBG = data.reduce((sum, d) => sum + (d.cbg_tariff || 0), 0);
-  const totalRS = data.reduce((sum, d) => sum + (d.hospital_tariff || 0), 0);
+  const totalINACBG = data.reduce((sum, d) => sum + (d.inacbg_tariff ? Number(d.inacbg_tariff) : 0), 0);
+  const totalRS = data.reduce((sum, d) => sum + (d.tarif_rs || 0), 0);
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-6">
@@ -236,7 +306,8 @@ export default function EklaimReportPage() {
                   <SelectItem value="set_claim_data">Data Terisi</SelectItem>
                   <SelectItem value="grouped">Grouped</SelectItem>
                   <SelectItem value="finalized">Final</SelectItem>
-                  <SelectItem value="sent">Terkirim</SelectItem>
+                  <SelectItem value="claim_final">Claim Final</SelectItem>
+                  <SelectItem value="claim_sent">Terkirim</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -255,7 +326,7 @@ export default function EklaimReportPage() {
             Total Klaim: <span className="font-medium text-foreground">{data.length}</span>
           </span>
           <span className="text-muted-foreground">
-            Total Tarif CBG: <span className="font-mono font-medium text-foreground">{formatCurrency(totalCBG)}</span>
+            Total Tarif INACBG: <span className="font-mono font-medium text-foreground">{formatCurrency(totalINACBG)}</span>
           </span>
           <span className="text-muted-foreground">
             Total Tarif RS: <span className="font-mono font-medium text-foreground">{formatCurrency(totalRS)}</span>
