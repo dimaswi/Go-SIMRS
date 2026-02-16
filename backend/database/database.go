@@ -48,11 +48,209 @@ func Connect(dsn string) error {
 	return nil
 }
 
+// dropAllForeignKeys drops ALL foreign key constraints from all tables in the database.
+// This allows AutoMigrate to run cleanly without FK violation errors from orphaned data.
+// AutoMigrate will recreate all FK constraints based on model struct tags.
+func dropAllForeignKeys() {
+	log.Println("Dropping all foreign key constraints before migration...")
+
+	var constraints []struct {
+		TableName      string
+		ConstraintName string
+	}
+
+	DB.Raw(`
+		SELECT tc.table_name, tc.constraint_name
+		FROM information_schema.table_constraints tc
+		WHERE tc.constraint_type = 'FOREIGN KEY'
+		  AND tc.table_schema = 'public'
+		ORDER BY tc.table_name
+	`).Scan(&constraints)
+
+	for _, c := range constraints {
+		DB.Exec(fmt.Sprintf("ALTER TABLE %q DROP CONSTRAINT IF EXISTS %q", c.TableName, c.ConstraintName))
+	}
+
+	log.Printf("Dropped %d foreign key constraints", len(constraints))
+}
+
+// cleanOrphanedForeignKeys nullifies FK columns that reference non-existent rows.
+// This prevents "violates foreign key constraint" errors when AutoMigrate recreates FK constraints.
+func cleanOrphanedForeignKeys() {
+	log.Println("Cleaning orphaned foreign key references...")
+
+	// Each entry: {table, fk_column, referenced_table}
+	// Only nullable FK columns (*uint) need cleaning — non-nullable ones should not have orphans
+	// if the referenced table exists. If referenced table doesn't exist yet, AutoMigrate will create it first.
+	orphanChecks := []struct {
+		table      string
+		column     string
+		refTable   string
+	}{
+		// visits
+		{"visits", "bed_id", "beds"},
+		{"visits", "doctor_id", "employees"},
+		{"visits", "referral_from", "visits"},
+		// registrations
+		{"registrations", "queue_id", "queues"},
+		{"registrations", "doctor_id", "employees"},
+		{"registrations", "source_visit_id", "visits"},
+		{"registrations", "checked_in_by_id", "users"},
+		// rooms
+		{"rooms", "pic_employee_id", "employees"},
+		{"rooms", "building_id", "buildings"},
+		// bed_transfers
+		{"bed_transfers", "from_room_id", "rooms"},
+		{"bed_transfers", "from_bed_id", "beds"},
+		{"bed_transfers", "created_by_id", "users"},
+		// admission_requests
+		{"admission_requests", "approved_room_id", "rooms"},
+		{"admission_requests", "approved_bed_id", "beds"},
+		{"admission_requests", "doctor_id", "employees"},
+		{"admission_requests", "inpatient_visit_id", "visits"},
+		{"admission_requests", "processed_by_id", "users"},
+		// dispositions
+		{"dispositions", "follow_up_room_id", "rooms"},
+		{"dispositions", "admission_room_id", "rooms"},
+		{"dispositions", "admission_bed_id", "beds"},
+		{"dispositions", "inpatient_visit_id", "visits"},
+		{"dispositions", "follow_up_registration_id", "registrations"},
+		{"dispositions", "discharged_by_id", "users"},
+		// billing
+		{"billings", "generated_by_id", "users"},
+		{"billings", "finalized_by_id", "users"},
+		{"billing_items", "source_visit_id", "visits"},
+		{"billing_payments", "voided_by_id", "users"},
+		// medicine orders
+		{"medicine_orders", "pharmacy_visit_id", "visits"},
+		{"medicine_orders", "reviewed_by_id", "employees"},
+		{"medicine_orders", "delivered_by_id", "employees"},
+		{"medicine_order_items", "medicine_batch_id", "medicine_batches"},
+		{"medicine_order_items", "dispensed_by_id", "employees"},
+		{"medicine_returns", "medicine_order_item_id", "medicine_order_items"},
+		{"medicine_returns", "restock_room_id", "rooms"},
+		// procedure orders
+		{"procedure_orders", "target_visit_id", "visits"},
+		{"procedure_orders", "surgeon_doctor_id", "employees"},
+		{"procedure_orders", "performed_by_id", "employees"},
+		{"procedure_orders", "validated_by_id", "employees"},
+		{"procedure_order_items", "performed_by_id", "employees"},
+		// bpjs
+		{"bpjs_queues", "patient_id", "patients"},
+		{"bpjs_queues", "registration_id", "registrations"},
+		{"bpjs_queues", "visit_id", "visits"},
+		{"bpjs_queues", "room_queue_id", "room_queues"},
+		{"bpjs_queues", "room_id", "rooms"},
+		{"bpjs_queues", "poli_mapping_id", "bpjs_poli_mappings"},
+		{"bpjs_queues", "doctor_mapping_id", "bpjs_doctor_mappings"},
+		{"bpjs_doctor_mappings", "doctor_schedule_id", "doctor_schedules"},
+		// inventory
+		{"inventory_items", "room_id", "rooms"},
+		{"inventory_items", "room_unit_id", "room_units"},
+		{"inventory_transactions", "inventory_item_id", "inventory_items"},
+		{"inventory_transactions", "from_room_id", "rooms"},
+		{"inventory_transactions", "to_room_id", "rooms"},
+		// medicine
+		{"medicine_transactions", "medicine_batch_id", "medicine_batches"},
+		{"medicine_transactions", "from_room_id", "rooms"},
+		{"medicine_transactions", "to_room_id", "rooms"},
+		// nutrition
+		{"nutrition_orders", "package_id", "nutrition_packages"},
+		{"nutrition_orders", "ordered_by_id", "employees"},
+		// consultation
+		{"consultations", "procedure_order_id", "procedure_orders"},
+		{"consultations", "consultant_id", "employees"},
+		{"consultations", "created_by_id", "users"},
+		// archive
+		{"medical_record_archives", "digitized_by_id", "users"},
+		{"medical_record_archives", "created_by_id", "users"},
+		{"medical_record_archives", "updated_by_id", "users"},
+		{"archive_movements", "borrowed_by_id", "users"},
+		{"archive_movements", "processed_by_id", "users"},
+		{"archive_destructions", "proposed_by_id", "users"},
+		{"archive_destructions", "approved_by_id", "users"},
+		{"archive_destructions", "executed_by_id", "users"},
+		// eklaim
+		{"eklaim_logs", "user_id", "users"},
+		{"eklaim_locals", "created_by_id", "users"},
+		{"eklaim_rm_duplicates", "duplicated_by_id", "users"},
+		// medical records
+		{"triages", "triaged_by_id", "users"},
+		{"anamneses", "recorded_by_id", "users"},
+		{"physical_examinations", "examined_by_id", "users"},
+		{"diagnoses", "diagnosed_by_id", "users"},
+		{"diagnosis_summaries", "created_by_id", "users"},
+		{"assessment_plans", "assessed_by_id", "users"},
+		{"vital_signs", "measured_by_id", "users"},
+		{"sick_letters", "issued_by_id", "employees"},
+		{"death_certificates", "declaring_doctor_id", "employees"},
+		{"death_certificates", "issued_by_id", "employees"},
+		// inpatient
+		{"cppts", "verified_by_id", "users"},
+		{"cppts", "created_by_id", "users"},
+		{"fluid_balances", "created_by_id", "users"},
+		{"nursing_cares", "verified_by_id", "users"},
+		{"nursing_cares", "created_by_id", "users"},
+		// schedule
+		{"schedule_exceptions", "room_id", "rooms"},
+		{"schedule_exceptions", "employee_id", "employees"},
+		// signatures
+		{"signature_logs", "user_id", "users"},
+		// kfa
+		{"medicine_kfa_mappings", "verified_by_id", "users"},
+		// loinc
+		{"procedure_loinc_mappings", "verified_by_id", "users"},
+		// notifications
+		{"notifications", "room_id", "rooms"},
+		// patient allergy
+		{"patient_allergies", "recorded_by", "users"},
+	}
+
+	cleaned := 0
+	for _, o := range orphanChecks {
+		// Only clean if both tables exist
+		if !DB.Migrator().HasTable(o.table) || !DB.Migrator().HasTable(o.refTable) {
+			continue
+		}
+		result := DB.Exec(fmt.Sprintf(
+			`UPDATE %q SET %q = NULL WHERE %q IS NOT NULL AND %q NOT IN (SELECT id FROM %q)`,
+			o.table, o.column, o.column, o.column, o.refTable,
+		))
+		if result.RowsAffected > 0 {
+			log.Printf("Cleaned %d orphaned %s.%s references", result.RowsAffected, o.table, o.column)
+			cleaned += int(result.RowsAffected)
+		}
+	}
+
+	if cleaned > 0 {
+		log.Printf("Total orphaned FK references cleaned: %d", cleaned)
+	} else {
+		log.Println("No orphaned FK references found")
+	}
+}
+
 func Migrate() error {
+	// ==========================================
+	// STEP 1: Drop ALL existing foreign key constraints before AutoMigrate
+	// This prevents FK violation errors when tables have orphaned data
+	// from previous failed migrations or schema changes.
+	// AutoMigrate will recreate all FK constraints from model tags.
+	// ==========================================
+	dropAllForeignKeys()
+
+	// ==========================================
+	// STEP 2: Handle legacy schema migrations
+	// ==========================================
+
 	// Handle room module restructure - drop old tables if they exist with old schema
 	// Check if beds table has old room_id column (indicating old schema)
 	if DB.Migrator().HasColumn(&models.Bed{}, "room_id") {
 		log.Println("Detected old room schema, migrating to new structure...")
+		// Nullify FK references in visits before dropping beds
+		DB.Exec("UPDATE visits SET bed_id = NULL WHERE bed_id IS NOT NULL")
+		DB.Exec("UPDATE bed_transfers SET from_bed_id = NULL, to_bed_id = NULL")
+		DB.Exec("UPDATE admission_requests SET approved_bed_id = NULL")
+		DB.Exec("UPDATE dispositions SET admission_bed_id = NULL")
 		// Drop old tables in correct order
 		DB.Exec("DROP TABLE IF EXISTS beds CASCADE")
 		DB.Exec("DROP TABLE IF EXISTS room_staff CASCADE")
@@ -64,14 +262,11 @@ func Migrate() error {
 	// Handle new service_type column - check if rooms table exists but doesn't have service_type
 	if DB.Migrator().HasTable(&models.Room{}) && !DB.Migrator().HasColumn(&models.Room{}, "service_type") {
 		log.Println("Adding new columns to rooms table...")
-		// Add columns as nullable first
 		DB.Exec("ALTER TABLE rooms ADD COLUMN IF NOT EXISTS service_type varchar(50)")
 		DB.Exec("ALTER TABLE rooms ADD COLUMN IF NOT EXISTS has_bed boolean DEFAULT false")
 		DB.Exec("ALTER TABLE rooms ADD COLUMN IF NOT EXISTS has_schedule boolean DEFAULT false")
 		DB.Exec("ALTER TABLE rooms ADD COLUMN IF NOT EXISTS operating_hours varchar(100)")
-		// Update existing data with default values based on room_type
 		DB.Exec(`UPDATE rooms SET service_type = 'rawat_inap', has_bed = true WHERE service_type IS NULL`)
-		// Now make service_type NOT NULL
 		DB.Exec("ALTER TABLE rooms ALTER COLUMN service_type SET NOT NULL")
 		log.Println("Updated rooms table with new columns")
 	}
@@ -120,21 +315,18 @@ func Migrate() error {
 
 			// If old counter column exists, migrate the data
 			if hasOldCounter {
-				// Get counter IDs from counters table
 				var counters []models.Counter
 				DB.Order("display_order").Find(&counters)
 
 				if len(counters) >= 4 {
 					log.Println("Migrating queue data from counter to counter_id...")
-					// Map old counter values to new counter_id
 					for i := 0; i < 4 && i < len(counters); i++ {
-						oldCounterValue := i + 1 // 1, 2, 3, 4
+						oldCounterValue := i + 1
 						result := DB.Exec("UPDATE queues SET counter_id = ? WHERE counter = ? AND counter_id IS NULL", counters[i].ID, oldCounterValue)
 						log.Printf("Migrated %d queues from counter=%d to counter_id=%d", result.RowsAffected, oldCounterValue, counters[i].ID)
 					}
 				}
 
-				// Set default counter_id for any remaining null values (use first counter)
 				if len(counters) > 0 {
 					result := DB.Exec("UPDATE queues SET counter_id = ? WHERE counter_id IS NULL", counters[0].ID)
 					if result.RowsAffected > 0 {
@@ -142,12 +334,11 @@ func Migrate() error {
 					}
 				}
 
-				// Drop old counter column
 				DB.Exec("ALTER TABLE queues DROP COLUMN IF EXISTS counter")
 				log.Println("Dropped old counter column")
 			}
 
-			// Force delete any queues with null counter_id (old test data that cannot be migrated)
+			// Force delete any queues with null counter_id
 			var nullCount int64
 			DB.Model(&models.Queue{}).Where("counter_id IS NULL").Count(&nullCount)
 			if nullCount > 0 {
@@ -160,7 +351,16 @@ func Migrate() error {
 		}
 	}
 
-	// Auto-migrate all models with proper order for foreign key dependencies
+	// ==========================================
+	// STEP 3: Clean orphaned FK references
+	// Nullify any FK column that references a non-existent row.
+	// This prevents "violates foreign key constraint" errors during AutoMigrate.
+	// ==========================================
+	cleanOrphanedForeignKeys()
+
+	// ==========================================
+	// STEP 4: Auto-migrate all models with proper order for foreign key dependencies
+	// ==========================================
 	err := DB.AutoMigrate(
 		&models.Role{},           // First, roles
 		&models.Permission{},     // Then permissions
