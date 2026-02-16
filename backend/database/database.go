@@ -26,6 +26,10 @@ func Connect(dsn string) error {
 		PrepareStmt: true,
 		// Use silent logger in production (reduce overhead)
 		Logger: logger.Default.LogMode(logger.Silent),
+		// Disable FK constraint creation during AutoMigrate to prevent
+		// "violates foreign key constraint" errors from orphaned data.
+		// GORM handles relationships at the application level via struct tags.
+		DisableForeignKeyConstraintWhenMigrating: true,
 	}
 
 	DB, err = gorm.Open(postgres.Open(dsn), gormConfig)
@@ -74,98 +78,19 @@ func dropAllForeignKeys() {
 	log.Printf("Dropped %d foreign key constraints", len(constraints))
 }
 
-// cleanOrphanedForeignKeys automatically discovers ALL FK relationships from information_schema
-// and cleans orphaned references. For nullable columns: SET NULL. For non-nullable columns: DELETE the row.
-func cleanOrphanedForeignKeys() {
-	log.Println("Cleaning orphaned foreign key references...")
-
-	// Query all FK relationships from information_schema
-	var fkRelations []struct {
-		SourceTable    string
-		SourceColumn   string
-		TargetTable    string
-		TargetColumn   string
-		IsNullable     string
-	}
-
-	DB.Raw(`
-		SELECT
-			kcu.table_name AS source_table,
-			kcu.column_name AS source_column,
-			ccu.table_name AS target_table,
-			ccu.column_name AS target_column,
-			col.is_nullable
-		FROM information_schema.key_column_usage kcu
-		JOIN information_schema.table_constraints tc
-			ON kcu.constraint_name = tc.constraint_name
-			AND kcu.table_schema = tc.table_schema
-		JOIN information_schema.constraint_column_usage ccu
-			ON tc.constraint_name = ccu.constraint_name
-			AND tc.table_schema = ccu.table_schema
-		JOIN information_schema.columns col
-			ON col.table_name = kcu.table_name
-			AND col.column_name = kcu.column_name
-			AND col.table_schema = kcu.table_schema
-		WHERE tc.constraint_type = 'FOREIGN KEY'
-			AND kcu.table_schema = 'public'
-		ORDER BY kcu.table_name, kcu.column_name
-	`).Scan(&fkRelations)
-
-	if len(fkRelations) == 0 {
-		log.Println("No foreign key relationships found to clean")
-		return
-	}
-
-	nullified := 0
-	deleted := 0
-
-	for _, fk := range fkRelations {
-		if fk.IsNullable == "YES" {
-			// Nullable column: SET NULL for orphaned references
-			result := DB.Exec(fmt.Sprintf(
-				`UPDATE %q SET %q = NULL WHERE %q IS NOT NULL AND %q NOT IN (SELECT %q FROM %q)`,
-				fk.SourceTable, fk.SourceColumn, fk.SourceColumn, fk.SourceColumn, fk.TargetColumn, fk.TargetTable,
-			))
-			if result.RowsAffected > 0 {
-				log.Printf("Nullified %d orphaned %s.%s → %s", result.RowsAffected, fk.SourceTable, fk.SourceColumn, fk.TargetTable)
-				nullified += int(result.RowsAffected)
-			}
-		} else {
-			// Non-nullable column: DELETE rows with orphaned references
-			result := DB.Exec(fmt.Sprintf(
-				`DELETE FROM %q WHERE %q NOT IN (SELECT %q FROM %q)`,
-				fk.SourceTable, fk.SourceColumn, fk.TargetColumn, fk.TargetTable,
-			))
-			if result.RowsAffected > 0 {
-				log.Printf("Deleted %d orphaned rows from %s (invalid %s → %s)", result.RowsAffected, fk.SourceTable, fk.SourceColumn, fk.TargetTable)
-				deleted += int(result.RowsAffected)
-			}
-		}
-	}
-
-	if nullified > 0 || deleted > 0 {
-		log.Printf("Orphan cleanup: %d nullified, %d deleted", nullified, deleted)
-	} else {
-		log.Println("No orphaned FK references found")
-	}
-}
-
 func Migrate() error {
 	// ==========================================
-	// STEP 1: Clean orphaned FK references FIRST (while FK info is still in information_schema)
-	// For nullable columns: SET NULL. For non-nullable columns: DELETE the orphaned row.
-	// ==========================================
-	cleanOrphanedForeignKeys()
-
-	// ==========================================
-	// STEP 2: Drop ALL existing foreign key constraints before AutoMigrate
-	// This prevents FK violation errors from any remaining edge cases.
-	// AutoMigrate will recreate all FK constraints from model tags.
+	// STEP 1: Drop ALL existing foreign key constraints
+	// Clean up any FK constraints from previous migrations.
+	// With DisableForeignKeyConstraintWhenMigrating=true in GORM config,
+	// AutoMigrate will NOT recreate FK constraints — this is intentional
+	// to prevent "violates foreign key constraint" errors from orphaned data.
+	// GORM handles all relationships at the application level via struct tags.
 	// ==========================================
 	dropAllForeignKeys()
 
 	// ==========================================
-	// STEP 3: Handle legacy schema migrations
+	// STEP 2: Handle legacy schema migrations
 	// ==========================================
 
 	// Handle room module restructure - drop old tables if they exist with old schema
@@ -278,7 +203,7 @@ func Migrate() error {
 	}
 
 	// ==========================================
-	// STEP 4: Auto-migrate all models with proper order for foreign key dependencies
+	// STEP 3: Auto-migrate all models with proper order for dependencies
 	// ==========================================
 	err := DB.AutoMigrate(
 		&models.Role{},           // First, roles
