@@ -18,7 +18,6 @@ import {
   RotateCcw,
   AlertTriangle,
   Plus,
-  Trash2,
   Download,
   Code2,
 } from 'lucide-react';

@@ -8,7 +8,7 @@ import {
   eklaimLocalStatusColors,
   jenisRawatOptions,
 } from '@/lib/api/eklaim-local';
-import type { DashboardData, EKlaimLocalStatus } from '@/lib/api/eklaim-local';
+import type { DashboardData } from '@/lib/api/eklaim-local';
 import { useToast } from '@/hooks/use-toast';
 import { setPageTitle } from '@/lib/page-title';
 import {

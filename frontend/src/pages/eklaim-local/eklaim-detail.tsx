@@ -52,7 +52,6 @@ import {
   FileText,
   Send,
   Play,
-  BarChart3,
   CheckCircle,
   XCircle,
   Trash2,
