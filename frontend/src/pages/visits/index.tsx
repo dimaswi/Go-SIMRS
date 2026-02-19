@@ -81,7 +81,7 @@ const VISIT_TABS: VisitTab[] = [
   },
   {
     key: "pharmacy",
-    label: "farmasi",
+    label: "Farmasi",
     roomTypes: ["pharmacy", "farmasi"],
   },
   {
