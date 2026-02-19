@@ -240,7 +240,7 @@ export default function EklaimReportPage() {
   const totalRS = data.reduce((sum, d) => sum + (d.tarif_rs || 0), 0);
 
   return (
-    <div className="flex flex-1 flex-col gap-4 p-6">
+    <div className="flex flex-1 flex-col p-4">
       <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
         <div className="flex items-center justify-between">
           <div>

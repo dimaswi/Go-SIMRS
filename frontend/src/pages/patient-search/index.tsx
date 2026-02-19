@@ -133,7 +133,7 @@ export default function PatientSearchIndex() {
 
   if (!query) {
     return (
-      <div className="flex flex-1 flex-col gap-4 p-6">
+      <div className="flex flex-1 flex-col p-4">
         <div className="rounded-lg border py-16 text-center">
           <User className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
           <h3 className="text-lg font-semibold mb-2">Cari Pasien</h3>
@@ -146,7 +146,7 @@ export default function PatientSearchIndex() {
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-4 p-6">
+    <div className="flex flex-1 flex-col p-4">
       <div className="flex items-center justify-between">
         <div className="space-y-1">
           <h1 className="text-lg font-semibold">Hasil Pencarian</h1>

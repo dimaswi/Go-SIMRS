@@ -25,8 +25,8 @@ func GetEmployees(c *gin.Context) {
 	// Apply filters
 	if search != "" {
 		searchPattern := "%" + search + "%"
-		query = query.Where("nama_lengkap ILIKE ? OR nik ILIKE ? OR nip ILIKE ? OR email ILIKE ?",
-			searchPattern, searchPattern, searchPattern, searchPattern)
+		query = query.Where("nama_lengkap ILIKE ? OR nik ILIKE ? OR email ILIKE ?",
+			searchPattern, searchPattern, searchPattern)
 	}
 
 	if tipeKaryawan != "" {

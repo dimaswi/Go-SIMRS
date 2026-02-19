@@ -231,6 +231,7 @@ type CreateRoomRequest struct {
 	ServiceType   string  `json:"service_type" binding:"required"`
 	RoomType      string  `json:"room_type" binding:"required"`
 	RoomClass     string  `json:"room_class"`
+	KodeKelasBPJS string  `json:"kode_kelas_bpjs"`
 	TotalFloors   int     `json:"total_floors"`
 	TariffPerDay  float64 `json:"tariff_per_day"`
 	Facilities    string  `json:"facilities"`
@@ -285,6 +286,7 @@ func CreateRoom(c *gin.Context) {
 		ServiceType:   req.ServiceType,
 		RoomType:      req.RoomType,
 		RoomClass:     req.RoomClass,
+		KodeKelasBPJS: req.KodeKelasBPJS,
 		TotalFloors:   totalFloors,
 		TariffPerDay:  req.TariffPerDay,
 		Facilities:    req.Facilities,
@@ -314,6 +316,7 @@ type UpdateRoomRequest struct {
 	ServiceType   string  `json:"service_type" binding:"required"`
 	RoomType      string  `json:"room_type" binding:"required"`
 	RoomClass     string  `json:"room_class"`
+	KodeKelasBPJS string  `json:"kode_kelas_bpjs"`
 	TotalFloors   int     `json:"total_floors"`
 	TariffPerDay  float64 `json:"tariff_per_day"`
 	Facilities    string  `json:"facilities"`
@@ -375,6 +378,7 @@ func UpdateRoom(c *gin.Context) {
 	room.ServiceType = req.ServiceType
 	room.RoomType = req.RoomType
 	room.RoomClass = req.RoomClass
+	room.KodeKelasBPJS = req.KodeKelasBPJS
 	room.TotalFloors = totalFloors
 	room.TariffPerDay = req.TariffPerDay
 	room.Facilities = req.Facilities

@@ -232,7 +232,7 @@ export default function CheckInScannerPage() {
   };
 
   return (
-    <div className="flex flex-1 flex-col gap-4 p-6 h-full overflow-hidden">
+    <div className="flex flex-1 flex-col p-4 h-full overflow-hidden">
       <div className="rounded-lg border flex-1 flex flex-col overflow-hidden">
         <div className="flex items-center justify-between flex-shrink-0 p-6">
             <div className="space-y-1">

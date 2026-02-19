@@ -101,6 +101,8 @@ interface DataTableProps<TData, TValue> {
   // Legacy props untuk backward compatibility
   pageIndex?: number
   onPageIndexChange?: (pageIndex: number) => void
+  // Extra element rendered inline with the search input (e.g. room filter)
+  searchSlot?: React.ReactNode
 }
 
 export function DataTable<TData, TValue>({
@@ -117,6 +119,7 @@ export function DataTable<TData, TValue>({
   initialColumnVisibility = {},
   pageIndex: controlledPageIndex,
   onPageIndexChange,
+  searchSlot,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>(initialSorting)
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
@@ -220,7 +223,7 @@ export function DataTable<TData, TValue>({
     <div className="flex flex-col flex-1 w-full">
       {/* Search and Controls */}
       <div className="flex items-center justify-between py-4">
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center gap-2">
           {showSearch && (
             <Input
               placeholder={searchPlaceholder}
@@ -229,6 +232,7 @@ export function DataTable<TData, TValue>({
               className="max-w-sm"
             />
           )}
+          {searchSlot}
         </div>
         {showColumnVisibility && (
           <DropdownMenu>

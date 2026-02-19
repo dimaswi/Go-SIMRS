@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
@@ -49,17 +49,57 @@ import {
   Volume2,
   ScreenShare,
 } from "lucide-react";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
 import { roomQueuesApi, roomsApi, visitsApi } from "@/lib/api";
 import type { Room } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/lib/store";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
+
+// ── Tab definitions ─────────────────────────────────────────────────────────
+interface VisitTab {
+  key: string;               // visit_type value(s) sent to API (comma-separated)
+  label: string;             // displayed label
+  roomTypes: string[];       // room_type values used to filter room dropdown
+}
+
+const VISIT_TABS: VisitTab[] = [
+  {
+    key: "outpatient",
+    label: "Rawat Jalan",
+    roomTypes: ["poliklinik", "poli", "rawat_jalan", "klinik"],
+  },
+  {
+    key: "inpatient",
+    label: "Rawat Inap",
+    roomTypes: ["rawat_inap", "icu", "iccu", "nicu", "picu", "vk", "isolasi"],
+  },
+  {
+    key: "emergency",
+    label: "UGD / IGD",
+    roomTypes: ["ugd", "igd", "emergency", "gawat_darurat"],
+  },
+  {
+    key: "lab",
+    label: "Laboratorium",
+    roomTypes: ["laboratorium", "lab"],
+  },
+  {
+    key: "radiology",
+    label: "Radiologi",
+    roomTypes: ["radiologi", "radiology"],
+  },
+  {
+    key: "consultation",
+    label: "Konsul",
+    roomTypes: ["poliklinik", "poli", "rawat_jalan", "klinik", "rawat_inap", "icu", "iccu"],
+  },
+  {
+    key: "surgery",
+    label: "Operasi",
+    roomTypes: ["ok", "kamar_operasi", "bedah", "surgery"],
+  },
+];
 
 interface Visit {
   id: number;
@@ -117,11 +157,34 @@ export default function VisitsIndex() {
     }
   };
 
+  // ── All visits (no visit_type filter) used for badge counts ──
+  const [allVisits, setAllVisits] = useState<Visit[]>([]);
+  // ── Filtered visits displayed in table ──
   const [visits, setVisits] = useState<Visit[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
-  const [selectedRoom, setSelectedRoom] = useState<string>(() =>
-    getSavedFilter("room", "")
+
+  // Active tab (visit_type key)
+  const [activeTab, setActiveTab] = useState<string>(() =>
+    getSavedFilter("tab", VISIT_TABS[0].key)
   );
+  // Per-tab room selection map: { [tab_key]: room_id_string }
+  const [tabRooms, setTabRooms] = useState<Record<string, string>>(() => {
+    try {
+      const saved = localStorage.getItem("visits_tab_rooms");
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+  const selectedRoom = tabRooms[activeTab] || "";
+  const setSelectedRoom = (roomId: string) => {
+    setTabRooms((prev) => {
+      const next = { ...prev, [activeTab]: roomId };
+      try { localStorage.setItem("visits_tab_rooms", JSON.stringify(next)); } catch {}
+      return next;
+    });
+  };
+
   const [selectedStatus, setSelectedStatus] = useState<string>(() =>
     getSavedFilter("status", "active")
   );
@@ -140,15 +203,42 @@ export default function VisitsIndex() {
   const adminRoles = ["admin", "super admin", "system administrator", "sistem admin"];
   const isAdmin = adminRoles.includes(user?.role?.name?.toLowerCase() || "");
 
-  // Save filters to localStorage whenever they change
+  // Current tab definition
+  const currentTab = VISIT_TABS.find((t) => t.key === activeTab) ?? VISIT_TABS[0];
+
+  // Rooms filtered to match current tab's room types
+  const tabRoomOptions = useMemo(() => {
+    if (currentTab.roomTypes.length === 0) return rooms;
+    return rooms.filter((r) =>
+      currentTab.roomTypes.some(
+        (rt) =>
+          r.room_type?.toLowerCase().includes(rt) ||
+          rt.includes(r.room_type?.toLowerCase() ?? "")
+      )
+    );
+  }, [rooms, currentTab]);
+
+  // Badge counts: active (waiting/in_queue/in_progress) per tab
+  const tabBadgeCounts = useMemo(() => {
+    const activeStatuses = ["waiting", "in_queue", "in_progress"];
+    const counts: Record<string, number> = {};
+    for (const tab of VISIT_TABS) {
+      counts[tab.key] = allVisits.filter(
+        (v) =>
+          v.visit_type === tab.key &&
+          activeStatuses.includes(v.status)
+      ).length;
+    }
+    return counts;
+  }, [allVisits]);
+
+  // Save tab & status to localStorage
   useEffect(() => {
     try {
-      localStorage.setItem("visits_filter_room", selectedRoom);
+      localStorage.setItem("visits_filter_tab", activeTab);
       localStorage.setItem("visits_filter_status", selectedStatus);
-    } catch (error) {
-      console.error("Failed to save filters:", error);
-    }
-  }, [selectedRoom, selectedStatus]);
+    } catch {}
+  }, [activeTab, selectedStatus]);
 
   useEffect(() => {
     setPageTitle("Kunjungan");
@@ -156,12 +246,19 @@ export default function VisitsIndex() {
   }, [isAdmin]);
 
   useEffect(() => {
+    loadAllVisits();
+  }, [selectedDate]);
+
+  useEffect(() => {
     // Load visits on mount and when filters change
     loadVisits();
     // Auto refresh every 10 seconds
-    const interval = setInterval(loadVisits, 10000);
+    const interval = setInterval(() => {
+      loadVisits();
+      loadAllVisits();
+    }, 10000);
     return () => clearInterval(interval);
-  }, [selectedRoom, selectedStatus, selectedDate]);
+  }, [selectedRoom, selectedStatus, selectedDate, activeTab]);
 
   const loadRooms = async () => {
     try {
@@ -186,10 +283,26 @@ export default function VisitsIndex() {
     }
   };
 
+  // Load ALL active visits (for badge counts), no visit_type filter
+  const loadAllVisits = useCallback(async () => {
+    try {
+      const params: any = { status: "waiting,in_queue,in_progress" };
+      if (selectedDate) {
+        params.start_date = selectedDate;
+        params.end_date = selectedDate;
+      }
+      const response = await visitsApi.getAll(params);
+      setAllVisits(response.data || []);
+    } catch {}
+  }, [selectedDate]);
+
   const loadVisits = useCallback(async () => {
     setLoading(true);
     try {
       const params: any = {};
+
+      // Filter by active tab visit_type
+      params.visit_type = activeTab;
 
       // Only add date filter if date is selected
       if (selectedDate) {
@@ -231,7 +344,7 @@ export default function VisitsIndex() {
     } finally {
       setLoading(false);
     }
-  }, [selectedRoom, selectedStatus, selectedDate, toast]);
+  }, [selectedRoom, selectedStatus, selectedDate, activeTab, toast]);
 
   const handleCallQueue = async (visit: Visit) => {
     if (!visit.room_queue) {
@@ -376,40 +489,94 @@ export default function VisitsIndex() {
     );
   }
 
-  return (
-    <div className="flex flex-1 flex-col gap-4 p-6">
-      <Collapsible open={filterOpen} onOpenChange={setFilterOpen}>
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold">
-            Kunjungan Pasien
-            {selectedRoom &&
-              rooms.find((r) => r.id.toString() === selectedRoom) && (
-                <>
-                  {" - "}
-                  <Button
-                    variant="link"
-                    className="h-auto p-0 text-base font-semibold text-primary hover:underline"
-                    onClick={() =>
-                      navigate(`/rooms/show/${selectedRoom}`)
-                    }
+  const roomFilterSlot = (
+    <div className="flex items-center gap-2">
+      <Popover open={roomPopoverOpen} onOpenChange={setRoomPopoverOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            role="combobox"
+            className={cn(
+              "h-9 w-[220px] justify-between font-normal",
+              !selectedRoom && "text-muted-foreground"
+            )}
+          >
+            <span className="truncate">
+              {selectedRoom
+                ? (() => {
+                    const r = rooms.find((r) => r.id.toString() === selectedRoom);
+                    return r ? `${r.code} - ${r.name}` : `Semua ${currentTab.label}`;
+                  })()
+                : `Semua ${currentTab.label}`}
+            </span>
+            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[260px] p-0" align="start">
+          <Command>
+            <CommandInput placeholder="Cari ruangan..." />
+            <CommandList>
+              <CommandEmpty>Ruangan tidak ditemukan.</CommandEmpty>
+              <CommandGroup>
+                <CommandItem
+                  value="Semua Ruangan"
+                  onSelect={() => { setSelectedRoom(""); setRoomPopoverOpen(false); }}
+                >
+                  <Check className={cn("mr-2 h-4 w-4", !selectedRoom ? "opacity-100" : "opacity-0")} />
+                  Semua {currentTab.label}
+                </CommandItem>
+                {(tabRoomOptions.length > 0 ? tabRoomOptions : rooms).map((room) => (
+                  <CommandItem
+                    key={room.id}
+                    value={`${room.code} ${room.name}`}
+                    onSelect={() => { setSelectedRoom(room.id.toString()); setRoomPopoverOpen(false); }}
                   >
-                    {
-                      rooms.find(
-                        (r) => r.id.toString() === selectedRoom
-                      )?.name
-                    }
-                  </Button>
-                </>
-              )}
-          </h1>
+                    <Check className={cn("mr-2 h-4 w-4", selectedRoom === room.id.toString() ? "opacity-100" : "opacity-0")} />
+                    {room.code} - {room.name}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+
+      {selectedRoom && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-9 w-9 text-muted-foreground hover:text-foreground"
+          onClick={() => setSelectedRoom("")}
+        >
+          <RefreshCcw className="h-3.5 w-3.5" />
+        </Button>
+      )}
+      {loading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+    </div>
+  );
+
+  return (
+    <div className="flex flex-1 flex-col p-4">
+
+      {/* ── Header ────────────────────────────────────────────────── */}
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-lg font-semibold">Kunjungan Pasien</h1>
           <p className="text-sm text-muted-foreground">
-            Kelola kunjungan pasien -{" "}
             {selectedDate
-              ? format(new Date(selectedDate), "EEEE, dd MMMM yyyy", {
-                  locale: idLocale,
-                })
+              ? format(new Date(selectedDate), "EEEE, dd MMMM yyyy", { locale: idLocale })
               : "Semua Data"}
+            {selectedRoom && rooms.find((r) => r.id.toString() === selectedRoom) && (
+              <>
+                {" · "}
+                <button
+                  className="text-primary hover:underline"
+                  onClick={() => navigate(`/rooms/show/${selectedRoom}`)}
+                >
+                  {rooms.find((r) => r.id.toString() === selectedRoom)?.name}
+                </button>
+              </>
+            )}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -417,183 +584,85 @@ export default function VisitsIndex() {
             <Button
               variant="outline"
               size="sm"
-              className="h-9"
-              onClick={() =>
-                window.open(
-                  `/room-queue/display/${selectedRoom}`,
-                  "_blank"
-                )
-              }
+              className="h-8 text-xs"
+              onClick={() => window.open(`/room-queue/display/${selectedRoom}`, "_blank")}
             >
-              <Tv className="h-4 w-4 mr-2" />
+              <Tv className="h-3.5 w-3.5 mr-1.5" />
               Display Ruangan
             </Button>
           )}
           <Button
-            variant={displayPanelOpen ? "default" : "outline"}
+            variant={displayPanelOpen ? "secondary" : "outline"}
             size="sm"
-            className="h-9"
+            className="h-8 text-xs"
             onClick={() => setDisplayPanelOpen(!displayPanelOpen)}
           >
-            <ScreenShare className="h-4 w-4 mr-2" />
-            Display Per Ruangan
+            <ScreenShare className="h-3.5 w-3.5 mr-1.5" />
+            Display
           </Button>
-          <CollapsibleTrigger asChild>
-            <Button variant="outline" size="sm" className="h-9">
-              <SlidersHorizontal className="h-4 w-4 mr-2" />
-              Filter
-            </Button>
-          </CollapsibleTrigger>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs"
+            onClick={() => setFilterOpen(!filterOpen)}
+          >
+            <SlidersHorizontal className="h-3.5 w-3.5 mr-1.5" />
+            Filter
+            {(selectedDate || selectedStatus !== "active") && (
+              <span className="ml-1.5 h-1.5 w-1.5 rounded-full bg-primary inline-block" />
+            )}
+          </Button>
         </div>
       </div>
-      <CollapsibleContent>
-      <div className="flex items-center gap-2 flex-wrap pt-4">
-        {/* Date Filter */}
-        <Input
-          type="date"
-          value={selectedDate}
-          onChange={(e) => setSelectedDate(e.target.value)}
-          className="h-9 w-40"
-        />
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setSelectedDate("")}
-          className="h-9 px-3"
-        >
-          Semua Data
-        </Button>
 
-        <div className="h-6 border-r"></div>
-
-        {/* Room Filter */}
-        <Popover
-          open={roomPopoverOpen}
-          onOpenChange={setRoomPopoverOpen}
-        >
-          <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              role="combobox"
-              className={cn(
-                "h-9 w-[250px] justify-between",
-                !selectedRoom && "text-muted-foreground"
-              )}
-            >
-              {selectedRoom
-                ? `${
-                    rooms.find(
-                      (r) => r.id.toString() === selectedRoom
-                    )?.code
-                  } - ${
-                    rooms.find(
-                      (r) => r.id.toString() === selectedRoom
-                    )?.name
-                  }`
-                : "Semua Ruangan"}
-              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-[250px] p-0" align="start">
-            <Command>
-              <CommandInput placeholder="Cari ruangan..." />
-              <CommandList>
-                <CommandEmpty>Ruangan tidak ditemukan.</CommandEmpty>
-                <CommandGroup>
-                  <CommandItem
-                    value="Semua Ruangan"
-                    onSelect={() => {
-                      setSelectedRoom("");
-                      setRoomPopoverOpen(false);
-                    }}
-                  >
-                    <Check
-                      className={cn(
-                        "mr-2 h-4 w-4",
-                        !selectedRoom ? "opacity-100" : "opacity-0"
-                      )}
-                    />
-                    Semua Ruangan
-                  </CommandItem>
-                  {rooms.map((room) => (
-                    <CommandItem
-                      key={room.id}
-                      value={`${room.code} ${room.name}`}
-                      onSelect={() => {
-                        setSelectedRoom(room.id.toString());
-                        setRoomPopoverOpen(false);
-                      }}
-                    >
-                      <Check
-                        className={cn(
-                          "mr-2 h-4 w-4",
-                          selectedRoom === room.id.toString()
-                            ? "opacity-100"
-                            : "opacity-0"
-                        )}
-                      />
-                      {room.code} - {room.name}
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </CommandList>
-            </Command>
-          </PopoverContent>
-        </Popover>
-
-        {/* Status Filter */}
-        <Select
-          value={selectedStatus}
-          onValueChange={setSelectedStatus}
-        >
-          <SelectTrigger className="h-9 w-[150px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="active">
-              Aktif (Belum Selesai)
-            </SelectItem>
-            <SelectItem value="all">Semua Status</SelectItem>
-            <SelectItem value="waiting">Menunggu</SelectItem>
-            <SelectItem value="in_queue">Dalam Antrian</SelectItem>
-            <SelectItem value="in_progress">
-              Sedang Dilayani
-            </SelectItem>
-            <SelectItem value="completed">Selesai</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <div className="ml-auto flex items-center gap-2">
-          {selectedRoom && (
-            <Button
-              variant="outline"
-              size="icon"
-              className="h-9 w-9"
-              onClick={loadVisits}
-            >
-              <RefreshCcw className="h-4 w-4" />
+      {/* ── Filter Panel ─────────────────────────────────────────── */}
+      {filterOpen && (
+        <div className="flex items-center gap-2 flex-wrap p-3 border rounded-lg bg-muted/30">
+          <Input
+            type="date"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            className="h-8 w-36 text-xs"
+          />
+          {selectedDate && (
+            <Button variant="ghost" size="sm" onClick={() => setSelectedDate("")} className="h-8 px-2 text-xs">
+              ✕ Reset Tgl
             </Button>
           )}
+          <div className="h-5 border-r" />
+          <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+            <SelectTrigger className="h-8 w-[155px] text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="active">Aktif (Belum Selesai)</SelectItem>
+              <SelectItem value="all">Semua Status</SelectItem>
+              <SelectItem value="waiting">Menunggu</SelectItem>
+              <SelectItem value="in_queue">Dalam Antrian</SelectItem>
+              <SelectItem value="in_progress">Sedang Dilayani</SelectItem>
+              <SelectItem value="completed">Selesai</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => { loadVisits(); loadAllVisits(); }}
+          >
+            <RefreshCcw className="h-3.5 w-3.5" />
+          </Button>
         </div>
-      </div>
-      </CollapsibleContent>
-      </Collapsible>
+      )}
 
-      {/* Display Per Ruangan Panel */}
+      {/* ── Display Per Ruangan Panel ─────────────────────────────── */}
       {displayPanelOpen && (
         <div className="border rounded-lg p-4 bg-muted/30">
           <div className="flex items-center justify-between mb-3">
             <div>
               <h3 className="font-semibold text-sm">Display Per Ruangan</h3>
-              <p className="text-xs text-muted-foreground">
-                Buka display antrean per ruangan dengan suara pengumuman
-              </p>
+              <p className="text-xs text-muted-foreground">Buka display antrean per ruangan dengan suara pengumuman</p>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => window.open("/queue-display", "_blank")}
-            >
+            <Button variant="outline" size="sm" onClick={() => window.open("/queue-display", "_blank")}>
               <Tv className="h-3 w-3 mr-1" />
               Pengaturan Display
               <ExternalLink className="h-3 w-3 ml-1 text-muted-foreground" />
@@ -621,16 +690,48 @@ export default function VisitsIndex() {
         </div>
       )}
 
+      {/* ── Tabs ─────────────────────────────────────────────────── */}
+      <div className="flex items-end gap-0 border-b overflow-x-auto">
+        {VISIT_TABS.map((tab) => {
+          const count = tabBadgeCounts[tab.key] ?? 0;
+          const isActive = activeTab === tab.key;
+          return (
+            <button
+              key={tab.key}
+              onClick={() => { setActiveTab(tab.key); setRoomPopoverOpen(false); }}
+              className={cn(
+                "relative flex shrink-0 items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px",
+                isActive
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {tab.label}
+              {count > 0 && (
+                <span className="inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-[10px] font-semibold rounded-full bg-destructive text-destructive-foreground">
+                  {count}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ── Data Table ───────────────────────────────────────────── */}
       <DataTable
         columns={columns}
         data={visits}
         searchPlaceholder="Cari nomor RM, nama pasien, nomor kunjungan..."
         pageSize={10}
         tableId="visits"
+        searchSlot={roomFilterSlot}
       />
 
-      {/* Cancel Visit Confirmation Dialog */}
-      <AlertDialog open={!!cancelConfirmVisit} onOpenChange={(open) => !open && setCancelConfirmVisit(null)}>
+      {/* ── Cancel Visit Confirmation Dialog ──────────────────────── */}
+      <AlertDialog
+        open={!!cancelConfirmVisit}
+        onOpenChange={(open) => !open && setCancelConfirmVisit(null)}
+      >
         <AlertDialogContent className="max-w-sm">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-sm">Batalkan Kunjungan?</AlertDialogTitle>

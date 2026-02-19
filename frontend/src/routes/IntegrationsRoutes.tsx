@@ -13,6 +13,7 @@ const BPJSLogs = lazy(() => import('@/pages/bpjs/logs'));
 const BPJSAPITester = lazy(() => import('@/pages/bpjs/api-tester'));
 const BPJSQueueMonitoring = lazy(() => import('@/pages/bpjs/queue-monitoring'));
 const BPJSTools = lazy(() => import('@/pages/bpjs/tools'));
+const BPJSAplicare = lazy(() => import('@/pages/bpjs/aplicare'));
 
 export function IntegrationsRoutes(ProtectedRoute: React.ComponentType<{ children: React.ReactNode }>) {
   return (
@@ -79,6 +80,13 @@ export function IntegrationsRoutes(ProtectedRoute: React.ComponentType<{ childre
         <ProtectedRoute>
           <PermissionGuard permission="integrations.view">
             <BPJSTools />
+          </PermissionGuard>
+        </ProtectedRoute>
+      } />
+      <Route path="/bpjs/aplicare" element={
+        <ProtectedRoute>
+          <PermissionGuard permission="integrations.view">
+            <BPJSAplicare />
           </PermissionGuard>
         </ProtectedRoute>
       } />

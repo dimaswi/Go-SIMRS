@@ -32,7 +32,7 @@ func GetProcedures(c *gin.Context) {
 	// Apply filters
 	if search != "" {
 		searchPattern := "%" + search + "%"
-		query = query.Where("code ILIKE ? OR name ILIKE ? OR inacbg_code ILIKE ? OR icd9cm_code ILIKE ?",
+		query = query.Where("code ILIKE ? OR name ILIKE ? OR inacbg_code ILIKE ? OR icd9_cm_code ILIKE ?",
 			searchPattern, searchPattern, searchPattern, searchPattern)
 	}
 
@@ -264,10 +264,11 @@ func UpdateProcedure(c *gin.Context) {
 		return
 	}
 
-	// Delete existing tariffs and recreate
-	if err := tx.Where("procedure_id = ?", procedure.ID).Delete(&models.ProcedureTariff{}).Error; err != nil {
+	// Delete existing tariffs completely using raw SQL to avoid unique constraint violation
+	// This ensures all tariffs are physically deleted before creating new ones
+	if err := tx.Exec("DELETE FROM procedure_tariffs WHERE procedure_id = ?", procedure.ID).Error; err != nil {
 		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menghapus tarif lama: " + err.Error()})
 		return
 	}
 

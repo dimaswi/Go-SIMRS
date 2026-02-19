@@ -113,8 +113,8 @@ type EKlaimLocal struct {
 	FormDataSaved bool `gorm:"default:false" json:"form_data_saved"`
 
 	// E-Klaim data for set_claim_data (editable form fields)
-	TglMasuk        string  `gorm:"size:10" json:"tgl_masuk"`        // yyyy-mm-dd
-	TglPulang       string  `gorm:"size:10" json:"tgl_pulang"`       // yyyy-mm-dd
+	TglMasuk        string  `gorm:"size:30" json:"tgl_masuk"`        // yyyy-mm-dd HH:mm:ss
+	TglPulang       string  `gorm:"size:30" json:"tgl_pulang"`       // yyyy-mm-dd HH:mm:ss
 	CaraMasuk       string  `gorm:"size:20" json:"cara_masuk"`       // gp, hosp-trans, mp, outp, inp, emd, born, nursing, psych, rehab, other
 	JenisRawat      string  `gorm:"size:5" json:"jenis_rawat"`       // 1=RI, 2=RJ
 	KelasRawat      string  `gorm:"size:5" json:"kelas_rawat"`       // 1, 2, 3
@@ -372,24 +372,28 @@ type EKlaimRMDuplicate struct {
 	HistoryOfPresentIllness string `gorm:"type:text" json:"history_of_present_illness"`
 	PastMedicalHistory      string `gorm:"type:text" json:"past_medical_history"`
 	FamilyHistory           string `gorm:"type:text" json:"family_history"`
+	SocialHistory           string `gorm:"type:text" json:"social_history"`
 	Allergies               string `gorm:"type:text" json:"allergies"`
 	CurrentMedications      string `gorm:"type:text" json:"current_medications"`
+	ReviewOfSystems         string `gorm:"type:text" json:"review_of_systems"`
 
 	// ===== PEMERIKSAAN FISIK / VITAL SIGNS (Editable copy) =====
 	GeneralCondition string  `gorm:"type:text" json:"general_condition"`
-	Consciousness    string  `gorm:"size:50" json:"consciousness"`
-	BloodPressure    string  `gorm:"size:20" json:"blood_pressure"`
+	Consciousness    string  `gorm:"size:100" json:"consciousness"`
+	BloodPressure    string  `gorm:"size:100" json:"blood_pressure"`
 	Systolic         int     `json:"systolic"`
 	Diastolic        int     `json:"diastolic"`
-	HeartRate        string  `gorm:"size:20" json:"heart_rate"`
-	RespiratoryRate  string  `gorm:"size:20" json:"respiratory_rate"`
-	Temperature      string  `gorm:"size:20" json:"temperature"`
-	OxygenSaturation string  `gorm:"size:20" json:"oxygen_saturation"`
-	Weight           string  `gorm:"size:20" json:"weight"`
-	Height           string  `gorm:"size:20" json:"height"`
+	HeartRate        string  `gorm:"size:100" json:"heart_rate"`
+	RespiratoryRate  string  `gorm:"size:100" json:"respiratory_rate"`
+	Temperature      string  `gorm:"size:100" json:"temperature"`
+	OxygenSaturation string  `gorm:"size:100" json:"oxygen_saturation"`
+	Weight           string  `gorm:"size:100" json:"weight"`
+	Height           string  `gorm:"size:100" json:"height"`
 	BMI              float64 `json:"bmi"`
+	Waist            string  `gorm:"size:100" json:"waist"`
+	HeadCircum       string  `gorm:"size:100" json:"head_circum"`
 
-	// Body System Examinations
+	// Body System Examinations (legacy composite fields)
 	HeadNeck     string `gorm:"type:text" json:"head_neck"`
 	Eyes         string `gorm:"type:text" json:"eyes"`
 	ENT          string `gorm:"type:text" json:"ent"`
@@ -401,18 +405,76 @@ type EKlaimRMDuplicate struct {
 	Neurological string `gorm:"type:text" json:"neurological"`
 	Skin         string `gorm:"type:text" json:"skin"`
 
+	// Body System Examinations (new individual fields)
+	Head          string `gorm:"type:text" json:"head"`
+	Ears          string `gorm:"type:text" json:"ears"`
+	Nose          string `gorm:"type:text" json:"nose"`
+	Throat        string `gorm:"type:text" json:"throat"`
+	Neck          string `gorm:"type:text" json:"neck"`
+	Chest         string `gorm:"type:text" json:"chest"`
+	Heart         string `gorm:"type:text" json:"heart"`
+	Lungs         string `gorm:"type:text" json:"lungs"`
+	Musculoskel   string `gorm:"type:text" json:"musculoskel"`
+	Genitourinary string `gorm:"type:text" json:"genitourinary"`
+	OtherFindings string `gorm:"type:text" json:"other_findings"`
+
+	// Supporting Examinations - ECG
+	ECGPerformed      bool   `gorm:"default:false" json:"ecg_performed"`
+	ECGResult         string `gorm:"type:text" json:"ecg_result"`
+	ECGInterpretation string `gorm:"size:100" json:"ecg_interpretation"`
+	ECGNotes          string `gorm:"type:text" json:"ecg_notes"`
+
 	// ===== ASSESSMENT & PLAN (Editable copy) =====
 	ClinicalAssessment string `gorm:"type:text" json:"clinical_assessment"`
 	Prognosis          string `gorm:"type:text" json:"prognosis"`
 	TreatmentPlan      string `gorm:"type:text" json:"treatment_plan"`
 	MedicationPlan     string `gorm:"type:text" json:"medication_plan"`
+	DietPlan           string `gorm:"type:text" json:"diet_plan"`
+	ActivityPlan       string `gorm:"type:text" json:"activity_plan"`
+	EducationPlan      string `gorm:"type:text" json:"education_plan"`
+	MonitoringPlan     string `gorm:"type:text" json:"monitoring_plan"`
+	ProcedurePlan      string `gorm:"type:text" json:"procedure_plan"`
+	ConsultationPlan   string `gorm:"type:text" json:"consultation_plan"`
 
 	// ===== DISPOSITION (Editable copy) =====
 	DispositionType      string `gorm:"size:50" json:"disposition_type"`
+	DispositionNote      string `gorm:"type:text" json:"disposition_note"`
 	DischargeStatus      string `gorm:"size:50" json:"rm_discharge_status"`
 	DischargeCondition   string `gorm:"size:50" json:"discharge_condition"`
 	DischargeInstruction string `gorm:"type:text" json:"discharge_instruction"`
+	DischargeMedication  string `gorm:"type:text" json:"discharge_medication"`
 	FollowUpInstruction  string `gorm:"type:text" json:"follow_up_instruction"`
+	FollowUpDate         string `gorm:"size:100" json:"follow_up_date"`
+	ReferralFacility     string `gorm:"size:200" json:"referral_facility"`
+	ReferralReason       string `gorm:"type:text" json:"referral_reason"`
+	ReferralDiagnosis    string `gorm:"type:text" json:"referral_diagnosis"`
+	ReferralTherapy      string `gorm:"type:text" json:"referral_therapy"`
+	ReferralNotes        string `gorm:"type:text" json:"referral_notes"`
+	DeathTime            string `gorm:"size:100" json:"death_time"`
+	DeathCause           string `gorm:"type:text" json:"death_cause"`
+
+	// ===== TRIAGE UGD (Editable copy — hanya untuk kunjungan UGD/IGD) =====
+	TriageArrivalMode     string `gorm:"size:50" json:"triage_arrival_mode"`
+	TriageComplaint       string `gorm:"type:text" json:"triage_complaint"`
+	TriageLevel           string `gorm:"size:20" json:"triage_level"`
+	TriageAirway          string `gorm:"size:100" json:"triage_airway"`
+	TriageAirwayNote      string `gorm:"type:text" json:"triage_airway_note"`
+	TriageBreathing       string `gorm:"size:100" json:"triage_breathing"`
+	TriageBreathingNote   string `gorm:"type:text" json:"triage_breathing_note"`
+	TriageCirculation     string `gorm:"size:100" json:"triage_circulation"`
+	TriageCirculationNote string `gorm:"type:text" json:"triage_circulation_note"`
+	TriageBloodPressure   string `gorm:"size:100" json:"triage_blood_pressure"`
+	TriageHeartRate       string `gorm:"size:100" json:"triage_heart_rate"`
+	TriageRespiratoryRate string `gorm:"size:100" json:"triage_respiratory_rate"`
+	TriageTemperature     string `gorm:"size:100" json:"triage_temperature"`
+	TriageOxygenSat       string `gorm:"size:100" json:"triage_oxygen_saturation"`
+	TriagePainScale       int    `gorm:"default:0" json:"triage_pain_scale"`
+	TriageGCSE            int    `gorm:"default:4" json:"triage_gcs_e"`
+	TriageGCSV            int    `gorm:"default:5" json:"triage_gcs_v"`
+	TriageGCSM            int    `gorm:"default:6" json:"triage_gcs_m"`
+	TriageAssessment      string `gorm:"type:text" json:"triage_assessment"`
+	TriageImmediateAction string `gorm:"type:text" json:"triage_immediate_actions"`
+	HasTriage             bool   `gorm:"default:false" json:"has_triage"` // true bila kunjungan UGD dan ada triage
 
 	// Editable Diagnoses (E-Klaim version)
 	Diagnoses []EKlaimRMDiagnosis `gorm:"foreignKey:RMDuplicateID" json:"diagnoses,omitempty"`
@@ -420,14 +482,21 @@ type EKlaimRMDuplicate struct {
 	// Editable Procedures (E-Klaim version)
 	Procedures []EKlaimRMProcedure `gorm:"foreignKey:RMDuplicateID" json:"procedures,omitempty"`
 
-	// Editable Lab Results (E-Klaim version)
-	LabResults []EKlaimRMLabResult `gorm:"foreignKey:RMDuplicateID" json:"lab_results,omitempty"`
+	// Editable Orders (unified: laboratory, radiology, surgery, consultation)
+	// Mirrors ProcedureOrder → ProcedureOrderItem → ProcedureOrderResult hierarchy
+	Orders []EKlaimRMOrder `gorm:"foreignKey:RMDuplicateID" json:"orders,omitempty"`
 
-	// Editable Radiology Results (E-Klaim version)
-	RadiologyResults []EKlaimRMRadiologyResult `gorm:"foreignKey:RMDuplicateID" json:"radiology_results,omitempty"`
+	// Editable Medicine Items (E-Klaim version — obat, separate from ProcedureOrder system)
+	MedicineItems []EKlaimRMMedicineItem `gorm:"foreignKey:RMDuplicateID" json:"medicine_items,omitempty"`
 
-	// Editable Surgery Notes (E-Klaim version)
-	SurgeryNotes []EKlaimRMSurgeryNote `gorm:"foreignKey:RMDuplicateID" json:"surgery_notes,omitempty"`
+	// Editable CPPT (E-Klaim version — rawat inap)
+	CPPTNotes []EKlaimRMCPPT `gorm:"foreignKey:RMDuplicateID" json:"cppt_notes,omitempty"`
+
+	// Editable Fluid Balance (E-Klaim version — balance cairan rawat inap)
+	FluidBalances []EKlaimRMFluidBalance `gorm:"foreignKey:RMDuplicateID" json:"fluid_balances,omitempty"`
+
+	// Duplicate Billing (E-Klaim version — for display only, separate from real billing)
+	Billing *EKlaimRMBilling `gorm:"foreignKey:RMDuplicateID" json:"billing,omitempty"`
 
 	// Editable Tarif — sesuai breakdown E-Klaim set_claim_data tarif_rs
 	TarifProsedurNonBedah float64 `json:"tarif_prosedur_non_bedah"`
@@ -450,6 +519,12 @@ type EKlaimRMDuplicate struct {
 	TarifSewaAlat         float64 `json:"tarif_sewa_alat"`
 	TotalTarif            float64 `json:"total_tarif"`
 
+	// Inpatient-specific fields
+	AdmissionDate             string  `gorm:"size:100" json:"admission_date"`                          // Tanggal masuk rawat inap (yyyy-mm-dd HH:mm:ss)
+	DischargeDate             string  `gorm:"size:100" json:"discharge_date"`                          // Tanggal keluar rawat inap (yyyy-mm-dd HH:mm:ss)
+	LengthOfStay              int     `gorm:"default:0" json:"length_of_stay"`                        // Jumlah hari rawat (override manual, 0 = auto-calculate)
+	AccommodationTariffPerDay float64 `gorm:"type:decimal(15,2)" json:"accommodation_tariff_per_day"` // Tarif akomodasi per hari (override manual, 0 = auto dari room tariff)
+
 	// Audit
 	DuplicatedByID *uint      `gorm:"index" json:"duplicated_by_id"`
 	DuplicatedBy   *User      `gorm:"foreignKey:DuplicatedByID" json:"duplicated_by,omitempty"`
@@ -467,7 +542,7 @@ type EKlaimRMDiagnosis struct {
 	UpdatedAt time.Time      `json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 
-	RMDuplicateID uint `gorm:"not null;index" json:"rm_duplicate_id"`
+	RMDuplicateID uint `gorm:"column:rm_duplicate_id;not null;index" json:"rm_duplicate_id"`
 
 	ICD10Code string `gorm:"size:20;not null" json:"icd10_code"`
 	ICD10Name string `gorm:"size:500" json:"icd10_name"`
@@ -486,7 +561,7 @@ type EKlaimRMProcedure struct {
 	UpdatedAt time.Time      `json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 
-	RMDuplicateID uint `gorm:"not null;index" json:"rm_duplicate_id"`
+	RMDuplicateID uint `gorm:"column:rm_duplicate_id;not null;index" json:"rm_duplicate_id"`
 
 	ICD9Code     string `gorm:"size:20;not null" json:"icd9_code"`
 	Name         string `gorm:"size:500" json:"name"`
@@ -499,93 +574,345 @@ func (EKlaimRMProcedure) TableName() string {
 	return "eklaim_rm_procedures"
 }
 
-// EKlaimRMLabResult stores editable lab results for E-Klaim RM duplicate
-type EKlaimRMLabResult struct {
+// EKlaimRMOrder mirrors ProcedureOrder — a unified order for lab/radiology/surgery/consultation.
+// Each order contains items (EKlaimRMOrderItem) which reference real Procedures,
+// and each item has parameter-based results (EKlaimRMOrderResult).
+type EKlaimRMOrder struct {
 	ID        uint           `gorm:"primarykey" json:"id"`
 	CreatedAt time.Time      `json:"created_at"`
 	UpdatedAt time.Time      `json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 
-	RMDuplicateID uint `gorm:"not null;index" json:"rm_duplicate_id"`
+	RMDuplicateID uint `gorm:"column:rm_duplicate_id;not null;index" json:"rm_duplicate_id"`
 
-	// Source Reference
-	OrderNumber   string `gorm:"size:50" json:"order_number"`     // from ProcedureOrder
-	OrderItemName string `gorm:"size:200" json:"order_item_name"` // Nama pemeriksaan (e.g. "Hematologi Lengkap")
+	// Order Type: laboratory, radiology, surgery, consultation
+	OrderType string `gorm:"size:20;not null;index" json:"order_type"`
 
-	// Result Details
-	ParameterName  string `gorm:"size:200;not null" json:"parameter_name"` // e.g. "Hemoglobin", "WBC"
-	Value          string `gorm:"size:100" json:"value"`                   // Result value
-	Unit           string `gorm:"size:50" json:"unit"`                     // e.g. "g/dL", "10^3/uL"
-	ReferenceRange string `gorm:"size:100" json:"reference_range"`         // e.g. "12.0 - 16.0"
-	IsAbnormal     bool   `gorm:"default:false" json:"is_abnormal"`
-	IsCritical     bool   `gorm:"default:false" json:"is_critical"`
+	// Source Reference (null for fake orders)
+	SourceOrderID *uint `gorm:"index" json:"source_order_id"` // FK to ProcedureOrder
 
-	Notes    string `gorm:"type:text" json:"notes"`
-	Sequence int    `gorm:"default:0" json:"sequence"`
-}
-
-func (EKlaimRMLabResult) TableName() string {
-	return "eklaim_rm_lab_results"
-}
-
-// EKlaimRMRadiologyResult stores editable radiology results for E-Klaim RM duplicate
-type EKlaimRMRadiologyResult struct {
-	ID        uint           `gorm:"primarykey" json:"id"`
-	CreatedAt time.Time      `json:"created_at"`
-	UpdatedAt time.Time      `json:"updated_at"`
-	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
-
-	RMDuplicateID uint `gorm:"not null;index" json:"rm_duplicate_id"`
-
-	// Source Reference
+	// Order Info
 	OrderNumber   string `gorm:"size:50" json:"order_number"`
-	ProcedureName string `gorm:"size:200" json:"procedure_name"` // e.g. "Rontgen Thorax AP"
+	Priority      string `gorm:"size:20" json:"priority"`         // urgent, cito, normal
+	ClinicalNotes string `gorm:"type:text" json:"clinical_notes"` // Catatan klinis / indikasi
+	Diagnosis     string `gorm:"type:text" json:"diagnosis"`
+	Notes         string `gorm:"type:text" json:"notes"`
 
-	// Results
+	// Order-level Results (radiology/surgery — kesan, saran, etc.)
 	ResultSummary string `gorm:"type:text" json:"result_summary"` // Ringkasan / Deskripsi
 	Conclusion    string `gorm:"type:text" json:"conclusion"`     // Kesan / Kesimpulan
 	Suggestion    string `gorm:"type:text" json:"suggestion"`     // Saran
 	IsCritical    bool   `gorm:"default:false" json:"is_critical"`
+	CriticalNotes string `gorm:"type:text" json:"critical_notes"`
 
-	Notes    string `gorm:"type:text" json:"notes"`
-	Sequence int    `gorm:"default:0" json:"sequence"`
+	// Consultation-specific (SOAP — from Consultation model)
+	ConsultantName  string  `gorm:"size:200" json:"consultant_name"`
+	Specialty       string  `gorm:"size:100" json:"specialty"`
+	Subjective      string  `gorm:"type:text" json:"subjective"`
+	Objective       string  `gorm:"type:text" json:"objective"`
+	Assessment      string  `gorm:"type:text" json:"assessment"`
+	Plan            string  `gorm:"type:text" json:"plan"`
+	Recommendation  string  `gorm:"type:text" json:"recommendation"`
+	ConsultationFee float64 `gorm:"type:decimal(15,2);default:0" json:"consultation_fee"`
+
+	// Surgery-specific
+	SurgeonName    string     `gorm:"size:200" json:"surgeon_name"`
+	AnesthesiaType string     `gorm:"size:100" json:"anesthesia_type"` // GA, RA, Local, Sedation
+	ScheduledDate  *time.Time `json:"scheduled_date,omitempty"`
+
+	// Fake Order Support
+	IsFake   bool       `gorm:"default:false" json:"is_fake"`
+	FakeDate *time.Time `json:"fake_date,omitempty"`
+
+	// Relations — items within this order
+	Items []EKlaimRMOrderItem `gorm:"foreignKey:EKlaimRMOrderID" json:"items,omitempty"`
+
+	Sequence int `gorm:"default:0" json:"sequence"`
 }
 
-func (EKlaimRMRadiologyResult) TableName() string {
-	return "eklaim_rm_radiology_results"
+func (EKlaimRMOrder) TableName() string {
+	return "eklaim_rm_orders"
 }
 
-// EKlaimRMSurgeryNote stores editable surgery/operation notes for E-Klaim RM duplicate
-type EKlaimRMSurgeryNote struct {
+// EKlaimRMOrderItem mirrors ProcedureOrderItem — an individual procedure within an order.
+// References the REAL Procedure from the master table so we can load its ProcedureParameters dynamically.
+type EKlaimRMOrderItem struct {
 	ID        uint           `gorm:"primarykey" json:"id"`
 	CreatedAt time.Time      `json:"created_at"`
 	UpdatedAt time.Time      `json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 
-	RMDuplicateID uint `gorm:"not null;index" json:"rm_duplicate_id"`
+	EKlaimRMOrderID uint `gorm:"column:eklaim_rm_order_id;not null;index" json:"eklaim_rm_order_id"`
 
-	// Source Reference
-	OrderNumber   string `gorm:"size:50" json:"order_number"`
-	ProcedureName string `gorm:"size:200" json:"procedure_name"` // e.g. "Appendectomy"
+	// Procedure Reference (to REAL procedure from master table)
+	ProcedureID   uint       `gorm:"not null;index" json:"procedure_id"`
+	Procedure     *Procedure `gorm:"foreignKey:ProcedureID" json:"procedure,omitempty"`
+	ProcedureName string     `gorm:"size:300" json:"procedure_name"` // Cached name for display
 
-	// Surgery Details
-	SurgeonName       string `gorm:"size:200" json:"surgeon_name"`
-	AnesthesiaType    string `gorm:"size:100" json:"anesthesia_type"` // GA, RA, Local, Sedation
-	PreOpDiagnosis    string `gorm:"type:text" json:"pre_op_diagnosis"`
-	PostOpDiagnosis   string `gorm:"type:text" json:"post_op_diagnosis"`
-	OperativeFindings string `gorm:"type:text" json:"operative_findings"`
-	ProcedureDesc     string `gorm:"type:text" json:"procedure_desc"` // Laporan operasi detail
-	Complications     string `gorm:"type:text" json:"complications"`
-	BloodLoss         string `gorm:"size:50" json:"blood_loss"` // e.g. "200 ml"
-	Duration          string `gorm:"size:50" json:"duration"`   // e.g. "2 jam 30 menit"
-	Implants          string `gorm:"type:text" json:"implants"` // Implant yang digunakan
+	// Source Reference (null for fake orders)
+	SourceItemID *uint `gorm:"index" json:"source_item_id"` // FK to ProcedureOrderItem
+
+	Notes string `gorm:"type:text" json:"notes"`
+
+	// Results per parameter
+	Results []EKlaimRMOrderResult `gorm:"foreignKey:EKlaimRMOrderItemID" json:"results,omitempty"`
+
+	Sequence int `gorm:"default:0" json:"sequence"`
+}
+
+func (EKlaimRMOrderItem) TableName() string {
+	return "eklaim_rm_order_items"
+}
+
+// EKlaimRMOrderResult mirrors ProcedureOrderResult — a single parameter result for an order item.
+// References the REAL ProcedureParameter from the master table for dynamic rendering (unit, normal range, input type, etc.).
+type EKlaimRMOrderResult struct {
+	ID        uint           `gorm:"primarykey" json:"id"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
+
+	EKlaimRMOrderItemID uint `gorm:"column:eklaim_rm_order_item_id;not null;index" json:"eklaim_rm_order_item_id"`
+
+	// Parameter Reference (to REAL parameter from master table)
+	ProcedureParameterID uint                `gorm:"not null;index" json:"procedure_parameter_id"`
+	ProcedureParameter   *ProcedureParameter `gorm:"foreignKey:ProcedureParameterID" json:"procedure_parameter,omitempty"`
+	ParameterName        string              `gorm:"size:200" json:"parameter_name"` // Cached name for display
+
+	// Source Reference (null for fake orders)
+	SourceResultID *uint `gorm:"index" json:"source_result_id"` // FK to ProcedureOrderResult
+
+	// Value (same as ProcedureOrderResult)
+	Value        string  `gorm:"type:text" json:"value"`
+	NumericValue float64 `gorm:"type:decimal(15,4);default:0" json:"numeric_value"`
+
+	// Status flags (for lab results — computed from ProcedureParameter normal/critical ranges)
+	IsNormal   bool `gorm:"default:true" json:"is_normal"`
+	IsLow      bool `gorm:"default:false" json:"is_low"`
+	IsHigh     bool `gorm:"default:false" json:"is_high"`
+	IsCritical bool `gorm:"default:false" json:"is_critical"`
 
 	Notes    string `gorm:"type:text" json:"notes"`
 	Sequence int    `gorm:"default:0" json:"sequence"`
 }
 
-func (EKlaimRMSurgeryNote) TableName() string {
-	return "eklaim_rm_surgery_notes"
+func (EKlaimRMOrderResult) TableName() string {
+	return "eklaim_rm_order_results"
+}
+
+// EKlaimRMMedicineItem stores editable medicine/obat items for E-Klaim RM duplicate
+type EKlaimRMMedicineItem struct {
+	ID        uint           `gorm:"primarykey" json:"id"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
+
+	RMDuplicateID uint `gorm:"column:rm_duplicate_id;not null;index" json:"rm_duplicate_id"`
+
+	// Medicine Reference (to REAL medicine from master table, null for manually typed)
+	MedicineID *uint     `gorm:"index" json:"medicine_id"`
+	Medicine   *Medicine `gorm:"foreignKey:MedicineID" json:"medicine,omitempty"`
+
+	// Source Reference (null for fake orders)
+	SourceOrderID *uint  `gorm:"index" json:"source_order_id"` // FK to MedicineOrder
+	SourceItemID  *uint  `gorm:"index" json:"source_item_id"`  // FK to MedicineOrderItem
+	OrderNumber   string `gorm:"size:50" json:"order_number"`
+
+	// Medicine Info
+	MedicineName string `gorm:"size:300;not null" json:"medicine_name"` // Nama obat
+	Dosage       string `gorm:"size:100" json:"dosage"`                 // Dosis (3x1, 2x2, dll)
+	Frequency    string `gorm:"size:100" json:"frequency"`              // Frekuensi
+	Route        string `gorm:"size:50" json:"route"`                   // Cara pakai (oral, IV, IM, dll)
+	Quantity     int    `gorm:"default:0" json:"quantity"`              // Jumlah
+	Unit         string `gorm:"size:50" json:"unit"`                    // Satuan (tablet, kapsul, botol, dll)
+	Duration     string `gorm:"size:50" json:"duration"`                // Durasi (7 hari, 1 minggu)
+	Instructions string `gorm:"type:text" json:"instructions"`          // Instruksi tambahan
+
+	// Pricing for billing
+	UnitPrice float64 `gorm:"type:decimal(15,2);default:0" json:"unit_price"` // Harga satuan
+	SubTotal  float64 `gorm:"type:decimal(15,2);default:0" json:"sub_total"`  // Quantity * UnitPrice
+
+	// Fake Order Support
+	IsFake   bool       `gorm:"default:false" json:"is_fake"`
+	FakeDate *time.Time `json:"fake_date,omitempty"`
+
+	Notes    string `gorm:"type:text" json:"notes"`
+	Sequence int    `gorm:"default:0" json:"sequence"`
+}
+
+func (EKlaimRMMedicineItem) TableName() string {
+	return "eklaim_rm_medicine_items"
+}
+
+// EKlaimRMMedicineItem remains as a flat model since Medicine uses a different system
+// (MedicineOrder → MedicineOrderItem) that doesn't use ProcedureParameter.
+
+// EKlaimRMCPPT stores editable CPPT entries for E-Klaim RM duplicate (inpatient)
+type EKlaimRMCPPT struct {
+	ID        uint           `gorm:"primarykey" json:"id"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
+
+	RMDuplicateID uint `gorm:"column:rm_duplicate_id;not null;index" json:"rm_duplicate_id"`
+
+	// Record Info
+	RecordDate string `gorm:"size:100" json:"record_date"` // yyyy-mm-dd HH:mm:ss
+	Profession string `gorm:"size:50" json:"profession"`  // dokter, perawat, bidan, gizi, farmasi, dll
+	StaffName  string `gorm:"size:200" json:"staff_name"` // Nama petugas
+
+	// SOAP Format
+	Subjective  string `gorm:"type:text" json:"subjective"`
+	Objective   string `gorm:"type:text" json:"objective"`
+	Assessment  string `gorm:"type:text" json:"assessment"`
+	Plan        string `gorm:"type:text" json:"plan"`
+	Instruction string `gorm:"type:text" json:"instruction"`
+
+	// Vital Signs (Optional)
+	BloodPressure    string `gorm:"size:20" json:"blood_pressure,omitempty"`
+	HeartRate        int    `gorm:"default:0" json:"heart_rate,omitempty"`
+	RespiratoryRate  int    `gorm:"default:0" json:"respiratory_rate,omitempty"`
+	Temperature      string `gorm:"size:20" json:"temperature,omitempty"`
+	OxygenSaturation int    `gorm:"default:0" json:"oxygen_saturation,omitempty"`
+	PainScale        int    `gorm:"default:0" json:"pain_scale,omitempty"`
+
+	// Fake Order Support
+	IsFake bool `gorm:"default:false" json:"is_fake"`
+
+	Notes    string `gorm:"type:text" json:"notes"`
+	Sequence int    `gorm:"default:0" json:"sequence"`
+}
+
+func (EKlaimRMCPPT) TableName() string {
+	return "eklaim_rm_cppts"
+}
+
+// EKlaimRMFluidBalance stores editable fluid balance for E-Klaim RM duplicate (inpatient)
+type EKlaimRMFluidBalance struct {
+	ID        uint           `gorm:"primarykey" json:"id"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
+
+	RMDuplicateID uint `gorm:"column:rm_duplicate_id;not null;index" json:"rm_duplicate_id"`
+
+	// Record Period
+	RecordDate string `gorm:"size:100" json:"record_date"` // yyyy-mm-dd
+	ShiftType  string `gorm:"size:20" json:"shift_type"`  // pagi, siang, malam
+	StaffName  string `gorm:"size:200" json:"staff_name"` // Nama petugas
+
+	// Intake (ml)
+	OralDrink    float64 `gorm:"type:decimal(10,2);default:0" json:"oral_drink"`
+	OralFood     float64 `gorm:"type:decimal(10,2);default:0" json:"oral_food"`
+	OralMedicine float64 `gorm:"type:decimal(10,2);default:0" json:"oral_medicine"`
+	IVFluid      float64 `gorm:"type:decimal(10,2);default:0" json:"iv_fluid"`
+	IVMedicine   float64 `gorm:"type:decimal(10,2);default:0" json:"iv_medicine"`
+	BloodProduct float64 `gorm:"type:decimal(10,2);default:0" json:"blood_product"`
+	EnteralFeed  float64 `gorm:"type:decimal(10,2);default:0" json:"enteral_feed"`
+	OtherIntake  float64 `gorm:"type:decimal(10,2);default:0" json:"other_intake"`
+
+	// Output (ml)
+	UrineAmount float64 `gorm:"type:decimal(10,2);default:0" json:"urine_amount"`
+	FecesAmount float64 `gorm:"type:decimal(10,2);default:0" json:"feces_amount"`
+	VomitAmount float64 `gorm:"type:decimal(10,2);default:0" json:"vomit_amount"`
+	DrainAmount float64 `gorm:"type:decimal(10,2);default:0" json:"drain_amount"`
+	BloodLoss   float64 `gorm:"type:decimal(10,2);default:0" json:"blood_loss"`
+	IWL         float64 `gorm:"type:decimal(10,2);default:0" json:"iwl"`
+	OtherOutput float64 `gorm:"type:decimal(10,2);default:0" json:"other_output"`
+
+	// Calculated
+	TotalIntake float64 `gorm:"type:decimal(10,2);default:0" json:"total_intake"`
+	TotalOutput float64 `gorm:"type:decimal(10,2);default:0" json:"total_output"`
+	Balance     float64 `gorm:"type:decimal(10,2);default:0" json:"balance"`
+
+	// Fake Order Support
+	IsFake bool `gorm:"default:false" json:"is_fake"`
+
+	Notes    string `gorm:"type:text" json:"notes"`
+	Sequence int    `gorm:"default:0" json:"sequence"`
+}
+
+func (EKlaimRMFluidBalance) TableName() string {
+	return "eklaim_rm_fluid_balances"
+}
+
+// EKlaimRMBilling stores the duplicate billing for E-Klaim RM
+// This is separate from the real Billing and used only for E-Klaim display/calculation
+type EKlaimRMBilling struct {
+	ID        uint           `gorm:"primarykey" json:"id"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
+
+	RMDuplicateID uint `gorm:"column:rm_duplicate_id;not null;uniqueIndex" json:"rm_duplicate_id"`
+
+	// Billing amounts
+	TotalAmount     float64 `gorm:"type:decimal(15,2);default:0" json:"total_amount"`     // Total dari semua item
+	DiscountAmount  float64 `gorm:"type:decimal(15,2);default:0" json:"discount_amount"`  // Diskon
+	DiscountReason  string  `gorm:"type:text" json:"discount_reason"`                     // Alasan diskon
+	AdjustAmount    float64 `gorm:"type:decimal(15,2);default:0" json:"adjust_amount"`    // Penyesuaian (+ atau -)
+	AdjustReason    string  `gorm:"type:text" json:"adjust_reason"`                       // Alasan penyesuaian
+	FinalAmount     float64 `gorm:"type:decimal(15,2);default:0" json:"final_amount"`     // Final = Total - Discount + Adjust
+	RemainingAmount float64 `gorm:"type:decimal(15,2);default:0" json:"remaining_amount"` // Remaining (untuk display saja)
+	PaidAmount      float64 `gorm:"type:decimal(15,2);default:0" json:"paid_amount"`      // Paid (untuk display saja)
+
+	// Notes
+	Notes string `gorm:"type:text" json:"notes"`
+
+	// Relations
+	Items []EKlaimRMBillingItem `gorm:"foreignKey:EKlaimRMBillingID" json:"items,omitempty"`
+}
+
+func (EKlaimRMBilling) TableName() string {
+	return "eklaim_rm_billings"
+}
+
+// CalculateTotals recalculates billing totals based on items
+func (b *EKlaimRMBilling) CalculateTotals() {
+	var total float64
+	for _, item := range b.Items {
+		total += item.Subtotal
+	}
+	b.TotalAmount = total
+	b.FinalAmount = total - b.DiscountAmount + b.AdjustAmount
+	b.RemainingAmount = b.FinalAmount - b.PaidAmount
+}
+
+// EKlaimRMBillingItem stores individual billing line items for E-Klaim RM
+type EKlaimRMBillingItem struct {
+	ID        uint           `gorm:"primarykey" json:"id"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
+
+	EKlaimRMBillingID uint `gorm:"column:eklaim_rm_billing_id;not null;index" json:"eklaim_rm_billing_id"`
+
+	// Item Type: procedure, medicine
+	ItemType string `gorm:"size:20;not null" json:"item_type"`
+
+	// Reference to source (order item or medicine item)
+	ReferenceID   uint   `gorm:"not null" json:"reference_id"`           // ID of EKlaimRMOrderItem or EKlaimRMMedicineItem
+	ReferenceType string `gorm:"size:20;not null" json:"reference_type"` // order_item, medicine_item
+	ReferenceCode string `gorm:"size:50" json:"reference_code"`          // Procedure code or medicine code
+
+	// Item Details
+	Description string  `gorm:"type:text;not null" json:"description"`          // Deskripsi item
+	Quantity    int     `gorm:"default:1" json:"quantity"`                      // Jumlah
+	Unit        string  `gorm:"size:50" json:"unit"`                            // Satuan
+	UnitPrice   float64 `gorm:"type:decimal(15,2);default:0" json:"unit_price"` // Harga satuan
+	Subtotal    float64 `gorm:"type:decimal(15,2);default:0" json:"subtotal"`   // Subtotal (Quantity * UnitPrice)
+
+	// Performer info (optional)
+	PerformedByID   *uint  `json:"performed_by_id"`
+	PerformedByName string `gorm:"size:100" json:"performed_by_name"`
+	PerformedByRole string `gorm:"size:50" json:"performed_by_role"`
+
+	Notes    string `gorm:"type:text" json:"notes"`
+	Sequence int    `gorm:"default:0" json:"sequence"`
+}
+
+func (EKlaimRMBillingItem) TableName() string {
+	return "eklaim_rm_billing_items"
 }
 
 // EKlaimLocalLog tracks all E-Klaim local server communication

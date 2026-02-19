@@ -607,7 +607,7 @@ export default function PatientEdit() {
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-4 p-6">
+    <div className="flex flex-1 flex-col p-4">
       {/* Keyboard Shortcuts Modal */}
       {showShortcuts && (
         <div

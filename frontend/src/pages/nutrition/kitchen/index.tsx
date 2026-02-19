@@ -379,7 +379,7 @@ export default function KitchenDashboardPage() {
                 <Card
                   key={group.room_name}
                   className={cn(
-                    "group hover:shadow-lg transition-all cursor-pointer border-2",
+                    "group transition-all cursor-pointer border-2",
                     group.confirmedCount > 0
                       ? "border-blue-200 hover:border-blue-400 dark:border-blue-900 dark:hover:border-blue-600"
                       : group.preparingCount > 0

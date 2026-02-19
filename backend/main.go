@@ -53,6 +53,9 @@ func main() {
 		log.Fatal("Failed to migrate E-Klaim Local tables:", err)
 	}
 
+	// One-time backfill: isi source_order_id dan order_number untuk eklaim_rm_orders lama
+	handlers.BackfillRMOrderSourceIDs()
+
 	// Initialize SSE Hub for real-time notifications
 	handlers.InitSSEHub()
 	handlers.InitNotificationService()

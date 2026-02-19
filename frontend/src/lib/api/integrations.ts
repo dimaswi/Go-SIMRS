@@ -8,6 +8,7 @@ export type IntegrationType =
   | 'bpjs-icare' 
   | 'bpjs-apotek' 
   | 'bpjs-rme' 
+  | 'bpjs-aplicare'
   | 'satusehat' 
   | 'pcare'
   | 'eklaim';
@@ -19,6 +20,7 @@ export const BPJS_SERVICE_TYPES: IntegrationType[] = [
   'bpjs-icare',
   'bpjs-apotek',
   'bpjs-rme',
+  'bpjs-aplicare',
 ];
 
 // Check if integration type is a BPJS type
@@ -39,6 +41,8 @@ export const getBPJSServiceName = (type: IntegrationType | string): string => {
       return 'Apotek Online';
     case 'bpjs-rme':
       return 'RME';
+    case 'bpjs-aplicare':
+      return 'Aplicare';
     default:
       return 'BPJS';
   }
@@ -118,6 +122,10 @@ export const integrationsApi = {
   // Initialize default config for integration
   initConfig: (type: IntegrationType) => 
     api.post<{ message: string }>(`/integrations/${type}/config/init`),
+
+  // Reset config to defaults for integration
+  resetConfig: (type: IntegrationType) => 
+    api.post<{ message: string }>(`/integrations/${type}/config/reset`),
   
   // Test connection to external system
   testConnection: (type: IntegrationType) => 

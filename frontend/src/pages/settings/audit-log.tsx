@@ -174,7 +174,7 @@ export default function AuditLogPage() {
   const hasActiveFilters = startDate || endDate || selectedUserId || signatureDocType || recordType;
 
   return (
-    <div className="flex flex-1 flex-col gap-4 p-6">
+    <div className="flex flex-1 flex-col p-4">
       <Collapsible open={filterOpen} onOpenChange={setFilterOpen}>
         {/* Header */}
         <div className="flex items-center justify-between">

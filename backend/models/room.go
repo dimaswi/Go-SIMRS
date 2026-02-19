@@ -20,6 +20,7 @@ type Room struct {
 	ServiceType     string         `gorm:"not null;size:50" json:"service_type"`                 // service_type from master data (rawat_jalan, rawat_inap, penunjang, administrasi)
 	RoomType        string         `gorm:"not null;size:50" json:"room_type"`                    // room_type from master data (rawat_inap, icu, poliklinik, laboratorium, etc)
 	RoomClass       string         `gorm:"size:50" json:"room_class"`                            // room_class from master data (vvip, vip, kelas_1, etc) - optional for non-bed rooms
+	KodeKelasBPJS   string         `gorm:"size:10" json:"kode_kelas_bpjs"`                       // Kode kelas BPJS Aplicare (VVP, VIP, KLS1, KLS2, KLS3, ICU, ICCU, ISO, NON)
 	TotalFloors     int            `gorm:"default:1" json:"total_floors"`                        // jumlah lantai di ruangan ini
 	RegistrationFee float64        `gorm:"type:decimal(15,2);default:0" json:"registration_fee"` // Tarif pendaftaran per ruangan
 	TariffPerDay    float64        `gorm:"type:decimal(15,2);default:0" json:"tariff_per_day"`   // Legacy: tarif per hari (untuk backward compatibility)

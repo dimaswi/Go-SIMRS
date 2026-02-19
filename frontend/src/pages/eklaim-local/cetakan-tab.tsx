@@ -3,12 +3,17 @@
  * SEP di paling atas, lalu dikelompokkan per kategori
  * Bisa dipilih (checkbox), diurutkan (drag up/down), dan di-merge jadi 1 PDF
  */
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import {
   Dialog,
   DialogContent,
@@ -16,7 +21,9 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { printApi } from '@/lib/api/print';
+import { printApi, fetchPdfBlobWithSig } from '@/lib/api/print';
+import { signatureApi, DOCUMENT_TYPES } from '@/lib/api/signature';
+import { SignOnBehalfDialog } from '@/components/signature/sign-on-behalf-dialog';
 import { mergePdfs } from '@/lib/pdf-merge';
 import type { MergeItem } from '@/lib/pdf-merge';
 import type { EKlaimLocal, OriginalRM } from '@/lib/api/eklaim-local';
@@ -43,6 +50,7 @@ import {
   BedDouble,
   Droplets,
   Scissors,
+  PenLine,
 } from 'lucide-react';
 
 // ===== Types =====
@@ -53,6 +61,9 @@ interface CetakanNode {
   category: string;
   fetchBlob: () => Promise<Blob>;
   available: boolean;
+  documentType: string;
+  documentId: number;
+  signerHint: string;
 }
 
 interface CetakanTabProps {
@@ -66,6 +77,32 @@ function buildCetakanNodes(detail: EKlaimLocal, originalRM: OriginalRM): Cetakan
   const sepId = detail.sep_id;
   const registrationId = detail.sep?.registration_id;
   const patientId = detail.sep?.patient_id;
+  const rmDuplicateId = detail.rm_duplicate?.id;
+
+  // Visit type detection
+  const visitType = (detail.visit as any)?.visit_type ?? '';
+  const roomType = (detail.visit as any)?.room?.type ?? '';
+  const roomServiceType = (detail.visit as any)?.room?.service_type ?? '';
+  const isUGDVisit =
+    visitType === 'emergency' ||
+    roomType === 'igd' || roomType === 'emergency' ||
+    roomServiceType === 'ugd' || roomServiceType === 'igd';
+  const isInpatientVisit =
+    visitType === 'inpatient' ||
+    roomType === 'inpatient' || roomType === 'ranap' ||
+    roomServiceType === 'inpatient' ||
+    detail.jenis_rawat === '1';
+
+  // Data availability checks
+  const hasTriageData = !!(originalRM.triage && originalRM.triage.id) || !!(detail.rm_duplicate?.has_triage);
+  // UGD cetakan: visible if the visit itself is UGD, OR if triage data exists (ranap patient who entered via UGD)
+  const isUGDOrHasTriage = isUGDVisit || hasTriageData;
+  const hasCPPT = (originalRM.cppt_count ?? 0) > 0 || (detail.rm_duplicate?.cppt_notes?.length ?? 0) > 0;
+  const hasFluidBalance = (originalRM.fluid_balance_count ?? 0) > 0 || (detail.rm_duplicate?.fluid_balances?.length ?? 0) > 0;
+  const hasAnamnesis = !!(originalRM.anamnesis?.id) || !!(detail.rm_duplicate?.chief_complaint);
+  const hasNursingCare = (originalRM.nursing_care_count ?? 0) > 0;
+  const hasVitalSigns = (originalRM.cppt_with_vitals_count ?? 0) > 0 || hasCPPT;
+  const hasBedTransfer = (originalRM.bed_transfer_count ?? 0) > 0;
 
   const nodes: CetakanNode[] = [];
 
@@ -76,8 +113,11 @@ function buildCetakanNodes(detail: EKlaimLocal, originalRM: OriginalRM): Cetakan
       label: 'Surat Eligibilitas Peserta (SEP)',
       icon: <CreditCard className="h-4 w-4" />,
       category: 'SEP',
-      fetchBlob: () => printApi.blob.sep(sepId),
+      fetchBlob: () => printApi.blob.sep(sepId, rmDuplicateId),
       available: true,
+      documentType: DOCUMENT_TYPES.RM_DUP_SEP,
+      documentId: rmDuplicateId || sepId,
+      signerHint: 'Petugas Pendaftaran',
     });
   }
 
@@ -88,16 +128,22 @@ function buildCetakanNodes(detail: EKlaimLocal, originalRM: OriginalRM): Cetakan
       label: 'Ringkasan Masuk & Keluar Pasien',
       icon: <FileText className="h-4 w-4" />,
       category: 'A. Umum',
-      fetchBlob: () => printApi.blob.admissionDischargeSummary(registrationId, visitId),
+      fetchBlob: () => printApi.blob.admissionDischargeSummary(registrationId, visitId, rmDuplicateId),
       available: true,
+      documentType: DOCUMENT_TYPES.RM_DUP_ADMISSION,
+      documentId: rmDuplicateId || registrationId,
+      signerHint: 'DPJP',
     });
     nodes.push({
       id: `registration-receipt-${registrationId}`,
       label: 'Bukti Registrasi',
       icon: <FileText className="h-4 w-4" />,
       category: 'A. Umum',
-      fetchBlob: () => printApi.blob.registrationReceipt(registrationId),
+      fetchBlob: () => printApi.blob.registrationReceipt(registrationId, rmDuplicateId),
       available: true,
+      documentType: DOCUMENT_TYPES.RM_DUP_REGISTRATION,
+      documentId: rmDuplicateId || registrationId,
+      signerHint: 'Petugas Pendaftaran',
     });
   }
 
@@ -107,8 +153,11 @@ function buildCetakanNodes(detail: EKlaimLocal, originalRM: OriginalRM): Cetakan
       label: 'Informed Consent / General Consent',
       icon: <FileCheck className="h-4 w-4" />,
       category: 'A. Umum',
-      fetchBlob: () => printApi.blob.informedConsent(patientId),
+      fetchBlob: () => printApi.blob.informedConsent(patientId, rmDuplicateId),
       available: true,
+      documentType: DOCUMENT_TYPES.RM_DUP_CONSENT,
+      documentId: rmDuplicateId || patientId,
+      signerHint: 'DPJP',
     });
   }
 
@@ -119,8 +168,11 @@ function buildCetakanNodes(detail: EKlaimLocal, originalRM: OriginalRM): Cetakan
       label: 'Resume Medis (Rawat Jalan / Rawat Inap)',
       icon: <Stethoscope className="h-4 w-4" />,
       category: 'B. Resume Medis',
-      fetchBlob: () => printApi.blob.outpatientResume(visitId),
-      available: true,
+      fetchBlob: () => printApi.blob.outpatientResume(visitId, rmDuplicateId),
+      available: hasAnamnesis,
+      documentType: DOCUMENT_TYPES.RM_DUP_RESUME,
+      documentId: rmDuplicateId || visitId,
+      signerHint: 'DPJP',
     });
 
     nodes.push({
@@ -128,8 +180,11 @@ function buildCetakanNodes(detail: EKlaimLocal, originalRM: OriginalRM): Cetakan
       label: 'Resume Medis Rawat Inap',
       icon: <Stethoscope className="h-4 w-4" />,
       category: 'B. Resume Medis',
-      fetchBlob: () => printApi.blob.inpatientResume(visitId),
-      available: true,
+      fetchBlob: () => printApi.blob.inpatientResume(visitId, rmDuplicateId),
+      available: isInpatientVisit && hasAnamnesis,
+      documentType: DOCUMENT_TYPES.RM_DUP_INPATIENT_RESUME,
+      documentId: rmDuplicateId || visitId,
+      signerHint: 'DPJP',
     });
 
     nodes.push({
@@ -137,8 +192,14 @@ function buildCetakanNodes(detail: EKlaimLocal, originalRM: OriginalRM): Cetakan
       label: 'Surat Rujukan',
       icon: <Send className="h-4 w-4" />,
       category: 'B. Resume Medis',
-      fetchBlob: () => printApi.blob.referralLetter(visitId),
-      available: !!originalRM.disposition && originalRM.disposition.disposition_type === 'rujuk',
+      fetchBlob: () => printApi.blob.referralLetter(visitId, rmDuplicateId),
+      available: (
+        (detail.rm_duplicate?.disposition_type === 'rujuk') ||
+        (!!originalRM.disposition && originalRM.disposition.disposition_type === 'rujuk')
+      ),
+      documentType: DOCUMENT_TYPES.RM_DUP_REFERRAL,
+      documentId: rmDuplicateId || visitId,
+      signerHint: 'DPJP',
     });
 
     nodes.push({
@@ -146,8 +207,11 @@ function buildCetakanNodes(detail: EKlaimLocal, originalRM: OriginalRM): Cetakan
       label: 'Surat Keterangan Rawat Inap',
       icon: <FileCheck className="h-4 w-4" />,
       category: 'B. Resume Medis',
-      fetchBlob: () => printApi.blob.inpatientCertificate(visitId),
-      available: true,
+      fetchBlob: () => printApi.blob.inpatientCertificate(visitId, rmDuplicateId),
+      available: isInpatientVisit,
+      documentType: DOCUMENT_TYPES.RM_DUP_INPATIENT_CERT,
+      documentId: rmDuplicateId || visitId,
+      signerHint: 'DPJP',
     });
   }
 
@@ -158,16 +222,22 @@ function buildCetakanNodes(detail: EKlaimLocal, originalRM: OriginalRM): Cetakan
       label: 'Formulir Triage UGD',
       icon: <AlertTriangle className="h-4 w-4" />,
       category: 'C. Gawat Darurat',
-      fetchBlob: () => printApi.blob.triageForm(visitId),
-      available: true,
+      fetchBlob: () => printApi.blob.triageForm(visitId, rmDuplicateId),
+      available: isUGDOrHasTriage && hasTriageData,
+      documentType: DOCUMENT_TYPES.RM_DUP_TRIAGE,
+      documentId: rmDuplicateId || visitId,
+      signerHint: 'Dokter UGD',
     });
     nodes.push({
       id: `emergency-summary-${visitId}`,
       label: 'Ringkasan Pelayanan UGD',
       icon: <ClipboardList className="h-4 w-4" />,
       category: 'C. Gawat Darurat',
-      fetchBlob: () => printApi.blob.emergencySummary(visitId),
-      available: true,
+      fetchBlob: () => printApi.blob.emergencySummary(visitId, rmDuplicateId),
+      available: isUGDOrHasTriage,
+      documentType: DOCUMENT_TYPES.RM_DUP_EMERGENCY,
+      documentId: rmDuplicateId || visitId,
+      signerHint: 'Dokter UGD',
     });
   }
 
@@ -178,102 +248,168 @@ function buildCetakanNodes(detail: EKlaimLocal, originalRM: OriginalRM): Cetakan
       label: 'CPPT (Catatan Perkembangan Pasien)',
       icon: <ClipboardList className="h-4 w-4" />,
       category: 'D. Rawat Inap',
-      fetchBlob: () => printApi.blob.cppt(visitId),
-      available: true,
+      fetchBlob: () => printApi.blob.cppt(visitId, rmDuplicateId),
+      available: isInpatientVisit && hasCPPT,
+      documentType: DOCUMENT_TYPES.RM_DUP_CPPT,
+      documentId: rmDuplicateId || visitId,
+      signerHint: 'DPJP / Perawat',
     });
     nodes.push({
       id: `nursing-care-${visitId}`,
       label: 'Asuhan Keperawatan',
       icon: <Activity className="h-4 w-4" />,
       category: 'D. Rawat Inap',
-      fetchBlob: () => printApi.blob.nursingCare(visitId),
-      available: true,
+      fetchBlob: () => printApi.blob.nursingCare(visitId, rmDuplicateId),
+      available: isInpatientVisit && hasNursingCare,
+      documentType: DOCUMENT_TYPES.RM_DUP_NURSING_CARE,
+      documentId: rmDuplicateId || visitId,
+      signerHint: 'Perawat',
     });
     nodes.push({
       id: `fluid-balance-${visitId}`,
       label: 'Balance Cairan',
       icon: <Droplets className="h-4 w-4" />,
       category: 'D. Rawat Inap',
-      fetchBlob: () => printApi.blob.fluidBalance(visitId),
-      available: true,
+      fetchBlob: () => printApi.blob.fluidBalance(visitId, rmDuplicateId),
+      available: isInpatientVisit && hasFluidBalance,
+      documentType: DOCUMENT_TYPES.RM_DUP_FLUID_BALANCE,
+      documentId: rmDuplicateId || visitId,
+      signerHint: 'Perawat',
     });
     nodes.push({
       id: `bed-transfer-${visitId}`,
       label: 'Lembar Mutasi Pasien',
       icon: <BedDouble className="h-4 w-4" />,
       category: 'D. Rawat Inap',
-      fetchBlob: () => printApi.blob.bedTransfer(visitId),
-      available: true,
+      fetchBlob: () => printApi.blob.bedTransfer(visitId, rmDuplicateId),
+      available: isInpatientVisit && hasBedTransfer,
+      documentType: DOCUMENT_TYPES.RM_DUP_BED_TRANSFER,
+      documentId: rmDuplicateId || visitId,
+      signerHint: 'Perawat',
     });
     nodes.push({
       id: `vital-sign-chart-${visitId}`,
       label: 'Grafik Tanda Vital',
       icon: <HeartPulse className="h-4 w-4" />,
       category: 'D. Rawat Inap',
-      fetchBlob: () => printApi.blob.vitalSignChart(visitId),
-      available: true,
+      fetchBlob: () => printApi.blob.vitalSignChart(visitId, rmDuplicateId),
+      available: isInpatientVisit && hasVitalSigns,
+      documentType: DOCUMENT_TYPES.RM_DUP_VITAL_SIGN,
+      documentId: rmDuplicateId || visitId,
+      signerHint: 'Perawat',
     });
   }
 
-  // === E. Penunjang (Lab, Radiology, Surgery) ===
-  if (originalRM.lab_orders && originalRM.lab_orders.length > 0) {
-    for (const order of originalRM.lab_orders) {
-      nodes.push({
-        id: `lab-result-${order.id}`,
-        label: `Hasil Lab - ${order.order_number}`,
-        icon: <FlaskConical className="h-4 w-4" />,
-        category: 'E. Penunjang',
-        fetchBlob: () => printApi.blob.labResult(order.id),
-        available: order.status === 'completed',
-      });
-    }
+  // === E. Penunjang & F. Konsultasi — dari rm_duplicate.orders ===
+  const rmOrders = detail.rm_duplicate?.orders ?? [];
+  const labRMOrders = rmOrders.filter(o => o.order_type === 'laboratory');
+  const radRMOrders = rmOrders.filter(o => o.order_type === 'radiology');
+  const surgeryRMOrders = rmOrders.filter(o => o.order_type === 'surgery');
+  const consultationRMOrders = rmOrders.filter(o => o.order_type === 'consultation');
+
+  for (const order of labRMOrders) {
+    const label = order.order_number || `Lab #${order.id}`;
+    nodes.push({
+      id: `lab-result-${order.id}`,
+      label: `Hasil Lab - ${label}`,
+      icon: <FlaskConical className="h-4 w-4" />,
+      category: 'E. Penunjang',
+      fetchBlob: () => printApi.blob.rmDuplicateLabResult(order.id),
+      available: true,
+      documentType: DOCUMENT_TYPES.RM_DUP_LAB_RESULT,
+      documentId: order.id,
+      signerHint: 'Petugas Laboratorium',
+    });
   }
 
-  if (originalRM.radiology_orders && originalRM.radiology_orders.length > 0) {
-    for (const order of originalRM.radiology_orders) {
-      nodes.push({
-        id: `radiology-result-${order.id}`,
-        label: `Hasil Radiologi - ${order.order_number}`,
-        icon: <FileText className="h-4 w-4" />,
-        category: 'E. Penunjang',
-        fetchBlob: () => (printApi as any).blob.radiologyResult
-          ? (printApi as any).blob.radiologyResult(order.id)
-          : (printApi as any).radiologyResult(order.id),
-        available: order.status === 'completed',
-      });
-    }
+  for (const order of radRMOrders) {
+    const label = order.order_number || `Radiologi #${order.id}`;
+    nodes.push({
+      id: `radiology-result-${order.id}`,
+      label: `Hasil Radiologi - ${label}`,
+      icon: <FileText className="h-4 w-4" />,
+      category: 'E. Penunjang',
+      fetchBlob: () => printApi.blob.rmDuplicateRadiologyResult(order.id),
+      available: true,
+      documentType: DOCUMENT_TYPES.RM_DUP_RADIOLOGY_RESULT,
+      documentId: order.id,
+      signerHint: 'Dokter Radiologi',
+    });
   }
 
-  if (originalRM.surgery_orders && originalRM.surgery_orders.length > 0) {
-    for (const order of originalRM.surgery_orders) {
-      nodes.push({
-        id: `surgery-note-${order.id}`,
-        label: `Catatan Operasi - ${order.order_number}`,
-        icon: <Scissors className="h-4 w-4" />,
-        category: 'E. Penunjang',
-        fetchBlob: () => (printApi as any).blob.procedureOrderResult
-          ? (printApi as any).blob.procedureOrderResult(order.id)
-          : (printApi as any).procedureOrderResult(order.id),
-        available: order.status === 'completed',
-      });
-    }
+  for (const order of surgeryRMOrders) {
+    const label = order.order_number || `Operasi #${order.id}`;
+    nodes.push({
+      id: `surgery-note-${order.id}`,
+      label: `Catatan Operasi - ${label}`,
+      icon: <Scissors className="h-4 w-4" />,
+      category: 'E. Penunjang',
+      fetchBlob: () => printApi.blob.rmDuplicateProcedureResult(order.id),
+      available: true,
+      documentType: DOCUMENT_TYPES.RM_DUP_SURGERY_REPORT,
+      documentId: order.id,
+      signerHint: 'Dokter Operator',
+    });
   }
 
-  // === F. Resep Obat ===
+  // === F. Konsultasi ===
+  for (const order of consultationRMOrders) {
+    const label = order.order_number || `Konsultasi #${order.id}`;
+    nodes.push({
+      id: `consultation-${order.id}`,
+      label: `Konsultasi - ${label}`,
+      icon: <FileText className="h-4 w-4" />,
+      category: 'F. Konsultasi',
+      fetchBlob: () => printApi.blob.rmDuplicateProcedureResult(order.id),
+      available: true,
+      documentType: DOCUMENT_TYPES.RM_DUP_CONSULTATION,
+      documentId: order.id,
+      signerHint: 'Dokter Konsultan',
+    });
+  }
+
+  // === G. Farmasi — dari rm_duplicate.medicine_items (group by order) ===
+  const medicineOrders = detail.rm_duplicate?.orders?.filter(o => o.order_type === 'pharmacy') ?? [];
+  // Fallback: gunakan originalRM.medicine_orders jika ada
   if (originalRM.medicine_orders && originalRM.medicine_orders.length > 0) {
     for (const order of originalRM.medicine_orders) {
       nodes.push({
         id: `prescription-${order.id}`,
         label: `Resep Obat - ${order.order_number}`,
         icon: <Pill className="h-4 w-4" />,
-        category: 'F. Farmasi',
+        category: 'G. Farmasi',
         fetchBlob: () => printApi.blob.prescription(order.id),
         available: true,
+        documentType: DOCUMENT_TYPES.RM_DUP_PRESCRIPTION,
+        documentId: order.id,
+        signerHint: 'DPJP / Apoteker',
+      });
+    }
+  } else {
+    for (const order of medicineOrders) {
+      const srcId = order.source_order_id;
+      nodes.push({
+        id: `prescription-${order.id}`,
+        label: `Resep Obat - ${order.order_number}`,
+        icon: <Pill className="h-4 w-4" />,
+        category: 'G. Farmasi',
+        fetchBlob: () => printApi.blob.prescription(srcId!),
+        available: !!srcId,
+        documentType: DOCUMENT_TYPES.RM_DUP_PRESCRIPTION,
+        documentId: order.id,
+        signerHint: 'DPJP / Apoteker',
       });
     }
   }
 
   return nodes;
+}
+
+// ===== Signature status type =====
+interface SignatureStatus {
+  is_signed: boolean;
+  signer_name?: string;
+  signed_at?: string;
 }
 
 // ===== Category tree node =====
@@ -283,12 +419,16 @@ function CategoryNode({
   selectedIds,
   onToggle,
   onSelectAll,
+  signatureStatuses,
+  onSign,
 }: {
   category: string;
   nodes: CetakanNode[];
   selectedIds: Set<string>;
   onToggle: (id: string) => void;
   onSelectAll: (ids: string[], select: boolean) => void;
+  signatureStatuses: Map<string, SignatureStatus>;
+  onSign: (node: CetakanNode) => void;
 }) {
   const [open, setOpen] = useState(true);
   const availableNodes = nodes.filter((n) => n.available);
@@ -319,28 +459,79 @@ function CategoryNode({
       </button>
       {open && (
         <div className="divide-y">
-          {nodes.map((node) => (
-            <div
-              key={node.id}
-              className={cn(
-                'flex items-center gap-2 px-3 py-2 pl-10 text-sm transition-colors',
-                node.available ? 'hover:bg-muted/30' : 'opacity-40',
-                selectedIds.has(node.id) && 'bg-primary/5',
-              )}
-            >
-              <Checkbox
-                checked={selectedIds.has(node.id)}
-                onCheckedChange={() => onToggle(node.id)}
-                disabled={!node.available}
-                className="shrink-0"
-              />
-              <span className="text-muted-foreground shrink-0">{node.icon}</span>
-              <span className="flex-1 truncate">{node.label}</span>
-              {!node.available && (
-                <Badge variant="outline" className="text-[10px] text-muted-foreground">Tidak tersedia</Badge>
-              )}
-            </div>
-          ))}
+          {nodes.map((node) => {
+            const sigKey = `${node.documentType}:${node.documentId}`;
+            const sigStatus = signatureStatuses.get(sigKey);
+            const isSigned = sigStatus?.is_signed ?? false;
+
+            return (
+              <div
+                key={node.id}
+                className={cn(
+                  'flex items-center gap-2 px-3 py-2 pl-10 text-sm transition-colors',
+                  node.available ? 'hover:bg-muted/30' : 'opacity-40',
+                  selectedIds.has(node.id) && 'bg-primary/5',
+                )}
+              >
+                <Checkbox
+                  checked={selectedIds.has(node.id)}
+                  onCheckedChange={() => onToggle(node.id)}
+                  disabled={!node.available}
+                  className="shrink-0"
+                />
+                <span className="text-muted-foreground shrink-0">{node.icon}</span>
+                <span className="flex-1 truncate">{node.label}</span>
+                {/* Signature status + button */}
+                {node.available && (
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {isSigned ? (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Badge
+                            variant="default"
+                            className="text-[10px] bg-green-600 hover:bg-green-700 cursor-pointer"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onSign(node);
+                            }}
+                          >
+                            <PenLine className="h-3 w-3 mr-1" />
+                            {sigStatus?.signer_name || 'Sudah TTD'}
+                          </Badge>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Ditandatangani oleh: {sigStatus?.signer_name}</p>
+                          {sigStatus?.signed_at && <p className="text-xs opacity-70">{new Date(sigStatus.signed_at).toLocaleString('id-ID')}</p>}
+                          <p className="text-xs mt-1">Klik untuk mengganti TTD</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    ) : (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-6 px-2 text-[10px] gap-1"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onSign(node);
+                            }}
+                          >
+                            <PenLine className="h-3 w-3" />
+                            TTD
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Tandatangani dokumen ini</TooltipContent>
+                      </Tooltip>
+                    )}
+                  </div>
+                )}
+                {!node.available && (
+                  <Badge variant="outline" className="text-[10px] text-muted-foreground">Tidak tersedia</Badge>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -359,7 +550,46 @@ export default function CetakanTab({ detail, originalRM }: CetakanTabProps) {
   const [previewBlob, setPreviewBlob] = useState<Blob | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
 
+  // Signature state
+  const [signatureStatuses, setSignatureStatuses] = useState<Map<string, SignatureStatus>>(new Map());
+  const [signDialogOpen, setSignDialogOpen] = useState(false);
+  const [signTarget, setSignTarget] = useState<CetakanNode | null>(null);
+
   const allNodes = useMemo(() => buildCetakanNodes(detail, originalRM), [detail, originalRM]);
+
+  // Batch load signature statuses
+  const loadSignatureStatuses = useCallback(async () => {
+    const availableNodes = allNodes.filter((n) => n.available && n.documentType && n.documentId);
+    if (availableNodes.length === 0) return;
+
+    const documents = availableNodes.map((n) => ({
+      document_type: n.documentType,
+      document_id: n.documentId,
+    }));
+
+    try {
+      const res = await signatureApi.batchSignatureStatus(documents);
+      const statuses = res.data?.statuses;
+      if (statuses) {
+        setSignatureStatuses(new Map(Object.entries(statuses)));
+      }
+    } catch {
+      // silent fail
+    }
+  }, [allNodes]);
+
+  useEffect(() => {
+    loadSignatureStatuses();
+  }, [loadSignatureStatuses]);
+
+  const handleOpenSignDialog = useCallback((node: CetakanNode) => {
+    setSignTarget(node);
+    setSignDialogOpen(true);
+  }, []);
+
+  const handleSignSuccess = useCallback(() => {
+    loadSignatureStatuses();
+  }, [loadSignatureStatuses]);
 
   // Group by category preserving order
   const categories = useMemo(() => {
@@ -589,6 +819,8 @@ export default function CetakanTab({ detail, originalRM }: CetakanTabProps) {
               selectedIds={selectedIds}
               onToggle={handleToggle}
               onSelectAll={handleSelectAll}
+              signatureStatuses={signatureStatuses}
+              onSign={handleOpenSignDialog}
             />
           ))}
         </div>
@@ -735,6 +967,27 @@ export default function CetakanTab({ detail, originalRM }: CetakanTabProps) {
           </Dialog>
         </div>
       </div>
+
+      {/* Sign on behalf dialog */}
+      {signTarget && (
+        <SignOnBehalfDialog
+          open={signDialogOpen}
+          onOpenChange={setSignDialogOpen}
+          documentType={signTarget.documentType}
+          documentId={signTarget.documentId}
+          visitId={detail.visit_id}
+          signerHint={signTarget.signerHint}
+          documentTitle={signTarget.label}
+          visitDoctor={(detail as any).visit?.doctor ? {
+            id: (detail as any).visit.doctor.id,
+            nama_lengkap: (detail as any).visit.doctor.nama_lengkap,
+            spesialisasi: (detail as any).visit.doctor.spesialisasi,
+            no_sip: (detail as any).visit.doctor.no_sip,
+            no_str: (detail as any).visit.doctor.no_str,
+          } : undefined}
+          onSuccess={handleSignSuccess}
+        />
+      )}
     </div>
   );
 }

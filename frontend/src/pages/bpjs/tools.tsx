@@ -9,6 +9,12 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Loader2,
   Search,
   Save,
@@ -23,6 +29,7 @@ import {
   Eye,
   ClipboardList,
   ChevronUp,
+  ExternalLink,
 } from "lucide-react";
 import { vclaimApi, type VClaimListRencanaKontrolItem, type VClaimPersetujuanSEPItem } from "@/lib/api/vclaim";
 import { bpjsApi, type BPJSPendaftaranAntreanItem, type BPJSListTaskItem } from "@/lib/api/bpjs";
@@ -123,6 +130,13 @@ export default function BPJSToolsPage() {
   const [antreanTasksLoading, setAntreanTasksLoading] = useState<string | null>(null);
   const [antreanBookingDetail, setAntreanBookingDetail] = useState<Record<string, BPJSPendaftaranAntreanItem[]>>({});
   const [antreanDetailLoading, setAntreanDetailLoading] = useState<string | null>(null);
+
+  // I-Care state
+  const [icareNoKartu, setIcareNoKartu] = useState("");
+  const [icareKodeDokter, setIcareKodeDokter] = useState("");
+  const [icareLoading, setIcareLoading] = useState(false);
+  const [icareUrl, setIcareUrl] = useState<string | null>(null);
+  const [icareOpen, setIcareOpen] = useState(false);
 
   const form = useForm<GetSEPForm>({
     resolver: zodResolver(getSEPSchema),
@@ -358,6 +372,38 @@ export default function BPJSToolsPage() {
     }
   };
 
+  // I-Care handler
+  const handleICareValidate = async () => {
+    if (!icareNoKartu.trim()) {
+      toast({ variant: "destructive", title: "Gagal", description: "No. Kartu BPJS wajib diisi" });
+      return;
+    }
+    if (!icareKodeDokter.trim()) {
+      toast({ variant: "destructive", title: "Gagal", description: "Kode Dokter wajib diisi" });
+      return;
+    }
+    const kodeDokter = parseInt(icareKodeDokter, 10);
+    if (isNaN(kodeDokter)) {
+      toast({ variant: "destructive", title: "Gagal", description: "Kode Dokter harus berupa angka" });
+      return;
+    }
+    setIcareLoading(true);
+    try {
+      const res = await bpjsApi.icareValidateManual(icareNoKartu.trim(), kodeDokter);
+      const url = res.data.url;
+      if (url) {
+        setIcareUrl(url);
+        setIcareOpen(true);
+      } else {
+        toast({ variant: "destructive", title: "Gagal", description: "URL I-Care tidak ditemukan dalam response BPJS" });
+      }
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Gagal", description: error.response?.data?.error || "Gagal memanggil I-Care" });
+    } finally {
+      setIcareLoading(false);
+    }
+  };
+
   const handleSaveSEP = async () => {
     if (!sepData) return;
     setSaving(true);
@@ -398,7 +444,7 @@ export default function BPJSToolsPage() {
   };
 
   return (
-    <div className="flex flex-1 flex-col gap-4 p-6">
+    <div className="flex flex-1 flex-col p-4">
       {/* Page Header */}
       <div>
         <h1 className="text-lg font-semibold">BPJS Tools</h1>
@@ -417,13 +463,13 @@ export default function BPJSToolsPage() {
               <FileCheck className="mr-2 h-4 w-4" />
               Surat Kontrol
             </TabsTrigger>
-            <TabsTrigger value="approval-sep">
+            <TabsTrigger value="pengajuan-approval">
               <ShieldCheck className="mr-2 h-4 w-4" />
-              Approval SEP
+              Pengajuan & Approval SEP
             </TabsTrigger>
-            <TabsTrigger value="pengajuan-sep">
-              <FileText className="mr-2 h-4 w-4" />
-              Pengajuan SEP
+            <TabsTrigger value="icare">
+              <ExternalLink className="mr-2 h-4 w-4" />
+              I-Care
             </TabsTrigger>
             <TabsTrigger value="antrian-online">
               <ListOrdered className="mr-2 h-4 w-4" />
@@ -669,16 +715,77 @@ export default function BPJSToolsPage() {
             )}
           </TabsContent>
 
-          {/* ========== Approval SEP ========== */}
-          <TabsContent value="approval-sep" className="mt-6 space-y-5">
+          {/* ========== Pengajuan & Approval SEP (Combined) ========== */}
+          <TabsContent value="pengajuan-approval" className="mt-6 space-y-5">
             <div>
-              <h2 className="text-sm font-semibold">Approval SEP</h2>
-              <p className="text-xs text-muted-foreground mt-0.5">Ajukan approval SEP (backdate / fingerprint)</p>
+              <h2 className="text-sm font-semibold">Pengajuan & Approval SEP</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">Ajukan SEP baru atau approval SEP (backdate / fingerprint) ke BPJS</p>
             </div>
 
-            {/* Manual Input Form */}
+            {/* === Pengajuan SEP Form === */}
             <div className="border rounded-lg p-4 space-y-4">
-              <div className="text-sm font-medium">Input Manual</div>
+              <div className="text-sm font-medium">Pengajuan SEP</div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">No. Kartu BPJS</label>
+                  <Input
+                    placeholder="0001234567890"
+                    value={pengajuanNoKartu}
+                    onChange={(e) => setPengajuanNoKartu(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Tgl SEP</label>
+                  <Input
+                    type="date"
+                    value={pengajuanTglSep}
+                    onChange={(e) => setPengajuanTglSep(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Jenis Pelayanan</label>
+                  <Select value={pengajuanJnsPelayanan} onValueChange={setPengajuanJnsPelayanan}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="2">Rawat Jalan</SelectItem>
+                      <SelectItem value="1">Rawat Inap</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Jenis Pengajuan</label>
+                  <Select value={pengajuanJnsPengajuan} onValueChange={setPengajuanJnsPengajuan}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">Backdate</SelectItem>
+                      <SelectItem value="2">Finger Print</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="md:col-span-2">
+                  <label className="text-xs text-muted-foreground mb-1 block">Keterangan</label>
+                  <Input
+                    placeholder="Alasan pengajuan SEP..."
+                    value={pengajuanKeterangan}
+                    onChange={(e) => setPengajuanKeterangan(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <Button onClick={handlePengajuanSEP} disabled={pengajuanSubmitting}>
+                  {pengajuanSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <FileText className="h-4 w-4 mr-2" />}
+                  Ajukan SEP
+                </Button>
+              </div>
+            </div>
+
+            {/* === Approval SEP Form === */}
+            <div className="border rounded-lg p-4 space-y-4">
+              <div className="text-sm font-medium">Approval SEP (Input Manual)</div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div>
                   <label className="text-xs text-muted-foreground mb-1 block">No. Kartu BPJS</label>
@@ -739,9 +846,9 @@ export default function BPJSToolsPage() {
 
             <Separator />
 
-            {/* Search dari List */}
+            {/* === List Approval dari BPJS === */}
             <div>
-              <div className="text-sm font-medium mb-2">Cari dari Daftar</div>
+              <div className="text-sm font-medium mb-2">Daftar SEP Butuh Approval</div>
               <p className="text-xs text-muted-foreground mb-3">Cari SEP yang membutuhkan approval dari BPJS</p>
             </div>
 
@@ -853,69 +960,39 @@ export default function BPJSToolsPage() {
             )}
           </TabsContent>
 
-          {/* ========== Pengajuan SEP ========== */}
-          <TabsContent value="pengajuan-sep" className="mt-6 space-y-5">
+          {/* ========== I-CARE ========== */}
+          <TabsContent value="icare" className="mt-6 space-y-5">
             <div>
-              <h2 className="text-sm font-semibold">Pengajuan SEP</h2>
-              <p className="text-xs text-muted-foreground mt-0.5">Ajukan SEP baru (backdate / fingerprint) ke BPJS</p>
+              <h2 className="text-sm font-semibold">BPJS I-Care</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">Akses BPJS I-Care dengan memasukkan nomor kartu BPJS dan kode dokter</p>
             </div>
 
             <div className="border rounded-lg p-4 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="text-xs text-muted-foreground mb-1 block">No. Kartu BPJS</label>
                   <Input
                     placeholder="0001234567890"
-                    value={pengajuanNoKartu}
-                    onChange={(e) => setPengajuanNoKartu(e.target.value)}
+                    value={icareNoKartu}
+                    onChange={(e) => setIcareNoKartu(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleICareValidate()}
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">Tgl SEP</label>
+                  <label className="text-xs text-muted-foreground mb-1 block">Kode Dokter BPJS</label>
                   <Input
-                    type="date"
-                    value={pengajuanTglSep}
-                    onChange={(e) => setPengajuanTglSep(e.target.value)}
+                    placeholder="12345"
+                    value={icareKodeDokter}
+                    onChange={(e) => setIcareKodeDokter(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleICareValidate()}
                   />
                 </div>
-                <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">Jenis Pelayanan</label>
-                  <Select value={pengajuanJnsPelayanan} onValueChange={setPengajuanJnsPelayanan}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="2">Rawat Jalan</SelectItem>
-                      <SelectItem value="1">Rawat Inap</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <div className="flex items-end">
+                  <Button onClick={handleICareValidate} disabled={icareLoading} className="w-full md:w-auto">
+                    {icareLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <ExternalLink className="h-4 w-4 mr-2" />}
+                    Buka I-Care
+                  </Button>
                 </div>
-                <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">Jenis Pengajuan</label>
-                  <Select value={pengajuanJnsPengajuan} onValueChange={setPengajuanJnsPengajuan}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="1">Backdate</SelectItem>
-                      <SelectItem value="2">Finger Print</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="md:col-span-2">
-                  <label className="text-xs text-muted-foreground mb-1 block">Keterangan</label>
-                  <Input
-                    placeholder="Alasan pengajuan SEP..."
-                    value={pengajuanKeterangan}
-                    onChange={(e) => setPengajuanKeterangan(e.target.value)}
-                  />
-                </div>
-              </div>
-              <div className="flex justify-end">
-                <Button onClick={handlePengajuanSEP} disabled={pengajuanSubmitting}>
-                  {pengajuanSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <FileText className="h-4 w-4 mr-2" />}
-                  Ajukan SEP
-                </Button>
               </div>
             </div>
           </TabsContent>
@@ -1380,6 +1457,27 @@ export default function BPJSToolsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* I-Care Iframe Dialog */}
+      <Dialog open={icareOpen} onOpenChange={(open) => { setIcareOpen(open); if (!open) setIcareUrl(null); }}>
+        <DialogContent className="max-w-[90vw] h-[85vh] p-0 flex flex-col">
+          <DialogHeader className="px-4 pt-4 pb-2">
+            <DialogTitle className="text-sm flex items-center gap-2">
+              <ExternalLink className="h-4 w-4" />
+              BPJS I-Care
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 px-4 pb-4">
+            {icareUrl && (
+              <iframe
+                src={icareUrl}
+                className="w-full h-full rounded-lg border"
+                title="BPJS I-Care"
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

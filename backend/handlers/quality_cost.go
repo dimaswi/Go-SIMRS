@@ -10,6 +10,41 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// parseQCDateRange resolves the date range from query params.
+// If "month" param is provided (YYYY-MM format), it takes precedence over "period".
+// Returns startDate, endDate, useTimeFilter.
+func parseQCDateRange(c *gin.Context, defaultPeriod string) (time.Time, time.Time, bool) {
+	now := time.Now()
+
+	// Check for month param first (YYYY-MM format)
+	monthParam := c.Query("month")
+	if monthParam != "" {
+		parsed, err := time.Parse("2006-01", monthParam)
+		if err == nil {
+			startDate := parsed
+			endDate := parsed.AddDate(0, 1, 0).Add(-time.Second)
+			return startDate, endDate, true
+		}
+	}
+
+	period := c.DefaultQuery("period", defaultPeriod)
+
+	switch period {
+	case "week":
+		return now.AddDate(0, 0, -7), now, true
+	case "month":
+		return now.AddDate(0, -1, 0), now, true
+	case "quarter":
+		return now.AddDate(0, -3, 0), now, true
+	case "year":
+		return now.AddDate(-1, 0, 0), now, true
+	case "all":
+		return time.Time{}, now, false
+	default:
+		return now.AddDate(0, -1, 0), now, true
+	}
+}
+
 // ==================== Quality Control Indicators ====================
 
 // HospitalIndicators contains standard hospital quality indicators
@@ -120,25 +155,7 @@ type ClaimAgeGroup struct {
 func GetQualityMetrics(c *gin.Context) {
 	db := database.DB
 
-	// Get period from query (default: month)
-	period := c.DefaultQuery("period", "month")
-
-	var startDate, endDate time.Time
-	now := time.Now()
-
-	switch period {
-	case "week":
-		startDate = now.AddDate(0, 0, -7)
-	case "month":
-		startDate = now.AddDate(0, -1, 0)
-	case "quarter":
-		startDate = now.AddDate(0, -3, 0)
-	case "year":
-		startDate = now.AddDate(-1, 0, 0)
-	default:
-		startDate = now.AddDate(0, -1, 0)
-	}
-	endDate = now
+	startDate, endDate, _ := parseQCDateRange(c, "month")
 
 	// Calculate number of days in period
 	periodDays := endDate.Sub(startDate).Hours() / 24
@@ -277,7 +294,12 @@ func GetQualityMetrics(c *gin.Context) {
 				GDRMax:  45,
 			},
 		},
-		Period:           period,
+		Period: func() string {
+			if m := c.Query("month"); m != "" {
+				return m
+			}
+			return c.DefaultQuery("period", "month")
+		}(),
 		TotalBeds:        totalBeds,
 		TotalDischarges:  totalDischarges,
 		TotalDeaths:      totalDeaths,
@@ -295,32 +317,14 @@ func GetQualityMetrics(c *gin.Context) {
 func GetCostAnalysisSummary(c *gin.Context) {
 	db := database.DB
 
-	period := c.DefaultQuery("period", "month")
 	paymentMethod := c.DefaultQuery("payment_method", "") // Filter by payment method (e.g., "bpjs")
 
-	var startDate time.Time
-	now := time.Now()
-	useTimeFilter := true
-
-	switch period {
-	case "week":
-		startDate = now.AddDate(0, 0, -7)
-	case "month":
-		startDate = now.AddDate(0, -1, 0)
-	case "quarter":
-		startDate = now.AddDate(0, -3, 0)
-	case "year":
-		startDate = now.AddDate(-1, 0, 0)
-	case "all":
-		useTimeFilter = false // No time filter - ALL data
-	default:
-		startDate = now.AddDate(0, -1, 0)
-	}
+	startDate, endDate, useTimeFilter := parseQCDateRange(c, "month")
 
 	// Query from REGISTRATIONS - all registrations in period
 	regQuery := db.Model(&models.Registration{})
 	if useTimeFilter {
-		regQuery = regQuery.Where("created_at >= ?", startDate)
+		regQuery = regQuery.Where("created_at >= ? AND created_at <= ?", startDate, endDate)
 	}
 
 	if paymentMethod != "" {
@@ -341,7 +345,7 @@ func GetCostAnalysisSummary(c *gin.Context) {
 	billingQuery := db.Model(&models.Billing{}).
 		Select("registration_id, final_amount, bpjs_claim_amount, status")
 	if useTimeFilter {
-		billingQuery = billingQuery.Where("created_at >= ?", startDate)
+		billingQuery = billingQuery.Where("created_at >= ? AND created_at <= ?", startDate, endDate)
 	}
 	if paymentMethod != "" {
 		billingQuery = billingQuery.Joins("JOIN registrations ON registrations.id = billings.registration_id").
@@ -375,7 +379,7 @@ func GetCostAnalysisSummary(c *gin.Context) {
 		Joins("JOIN billings ON billings.id = billing_items.billing_id").
 		Where("billing_items.item_type = ?", "medicine")
 	if useTimeFilter {
-		drugQuery = drugQuery.Where("billings.created_at >= ?", startDate)
+		drugQuery = drugQuery.Where("billings.created_at >= ? AND billings.created_at <= ?", startDate, endDate)
 	}
 	drugQuery.Select("COALESCE(SUM(billing_items.subtotal), 0)").
 		Scan(&drugCost)
@@ -421,31 +425,13 @@ func GetCostAnalysisSummary(c *gin.Context) {
 func GetCostCaseList(c *gin.Context) {
 	db := database.DB
 
-	period := c.DefaultQuery("period", "month")
 	sortBy := c.DefaultQuery("sort_by", "date")       // date, cost, difference
 	sortOrder := c.DefaultQuery("sort_order", "desc") // newest first by default
 	paymentMethod := c.DefaultQuery("payment_method", "")
 	page := 1
 	limit := 50
 
-	var startDate time.Time
-	now := time.Now()
-	useTimeFilter := true
-
-	switch period {
-	case "week":
-		startDate = now.AddDate(0, 0, -7)
-	case "month":
-		startDate = now.AddDate(0, -1, 0)
-	case "quarter":
-		startDate = now.AddDate(0, -3, 0)
-	case "year":
-		startDate = now.AddDate(-1, 0, 0)
-	case "all":
-		useTimeFilter = false
-	default:
-		startDate = now.AddDate(0, -1, 0)
-	}
+	startDate, endDate, useTimeFilter := parseQCDateRange(c, "month")
 
 	// Query from REGISTRATIONS - all registrations
 	query := db.Model(&models.Registration{}).
@@ -453,7 +439,7 @@ func GetCostCaseList(c *gin.Context) {
 		Preload("DestinationRoom").
 		Preload("Doctor")
 	if useTimeFilter {
-		query = query.Where("registrations.created_at >= ?", startDate)
+		query = query.Where("registrations.created_at >= ? AND registrations.created_at <= ?", startDate, endDate)
 	}
 
 	if paymentMethod != "" {
@@ -575,30 +561,15 @@ func GetCostCaseList(c *gin.Context) {
 func GetTopLossCases(c *gin.Context) {
 	db := database.DB
 
-	period := c.DefaultQuery("period", "month")
 	limit := 10
 
-	var startDate time.Time
-	now := time.Now()
-
-	switch period {
-	case "week":
-		startDate = now.AddDate(0, 0, -7)
-	case "month":
-		startDate = now.AddDate(0, -1, 0)
-	case "quarter":
-		startDate = now.AddDate(0, -3, 0)
-	case "year":
-		startDate = now.AddDate(-1, 0, 0)
-	default:
-		startDate = now.AddDate(0, -1, 0)
-	}
+	startDate, endDate, _ := parseQCDateRange(c, "month")
 
 	var billings []models.Billing
 	db.Model(&models.Billing{}).
 		Preload("Registration.Patient").
 		Preload("Visit").
-		Where("billings.created_at >= ?", startDate).
+		Where("billings.created_at >= ? AND billings.created_at <= ?", startDate, endDate).
 		Where("billings.status IN ?", []string{"paid", "partial"}).
 		Where("billings.payment_method = ?", "bpjs").
 		Order("(COALESCE(bpjs_claim_amount, final_amount) - final_amount) ASC").
@@ -678,23 +649,7 @@ func GetTopLossCases(c *gin.Context) {
 func GetCostByCategory(c *gin.Context) {
 	db := database.DB
 
-	period := c.DefaultQuery("period", "month")
-
-	var startDate time.Time
-	now := time.Now()
-
-	switch period {
-	case "week":
-		startDate = now.AddDate(0, 0, -7)
-	case "month":
-		startDate = now.AddDate(0, -1, 0)
-	case "quarter":
-		startDate = now.AddDate(0, -3, 0)
-	case "year":
-		startDate = now.AddDate(-1, 0, 0)
-	default:
-		startDate = now.AddDate(0, -1, 0)
-	}
+	startDate, endDate, _ := parseQCDateRange(c, "month")
 
 	// Get cost breakdown by item type
 	var categories []struct {
@@ -703,7 +658,7 @@ func GetCostByCategory(c *gin.Context) {
 	}
 	db.Model(&models.BillingItem{}).
 		Joins("JOIN billings ON billings.id = billing_items.billing_id").
-		Where("billings.created_at >= ?", startDate).
+		Where("billings.created_at >= ? AND billings.created_at <= ?", startDate, endDate).
 		Where("billings.status IN ?", []string{"paid", "partial"}).
 		Group("billing_items.item_type").
 		Select("billing_items.item_type as item_type, COALESCE(SUM(billing_items.subtotal), 0) as total").
@@ -825,18 +780,31 @@ func GetPendingClaims(c *gin.Context) {
 func GetQualityTrends(c *gin.Context) {
 	db := database.DB
 
-	period := c.DefaultQuery("period", "year") // Show monthly trends for a year
-
-	var startDate time.Time
+	var startDate, endDate time.Time
 	now := time.Now()
 
-	switch period {
-	case "quarter":
-		startDate = now.AddDate(0, -3, 0)
-	case "year":
-		startDate = now.AddDate(-1, 0, 0)
-	default:
-		startDate = now.AddDate(-1, 0, 0)
+	// If month param specified, show 12 months ending at that month
+	monthParam := c.Query("month")
+	if monthParam != "" {
+		parsed, err := time.Parse("2006-01", monthParam)
+		if err == nil {
+			endDate = parsed.AddDate(0, 1, 0).Add(-time.Second)
+			startDate = parsed.AddDate(-1, 0, 0)
+		} else {
+			startDate = now.AddDate(-1, 0, 0)
+			endDate = now
+		}
+	} else {
+		endDate = now
+		period := c.DefaultQuery("period", "year")
+		switch period {
+		case "quarter":
+			startDate = now.AddDate(0, -3, 0)
+		case "year":
+			startDate = now.AddDate(-1, 0, 0)
+		default:
+			startDate = now.AddDate(-1, 0, 0)
+		}
 	}
 
 	// Get total beds (assume relatively constant)
@@ -859,7 +827,7 @@ func GetQualityTrends(c *gin.Context) {
 
 	db.Model(&models.Visit{}).
 		Where("visit_type = ?", "inpatient").
-		Where("admission_time >= ?", startDate).
+		Where("admission_time >= ? AND admission_time <= ?", startDate, endDate).
 		Select("TO_CHAR(admission_time, 'YYYY-MM') as year_month, " +
 			"COALESCE(SUM(inpatient_days), 0) as total_patient_days, " +
 			"COUNT(CASE WHEN discharge_time IS NOT NULL THEN 1 END) as total_discharges").

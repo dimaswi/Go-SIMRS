@@ -32,7 +32,6 @@ import {
   Hotel,
   QrCode,
   Stethoscope,
-  Archive,
   Circle,
   Map,
   UtensilsCrossed,
@@ -147,8 +146,6 @@ const menuItems: MenuItem[] = [
       { path: '/nutrition/kitchen', label: 'Dapur', icon: ChefHat },
     ]
   },
-  { path: '/archives', label: 'Arsip Rekam Medis', icon: Archive, permission: 'archives.view' },
-  { path: '/quality-cost', label: 'Kendali Mutu & Biaya', icon: Activity, permission: 'dashboard.view' },
   {
     path: '/reports',
     label: 'Laporan',
@@ -176,6 +173,7 @@ const menuItems: MenuItem[] = [
     permission: 'integrations.view',
     submenu: [
       { path: '/bpjs/tools', label: 'Tools', icon: Settings, permission: 'integrations.view' },
+      { path: '/bpjs/aplicare', label: 'Aplicare', icon: BedDouble, permission: 'integrations.view' },
       { path: '/bpjs/mapping', label: 'Mapping Poli & Dokter', icon: Building2, permission: 'integrations.view' },
       { path: '/bpjs/queue-monitoring', label: 'Monitoring Antrian', icon: Activity, permission: 'integrations.view' },
       { path: '/bpjs/logs', label: 'Log API', icon: FileSearch, permission: 'integrations.view' },

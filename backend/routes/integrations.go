@@ -24,6 +24,7 @@ func IntegrationsRoutes(r *gin.RouterGroup) {
 			// Config management
 			integration.GET("/config", middleware.RequirePermission("integrations.view"), handlers.GetIntegrationConfig)
 			integration.POST("/config/init", middleware.RequirePermission("integrations.manage"), handlers.InitIntegrationConfig)
+			integration.POST("/config/reset", middleware.RequirePermission("integrations.manage"), handlers.ResetIntegrationConfig)
 			integration.PUT("/config", middleware.RequirePermission("integrations.manage"), handlers.UpdateIntegrationConfig)
 
 			// Connection testing

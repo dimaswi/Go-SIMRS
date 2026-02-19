@@ -156,12 +156,17 @@ func GetBPJSSyncLogs(c *gin.Context) {
 		limit = l
 	}
 
-	// Query untuk semua integration type BPJS (termasuk legacy "bpjs" dan "bpjs-antrian")
-	query := database.DB.Where("integration IN ?", []string{
+	// Query untuk semua integration type BPJS
+	bpjsLogTypes := []string{
 		string(models.IntegrationTypeBPJS),
 		string(models.IntegrationTypeBPJSAntrian),
 		string(models.IntegrationTypeBPJSVClaim),
-	}).Order("created_at DESC").Limit(limit)
+		string(models.IntegrationTypeBPJSICare),
+		string(models.IntegrationTypeBPJSApotek),
+		string(models.IntegrationTypeBPJSRME),
+		string(models.IntegrationTypeBPJSAplicare),
+	}
+	query := database.DB.Where("integration IN ?", bpjsLogTypes).Order("created_at DESC").Limit(limit)
 
 	// Filter by status if provided
 	status := c.Query("status")
@@ -208,6 +213,10 @@ func GetBPJSSyncStats(c *gin.Context) {
 		string(models.IntegrationTypeBPJS),
 		string(models.IntegrationTypeBPJSAntrian),
 		string(models.IntegrationTypeBPJSVClaim),
+		string(models.IntegrationTypeBPJSICare),
+		string(models.IntegrationTypeBPJSApotek),
+		string(models.IntegrationTypeBPJSRME),
+		string(models.IntegrationTypeBPJSAplicare),
 	}
 
 	database.DB.Model(&models.IntegrationSyncLog{}).

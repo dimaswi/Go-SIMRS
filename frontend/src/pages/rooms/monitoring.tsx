@@ -237,7 +237,7 @@ export default function RoomMonitoring() {
 
   if (!room) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6">
+      <div className="flex flex-1 flex-col items-center justify-center p-4">
         <p className="text-muted-foreground">Ruangan tidak ditemukan</p>
         <Button variant="outline" asChild>
           <Link to="/bed-monitoring">

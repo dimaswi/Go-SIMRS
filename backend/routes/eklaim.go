@@ -70,6 +70,7 @@ func RegisterEKlaimRoutes(r *gin.RouterGroup) {
 		// RM Duplicate editing
 		eklaimLocal.POST("/:id/init-rm-duplicate", middleware.RequirePermission("eklaim.create"), handlers.InitRMDuplicate)
 		eklaimLocal.PUT("/:id/rm-duplicate", middleware.RequirePermission("eklaim.edit"), handlers.UpdateRMDuplicate)
+		eklaimLocal.POST("/:id/rm-duplicate/:rm_id/recalculate-billing", middleware.RequirePermission("eklaim.edit"), handlers.RecalculateRMDuplicateBilling)
 		eklaimLocal.POST("/:id/sync-rm-from-visit", middleware.RequirePermission("eklaim.edit"), handlers.SyncRMFromVisit)
 		eklaimLocal.POST("/:id/sync-billing-tarif", middleware.RequirePermission("eklaim.edit"), handlers.SyncBillingTarif)
 

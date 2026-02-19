@@ -242,8 +242,10 @@ export interface EKlaimRMDuplicate {
   history_of_present_illness: string;
   past_medical_history: string;
   family_history: string;
+  social_history: string;
   allergies: string;
   current_medications: string;
+  review_of_systems: string;
 
   // Physical Exam / Vital Signs
   general_condition: string;
@@ -258,8 +260,10 @@ export interface EKlaimRMDuplicate {
   weight: string;
   height: string;
   bmi: number;
+  waist: string;
+  head_circum: string;
 
-  // Body Systems
+  // Body Systems (legacy composite)
   head_neck: string;
   eyes: string;
   ent: string;
@@ -271,25 +275,62 @@ export interface EKlaimRMDuplicate {
   neurological: string;
   skin: string;
 
+  // Body Systems (new individual)
+  head: string;
+  ears: string;
+  nose: string;
+  throat: string;
+  neck: string;
+  chest: string;
+  heart: string;
+  lungs: string;
+  musculoskel: string;
+  genitourinary: string;
+  other_findings: string;
+
+  // ECG
+  ecg_performed: boolean;
+  ecg_result: string;
+  ecg_interpretation: string;
+  ecg_notes: string;
+
   // Assessment & Plan
   clinical_assessment: string;
   prognosis: string;
   treatment_plan: string;
   medication_plan: string;
+  diet_plan: string;
+  activity_plan: string;
+  education_plan: string;
+  monitoring_plan: string;
+  procedure_plan: string;
+  consultation_plan: string;
 
   // Disposition
   disposition_type: string;
+  disposition_note: string;
   rm_discharge_status: string;
   discharge_condition: string;
   discharge_instruction: string;
+  discharge_medication: string;
   follow_up_instruction: string;
+  follow_up_date: string;
+  referral_facility: string;
+  referral_reason: string;
+  referral_diagnosis: string;
+  referral_therapy: string;
+  referral_notes: string;
+  death_time: string;
+  death_cause: string;
 
   // Relations
   diagnoses: EKlaimRMDiagnosis[];
   procedures: EKlaimRMProcedure[];
-  lab_results: EKlaimRMLabResult[];
-  radiology_results: EKlaimRMRadiologyResult[];
-  surgery_notes: EKlaimRMSurgeryNote[];
+  orders: EKlaimRMOrder[];
+  medicine_items: EKlaimRMMedicineItem[];
+  cppt_notes: EKlaimRMCPPT[];
+  fluid_balances: EKlaimRMFluidBalance[];
+  billing?: EKlaimRMBilling;
 
   // Tarif (18-field E-Klaim breakdown)
   tarif_prosedur_non_bedah: number;
@@ -311,8 +352,38 @@ export interface EKlaimRMDuplicate {
   tarif_bmhp: number;
   tarif_sewa_alat: number;
   total_tarif: number;
+
+  // Inpatient-specific fields
+  admission_date: string;
+  discharge_date: string;
+  length_of_stay: number;
+  accommodation_tariff_per_day: number;
+
   duplicated_at?: string;
   duplicated_by?: any;
+
+  // Triage UGD
+  has_triage: boolean;
+  triage_arrival_mode: string;
+  triage_complaint: string;
+  triage_level: string;
+  triage_airway: string;
+  triage_airway_note: string;
+  triage_breathing: string;
+  triage_breathing_note: string;
+  triage_circulation: string;
+  triage_circulation_note: string;
+  triage_blood_pressure: string;
+  triage_heart_rate: string;
+  triage_respiratory_rate: string;
+  triage_temperature: string;
+  triage_oxygen_saturation: string;
+  triage_pain_scale: number;
+  triage_gcs_e: number;
+  triage_gcs_v: number;
+  triage_gcs_m: number;
+  triage_assessment: string;
+  triage_immediate_actions: string;
 }
 
 export interface EKlaimRMDiagnosis {
@@ -334,49 +405,211 @@ export interface EKlaimRMProcedure {
   sequence: number;
 }
 
-export interface EKlaimRMLabResult {
+export interface EKlaimRMOrder {
   id?: number;
   rm_duplicate_id?: number;
+  order_type: 'laboratory' | 'radiology' | 'surgery' | 'consultation';
+  source_order_id?: number;
   order_number: string;
-  order_item_name: string;
-  parameter_name: string;
-  value: string;
-  unit: string;
-  reference_range: string;
-  is_abnormal: boolean;
-  is_critical: boolean;
+  priority: string;
+  clinical_notes: string;
+  diagnosis: string;
   notes: string;
-  sequence: number;
-}
 
-export interface EKlaimRMRadiologyResult {
-  id?: number;
-  rm_duplicate_id?: number;
-  order_number: string;
-  procedure_name: string;
+  // Order-level results (radiology/surgery)
   result_summary: string;
   conclusion: string;
   suggestion: string;
   is_critical: boolean;
+  critical_notes: string;
+
+  // Consultation-specific (SOAP)
+  consultant_name: string;
+  specialty: string;
+  subjective: string;
+  objective: string;
+  assessment: string;
+  plan: string;
+  recommendation: string;
+  consultation_fee: number;
+
+  // Surgery-specific
+  surgeon_name: string;
+  anesthesia_type: string;
+  scheduled_date?: string;
+
+  // Fake order support
+  is_fake: boolean;
+  fake_date?: string;
+
+  // Items within this order
+  items: EKlaimRMOrderItem[];
+
+  sequence: number;
+}
+
+export interface EKlaimRMOrderItem {
+  id?: number;
+  eklaim_rm_order_id?: number;
+  procedure_id: number;
+  procedure?: {
+    id: number;
+    name: string;
+    code: string;
+    parameters?: ProcedureParameterRef[];
+  };
+  procedure_name: string;
+  source_item_id?: number;
+  notes: string;
+  results: EKlaimRMOrderResult[];
+  sequence: number;
+}
+
+export interface EKlaimRMOrderResult {
+  id?: number;
+  eklaim_rm_order_item_id?: number;
+  procedure_parameter_id: number;
+  procedure_parameter?: ProcedureParameterRef;
+  parameter_name: string;
+  source_result_id?: number;
+  value: string;
+  numeric_value: number;
+  is_normal: boolean;
+  is_low: boolean;
+  is_high: boolean;
+  is_critical: boolean;
   notes: string;
   sequence: number;
 }
 
-export interface EKlaimRMSurgeryNote {
+// Reference to ProcedureParameter (from master table — used for dynamic rendering)
+export interface ProcedureParameterRef {
+  id: number;
+  name: string;
+  code?: string;
+  input_type: string;
+  unit: string;
+  options?: string;
+  normal_min?: number;
+  normal_max?: number;
+  normal_text?: string;
+  critical_min?: number;
+  critical_max?: number;
+  decimal_places?: number;
+  is_required?: boolean;
+  sort_order?: number;
+}
+
+export interface EKlaimRMMedicineItem {
   id?: number;
   rm_duplicate_id?: number;
-  order_number: string;
-  procedure_name: string;
-  surgeon_name: string;
-  anesthesia_type: string;
-  pre_op_diagnosis: string;
-  post_op_diagnosis: string;
-  operative_findings: string;
-  procedure_desc: string;
-  complications: string;
-  blood_loss: string;
+  medicine_id?: number;
+  medicine?: {
+    id: number;
+    code: string;
+    name: string;
+    unit: string;
+    selling_price: number;
+  };
+  medicine_name: string;
+  dosage: string;
+  frequency: string;
+  route: string;
+  quantity: number;
+  unit: string;
   duration: string;
-  implants: string;
+  instructions: string;
+  unit_price: number;
+  sub_total: number;
+  is_fake: boolean;
+  fake_date?: string;
+  notes: string;
+  sequence: number;
+}
+
+export interface EKlaimRMCPPT {
+  id?: number;
+  rm_duplicate_id?: number;
+  record_date: string;
+  profession: string;
+  staff_name: string;
+  subjective: string;
+  objective: string;
+  assessment: string;
+  plan: string;
+  instruction: string;
+  blood_pressure?: string;
+  heart_rate?: number;
+  respiratory_rate?: number;
+  temperature?: string;
+  oxygen_saturation?: number;
+  pain_scale?: number;
+  is_fake: boolean;
+  notes: string;
+  sequence: number;
+}
+
+export interface EKlaimRMFluidBalance {
+  id?: number;
+  rm_duplicate_id?: number;
+  record_date: string;
+  shift_type: string;
+  staff_name: string;
+  oral_drink: number;
+  oral_food: number;
+  oral_medicine: number;
+  iv_fluid: number;
+  iv_medicine: number;
+  blood_product: number;
+  enteral_feed: number;
+  other_intake: number;
+  urine_amount: number;
+  feces_amount: number;
+  vomit_amount: number;
+  drain_amount: number;
+  blood_loss: number;
+  iwl: number;
+  other_output: number;
+  total_intake: number;
+  total_output: number;
+  balance: number;
+  is_fake: boolean;
+  notes: string;
+  sequence: number;
+}
+
+export interface EKlaimRMBilling {
+  id: number;
+  rm_duplicate_id: number;
+  total_amount: number;
+  discount_amount: number;
+  discount_reason: string;
+  adjust_amount: number;
+  adjust_reason: string;
+  final_amount: number;
+  remaining_amount: number;
+  paid_amount: number;
+  notes: string;
+  items?: EKlaimRMBillingItem[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EKlaimRMBillingItem {
+  id: number;
+  eklaim_rm_billing_id: number;
+  item_type: string; // 'procedure' | 'medicine'
+  reference_id: number;
+  reference_type: string; // 'order_item' | 'medicine_item'
+  reference_code: string;
+  description: string;
+  quantity: number;
+  unit: string;
+  unit_price: number;
+  subtotal: number;
+  performed_by_id?: number;
+  performed_by_name: string;
+  performed_by_role: string;
   notes: string;
   sequence: number;
 }
@@ -411,7 +644,40 @@ export interface OriginalRM {
   lab_orders?: OriginalProcedureOrder[];
   radiology_orders?: OriginalProcedureOrder[];
   surgery_orders?: OriginalProcedureOrder[];
+  consultation_orders?: OriginalProcedureOrder[];
   medicine_orders?: OriginalMedicineOrder[];
+  triage?: OriginalTriage;
+  // Document availability counts
+  nursing_care_count?: number;
+  cppt_with_vitals_count?: number;
+  bed_transfer_count?: number;
+  cppt_count?: number;
+  fluid_balance_count?: number;
+}
+
+export interface OriginalTriage {
+  id: number;
+  arrival_mode?: string;
+  triage_complaint?: string;
+  triage_level?: string;
+  airway?: string;
+  airway_note?: string;
+  breathing?: string;
+  breathing_note?: string;
+  circulation?: string;
+  circulation_note?: string;
+  blood_pressure?: string;
+  heart_rate?: string;
+  breathing_rate?: string;
+  temperature?: string;
+  oxygen_saturation?: string;
+  pain_scale?: number;
+  gcs_e?: number;
+  gcs_v?: number;
+  gcs_m?: number;
+  consciousness?: string;
+  triage_assessment?: string;
+  immediate_actions?: string;
 }
 
 export interface OriginalAnamnesis {
@@ -516,6 +782,7 @@ export interface OriginalProcedureOrder {
   performed_by?: any;
   validated_by?: any;
   surgeon_doctor?: any;
+  consultation?: { id: number; consultant?: any; subjective?: string; objective?: string; assessment?: string; plan?: string; recommendation?: string };
   completed_at?: string;
 }
 
@@ -865,6 +1132,11 @@ export const eklaimLocalApi = {
 
   syncBillingTarif: async (id: number) => {
     const response = await api.post(`/eklaim-local/${id}/sync-billing-tarif`);
+    return response.data;
+  },
+
+  recalculateRMDuplicateBilling: async (eklaimId: number, rmDuplicateId: number) => {
+    const response = await api.post(`/eklaim-local/${eklaimId}/rm-duplicate/${rmDuplicateId}/recalculate-billing`);
     return response.data;
   },
 

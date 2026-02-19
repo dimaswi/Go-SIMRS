@@ -29,6 +29,7 @@ export interface SignDocumentRequest {
   document_id: number;
   visit_id?: number;
   notes?: string;
+  signer_employee_id?: number; // Sign on behalf of another employee
 }
 
 // ==================== Response Types ====================
@@ -157,6 +158,27 @@ export const DOCUMENT_TYPES = {
   OPERATIVE_REPORT: 'operative_report',
   INPATIENT_CERT: 'inpatient_cert',
   PHARMACY_HANDOVER: 'pharmacy_handover',
+  // RM Duplicate (E-Klaim)
+  RM_DUP_LAB_RESULT: 'rm_dup_lab_result',
+  RM_DUP_RADIOLOGY_RESULT: 'rm_dup_radiology_result',
+  RM_DUP_SURGERY_REPORT: 'rm_dup_surgery_report',
+  RM_DUP_CONSULTATION: 'rm_dup_consultation',
+  RM_DUP_RESUME: 'rm_dup_resume',
+  RM_DUP_INPATIENT_RESUME: 'rm_dup_inpatient_resume',
+  RM_DUP_REFERRAL: 'rm_dup_referral',
+  RM_DUP_TRIAGE: 'rm_dup_triage',
+  RM_DUP_EMERGENCY: 'rm_dup_emergency',
+  RM_DUP_CPPT: 'rm_dup_cppt',
+  RM_DUP_FLUID_BALANCE: 'rm_dup_fluid_balance',
+  RM_DUP_PRESCRIPTION: 'rm_dup_prescription',
+  RM_DUP_SEP: 'rm_dup_sep',
+  RM_DUP_ADMISSION: 'rm_dup_admission',
+  RM_DUP_REGISTRATION: 'rm_dup_registration',
+  RM_DUP_CONSENT: 'rm_dup_consent',
+  RM_DUP_NURSING_CARE: 'rm_dup_nursing_care',
+  RM_DUP_BED_TRANSFER: 'rm_dup_bed_transfer',
+  RM_DUP_VITAL_SIGN: 'rm_dup_vital_sign',
+  RM_DUP_INPATIENT_CERT: 'rm_dup_inpatient_cert',
 } as const;
 
 export const DOCUMENT_TYPE_LABELS: Record<string, string> = {
@@ -208,6 +230,12 @@ export const signatureApi = {
 
   checkPINRequired: () =>
     api.get<{ signature_pin_required: boolean }>('/signature/check-required'),
+
+  batchSignatureStatus: (documents: { document_type: string; document_id: number }[]) =>
+    api.post<{ statuses: Record<string, { is_signed: boolean; signer_name?: string; signed_at?: string }> }>(
+      '/signature/batch-status',
+      { documents }
+    ),
 
   // Audit Logs
   getSignatureLogs: (params?: {

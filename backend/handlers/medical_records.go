@@ -1185,6 +1185,12 @@ func SaveDisposition(c *gin.Context) {
 			// Release the bed if found
 			if bedIDToRelease != nil {
 				database.DB.Exec(`UPDATE beds SET status = 'available', updated_at = ? WHERE id = ?`, now, *bedIDToRelease)
+
+				// Update Aplicare bed availability (async)
+				var releasedBed models.Bed
+				if err := database.DB.Preload("RoomUnit").First(&releasedBed, *bedIDToRelease).Error; err == nil && releasedBed.RoomUnit != nil {
+					bpjs.UpdateRoomBedAvailability(releasedBed.RoomUnit.RoomID)
+				}
 			}
 		}
 
@@ -1578,6 +1584,11 @@ func createInpatientVisit(tx *gorm.DB, sourceVisit *models.Visit, roomID *uint, 
 	if bedID != nil {
 		if err := tx.Model(&models.Bed{}).Where("id = ?", *bedID).Update("status", "occupied").Error; err != nil {
 			return nil, err
+		}
+
+		// Update Aplicare bed availability (async)
+		if roomID != nil {
+			bpjs.UpdateRoomBedAvailability(*roomID)
 		}
 	}
 

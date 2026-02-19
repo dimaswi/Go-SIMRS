@@ -167,7 +167,7 @@ export default function BuildingsPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-4 p-6">
+    <div className="flex flex-1 flex-col p-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -208,7 +208,7 @@ export default function BuildingsPage() {
           {buildings.map((b) => (
             <Card
               key={b.id}
-              className="overflow-hidden hover:shadow-md transition-shadow"
+              className="overflow-hidden"
             >
               {/* Color banner */}
               <div

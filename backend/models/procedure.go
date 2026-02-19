@@ -65,7 +65,7 @@ type Procedure struct {
 	BodySystem     string `gorm:"size:100" json:"body_system"`      // Sistem tubuh
 
 	// Classification Codes
-	ICD9CMCode   string `gorm:"size:20;index" json:"icd9cm_code"`   // ICD-9-CM Procedure Code
+	ICD9CMCode   string `gorm:"size:20;index" json:"icd9cm_code"`     // ICD-9-CM Procedure Code
 	ICD10PCSCode string `gorm:"size:20;index" json:"icd10pcs_code"` // ICD-10-PCS Code
 
 	// Procedure Details

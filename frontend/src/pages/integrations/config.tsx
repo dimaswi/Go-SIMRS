@@ -126,6 +126,15 @@ export default function IntegrationsConfigPage() {
       isConnected: null,
       category: "BPJS",
     },
+    {
+      id: "bpjs-aplicare",
+      name: "Aplicare",
+      description: "Ketersediaan tempat tidur BPJS",
+      icon: <Stethoscope className="h-5 w-5" />,
+      isConfigured: false,
+      isConnected: null,
+      category: "BPJS",
+    },
     // Kemenkes Integrations
     {
       id: "satusehat",
@@ -386,12 +395,19 @@ export default function IntegrationsConfigPage() {
       setKodePPK(config.kode_ppk?.value || "");
       setNamaPPK(config.nama_ppk?.value || "");
       setEnvironment(config.environment?.value || "development");
-      setBaseUrlDev(
-        config.base_url_dev?.value || "https://apijkn-dev.bpjs-kesehatan.go.id",
-      );
-      setBaseUrlProd(
-        config.base_url_prod?.value || "https://apijkn.bpjs-kesehatan.go.id",
-      );
+
+      // Set base URL defaults per service type
+      let defaultDevUrl = "https://apijkn-dev.bpjs-kesehatan.go.id";
+      let defaultProdUrl = "https://apijkn.bpjs-kesehatan.go.id";
+      if (integrationId === "bpjs-icare") {
+        defaultDevUrl = "https://apijkn-dev.bpjs-kesehatan.go.id/ihs_dev/api/rs";
+        defaultProdUrl = "https://apijkn.bpjs-kesehatan.go.id/wsihs/api/rs";
+      } else if (integrationId === "bpjs-aplicare") {
+        defaultDevUrl = "https://dvlp.bpjs-kesehatan.go.id:8888/aplicaresws/rest";
+        defaultProdUrl = "";  // Belum dapat URL prod dari BPJS
+      }
+      setBaseUrlDev(config.base_url_dev?.value || defaultDevUrl);
+      setBaseUrlProd(config.base_url_prod?.value || defaultProdUrl);
       setSyncInterval(config.sync_interval_minutes?.value || "5");
       setAutoSyncEnabled(config.auto_sync_enabled?.value === "true");
       // Webhook config (only for bpjs-antrian)
@@ -421,6 +437,33 @@ export default function IntegrationsConfigPage() {
       await handleSaveSatuSehat();
     } else if (editingIntegration === "eklaim") {
       await handleSaveEKlaim();
+    }
+  };
+
+  const handleReset = async () => {
+    if (!editingIntegration) return;
+    if (!confirm("Reset konfigurasi ke default? Semua nilai yang tersimpan akan dihapus.")) return;
+
+    setLoading(true);
+    try {
+      await integrationsApi.resetConfig(editingIntegration as IntegrationType);
+      toast({
+        title: "Berhasil",
+        description: "Konfigurasi berhasil direset ke default.",
+      });
+      setConfigDialogOpen(false);
+      // Reload configs
+      await loadAllBPJSConfigs();
+      loadSatuSehatConfig();
+      loadEKlaimConfig();
+    } catch (err) {
+      toast({
+        variant: "destructive",
+        title: "Gagal",
+        description: "Gagal mereset konfigurasi.",
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -697,9 +740,9 @@ export default function IntegrationsConfigPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-4 p-6">
+    <div className="flex flex-1 flex-col p-4">
       <div className="grid gap-4">
-        <div className="flex items-center gap-4 p-6">
+        <div className="flex items-center p-4">
           <div>
             <Button
               variant="outline"
@@ -1230,25 +1273,38 @@ export default function IntegrationsConfigPage() {
           </div>
 
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setConfigDialogOpen(false)}
-            >
-              Batal
-            </Button>
-            <Button onClick={handleSave} disabled={loading}>
-              {loading ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Menyimpan...
-                </>
-              ) : (
-                <>
-                  <Save className="h-4 w-4 mr-2" />
-                  Simpan
-                </>
-              )}
-            </Button>
+            <div className="flex w-full justify-between">
+              <Button
+                variant="destructive"
+                onClick={handleReset}
+                disabled={loading}
+                size="sm"
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Reset Default
+              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setConfigDialogOpen(false)}
+                >
+                  Batal
+                </Button>
+                <Button onClick={handleSave} disabled={loading}>
+                  {loading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Menyimpan...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4 mr-2" />
+                      Simpan
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1441,25 +1497,38 @@ export default function IntegrationsConfigPage() {
           </div>
 
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setConfigDialogOpen(false)}
-            >
-              Batal
-            </Button>
-            <Button onClick={handleSave} disabled={loading}>
-              {loading ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Menyimpan...
-                </>
-              ) : (
-                <>
-                  <Save className="h-4 w-4 mr-2" />
-                  Simpan
-                </>
-              )}
-            </Button>
+            <div className="flex w-full justify-between">
+              <Button
+                variant="destructive"
+                onClick={handleReset}
+                disabled={loading}
+                size="sm"
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Reset Default
+              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setConfigDialogOpen(false)}
+                >
+                  Batal
+                </Button>
+                <Button onClick={handleSave} disabled={loading}>
+                  {loading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Menyimpan...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4 mr-2" />
+                      Simpan
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1625,25 +1694,38 @@ export default function IntegrationsConfigPage() {
           </div>
 
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setConfigDialogOpen(false)}
-            >
-              Batal
-            </Button>
-            <Button onClick={handleSave} disabled={loading}>
-              {loading ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Menyimpan...
-                </>
-              ) : (
-                <>
-                  <Save className="h-4 w-4 mr-2" />
-                  Simpan
-                </>
-              )}
-            </Button>
+            <div className="flex w-full justify-between">
+              <Button
+                variant="destructive"
+                onClick={handleReset}
+                disabled={loading}
+                size="sm"
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Reset Default
+              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setConfigDialogOpen(false)}
+                >
+                  Batal
+                </Button>
+                <Button onClick={handleSave} disabled={loading}>
+                  {loading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Menyimpan...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4 mr-2" />
+                      Simpan
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

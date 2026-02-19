@@ -149,6 +149,7 @@ export function createRoomColumns(options: ColumnOptions): ColumnDef<Room>[] {
       cell: ({ row }) => {
         const hasBed = row.original.has_bed;
         const hasSchedule = row.original.has_schedule;
+        const kodeKelasBpjs = row.original.kode_kelas_bpjs;
         return (
           <div className="flex items-center gap-1">
             {hasBed && (
@@ -161,6 +162,11 @@ export function createRoomColumns(options: ColumnOptions): ColumnDef<Room>[] {
               <Badge variant="outline" className="text-xs">
                 <Calendar className="h-3 w-3 mr-1" />
                 Jadwal
+              </Badge>
+            )}
+            {kodeKelasBpjs && (
+              <Badge className="text-xs bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-950/30 dark:text-emerald-400">
+                BPJS: {kodeKelasBpjs}
               </Badge>
             )}
           </div>

@@ -8,6 +8,7 @@ import (
 
 	"starter/backend/database"
 	"starter/backend/models"
+	bpjsService "starter/backend/services/bpjs"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -416,6 +417,9 @@ func ProcessAdmissionRequest(c *gin.Context) {
 		"data":    request,
 		"message": "Pasien berhasil diadmisi ke rawat inap",
 	})
+
+	// Update Aplicare bed availability (async, after response)
+	bpjsService.UpdateRoomBedAvailability(input.RoomID)
 }
 
 // RejectAdmissionRequest rejects an admission request

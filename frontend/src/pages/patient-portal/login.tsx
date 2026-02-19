@@ -164,7 +164,7 @@ export default function PatientPortalLogin() {
 
           {/* Right Side - Login Form */}
           <div className="flex justify-center lg:justify-end">
-            <Card className="w-full max-w-md border-0 shadow-xl bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm">
+            <Card className="w-full max-w-md border-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm">
               <CardHeader className="space-y-1 text-center pb-4">
                 <CardTitle className="text-2xl">Masuk ke Portal Pasien</CardTitle>
                 <CardDescription>

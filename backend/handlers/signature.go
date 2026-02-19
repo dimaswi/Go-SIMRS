@@ -171,11 +171,12 @@ func ResetUserSignaturePIN(c *gin.Context) {
 
 // SignDocumentRequest for signing a document
 type SignDocumentRequest struct {
-	PIN          string `json:"pin" binding:"required,len=6,numeric"`
-	DocumentType string `json:"document_type" binding:"required"`
-	DocumentID   uint   `json:"document_id" binding:"required"`
-	VisitID      *uint  `json:"visit_id,omitempty"`
-	Notes        string `json:"notes,omitempty"`
+	PIN              string `json:"pin" binding:"required,len=6,numeric"`
+	DocumentType     string `json:"document_type" binding:"required"`
+	DocumentID       uint   `json:"document_id" binding:"required"`
+	VisitID          *uint  `json:"visit_id,omitempty"`
+	Notes            string `json:"notes,omitempty"`
+	SignerEmployeeID *uint  `json:"signer_employee_id,omitempty"` // Sign on behalf of another employee
 }
 
 // SignDocument signs a document with the user's PIN
@@ -218,14 +219,9 @@ func SignDocument(c *gin.Context) {
 		}
 	}
 
-	// Check if document already signed
+	// Check if document already has a signature record (will be updated if re-signing)
 	var existingSignature models.DocumentSignature
-	if err := database.DB.Where("document_type = ? AND document_id = ?", req.DocumentType, req.DocumentID).First(&existingSignature).Error; err == nil {
-		if existingSignature.SignedAt != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Dokumen sudah ditandatangani"})
-			return
-		}
-	}
+	database.DB.Where("document_type = ? AND document_id = ?", req.DocumentType, req.DocumentID).First(&existingSignature)
 
 	// Generate signature hash
 	signedAt := time.Now()
@@ -236,10 +232,35 @@ func SignDocument(c *gin.Context) {
 	}
 	signatureHash := generateHMAC(signatureData, secretKey)
 
-	// Get signer info from employee
+	// Get signer info — use designated employee if signing on behalf of, otherwise use logged-in user
 	var signerName, signerNIP, signerSTR, signerSIP, signerRole string
 	var signerEmployeeID *uint
-	if user.Employee != nil {
+	if req.SignerEmployeeID != nil {
+		// Sign on behalf of another employee
+		var designatedEmployee models.Employee
+		if err := database.DB.First(&designatedEmployee, *req.SignerEmployeeID).Error; err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Karyawan penandatangan tidak ditemukan"})
+			return
+		}
+		signerName = designatedEmployee.NamaLengkap
+		signerNIP = designatedEmployee.NIP
+		signerSTR = designatedEmployee.NoSTR
+		signerSIP = designatedEmployee.NoSIP
+		signerRole = designatedEmployee.Jabatan
+		signerEmployeeID = &designatedEmployee.ID
+
+		// Auto-append audit note
+		authorizedBy := user.FullName
+		if user.Employee != nil {
+			authorizedBy = user.Employee.NamaLengkap
+		}
+		auditNote := fmt.Sprintf("Ditandatangani atas nama %s oleh %s", signerName, authorizedBy)
+		if req.Notes != "" {
+			req.Notes = req.Notes + " | " + auditNote
+		} else {
+			req.Notes = auditNote
+		}
+	} else if user.Employee != nil {
 		signerName = user.Employee.NamaLengkap
 		signerNIP = user.Employee.NIP
 		signerSTR = user.Employee.NoSTR
@@ -492,7 +513,7 @@ func VerifyDocumentSignature(c *gin.Context) {
 	result := gin.H{
 		"valid":          true,
 		"message":        "Tanda tangan valid",
-		"document_type":  signatureLog.DocumentType,
+		"document_type":  humanDocTypeName(signatureLog.DocumentType),
 		"signed_at":      signatureLog.SignedAt,
 		"signer_name":    signatureLog.SignerName,
 		"signer_nip":     signatureLog.SignerNIP,
@@ -527,6 +548,56 @@ func generateHMAC(data, secret string) string {
 	h := hmac.New(sha256.New, []byte(secret))
 	h.Write([]byte(data))
 	return hex.EncodeToString(h.Sum(nil))
+}
+
+// humanDocTypeName maps internal document_type codes to human-readable Indonesian names.
+// RM Duplicate types are mapped to their original document names (without exposing "rm_dup" prefix).
+func humanDocTypeName(dt string) string {
+	names := map[string]string{
+		models.DocTypeVisitResume:      "Resume Medis",
+		models.DocTypePrescription:     "Resep Obat",
+		models.DocTypeLabResult:        "Hasil Laboratorium",
+		models.DocTypeRadiologyResult:  "Hasil Radiologi",
+		models.DocTypeSickLetter:       "Surat Keterangan Sakit",
+		models.DocTypeDeathCertificate: "Surat Kematian",
+		models.DocTypeReferralLetter:   "Surat Rujukan",
+		models.DocTypeGeneralConsent:   "General Consent",
+		models.DocTypeInformedConsent:  "Informed Consent",
+		models.DocTypeCPPT:            "CPPT",
+		models.DocTypeNursingCare:     "Asuhan Keperawatan",
+		models.DocTypeTriage:          "Formulir Triage",
+		models.DocTypeEmergencySummary: "Ringkasan Pelayanan UGD",
+		models.DocTypeOperativeReport:  "Laporan Operasi",
+		models.DocTypeInpatientCert:    "Surat Keterangan Rawat Inap",
+		models.DocTypePharmacyHandover: "Serah Terima Obat",
+		models.DocTypeRegistration:     "Bukti Registrasi",
+
+		// RM Duplicate — map to the same human-readable name as the original
+		models.DocTypeRMDupLabResult:       "Hasil Laboratorium",
+		models.DocTypeRMDupRadResult:       "Hasil Radiologi",
+		models.DocTypeRMDupSurgeryReport:   "Laporan Operasi",
+		models.DocTypeRMDupConsultation:    "Hasil Konsultasi",
+		models.DocTypeRMDupResume:          "Resume Medis",
+		models.DocTypeRMDupInpatientResume: "Resume Medis Rawat Inap",
+		models.DocTypeRMDupReferral:        "Surat Rujukan",
+		models.DocTypeRMDupTriage:          "Formulir Triage",
+		models.DocTypeRMDupEmergency:       "Ringkasan Pelayanan UGD",
+		models.DocTypeRMDupCPPT:            "CPPT",
+		models.DocTypeRMDupFluidBalance:    "Balance Cairan",
+		models.DocTypeRMDupPrescription:    "Resep Obat",
+		models.DocTypeRMDupSEP:             "Surat Eligibilitas Peserta",
+		models.DocTypeRMDupAdmission:       "Ringkasan Masuk & Keluar Pasien",
+		models.DocTypeRMDupRegistration:    "Bukti Registrasi",
+		models.DocTypeRMDupConsent:         "Informed Consent",
+		models.DocTypeRMDupNursingCare:     "Asuhan Keperawatan",
+		models.DocTypeRMDupBedTransfer:     "Mutasi Pasien",
+		models.DocTypeRMDupVitalSign:       "Grafik Tanda Vital",
+		models.DocTypeRMDupInpatientCert:   "Surat Keterangan Rawat Inap",
+	}
+	if name, ok := names[dt]; ok {
+		return name
+	}
+	return dt
 }
 
 // RevokeDocumentSignature revokes/cancels a document signature
@@ -655,4 +726,97 @@ func RevokeDocumentSignature(c *gin.Context) {
 		"revoked_at": revokedAt,
 		"revoked_by": signerName,
 	})
+}
+
+// BatchDocumentStatusRequest for checking multiple document signatures at once
+type BatchDocumentStatusRequest struct {
+	Documents []struct {
+		DocumentType string `json:"document_type"`
+		DocumentID   uint   `json:"document_id"`
+	} `json:"documents"`
+}
+
+// BatchSignatureStatus checks signature status for multiple documents
+func BatchSignatureStatus(c *gin.Context) {
+	var req BatchDocumentStatusRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if len(req.Documents) == 0 {
+		c.JSON(http.StatusOK, gin.H{"statuses": map[string]interface{}{}})
+		return
+	}
+
+	// Build OR conditions for batch query
+	var docSignatures []models.DocumentSignature
+	query := database.DB
+	for i, doc := range req.Documents {
+		if i == 0 {
+			query = query.Where("(document_type = ? AND document_id = ?)", doc.DocumentType, doc.DocumentID)
+		} else {
+			query = query.Or("(document_type = ? AND document_id = ?)", doc.DocumentType, doc.DocumentID)
+		}
+	}
+	query.Preload("SignedBy.Employee").Find(&docSignatures)
+
+	// Also fetch signer names from signature logs for on-behalf signatures
+	type logInfo struct {
+		DocumentType string
+		DocumentID   uint
+		SignerName   string
+	}
+	var signerLogs []logInfo
+	logQuery := database.DB.Model(&models.SignatureLog{}).Select("document_type, document_id, signer_name")
+	for i, doc := range req.Documents {
+		if i == 0 {
+			logQuery = logQuery.Where("(document_type = ? AND document_id = ? AND action = ?)", doc.DocumentType, doc.DocumentID, models.SignActionSign)
+		} else {
+			logQuery = logQuery.Or("(document_type = ? AND document_id = ? AND action = ?)", doc.DocumentType, doc.DocumentID, models.SignActionSign)
+		}
+	}
+	logQuery.Order("signed_at DESC").Find(&signerLogs)
+
+	// Build signer name lookup from logs (latest sign action)
+	signerNameMap := make(map[string]string)
+	for _, log := range signerLogs {
+		key := fmt.Sprintf("%s:%d", log.DocumentType, log.DocumentID)
+		if _, exists := signerNameMap[key]; !exists {
+			signerNameMap[key] = log.SignerName
+		}
+	}
+
+	// Build response map
+	statuses := make(map[string]interface{})
+	signedMap := make(map[string]models.DocumentSignature)
+	for _, ds := range docSignatures {
+		key := fmt.Sprintf("%s:%d", ds.DocumentType, ds.DocumentID)
+		signedMap[key] = ds
+	}
+
+	for _, doc := range req.Documents {
+		key := fmt.Sprintf("%s:%d", doc.DocumentType, doc.DocumentID)
+		if ds, ok := signedMap[key]; ok && ds.SignedAt != nil {
+			signerName := ""
+			if name, exists := signerNameMap[key]; exists {
+				signerName = name
+			} else if ds.SignedBy != nil && ds.SignedBy.Employee != nil {
+				signerName = ds.SignedBy.Employee.NamaLengkap
+			} else if ds.SignedBy != nil {
+				signerName = ds.SignedBy.FullName
+			}
+			statuses[key] = gin.H{
+				"is_signed":   true,
+				"signer_name": signerName,
+				"signed_at":   ds.SignedAt,
+			}
+		} else {
+			statuses[key] = gin.H{
+				"is_signed": false,
+			}
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"statuses": statuses})
 }

@@ -103,23 +103,23 @@ export interface QualityTrendPoint {
 
 export const qualityCostApi = {
   // Quality Metrics
-  getQualityMetrics: (period: string = 'month') =>
+  getQualityMetrics: (period: string = 'month', month?: string) =>
     api.get<{ success: boolean; data: QualityMetricsResponse }>(
       `${API_BASE}/quality-metrics`,
-      { params: { period } }
+      { params: { period, month } }
     ),
 
-  getQualityTrends: (period: string = 'year') =>
+  getQualityTrends: (period: string = 'year', month?: string) =>
     api.get<{ success: boolean; data: QualityTrendPoint[] }>(
       `${API_BASE}/quality-trends`,
-      { params: { period } }
+      { params: { period, month } }
     ),
 
   // Cost Analysis
-  getCostSummary: (period: string = 'month', paymentMethod?: string) =>
+  getCostSummary: (period: string = 'month', paymentMethod?: string, month?: string) =>
     api.get<{ success: boolean; data: CostAnalysisSummary }>(
       `${API_BASE}/cost-summary`,
-      { params: { period, payment_method: paymentMethod } }
+      { params: { period, payment_method: paymentMethod, month } }
     ),
 
   getCostCases: (params: {
@@ -127,6 +127,7 @@ export const qualityCostApi = {
     sort_by?: string;
     sort_order?: string;
     payment_method?: string;
+    month?: string;
   }) =>
     api.get<{
       success: boolean;
@@ -134,16 +135,16 @@ export const qualityCostApi = {
       meta: { total: number; page: number; limit: number; pages: number };
     }>(`${API_BASE}/cost-cases`, { params }),
 
-  getTopLossCases: (period: string = 'month') =>
+  getTopLossCases: (period: string = 'month', month?: string) =>
     api.get<{ success: boolean; data: TopLossCase[] }>(
       `${API_BASE}/top-loss-cases`,
-      { params: { period } }
+      { params: { period, month } }
     ),
 
-  getCostByCategory: (period: string = 'month') =>
+  getCostByCategory: (period: string = 'month', month?: string) =>
     api.get<{ success: boolean; data: CostByCategory[]; total: number }>(
       `${API_BASE}/cost-by-category`,
-      { params: { period } }
+      { params: { period, month } }
     ),
 
   getPendingClaims: () =>

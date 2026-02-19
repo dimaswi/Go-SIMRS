@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 // Card imports removed - header flattened
 import { Button } from "@/components/ui/button";
@@ -13,12 +13,23 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { patientsApi, registrationApi, type Patient, type Registration } from "@/lib/api";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { patientsApi, registrationApi, type Patient, type Registration, medicineOrdersApi } from "@/lib/api";
 import { visitsApi, type Visit } from "@/lib/api/visits";
 import { billingApi, type Billing } from "@/lib/api/billing";
 import { vclaimApi, type SEPLocal } from "@/lib/api/vclaim";
-import { printApi } from "@/lib/api/print";
+import { printApi, fetchAvailableDocs } from "@/lib/api/print";
+import { procedureOrdersApi } from "@/lib/api/procedure-orders";
+import type { MedicineOrder } from "@/lib/api/medicine-orders";
+import type { ProcedureOrder } from "@/lib/api/procedure-orders";
 import { admissionRequestApi, type AdmissionRequest } from "@/lib/api/admission-request";
+import { mergePdfs } from "@/lib/pdf-merge";
 import { setPageTitle } from "@/lib/page-title";
 import { RegistrationSheet } from "@/components/registration/registration-sheet";
 import { SEPDetailSheet } from "@/components/sep/sep-detail-sheet";
@@ -51,11 +62,24 @@ import {
   XCircle,
   ArrowRight,
   ExternalLink,
+  Stethoscope,
+  Activity,
+  Droplets,
+  HeartPulse,
+  Pill,
+  FlaskConical,
+  Send,
+  ListChecks,
+  Merge,
+  X,
+  CalendarDays,
+  FolderOpen,
 } from "lucide-react";
 import { format, parseISO, differenceInYears } from "date-fns";
 import { id } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import {
   Tooltip,
   TooltipContent,
@@ -79,6 +103,223 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+
+// === Rekam Medis Types & Helpers ===
+
+interface DocItem {
+  id: string;
+  label: string;
+  icon: React.ReactNode;
+  fetchBlob: () => Promise<Blob>;
+  docKey?: string;
+}
+
+interface SelectedDoc {
+  docItem: DocItem;
+  visitId: number;
+  visitIndex: number;
+  docIndex: number;
+}
+
+interface VisitOrders {
+  medicineOrders: MedicineOrder[];
+  procedureOrders: ProcedureOrder[];
+  loaded: boolean;
+}
+
+interface RegistrationGroup {
+  registrationId: number;
+  registrationNumber: string;
+  registrationDate: string;
+  registrationType: string;
+  visits: Visit[];
+}
+
+function getRmVisitTypeLabel(type: string): string {
+  const labels: Record<string, string> = {
+    outpatient: "Rawat Jalan",
+    inpatient: "Rawat Inap",
+    emergency: "UGD",
+    consultation: "Konsultasi",
+    surgery: "Bedah",
+  };
+  return labels[type] || type;
+}
+
+function getRmVisitTypeBadgeColor(type: string): string {
+  const colors: Record<string, string> = {
+    outpatient: "bg-blue-100 text-blue-800",
+    inpatient: "bg-purple-100 text-purple-800",
+    emergency: "bg-red-100 text-red-800",
+    consultation: "bg-green-100 text-green-800",
+    surgery: "bg-orange-100 text-orange-800",
+  };
+  return colors[type] || "bg-gray-100 text-gray-800";
+}
+
+function getRegTypeLabel(type: string): string {
+  const labels: Record<string, string> = {
+    outpatient: "Rawat Jalan",
+    inpatient: "Rawat Inap",
+    emergency: "UGD",
+  };
+  return labels[type] || type;
+}
+
+function getRegTypeBadgeColor(type: string): string {
+  const colors: Record<string, string> = {
+    outpatient: "bg-blue-50 text-blue-700 border-blue-200",
+    inpatient: "bg-purple-50 text-purple-700 border-purple-200",
+    emergency: "bg-red-50 text-red-700 border-red-200",
+  };
+  return colors[type] || "bg-gray-50 text-gray-700 border-gray-200";
+}
+
+function getBaseDocsForVisit(visit: Visit): DocItem[] {
+  const docs: DocItem[] = [];
+  const roomType = visit.room?.room_type || "";
+  const isInpatient = visit.visit_type === "inpatient" || roomType === "rawat_inap";
+  const isEmergency = visit.visit_type === "emergency" || roomType === "igd" || roomType === "emergency";
+
+  if (isInpatient) {
+    docs.push({
+      id: `resume-${visit.id}`,
+      label: "Resume Medis Rawat Inap",
+      icon: <FileText className="h-4 w-4" />,
+      fetchBlob: () => printApi.blob.inpatientResume(visit.id),
+      docKey: "resume",
+    });
+  } else if (isEmergency) {
+    docs.push({
+      id: `resume-${visit.id}`,
+      label: "Resume Medis UGD",
+      icon: <FileText className="h-4 w-4" />,
+      fetchBlob: () => printApi.blob.outpatientResume(visit.id),
+      docKey: "resume",
+    });
+  } else {
+    docs.push({
+      id: `resume-${visit.id}`,
+      label: "Resume Medis Rawat Jalan",
+      icon: <FileText className="h-4 w-4" />,
+      fetchBlob: () => printApi.blob.outpatientResume(visit.id),
+      docKey: "resume",
+    });
+  }
+
+  docs.push({
+    id: `referral-letter-${visit.id}`,
+    label: "Surat Rujukan",
+    icon: <Send className="h-4 w-4" />,
+    fetchBlob: () => printApi.blob.referralLetter(visit.id),
+    docKey: "referral_letter",
+  });
+
+  if (isEmergency) {
+    docs.push({
+      id: `triage-${visit.id}`,
+      label: "Formulir Triage UGD",
+      icon: <AlertTriangle className="h-4 w-4" />,
+      fetchBlob: () => printApi.blob.triageForm(visit.id),
+      docKey: "triage",
+    });
+    docs.push({
+      id: `emergency-summary-${visit.id}`,
+      label: "Ringkasan Pelayanan UGD",
+      icon: <ClipboardList className="h-4 w-4" />,
+      fetchBlob: () => printApi.blob.emergencySummary(visit.id),
+      docKey: "emergency_summary",
+    });
+  }
+
+  if (isInpatient) {
+    docs.push({
+      id: `cppt-${visit.id}`,
+      label: "CPPT",
+      icon: <Stethoscope className="h-4 w-4" />,
+      fetchBlob: () => printApi.blob.cppt(visit.id),
+      docKey: "cppt",
+    });
+    docs.push({
+      id: `nursing-care-${visit.id}`,
+      label: "Asuhan Keperawatan",
+      icon: <Activity className="h-4 w-4" />,
+      fetchBlob: () => printApi.blob.nursingCare(visit.id),
+      docKey: "nursing_care",
+    });
+    docs.push({
+      id: `fluid-balance-${visit.id}`,
+      label: "Balance Cairan",
+      icon: <Droplets className="h-4 w-4" />,
+      fetchBlob: () => printApi.blob.fluidBalance(visit.id),
+      docKey: "fluid_balance",
+    });
+    docs.push({
+      id: `bed-transfer-${visit.id}`,
+      label: "Lembar Mutasi Pasien",
+      icon: <BedDouble className="h-4 w-4" />,
+      fetchBlob: () => printApi.blob.bedTransfer(visit.id),
+      docKey: "bed_transfer",
+    });
+    docs.push({
+      id: `vital-sign-chart-${visit.id}`,
+      label: "Grafik Tanda Vital",
+      icon: <HeartPulse className="h-4 w-4" />,
+      fetchBlob: () => printApi.blob.vitalSignChart(visit.id),
+      docKey: "vital_sign_chart",
+    });
+  }
+
+  if (isInpatient || isEmergency) {
+    docs.push({
+      id: `inpatient-certificate-${visit.id}`,
+      label: "Surat Keterangan Rawat Inap",
+      icon: <FileCheck className="h-4 w-4" />,
+      fetchBlob: () => printApi.blob.inpatientCertificate(visit.id),
+      docKey: "inpatient_certificate",
+    });
+  }
+
+  return docs;
+}
+
+function getOrderDocs(
+  _visitId: number,
+  medicineOrders: MedicineOrder[],
+  procedureOrders: ProcedureOrder[]
+): DocItem[] {
+  const docs: DocItem[] = [];
+
+  for (const order of medicineOrders) {
+    docs.push({
+      id: `prescription-${order.id}`,
+      label: `Resep Obat - ${order.order_number}`,
+      icon: <Pill className="h-4 w-4" />,
+      fetchBlob: () => printApi.blob.prescription(order.id),
+    });
+  }
+
+  for (const order of procedureOrders) {
+    if (order.order_type === "laboratory") {
+      docs.push({
+        id: `lab-order-${order.id}`,
+        label: `Permintaan Lab - ${order.order_number}`,
+        icon: <FlaskConical className="h-4 w-4" />,
+        fetchBlob: () => printApi.blob.labOrder(order.id),
+      });
+      if (order.status === "completed") {
+        docs.push({
+          id: `lab-result-${order.id}`,
+          label: `Hasil Lab - ${order.order_number}`,
+          icon: <FlaskConical className="h-4 w-4" />,
+          fetchBlob: () => printApi.blob.labResult(order.id),
+        });
+      }
+    }
+  }
+
+  return docs;
+}
 
 export default function PatientSearchShow() {
   const { id: patientId } = useParams<{ id: string }>();
@@ -114,6 +355,24 @@ export default function PatientSearchShow() {
   const [sepDetailOpen, setSepDetailOpen] = useState(false);
   const [expandedRegistrations, setExpandedRegistrations] = useState<Set<number>>(new Set());
 
+  // === Rekam Medis State ===
+  const [rmVisits, setRmVisits] = useState<Visit[]>([]);
+  const [loadingRm, setLoadingRm] = useState(false);
+  const [rmLoaded, setRmLoaded] = useState(false);
+  const [rmExpandedVisitIds, setRmExpandedVisitIds] = useState<Set<number>>(new Set());
+  const [rmExpandedRegIds, setRmExpandedRegIds] = useState<Set<number>>(new Set());
+  const [rmSelectedDocId, setRmSelectedDocId] = useState<string | null>(null);
+  const [rmPdfUrl, setRmPdfUrl] = useState<string | null>(null);
+  const [rmPdfError, setRmPdfError] = useState<string | null>(null);
+  const [rmLoadingPdf, setRmLoadingPdf] = useState(false);
+  const [rmVisitOrdersMap, setRmVisitOrdersMap] = useState<Record<number, VisitOrders>>({});
+  const [rmLoadingOrders, setRmLoadingOrders] = useState(false);
+  const [rmVisitAvailableDocs, setRmVisitAvailableDocs] = useState<Record<number, string[]>>({});
+  const [rmBundleMode, setRmBundleMode] = useState(false);
+  const [rmSelectedDocs, setRmSelectedDocs] = useState<Map<string, SelectedDoc>>(new Map());
+  const [rmIsBundling, setRmIsBundling] = useState(false);
+  const [rmBundleProgress, setRmBundleProgress] = useState<{ current: number; total: number } | null>(null);
+
   const toggleRegistrationExpand = (regId: number) => {
     setExpandedRegistrations(prev => {
       const next = new Set(prev);
@@ -137,6 +396,281 @@ export default function PatientSearchShow() {
     }
     return map;
   }, [visits]);
+
+  // === Rekam Medis Logic ===
+  const rmRegistrationGroups = useMemo((): RegistrationGroup[] => {
+    const groupMap = new Map<number, RegistrationGroup>();
+    for (const visit of rmVisits) {
+      const regId = visit.registration_id;
+      if (!groupMap.has(regId)) {
+        groupMap.set(regId, {
+          registrationId: regId,
+          registrationNumber: visit.registration?.registration_number || `REG-${regId}`,
+          registrationDate: visit.registration?.registration_date || visit.start_time || "",
+          registrationType: visit.registration?.registration_type || visit.visit_type,
+          visits: [],
+        });
+      }
+      groupMap.get(regId)!.visits.push(visit);
+    }
+    return Array.from(groupMap.values()).sort(
+      (a, b) => new Date(b.registrationDate).getTime() - new Date(a.registrationDate).getTime()
+    );
+  }, [rmVisits]);
+
+  const loadRmVisits = useCallback(async () => {
+    if (!patientId || rmLoaded) return;
+    setLoadingRm(true);
+    try {
+      const visitsRes = await visitsApi.getAll({
+        patient_id: Number(patientId),
+        status: "completed",
+      });
+      const mainVisits = (visitsRes.data || []).filter(
+        (v: Visit) => !["lab", "radiology", "pharmacy", "surgery", "consultation", "procedure"].includes(v.visit_type)
+      );
+      setRmVisits(mainVisits);
+      setRmLoaded(true);
+    } catch {
+      toast({
+        title: "Gagal memuat rekam medis",
+        description: "Tidak dapat memuat data rekam medis",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingRm(false);
+    }
+  }, [patientId, rmLoaded, toast]);
+
+  // Load rekam medis data when tab is activated
+  useEffect(() => {
+    if (activeTab === "rekam-medis") {
+      loadRmVisits();
+    }
+  }, [activeTab, loadRmVisits]);
+
+  // Cleanup PDF URL
+  useEffect(() => {
+    return () => {
+      if (rmPdfUrl) window.URL.revokeObjectURL(rmPdfUrl);
+    };
+  }, [rmPdfUrl]);
+
+  const loadRmOrdersForVisit = useCallback(async (visitId: number) => {
+    if (rmVisitOrdersMap[visitId]?.loaded) return;
+    setRmLoadingOrders(true);
+    try {
+      const [medRes, procRes, availDocs] = await Promise.all([
+        medicineOrdersApi.getAll({ source_visit_id: visitId }),
+        procedureOrdersApi.getAll({ source_visit_id: visitId }),
+        fetchAvailableDocs(visitId),
+      ]);
+      setRmVisitOrdersMap((prev) => ({
+        ...prev,
+        [visitId]: {
+          medicineOrders: medRes.data || [],
+          procedureOrders: procRes.data || [],
+          loaded: true,
+        },
+      }));
+      setRmVisitAvailableDocs((prev) => ({
+        ...prev,
+        [visitId]: availDocs,
+      }));
+    } catch {
+      setRmVisitOrdersMap((prev) => ({
+        ...prev,
+        [visitId]: { medicineOrders: [], procedureOrders: [], loaded: true },
+      }));
+    } finally {
+      setRmLoadingOrders(false);
+    }
+  }, [rmVisitOrdersMap]);
+
+  const handleRmSelectDoc = async (doc: DocItem) => {
+    if (rmPdfUrl) {
+      window.URL.revokeObjectURL(rmPdfUrl);
+      setRmPdfUrl(null);
+    }
+    setRmPdfError(null);
+    setRmSelectedDocId(doc.id);
+    setRmLoadingPdf(true);
+    try {
+      const blob = await doc.fetchBlob();
+      const url = window.URL.createObjectURL(blob);
+      setRmPdfUrl(url);
+    } catch (err: any) {
+      const status = err?.response?.status;
+      if (status === 404) {
+        setRmPdfError("Data untuk dokumen ini belum tersedia pada kunjungan ini.");
+      } else {
+        setRmPdfError("Gagal memuat dokumen. Silakan coba lagi.");
+      }
+    } finally {
+      setRmLoadingPdf(false);
+    }
+  };
+
+  const toggleRmReg = (regId: number) => {
+    setRmExpandedRegIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(regId)) next.delete(regId);
+      else next.add(regId);
+      return next;
+    });
+  };
+
+  const toggleRmVisit = (visitId: number) => {
+    setRmExpandedVisitIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(visitId)) {
+        next.delete(visitId);
+      } else {
+        next.add(visitId);
+        loadRmOrdersForVisit(visitId);
+      }
+      return next;
+    });
+  };
+
+  const getRmDocsForVisit = (visit: Visit): DocItem[] => {
+    const baseDocs = getBaseDocsForVisit(visit);
+    const orders = rmVisitOrdersMap[visit.id];
+    const availDocs = rmVisitAvailableDocs[visit.id];
+    const filteredBaseDocs = availDocs
+      ? baseDocs.filter((doc) => !doc.docKey || availDocs.includes(doc.docKey))
+      : baseDocs;
+    if (orders?.loaded) {
+      const orderDocs = getOrderDocs(visit.id, orders.medicineOrders, orders.procedureOrders);
+      return [...filteredBaseDocs, ...orderDocs];
+    }
+    return filteredBaseDocs;
+  };
+
+  // Bundle helpers
+  const toggleRmDocSelection = (doc: DocItem, visitId: number, visitIdx: number, docIdx: number) => {
+    setRmSelectedDocs((prev) => {
+      const next = new Map(prev);
+      if (next.has(doc.id)) next.delete(doc.id);
+      else next.set(doc.id, { docItem: doc, visitId, visitIndex: visitIdx, docIndex: docIdx });
+      return next;
+    });
+  };
+
+  const toggleRmVisitSelection = (visit: Visit, visitIdx: number, docs: DocItem[]) => {
+    const allSelected = docs.length > 0 && docs.every((d) => rmSelectedDocs.has(d.id));
+    setRmSelectedDocs((prev) => {
+      const next = new Map(prev);
+      if (allSelected) {
+        docs.forEach((d) => next.delete(d.id));
+      } else {
+        docs.forEach((d, docIdx) => {
+          next.set(d.id, { docItem: d, visitId: visit.id, visitIndex: visitIdx, docIndex: docIdx });
+        });
+      }
+      return next;
+    });
+  };
+
+  const getRmVisitCheckboxState = (docs: DocItem[]): boolean | "indeterminate" => {
+    if (docs.length === 0) return false;
+    const count = docs.filter((d) => rmSelectedDocs.has(d.id)).length;
+    if (count === 0) return false;
+    if (count === docs.length) return true;
+    return "indeterminate";
+  };
+
+  const getRmRegCheckboxState = (regVisits: Visit[]): boolean | "indeterminate" => {
+    let totalDocs = 0;
+    let totalSelected = 0;
+    for (const v of regVisits) {
+      const docs = getRmDocsForVisit(v);
+      totalDocs += docs.length;
+      totalSelected += docs.filter((d) => rmSelectedDocs.has(d.id)).length;
+    }
+    if (totalDocs === 0) return false;
+    if (totalSelected === 0) return false;
+    if (totalSelected === totalDocs) return true;
+    return "indeterminate";
+  };
+
+  const toggleRmRegSelection = (group: RegistrationGroup) => {
+    const state = getRmRegCheckboxState(group.visits);
+    setRmSelectedDocs((prev) => {
+      const next = new Map(prev);
+      if (state === true) {
+        for (const v of group.visits) {
+          const docs = getRmDocsForVisit(v);
+          docs.forEach((d) => next.delete(d.id));
+        }
+      } else {
+        let globalVisitIdx = 0;
+        for (const g of rmRegistrationGroups) {
+          for (const v of g.visits) {
+            if (v.registration_id === group.registrationId) {
+              const docs = getRmDocsForVisit(v);
+              docs.forEach((d, docIdx) => {
+                next.set(d.id, { docItem: d, visitId: v.id, visitIndex: globalVisitIdx, docIndex: docIdx });
+              });
+            }
+            globalVisitIdx++;
+          }
+        }
+      }
+      return next;
+    });
+  };
+
+  const exitRmBundleMode = () => {
+    setRmBundleMode(false);
+    setRmSelectedDocs(new Map());
+  };
+
+  const handleRmBundle = async () => {
+    if (rmSelectedDocs.size === 0) return;
+    const sortedDocs = Array.from(rmSelectedDocs.values()).sort((a, b) => {
+      if (a.visitIndex !== b.visitIndex) return a.visitIndex - b.visitIndex;
+      return a.docIndex - b.docIndex;
+    });
+    const mergeItems = sortedDocs.map((sd) => ({
+      label: sd.docItem.label,
+      fetchBlob: sd.docItem.fetchBlob,
+    }));
+    setRmIsBundling(true);
+    setRmBundleProgress(null);
+    try {
+      const result = await mergePdfs(mergeItems, (current, total) => {
+        setRmBundleProgress({ current, total });
+      });
+      if (rmPdfUrl) window.URL.revokeObjectURL(rmPdfUrl);
+      const url = window.URL.createObjectURL(result.blob);
+      setRmPdfUrl(url);
+      setRmPdfError(null);
+      setRmSelectedDocId(null);
+      if (result.failedItems.length > 0) {
+        toast({
+          title: "Sebagian dokumen gagal dimuat",
+          description: `${result.failedItems.length} dokumen dilewati: ${result.failedItems.join(", ")}`,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "PDF berhasil digabungkan",
+          description: `${result.totalPages} halaman dari ${result.successCount} dokumen`,
+        });
+      }
+      exitRmBundleMode();
+    } catch {
+      toast({
+        title: "Gagal menggabungkan PDF",
+        description: "Tidak ada dokumen yang berhasil dimuat. Silakan coba lagi.",
+        variant: "destructive",
+      });
+    } finally {
+      setRmIsBundling(false);
+      setRmBundleProgress(null);
+    }
+  };
 
   useEffect(() => {
     setPageTitle("Detail Pasien");
@@ -519,7 +1053,7 @@ export default function PatientSearchShow() {
 
   if (!patient) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6">
+      <div className="flex flex-1 flex-col items-center justify-center p-4">
         <User className="h-16 w-16 text-muted-foreground opacity-50" />
         <h2 className="text-xl font-semibold">Pasien Tidak Ditemukan</h2>
         <Button onClick={handleBack}>Kembali</Button>
@@ -528,7 +1062,7 @@ export default function PatientSearchShow() {
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-4 p-6">
+    <div className="flex flex-1 flex-col p-4">
       <div>
         {/* Patient Header */}
         <div className="flex flex-wrap items-center justify-between gap-4 pb-4">
@@ -651,6 +1185,10 @@ export default function PatientSearchShow() {
                     {admissionRequests.filter(r => r.status === 'pending').length}
                   </Badge>
                 )}
+              </TabsTrigger>
+              <TabsTrigger value="rekam-medis">
+                <FolderOpen className="mr-2 h-4 w-4" />
+                Rekam Medis
               </TabsTrigger>
             </TabsList>
 
@@ -1642,6 +2180,333 @@ export default function PatientSearchShow() {
                   </TableBody>
                 </Table>
               )}
+            </TabsContent>
+
+            {/* Rekam Medis Tab */}
+            <TabsContent value="rekam-medis" className="mt-6">
+              {loadingRm ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              ) : rmVisits.length === 0 ? (
+                <div className="text-center py-12">
+                  <FolderOpen className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
+                  <h3 className="text-lg font-semibold mb-2">Arsip Rekam Medis</h3>
+                  <p className="text-muted-foreground">
+                    Belum ada data rekam medis untuk pasien ini
+                  </p>
+                </div>
+              ) : (() => {
+                // Build global visit index for bundle ordering
+                let gIdx = 0;
+                const rmVisitGlobalIndexMap = new Map<number, number>();
+                for (const group of rmRegistrationGroups) {
+                  for (const v of group.visits) {
+                    rmVisitGlobalIndexMap.set(v.id, gIdx++);
+                  }
+                }
+
+                return (
+                  <div className="flex border rounded-lg overflow-hidden relative" style={{ height: "600px" }}>
+                    {/* Sidebar */}
+                    <div className="w-80 flex-shrink-0 border-r bg-muted/30 flex flex-col">
+                      <div className="border-b px-4 py-3 flex items-center justify-between">
+                        <div>
+                          <h3 className="text-sm font-semibold">Riwayat Registrasi</h3>
+                          <p className="text-xs text-muted-foreground">
+                            {rmRegistrationGroups.length} registrasi &middot; {rmVisits.length} kunjungan
+                          </p>
+                        </div>
+                        <Button
+                          variant={rmBundleMode ? "default" : "ghost"}
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          onClick={() => (rmBundleMode ? exitRmBundleMode() : setRmBundleMode(true))}
+                          title={rmBundleMode ? "Batal pilih" : "Pilih & gabungkan PDF"}
+                        >
+                          {rmBundleMode ? <X className="h-4 w-4" /> : <ListChecks className="h-4 w-4" />}
+                        </Button>
+                      </div>
+                      <ScrollArea className="flex-1">
+                        <div className={cn("p-2 space-y-1", rmBundleMode && rmSelectedDocs.size > 0 && "pb-20")}>
+                          {rmRegistrationGroups.map((group) => {
+                            const isRegExpanded = rmExpandedRegIds.has(group.registrationId);
+                            const regCheckState = rmBundleMode && isRegExpanded ? getRmRegCheckboxState(group.visits) : false;
+                            const hasSingleVisit = group.visits.length === 1;
+
+                            return (
+                              <Collapsible
+                                key={group.registrationId}
+                                open={isRegExpanded}
+                                onOpenChange={() => toggleRmReg(group.registrationId)}
+                              >
+                                {/* Registration header */}
+                                <CollapsibleTrigger asChild>
+                                  <button
+                                    className={cn(
+                                      "flex w-full items-start gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-accent",
+                                      isRegExpanded && "bg-accent"
+                                    )}
+                                  >
+                                    {rmBundleMode && isRegExpanded && (
+                                      <div className="mt-0.5" onClick={(e) => e.stopPropagation()}>
+                                        <Checkbox
+                                          checked={regCheckState}
+                                          onCheckedChange={() => toggleRmRegSelection(group)}
+                                        />
+                                      </div>
+                                    )}
+                                    <div className="mt-0.5">
+                                      {isRegExpanded ? (
+                                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                                      ) : (
+                                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                                      )}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2">
+                                        <Badge
+                                          variant="outline"
+                                          className={cn("text-[10px] px-1.5 py-0", getRegTypeBadgeColor(group.registrationType))}
+                                        >
+                                          {getRegTypeLabel(group.registrationType)}
+                                        </Badge>
+                                      </div>
+                                      <div className="flex items-center gap-1 mt-0.5">
+                                        <CalendarDays className="h-3 w-3 text-muted-foreground" />
+                                        <span className="text-xs text-muted-foreground">
+                                          {group.registrationDate
+                                            ? format(new Date(group.registrationDate), "dd MMM yyyy", { locale: id })
+                                            : "-"}
+                                        </span>
+                                      </div>
+                                      <p className="text-[11px] text-muted-foreground truncate mt-0.5">
+                                        {group.registrationNumber}
+                                        {!hasSingleVisit && (
+                                          <span className="ml-1 opacity-70">
+                                            &middot; {group.visits.length} kunjungan
+                                          </span>
+                                        )}
+                                      </p>
+                                    </div>
+                                  </button>
+                                </CollapsibleTrigger>
+
+                                <CollapsibleContent>
+                                  <div className="ml-3 border-l pl-2 mr-1 mb-1 space-y-0.5">
+                                    {group.visits.map((visit) => {
+                                      const isVisitExpanded = rmExpandedVisitIds.has(visit.id);
+                                      const docs = getRmDocsForVisit(visit);
+                                      const isLoadingThisVisit = isVisitExpanded && rmLoadingOrders && !rmVisitOrdersMap[visit.id]?.loaded;
+                                      const vIdx = rmVisitGlobalIndexMap.get(visit.id) ?? 0;
+                                      const visitCheckState = rmBundleMode && isVisitExpanded ? getRmVisitCheckboxState(docs) : false;
+
+                                      // If only 1 visit in registration, show docs directly
+                                      if (hasSingleVisit) {
+                                        if (!rmVisitOrdersMap[visit.id]?.loaded && !rmLoadingOrders) {
+                                          loadRmOrdersForVisit(visit.id);
+                                        }
+
+                                        return (
+                                          <div key={visit.id} className="space-y-0.5 py-1">
+                                            <p className="text-[11px] text-muted-foreground px-2 mb-1">
+                                              {visit.room?.name || "-"}
+                                              {visit.doctor?.nama_lengkap && <> &middot; {visit.doctor.nama_lengkap}</>}
+                                            </p>
+                                            {rmLoadingOrders && !rmVisitOrdersMap[visit.id]?.loaded && (
+                                              <div className="flex items-center gap-2 px-2 py-1 text-xs text-muted-foreground">
+                                                <Loader2 className="h-3 w-3 animate-spin" />
+                                                Memuat dokumen...
+                                              </div>
+                                            )}
+                                            {docs.map((doc, docIdx) => (
+                                              <div
+                                                key={doc.id}
+                                                className={cn(
+                                                  "flex w-full items-center gap-1.5 rounded px-2 py-1.5 text-xs transition-colors text-left",
+                                                  rmSelectedDocId === doc.id && !rmBundleMode ? "bg-primary/10 font-medium" : "hover:bg-accent",
+                                                  rmBundleMode && rmSelectedDocs.has(doc.id) && "bg-primary/10"
+                                                )}
+                                              >
+                                                {rmBundleMode && (
+                                                  <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                                                    <Checkbox
+                                                      checked={rmSelectedDocs.has(doc.id)}
+                                                      onCheckedChange={() => toggleRmDocSelection(doc, visit.id, vIdx, docIdx)}
+                                                    />
+                                                  </div>
+                                                )}
+                                                <button
+                                                  className="flex items-center gap-2 flex-1 min-w-0"
+                                                  onClick={() => handleRmSelectDoc(doc)}
+                                                >
+                                                  {doc.icon}
+                                                  <span className="truncate">{doc.label}</span>
+                                                </button>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        );
+                                      }
+
+                                      // Multiple visits: nested collapsible per visit
+                                      return (
+                                        <Collapsible
+                                          key={visit.id}
+                                          open={isVisitExpanded}
+                                          onOpenChange={() => toggleRmVisit(visit.id)}
+                                        >
+                                          <CollapsibleTrigger asChild>
+                                            <button
+                                              className={cn(
+                                                "flex w-full items-start gap-1.5 rounded px-2 py-1.5 text-left text-xs transition-colors hover:bg-accent",
+                                                isVisitExpanded && "bg-accent/50"
+                                              )}
+                                            >
+                                              {rmBundleMode && isVisitExpanded && docs.length > 0 && (
+                                                <div className="mt-0.5" onClick={(e) => e.stopPropagation()}>
+                                                  <Checkbox
+                                                    checked={visitCheckState}
+                                                    onCheckedChange={() => toggleRmVisitSelection(visit, vIdx, docs)}
+                                                  />
+                                                </div>
+                                              )}
+                                              <div className="mt-0.5">
+                                                {isVisitExpanded ? (
+                                                  <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                                                ) : (
+                                                  <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                                                )}
+                                              </div>
+                                              <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-1.5">
+                                                  <Badge
+                                                    variant="secondary"
+                                                    className={cn("text-[10px] px-1 py-0", getRmVisitTypeBadgeColor(visit.visit_type))}
+                                                  >
+                                                    {getRmVisitTypeLabel(visit.visit_type)}
+                                                  </Badge>
+                                                  <span className="text-[11px] text-muted-foreground">
+                                                    {visit.room?.name || "-"}
+                                                  </span>
+                                                </div>
+                                                {visit.doctor?.nama_lengkap && (
+                                                  <p className="text-[11px] text-muted-foreground truncate mt-0.5">
+                                                    {visit.doctor.nama_lengkap}
+                                                  </p>
+                                                )}
+                                              </div>
+                                            </button>
+                                          </CollapsibleTrigger>
+                                          <CollapsibleContent>
+                                            <div className="ml-4 mr-1 mb-1 space-y-0.5">
+                                              {isLoadingThisVisit && (
+                                                <div className="flex items-center gap-2 px-2 py-1 text-xs text-muted-foreground">
+                                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                                  Memuat dokumen...
+                                                </div>
+                                              )}
+                                              {docs.map((doc, docIdx) => (
+                                                <div
+                                                  key={doc.id}
+                                                  className={cn(
+                                                    "flex w-full items-center gap-1.5 rounded px-2 py-1.5 text-xs transition-colors text-left",
+                                                    rmSelectedDocId === doc.id && !rmBundleMode ? "bg-primary/10 font-medium" : "hover:bg-accent",
+                                                    rmBundleMode && rmSelectedDocs.has(doc.id) && "bg-primary/10"
+                                                  )}
+                                                >
+                                                  {rmBundleMode && (
+                                                    <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                                                      <Checkbox
+                                                        checked={rmSelectedDocs.has(doc.id)}
+                                                        onCheckedChange={() => toggleRmDocSelection(doc, visit.id, vIdx, docIdx)}
+                                                      />
+                                                    </div>
+                                                  )}
+                                                  <button
+                                                    className="flex items-center gap-2 flex-1 min-w-0"
+                                                    onClick={() => handleRmSelectDoc(doc)}
+                                                  >
+                                                    {doc.icon}
+                                                    <span className="truncate">{doc.label}</span>
+                                                  </button>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          </CollapsibleContent>
+                                        </Collapsible>
+                                      );
+                                    })}
+                                  </div>
+                                </CollapsibleContent>
+                              </Collapsible>
+                            );
+                          })}
+                        </div>
+                      </ScrollArea>
+                    </div>
+
+                    {/* Content - PDF Viewer */}
+                    <div className="flex-1 bg-muted/10">
+                      {rmLoadingPdf ? (
+                        <div className="flex h-full items-center justify-center">
+                          <div className="text-center">
+                            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground mx-auto" />
+                            <p className="mt-2 text-sm text-muted-foreground">Memuat dokumen...</p>
+                          </div>
+                        </div>
+                      ) : rmPdfError ? (
+                        <div className="flex h-full items-center justify-center">
+                          <div className="text-center">
+                            <FileText className="h-16 w-16 text-muted-foreground/30 mx-auto" />
+                            <p className="mt-3 text-sm text-muted-foreground">{rmPdfError}</p>
+                          </div>
+                        </div>
+                      ) : rmPdfUrl ? (
+                        <iframe src={rmPdfUrl} className="h-full w-full border-0" title="PDF Viewer" />
+                      ) : (
+                        <div className="flex h-full items-center justify-center">
+                          <div className="text-center">
+                            <FileText className="h-16 w-16 text-muted-foreground/30 mx-auto" />
+                            <p className="mt-3 text-sm text-muted-foreground">
+                              {rmBundleMode
+                                ? "Centang dokumen yang ingin digabungkan, lalu klik Gabungkan PDF"
+                                : "Pilih dokumen dari sidebar untuk melihat rekam medis"}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Floating action bar for bundle */}
+                    {rmBundleMode && rmSelectedDocs.size > 0 && (
+                      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-lg border bg-background px-4 py-3 shadow-lg">
+                        <Badge variant="secondary" className="text-xs">
+                          {rmSelectedDocs.size} dokumen dipilih
+                        </Badge>
+                        <Button size="sm" onClick={handleRmBundle} disabled={rmIsBundling}>
+                          {rmIsBundling ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              {rmBundleProgress
+                                ? `Menggabungkan ${rmBundleProgress.current}/${rmBundleProgress.total}...`
+                                : "Mempersiapkan..."}
+                            </>
+                          ) : (
+                            <>
+                              <Merge className="mr-2 h-4 w-4" />
+                              Gabungkan PDF
+                            </>
+                          )}
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={exitRmBundleMode} disabled={rmIsBundling}>
+                          Batal
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </TabsContent>
           </Tabs>
         </div>

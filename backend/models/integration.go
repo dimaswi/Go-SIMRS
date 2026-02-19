@@ -10,15 +10,16 @@ import (
 type IntegrationType string
 
 const (
-	IntegrationTypeBPJS        IntegrationType = "bpjs"         // Legacy, for backward compatibility
-	IntegrationTypeBPJSAntrian IntegrationType = "bpjs-antrian" // BPJS Antrian Online / JKN Mobile
-	IntegrationTypeBPJSVClaim  IntegrationType = "bpjs-vclaim"  // BPJS VClaim
-	IntegrationTypeBPJSICare   IntegrationType = "bpjs-icare"   // BPJS I-Care
-	IntegrationTypeBPJSApotek  IntegrationType = "bpjs-apotek"  // BPJS Apotek Online
-	IntegrationTypeBPJSRME     IntegrationType = "bpjs-rme"     // BPJS RME (Rekam Medis Elektronik)
-	IntegrationTypeSatuSehat   IntegrationType = "satusehat"
-	IntegrationTypePCare       IntegrationType = "pcare"
-	IntegrationTypeEKlaim      IntegrationType = "eklaim" // E-Klaim Local Server
+	IntegrationTypeBPJS         IntegrationType = "bpjs"          // Legacy, for backward compatibility
+	IntegrationTypeBPJSAntrian  IntegrationType = "bpjs-antrian"  // BPJS Antrian Online / JKN Mobile
+	IntegrationTypeBPJSVClaim   IntegrationType = "bpjs-vclaim"   // BPJS VClaim
+	IntegrationTypeBPJSICare    IntegrationType = "bpjs-icare"    // BPJS I-Care
+	IntegrationTypeBPJSApotek   IntegrationType = "bpjs-apotek"   // BPJS Apotek Online
+	IntegrationTypeBPJSRME      IntegrationType = "bpjs-rme"      // BPJS RME (Rekam Medis Elektronik)
+	IntegrationTypeBPJSAplicare IntegrationType = "bpjs-aplicare" // BPJS Aplicare (Ketersediaan Tempat Tidur)
+	IntegrationTypeSatuSehat    IntegrationType = "satusehat"
+	IntegrationTypePCare        IntegrationType = "pcare"
+	IntegrationTypeEKlaim       IntegrationType = "eklaim" // E-Klaim Local Server
 )
 
 // BPJSServiceTypes returns all BPJS service integration types
@@ -29,6 +30,7 @@ func BPJSServiceTypes() []IntegrationType {
 		IntegrationTypeBPJSICare,
 		IntegrationTypeBPJSApotek,
 		IntegrationTypeBPJSRME,
+		IntegrationTypeBPJSAplicare,
 	}
 }
 
@@ -36,7 +38,8 @@ func BPJSServiceTypes() []IntegrationType {
 func IsBPJSType(t IntegrationType) bool {
 	switch t {
 	case IntegrationTypeBPJS, IntegrationTypeBPJSAntrian, IntegrationTypeBPJSVClaim,
-		IntegrationTypeBPJSICare, IntegrationTypeBPJSApotek, IntegrationTypeBPJSRME:
+		IntegrationTypeBPJSICare, IntegrationTypeBPJSApotek, IntegrationTypeBPJSRME,
+		IntegrationTypeBPJSAplicare:
 		return true
 	}
 	return false
@@ -109,6 +112,11 @@ type IntegrationConfigKey struct {
 
 // createBPJSConfigKeys creates config keys for a BPJS service type
 func createBPJSConfigKeys(integrationType IntegrationType, serviceName string) []IntegrationConfigKey {
+	return createBPJSConfigKeysCustomURL(integrationType, serviceName, "https://apijkn-dev.bpjs-kesehatan.go.id", "https://apijkn.bpjs-kesehatan.go.id")
+}
+
+// createBPJSConfigKeysCustomURL creates config keys with custom base URLs (for services with separate domains like I-Care, Aplicare)
+func createBPJSConfigKeysCustomURL(integrationType IntegrationType, serviceName string, defaultDevURL string, defaultProdURL string) []IntegrationConfigKey {
 	return []IntegrationConfigKey{
 		{Integration: integrationType, Key: "cons_id", Description: "Consumer ID " + serviceName, IsEncrypted: false, IsSecret: false, Default: ""},
 		{Integration: integrationType, Key: "secret_key", Description: "Secret Key " + serviceName, IsEncrypted: false, IsSecret: true, Default: ""},
@@ -116,8 +124,8 @@ func createBPJSConfigKeys(integrationType IntegrationType, serviceName string) [
 		{Integration: integrationType, Key: "kode_ppk", Description: "Kode Faskes/PPK", IsEncrypted: false, IsSecret: false, Default: ""},
 		{Integration: integrationType, Key: "nama_ppk", Description: "Nama Faskes", IsEncrypted: false, IsSecret: false, Default: ""},
 		{Integration: integrationType, Key: "environment", Description: "Environment: development atau production", IsEncrypted: false, IsSecret: false, Default: "development"},
-		{Integration: integrationType, Key: "base_url_dev", Description: "Base URL Development", IsEncrypted: false, IsSecret: false, Default: "https://apijkn-dev.bpjs-kesehatan.go.id"},
-		{Integration: integrationType, Key: "base_url_prod", Description: "Base URL Production", IsEncrypted: false, IsSecret: false, Default: "https://apijkn.bpjs-kesehatan.go.id"},
+		{Integration: integrationType, Key: "base_url_dev", Description: "Base URL Development", IsEncrypted: false, IsSecret: false, Default: defaultDevURL},
+		{Integration: integrationType, Key: "base_url_prod", Description: "Base URL Production", IsEncrypted: false, IsSecret: false, Default: defaultProdURL},
 		{Integration: integrationType, Key: "sync_interval_minutes", Description: "Interval sinkronisasi dalam menit", IsEncrypted: false, IsSecret: false, Default: "5"},
 		{Integration: integrationType, Key: "auto_sync_enabled", Description: "Enable auto sync", IsEncrypted: false, IsSecret: false, Default: "false"},
 		// Webhook credentials - BPJS uses these to authenticate when calling our endpoints
@@ -145,9 +153,10 @@ var BPJSConfigKeys = []IntegrationConfigKey{
 // Per-service BPJS Config Keys
 var BPJSAntrianConfigKeys = createBPJSConfigKeys(IntegrationTypeBPJSAntrian, "Antrian Online")
 var BPJSVClaimConfigKeys = createBPJSConfigKeys(IntegrationTypeBPJSVClaim, "VClaim")
-var BPJSICareConfigKeys = createBPJSConfigKeys(IntegrationTypeBPJSICare, "I-Care")
+var BPJSICareConfigKeys = createBPJSConfigKeysCustomURL(IntegrationTypeBPJSICare, "I-Care", "https://apijkn-dev.bpjs-kesehatan.go.id/ihs_dev/api/rs", "https://apijkn.bpjs-kesehatan.go.id/wsihs/api/rs")
 var BPJSApotekConfigKeys = createBPJSConfigKeys(IntegrationTypeBPJSApotek, "Apotek Online")
 var BPJSRMEConfigKeys = createBPJSConfigKeys(IntegrationTypeBPJSRME, "RME")
+var BPJSAplicareConfigKeys = createBPJSConfigKeysCustomURL(IntegrationTypeBPJSAplicare, "Aplicare", "https://dvlp.bpjs-kesehatan.go.id:8888/aplicaresws/rest", "")
 
 // E-Klaim Config Keys
 var EKlaimConfigKeys = []IntegrationConfigKey{
@@ -177,6 +186,7 @@ func GetAllIntegrationConfigKeys() []IntegrationConfigKey {
 	all = append(all, BPJSICareConfigKeys...)
 	all = append(all, BPJSApotekConfigKeys...)
 	all = append(all, BPJSRMEConfigKeys...)
+	all = append(all, BPJSAplicareConfigKeys...)
 	all = append(all, SatuSehatConfigKeys...)
 	all = append(all, EKlaimConfigKeys...)
 	return all
@@ -197,6 +207,8 @@ func GetIntegrationConfigKeys(integration IntegrationType) []IntegrationConfigKe
 		return BPJSApotekConfigKeys
 	case IntegrationTypeBPJSRME:
 		return BPJSRMEConfigKeys
+	case IntegrationTypeBPJSAplicare:
+		return BPJSAplicareConfigKeys
 	case IntegrationTypeSatuSehat:
 		return SatuSehatConfigKeys
 	case IntegrationTypeEKlaim:
@@ -219,6 +231,8 @@ func GetBPJSServiceName(integration IntegrationType) string {
 		return "Apotek Online"
 	case IntegrationTypeBPJSRME:
 		return "RME"
+	case IntegrationTypeBPJSAplicare:
+		return "Aplicare"
 	default:
 		return "BPJS"
 	}

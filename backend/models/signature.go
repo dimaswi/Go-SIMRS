@@ -91,6 +91,29 @@ const (
 	DocTypeOperativeReport  = "operative_report"  // Laporan Operasi
 	DocTypeInpatientCert    = "inpatient_cert"    // Surat Keterangan Rawat Inap
 	DocTypePharmacyHandover = "pharmacy_handover" // Serah Terima Obat
+	DocTypeRegistration     = "registration"      // Bukti Registrasi
+
+	// RM Duplicate (E-Klaim) document types
+	DocTypeRMDupLabResult       = "rm_dup_lab_result"       // Hasil Lab RM Duplikat
+	DocTypeRMDupRadResult       = "rm_dup_radiology_result" // Hasil Radiologi RM Duplikat
+	DocTypeRMDupSurgeryReport   = "rm_dup_surgery_report"   // Laporan Operasi RM Duplikat
+	DocTypeRMDupConsultation    = "rm_dup_consultation"      // Hasil Konsultasi RM Duplikat
+	DocTypeRMDupResume          = "rm_dup_resume"            // Resume Medis RM Duplikat
+	DocTypeRMDupInpatientResume = "rm_dup_inpatient_resume"  // Resume Rawat Inap RM Duplikat
+	DocTypeRMDupReferral        = "rm_dup_referral"          // Surat Rujukan RM Duplikat
+	DocTypeRMDupTriage          = "rm_dup_triage"            // Triage UGD RM Duplikat
+	DocTypeRMDupEmergency       = "rm_dup_emergency"         // Ringkasan UGD RM Duplikat
+	DocTypeRMDupCPPT            = "rm_dup_cppt"              // CPPT RM Duplikat
+	DocTypeRMDupFluidBalance    = "rm_dup_fluid_balance"     // Balance Cairan RM Duplikat
+	DocTypeRMDupPrescription    = "rm_dup_prescription"      // Resep Obat RM Duplikat
+	DocTypeRMDupSEP             = "rm_dup_sep"               // SEP RM Duplikat
+	DocTypeRMDupAdmission       = "rm_dup_admission"         // Ringkasan Masuk Keluar RM Duplikat
+	DocTypeRMDupRegistration    = "rm_dup_registration"      // Bukti Registrasi RM Duplikat
+	DocTypeRMDupConsent         = "rm_dup_consent"           // Informed Consent RM Duplikat
+	DocTypeRMDupNursingCare     = "rm_dup_nursing_care"      // Asuhan Keperawatan RM Duplikat
+	DocTypeRMDupBedTransfer     = "rm_dup_bed_transfer"      // Mutasi Pasien RM Duplikat
+	DocTypeRMDupVitalSign       = "rm_dup_vital_sign"        // Grafik Tanda Vital RM Duplikat
+	DocTypeRMDupInpatientCert   = "rm_dup_inpatient_cert"    // Surat Rawat Inap RM Duplikat
 )
 
 // Signature action constants

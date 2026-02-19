@@ -503,7 +503,7 @@ export default function AdmissionRequestShowPage() {
 
   if (!request) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6">
+      <div className="flex flex-1 flex-col items-center justify-center p-4">
         <p className="text-muted-foreground">Permintaan tidak ditemukan</p>
         <Button variant="outline" asChild>
           <Link to="/admisi">
@@ -524,7 +524,7 @@ export default function AdmissionRequestShowPage() {
     : patientDetail && (patientDetail.jenis_jaminan === "BPJS" || patientDetail.jenis_jaminan === "JKN");
 
   return (
-    <div className="flex flex-1 flex-col gap-4 p-6">
+    <div className="flex flex-1 flex-col p-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">

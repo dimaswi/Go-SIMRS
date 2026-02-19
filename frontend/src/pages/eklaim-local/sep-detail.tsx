@@ -151,7 +151,7 @@ export default function SEPDetailPage() {
 
   if (!sep) {
     return (
-      <div className="flex flex-1 flex-col gap-4 p-6">
+      <div className="flex flex-1 flex-col p-4">
         <p className="text-muted-foreground">SEP tidak ditemukan.</p>
         <Button variant="outline" onClick={() => navigate('/eklaim/list-sep')}>
           <ArrowLeft className="mr-2 h-4 w-4" />
@@ -162,7 +162,7 @@ export default function SEPDetailPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-4 p-6">
+    <div className="flex flex-1 flex-col p-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">

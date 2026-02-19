@@ -256,7 +256,7 @@ export default function ProcedureEdit() {
 
   if (loading) {
     return (
-      <div className="flex flex-1 flex-col gap-4 p-6">
+      <div className="flex flex-1 flex-col p-4">
         <div className="flex items-center gap-4">
           <Skeleton className="h-9 w-9" />
           <div className="space-y-2">
@@ -274,7 +274,7 @@ export default function ProcedureEdit() {
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-4 p-6">
+    <div className="flex flex-1 flex-col p-4">
       <div className="flex items-center gap-4">
         <Button variant="outline" size="icon" asChild className="h-9 w-9">
           <Link to="/procedures">

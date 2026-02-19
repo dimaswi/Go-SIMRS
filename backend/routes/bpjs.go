@@ -158,6 +158,26 @@ func SetupBPJSRoutes(api *gin.RouterGroup) {
 			vclaim.GET("/referensi/kabupaten/:kdPropinsi", handlers.VClaimGetReferensiKabupaten)
 			vclaim.GET("/referensi/kecamatan/:kdKabupaten", handlers.VClaimGetReferensiKecamatan)
 		}
+
+		// ==================== I-CARE ====================
+		icare := bpjs.Group("/icare")
+		icare.Use(middleware.RequirePermission("registrations.view"))
+		{
+			icare.POST("/validate/:visitId", handlers.ICareValidate)
+			icare.POST("/validate-manual", handlers.ICareValidateManual)
+		}
+
+		// ==================== APLICARE ====================
+		aplicare := bpjs.Group("/aplicare")
+		aplicare.Use(middleware.RequirePermission("integrations.view"))
+		{
+			aplicare.GET("/ref-kelas", handlers.AplicareGetRefKelas)
+			aplicare.GET("/bed", handlers.AplicareReadBed)
+			aplicare.GET("/rooms", handlers.AplicareGetRooms)
+			aplicare.POST("/bed/create", middleware.RequirePermission("integrations.manage"), handlers.AplicareCreateRoom)
+			aplicare.POST("/bed/update", middleware.RequirePermission("integrations.manage"), handlers.AplicareUpdateRoom)
+			aplicare.POST("/bed/delete", middleware.RequirePermission("integrations.manage"), handlers.AplicareDeleteRoom)
+		}
 	}
 }
 

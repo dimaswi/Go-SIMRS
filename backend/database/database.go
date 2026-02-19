@@ -205,6 +205,45 @@ func Migrate() error {
 	// ==========================================
 	// STEP 3: Auto-migrate all models with proper order for dependencies
 	// ==========================================
+
+	// Clean up orphaned eklaim_rm_order_items/results with NULL FK before NOT NULL migration.
+	// They will be re-synced from the visit on next InitRMDuplicate / SyncRMFromVisit.
+	{
+		// Fix GORM column name mismatches: e_klaim_rm_order_id → eklaim_rm_order_id, etc.
+		renameIfExists := func(table, oldCol, newCol string) {
+			var exists int64
+			DB.Raw("SELECT COUNT(*) FROM information_schema.columns WHERE table_name = $1 AND column_name = $2", table, oldCol).Scan(&exists)
+			if exists > 0 {
+				var newExists int64
+				DB.Raw("SELECT COUNT(*) FROM information_schema.columns WHERE table_name = $1 AND column_name = $2", table, newCol).Scan(&newExists)
+				if newExists > 0 {
+					// Both exist: copy data from old to new where new is null, then drop old
+					DB.Exec(fmt.Sprintf("UPDATE %s SET %s = %s WHERE %s IS NULL", table, newCol, oldCol, newCol))
+					DB.Exec(fmt.Sprintf("ALTER TABLE %s DROP COLUMN %s", table, oldCol))
+					log.Printf("Merged %s.%s into %s and dropped old column", table, oldCol, newCol)
+				} else {
+					DB.Exec(fmt.Sprintf("ALTER TABLE %s RENAME COLUMN %s TO %s", table, oldCol, newCol))
+					log.Printf("Renamed %s.%s → %s", table, oldCol, newCol)
+				}
+			}
+		}
+		renameIfExists("eklaim_rm_order_items", "e_klaim_rm_order_id", "eklaim_rm_order_id")
+		renameIfExists("eklaim_rm_order_results", "e_klaim_rm_order_item_id", "eklaim_rm_order_item_id")
+
+		// Also clean up NULL FK rows
+		var tblExists int64
+		DB.Raw("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'eklaim_rm_order_items'").Scan(&tblExists)
+		if tblExists > 0 {
+			DB.Exec("DELETE FROM eklaim_rm_order_items WHERE eklaim_rm_order_id IS NULL OR eklaim_rm_order_id = 0")
+			DB.Exec("DELETE FROM eklaim_rm_order_items WHERE procedure_id IS NULL OR procedure_id = 0")
+		}
+		DB.Raw("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'eklaim_rm_order_results'").Scan(&tblExists)
+		if tblExists > 0 {
+			DB.Exec("DELETE FROM eklaim_rm_order_results WHERE eklaim_rm_order_item_id IS NULL OR eklaim_rm_order_item_id = 0")
+			DB.Exec("DELETE FROM eklaim_rm_order_results WHERE procedure_parameter_id IS NULL OR procedure_parameter_id = 0")
+		}
+	}
+
 	err := DB.AutoMigrate(
 		&models.Role{},           // First, roles
 		&models.Permission{},     // Then permissions
@@ -345,11 +384,19 @@ func Migrate() error {
 		&models.EKlaimProcedure{}, // E-Klaim Procedures (ICD-9-CM)
 		&models.EKlaimLog{},       // E-Klaim Activity Logs
 		// E-Klaim Local Server
-		&models.EKlaimLocal{},       // E-Klaim Local Claims
-		&models.EKlaimRMDuplicate{}, // E-Klaim RM Duplicate
-		&models.EKlaimRMDiagnosis{}, // E-Klaim RM Diagnosis
-		&models.EKlaimRMProcedure{}, // E-Klaim RM Procedure
-		&models.EKlaimLocalLog{},    // E-Klaim Local Communication Logs
+		&models.EKlaimLocal{},          // E-Klaim Local Claims
+		&models.EKlaimRMDuplicate{},    // E-Klaim RM Duplicate
+		&models.EKlaimRMDiagnosis{},    // E-Klaim RM Diagnosis
+		&models.EKlaimRMProcedure{},    // E-Klaim RM Procedure
+		&models.EKlaimRMOrder{},        // E-Klaim RM Order (unified: lab/rad/surgery/consult)
+		&models.EKlaimRMOrderItem{},    // E-Klaim RM Order Item (procedure reference)
+		&models.EKlaimRMOrderResult{},  // E-Klaim RM Order Result (parameter-based)
+		&models.EKlaimRMMedicineItem{}, // E-Klaim RM Medicine Items
+		&models.EKlaimRMCPPT{},         // E-Klaim RM CPPT
+		&models.EKlaimRMFluidBalance{}, // E-Klaim RM Fluid Balance
+		&models.EKlaimRMBilling{},      // E-Klaim RM Billing (duplicate)
+		&models.EKlaimRMBillingItem{},  // E-Klaim RM Billing Items
+		&models.EKlaimLocalLog{},       // E-Klaim Local Communication Logs
 		// Digital Signatures & Audit Trail
 		&models.SignatureLog{},      // Signature Activity Logs
 		&models.DocumentSignature{}, // Document Signature Status
@@ -967,14 +1014,65 @@ func SeedCounters() error {
 // MigrateEKlaimLocal creates/updates only E-Klaim Local tables.
 // Called from main.go since the full Migrate() is disabled.
 func MigrateEKlaimLocal() error {
+	// Fix column names: GORM may have derived EKlaimRMOrderID / RMDuplicateID
+	// with wrong snake_case. Also, a previous failed migration may have created
+	// the new column (empty) alongside the old one (with data).
+	fixColumnName := func(table, newCol, likePattern, notLikePattern string) {
+		// Check if old column exists (different from newCol, matching pattern)
+		var oldCol string
+		q := `SELECT column_name FROM information_schema.columns
+			WHERE table_name = $1 AND column_name != $2
+			AND column_name LIKE $3 AND column_name != 'id'`
+		args := []interface{}{table, newCol, likePattern}
+		if notLikePattern != "" {
+			q += ` AND column_name NOT LIKE $4`
+			args = append(args, notLikePattern)
+		}
+		q += ` LIMIT 1`
+		DB.Raw(q, args...).Scan(&oldCol)
+		if oldCol == "" || oldCol == newCol {
+			return
+		}
+		log.Printf("Fixing column %s: %s -> %s", table, oldCol, newCol)
+
+		// Check if new column already exists (from failed previous migration)
+		var newExists int64
+		DB.Raw(`SELECT COUNT(*) FROM information_schema.columns
+			WHERE table_name = $1 AND column_name = $2`, table, newCol).Scan(&newExists)
+
+		if newExists > 0 {
+			// Both exist: copy data from old to new, then drop old
+			DB.Exec(fmt.Sprintf("UPDATE %s SET %s = %s WHERE %s IS NULL", table, newCol, oldCol, newCol))
+			DB.Exec(fmt.Sprintf("ALTER TABLE %s DROP COLUMN %s", table, oldCol))
+		} else {
+			// Only old exists: rename
+			DB.Exec(fmt.Sprintf("ALTER TABLE %s RENAME COLUMN %s TO %s", table, oldCol, newCol))
+		}
+	}
+
+	// RMDuplicateID — could be r_m_duplicate_id or similar
+	for _, t := range []string{"eklaim_rm_diagnoses", "eklaim_rm_procedures", "eklaim_rm_orders",
+		"eklaim_rm_medicine_items", "eklaim_rm_cppt", "eklaim_rm_fluid_balances"} {
+		fixColumnName(t, "rm_duplicate_id", "%duplicate_id%", "")
+	}
+	// EKlaimRMOrderID
+	fixColumnName("eklaim_rm_order_items", "eklaim_rm_order_id", "%order_id%", "%item%")
+	// EKlaimRMOrderItemID
+	fixColumnName("eklaim_rm_order_results", "eklaim_rm_order_item_id", "%order_item_id%", "")
+
 	return DB.AutoMigrate(
 		&models.EKlaimLocal{},
 		&models.EKlaimRMDuplicate{},
 		&models.EKlaimRMDiagnosis{},
 		&models.EKlaimRMProcedure{},
-		&models.EKlaimRMLabResult{},
-		&models.EKlaimRMRadiologyResult{},
-		&models.EKlaimRMSurgeryNote{},
+		&models.EKlaimRMOrder{},
+		&models.EKlaimRMOrderItem{},
+		&models.EKlaimRMOrderResult{},
+		&models.EKlaimRMMedicineItem{},
+		&models.EKlaimRMCPPT{},
+		&models.EKlaimRMFluidBalance{},
+		&models.EKlaimRMBilling{},
+		&models.EKlaimRMBillingItem{},
 		&models.EKlaimLocalLog{},
 	)
 }

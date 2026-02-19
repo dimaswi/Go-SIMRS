@@ -167,6 +167,42 @@ func InitIntegrationConfig(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Configuration initialized"})
 }
 
+// ResetIntegrationConfig deletes all config for a type and re-initializes with defaults
+func ResetIntegrationConfig(c *gin.Context) {
+	integrationType := c.Param("type")
+	if integrationType == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Integration type required"})
+		return
+	}
+
+	configKeys := models.GetIntegrationConfigKeys(models.IntegrationType(integrationType))
+	if configKeys == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Unknown integration type"})
+		return
+	}
+
+	// Delete all existing config for this type
+	if err := database.DB.Where("integration = ?", integrationType).Delete(&models.IntegrationConfig{}).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menghapus konfigurasi: " + err.Error()})
+		return
+	}
+
+	// Re-create with defaults
+	for _, cfg := range configKeys {
+		newCfg := models.IntegrationConfig{
+			Integration: cfg.Integration,
+			Key:         cfg.Key,
+			Value:       cfg.Default,
+			Description: cfg.Description,
+			IsEncrypted: cfg.IsEncrypted,
+			IsSecret:    cfg.IsSecret,
+		}
+		database.DB.Create(&newCfg)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Configuration reset to defaults"})
+}
+
 // TestIntegrationConnection tests connection to an external system
 func TestIntegrationConnection(c *gin.Context) {
 	integrationType := c.Param("type")

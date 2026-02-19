@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { roomsApi, masterDataApi, employeesApi, type MasterData, type Employee } from "@/lib/api";
+import { bpjsApi, type AplicareRefKelasItem } from "@/lib/api/bpjs";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Loader2, Building2, Tag, DollarSign, FileText, Layers, User, BedDouble, Calendar } from "lucide-react";
 import { setPageTitle } from "@/lib/page-title";
@@ -17,6 +18,7 @@ export default function RoomCreate() {
   const [loading, setLoading] = useState(false);
   const [masterData, setMasterData] = useState<Record<string, MasterData[]>>({});
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [refKelasBpjs, setRefKelasBpjs] = useState<AplicareRefKelasItem[]>([]);
   const [loadingData, setLoadingData] = useState(true);
 
   const [formData, setFormData] = useState({
@@ -26,6 +28,7 @@ export default function RoomCreate() {
     service_type: "",
     room_type: "",
     room_class: "",
+    kode_kelas_bpjs: "",
     total_floors: 1,
     registration_fee: 0,
     tariff_per_day: 0,
@@ -50,6 +53,11 @@ export default function RoomCreate() {
       ]);
       setMasterData(masterDataRes.data.data || {});
       setEmployees(employeesRes.data.data || []);
+      // Load BPJS ref kelas (silent fail)
+      try {
+        const refRes = await bpjsApi.aplicareGetRefKelas();
+        setRefKelasBpjs(refRes.data.data || []);
+      } catch { /* silent - not critical */ }
     } catch (error) {
       console.error("Failed to load data:", error);
     } finally {
@@ -69,6 +77,7 @@ export default function RoomCreate() {
         service_type: formData.service_type,
         room_type: formData.room_type,
         room_class: formData.room_class || undefined,
+        kode_kelas_bpjs: formData.kode_kelas_bpjs || undefined,
         total_floors: formData.total_floors,
         registration_fee: formData.registration_fee,
         tariff_per_day: formData.tariff_per_day,
@@ -127,7 +136,7 @@ export default function RoomCreate() {
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-4 p-6">
+    <div className="flex flex-1 flex-col p-4">
       <div className="flex items-center gap-4">
         <Button
           variant="outline"
@@ -287,6 +296,29 @@ export default function RoomCreate() {
                   </div>
                 </div>
               </div>
+
+              {/* Kode Kelas BPJS Aplicare - muncul setelah has_bed diaktifkan */}
+              {formData.has_bed && refKelasBpjs.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium flex items-center gap-2">
+                      <BedDouble className="h-3.5 w-3.5 text-muted-foreground" />
+                      Kode Kelas BPJS Aplicare
+                    </Label>
+                    <Combobox
+                      options={refKelasBpjs.map(k => ({
+                        value: k.kodekelas,
+                        label: `${k.kodekelas} — ${k.namakelas}`,
+                      }))}
+                      value={formData.kode_kelas_bpjs}
+                      onValueChange={(value) => setFormData({ ...formData, kode_kelas_bpjs: value })}
+                      placeholder="Pilih kode kelas BPJS"
+                      searchPlaceholder="Cari kode kelas..."
+                    />
+                    <p className="text-xs text-muted-foreground">Digunakan untuk integrasi BPJS Aplicare (ketersediaan tempat tidur)</p>
+                  </div>
+                </div>
+              )}
 
               <hr className="border-border/50" />
 

@@ -93,10 +93,16 @@ function SectionHeader({ title, children }: { title: string; children?: React.Re
 function mapDischargeStatus(dispositionType?: string): string {
   if (!dispositionType) return '';
   switch (dispositionType.toLowerCase().trim()) {
-    case 'pulang': return '1';
-    case 'rujuk': return '2';
-    case 'aps': return '3';
-    case 'meninggal': case 'dod': return '4';
+    // Pulang normal / atas persetujuan dokter
+    case 'pulang': case 'sembuh': case 'membaik': case 'pulang_sehat': return '1';
+    // Dirujuk ke RS lain
+    case 'rujuk': case 'rujuk_keluar': case 'pindah_rs': case 'transfer': return '2';
+    // Atas permintaan sendiri (APS) / Pulang Paksa
+    case 'aps': case 'pulang_paksa': case 'menolak_rawat': return '3';
+    // Meninggal
+    case 'meninggal': case 'dod': case 'meninggal_48': case 'meninggal_lebih_48': return '4';
+    // Lain-lain (rawat inap lanjutan, kontrol, dll)
+    case 'rawat_inap': case 'kontrol': case 'lain_lain': case 'lainnya': return '5';
     default: return '';
   }
 }
@@ -104,6 +110,27 @@ function mapDischargeStatus(dispositionType?: string): string {
 // Helper: format number to IDR currency
 function formatRp(val: number): string {
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(val);
+}
+
+// Helper: convert E-Klaim date (yyyy-mm-dd HH:mm:ss) to HTML datetime-local (yyyy-mm-ddTHH:mm:ss)
+function toDatetimeLocal(val: string): string {
+  if (!val) return '';
+  // Already has 'T' separator → already in HTML format
+  if (val.includes('T')) return val;
+  // Has space separator → replace with T
+  if (val.includes(' ')) return val.replace(' ', 'T');
+  // Date only (yyyy-mm-dd) → append default time
+  if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return val + 'T00:00:00';
+  return val;
+}
+
+// Helper: convert HTML datetime-local (yyyy-mm-ddTHH:mm or yyyy-mm-ddTHH:mm:ss) to E-Klaim format (yyyy-mm-dd HH:mm:ss)
+function fromDatetimeLocal(val: string): string {
+  if (!val) return '';
+  const result = val.replace('T', ' ');
+  // Ensure seconds are always present (HH:mm → HH:mm:ss)
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(result)) return result + ':00';
+  return result;
 }
 
 export default function ClaimDataTab({ detail, originalRM, onBuildPayload, onRefresh, disabled, onSubmitClaimData, submitting }: ClaimDataTabProps) {
@@ -186,8 +213,8 @@ export default function ClaimDataTab({ detail, originalRM, onBuildPayload, onRef
     const rmEdit = d.rm_duplicate;
     const rm = originalRM;
 
-    setTglMasuk(d.tgl_masuk || '');
-    setTglPulang(d.tgl_pulang || '');
+    setTglMasuk(toDatetimeLocal(d.tgl_masuk || ''));
+    setTglPulang(toDatetimeLocal(d.tgl_pulang || ''));
     setCaraMasuk(d.cara_masuk || '');
     setJenisRawat(d.jenis_rawat || '');
     setKelasRawat(d.kelas_rawat || '');
@@ -288,8 +315,8 @@ export default function ClaimDataTab({ detail, originalRM, onBuildPayload, onRef
   // ========= Build payload for parent =========
   const buildPayload = useCallback((): Record<string, any> => {
     const payload: Record<string, any> = {
-      tgl_masuk: tglMasuk,
-      tgl_pulang: tglPulang,
+      tgl_masuk: fromDatetimeLocal(tglMasuk),
+      tgl_pulang: fromDatetimeLocal(tglPulang),
       cara_masuk: caraMasuk,
       jenis_rawat: jenisRawat,
       kelas_rawat: kelasRawat,
@@ -458,11 +485,13 @@ export default function ClaimDataTab({ detail, originalRM, onBuildPayload, onRef
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="space-y-1.5">
           <Label>Tanggal &amp; Jam Masuk</Label>
-          <Input type="datetime-local" value={tglMasuk} onChange={(e) => setTglMasuk(e.target.value)} />
+          <Input type="datetime-local" step="1" value={tglMasuk} onChange={(e) => setTglMasuk(e.target.value)} />
+          <p className="text-[10px] text-muted-foreground">Format: yyyy-mm-dd HH:mm:ss (wajib INACBG)</p>
         </div>
         <div className="space-y-1.5">
           <Label>Tanggal &amp; Jam Pulang</Label>
-          <Input type="datetime-local" value={tglPulang} onChange={(e) => setTglPulang(e.target.value)} />
+          <Input type="datetime-local" step="1" value={tglPulang} onChange={(e) => setTglPulang(e.target.value)} />
+          <p className="text-[10px] text-muted-foreground">Format: yyyy-mm-dd HH:mm:ss (wajib INACBG)</p>
         </div>
         <div className="space-y-1.5">
           <Label>Cara Masuk</Label>

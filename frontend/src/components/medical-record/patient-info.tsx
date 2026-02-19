@@ -1,7 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Calendar,
   Phone,
@@ -14,10 +20,12 @@ import {
   ArrowLeft,
   Loader2,
   ShieldCheck,
+  ExternalLink,
 } from "lucide-react";
-import { patientAllergyApi, ALLERGY_CATEGORY_LABELS, ALLERGY_CRITICALITY_LABELS, api } from "@/lib/api";
+import { patientAllergyApi, ALLERGY_CATEGORY_LABELS, ALLERGY_CRITICALITY_LABELS, api, bpjsApi } from "@/lib/api";
 import type { PatientAllergy } from "@/lib/api";
 import { MedicalRecordPrintSelect } from "./print-select";
+import { useToast } from "@/hooks/use-toast";
 
 interface SEPInfo {
   no_sep: string;
@@ -135,6 +143,7 @@ const getVisitCategoryLabel = (visit: PatientInfoProps["visit"]) => {
 export function PatientInfo({ visit }: PatientInfoProps) {
   const navigate = useNavigate();
   
+  const { toast } = useToast();
   const patient = visit.registration?.patient;
   const patientId = patient?.id;
   
@@ -219,6 +228,38 @@ export function PatientInfo({ visit }: PatientInfoProps) {
                               visit.registration?.status === "discharged" ||
                               visit.status === "completed";
 
+  // I-Care state
+  const [icareOpen, setIcareOpen] = useState(false);
+  const [icareUrl, setIcareUrl] = useState<string | null>(null);
+  const [icareLoading, setIcareLoading] = useState(false);
+
+  const handleICareOpen = useCallback(async () => {
+    setIcareLoading(true);
+    try {
+      const response = await bpjsApi.icareValidate(visit.id);
+      const url = response.data.url;
+      if (url) {
+        setIcareUrl(url);
+        setIcareOpen(true);
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Gagal",
+          description: "URL I-Care tidak ditemukan dalam response BPJS",
+        });
+      }
+    } catch (error: any) {
+      const msg = error?.response?.data?.error || error?.message || "Gagal memuat I-Care";
+      toast({
+        variant: "destructive",
+        title: "Gagal",
+        description: msg,
+      });
+    } finally {
+      setIcareLoading(false);
+    }
+  }, [visit.id, toast]);
+
   // Helper: Get initials from patient name
   const getInitials = (name?: string) => {
     if (!name) return "?";
@@ -283,6 +324,25 @@ export function PatientInfo({ visit }: PatientInfoProps) {
             <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5">
               Selesai
             </Badge>
+          )}
+          {/* I-Care Button (only for BPJS patients with SEP) */}
+          {sepInfo && (
+            <div onClick={(e) => e.stopPropagation()}>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs gap-1"
+                onClick={handleICareOpen}
+                disabled={icareLoading}
+              >
+                {icareLoading ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <ExternalLink className="h-3 w-3" />
+                )}
+                I-Care
+              </Button>
+            </div>
           )}
           {/* Print Select */}
           <div onClick={(e) => e.stopPropagation()}>
@@ -533,6 +593,34 @@ export function PatientInfo({ visit }: PatientInfoProps) {
           </div>
         </div>
       )}
+
+      {/* I-Care Modal */}
+      <Dialog open={icareOpen} onOpenChange={setIcareOpen}>
+        <DialogContent className="max-w-[90vw] w-[90vw] h-[85vh] p-0 gap-0">
+          <DialogHeader className="px-4 py-3 border-b flex-shrink-0">
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <ShieldCheck className="h-4 w-4" />
+              BPJS I-Care — {patient?.nama_lengkap || "-"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-hidden">
+            {icareUrl ? (
+              <iframe
+                src={icareUrl}
+                className="w-full h-full border-0"
+                style={{ minHeight: "calc(85vh - 60px)" }}
+                title="BPJS I-Care"
+                sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
+              />
+            ) : (
+              <div className="flex items-center justify-center h-full text-muted-foreground">
+                <Loader2 className="h-6 w-6 animate-spin mr-2" />
+                Memuat I-Care...
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

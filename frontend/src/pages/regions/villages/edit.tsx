@@ -87,7 +87,7 @@ export default function VillageEditPage() {
   const province = regency?.province;
 
   return (
-    <div className="flex flex-1 flex-col gap-4 p-6">
+    <div className="flex flex-1 flex-col p-4">
       <div className="max-w-2xl space-y-6">
         <div className="flex items-center gap-4">
           <Button

@@ -65,8 +65,8 @@ export default function ProvinceCreatePage() {
   };
 
   return (
-    <div className="flex flex-1 flex-col gap-4 p-6">
-      <Card className="shadow-md max-w-2xl">
+    <div className="flex flex-1 flex-col p-4">
+      <Card className="max-w-2xl">
         <CardHeader className="border-b bg-muted/50">
           <div className="flex items-center gap-4">
             <Button

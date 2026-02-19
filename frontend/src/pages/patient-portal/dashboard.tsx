@@ -397,7 +397,7 @@ export default function PatientPortalDashboard() {
 
   if (error) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-6 bg-muted/30">
+      <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-muted/30">
         <AlertTriangle className="h-16 w-16 text-destructive opacity-50" />
         <h2 className="text-xl font-semibold">Terjadi Kesalahan</h2>
         <p className="text-muted-foreground">{error}</p>
@@ -408,7 +408,7 @@ export default function PatientPortalDashboard() {
 
   if (!profile) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-6 bg-muted/30">
+      <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-muted/30">
         <User className="h-16 w-16 text-muted-foreground opacity-50" />
         <h2 className="text-xl font-semibold">Data Tidak Ditemukan</h2>
         <Button onClick={() => navigate('/portal')}>Kembali</Button>

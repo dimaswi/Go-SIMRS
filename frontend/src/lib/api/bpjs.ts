@@ -277,6 +277,42 @@ export const bpjsApi = {
   // Get list task by kode booking
   getListTask: (kodebooking: string) =>
     api.post<{ data: BPJSListTaskItem[] }>('/bpjs/antrean/getlisttask', { kodebooking }),
+
+  // === I-Care ===
+  
+  // Validate I-Care: returns URL to open BPJS I-Care web interface
+  icareValidate: (visitId: number) =>
+    api.post<{ url: string; message: string }>(`/bpjs/icare/validate/${visitId}`),
+  
+  // Validate I-Care manual: input nomor kartu dan kode dokter langsung
+  icareValidateManual: (noKartu: string, kodeDokter: number) =>
+    api.post<{ url: string; message: string }>('/bpjs/icare/validate-manual', { no_kartu: noKartu, kode_dokter: kodeDokter }),
+
+  // === APLICARE (Ketersediaan Tempat Tidur) ===
+
+  // Referensi kelas kamar dari BPJS
+  aplicareGetRefKelas: () =>
+    api.get<{ data: AplicareRefKelasItem[] }>('/bpjs/aplicare/ref-kelas'),
+
+  // Baca ketersediaan tempat tidur dari BPJS
+  aplicareReadBed: (start = 1, limit = 100) =>
+    api.get<{ data: AplicareBedItem[] }>(`/bpjs/aplicare/bed?start=${start}&limit=${limit}`),
+
+  // Daftar ruangan rawat inap SIMRS (yang punya bed)
+  aplicareGetRooms: () =>
+    api.get<{ data: AplicareRoom[] }>('/bpjs/aplicare/rooms'),
+
+  // Daftarkan ruangan baru ke Aplicare
+  aplicareCreateRoom: (roomId: number) =>
+    api.post<{ message: string; data: AplicareBedRequest }>('/bpjs/aplicare/bed/create', { room_id: roomId }),
+
+  // Update ketersediaan tempat tidur
+  aplicareUpdateRoom: (roomId: number) =>
+    api.post<{ message: string; data: AplicareBedRequest }>('/bpjs/aplicare/bed/update', { room_id: roomId }),
+
+  // Hapus ruangan dari Aplicare
+  aplicareDeleteRoom: (kodeKelas: string, kodeRuang: string) =>
+    api.post<{ message: string }>('/bpjs/aplicare/bed/delete', { kode_kelas: kodeKelas, kode_ruang: kodeRuang }),
 };
 
 // BPJS Queue Types (Antrian MJKN)
@@ -403,4 +439,46 @@ export interface BPJSListTaskItem {
   waktu: string;
   wakturs: string;
   wpidr: string;
+}
+
+// === APLICARE Types ===
+
+export interface AplicareRefKelasItem {
+  kodekelas: string;
+  namakelas: string;
+}
+
+export interface AplicareBedItem {
+  kodekelas: string;
+  namakelas: string;
+  koderuang: string;
+  namaruang: string;
+  kapasitas: number;
+  tersedia: number;
+  tersediapria: number;
+  tersediawanita: number;
+  tersediapriawanita: number;
+}
+
+export interface AplicareBedRequest {
+  kodekelas: string;
+  koderuang: string;
+  namaruang: string;
+  kapasitas: string;
+  tersedia: string;
+  tersediapria: string;
+  tersediawanita: string;
+  tersediapriawanita: string;
+}
+
+export interface AplicareRoom {
+  id: number;
+  code: string;
+  name: string;
+  room_class: string;
+  room_type: string;
+  has_bed: boolean;
+  is_active: boolean;
+  total_beds: number;
+  available_beds: number;
 }

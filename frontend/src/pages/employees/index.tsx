@@ -100,7 +100,7 @@ export default function EmployeesPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-4 p-6">
+    <div className="flex flex-1 flex-col p-4">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-lg font-semibold">Pegawai</h1>

@@ -92,5 +92,15 @@ func SetupPrintRoutes(api *gin.RouterGroup) {
 		// I. Gizi / Nutrisi
 		// Nutrition food etiket (Thermal 100mm width)
 		print.GET("/nutrition-etiket/:orderId", handlers.PrintNutritionEtiket)
+
+		// J. RM Duplicate Order Prints (EKlaim)
+		// Lab order from RM Duplicate
+		print.GET("/rm-duplicate/lab-order/:rmOrderId", handlers.PrintRMDuplicateLabOrder)
+		// Lab result from RM Duplicate
+		print.GET("/rm-duplicate/lab-result/:rmOrderId", handlers.PrintRMDuplicateLabResult)
+		// Radiology result from RM Duplicate
+		print.GET("/rm-duplicate/radiology-result/:rmOrderId", handlers.PrintRMDuplicateRadiologyResult)
+		// Surgery/Consultation result from RM Duplicate
+		print.GET("/rm-duplicate/procedure-result/:rmOrderId", handlers.PrintRMDuplicateProcedureResult)
 	}
 }

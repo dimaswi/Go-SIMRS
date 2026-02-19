@@ -365,7 +365,7 @@ export default function EmployeeEdit() {
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-4 p-6">
+    <div className="flex flex-1 flex-col p-4">
       <form onSubmit={handleSubmit} className="grid gap-4">
         {/* Header */}
         <div className="flex items-center gap-4">

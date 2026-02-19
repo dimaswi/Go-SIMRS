@@ -44,6 +44,20 @@ const fetchPdfBlob = async (endpoint: string): Promise<Blob> => {
 };
 
 /**
+ * Fetch PDF blob with signature lookup params appended
+ * Used by cetakan tab to tell backend which signature to look up
+ */
+export const fetchPdfBlobWithSig = async (
+  endpoint: string,
+  sigType: string,
+  sigId: number,
+): Promise<Blob> => {
+  const separator = endpoint.includes('?') ? '&' : '?';
+  const url = `${endpoint}${separator}sig_type=${encodeURIComponent(sigType)}&sig_id=${sigId}`;
+  return fetchPdfBlob(url);
+};
+
+/**
  * Fetch available document types for a visit
  */
 export const fetchAvailableDocs = async (visitId: number): Promise<string[]> => {
@@ -374,40 +388,64 @@ export const printApi = {
   // =========================================================================
 
   blob: {
-    informedConsent: (patientId: number) => fetchPdfBlob(`${BASE_URL}/informed-consent/${patientId}`),
-    admissionDischargeSummary: (registrationId: number, visitId?: number) => {
-      const url = visitId
-        ? `${BASE_URL}/admission-discharge-summary/${registrationId}?visit_id=${visitId}`
-        : `${BASE_URL}/admission-discharge-summary/${registrationId}`;
-      return fetchPdfBlob(url);
+    informedConsent: (patientId: number, rmDuplicateId?: number) =>
+      fetchPdfBlob(`${BASE_URL}/informed-consent/${patientId}${rmDuplicateId ? `?rm_duplicate_id=${rmDuplicateId}` : ''}`),
+    admissionDischargeSummary: (registrationId: number, visitId?: number, rmDuplicateId?: number) => {
+      const params = new URLSearchParams();
+      if (visitId) params.append('visit_id', visitId.toString());
+      if (rmDuplicateId) params.append('rm_duplicate_id', rmDuplicateId.toString());
+      const qs = params.toString();
+      return fetchPdfBlob(`${BASE_URL}/admission-discharge-summary/${registrationId}${qs ? `?${qs}` : ''}`);
     },
-    registrationReceipt: (registrationId: number) => fetchPdfBlob(`${BASE_URL}/registration-receipt/${registrationId}`),
-    outpatientResume: (visitId: number) => fetchPdfBlob(`${BASE_URL}/outpatient-resume/${visitId}`),
-    inpatientResume: (visitId: number) => fetchPdfBlob(`${BASE_URL}/inpatient-resume/${visitId}`),
+    registrationReceipt: (registrationId: number, rmDuplicateId?: number) =>
+      fetchPdfBlob(`${BASE_URL}/registration-receipt/${registrationId}${rmDuplicateId ? `?rm_duplicate_id=${rmDuplicateId}` : ''}`),
+    outpatientResume: (visitId: number, rmDuplicateId?: number) =>
+      fetchPdfBlob(`${BASE_URL}/outpatient-resume/${visitId}${rmDuplicateId ? `?rm_duplicate_id=${rmDuplicateId}` : ''}`),
+    inpatientResume: (visitId: number, rmDuplicateId?: number) =>
+      fetchPdfBlob(`${BASE_URL}/inpatient-resume/${visitId}${rmDuplicateId ? `?rm_duplicate_id=${rmDuplicateId}` : ''}`),
     sickLetter: (visitId: number, days: number, startDate: string) =>
       fetchPdfBlob(`${BASE_URL}/sick-letter/${visitId}?days=${days}&start_date=${startDate}`),
     sickLetterById: (visitId: number, letterId: number) =>
       fetchPdfBlob(`${BASE_URL}/sick-letter/${visitId}?letter_id=${letterId}`),
-    referralLetter: (visitId: number) => fetchPdfBlob(`${BASE_URL}/referral-letter/${visitId}`),
-    inpatientCertificate: (visitId: number) => fetchPdfBlob(`${BASE_URL}/inpatient-certificate/${visitId}`),
+    referralLetter: (visitId: number, rmDuplicateId?: number) =>
+      fetchPdfBlob(`${BASE_URL}/referral-letter/${visitId}${rmDuplicateId ? `?rm_duplicate_id=${rmDuplicateId}` : ''}`),
+    inpatientCertificate: (visitId: number, rmDuplicateId?: number) =>
+      fetchPdfBlob(`${BASE_URL}/inpatient-certificate/${visitId}${rmDuplicateId ? `?rm_duplicate_id=${rmDuplicateId}` : ''}`),
     deathCertificate: (visitId: number, certificateId: number) =>
       fetchPdfBlob(`${BASE_URL}/death-certificate/${visitId}?certificate_id=${certificateId}`),
-    triageForm: (visitId: number) => fetchPdfBlob(`${BASE_URL}/triage/${visitId}`),
-    emergencySummary: (visitId: number) => fetchPdfBlob(`${BASE_URL}/emergency-summary/${visitId}`),
-    cppt: (visitId: number) => fetchPdfBlob(`${BASE_URL}/cppt/${visitId}`),
-    nursingCare: (visitId: number) => fetchPdfBlob(`${BASE_URL}/nursing-care/${visitId}`),
-    fluidBalance: (visitId: number) => fetchPdfBlob(`${BASE_URL}/fluid-balance/${visitId}`),
-    bedTransfer: (visitId: number) => fetchPdfBlob(`${BASE_URL}/bed-transfer/${visitId}`),
-    vitalSignChart: (visitId: number) => fetchPdfBlob(`${BASE_URL}/vital-sign-chart/${visitId}`),
+    triageForm: (visitId: number, rmDuplicateId?: number) =>
+      fetchPdfBlob(`${BASE_URL}/triage/${visitId}${rmDuplicateId ? `?rm_duplicate_id=${rmDuplicateId}` : ''}`),
+    emergencySummary: (visitId: number, rmDuplicateId?: number) =>
+      fetchPdfBlob(`${BASE_URL}/emergency-summary/${visitId}${rmDuplicateId ? `?rm_duplicate_id=${rmDuplicateId}` : ''}`),
+    cppt: (visitId: number, rmDuplicateId?: number) =>
+      fetchPdfBlob(`${BASE_URL}/cppt/${visitId}${rmDuplicateId ? `?rm_duplicate_id=${rmDuplicateId}` : ''}`),
+    nursingCare: (visitId: number, rmDuplicateId?: number) =>
+      fetchPdfBlob(`${BASE_URL}/nursing-care/${visitId}${rmDuplicateId ? `?rm_duplicate_id=${rmDuplicateId}` : ''}`),
+    fluidBalance: (visitId: number, rmDuplicateId?: number) =>
+      fetchPdfBlob(`${BASE_URL}/fluid-balance/${visitId}${rmDuplicateId ? `?rm_duplicate_id=${rmDuplicateId}` : ''}`),
+    bedTransfer: (visitId: number, rmDuplicateId?: number) =>
+      fetchPdfBlob(`${BASE_URL}/bed-transfer/${visitId}${rmDuplicateId ? `?rm_duplicate_id=${rmDuplicateId}` : ''}`),
+    vitalSignChart: (visitId: number, rmDuplicateId?: number) =>
+      fetchPdfBlob(`${BASE_URL}/vital-sign-chart/${visitId}${rmDuplicateId ? `?rm_duplicate_id=${rmDuplicateId}` : ''}`),
     prescription: (orderId: number) => fetchPdfBlob(`${BASE_URL}/prescription/${orderId}`),
     prescriptionThermal: (orderId: number) => fetchPdfBlob(`${BASE_URL}/prescription-thermal/${orderId}`),
     labOrder: (orderId: number) => fetchPdfBlob(`${BASE_URL}/lab-order/${orderId}`),
     labResult: (orderId: number) => fetchPdfBlob(`${BASE_URL}/lab-result/${orderId}`),
+    laboratoryResult: (orderId: number) => fetchPdfBlob(`/procedure-orders/${orderId}/print-lab`),
+    radiologyResult: (orderId: number) => fetchPdfBlob(`/procedure-orders/${orderId}/print-radiology`),
+    procedureOrderResult: (orderId: number) => fetchPdfBlob(`/procedure-orders/${orderId}/print`),
     queueTicket: (queueId: number) => fetchPdfBlob(`${BASE_URL}/queue-ticket/${queueId}`),
     medicineLabel: (itemId: number) => fetchPdfBlob(`${BASE_URL}/medicine-label/${itemId}`),
     medicineLabels: (orderId: number) => fetchPdfBlob(`${BASE_URL}/medicine-labels/${orderId}`),
     billing: (billingId: number) => fetchPdfBlob(`${BASE_URL}/billing/${billingId}`),
     nutritionEtiket: (orderId: number) => fetchPdfBlob(`${BASE_URL}/nutrition-etiket/${orderId}`),
-    sep: (sepId: number) => fetchPdfBlob(`${BASE_URL}/sep/${sepId}`),
+    sep: (sepId: number, rmDuplicateId?: number) =>
+      fetchPdfBlob(`${BASE_URL}/sep/${sepId}${rmDuplicateId ? `?rm_duplicate_id=${rmDuplicateId}` : ''}`),
+
+    // RM Duplicate Order Prints
+    rmDuplicateLabOrder: (rmOrderId: number) => fetchPdfBlob(`${BASE_URL}/rm-duplicate/lab-order/${rmOrderId}`),
+    rmDuplicateLabResult: (rmOrderId: number) => fetchPdfBlob(`${BASE_URL}/rm-duplicate/lab-result/${rmOrderId}`),
+    rmDuplicateRadiologyResult: (rmOrderId: number) => fetchPdfBlob(`${BASE_URL}/rm-duplicate/radiology-result/${rmOrderId}`),
+    rmDuplicateProcedureResult: (rmOrderId: number) => fetchPdfBlob(`${BASE_URL}/rm-duplicate/procedure-result/${rmOrderId}`),
   },
 };

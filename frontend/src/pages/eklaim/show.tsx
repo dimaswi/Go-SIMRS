@@ -471,7 +471,7 @@ export default function EKlaimShow() {
 
   if (!claim) {
     return (
-      <div className="flex flex-1 flex-col gap-4 p-6">
+      <div className="flex flex-1 flex-col p-4">
         <div className="rounded-lg border">
           <div className="py-12 text-center">
             <AlertTriangle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
@@ -492,7 +492,7 @@ export default function EKlaimShow() {
   const procedures = claim.procedures || [];
 
   return (
-    <div className="flex flex-1 flex-col gap-4 p-6">
+    <div className="flex flex-1 flex-col p-4">
       {/* Header */}
       <div>
         <div className="flex items-start justify-between">

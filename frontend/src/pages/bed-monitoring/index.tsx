@@ -142,7 +142,7 @@ export default function BedMonitoringIndex() {
                   return (
                     <Card
                       key={room.id}
-                      className="group hover:shadow-lg transition-all cursor-pointer border-2 hover:border-primary/50"
+                      className="group transition-all cursor-pointer border-2 hover:border-primary/50"
                       onClick={() => navigate(`/bed-monitoring/${room.id}`)}
                     >
                       <CardContent className="p-4">
