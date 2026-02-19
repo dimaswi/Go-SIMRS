@@ -21,7 +21,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { printApi, fetchPdfBlobWithSig } from '@/lib/api/print';
+import { printApi } from '@/lib/api/print';
 import { signatureApi, DOCUMENT_TYPES } from '@/lib/api/signature';
 import { SignOnBehalfDialog } from '@/components/signature/sign-on-behalf-dialog';
 import { mergePdfs } from '@/lib/pdf-merge';
@@ -308,62 +308,66 @@ function buildCetakanNodes(detail: EKlaimLocal, originalRM: OriginalRM): Cetakan
   const consultationRMOrders = rmOrders.filter(o => o.order_type === 'consultation');
 
   for (const order of labRMOrders) {
-    const label = order.order_number || `Lab #${order.id}`;
+    const oid = order.id!;
+    const label = order.order_number || `Lab #${oid}`;
     nodes.push({
-      id: `lab-result-${order.id}`,
+      id: `lab-result-${oid}`,
       label: `Hasil Lab - ${label}`,
       icon: <FlaskConical className="h-4 w-4" />,
       category: 'E. Penunjang',
-      fetchBlob: () => printApi.blob.rmDuplicateLabResult(order.id),
+      fetchBlob: () => printApi.blob.rmDuplicateLabResult(oid),
       available: true,
       documentType: DOCUMENT_TYPES.RM_DUP_LAB_RESULT,
-      documentId: order.id,
+      documentId: oid,
       signerHint: 'Petugas Laboratorium',
     });
   }
 
   for (const order of radRMOrders) {
-    const label = order.order_number || `Radiologi #${order.id}`;
+    const oid = order.id!;
+    const label = order.order_number || `Radiologi #${oid}`;
     nodes.push({
-      id: `radiology-result-${order.id}`,
+      id: `radiology-result-${oid}`,
       label: `Hasil Radiologi - ${label}`,
       icon: <FileText className="h-4 w-4" />,
       category: 'E. Penunjang',
-      fetchBlob: () => printApi.blob.rmDuplicateRadiologyResult(order.id),
+      fetchBlob: () => printApi.blob.rmDuplicateRadiologyResult(oid),
       available: true,
       documentType: DOCUMENT_TYPES.RM_DUP_RADIOLOGY_RESULT,
-      documentId: order.id,
+      documentId: oid,
       signerHint: 'Dokter Radiologi',
     });
   }
 
   for (const order of surgeryRMOrders) {
-    const label = order.order_number || `Operasi #${order.id}`;
+    const oid = order.id!;
+    const label = order.order_number || `Operasi #${oid}`;
     nodes.push({
-      id: `surgery-note-${order.id}`,
+      id: `surgery-note-${oid}`,
       label: `Catatan Operasi - ${label}`,
       icon: <Scissors className="h-4 w-4" />,
       category: 'E. Penunjang',
-      fetchBlob: () => printApi.blob.rmDuplicateProcedureResult(order.id),
+      fetchBlob: () => printApi.blob.rmDuplicateProcedureResult(oid),
       available: true,
       documentType: DOCUMENT_TYPES.RM_DUP_SURGERY_REPORT,
-      documentId: order.id,
+      documentId: oid,
       signerHint: 'Dokter Operator',
     });
   }
 
   // === F. Konsultasi ===
   for (const order of consultationRMOrders) {
-    const label = order.order_number || `Konsultasi #${order.id}`;
+    const oid = order.id!;
+    const label = order.order_number || `Konsultasi #${oid}`;
     nodes.push({
-      id: `consultation-${order.id}`,
+      id: `consultation-${oid}`,
       label: `Konsultasi - ${label}`,
       icon: <FileText className="h-4 w-4" />,
       category: 'F. Konsultasi',
-      fetchBlob: () => printApi.blob.rmDuplicateProcedureResult(order.id),
+      fetchBlob: () => printApi.blob.rmDuplicateProcedureResult(oid),
       available: true,
       documentType: DOCUMENT_TYPES.RM_DUP_CONSULTATION,
-      documentId: order.id,
+      documentId: oid,
       signerHint: 'Dokter Konsultan',
     });
   }
@@ -387,16 +391,17 @@ function buildCetakanNodes(detail: EKlaimLocal, originalRM: OriginalRM): Cetakan
     }
   } else {
     for (const order of medicineOrders) {
+      const oid = order.id!;
       const srcId = order.source_order_id;
       nodes.push({
-        id: `prescription-${order.id}`,
+        id: `prescription-${oid}`,
         label: `Resep Obat - ${order.order_number}`,
         icon: <Pill className="h-4 w-4" />,
         category: 'G. Farmasi',
         fetchBlob: () => printApi.blob.prescription(srcId!),
         available: !!srcId,
         documentType: DOCUMENT_TYPES.RM_DUP_PRESCRIPTION,
-        documentId: order.id,
+        documentId: oid,
         signerHint: 'DPJP / Apoteker',
       });
     }
@@ -421,6 +426,8 @@ function CategoryNode({
   onSelectAll,
   signatureStatuses,
   onSign,
+  nodePreviewLoading,
+  onPreview,
 }: {
   category: string;
   nodes: CetakanNode[];
@@ -429,6 +436,8 @@ function CategoryNode({
   onSelectAll: (ids: string[], select: boolean) => void;
   signatureStatuses: Map<string, SignatureStatus>;
   onSign: (node: CetakanNode) => void;
+  nodePreviewLoading: string | null;
+  onPreview: (node: CetakanNode) => void;
 }) {
   const [open, setOpen] = useState(true);
   const availableNodes = nodes.filter((n) => n.available);
@@ -464,6 +473,8 @@ function CategoryNode({
             const sigStatus = signatureStatuses.get(sigKey);
             const isSigned = sigStatus?.is_signed ?? false;
 
+            const isLoading = nodePreviewLoading === node.id;
+
             return (
               <div
                 key={node.id}
@@ -481,6 +492,30 @@ function CategoryNode({
                 />
                 <span className="text-muted-foreground shrink-0">{node.icon}</span>
                 <span className="flex-1 truncate">{node.label}</span>
+                {/* Preview button */}
+                {node.available && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 shrink-0"
+                        disabled={isLoading}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onPreview(node);
+                        }}
+                      >
+                        {isLoading ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Eye className="h-3.5 w-3.5" />
+                        )}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Preview dokumen</TooltipContent>
+                  </Tooltip>
+                )}
                 {/* Signature status + button */}
                 {node.available && (
                   <div className="flex items-center gap-1.5 shrink-0">
@@ -549,6 +584,9 @@ export default function CetakanTab({ detail, originalRM }: CetakanTabProps) {
   const [previewLabel, setPreviewLabel] = useState<string>('');
   const [previewBlob, setPreviewBlob] = useState<Blob | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
+
+  // Per-node preview loading state (node.id currently loading)
+  const [nodePreviewLoading, setNodePreviewLoading] = useState<string | null>(null);
 
   // Signature state
   const [signatureStatuses, setSignatureStatuses] = useState<Map<string, SignatureStatus>>(new Map());
@@ -701,8 +739,9 @@ export default function CetakanTab({ detail, originalRM }: CetakanTabProps) {
     setPreviewBlob(null);
   }, [previewUrl]);
 
-  // Preview single PDF
+  // Preview single PDF (used by both tree Eye button and right panel)
   const handlePreview = useCallback(async (node: CetakanNode) => {
+    setNodePreviewLoading(node.id);
     setLoadingPreview(true);
     closePreview();
     try {
@@ -712,6 +751,7 @@ export default function CetakanTab({ detail, originalRM }: CetakanTabProps) {
       toast({ variant: 'destructive', title: 'Gagal', description: `Tidak dapat memuat PDF: ${node.label}` });
     } finally {
       setLoadingPreview(false);
+      setNodePreviewLoading(null);
     }
   }, [toast, closePreview, showPreview]);
 
@@ -821,6 +861,8 @@ export default function CetakanTab({ detail, originalRM }: CetakanTabProps) {
               onSelectAll={handleSelectAll}
               signatureStatuses={signatureStatuses}
               onSign={handleOpenSignDialog}
+              nodePreviewLoading={nodePreviewLoading}
+              onPreview={handlePreview}
             />
           ))}
         </div>

@@ -408,7 +408,7 @@ export interface EKlaimRMProcedure {
 export interface EKlaimRMOrder {
   id?: number;
   rm_duplicate_id?: number;
-  order_type: 'laboratory' | 'radiology' | 'surgery' | 'consultation';
+  order_type: 'laboratory' | 'radiology' | 'surgery' | 'consultation' | 'pharmacy';
   source_order_id?: number;
   order_number: string;
   priority: string;

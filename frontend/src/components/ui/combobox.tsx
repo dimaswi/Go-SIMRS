@@ -63,7 +63,7 @@ export function Combobox({
           disabled={disabled || loading}
           tabIndex={tabIndex}
           className={cn(
-            "w-full justify-between font-normal h-9 text-sm",
+            "w-full justify-between font-normal h-9 text-sm overflow-hidden",
             !value && "text-muted-foreground",
             className
           )}
@@ -74,7 +74,7 @@ export function Combobox({
               Loading...
             </span>
           ) : selectedOption ? (
-            selectedOption.label
+            <span className="truncate">{selectedOption.label}</span>
           ) : (
             placeholder
           )}
