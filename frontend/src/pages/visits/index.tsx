@@ -80,6 +80,11 @@ const VISIT_TABS: VisitTab[] = [
     roomTypes: ["ugd", "igd", "emergency", "gawat_darurat"],
   },
   {
+    key: "pharmacy",
+    label: "farmasi",
+    roomTypes: ["pharmacy", "farmasi"],
+  },
+  {
     key: "lab",
     label: "Laboratorium",
     roomTypes: ["laboratorium", "lab"],
