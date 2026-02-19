@@ -184,6 +184,7 @@ export interface RoomRequest {
   service_type: string;
   room_type: string;
   room_class?: string;
+  kode_kelas_bpjs?: string;
   total_floors?: number;
   registration_fee?: number;
   tariff_per_day?: number;
