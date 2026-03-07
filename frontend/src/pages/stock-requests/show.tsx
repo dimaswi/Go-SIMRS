@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+﻿import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -212,7 +212,7 @@ export default function StockRequestShow() {
           <Button
             variant="outline"
             size="icon"
-            onClick={() => navigate("/stock-requests")}
+            onClick={() => window.history.back()}
             className="h-9 w-9"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -227,7 +227,7 @@ export default function StockRequestShow() {
               </Badge>
             </div>
             <p className="text-sm text-muted-foreground">
-              {requestTypeLabels[request.request_type]} • Dibuat {formatDate(request.created_at)}
+              {requestTypeLabels[request.request_type]} â€¢ Dibuat {formatDate(request.created_at)}
             </p>
           </div>
         </div>

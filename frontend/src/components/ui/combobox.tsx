@@ -28,6 +28,7 @@ interface ComboboxProps {
   options: ComboboxOption[]
   value?: string
   onValueChange?: (value: string) => void
+  onSearchChange?: (search: string) => void
   placeholder?: string
   searchPlaceholder?: string
   emptyText?: string
@@ -35,12 +36,14 @@ interface ComboboxProps {
   loading?: boolean
   className?: string
   tabIndex?: number
+  searchable?: boolean
 }
 
 export function Combobox({
   options,
   value,
   onValueChange,
+  onSearchChange,
   placeholder = "Pilih...",
   searchPlaceholder = "Cari...",
   emptyText = "Tidak ditemukan.",
@@ -48,6 +51,7 @@ export function Combobox({
   loading = false,
   className,
   tabIndex,
+  searchable = false,
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false)
 
@@ -82,8 +86,12 @@ export function Combobox({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-        <Command>
-          <CommandInput placeholder={searchPlaceholder} className="h-9" />
+        <Command shouldFilter={!onSearchChange}>
+          <CommandInput
+            placeholder={searchPlaceholder}
+            className="h-9"
+            onValueChange={onSearchChange}
+          />
           <CommandList>
             <CommandEmpty>{emptyText}</CommandEmpty>
             <CommandGroup>

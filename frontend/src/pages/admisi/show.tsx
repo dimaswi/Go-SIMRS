@@ -54,8 +54,9 @@ import {
 } from "@/lib/api/rooms";
 import { employeesApi } from "@/lib/api/employees";
 import { patientsApi, type Patient, api } from "@/lib/api";
-import { vclaimApi } from "@/lib/api/vclaim";
+import { vclaimApi, type SEPLocal } from "@/lib/api/vclaim";
 import { SEPFormSheet } from "@/components/sep/sep-form-sheet";
+import { SPRIFormSheet } from "@/components/sep/spri-form-sheet";
 
 interface RoomWithBeds extends Room {
   available_beds?: number;
@@ -112,6 +113,11 @@ export default function AdmissionRequestShowPage() {
   const [ _loadingPatient, setLoadingPatient] = useState(false);
   const [inpatientVisitId, setInpatientVisitId] = useState<number | null>(null);
 
+  // SPRI (Surat Perintah Rawat Inap)
+  const [spriSheetOpen, setSpriSheetOpen] = useState(false);
+  const [spriNumber, setSpriNumber] = useState("");
+  const [existingOutpatientSEP, setExistingOutpatientSEP] = useState<SEPLocal | null>(null);
+
   useEffect(() => {
     if (id) {
       fetchRequest();
@@ -128,6 +134,10 @@ export default function AdmissionRequestShowPage() {
         fetchPatientDetail(patientId);
         // Fetch existing SEP for rawat inap (jns_pelayanan=1) for this patient
         fetchExistingSEP(patientId, request.source_visit_id);
+        // Fetch existing SPRI
+        fetchExistingSPRI(request.registration_id, request.source_visit_id);
+        // Fetch outpatient SEP (needed for SPRI form)
+        fetchOutpatientSEP(request.source_visit_id, request.registration_id);
       }
     }
   }, [request?.status]);
@@ -213,6 +223,64 @@ export default function AdmissionRequestShowPage() {
       // TIDAK fallback ke SEP pasien lain agar tidak salah ambil
     } catch (error) {
       console.error("Failed to fetch existing SEP:", error);
+    }
+  };
+
+  const fetchExistingSPRI = async (registrationId?: number, sourceVisitId?: number) => {
+    try {
+      // Try by source visit first
+      if (sourceVisitId) {
+        try {
+          const res = await vclaimApi.getSPRIByVisit(sourceVisitId);
+          if (res.data?.data?.no_spri) {
+            setSpriNumber(res.data.data.no_spri);
+            return;
+          }
+        } catch { /* not found */ }
+      }
+      // Then by registration
+      if (registrationId) {
+        try {
+          const res = await vclaimApi.getSPRIByRegistration(registrationId);
+          if (res.data?.data?.no_spri) {
+            setSpriNumber(res.data.data.no_spri);
+            return;
+          }
+        } catch { /* not found */ }
+      }
+    } catch (error) {
+      console.error("Failed to fetch existing SPRI:", error);
+    }
+  };
+
+  const fetchOutpatientSEP = async (sourceVisitId?: number, registrationId?: number) => {
+    try {
+      // Get the outpatient SEP (jns_pelayanan=2) from source visit — needed for SPRI creation
+      if (sourceVisitId) {
+        try {
+          const res = await vclaimApi.getSEPByVisit(sourceVisitId);
+          if (res.data?.data?.no_sep && res.data.data.jns_pelayanan === "2") {
+            setExistingOutpatientSEP(res.data.data);
+            return;
+          }
+          // Could also be a UGD SEP (jns_pelayanan=2 for gawat_darurat)
+          if (res.data?.data?.no_sep) {
+            setExistingOutpatientSEP(res.data.data);
+            return;
+          }
+        } catch { /* not found */ }
+      }
+      if (registrationId) {
+        try {
+          const res = await vclaimApi.getSEPByRegistration(registrationId);
+          if (res.data?.data?.no_sep) {
+            setExistingOutpatientSEP(res.data.data);
+            return;
+          }
+        } catch { /* not found */ }
+      }
+    } catch (error) {
+      console.error("Failed to fetch outpatient SEP:", error);
     }
   };
 
@@ -330,8 +398,8 @@ export default function AdmissionRequestShowPage() {
       return;
     }
 
-    // Jika BPJS dan belum ada SEP → tampilkan warning dialog
-    if (!sepNumber && isBPJS) {
+    // Jika BPJS dan belum ada SPRI atau SEP → tampilkan warning dialog
+    if (isBPJS && (!spriNumber || !sepNumber)) {
       setBpjsWarningOpen(true);
       return;
     }
@@ -352,7 +420,7 @@ export default function AdmissionRequestShowPage() {
         bed_id: selectedBedId,
         doctor_id: selectedDoctorId,
         admin_notes: processNotes,
-        payment_method: sepNumber ? "bpjs" : "cash",
+        payment_method: isBPJS ? "bpjs" : "cash",
       });
 
       // Get updated request with inpatient_visit_id from response
@@ -625,13 +693,39 @@ export default function AdmissionRequestShowPage() {
                 </div>
               )}
 
-              {/* SEP Section - Only show for BPJS patients */}
+              {/* BPJS SPRI & SEP Stepper Section */}
               {isBPJS && (
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">SEP</span>
+                  <span className="text-muted-foreground">Pembayaran</span>
+                  <Badge className="bg-green-100 text-green-700 border-green-300">
+                    BPJS
+                  </Badge>
+                </div>
+              )}
+              {isBPJS && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">SPRI</span>
+                  {spriNumber ? (
+                    <span className="font-medium font-mono text-green-600">{spriNumber}</span>
+                  ) : existingOutpatientSEP ? (
+                    <button
+                      type="button"
+                      onClick={() => setSpriSheetOpen(true)}
+                      className="text-blue-600 underline hover:text-blue-800 font-medium"
+                    >
+                      Buat SPRI
+                    </button>
+                  ) : (
+                    <span className="text-amber-600 text-xs">Perlu SEP Rajal/UGD dahulu</span>
+                  )}
+                </div>
+              )}
+              {isBPJS && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">SEP Ranap</span>
                   {sepNumber ? (
                     <span className="font-medium font-mono text-green-600">{sepNumber}</span>
-                  ) : (
+                  ) : spriNumber ? (
                     <button
                       type="button"
                       onClick={() => setSepSheetOpen(true)}
@@ -639,23 +733,33 @@ export default function AdmissionRequestShowPage() {
                     >
                       Buat SEP
                     </button>
+                  ) : (
+                    <span className="text-muted-foreground text-xs">Buat SPRI dahulu</span>
                   )}
                 </div>
               )}
             </div>
 
             {/* SEP Created Info */}
-            {sepNumber && (
+            {isBPJS && (spriNumber || sepNumber) && (
               <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
                 <div className="flex items-center gap-2 text-green-700 mb-2">
                   <CheckCircle className="h-4 w-4" />
-                  <span className="font-medium text-sm">SEP Berhasil Dibuat</span>
+                  <span className="font-medium text-sm">Status BPJS</span>
                 </div>
                 <div className="text-sm space-y-1">
-                  <div className="flex justify-between">
-                    <span className="text-green-600">No. SEP</span>
-                    <span className="font-mono font-medium text-green-800">{sepNumber}</span>
-                  </div>
+                  {spriNumber && (
+                    <div className="flex justify-between">
+                      <span className="text-green-600">No. SPRI</span>
+                      <span className="font-mono font-medium text-green-800">{spriNumber}</span>
+                    </div>
+                  )}
+                  {sepNumber && (
+                    <div className="flex justify-between">
+                      <span className="text-green-600">No. SEP Ranap</span>
+                      <span className="font-mono font-medium text-green-800">{sepNumber}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between">
                     <span className="text-green-600">No. Kartu BPJS</span>
                     <span className="font-mono text-green-800">{patientDetail?.no_bpjs || "-"}</span>
@@ -1075,13 +1179,22 @@ export default function AdmissionRequestShowPage() {
                 )}
 
                 {/* SEP Created Info */}
-                {sepNumber && (
+                {isBPJS && sepNumber && (
                   <Alert className="border-green-200 bg-green-50">
                     <CheckCircle className="h-4 w-4 text-green-600" />
                     <AlertDescription className="text-green-800">
-                      <p className="font-medium">SEP berhasil dibuat: {sepNumber}</p>
-                      <p className="text-sm mt-1">
-                        Klik "Proses Admisi" untuk membuat kunjungan rawat inap.
+                      <p className="font-medium">SPRI & SEP lengkap. Klik "Proses Admisi" untuk membuat kunjungan rawat inap.</p>
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {/* Info: Pasien BPJS tanpa SPRI/SEP — bisa dilengkapi nanti */}
+                {isBPJS && !sepNumber && selectedRoomId && selectedBedId && selectedDoctorId && (
+                  <Alert className="border-amber-200 bg-amber-50">
+                    <AlertTriangle className="h-4 w-4 text-amber-600" />
+                    <AlertDescription className="text-amber-800">
+                      <p className="text-sm">
+                        SPRI/SEP belum lengkap. Pasien tetap didaftarkan sebagai <strong>BPJS</strong>. SPRI dan SEP bisa dilengkapi nanti.
                       </p>
                     </AlertDescription>
                   </Alert>
@@ -1234,16 +1347,16 @@ export default function AdmissionRequestShowPage() {
         </DialogContent>
       </Dialog>
 
-      {/* BPJS Warning Dialog - Pasien BPJS tanpa SEP */}
+      {/* BPJS Warning Dialog - Pasien BPJS tanpa SPRI/SEP lengkap */}
       <Dialog open={bpjsWarningOpen} onOpenChange={setBpjsWarningOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-amber-600">
               <AlertTriangle className="h-5 w-5" />
-              Pasien BPJS Tanpa SEP
+              SPRI/SEP Belum Lengkap
             </DialogTitle>
             <DialogDescription>
-              Pasien ini terdaftar sebagai pasien <strong>BPJS</strong>, namun belum dibuatkan SEP Rawat Inap.
+              Pasien ini terdaftar sebagai pasien <strong>BPJS</strong>, namun {!spriNumber ? "SPRI dan SEP" : "SEP"} Rawat Inap belum dibuat.
             </DialogDescription>
           </DialogHeader>
 
@@ -1251,7 +1364,7 @@ export default function AdmissionRequestShowPage() {
             <Alert className="border-amber-200 bg-amber-50">
               <AlertTriangle className="h-4 w-4 text-amber-600" />
               <AlertDescription className="text-amber-800 text-sm">
-                Jika dilanjutkan tanpa SEP, kunjungan rawat inap akan didaftarkan sebagai pasien <strong>Umum (non-BPJS)</strong>. Anda masih bisa assign SEP nanti melalui halaman detail pendaftaran.
+                Pasien akan tetap didaftarkan sebagai <strong>BPJS</strong>. SPRI dan SEP bisa dibuat nanti melalui halaman pendaftaran saat kartu BPJS sudah aktif.
               </AlertDescription>
             </Alert>
           </div>
@@ -1262,7 +1375,7 @@ export default function AdmissionRequestShowPage() {
               onClick={() => setBpjsWarningOpen(false)}
               className="flex-1"
             >
-              Batal, Buat SEP Dulu
+              Batal, Lengkapi Dulu
             </Button>
             <Button
               onClick={() => {
@@ -1272,8 +1385,7 @@ export default function AdmissionRequestShowPage() {
               variant="secondary"
               className="flex-1"
             >
-              <Wallet className="h-4 w-4 mr-2" />
-              Lanjut Tanpa SEP (Umum)
+              Lanjut Tanpa SPRI/SEP
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1304,7 +1416,33 @@ export default function AdmissionRequestShowPage() {
             setSepNumber(noSEP);
             toast({
               title: "Berhasil",
-              description: `SEP berhasil dibuat dengan nomor: ${noSEP}`,
+              description: `SEP Rawat Inap berhasil dibuat: ${noSEP}`,
+            });
+          }}
+        />
+      )}
+
+      {/* SPRI Form Sheet */}
+      {patientDetail && existingOutpatientSEP && (
+        <SPRIFormSheet
+          open={spriSheetOpen}
+          onOpenChange={setSpriSheetOpen}
+          activeSEP={existingOutpatientSEP}
+          patient={{
+            id: patientDetail.id,
+            no_rm: patientDetail.no_rm,
+            nama_lengkap: patientDetail.nama_lengkap,
+            nik: patientDetail.nik,
+            no_bpjs: patientDetail.no_bpjs,
+            tanggal_lahir: patientDetail.tanggal_lahir,
+            jenis_kelamin: patientDetail.jenis_kelamin,
+          }}
+          visitId={request?.source_visit_id || 0}
+          onSPRICreated={(spriData) => {
+            setSpriNumber(spriData.noSPRI);
+            toast({
+              title: "Berhasil",
+              description: `SPRI berhasil dibuat: ${spriData.noSPRI}`,
             });
           }}
         />

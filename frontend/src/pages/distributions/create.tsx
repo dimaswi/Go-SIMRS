@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
@@ -302,7 +302,7 @@ export default function DistributionCreate() {
           <Button
             variant="outline"
             size="icon"
-            onClick={() => navigate("/distributions")}
+            onClick={() => window.history.back()}
             className="h-9 w-9"
           >
             <ArrowLeft className="h-4 w-4" />

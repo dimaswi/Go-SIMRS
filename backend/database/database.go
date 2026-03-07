@@ -329,6 +329,7 @@ func Migrate() error {
 		&models.FluidBalance{},     // Fluid Balance - Balance Cairan
 		&models.NursingCare{},      // Nursing Care - Asuhan Keperawatan
 		&models.BedTransfer{},      // Bed Transfer - Mutasi Pasien (Pindah Kamar/Bed)
+		&models.UnitTransfer{},     // Unit Transfer - Mutasi Unit (Pindah Ruangan Rawat Jalan/UGD)
 		&models.AdmissionRequest{}, // Admission Request - Permintaan Rawat Inap
 		// Consultation (Jawaban Konsultasi)
 		&models.Consultation{}, // Consultation - Jawaban/Hasil Konsultasi
@@ -418,6 +419,9 @@ func Migrate() error {
 	}
 
 	log.Println("Database migrated successfully")
+
+	// Fix existing SPRI records: set is_bpjs=true for non-LOCAL SPRIs that were created before is_bpjs column existed
+	DB.Exec("UPDATE spri SET is_bpjs = true WHERE no_spri NOT LIKE 'LOCAL-%' AND is_bpjs = false AND deleted_at IS NULL")
 
 	// Create partial unique indexes for soft delete support
 	// These indexes only apply to non-deleted records (WHERE deleted_at IS NULL)

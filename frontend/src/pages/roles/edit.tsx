@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import { setPageTitle } from '@/lib/page-title';
@@ -122,7 +122,7 @@ export default function RoleEdit() {
         <Button
           variant="outline"
           size="icon"
-          onClick={() => navigate('/roles')}
+          onClick={() => window.history.back()}
           className="h-9 w-9"
         >
           <ArrowLeft className="h-4 w-4" />

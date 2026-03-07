@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
@@ -172,7 +172,7 @@ export default function RoomEdit() {
         <Button
           variant="outline"
           size="icon"
-          onClick={() => navigate("/rooms")}
+          onClick={() => window.history.back()}
           className="h-9 w-9"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -343,7 +343,7 @@ export default function RoomEdit() {
                     <Combobox
                       options={refKelasBpjs.map(k => ({
                         value: k.kodekelas,
-                        label: `${k.kodekelas} — ${k.namakelas}`,
+                        label: `${k.kodekelas} â€” ${k.namakelas}`,
                       }))}
                       value={formData.kode_kelas_bpjs}
                       onValueChange={(value) => setFormData({ ...formData, kode_kelas_bpjs: value })}

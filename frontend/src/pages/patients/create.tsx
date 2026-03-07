@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+﻿import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +8,7 @@ import { Combobox } from "@/components/ui/combobox";
 import { DatePickerDropdown } from "@/components/ui/date-picker-dropdown";
 import { Checkbox } from "@/components/ui/checkbox";
 import { masterDataApi, regionsApi, patientsApi } from "@/lib/api";
+import { vclaimApi, type VClaimPeserta } from "@/lib/api/vclaim";
 import type {
   PatientRequest,
   MasterData,
@@ -30,6 +31,8 @@ import {
   Heart,
   Keyboard,
   X,
+  CheckCircle2,
+  XCircle,
 } from "lucide-react";
 
 // Initial form data
@@ -50,6 +53,12 @@ export default function PatientCreate() {
   const [loadingMaster, setLoadingMaster] = useState(true);
   const [sameAddress, setSameAddress] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
+
+  // BPJS lookup state
+  const [bpjsLoading, setBpjsLoading] = useState(false);
+  const [bpjsData, setBpjsData] = useState<VClaimPeserta | null>(null);
+  const [bpjsError, setBpjsError] = useState<string | null>(null);
+  const [bpjsApplied, setBpjsApplied] = useState(false);
 
   // Age input state
   const [ageYears, setAgeYears] = useState<string>("");
@@ -155,6 +164,72 @@ export default function PatientCreate() {
     setFormData((prev) => ({ ...prev, tanggal_lahir: value }));
     calculateAgeFromDOB(value);
   };
+
+  // BPJS lookup when NIK reaches 16 digits
+  useEffect(() => {
+    const nik = formData.nik?.replace(/\D/g, "") || "";
+    if (nik.length !== 16) {
+      setBpjsData(null);
+      setBpjsError(null);
+      setBpjsApplied(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setBpjsLoading(true);
+      setBpjsError(null);
+      setBpjsData(null);
+      setBpjsApplied(false);
+      try {
+        const today = new Date().toISOString().split("T")[0];
+        const res = await vclaimApi.getPesertaByNIK(nik, today);
+        const peserta = res.data.data;
+        if (peserta) {
+          setBpjsData(peserta);
+        } else {
+          setBpjsError("Data peserta tidak ditemukan di BPJS");
+        }
+      } catch (err: any) {
+        const msg = err.response?.data?.error || "Gagal mengambil data BPJS";
+        setBpjsError(msg);
+      } finally {
+        setBpjsLoading(false);
+      }
+    }, 600);
+
+    return () => clearTimeout(timer);
+  }, [formData.nik]);
+
+  // Apply BPJS data to form
+  const applyBpjsData = useCallback(() => {
+    if (!bpjsData) return;
+
+    const kelasMap: Record<string, string> = { "1": "Kelas 1", "2": "Kelas 2", "3": "Kelas 3" };
+
+    setFormData((prev) => ({
+      ...prev,
+      nama_lengkap: prev.nama_lengkap || bpjsData.nama || "",
+      jenis_kelamin: bpjsData.sex === "P" ? "P" : "L",
+      tanggal_lahir: prev.tanggal_lahir || bpjsData.tglLahir || "",
+      jenis_jaminan: "BPJS" as any,
+      no_bpjs: bpjsData.noKartu || "",
+      kelas_bpjs: kelasMap[bpjsData.hakKelas?.kode] || bpjsData.hakKelas?.keterangan || "",
+      faskes_tingkat_1: bpjsData.provUmum?.nmProvider || "",
+      no_telepon: prev.no_telepon || bpjsData.mr?.noTelepon || "",
+    }));
+
+    // Sync age display
+    if (!formData.tanggal_lahir && bpjsData.tglLahir) {
+      calculateAgeFromDOB(bpjsData.tglLahir);
+    }
+
+    setBpjsApplied(true);
+    toast({
+      variant: "success",
+      title: "Data BPJS diterapkan",
+      description: `Data peserta ${bpjsData.nama} berhasil diisi ke form`,
+    });
+  }, [bpjsData, formData.tanggal_lahir, calculateAgeFromDOB, toast]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -547,7 +622,7 @@ export default function PatientCreate() {
               type="button"
               variant="outline"
               size="icon"
-              onClick={() => navigate("/patients")}
+              onClick={() => window.history.back()}
               className="h-9 w-9"
               tabIndex={-1}
             >
@@ -591,20 +666,66 @@ export default function PatientCreate() {
                   <Label htmlFor="nik" className="text-xs font-medium">
                     NIK
                   </Label>
-                  <Input
-                    id="nik"
-                    placeholder="16 digit NIK"
-                    maxLength={16}
-                    value={formData.nik || ""}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        nik: e.target.value.replace(/\D/g, ""),
-                      })
-                    }
-                    className="h-9 text-sm"
-                    tabIndex={1}
-                  />
+                  <div className="relative">
+                    <Input
+                      id="nik"
+                      placeholder="16 digit NIK"
+                      maxLength={16}
+                      value={formData.nik || ""}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          nik: e.target.value.replace(/\D/g, ""),
+                        })
+                      }
+                      className="h-9 text-sm pr-8"
+                      tabIndex={1}
+                    />
+                    {bpjsLoading && (
+                      <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+                    )}
+                  </div>
+
+                  {/* BPJS Lookup Result */}
+                  {bpjsData && !bpjsApplied && (
+                    <div className="mt-2 rounded-lg border border-green-200 bg-green-50 p-3 space-y-2">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-sm font-semibold text-green-800">Peserta BPJS Ditemukan</p>
+                            <p className="text-xs text-green-700 mt-0.5">
+                              {bpjsData.nama} &middot; {bpjsData.noKartu} &middot; {bpjsData.statusPeserta?.keterangan}
+                            </p>
+                            <p className="text-xs text-green-600 mt-0.5">
+                              Kelas {bpjsData.hakKelas?.keterangan} &middot; {bpjsData.jenisPeserta?.keterangan} &middot; {bpjsData.provUmum?.nmProvider || "-"}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="w-full h-8 text-xs bg-green-600 hover:bg-green-700"
+                        onClick={applyBpjsData}
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+                        Terapkan Data BPJS ke Form
+                      </Button>
+                    </div>
+                  )}
+                  {bpjsApplied && bpjsData && (
+                    <div className="mt-2 flex items-center gap-1.5 text-xs text-green-700">
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      Data BPJS {bpjsData.nama} telah diterapkan
+                    </div>
+                  )}
+                  {bpjsError && (formData.nik?.length === 16) && (
+                    <div className="mt-2 flex items-center gap-1.5 text-xs text-amber-600">
+                      <XCircle className="h-3.5 w-3.5" />
+                      {bpjsError}
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-2">

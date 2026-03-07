@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+﻿import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -591,7 +591,7 @@ export default function BillingShow() {
       <div className="sticky top-0 z-50 bg-background border-b flex-shrink-0">
         <div className="flex items-center justify-between px-4 sm:px-6 py-3">
           <div className="flex items-center gap-3 min-w-0">
-            <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0" onClick={() => navigate('/billing')}>
+            <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0" onClick={() => window.history.back()}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
             {/* Patient info compact */}
@@ -610,11 +610,11 @@ export default function BillingShow() {
                 <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
                   <span>{patient?.jenis_kelamin === 'L' ? 'Laki-laki' : patient?.jenis_kelamin === 'P' ? 'Perempuan' : '-'}</span>
                   {patient?.tanggal_lahir && (
-                    <><span className="text-muted-foreground/30">·</span><span>{calculateAge(patient.tanggal_lahir)}</span></>
+                    <><span className="text-muted-foreground/30">Â·</span><span>{calculateAge(patient.tanggal_lahir)}</span></>
                   )}
-                  <span className="text-muted-foreground/30">·</span>
+                  <span className="text-muted-foreground/30">Â·</span>
                   <span className="flex items-center gap-1">{getPaymentIcon(reg?.payment_method)} {getPaymentLabel(reg?.payment_method)}</span>
-                  <span className="text-muted-foreground/30">·</span>
+                  <span className="text-muted-foreground/30">Â·</span>
                   <span>{visit.room?.name || '-'}</span>
                 </div>
               </div>
@@ -1032,7 +1032,7 @@ export default function BillingShow() {
                               <span>{formatDate(payment.payment_date)}</span>
                               {payment.cashier?.full_name && (
                                 <>
-                                  <span className="text-muted-foreground/30">·</span>
+                                  <span className="text-muted-foreground/30">Â·</span>
                                   <span>{payment.cashier.full_name}</span>
                                 </>
                               )}
@@ -1069,7 +1069,7 @@ export default function BillingShow() {
               Pembayaran
             </DialogTitle>
             <DialogDescription>
-              {billing?.billing_number} — {patient?.nama_lengkap}
+              {billing?.billing_number} â€” {patient?.nama_lengkap}
             </DialogDescription>
           </DialogHeader>
 
@@ -1130,7 +1130,7 @@ export default function BillingShow() {
             {/* BPJS notice */}
             {paymentMethod === 'bpjs' && (
               <div className="p-3 bg-green-50 rounded-lg border border-green-200 text-sm text-green-800">
-                <strong>Pembayaran BPJS</strong> — Tagihan ditanggung sepenuhnya oleh BPJS Kesehatan.
+                <strong>Pembayaran BPJS</strong> â€” Tagihan ditanggung sepenuhnya oleh BPJS Kesehatan.
               </div>
             )}
 

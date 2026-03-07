@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+﻿import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -127,7 +127,7 @@ export default function MedicineShow() {
                 <Button
                   variant="outline"
                   size="icon"
-                  onClick={() => navigate("/medicines")}
+                  onClick={() => window.history.back()}
                   className="h-9 w-9"
                 >
                   <ArrowLeft className="h-4 w-4" />
@@ -145,7 +145,7 @@ export default function MedicineShow() {
                       <span className="font-mono">{medicine.code}</span>
                       {medicine.generic_name && (
                         <>
-                          <span>•</span>
+                          <span>â€¢</span>
                           <span>{medicine.generic_name}</span>
                         </>
                       )}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+﻿import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -207,7 +207,7 @@ export default function StockOpnameShow() {
           <Button
             variant="outline"
             size="icon"
-            onClick={() => navigate("/stock-opname")}
+            onClick={() => window.history.back()}
             className="h-9 w-9"
           >
             <ArrowLeft className="h-4 w-4" />

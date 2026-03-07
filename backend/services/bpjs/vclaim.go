@@ -1202,6 +1202,36 @@ func (c *VClaimClient) InsertSPRI(noKartu, kodeDokter, poliKontrol, tglRencanaKo
 	return &result, nil
 }
 
+// UpdateSPRI mengupdate SPRI (Surat Perintah Rawat Inap)
+// Endpoint: PUT /RencanaKontrol/UpdateSPRI
+func (c *VClaimClient) UpdateSPRI(noSPRI, noKartu, kodeDokter, poliKontrol, tglRencanaKontrol, user string) (*SPRIResponse, error) {
+	reqBody := map[string]interface{}{
+		"request": map[string]interface{}{
+			"noSPRI":            noSPRI,
+			"noKartu":           noKartu,
+			"kodeDokter":        kodeDokter,
+			"poliKontrol":       poliKontrol,
+			"tglRencanaKontrol": tglRencanaKontrol,
+			"user":              user,
+		},
+	}
+
+	respBody, code, err := c.Request("PUT", "/RencanaKontrol/UpdateSPRI", reqBody)
+	if err != nil {
+		return nil, err
+	}
+	if code != 200 {
+		return nil, fmt.Errorf("VClaim response code: %d", code)
+	}
+
+	var result SPRIResponse
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return nil, fmt.Errorf("parse update SPRI response: %w", err)
+	}
+
+	return &result, nil
+}
+
 // ==================== SURAT KONTROL (SKDP Rawat Jalan) ====================
 
 // SuratKontrolRequest adalah struktur request untuk insert surat kontrol

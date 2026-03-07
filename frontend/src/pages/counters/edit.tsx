@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 
@@ -149,7 +149,7 @@ export default function CounterEdit() {
           <Button
             variant="outline"
             size="icon"
-            onClick={() => navigate("/counters")}
+            onClick={() => window.history.back()}
             className="h-9 w-9"
           >
             <ArrowLeft className="h-4 w-4" />

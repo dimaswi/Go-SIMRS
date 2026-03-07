@@ -102,5 +102,11 @@ func SetupPrintRoutes(api *gin.RouterGroup) {
 		print.GET("/rm-duplicate/radiology-result/:rmOrderId", handlers.PrintRMDuplicateRadiologyResult)
 		// Surgery/Consultation result from RM Duplicate
 		print.GET("/rm-duplicate/procedure-result/:rmOrderId", handlers.PrintRMDuplicateProcedureResult)
+
+		// K. BPJS - SPRI & Surat Kontrol
+		// SPRI (Surat Perintah Rawat Inap)
+		print.GET("/spri/:spriId", handlers.PrintSPRI)
+		// Surat Kontrol / SKDP
+		print.GET("/surat-kontrol/:suratKontrolId", handlers.PrintSuratKontrol)
 	}
 }

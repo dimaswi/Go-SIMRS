@@ -466,6 +466,7 @@ export interface VClaimSPRIResponse {
 export interface SPRILocal {
   id: number;
   no_spri: string;
+  is_bpjs: boolean;
   no_kartu: string;
   nama: string;
   kelamin: string;
@@ -484,6 +485,11 @@ export interface SPRILocal {
   status: string;
   created_at: string;
   updated_at: string;
+  // Enrichment: info pendaftaran rawat inap terkait
+  inpatient_sep_id?: number;
+  inpatient_sep_number?: string;
+  inpatient_registration_id?: number;
+  inpatient_registration_number?: string;
 }
 
 // ==================== Surat Kontrol (SKDP Rawat Jalan) ====================
@@ -670,8 +676,37 @@ export const vclaimApi = {
   createSPRI: (data: VClaimSPRIRequest) =>
     api.post<{ data: VClaimSPRIResponse; message: string }>('/bpjs/vclaim/spri', data),
 
+  createLocalSPRI: (data: {
+    no_kartu: string;
+    nama?: string;
+    kelamin?: string;
+    tgl_lahir?: string;
+    kode_dokter: string;
+    nama_dokter?: string;
+    poli_kontrol: string;
+    nama_poli?: string;
+    tgl_rencana_kontrol: string;
+    nama_diagnosa?: string;
+    visit_id?: number;
+    registration_id?: number;
+    sep_id?: number;
+  }) =>
+    api.post<{ data: SPRILocal; message: string }>('/bpjs/vclaim/spri/local', data),
+
   getSPRIByVisit: (visitId: number) =>
     api.get<{ data: SPRILocal }>(`/bpjs/vclaim/spri/visit/${visitId}`),
+
+  getSPRIByRegistration: (registrationId: number) =>
+    api.get<{ data: SPRILocal }>(`/bpjs/vclaim/spri/registration/${registrationId}`),
+
+  getSPRIList: (params?: { status?: string; tgl_terbit_from?: string; tgl_terbit_to?: string; tgl_kontrol_from?: string; tgl_kontrol_to?: string; search?: string; limit?: number }) =>
+    api.get<{ data: SPRILocal[] }>('/bpjs/vclaim/spri/list', { params }),
+
+  deleteSPRI: (noSPRI: string) =>
+    api.delete<{ message: string }>(`/bpjs/vclaim/spri/${noSPRI}`),
+
+  updateSPRI: (noSPRI: string, data: { kode_dokter: string; nama_dokter: string; poli_kontrol: string; nama_poli: string; tgl_rencana_kontrol: string }) =>
+    api.put<{ data: VClaimSPRIResponse; message: string }>(`/bpjs/vclaim/spri/${noSPRI}`, data),
 
   searchPoliSPRI: (nama: string) =>
     api.get<{ data: VClaimRefPoli[] }>('/bpjs/vclaim/spri/poli', {
@@ -727,13 +762,16 @@ export const vclaimApi = {
   deleteSuratKontrol: (noSuratKontrol: string) =>
     api.delete<{ message: string }>(`/bpjs/vclaim/surat-kontrol/${noSuratKontrol}`),
 
+  updateSuratKontrol: (noSuratKontrol: string, data: { kode_dokter: string; nama_dokter: string; poli_kontrol: string; nama_poli: string; tgl_rencana_kontrol: string }) =>
+    api.put<{ data: SuratKontrolResponse; message: string }>(`/bpjs/vclaim/surat-kontrol/${noSuratKontrol}`, data),
+
   getSuratKontrolByVisit: (visitId: number) =>
     api.get<{ data: SuratKontrolLocal }>(`/bpjs/vclaim/surat-kontrol/visit/${visitId}`),
 
   getSuratKontrolByRegistration: (registrationId: number) =>
     api.get<{ data: SuratKontrolLocal }>(`/bpjs/vclaim/surat-kontrol/registration/${registrationId}`),
 
-  getSuratKontrolList: (params?: { patient_id?: number; visit_id?: number; status?: string; limit?: number }) =>
+  getSuratKontrolList: (params?: { patient_id?: number; visit_id?: number; status?: string; tgl_terbit_from?: string; tgl_terbit_to?: string; tgl_kontrol_from?: string; tgl_kontrol_to?: string; search?: string; limit?: number }) =>
     api.get<{ data: SuratKontrolLocal[] }>('/bpjs/vclaim/surat-kontrol/list', { params }),
 
   // Get Surat Kontrol Detail from BPJS by No Surat Kontrol

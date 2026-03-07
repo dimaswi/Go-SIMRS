@@ -425,11 +425,44 @@ func generateBillingItemsFromRegistration(tx *gorm.DB, billing *models.Billing, 
 		mainVisit != nil, inpatientVisit != nil, len(clinicalVisits), len(orderVisits))
 
 	// ============================================
-	// 1. REGISTRATION FEE (Administrasi) - Only 1x
+	// 1. REGISTRATION FEE (Administrasi)
 	// ============================================
 	if mainVisit != nil {
-		if err := generateAdministrasiFee(tx, billing, mainVisit); err != nil {
-			return err
+		// Check if the visit has unit transfers
+		var unitTransfers []models.UnitTransfer
+		tx.Where("visit_id = ?", mainVisit.ID).Order("transfer_date ASC").Find(&unitTransfers)
+
+		if len(unitTransfers) > 0 {
+			// Generate admin fee for EACH unique room in the transfer chain
+			// Track rooms we've already billed to avoid duplicates
+			billedRooms := make(map[uint]bool)
+
+			// First: original room (from_room_id of earliest transfer)
+			originalRoomID := unitTransfers[0].FromRoomID
+			tempVisit := *mainVisit
+			tempVisit.RoomID = originalRoomID
+			fmt.Printf("[BILLING] Visit %d has %d unit transfers, billing original room %d\n", mainVisit.ID, len(unitTransfers), originalRoomID)
+			if err := generateAdministrasiFee(tx, billing, &tempVisit); err != nil {
+				return err
+			}
+			billedRooms[originalRoomID] = true
+
+			// Then: each destination room in the transfer chain
+			for _, ut := range unitTransfers {
+				if !billedRooms[ut.ToRoomID] {
+					tempVisit := *mainVisit
+					tempVisit.RoomID = ut.ToRoomID
+					fmt.Printf("[BILLING] Adding admin fee for transfer destination room %d\n", ut.ToRoomID)
+					if err := generateAdministrasiFee(tx, billing, &tempVisit); err != nil {
+						return err
+					}
+					billedRooms[ut.ToRoomID] = true
+				}
+			}
+		} else {
+			if err := generateAdministrasiFee(tx, billing, mainVisit); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -438,6 +471,22 @@ func generateBillingItemsFromRegistration(tx *gorm.DB, billing *models.Billing, 
 		fmt.Printf("[BILLING] Patient transferred to inpatient, adding inpatient admin fee\n")
 		if err := generateAdministrasiFee(tx, billing, inpatientVisit); err != nil {
 			return err
+		}
+	}
+
+	// If patient transferred from UGD to Rawat Jalan, add rawat jalan admin fee too
+	// Look for consultation visits referred from the main (emergency) visit in rawat_jalan rooms
+	if mainVisit != nil && mainVisit.VisitType == models.VisitTypeEmergency {
+		for _, v := range clinicalVisits {
+			if v.ReferralFrom != nil && *v.ReferralFrom == mainVisit.ID {
+				var room models.Room
+				if err := tx.First(&room, v.RoomID).Error; err == nil && room.ServiceType == "rawat_jalan" {
+					fmt.Printf("[BILLING] Patient transferred from UGD to Rawat Jalan (%s), adding admin fee\n", room.Name)
+					if err := generateAdministrasiFee(tx, billing, v); err != nil {
+						return err
+					}
+				}
+			}
 		}
 	}
 

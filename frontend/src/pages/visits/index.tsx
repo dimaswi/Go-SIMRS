@@ -99,6 +99,11 @@ const VISIT_TABS: VisitTab[] = [
     label: "Operasi",
     roomTypes: ["ok", "kamar_operasi", "bedah", "surgery"],
   },
+  {
+    key: "pharmacy",
+    label: "Farmasi",
+    roomTypes: ["depo_farmasi", "farmasi", "apotek", "pharmacy"],
+  },
 ];
 
 interface Visit {
@@ -267,14 +272,13 @@ export default function VisitsIndex() {
         ? await roomsApi.getAll({ limit: 1000 }) // Request all rooms for admin
         : await roomsApi.getMyAssignedRooms();
 
-      // Filter: hanya yang aktif dan bukan depo farmasi atau gudang
+      // Filter: hanya yang aktif dan bukan gudang farmasi
       const allRooms = response.data.data || [];
 
       const filteredRooms = allRooms.filter((room: Room) => {
         const isActive = room.is_active === true;
-        const notDepo = room.room_type !== "depo_farmasi";
         const notGudang = room.room_type !== "gudang_farmasi";
-        return isActive && notDepo && notGudang;
+        return isActive && notGudang;
       });
 
       setRooms(filteredRooms);

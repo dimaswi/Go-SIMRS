@@ -3,6 +3,12 @@ import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -21,10 +27,14 @@ import {
   Loader2,
   ShieldCheck,
   ExternalLink,
+  Pencil,
+  Stethoscope,
+  SquarePen,
 } from "lucide-react";
-import { patientAllergyApi, ALLERGY_CATEGORY_LABELS, ALLERGY_CRITICALITY_LABELS, api, bpjsApi } from "@/lib/api";
+import { patientAllergyApi, ALLERGY_CATEGORY_LABELS, ALLERGY_CRITICALITY_LABELS, api, bpjsApi, visitsApi } from "@/lib/api";
 import type { PatientAllergy } from "@/lib/api";
 import { MedicalRecordPrintSelect } from "./print-select";
+import { EditDoctorDialog } from "./edit-doctor-dialog";
 import { useToast } from "@/hooks/use-toast";
 
 interface SEPInfo {
@@ -43,11 +53,13 @@ interface PatientInfoProps {
     visit_number: string;
     visit_type: string;
     status: string;
+    registration_id?: number;
     check_in_time?: string;
     admission_time?: string;
     discharge_time?: string;
     referral_from?: number; // For consultation orders
     registration?: {
+      id?: number;
       registration_number: string;
       status?: string;
       payment_method?: string;
@@ -206,6 +218,27 @@ export function PatientInfo({ visit }: PatientInfoProps) {
 
     loadSEP();
   }, [visit.id, visit.registration?.payment_method]);
+
+  // Load all visits for this registration
+  const registrationId = visit.registration_id || (visit.registration as any)?.id;
+  
+  const loadAllVisits = useCallback(async () => {
+    if (!registrationId) return;
+    setLoadingVisits(true);
+    try {
+      const response = await visitsApi.getAll({ registration_id: registrationId });
+      const visits = response.data?.data || response.data || [];
+      setAllVisits(Array.isArray(visits) ? visits : []);
+    } catch (error) {
+      console.error("Failed to load visits:", error);
+    } finally {
+      setLoadingVisits(false);
+    }
+  }, [registrationId]);
+
+  useEffect(() => {
+    loadAllVisits();
+  }, [loadAllVisits]);
   
   // Check if patient has allergies - prefer allergies from database, fallback to master data
   const hasAllergyRecords = patientAllergies.length > 0;
@@ -232,6 +265,12 @@ export function PatientInfo({ visit }: PatientInfoProps) {
   const [icareOpen, setIcareOpen] = useState(false);
   const [icareUrl, setIcareUrl] = useState<string | null>(null);
   const [icareLoading, setIcareLoading] = useState(false);
+
+  // All visits for this registration (for DPJP management)
+  const [allVisits, setAllVisits] = useState<any[]>([]);
+  const [loadingVisits, setLoadingVisits] = useState(false);
+  const [editDoctorOpen, setEditDoctorOpen] = useState(false);
+  const [selectedVisitForEdit, setSelectedVisitForEdit] = useState<{ id: number; roomId: number; doctorId?: number | null } | null>(null);
 
   const handleICareOpen = useCallback(async () => {
     setIcareLoading(true);
@@ -279,7 +318,7 @@ export function PatientInfo({ visit }: PatientInfoProps) {
           <Button 
             variant="ghost" 
             size="icon" 
-            onClick={(e) => { e.stopPropagation(); navigate("/visits"); }}
+            onClick={(e) => { e.stopPropagation(); window.history.back(); }}
             className="flex-shrink-0 h-8 w-8 rounded-full"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -416,9 +455,31 @@ export function PatientInfo({ visit }: PatientInfoProps) {
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-x-6 gap-y-4">
             {/* Column 1: Demographic */}
             <div className="space-y-2.5">
-              <h4 className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
-                Demografis
-              </h4>
+              <div className="flex items-center justify-between">
+                <h4 className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                  Demografis
+                </h4>
+                {patientId && (
+                  <TooltipProvider delayDuration={300}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-5 w-5"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/patients/${patientId}/edit`);
+                          }}
+                        >
+                          <SquarePen className="h-3 w-3" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Edit Pasien</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
+              </div>
               <div className="space-y-2">
                 {patient?.tanggal_lahir && (
                   <div className="flex items-center gap-2">
@@ -517,7 +578,32 @@ export function PatientInfo({ visit }: PatientInfoProps) {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-muted-foreground">Dokter</span>
-                  <span className="text-xs font-medium truncate max-w-[140px]">{visit.doctor?.nama_lengkap || "-"}</span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs font-medium truncate max-w-[120px]">{visit.doctor?.nama_lengkap || "-"}</span>
+                    <TooltipProvider delayDuration={300}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-5 w-5 flex-shrink-0"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedVisitForEdit({
+                                id: visit.id,
+                                roomId: (visit as any).room_id,
+                                doctorId: (visit as any).doctor_id,
+                              });
+                              setEditDoctorOpen(true);
+                            }}
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Ganti DPJP</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-muted-foreground">Pembayaran</span>
@@ -591,7 +677,104 @@ export function PatientInfo({ visit }: PatientInfoProps) {
               )}
             </div>
           </div>
+
+          {/* All Visits / DPJP Management */}
+          {allVisits.length > 1 && (
+            <div className="mt-4 pt-3 border-t">
+              <h4 className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-2">
+                Kunjungan & DPJP
+              </h4>
+              {loadingVisits ? (
+                <div className="flex items-center gap-2 py-2 text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="text-xs">Memuat kunjungan...</span>
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  {allVisits.map((v) => {
+                    const visitLabel = getVisitCategoryLabel(v);
+                    const isCurrentVisit = v.id === visit.id;
+                    const doctorName = v.doctor?.nama_lengkap || "-";
+                    const roomName = v.room?.name || "-";
+                    const visitStatus = v.status;
+                    const statusLabel = visitStatus === "completed" ? "Selesai" : visitStatus === "in_progress" ? "Berlangsung" : visitStatus === "waiting" ? "Menunggu" : visitStatus === "in_queue" ? "Antrian" : visitStatus === "cancelled" ? "Dibatalkan" : visitStatus;
+
+                    return (
+                      <div
+                        key={v.id}
+                        className={`flex items-center justify-between px-2.5 py-2 rounded-md text-xs ${
+                          isCurrentVisit
+                            ? "bg-primary/5 border border-primary/20"
+                            : "bg-muted/30 hover:bg-muted/50"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Stethoscope className="h-3.5 w-3.5 text-muted-foreground/70 flex-shrink-0" />
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-medium">{visitLabel}</span>
+                              <span className="text-muted-foreground">—</span>
+                              <span className="text-muted-foreground truncate">{roomName}</span>
+                              {isCurrentVisit && (
+                                <Badge variant="outline" className="text-[9px] px-1 py-0 h-4">Saat ini</Badge>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1.5 mt-0.5 text-muted-foreground">
+                              <span>DPJP: <span className="text-foreground font-medium">{doctorName}</span></span>
+                              <span className="text-muted-foreground/40">·</span>
+                              <span>{statusLabel}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <TooltipProvider delayDuration={300}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 flex-shrink-0"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedVisitForEdit({
+                                    id: v.id,
+                                    roomId: v.room_id,
+                                    doctorId: v.doctor_id,
+                                  });
+                                  setEditDoctorOpen(true);
+                                }}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Ganti DPJP</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+
         </div>
+      )}
+
+      {/* Edit Doctor Dialog */}
+      {selectedVisitForEdit && (
+        <EditDoctorDialog
+          open={editDoctorOpen}
+          onOpenChange={setEditDoctorOpen}
+          visitId={selectedVisitForEdit.id}
+          roomId={selectedVisitForEdit.roomId}
+          currentDoctorId={selectedVisitForEdit.doctorId}
+          onSuccess={() => {
+            loadAllVisits();
+            // Dispatch event to refresh visit data in parent
+            window.dispatchEvent(new CustomEvent("refresh-visit-data"));
+          }}
+        />
       )}
 
       {/* I-Care Modal */}

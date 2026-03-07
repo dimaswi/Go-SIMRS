@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+﻿import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -285,7 +285,7 @@ export default function PurchaseReceive() {
                 type="button"
                 variant="outline"
                 size="icon"
-                onClick={() => navigate(`/purchases/${id}`)}
+                onClick={() => window.history.back()}
                 className="h-9 w-9"
               >
                 <ArrowLeft className="h-4 w-4" />
@@ -295,7 +295,7 @@ export default function PurchaseReceive() {
                   Terima Barang
                 </h1>
                 <p className="text-sm text-muted-foreground">
-                  Pembelian: {purchase.purchase_number} •{" "}
+                  Pembelian: {purchase.purchase_number} â€¢{" "}
                   {purchase.supplier_name}
                 </p>
               </div>

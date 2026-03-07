@@ -79,6 +79,10 @@ export interface DispositionFormData {
   // Discharge fields
   discharge_medication: string;
   discharge_instruction: string;
+  // Outpatient transfer fields (UGD → Rawat Jalan)
+  outpatient_room_id?: number;
+  outpatient_doctor_id?: number;
+  transfer_reason?: string;
 }
 
 interface FollowUpRegData {
@@ -1227,6 +1231,178 @@ export function DeathDrawer({
             <Button onClick={onSubmit} disabled={saving || isDisabled}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
               Simpan
+            </Button>
+          </div>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+// ============================================================
+// OUTPATIENT TRANSFER DRAWER (UGD → Rawat Jalan)
+// ============================================================
+
+interface OutpatientTransferDrawerProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  formData: DispositionFormData;
+  onFormChange: (field: string, value: string | number | undefined) => void;
+  onSubmit: () => void;
+  saving: boolean;
+  isDisabled: boolean;
+  poliRooms: Room[];
+  availableDoctors: AvailableDoctor[];
+  loadingDoctors: boolean;
+}
+
+export function OutpatientTransferDrawer({
+  open,
+  onOpenChange,
+  formData,
+  onFormChange,
+  onSubmit,
+  saving,
+  isDisabled,
+  poliRooms,
+  availableDoctors,
+  loadingDoctors,
+}: OutpatientTransferDrawerProps) {
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="w-full sm:w-1/2 sm:max-w-none p-0 flex flex-col">
+        <SheetHeader className="border-b px-6 py-4">
+          <div className="flex items-center gap-3">
+            <Hospital className="h-5 w-5 text-blue-600" />
+            <div>
+              <SheetTitle>Rujuk ke Rawat Jalan</SheetTitle>
+              <SheetDescription>Pasien tidak gawat darurat, dirujuk ke poli rawat jalan</SheetDescription>
+            </div>
+          </div>
+        </SheetHeader>
+
+        <ScrollArea className="flex-1 px-6 py-4">
+          <div className="space-y-6">
+            <Alert className="bg-blue-50 border-blue-200">
+              <Send className="h-4 w-4 text-blue-600" />
+              <AlertDescription className="text-blue-700">
+                Pasien akan dipindahkan dari UGD ke poli rawat jalan. 
+                Pendaftaran dan billing tetap satu dengan <strong>biaya pendaftaran UGD</strong> dan <strong>biaya pendaftaran rawat jalan</strong>.
+              </AlertDescription>
+            </Alert>
+
+            {/* Poli Selection */}
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold">
+                Poli Tujuan <span className="text-destructive">*</span>
+              </Label>
+              <Combobox
+                options={poliRooms.map(r => ({ value: r.id.toString(), label: r.name }))}
+                value={(formData as any).outpatient_room_id?.toString() || ""}
+                onValueChange={(value) => {
+                  onFormChange("outpatient_room_id", value ? parseInt(value) : undefined);
+                  onFormChange("outpatient_doctor_id", undefined);
+                }}
+                placeholder="Pilih poli rawat jalan..."
+                searchPlaceholder="Cari poli..."
+                emptyText="Poli tidak ditemukan"
+                disabled={isDisabled}
+              />
+            </div>
+
+            {/* Doctor Selection */}
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold">
+                Dokter <span className="text-destructive">*</span>
+              </Label>
+              {loadingDoctors ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground p-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Memuat jadwal dokter...</span>
+                </div>
+              ) : availableDoctors.length === 0 && (formData as any).outpatient_room_id ? (
+                <Alert className="bg-amber-50 border-amber-200">
+                  <AlertTriangle className="h-4 w-4 text-amber-600" />
+                  <AlertDescription className="text-amber-700">
+                    Tidak ada dokter yang praktik saat ini di poli yang dipilih.
+                  </AlertDescription>
+                </Alert>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {availableDoctors.map((doctor) => (
+                    <button
+                      key={doctor.employee_id}
+                      type="button"
+                      onClick={() => onFormChange("outpatient_doctor_id", doctor.employee_id)}
+                      disabled={isDisabled}
+                      className={cn(
+                        "p-3 rounded-lg border-2 text-left transition-all",
+                        (formData as any).outpatient_doctor_id === doctor.employee_id
+                          ? "border-primary bg-primary/10 ring-2 ring-primary/20"
+                          : "border-muted hover:border-primary/50 hover:bg-muted/30"
+                      )}
+                    >
+                      <div className="font-medium text-sm">{doctor.employee_name}</div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        Jam praktik: {doctor.start_time} - {doctor.end_time}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Transfer Reason */}
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold">Alasan Rujuk</Label>
+              <Textarea
+                placeholder="Alasan pasien dirujuk ke rawat jalan..."
+                value={(formData as any).transfer_reason || ""}
+                onChange={(e) => onFormChange("transfer_reason", e.target.value)}
+                className="min-h-[80px] resize-none"
+                disabled={isDisabled}
+              />
+            </div>
+
+            {/* Disposition Note */}
+            <div className="space-y-2">
+              <Label className="text-sm">Catatan Tambahan</Label>
+              <Textarea
+                placeholder="Catatan tambahan..."
+                value={formData.disposition_note}
+                onChange={(e) => onFormChange("disposition_note", e.target.value)}
+                className="min-h-[60px] resize-none"
+                disabled={isDisabled}
+              />
+            </div>
+
+            {/* Summary */}
+            {(formData as any).outpatient_room_id && (formData as any).outpatient_doctor_id && (
+              <Alert className="bg-green-50 border-green-200">
+                <CheckCircle2 className="h-4 w-4 text-green-600" />
+                <AlertTitle className="text-green-700">Konfirmasi Transfer</AlertTitle>
+                <AlertDescription className="text-green-600">
+                  Pasien akan dipindahkan ke{' '}
+                  <strong>{poliRooms.find(r => r.id === (formData as any).outpatient_room_id)?.name}</strong>
+                  {' '}dengan dokter{' '}
+                  <strong>{availableDoctors.find(d => d.employee_id === (formData as any).outpatient_doctor_id)?.employee_name}</strong>.
+                  <br />
+                  <span className="text-xs mt-1 block">Antrian rawat jalan akan dibuat otomatis.</span>
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+        </ScrollArea>
+
+        <SheetFooter className="border-t px-6 py-4">
+          <div className="flex justify-end gap-3 w-full">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
+            <Button 
+              onClick={onSubmit} 
+              disabled={saving || isDisabled || !(formData as any).outpatient_room_id || !(formData as any).outpatient_doctor_id}
+            >
+              {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
+              Transfer ke Rawat Jalan
             </Button>
           </div>
         </SheetFooter>

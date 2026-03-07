@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+﻿import { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 
@@ -476,7 +476,7 @@ export default function EKlaimShow() {
           <div className="py-12 text-center">
             <AlertTriangle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
             <p className="text-muted-foreground">Data E-Klaim tidak ditemukan.</p>
-            <Button variant="outline" className="mt-4" onClick={() => navigate('/eklaim')}>
+            <Button variant="outline" className="mt-4" onClick={() => window.history.back()}>
               <ArrowLeft className="mr-2 h-4 w-4" />
               Kembali
             </Button>
@@ -499,7 +499,7 @@ export default function EKlaimShow() {
           <div className="flex items-start justify-between">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
-                <Button variant="ghost" size="sm" onClick={() => navigate('/eklaim')}>
+                <Button variant="ghost" size="sm" onClick={() => window.history.back()}>
                   <ArrowLeft className="h-4 w-4" />
                 </Button>
                 <h1 className="text-lg font-semibold flex items-center gap-2">
@@ -511,7 +511,7 @@ export default function EKlaimShow() {
                 </Badge>
               </div>
               <p className="text-sm text-muted-foreground">
-                No. Kartu BPJS: {claim.no_kartu} • {jenisRawatLabels[claim.jenis_rawat] || claim.jenis_rawat}
+                No. Kartu BPJS: {claim.no_kartu} â€¢ {jenisRawatLabels[claim.jenis_rawat] || claim.jenis_rawat}
               </p>
             </div>
             
@@ -731,7 +731,7 @@ export default function EKlaimShow() {
                           <p className="text-sm">{diagnosis.name}</p>
                           {diagnosis.has_warning && (
                             <p className="text-xs text-yellow-600 mt-1">
-                              ⚠️ {diagnosis.warning_message}
+                              âš ï¸ {diagnosis.warning_message}
                             </p>
                           )}
                         </div>
@@ -856,7 +856,7 @@ export default function EKlaimShow() {
                           
                           {procedure.has_warning && (
                             <p className="text-xs text-yellow-600 mt-2">
-                              ⚠️ {procedure.warning_message}
+                              âš ï¸ {procedure.warning_message}
                             </p>
                           )}
                         </div>
@@ -911,7 +911,7 @@ export default function EKlaimShow() {
                               <Badge variant="outline" className="text-xs">
                                 {eklaimStateLabels[log.from_state as EKlaimState] || log.from_state}
                               </Badge>
-                              <span className="text-muted-foreground">→</span>
+                              <span className="text-muted-foreground">â†’</span>
                               <Badge className={`text-xs ${eklaimStateColors[log.to_state as EKlaimState] || ''}`}>
                                 {eklaimStateLabels[log.to_state as EKlaimState] || log.to_state}
                               </Badge>
@@ -923,7 +923,7 @@ export default function EKlaimShow() {
                           <p className="text-sm text-red-600 mt-1">Error: {log.error_message}</p>
                         )}
                         <p className="text-xs text-muted-foreground mt-1">
-                          {formatDateTime(log.created_at)} • {log.user?.name || 'System'}
+                          {formatDateTime(log.created_at)} â€¢ {log.user?.name || 'System'}
                         </p>
                       </div>
                     </div>

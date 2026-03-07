@@ -38,6 +38,7 @@ import {
   ChefHat,
   BarChart3,
   ScrollText,
+  CalendarCheck,
 } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
 import { usePermission } from '@/hooks/usePermission';
@@ -176,6 +177,8 @@ const menuItems: MenuItem[] = [
       { path: '/bpjs/aplicare', label: 'Aplicare', icon: BedDouble, permission: 'integrations.view' },
       { path: '/bpjs/mapping', label: 'Mapping Poli & Dokter', icon: Building2, permission: 'integrations.view' },
       { path: '/bpjs/queue-monitoring', label: 'Monitoring Antrian', icon: Activity, permission: 'integrations.view' },
+      { path: '/bpjs/spri-monitoring', label: 'Monitoring SPRI', icon: FileText, permission: 'integrations.view' },
+      { path: '/bpjs/surat-kontrol-monitoring', label: 'Monitoring Surat Kontrol', icon: CalendarCheck, permission: 'integrations.view' },
       { path: '/bpjs/logs', label: 'Log API', icon: FileSearch, permission: 'integrations.view' },
       { path: '/bpjs/api-tester', label: 'API Tester', icon: Send, permission: 'integrations.view' },
     ]

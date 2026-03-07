@@ -330,7 +330,7 @@ type Disposition struct {
 	Visit   *Visit `gorm:"foreignKey:VisitID" json:"visit,omitempty"`
 
 	// Disposition Type
-	DispositionType    string `gorm:"size:50;not null" json:"disposition_type"` // pulang, rawat_inap, rujuk, meninggal, aps, dod
+	DispositionType    string `gorm:"size:50;not null" json:"disposition_type"` // pulang, rawat_inap, rawat_jalan, rujuk, meninggal, aps, dod
 	DispositionNote    string `gorm:"type:text" json:"disposition_note,omitempty"`
 	DischargeStatus    string `gorm:"size:50" json:"discharge_status,omitempty"`    // sembuh, membaik, belum_sembuh, dll
 	DischargeCondition string `gorm:"size:50" json:"discharge_condition,omitempty"` // pulang_sehat, pindah_rs, meninggal, dll
@@ -373,6 +373,13 @@ type Disposition struct {
 	// Created inpatient visit (for tracking)
 	InpatientVisitID *uint  `gorm:"index" json:"inpatient_visit_id,omitempty"`
 	InpatientVisit   *Visit `gorm:"foreignKey:InpatientVisitID" json:"inpatient_visit,omitempty"`
+
+	// Created outpatient visit (for UGD → Rawat Jalan transfer)
+	OutpatientVisitID *uint  `gorm:"index" json:"outpatient_visit_id,omitempty"`
+	OutpatientVisit   *Visit `gorm:"foreignKey:OutpatientVisitID" json:"outpatient_visit,omitempty"`
+	OutpatientRoomID  *uint  `gorm:"index" json:"outpatient_room_id,omitempty"`
+	OutpatientRoom    *Room  `gorm:"foreignKey:OutpatientRoomID" json:"outpatient_room,omitempty"`
+	TransferReason    string `gorm:"type:text" json:"transfer_reason,omitempty"`
 
 	// Created follow-up registration (for tracking)
 	FollowUpRegistrationID *uint         `gorm:"index" json:"follow_up_registration_id,omitempty"`

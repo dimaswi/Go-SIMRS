@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -166,7 +166,7 @@ export default function MedicineCreate() {
         <Button
           variant="outline"
           size="icon"
-          onClick={() => navigate("/medicines")}
+          onClick={() => window.history.back()}
           className="h-9 w-9"
         >
           <ArrowLeft className="h-4 w-4" />

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+﻿import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Card,
@@ -282,7 +282,7 @@ export default function BPJSAPITesterPage() {
             <Button
               variant="outline"
               size="icon"
-              onClick={() => navigate("/bpjs/logs")}
+              onClick={() => window.history.back()}
               className="h-9 w-9"
             >
               <ArrowLeft className="h-4 w-4" />

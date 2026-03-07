@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -72,7 +72,7 @@ export default function ProvinceCreatePage() {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => navigate('/regions')}
+              onClick={() => window.history.back()}
             >
               <ArrowLeft className="h-4 w-4" />
             </Button>

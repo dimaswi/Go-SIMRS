@@ -248,10 +248,13 @@ func VClaimCreateSEP(c *gin.Context) {
 	}
 
 	// Cek apakah SEP sudah ada untuk registration ini (jika ada registration)
-	// Filter: hanya yang statusnya bukan "deleted"
+	// Filter: hanya SEP active dengan jenis pelayanan yang sama
+	// Ini memungkinkan SEP Rajal/UGD (jns_pelayanan=2) dan SEP Ranap (jns_pelayanan=1)
+	// hidup bersamaan di satu registration (karena SEP Rajal akan di-close saat SPRI dibuat)
 	var existingSEP models.SEP
 	if input.RegistrationID > 0 {
-		if err := database.DB.Where("registration_id = ? AND status != ?", input.RegistrationID, "deleted").First(&existingSEP).Error; err == nil {
+		if err := database.DB.Where("registration_id = ? AND jns_pelayanan = ? AND status = ?",
+			input.RegistrationID, input.JnsPelayanan, "active").First(&existingSEP).Error; err == nil {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error": "SEP sudah ada untuk pendaftaran ini",
 				"data":  existingSEP,
@@ -984,6 +987,7 @@ func VClaimCreateSPRI(c *gin.Context) {
 	// Save SPRI to local database
 	spri := models.SPRI{
 		NoSPRI:            result.NoSPRI,
+		IsBPJS:            true,
 		NoKartu:           result.NoKartu,
 		Nama:              result.Nama,
 		Kelamin:           result.Kelamin,
@@ -1036,6 +1040,103 @@ func VClaimCreateSPRI(c *gin.Context) {
 	})
 }
 
+// CreateLocalSPRI membuat SPRI lokal tanpa koneksi ke BPJS VClaim
+// SPRI lokal bisa disusulkan (dikirim ke BPJS) nanti melalui edit di monitoring
+func CreateLocalSPRI(c *gin.Context) {
+	var input struct {
+		NoKartu           string `json:"no_kartu"`
+		Nama              string `json:"nama"`
+		Kelamin           string `json:"kelamin"`
+		TglLahir          string `json:"tgl_lahir"`
+		KodeDokter        string `json:"kode_dokter"`
+		NamaDokter        string `json:"nama_dokter"`
+		PoliKontrol       string `json:"poli_kontrol"`
+		NamaPoli          string `json:"nama_poli"`
+		TglRencanaKontrol string `json:"tgl_rencana_kontrol"`
+		NamaDiagnosa      string `json:"nama_diagnosa"`
+		// Optional - untuk tracking di SIMRS
+		VisitID        uint `json:"visit_id"`
+		RegistrationID uint `json:"registration_id"`
+		SEPID          uint `json:"sep_id"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Get current user
+	userID, _ := c.Get("userID")
+	var user models.User
+	if err := database.DB.First(&user, userID).Error; err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User tidak ditemukan"})
+		return
+	}
+
+	// Get patient ID from visit or registration
+	var patientID uint
+	if input.VisitID > 0 {
+		var visit models.Visit
+		if err := database.DB.First(&visit, input.VisitID).Error; err == nil {
+			if visit.RegistrationID > 0 {
+				var reg models.Registration
+				if err := database.DB.First(&reg, visit.RegistrationID).Error; err == nil {
+					patientID = reg.PatientID
+				}
+			}
+		}
+	} else if input.RegistrationID > 0 {
+		var reg models.Registration
+		if err := database.DB.First(&reg, input.RegistrationID).Error; err == nil {
+			patientID = reg.PatientID
+		}
+	}
+
+	if patientID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Gagal mendapatkan data pasien dari visit/registration"})
+		return
+	}
+
+	// Generate local number: LOCAL-{timestamp}
+	localNo := fmt.Sprintf("LOCAL-%d", time.Now().UnixMilli())
+
+	spri := models.SPRI{
+		NoSPRI:            localNo,
+		IsBPJS:            false,
+		NoKartu:           input.NoKartu,
+		Nama:              input.Nama,
+		Kelamin:           input.Kelamin,
+		TglLahir:          input.TglLahir,
+		TglRencanaKontrol: input.TglRencanaKontrol,
+		KodePoli:          input.PoliKontrol,
+		NamaPoli:          input.NamaPoli,
+		KodeDokter:        input.KodeDokter,
+		NamaDokter:        input.NamaDokter,
+		NamaDiagnosa:      input.NamaDiagnosa,
+		UserBuat:          user.Username,
+		PatientID:         patientID,
+		Status:            "active",
+	}
+	if input.VisitID > 0 {
+		spri.VisitID = &input.VisitID
+	}
+	if input.RegistrationID > 0 {
+		spri.RegistrationID = &input.RegistrationID
+	}
+	if input.SEPID > 0 {
+		spri.SEPID = &input.SEPID
+	}
+
+	if err := database.DB.Create(&spri).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan SPRI lokal: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "SPRI lokal berhasil dibuat (belum terkirim ke BPJS)",
+		"data":    spri,
+	})
+}
+
 // GetSPRIByVisit mendapatkan SPRI berdasarkan visit ID
 func GetSPRIByVisit(c *gin.Context) {
 	visitID := c.Param("visitId")
@@ -1074,6 +1175,120 @@ func GetSPRIByRegistration(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": spri})
 }
 
+// SPRIListResponse adalah response item untuk daftar SPRI dengan info pendaftaran rawat inap
+type SPRIListResponse struct {
+	models.SPRI
+	// Computed: info pendaftaran rawat inap yang terkait (via SEP.no_surat_kontrol = SPRI.no_spri)
+	InpatientSEPID              *uint  `json:"inpatient_sep_id,omitempty"`
+	InpatientSEPNumber          string `json:"inpatient_sep_number,omitempty"`
+	InpatientRegistrationID     *uint  `json:"inpatient_registration_id,omitempty"`
+	InpatientRegistrationNumber string `json:"inpatient_registration_number,omitempty"`
+}
+
+// GetSPRIList mendapatkan daftar SPRI dengan filter tanggal terbit dan tanggal rencana kontrol
+func GetSPRIList(c *gin.Context) {
+	var spriList []models.SPRI
+	query := database.DB.Preload("Patient")
+
+	statusFilter := c.Query("status")
+
+	// Filter by status (default: semua)
+	if statusFilter != "" && statusFilter != "all" {
+		if statusFilter == "draft" {
+			// Draft = SPRI lokal yang belum terkirim ke BPJS
+			query = query.Where("is_bpjs = ? AND status = ?", false, "active")
+		} else if statusFilter != "terdaftar" && statusFilter != "sep_created" {
+			// Status standar (active, used, cancelled) — filter terdaftar/sep_created ditangani setelah enrichment
+			query = query.Where("status = ?", statusFilter)
+		}
+	}
+
+	// Filter by tanggal terbit (created_at)
+	if from := c.Query("tgl_terbit_from"); from != "" {
+		query = query.Where("DATE(created_at) >= ?", from)
+	}
+	if to := c.Query("tgl_terbit_to"); to != "" {
+		query = query.Where("DATE(created_at) <= ?", to)
+	}
+
+	// Filter by tanggal rencana kontrol
+	if from := c.Query("tgl_kontrol_from"); from != "" {
+		query = query.Where("tgl_rencana_kontrol >= ?", from)
+	}
+	if to := c.Query("tgl_kontrol_to"); to != "" {
+		query = query.Where("tgl_rencana_kontrol <= ?", to)
+	}
+
+	// Filter by no_kartu or nama (search)
+	if search := c.Query("search"); search != "" {
+		like := "%" + search + "%"
+		query = query.Where("no_kartu LIKE ? OR nama LIKE ?", like, like)
+	}
+
+	// Limit
+	limit := 200
+	if l := c.Query("limit"); l != "" {
+		fmt.Sscanf(l, "%d", &limit)
+	}
+
+	query.Order("created_at DESC").Limit(limit).Find(&spriList)
+
+	// === Enrichment: cari SEP & Registration terkait rawat inap ===
+	// Link via SEP.no_surat_kontrol = SPRI.no_spri (BPJS menggunakan SPRI sebagai surat kontrol)
+	var noSpriList []string
+	for _, s := range spriList {
+		if s.IsBPJS && s.NoSPRI != "" {
+			noSpriList = append(noSpriList, s.NoSPRI)
+		}
+	}
+
+	type admissionInfo struct {
+		NoSuratKontrol     string `gorm:"column:no_surat_kontrol"`
+		SEPID              uint   `gorm:"column:sep_id"`
+		NoSEP              string `gorm:"column:no_sep"`
+		RegistrationID     *uint  `gorm:"column:registration_id"`
+		RegistrationNumber string `gorm:"column:registration_number"`
+	}
+	admissionMap := make(map[string]admissionInfo)
+
+	if len(noSpriList) > 0 {
+		var admissions []admissionInfo
+		database.DB.Table("sep").
+			Select("sep.no_surat_kontrol, sep.id as sep_id, sep.no_sep, sep.registration_id, COALESCE(registrations.registration_number, '') as registration_number").
+			Joins("LEFT JOIN registrations ON registrations.id = sep.registration_id AND registrations.deleted_at IS NULL").
+			Where("sep.no_surat_kontrol IN ? AND sep.deleted_at IS NULL AND sep.status != ?", noSpriList, "batal").
+			Find(&admissions)
+		for _, a := range admissions {
+			admissionMap[a.NoSuratKontrol] = a
+		}
+	}
+
+	// Build enriched response
+	result := make([]SPRIListResponse, 0, len(spriList))
+	for _, s := range spriList {
+		item := SPRIListResponse{SPRI: s}
+		if a, ok := admissionMap[s.NoSPRI]; ok {
+			item.InpatientSEPID = &a.SEPID
+			item.InpatientSEPNumber = a.NoSEP
+			if a.RegistrationID != nil && *a.RegistrationID > 0 {
+				item.InpatientRegistrationID = a.RegistrationID
+				item.InpatientRegistrationNumber = a.RegistrationNumber
+			}
+		}
+		// Filter terdaftar: hanya yang sudah terdaftar rawat inap (via SEP)
+		if statusFilter == "terdaftar" && item.InpatientRegistrationID == nil {
+			continue
+		}
+		// Filter sep_created: hanya yang sudah ada SEP rawat inap
+		if statusFilter == "sep_created" && item.InpatientSEPID == nil {
+			continue
+		}
+		result = append(result, item)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": result})
+}
+
 // CancelSPRIByVisit membatalkan SPRI berdasarkan visit ID (lokal saja, BPJS tidak punya API delete)
 func CancelSPRIByVisit(c *gin.Context) {
 	visitID := c.Param("visitId")
@@ -1099,6 +1314,293 @@ func CancelSPRIByVisit(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "SPRI berhasil dibatalkan (catatan lokal)",
 		"data":    spri,
+	})
+}
+
+// CancelSPRIByRegistration membatalkan SPRI berdasarkan registration ID (lokal saja, tidak memanggil BPJS API)
+func CancelSPRIByRegistration(c *gin.Context) {
+	registrationID := c.Param("registrationId")
+	if registrationID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Registration ID wajib diisi"})
+		return
+	}
+
+	var spri models.SPRI
+	if err := database.DB.Where("registration_id = ? AND status = ?", registrationID, "active").
+		First(&spri).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "SPRI aktif tidak ditemukan untuk pendaftaran ini"})
+		return
+	}
+
+	// Update status ke cancelled (lokal saja — data tetap ada)
+	if err := database.DB.Model(&spri).Update("status", "cancelled").Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membatalkan SPRI: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "SPRI berhasil dibatalkan",
+		"data":    spri,
+	})
+}
+
+// VClaimUpdateSPRI mengupdate SPRI di BPJS dan database lokal
+// Jika SPRI lokal (IsBPJS=false), akan mengirim ke BPJS dulu (InsertSPRI) → dapat NoSPRI asli
+// Jika SPRI sudah di BPJS (IsBPJS=true), akan update di BPJS (UpdateSPRI)
+func VClaimUpdateSPRI(c *gin.Context) {
+	noSPRI := c.Param("noSPRI")
+	if noSPRI == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Nomor SPRI wajib diisi"})
+		return
+	}
+
+	var input struct {
+		KodeDokter        string `json:"kode_dokter" binding:"required"`
+		NamaDokter        string `json:"nama_dokter"`
+		PoliKontrol       string `json:"poli_kontrol" binding:"required"`
+		NamaPoli          string `json:"nama_poli"`
+		TglRencanaKontrol string `json:"tgl_rencana_kontrol" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Data tidak valid: " + err.Error()})
+		return
+	}
+
+	// Get current user
+	userID, _ := c.Get("userID")
+	var user models.User
+	if err := database.DB.First(&user, userID).Error; err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User tidak ditemukan"})
+		return
+	}
+
+	// Cari SPRI di database lokal
+	var spri models.SPRI
+	if err := database.DB.Where("no_spri = ?", noSPRI).First(&spri).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "SPRI tidak ditemukan di database lokal"})
+		return
+	}
+
+	client, err := bpjs.NewVClaimClient()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat VClaim client: " + err.Error()})
+		return
+	}
+
+	if !spri.IsBPJS {
+		// === SPRI lokal → kirim ke BPJS (InsertSPRI) untuk mendapat NoSPRI asli ===
+		result, err := client.InsertSPRI(
+			spri.NoKartu,
+			input.KodeDokter,
+			input.PoliKontrol,
+			input.TglRencanaKontrol,
+			user.Username,
+		)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Gagal mengirim SPRI ke BPJS: " + err.Error()})
+			return
+		}
+
+		// Update record lokal: ganti nomor lokal → nomor BPJS asli, set IsBPJS=true
+		updates := map[string]interface{}{
+			"no_spri":             result.NoSPRI,
+			"is_bpjs":             true,
+			"kode_dokter":         input.KodeDokter,
+			"nama_dokter":         input.NamaDokter,
+			"kode_poli":           input.PoliKontrol,
+			"nama_poli":           input.NamaPoli,
+			"tgl_rencana_kontrol": input.TglRencanaKontrol,
+		}
+		if result.NamaDokter != "" {
+			updates["nama_dokter"] = result.NamaDokter
+		}
+		if result.NamaDiagnosa != "" {
+			updates["nama_diagnosa"] = result.NamaDiagnosa
+		}
+		if result.Nama != "" {
+			updates["nama"] = result.Nama
+		}
+		if result.Kelamin != "" {
+			updates["kelamin"] = result.Kelamin
+		}
+		if result.TglLahir != "" {
+			updates["tgl_lahir"] = result.TglLahir
+		}
+
+		if err := database.DB.Model(&spri).Updates(updates).Error; err != nil {
+			fmt.Printf("Warning: SPRI terkirim ke BPJS (No: %s) tapi gagal update lokal: %v\n", result.NoSPRI, err)
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"message": "SPRI berhasil dikirim ke BPJS",
+			"data":    result,
+		})
+		return
+	}
+
+	// === SPRI sudah di BPJS → update biasa ===
+	result, err := client.UpdateSPRI(noSPRI, spri.NoKartu, input.KodeDokter, input.PoliKontrol, input.TglRencanaKontrol, user.Username)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Gagal update SPRI di BPJS: " + err.Error()})
+		return
+	}
+
+	// Update database lokal
+	updates := map[string]interface{}{
+		"kode_dokter":         input.KodeDokter,
+		"nama_dokter":         input.NamaDokter,
+		"kode_poli":           input.PoliKontrol,
+		"nama_poli":           input.NamaPoli,
+		"tgl_rencana_kontrol": input.TglRencanaKontrol,
+	}
+	if result.NamaDokter != "" {
+		updates["nama_dokter"] = result.NamaDokter
+	}
+	if result.NamaDiagnosa != "" {
+		updates["nama_diagnosa"] = result.NamaDiagnosa
+	}
+
+	if err := database.DB.Model(&spri).Updates(updates).Error; err != nil {
+		fmt.Printf("Warning: SPRI updated di BPJS tapi gagal update lokal: %v\n", err)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "SPRI berhasil diupdate",
+		"data":    result,
+	})
+}
+
+// VClaimUpdateSuratKontrol mengupdate Surat Kontrol di BPJS dan database lokal
+func VClaimUpdateSuratKontrol(c *gin.Context) {
+	noSuratKontrol := c.Param("noSuratKontrol")
+	if noSuratKontrol == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Nomor Surat Kontrol wajib diisi"})
+		return
+	}
+
+	var input struct {
+		KodeDokter        string `json:"kode_dokter" binding:"required"`
+		NamaDokter        string `json:"nama_dokter"`
+		PoliKontrol       string `json:"poli_kontrol" binding:"required"`
+		NamaPoli          string `json:"nama_poli"`
+		TglRencanaKontrol string `json:"tgl_rencana_kontrol" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Data tidak valid: " + err.Error()})
+		return
+	}
+
+	// Get current user
+	userID, _ := c.Get("userID")
+	var user models.User
+	if err := database.DB.First(&user, userID).Error; err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User tidak ditemukan"})
+		return
+	}
+
+	// Cari Surat Kontrol di database lokal
+	var sk models.SuratKontrol
+	if err := database.DB.Where("no_surat_kontrol = ?", noSuratKontrol).First(&sk).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Surat Kontrol tidak ditemukan di database lokal"})
+		return
+	}
+
+	// Update ke BPJS
+	client, err := bpjs.NewVClaimClient()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat VClaim client: " + err.Error()})
+		return
+	}
+
+	result, err := client.UpdateSuratKontrol(noSuratKontrol, sk.NoSEP, input.KodeDokter, input.PoliKontrol, input.TglRencanaKontrol, user.Username)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Gagal update Surat Kontrol di BPJS: " + err.Error()})
+		return
+	}
+
+	// Update database lokal
+	updates := map[string]interface{}{
+		"kode_dokter":         input.KodeDokter,
+		"nama_dokter":         input.NamaDokter,
+		"kode_poli":           input.PoliKontrol,
+		"nama_poli":           input.NamaPoli,
+		"tgl_rencana_kontrol": input.TglRencanaKontrol,
+	}
+	if result.NamaDokter != "" {
+		updates["nama_dokter"] = result.NamaDokter
+	}
+	if result.NamaDiagnosa != "" {
+		updates["nama_diagnosa"] = result.NamaDiagnosa
+	}
+
+	if err := database.DB.Model(&sk).Updates(updates).Error; err != nil {
+		fmt.Printf("Warning: Surat Kontrol updated di BPJS tapi gagal update lokal: %v\n", err)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Surat Kontrol berhasil diupdate",
+		"data":    result,
+	})
+}
+
+// VClaimDeleteSPRI menghapus SPRI dari BPJS menggunakan endpoint DeleteSuratKontrol
+// kemudian menandai record lokal sebagai cancelled (data tidak dihapus secara fisik)
+// Jika SPRI lokal (IsBPJS=false), langsung hapus tanpa panggil BPJS
+func VClaimDeleteSPRI(c *gin.Context) {
+	noSPRI := c.Param("noSPRI")
+	if noSPRI == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Nomor SPRI wajib diisi"})
+		return
+	}
+
+	// Get current user
+	userID, _ := c.Get("userID")
+	var user models.User
+	if err := database.DB.First(&user, userID).Error; err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User tidak ditemukan"})
+		return
+	}
+
+	// Cari SPRI di database lokal
+	var spri models.SPRI
+	if err := database.DB.Where("no_spri = ?", noSPRI).First(&spri).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "SPRI tidak ditemukan di database lokal"})
+		return
+	}
+
+	// Jika sudah di BPJS, hapus dari BPJS dulu
+	if spri.IsBPJS {
+		client, err := bpjs.NewVClaimClient()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat VClaim client: " + err.Error()})
+			return
+		}
+
+		if err := client.DeleteSuratKontrol(noSPRI, user.Username); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Gagal menghapus SPRI dari BPJS: " + err.Error()})
+			return
+		}
+	}
+
+	// Hapus record lokal (soft delete via DeletedAt)
+	if err := database.DB.Delete(&spri).Error; err != nil {
+		if spri.IsBPJS {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "SPRI dihapus dari BPJS namun gagal menghapus data lokal: " + err.Error()})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menghapus SPRI lokal: " + err.Error()})
+		}
+		return
+	}
+
+	msg := "SPRI lokal berhasil dihapus"
+	if spri.IsBPJS {
+		msg = "SPRI berhasil dihapus dari BPJS dan database lokal"
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": msg,
 	})
 }
 
@@ -1569,14 +2071,36 @@ func GetSuratKontrolList(c *gin.Context) {
 	}
 
 	// Filter by status
-	if status := c.Query("status"); status != "" {
+	if status := c.Query("status"); status != "" && status != "all" {
 		query = query.Where("status = ?", status)
-	} else {
+	} else if c.Query("status") == "" {
 		query = query.Where("status = ?", "active")
 	}
 
+	// Filter by tanggal terbit (created_at)
+	if from := c.Query("tgl_terbit_from"); from != "" {
+		query = query.Where("DATE(created_at) >= ?", from)
+	}
+	if to := c.Query("tgl_terbit_to"); to != "" {
+		query = query.Where("DATE(created_at) <= ?", to)
+	}
+
+	// Filter by tanggal rencana kontrol
+	if from := c.Query("tgl_kontrol_from"); from != "" {
+		query = query.Where("tgl_rencana_kontrol >= ?", from)
+	}
+	if to := c.Query("tgl_kontrol_to"); to != "" {
+		query = query.Where("tgl_rencana_kontrol <= ?", to)
+	}
+
+	// Filter by no_kartu or nama (search)
+	if search := c.Query("search"); search != "" {
+		like := "%" + search + "%"
+		query = query.Where("no_kartu LIKE ? OR nama LIKE ?", like, like)
+	}
+
 	// Limit
-	limit := 100
+	limit := 200
 	if l := c.Query("limit"); l != "" {
 		fmt.Sscanf(l, "%d", &limit)
 	}

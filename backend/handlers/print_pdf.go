@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"image/png"
 	"net/http"
@@ -3374,7 +3376,7 @@ func PrintTriageForm(c *gin.Context) {
 		gcsM             int
 		triageAssessment string
 		immediateActions string
-		triagerName string
+		triagerName      string
 	)
 
 	useRMDuplicate := false
@@ -10651,6 +10653,338 @@ func PrintRMDuplicateProcedureResult(c *gin.Context) {
 		typeLabel = "Konsultasi"
 	}
 	filename := fmt.Sprintf("%s_RM_%s.pdf", typeLabel, rmOrder.OrderNumber)
+	c.Header("Content-Type", "application/pdf")
+	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
+	c.Data(http.StatusOK, "application/pdf", buf.Bytes())
+}
+
+// ===========================================================================
+// BPJS Document Signature (always shows QR + footer, no SignatureLog needed)
+// ===========================================================================
+
+// addBPJSDocSignature adds a signature area with QR code and validation footer
+// that is always rendered. It generates a hash from the document number + signer + time
+// so the QR code serves as a tamper-evident seal on the document.
+func addBPJSDocSignature(pdf *gofpdf.Fpdf, city, doctorName, label, docNumber string, createdAt time.Time) {
+	checkPageBreak(pdf, signatureHeight)
+
+	pdf.SetY(pdf.GetY() + 10)
+
+	// Date from document creation
+	dateStr := formatDateIndonesian(createdAt)
+	if city != "" {
+		dateStr = city + ", " + dateStr
+	}
+
+	// Generate deterministic hash from document data
+	hashInput := fmt.Sprintf("%s|%s|%s", docNumber, doctorName, createdAt.Format(time.RFC3339))
+	hashBytes := sha256.Sum256([]byte(hashInput))
+	docHash := hex.EncodeToString(hashBytes[:])
+
+	sigAreaWidth := 70.0
+	sigAreaX := marginLeft + contentWidth - sigAreaWidth
+
+	// City and Date
+	pdf.SetFont("Arial", "", 10)
+	pdf.SetX(sigAreaX)
+	pdf.CellFormat(sigAreaWidth, 6, dateStr, "", 1, "C", false, 0, "")
+
+	// Label
+	pdf.SetX(sigAreaX)
+	pdf.CellFormat(sigAreaWidth, 6, label+",", "", 1, "C", false, 0, "")
+
+	// QR code in signature space (always rendered)
+	qrSize := 20.0
+	spaceStartY := pdf.GetY()
+
+	appURL := os.Getenv("APP_URL")
+	if appURL == "" {
+		appURL = "http://localhost:5173"
+	}
+	verifyURL := fmt.Sprintf("%s/verify/%s", appURL, docHash[:32])
+	qrImgBytes := generateQRCode(verifyURL)
+
+	if qrImgBytes != nil {
+		imgName := fmt.Sprintf("qr_bpjs_%s", docNumber)
+		reader := bytes.NewReader(qrImgBytes)
+		pdf.RegisterImageReader(imgName, "PNG", reader)
+
+		qrX := sigAreaX + (sigAreaWidth-qrSize)/2
+		qrY := spaceStartY + (25-qrSize)/2
+		pdf.Image(imgName, qrX, qrY, qrSize, qrSize, false, "PNG", 0, "")
+
+		addLogoOverlayOnQR(pdf, qrX, qrY, qrSize)
+	}
+
+	pdf.SetY(spaceStartY + 25)
+
+	// Doctor name with underline
+	pdf.SetFont("Arial", "B", 10)
+	pdf.SetX(sigAreaX)
+	pdf.CellFormat(sigAreaWidth, 6, doctorName, "B", 1, "C", false, 0, "")
+
+	// === FOOTER: Digital validation at bottom of page ===
+	footerY := pageHeight - marginBottom - 20
+
+	// Separator line
+	pdf.SetDrawColor(180, 180, 180)
+	pdf.SetLineWidth(0.3)
+	pdf.Line(marginLeft, footerY, marginLeft+contentWidth, footerY)
+	pdf.SetDrawColor(0, 0, 0)
+
+	footerY += 2
+
+	// Small QR code in footer
+	footerQRSize := 15.0
+	footerQRBytes := generateQRCode(verifyURL)
+	if footerQRBytes != nil {
+		fImgName := fmt.Sprintf("qrf_bpjs_%s", docNumber)
+		fReader := bytes.NewReader(footerQRBytes)
+		pdf.RegisterImageReader(fImgName, "PNG", fReader)
+		pdf.Image(fImgName, marginLeft, footerY, footerQRSize, footerQRSize, false, "PNG", 0, "")
+		addLogoOverlayOnQR(pdf, marginLeft, footerY, footerQRSize)
+	}
+
+	// Verification text next to QR
+	textX := marginLeft + footerQRSize + 3
+	pdf.SetFont("Arial", "I", 7)
+	pdf.SetTextColor(34, 139, 34)
+	pdf.SetXY(textX, footerY)
+	pdf.CellFormat(0, 3.5, "Dokumen ini diterbitkan secara elektronik oleh sistem BPJS", "", 1, "L", false, 0, "")
+	pdf.SetTextColor(80, 80, 80)
+	pdf.SetFont("Arial", "", 6)
+	pdf.SetXY(textX, footerY+3.5)
+	pdf.CellFormat(0, 3, fmt.Sprintf("Ditandatangani oleh: %s  |  %s", doctorName, createdAt.Format("02/01/2006 15:04 WIB")), "", 1, "L", false, 0, "")
+	pdf.SetXY(textX, footerY+6.5)
+	pdf.CellFormat(0, 3, fmt.Sprintf("No. Dokumen: %s", docNumber), "", 1, "L", false, 0, "")
+	pdf.SetXY(textX, footerY+9.5)
+	pdf.CellFormat(0, 3, fmt.Sprintf("Hash: %s", truncateText(docHash, 40)), "", 1, "L", false, 0, "")
+	pdf.SetTextColor(0, 0, 0)
+}
+
+// ===========================================================================
+// SPRI (Surat Perintah Rawat Inap) PDF
+// ===========================================================================
+
+// PrintSPRI generates PDF for Surat Perintah Rawat Inap
+func PrintSPRI(c *gin.Context) {
+	spriID := c.Param("spriId")
+
+	var spri models.SPRI
+	if err := database.DB.Preload("Visit.Doctor").First(&spri, spriID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "SPRI tidak ditemukan"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		}
+		return
+	}
+
+	hospitalInfo := getHospitalInfo()
+
+	// Create PDF - Portrait A4
+	pdf := gofpdf.New("P", "mm", "A4", "")
+	pdf.SetMargins(15, 15, 15)
+	pdf.SetAutoPageBreak(false, 0)
+	pdf.AddPage()
+
+	// Header
+	addHeader(pdf, hospitalInfo, "Surat Perintah Rawat Inap (SPRI)", "No: "+spri.NoSPRI)
+
+	// === DATA PESERTA ===
+	pdf.SetY(pdf.GetY() + 5)
+	addTableHeader(pdf, "DATA PESERTA")
+
+	labelW := 50.0
+
+	addTableRow(pdf, "Nama Peserta", spri.Nama, labelW)
+	addTableRow(pdf, "No. Kartu BPJS", spri.NoKartu, labelW)
+
+	kelamin := spri.Kelamin
+	if kelamin == "L" || kelamin == "1" {
+		kelamin = "Laki-laki"
+	} else if kelamin == "P" || kelamin == "2" {
+		kelamin = "Perempuan"
+	}
+	addTableRow(pdf, "Jenis Kelamin", kelamin, labelW)
+
+	tglLahir := spri.TglLahir
+	if tglLahir != "" {
+		if t, err := ParseLocalDate(tglLahir); err == nil {
+			tglLahir = formatDateIndonesian(t)
+		}
+	}
+	addTableRow(pdf, "Tanggal Lahir", tglLahir, labelW)
+
+	addTableEnd(pdf)
+
+	// === RENCANA RAWAT INAP ===
+	addTableHeader(pdf, "RENCANA RAWAT INAP")
+
+	tglTerbit := formatDateIndonesian(spri.CreatedAt)
+	addTableRow(pdf, "Tanggal Terbit", tglTerbit, labelW)
+
+	tglKontrol := spri.TglRencanaKontrol
+	if tglKontrol != "" {
+		if t, err := ParseLocalDate(tglKontrol); err == nil {
+			tglKontrol = formatDateIndonesian(t)
+		}
+	}
+	addTableRow(pdf, "Tgl Rencana Masuk", tglKontrol, labelW)
+
+	poli := spri.NamaPoli
+	if poli == "" {
+		poli = spri.KodePoli
+	}
+	addTableRow(pdf, "Poli / Ruangan", poli, labelW)
+
+	dokter := spri.NamaDokter
+	if dokter == "" {
+		dokter = spri.KodeDokter
+	}
+	addTableRow(pdf, "Dokter DPJP", dokter, labelW)
+	addTableRow(pdf, "Diagnosa", spri.NamaDiagnosa, labelW)
+
+	addTableEnd(pdf)
+
+	// === SIGNATURE (DPJP from Visit) ===
+	dpjpName := "-"
+	if spri.Visit != nil && spri.Visit.Doctor != nil {
+		dpjpName = spri.Visit.Doctor.NamaLengkap
+	} else if spri.NamaDokter != "" {
+		dpjpName = spri.NamaDokter
+	}
+	addBPJSDocSignature(pdf, hospitalInfo.City, dpjpName, "Dokter DPJP", spri.NoSPRI, spri.CreatedAt)
+
+	// Output PDF
+	var buf bytes.Buffer
+	if err := pdf.Output(&buf); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal generate PDF"})
+		return
+	}
+
+	filename := fmt.Sprintf("SPRI_%s.pdf", spri.NoSPRI)
+	c.Header("Content-Type", "application/pdf")
+	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
+	c.Data(http.StatusOK, "application/pdf", buf.Bytes())
+}
+
+// ===========================================================================
+// SURAT KONTROL / SKDP (Surat Keterangan Dokter Penanggungjawab) PDF
+// ===========================================================================
+
+// PrintSuratKontrol generates PDF for Surat Kontrol Rawat Jalan
+func PrintSuratKontrol(c *gin.Context) {
+	skID := c.Param("suratKontrolId")
+
+	var sk models.SuratKontrol
+	if err := database.DB.Preload("Visit.Doctor").First(&sk, skID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Surat Kontrol tidak ditemukan"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		}
+		return
+	}
+
+	hospitalInfo := getHospitalInfo()
+
+	// Create PDF - Portrait A4
+	pdf := gofpdf.New("P", "mm", "A4", "")
+	pdf.SetMargins(15, 15, 15)
+	pdf.SetAutoPageBreak(false, 0)
+	pdf.AddPage()
+
+	// Header — subtitle includes PRB badge text if applicable
+	subtitle := "No: " + sk.NoSuratKontrol
+	if sk.IsPRB {
+		subtitle += "  |  Program Rujuk Balik (PRB)"
+	}
+	addHeader(pdf, hospitalInfo, "Surat Kontrol Rawat Jalan (SKDP)", subtitle)
+
+	// === DATA PESERTA ===
+	pdf.SetY(pdf.GetY() + 5)
+	addTableHeader(pdf, "DATA PESERTA")
+
+	labelW := 50.0
+
+	addTableRow(pdf, "Nama Peserta", sk.Nama, labelW)
+	addTableRow(pdf, "No. Kartu BPJS", sk.NoKartu, labelW)
+	addTableRow(pdf, "No. SEP", sk.NoSEP, labelW)
+
+	kelamin := sk.Kelamin
+	if kelamin == "L" || kelamin == "1" {
+		kelamin = "Laki-laki"
+	} else if kelamin == "P" || kelamin == "2" {
+		kelamin = "Perempuan"
+	}
+	addTableRow(pdf, "Jenis Kelamin", kelamin, labelW)
+
+	tglLahir := sk.TglLahir
+	if tglLahir != "" {
+		if t, err := ParseLocalDate(tglLahir); err == nil {
+			tglLahir = formatDateIndonesian(t)
+		}
+	}
+	addTableRow(pdf, "Tanggal Lahir", tglLahir, labelW)
+
+	addTableEnd(pdf)
+
+	// === RENCANA KONTROL ===
+	addTableHeader(pdf, "RENCANA KONTROL")
+
+	tglTerbit := formatDateIndonesian(sk.CreatedAt)
+	addTableRow(pdf, "Tanggal Terbit", tglTerbit, labelW)
+
+	tglKontrol := sk.TglRencanaKontrol
+	if tglKontrol != "" {
+		if t, err := ParseLocalDate(tglKontrol); err == nil {
+			tglKontrol = formatDateIndonesian(t)
+		}
+	}
+	addTableRow(pdf, "Tgl Rencana Kontrol", tglKontrol, labelW)
+
+	poli := sk.NamaPoli
+	if poli == "" {
+		poli = sk.KodePoli
+	}
+	addTableRow(pdf, "Poli Tujuan", poli, labelW)
+
+	dokter := sk.NamaDokter
+	if dokter == "" {
+		dokter = sk.KodeDokter
+	}
+	addTableRow(pdf, "Dokter DPJP", dokter, labelW)
+	addTableRow(pdf, "Diagnosa", sk.NamaDiagnosa, labelW)
+
+	// PRB section if applicable
+	if sk.IsPRB {
+		prbStatus := sk.NamaStatusPRB
+		if prbStatus == "" {
+			prbStatus = sk.KdStatusPRB
+		}
+		addTableRow(pdf, "Program PRB", prbStatus, labelW)
+	}
+
+	addTableEnd(pdf)
+
+	// === SIGNATURE (DPJP from Visit) ===
+	dpjpName := "-"
+	if sk.Visit != nil && sk.Visit.Doctor != nil {
+		dpjpName = sk.Visit.Doctor.NamaLengkap
+	} else if sk.NamaDokter != "" {
+		dpjpName = sk.NamaDokter
+	}
+	addBPJSDocSignature(pdf, hospitalInfo.City, dpjpName, "Dokter DPJP", sk.NoSuratKontrol, sk.CreatedAt)
+
+	// Output PDF
+	var buf bytes.Buffer
+	if err := pdf.Output(&buf); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal generate PDF"})
+		return
+	}
+
+	filename := fmt.Sprintf("SuratKontrol_%s.pdf", sk.NoSuratKontrol)
 	c.Header("Content-Type", "application/pdf")
 	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
 	c.Data(http.StatusOK, "application/pdf", buf.Bytes())

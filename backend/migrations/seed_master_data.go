@@ -517,11 +517,12 @@ func SeedMasterData(db *gorm.DB) error {
 		// Jenis Disposisi/Pemulangan (Disposition Type)
 		{Category: models.CategoryDispositionType, Code: "pulang", Name: "Pulang", Description: "Pasien pulang dalam keadaan baik", SortOrder: 1, IsActive: true},
 		{Category: models.CategoryDispositionType, Code: "rawat_inap", Name: "Rawat Inap", Description: "Pasien memerlukan rawat inap", SortOrder: 2, IsActive: true},
-		{Category: models.CategoryDispositionType, Code: "rujuk", Name: "Rujuk", Description: "Pasien dirujuk ke fasilitas lain", SortOrder: 3, IsActive: true},
-		{Category: models.CategoryDispositionType, Code: "meninggal", Name: "Meninggal", Description: "Pasien meninggal dunia", SortOrder: 4, IsActive: true},
-		{Category: models.CategoryDispositionType, Code: "aps", Name: "APS (Atas Permintaan Sendiri)", Description: "Pasien pulang paksa", SortOrder: 5, IsActive: true},
-		{Category: models.CategoryDispositionType, Code: "dod", Name: "DOD (Dead on Departure)", Description: "Meninggal saat tiba di UGD", SortOrder: 6, IsActive: true},
-		{Category: models.CategoryDispositionType, Code: "doa", Name: "DOA (Dead on Arrival)", Description: "Meninggal sebelum tiba", SortOrder: 7, IsActive: true},
+		{Category: models.CategoryDispositionType, Code: "rawat_jalan", Name: "Rawat Jalan", Description: "Pasien tidak gawat darurat, dirujuk ke poli rawat jalan", SortOrder: 3, IsActive: true},
+		{Category: models.CategoryDispositionType, Code: "rujuk", Name: "Rujuk", Description: "Pasien dirujuk ke fasilitas lain", SortOrder: 4, IsActive: true},
+		{Category: models.CategoryDispositionType, Code: "meninggal", Name: "Meninggal", Description: "Pasien meninggal dunia", SortOrder: 5, IsActive: true},
+		{Category: models.CategoryDispositionType, Code: "aps", Name: "APS (Atas Permintaan Sendiri)", Description: "Pasien pulang paksa", SortOrder: 6, IsActive: true},
+		{Category: models.CategoryDispositionType, Code: "dod", Name: "DOD (Dead on Departure)", Description: "Meninggal saat tiba di UGD", SortOrder: 7, IsActive: true},
+		{Category: models.CategoryDispositionType, Code: "doa", Name: "DOA (Dead on Arrival)", Description: "Meninggal sebelum tiba", SortOrder: 8, IsActive: true},
 
 		// Status Keluar Pasien (Discharge Status)
 		{Category: models.CategoryDischargeStatus, Code: "sembuh", Name: "Sembuh", Description: "Pasien keluar dalam keadaan sembuh", SortOrder: 1, IsActive: true},

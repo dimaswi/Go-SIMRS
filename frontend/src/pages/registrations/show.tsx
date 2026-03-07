@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -65,7 +65,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { api } from "@/lib/api";
-import { vclaimApi, type VClaimSEP } from "@/lib/api/vclaim";
+import { vclaimApi, type VClaimSEP, type SEPLocal as VClaimSEPLocal } from "@/lib/api/vclaim";
 import { Search } from "lucide-react";
 
 interface SEPLocal {
@@ -92,6 +92,26 @@ interface SEPLocal {
   status: string;
 }
 
+interface SPRILocal {
+  id: number;
+  no_spri: string;
+  registration_id?: number;
+  patient_id: number;
+  visit_id?: number;
+  no_kartu: string;
+  nama: string;
+  kelamin: string;
+  tgl_lahir: string;
+  tgl_rencana_kontrol: string;
+  kode_poli: string;
+  nama_poli: string;
+  kode_dokter: string;
+  nama_dokter: string;
+  nama_diagnosa: string;
+  user_buat: string;
+  status: string; // active, used, cancelled
+}
+
 export default function RegistrationShow() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -99,12 +119,16 @@ export default function RegistrationShow() {
   const [registration, setRegistration] = useState<Registration | null>(null);
   const [bpjsQueue, setBpjsQueue] = useState<BPJSQueue | null>(null);
   const [sepData, setSepData] = useState<SEPLocal | null>(null);
+  const [spriData, setSpriData] = useState<SPRILocal | null>(null);
   const [loading, setLoading] = useState(true);
   const [activatingCheckin, setActivatingCheckin] = useState(false);
   const [deletingSEP, setDeletingSEP] = useState(false);
   const [editSEPOpen, setEditSEPOpen] = useState(false);
   const [deleteSEPOpen, setDeleteSEPOpen] = useState(false);
   const [updatingSEP, setUpdatingSEP] = useState(false);
+  const [deleteSPRIOpen, setDeleteSPRIOpen] = useState(false);
+  const [deletingSPRI, setDeletingSPRI] = useState(false);
+
   const [editPaymentOpen, setEditPaymentOpen] = useState(false);
   const [updatingPayment, setUpdatingPayment] = useState(false);
   const [paymentForm, setPaymentForm] = useState({
@@ -142,7 +166,7 @@ export default function RegistrationShow() {
       const response = await registrationApi.getById(parseInt(id));
       const regData = response.data.data;
       setRegistration(regData);
-      
+
       // Try to load BPJS Queue if payment method is BPJS
       if (regData.payment_method === 'bpjs') {
         try {
@@ -173,6 +197,16 @@ export default function RegistrationShow() {
           } else {
             setSepData(null);
           }
+        }
+
+        // Load SPRI data
+        try {
+          const spriResponse = await api.get(`/bpjs/vclaim/spri/registration/${id}`);
+          if (spriResponse.data.data) {
+            setSpriData(spriResponse.data.data);
+          }
+        } catch {
+          setSpriData(null);
         }
       }
     } catch (error: any) {
@@ -400,6 +434,26 @@ export default function RegistrationShow() {
     }
   };
 
+  const handleDeleteSPRI = async () => {
+    if (!spriData?.no_spri) return;
+    setDeletingSPRI(true);
+    try {
+      await api.delete(`/bpjs/vclaim/spri/${spriData.no_spri}`);
+      toast({ title: "Berhasil", description: "SPRI berhasil dihapus dari BPJS" });
+      setDeleteSPRIOpen(false);
+      setSpriData(null);
+      await loadRegistration();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.response?.data?.error || "Gagal menghapus SPRI dari BPJS",
+      });
+    } finally {
+      setDeletingSPRI(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -431,7 +485,7 @@ export default function RegistrationShow() {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => navigate("/registrations")}
+            onClick={() => window.history.back()}
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
@@ -440,7 +494,7 @@ export default function RegistrationShow() {
               {registration.patient?.nama_lengkap || registration.patient?.name || "-"}
             </h1>
             <p className="text-sm text-muted-foreground">
-              No. RM: {registration.patient?.no_rm || registration.patient?.medical_record_number || "-"} • 
+              No. RM: {registration.patient?.no_rm || registration.patient?.medical_record_number || "-"} â€¢ 
               No. Pendaftaran: {registration.registration_number}
             </p>
           </div>
@@ -606,21 +660,6 @@ export default function RegistrationShow() {
                   <Badge variant={registration.payment_method === "cash" ? "default" : "secondary"}>
                     {paymentMethodLabels[registration.payment_method]}
                   </Badge>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6"
-                          onClick={handleOpenEditPayment}
-                        >
-                          <Pencil className="h-3 w-3" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Ubah Penjamin</TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
                 </div>
               </div>
               {registration.payment_method === "bpjs" && registration.bpjs_number && (
@@ -707,6 +746,91 @@ export default function RegistrationShow() {
               )}
             </div>
           </div>
+
+          {/* Informasi SPRI (Surat Perintah Rawat Inap) */}
+          {registration.payment_method === "bpjs" && spriData && (
+            <>
+              <div className="border-t my-6" />
+              <div className="mb-6">
+                <h3 className="text-sm font-medium text-muted-foreground mb-4 flex items-center gap-2">
+                  <ShieldCheck className="h-4 w-4" />
+                  SPRI (SURAT PERINTAH RAWAT INAP)
+                  <Badge
+                    variant="outline"
+                    className={
+                      spriData.status === "active"
+                        ? "bg-green-50 text-green-700 border-green-200"
+                        : spriData.status === "cancelled"
+                        ? "bg-red-50 text-red-700 border-red-200"
+                        : "bg-yellow-50 text-yellow-700 border-yellow-200"
+                    }
+                  >
+                    {spriData.status === "active" ? "Aktif" : spriData.status === "cancelled" ? "Dibatalkan" : spriData.status}
+                  </Badge>
+                </h3>
+                <div className="p-4 rounded-lg border bg-green-50/40 border-green-200">
+                  <div className="flex items-start justify-between">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 flex-1">
+                      <div>
+                        <label className="text-xs text-muted-foreground">Nomor SPRI</label>
+                        <p className="font-medium text-sm font-mono text-green-700">{spriData.no_spri}</p>
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground">Tgl Rencana Kontrol</label>
+                        <p className="font-medium text-sm">
+                          {spriData.tgl_rencana_kontrol
+                            ? format(new Date(spriData.tgl_rencana_kontrol), "dd MMMM yyyy", { locale: localeId })
+                            : "-"}
+                        </p>
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground">Poli Kontrol</label>
+                        <p className="font-medium text-sm">{spriData.nama_poli || spriData.kode_poli || "-"}</p>
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground">Dokter DPJP</label>
+                        <p className="font-medium text-sm">{spriData.nama_dokter || spriData.kode_dokter || "-"}</p>
+                      </div>
+                      {spriData.nama_diagnosa && (
+                        <div>
+                          <label className="text-xs text-muted-foreground">Diagnosa</label>
+                          <p className="font-medium text-sm">{spriData.nama_diagnosa}</p>
+                        </div>
+                      )}
+                      <div>
+                        <label className="text-xs text-muted-foreground">Dibuat Oleh</label>
+                        <p className="font-medium text-sm">{spriData.user_buat || "-"}</p>
+                      </div>
+                    </div>
+                    {spriData.status === "active" && (
+                      <div className="flex items-center gap-1 ml-4 shrink-0">
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-destructive hover:text-destructive hover:bg-red-100"
+                                disabled={deletingSPRI}
+                                onClick={() => setDeleteSPRIOpen(true)}
+                              >
+                                {deletingSPRI ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Trash2 className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Hapus SPRI dari BPJS</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
 
           {/* Informasi BPJS/MJKN */}
           {bpjsQueue && (
@@ -832,19 +956,19 @@ export default function RegistrationShow() {
                   <label className="text-xs text-muted-foreground mb-2 block">Progress Task BPJS</label>
                   <div className="flex flex-wrap gap-2">
                     <Badge variant={bpjsQueue.task3_at ? "default" : "outline"} className={bpjsQueue.task3_at ? "bg-green-600" : ""}>
-                      Task 3: Tunggu Poli {bpjsQueue.task3_at && "✓"}
+                      Task 3: Tunggu Poli {bpjsQueue.task3_at && "âœ“"}
                     </Badge>
                     <Badge variant={bpjsQueue.task4_at ? "default" : "outline"} className={bpjsQueue.task4_at ? "bg-green-600" : ""}>
-                      Task 4: Dipanggil {bpjsQueue.task4_at && "✓"}
+                      Task 4: Dipanggil {bpjsQueue.task4_at && "âœ“"}
                     </Badge>
                     <Badge variant={bpjsQueue.task5_at ? "default" : "outline"} className={bpjsQueue.task5_at ? "bg-green-600" : ""}>
-                      Task 5: Selesai {bpjsQueue.task5_at && "✓"}
+                      Task 5: Selesai {bpjsQueue.task5_at && "âœ“"}
                     </Badge>
                     <Badge variant={bpjsQueue.task6_at ? "default" : "outline"} className={bpjsQueue.task6_at ? "bg-green-600" : ""}>
-                      Task 6: Tunggu Farmasi {bpjsQueue.task6_at && "✓"}
+                      Task 6: Tunggu Farmasi {bpjsQueue.task6_at && "âœ“"}
                     </Badge>
                     <Badge variant={bpjsQueue.task7_at ? "default" : "outline"} className={bpjsQueue.task7_at ? "bg-green-600" : ""}>
-                      Task 7: Serah Obat {bpjsQueue.task7_at && "✓"}
+                      Task 7: Serah Obat {bpjsQueue.task7_at && "âœ“"}
                     </Badge>
                   </div>
                 </div>
@@ -1285,7 +1409,7 @@ export default function RegistrationShow() {
             <AlertDialogDescription>
               SEP dengan nomor <strong className="font-mono">{sepData?.no_sep}</strong> akan dihapus dari BPJS VClaim.
               <br /><br />
-              <span className="text-destructive font-medium">⚠️ Tindakan ini tidak dapat dibatalkan.</span>
+              <span className="text-destructive font-medium">âš ï¸ Tindakan ini tidak dapat dibatalkan.</span>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1301,6 +1425,37 @@ export default function RegistrationShow() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Hapus SPRI dari BPJS */}
+      <AlertDialog open={deleteSPRIOpen} onOpenChange={setDeleteSPRIOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="h-5 w-5" />
+              Hapus SPRI dari BPJS?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              SPRI <strong className="font-mono">{spriData?.no_spri}</strong> akan dihapus dari sistem BPJS VClaim.
+              <br /><br />
+              <span className="text-destructive font-medium">⚠️ Tindakan ini tidak dapat dibatalkan.</span>
+              <br />
+              <span className="text-muted-foreground text-sm">Jika BPJS mengembalikan kode 200, data lokal akan ikut dihapus sekaligus.</span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingSPRI}>Kembali</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteSPRI}
+              disabled={deletingSPRI}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deletingSPRI && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Hapus dari BPJS
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
     </div>
   );
 }

@@ -52,5 +52,12 @@ func RegisterInpatientRoutes(r *gin.RouterGroup) {
 			transfer.GET("/:transferId", handlers.GetBedTransfer)
 			transfer.POST("", handlers.CreateBedTransfer)
 		}
+
+		// Unit Transfer Routes - Mutasi Unit (Rawat Jalan/UGD)
+		unitTransfer := inpatient.Group("/unit-transfer")
+		{
+			unitTransfer.GET("", handlers.GetUnitTransfers)
+			unitTransfer.POST("", handlers.CreateUnitTransfer)
+		}
 	}
 }

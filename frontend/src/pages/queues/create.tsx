@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -109,7 +109,7 @@ export default function QueueCreate() {
         <Button
           variant="outline"
           size="icon"
-          onClick={() => navigate("/queues")}
+          onClick={() => window.history.back()}
           className="h-9 w-9"
         >
           <ArrowLeft className="h-4 w-4" />

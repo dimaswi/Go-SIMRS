@@ -806,6 +806,7 @@ func GetDisposition(c *gin.Context) {
 		Preload("FollowUpRoom").
 		Preload("AdmissionRoom").
 		Preload("AdmissionBed").
+		Preload("OutpatientRoom").
 		First(&disposition).Error; err != nil {
 		// Return empty object if not found
 		c.JSON(http.StatusOK, gin.H{"visit_id": visitID})
@@ -1018,6 +1019,10 @@ func SaveDisposition(c *gin.Context) {
 		// Flags
 		CreateAdmission bool `json:"create_admission"` // Create inpatient visit
 		CreateFollowUp  bool `json:"create_follow_up"` // Create follow-up registration
+		// Outpatient Transfer (UGD → Rawat Jalan)
+		OutpatientRoomID   *uint  `json:"outpatient_room_id"`
+		OutpatientDoctorID *uint  `json:"outpatient_doctor_id"`
+		TransferReason     string `json:"transfer_reason"`
 		// BPJS Info - jika sudah ada SPRI/Surat Kontrol, validasi lebih fleksibel
 		BPJSSuratKontrol *struct {
 			NoSuratKontrol string `json:"no_surat_kontrol"`
@@ -1144,6 +1149,18 @@ func SaveDisposition(c *gin.Context) {
 		disposition.InpatientVisitID = &inpatientVisit.ID
 	}
 
+	// Handle rawat jalan transfer (UGD → Rawat Jalan)
+	if input.DispositionType == "rawat_jalan" && input.OutpatientRoomID != nil {
+		outpatientVisit, err := createOutpatientVisit(database.DB, &visit, input.OutpatientRoomID, input.OutpatientDoctorID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat kunjungan rawat jalan: " + err.Error()})
+			return
+		}
+		disposition.OutpatientVisitID = &outpatientVisit.ID
+		disposition.OutpatientRoomID = input.OutpatientRoomID
+		disposition.TransferReason = input.TransferReason
+	}
+
 	// Handle kontrol/follow-up registration
 	if input.CreateFollowUp && followUpDate != nil && input.FollowUpRoomID != nil {
 		followUpReg, err := createFollowUpRegistration(database.DB, &visit, followUpDate, input.FollowUpRoomID, input.FollowUpDoctorID, userID)
@@ -1226,8 +1243,9 @@ func SaveDisposition(c *gin.Context) {
 
 		// Update registration status based on disposition type:
 		// - rawat_inap: keep in_progress because patient continues under the same registration
+		// - rawat_jalan: keep in_progress because patient continues in rawat jalan poli
 		// - others (pulang, rujuk, meninggal, dod): set to completed, billing will set to discharged when paid
-		if visit.RegistrationID != 0 && input.DispositionType != "rawat_inap" {
+		if visit.RegistrationID != 0 && input.DispositionType != "rawat_inap" && input.DispositionType != "rawat_jalan" {
 			database.DB.Exec(`UPDATE registrations SET status = ?, updated_at = ? WHERE id = ?`,
 				models.RegistrationStatusCompleted, now, visit.RegistrationID)
 		}
@@ -1241,6 +1259,7 @@ func SaveDisposition(c *gin.Context) {
 		Preload("FollowUpRoom").
 		Preload("AdmissionRoom").
 		Preload("AdmissionBed").
+		Preload("OutpatientRoom").
 		First(&disposition)
 
 	// Send notifications based on disposition type
@@ -1393,6 +1412,15 @@ func CancelDisposition(c *gin.Context) {
 		// Cancel the follow-up registration
 		database.DB.Model(&models.Registration{}).Where("id = ?", *disposition.FollowUpRegistrationID).
 			Update("status", models.RegistrationStatusCancelled)
+	}
+
+	// Cancel outpatient visit if exists (UGD → Rawat Jalan transfer)
+	if disposition.OutpatientVisitID != nil {
+		// Cancel room queue for the outpatient visit
+		database.DB.Where("visit_id = ?", *disposition.OutpatientVisitID).Delete(&models.RoomQueue{})
+		// Delete the outpatient visit
+		database.DB.Delete(&models.Visit{}, *disposition.OutpatientVisitID)
+		fmt.Printf("[CancelDisposition] Cancelled outpatient visit %d\n", *disposition.OutpatientVisitID)
 	}
 
 	// Reset disposition (soft delete)
@@ -1602,6 +1630,100 @@ func createInpatientVisit(tx *gorm.DB, sourceVisit *models.Visit, roomID *uint, 
 	}
 
 	return &inpatientVisit, nil
+}
+
+// createOutpatientVisit creates a new outpatient (rawat jalan) visit for UGD → Rawat Jalan transfer.
+// The patient continues under the same registration with a new visit in the target poli room.
+func createOutpatientVisit(tx *gorm.DB, sourceVisit *models.Visit, roomID *uint, doctorID *uint) (*models.Visit, error) {
+	if roomID == nil {
+		return nil, fmt.Errorf("room_id is required for outpatient transfer")
+	}
+
+	// Validate target room is rawat_jalan
+	var room models.Room
+	if err := tx.First(&room, *roomID).Error; err != nil {
+		return nil, fmt.Errorf("room not found: %w", err)
+	}
+	if room.ServiceType != "rawat_jalan" {
+		return nil, fmt.Errorf("target room must be rawat_jalan, got: %s", room.ServiceType)
+	}
+
+	// Generate visit number
+	var lastVisit models.Visit
+	visitNumber := fmt.Sprintf("VIS%s001", time.Now().Format("20060102"))
+	if err := tx.Order("id DESC").First(&lastVisit).Error; err == nil {
+		if strings.HasPrefix(lastVisit.VisitNumber, "VIS"+time.Now().Format("20060102")) {
+			num := 1
+			fmt.Sscanf(lastVisit.VisitNumber, "VIS"+time.Now().Format("20060102")+"%d", &num)
+			visitNumber = fmt.Sprintf("VIS%s%03d", time.Now().Format("20060102"), num+1)
+		}
+	}
+
+	now := time.Now()
+	outpatientVisit := models.Visit{
+		VisitNumber:    visitNumber,
+		RegistrationID: sourceVisit.RegistrationID,
+		RoomID:         *roomID,
+		DoctorID:       doctorID,
+		VisitType:      models.VisitTypeConsultation,
+		VisitPurpose:   "Rujuk Rawat Jalan dari UGD",
+		ReferralFrom:   &sourceVisit.ID,
+		Status:         models.VisitStatusWaiting,
+		CheckInTime:    &now,
+		Complaint:      sourceVisit.Complaint,
+	}
+
+	if err := tx.Create(&outpatientVisit).Error; err != nil {
+		return nil, fmt.Errorf("failed to create outpatient visit: %w", err)
+	}
+
+	// Create room queue for the new visit
+	queueCode := room.QueueCode
+	if queueCode == "" {
+		queueCode = "Q"
+	}
+
+	todayDate := time.Now().Format("2006-01-02")
+	parsedDate, _ := ParseLocalDate(todayDate)
+	var lastQueue models.RoomQueue
+	var queueNum int
+
+	err := tx.Where("room_id = ? AND queue_date = ?", *roomID, parsedDate).
+		Order("queue_number DESC").First(&lastQueue).Error
+	if err != nil {
+		queueNum = 1
+	} else {
+		var lastNum int
+		fmt.Sscanf(lastQueue.QueueNumber, queueCode+"%d", &lastNum)
+		queueNum = lastNum + 1
+	}
+
+	queueNumber := fmt.Sprintf("%s%03d", queueCode, queueNum)
+	queue := models.RoomQueue{
+		QueueNumber: queueNumber,
+		QueueCode:   queueCode,
+		QueueDate:   parsedDate,
+		VisitID:     outpatientVisit.ID,
+		RoomID:      *roomID,
+		Priority:    models.PriorityNormal,
+		Status:      models.RoomQueueStatusWaiting,
+	}
+
+	if err := tx.Create(&queue).Error; err != nil {
+		return nil, fmt.Errorf("failed to create room queue: %w", err)
+	}
+
+	// Keep registration status as in_progress (patient is continuing in rawat jalan)
+	if sourceVisit.RegistrationID != 0 {
+		tx.Model(&models.Registration{}).Where("id = ?", sourceVisit.RegistrationID).Updates(map[string]interface{}{
+			"status": models.RegistrationStatusInProgress,
+		})
+	}
+
+	fmt.Printf("[TRANSFER] Created outpatient visit %d (queue: %s) for registration %d, transferred from UGD visit %d\n",
+		outpatientVisit.ID, queueNumber, sourceVisit.RegistrationID, sourceVisit.ID)
+
+	return &outpatientVisit, nil
 }
 
 // createFollowUpRegistration creates a scheduled follow-up registration with Visit and RoomQueue

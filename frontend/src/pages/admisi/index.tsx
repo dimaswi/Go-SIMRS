@@ -142,6 +142,20 @@ export default function AdmissionRequestsIndexPage() {
       ),
     },
     {
+      id: "payment_method",
+      header: "Pembayaran",
+      cell: ({ row }) => {
+        const pm = row.original.registration?.payment_method;
+        if (pm === "bpjs") {
+          return <Badge className="bg-green-100 text-green-700 border-green-300">BPJS</Badge>;
+        }
+        if (pm === "insurance") {
+          return <Badge className="bg-purple-100 text-purple-700 border-purple-300">Asuransi</Badge>;
+        }
+        return <Badge variant="secondary">Umum</Badge>;
+      },
+    },
+    {
       accessorKey: "source_visit",
       header: "Asal Unit",
       cell: ({ row }) => {

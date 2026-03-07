@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+﻿import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Plus, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -241,7 +241,7 @@ export default function PurchaseCreate() {
           type="button"
           variant="outline"
           size="icon"
-          onClick={() => navigate("/purchases")}
+          onClick={() => window.history.back()}
           className="h-9 w-9"
         >
           <ArrowLeft className="h-4 w-4" />

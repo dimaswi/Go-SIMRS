@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -155,7 +155,7 @@ export default function NutritionMealPackageCreate() {
   return (
     <div className="flex flex-1 flex-col p-4">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/nutrition/meal-packages")}>
+        <Button variant="ghost" size="icon" onClick={() => window.history.back()}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <h1 className="text-lg font-semibold">Tambah Paket Makanan</h1>
@@ -229,7 +229,7 @@ export default function NutritionMealPackageCreate() {
                     <div>
                       <div className="font-medium">{menu.name}</div>
                       <div className="text-xs text-muted-foreground">
-                        {nutritionCategoryLabels[menu.category] || menu.category} · {menu.calories} kkal
+                        {nutritionCategoryLabels[menu.category] || menu.category} Â· {menu.calories} kkal
                       </div>
                     </div>
                     <Badge variant="outline" className="text-xs">{menu.code}</Badge>
@@ -256,7 +256,7 @@ export default function NutritionMealPackageCreate() {
                   <div className="flex-1 min-w-0">
                     <div className="font-medium text-sm truncate">{item.menu?.name}</div>
                     <div className="text-xs text-muted-foreground">
-                      {nutritionCategoryLabels[item.menu?.category || ''] || ''} · {item.menu?.calories} kkal/porsi
+                      {nutritionCategoryLabels[item.menu?.category || ''] || ''} Â· {item.menu?.calories} kkal/porsi
                     </div>
                   </div>
                   <div className="flex items-center gap-2">

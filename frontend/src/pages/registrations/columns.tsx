@@ -13,7 +13,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Eye, XCircle, Printer, Loader2, ChevronDown, Ticket, User, Smartphone, CheckCircle } from "lucide-react";
+import { Eye, XCircle, Printer, Loader2, Ticket, User, Smartphone, CheckCircle, Stethoscope, BedDouble, Pencil } from "lucide-react";
 import type { Registration } from "@/lib/api/queue";
 import type { BPJSQueue } from "@/lib/api/bpjs";
 import {
@@ -30,11 +30,16 @@ interface ColumnOptions {
   onCancel: (id: number) => void;
   onCancelMjkn: (queueId: number) => void;
   onActivateMjkn: (queueId: number) => void;
+  onEditPayment: (registration: Registration) => void;
+  onCreateSPRI: (registration: Registration) => void;
+  onCreateSEPRanap: (registration: Registration) => void;
   hasViewPermission: boolean;
   hasDeletePermission: boolean;
   printingType?: { regId: number; type: 'queue' | 'label' } | null;
   mjknQueueMap: Map<number, BPJSQueue>;
   activatingCheckin: number | null;
+  spriMap: Map<number, { no_spri: string; is_bpjs: boolean }>;
+  sepRanapMap: Map<number, string>;
 }
 
 // Helper to get ID from registration (handles both ID and id)
@@ -49,7 +54,7 @@ const statusColors: Record<string, string> = {
   in_progress: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
   completed: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
   discharged: "bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200",
-  cancelled: "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400",
+  cancelled: "bg-red-100 text-red-500 dark:bg-red-800 dark:text-red-400",
   no_show: "bg-red-100 text-red-600 dark:bg-red-900 dark:text-red-300",
 };
 
@@ -96,49 +101,174 @@ export function createRegistrationColumns(
     {
       accessorKey: "registration_date",
       header: "Tanggal",
-      cell: ({ row }) =>
-        format(new Date(row.original.registration_date), "dd MMM yyyy", {
-          locale: localeId,
-        }),
+      cell: ({ row }) => {
+        const reg = row.original;
+        const queueNumber = reg.visit?.room_queue?.queue_number;
+        return (
+          <div>
+            <div className="text-sm">
+              {format(new Date(reg.registration_date), "dd MMM yyyy", {
+                locale: localeId,
+              })}
+            </div>
+            {queueNumber && (
+              <div className="text-xs text-muted-foreground font-mono">
+                Antrian: {queueNumber}
+              </div>
+            )}
+          </div>
+        );
+      },
     },
     {
       accessorKey: "patient",
       header: "Pasien",
       cell: ({ row }) => {
         const patient = row.original.patient;
-        return patient ? (
+        if (!patient) return "-";
+        const name = patient.nama_lengkap || patient.name || "-";
+        const mrn = patient.no_rm || patient.medical_record_number || "";
+        return (
           <div>
-            <div className="font-medium">{patient.name}</div>
-            <div className="text-xs text-muted-foreground">
-              {patient.medical_record_number}
-            </div>
+            <div className="font-medium text-sm">{name}</div>
+            {mrn && (
+              <div className="text-xs text-muted-foreground font-mono">
+                {mrn}
+              </div>
+            )}
           </div>
-        ) : (
-          "-"
         );
       },
     },
     {
       accessorKey: "destination_room",
       header: "Poli/Ruangan",
-      cell: ({ row }) => row.original.destination_room?.name || "-",
+      cell: ({ row }) => {
+        const room = row.original.destination_room;
+        if (!room) return "-";
+
+        // Check if this registration has an inpatient visit
+        const inpatientVisit = row.original.visits?.find(
+          (v) => v.visit_type === "inpatient" && v.status !== "cancelled"
+        );
+
+        return (
+          <div>
+            <div className="text-sm">{room.name}</div>
+            {inpatientVisit ? (
+              <div className="text-xs text-orange-600 dark:text-orange-400 font-medium flex items-center gap-1">
+                <BedDouble className="h-3 w-3" />
+                {room.name} → {inpatientVisit.room?.name || "Rawat Inap"}
+              </div>
+            ) : (
+              room.code && (
+                <div className="text-xs text-muted-foreground">{room.code}</div>
+              )
+            )}
+          </div>
+        );
+      },
     },
     {
       accessorKey: "doctor",
       header: "Dokter",
       cell: ({ row }) => {
         const doctor = row.original.doctor;
-        return doctor?.name || "-";
+        if (!doctor) return <span className="text-muted-foreground">-</span>;
+        const name = doctor.nama_lengkap || doctor.nama || doctor.name || "-";
+        return (
+          <div className="flex items-center gap-1.5">
+            <Stethoscope className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+            <span className="text-sm">{name}</span>
+          </div>
+        );
       },
     },
     {
       accessorKey: "payment_method",
       header: "Pembayaran",
-      cell: ({ row }) => (
-        <Badge className={paymentColors[row.original.payment_method]}>
-          {paymentMethodLabels[row.original.payment_method]}
-        </Badge>
-      ),
+      cell: ({ row }) => {
+        const reg = row.original;
+        const canEdit = reg.status !== "cancelled" && reg.status !== "completed";
+        const regId = getRegistrationId(reg);
+        const isBPJSInpatient = reg.payment_method === "bpjs" && reg.registration_type === "inpatient";
+        const spriData = options.spriMap.get(regId);
+        const sepRanapNo = options.sepRanapMap.get(regId);
+        return (
+          <div className="flex flex-col gap-1.5">
+            <Badge
+              className={`${paymentColors[reg.payment_method]} ${canEdit ? "cursor-pointer hover:opacity-80" : ""} w-fit`}
+              onClick={canEdit ? () => options.onEditPayment(reg) : undefined}
+            >
+              {paymentMethodLabels[reg.payment_method]}
+              {canEdit && <Pencil className="h-2.5 w-2.5 ml-1" />}
+            </Badge>
+            {isBPJSInpatient && (
+              <div className="flex items-center gap-1">
+                {spriData ? (
+                  (spriData.is_bpjs || !spriData.no_spri.startsWith("LOCAL-")) ? (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-[10px] px-1.5 py-0 h-5 gap-0.5 cursor-default">
+                            <CheckCircle className="h-3 w-3" />
+                            SPRI
+                          </Badge>
+                        </TooltipTrigger>
+                        <TooltipContent>{spriData.no_spri}</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  ) : (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-[10px] px-1.5 py-0 h-5 gap-0.5 cursor-default">
+                            SPRI
+                          </Badge>
+                        </TooltipTrigger>
+                        <TooltipContent>Draft Lokal — belum terkirim ke BPJS</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => options.onCreateSPRI(reg)}
+                    className="text-blue-600 hover:text-blue-800 underline text-[10px] cursor-pointer"
+                  >
+                    SPRI
+                  </button>
+                )}
+                {sepRanapNo ? (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-[10px] px-1.5 py-0 h-5 gap-0.5 cursor-default">
+                          <CheckCircle className="h-3 w-3" />
+                          SEP
+                        </Badge>
+                      </TooltipTrigger>
+                      <TooltipContent>{sepRanapNo}</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                ) : spriData ? (
+                  <button
+                    type="button"
+                    onClick={() => options.onCreateSEPRanap(reg)}
+                    className="text-blue-600 hover:text-blue-800 underline text-[10px] cursor-pointer"
+                  >
+                    SEP
+                  </button>
+                ) : (
+                  <Badge variant="outline" className="text-[10px] text-muted-foreground border-muted px-1.5 py-0 h-5">
+                    SEP
+                  </Badge>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      },
     },
     {
       accessorKey: "status",
@@ -170,96 +300,114 @@ export function createRegistrationColumns(
         const isPrinting = isPrintingQueue || isPrintingLabel;
 
         return (
-          <div className="flex justify-end gap-1">
-            {/* Aktivasi button for pending MJKN */}
-            {isMjknPending && (
-              <Button
-                size="sm"
-                onClick={() => options.onActivateMjkn(mjknQueue.id)}
-                disabled={options.activatingCheckin === mjknQueue.id}
-                className="bg-blue-600 hover:bg-blue-700 gap-1"
-              >
-                {options.activatingCheckin === mjknQueue.id ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <>
-                    <CheckCircle className="h-4 w-4" />
-                    Aktivasi
-                  </>
-                )}
-              </Button>
-            )}
-
-            {/* Print Dropdown */}
-            {(hasRoomQueue || hasPatient) && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={isPrinting}
-                    className="gap-1"
-                  >
-                    {isPrinting ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Printer className="h-4 w-4" />
-                    )}
-                    <ChevronDown className="h-3 w-3" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  {hasRoomQueue && (
-                    <DropdownMenuItem
-                      onClick={() => options.onPrintQueueTicket(reg)}
-                      disabled={isPrintingQueue}
+          <TooltipProvider delayDuration={300}>
+            <div className="flex justify-end gap-1">
+              {/* Aktivasi button for pending MJKN */}
+              {isMjknPending && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="icon"
+                      onClick={() => options.onActivateMjkn(mjknQueue.id)}
+                      disabled={options.activatingCheckin === mjknQueue.id}
+                      className="bg-blue-600 hover:bg-blue-700 h-8 w-8"
                     >
-                      <Ticket className="h-4 w-4 mr-2" />
-                      Tiket Antrian
-                    </DropdownMenuItem>
-                  )}
-                  {hasPatient && (
-                    <DropdownMenuItem
-                      onClick={() => options.onPrintPatientLabel(reg)}
-                      disabled={isPrintingLabel}
-                    >
-                      <User className="h-4 w-4 mr-2" />
-                      Label Pasien
-                    </DropdownMenuItem>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-            {options.hasViewPermission && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => options.onView(regId)}
-                title="Lihat Detail"
-              >
-                <Eye className="h-4 w-4" />
-              </Button>
-            )}
-            {/* Cancel: MJKN queue or regular registration */}
-            {reg.status !== "cancelled" &&
-              reg.status !== "completed" &&
-              options.hasDeletePermission && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    if (isMjknPending) {
-                      options.onCancelMjkn(mjknQueue.id);
-                    } else {
-                      options.onCancel(regId);
-                    }
-                  }}
-                  title={isMjknPending ? "Batalkan Antrian MJKN" : "Batalkan"}
-                >
-                  <XCircle className="h-4 w-4 text-destructive" />
-                </Button>
+                      {options.activatingCheckin === mjknQueue.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <CheckCircle className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Aktivasi MJKN</TooltipContent>
+                </Tooltip>
               )}
-          </div>
+
+              {/* Print Dropdown */}
+              {(hasRoomQueue || hasPatient) && (
+                <DropdownMenu>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          disabled={isPrinting}
+                          className="h-8 w-8"
+                        >
+                          {isPrinting ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Printer className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </DropdownMenuTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent>Cetak</TooltipContent>
+                  </Tooltip>
+                  <DropdownMenuContent align="end">
+                    {hasRoomQueue && (
+                      <DropdownMenuItem
+                        onClick={() => options.onPrintQueueTicket(reg)}
+                        disabled={isPrintingQueue}
+                      >
+                        <Ticket className="h-4 w-4 mr-2" />
+                        Tiket Antrian
+                      </DropdownMenuItem>
+                    )}
+                    {hasPatient && (
+                      <DropdownMenuItem
+                        onClick={() => options.onPrintPatientLabel(reg)}
+                        disabled={isPrintingLabel}
+                      >
+                        <User className="h-4 w-4 mr-2" />
+                        Label Pasien
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+              {options.hasViewPermission && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => options.onView(regId)}
+                      className="h-8 w-8"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Lihat Detail</TooltipContent>
+                </Tooltip>
+              )}
+              {/* Cancel: MJKN queue or regular registration */}
+              {reg.status !== "cancelled" &&
+                reg.status !== "completed" &&
+                options.hasDeletePermission && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          if (isMjknPending) {
+                            options.onCancelMjkn(mjknQueue.id);
+                          } else {
+                            options.onCancel(regId);
+                          }
+                        }}
+                        className="h-8 w-8"
+                      >
+                        <XCircle className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>{isMjknPending ? "Batalkan Antrian MJKN" : "Batalkan"}</TooltipContent>
+                  </Tooltip>
+                )}
+            </div>
+          </TooltipProvider>
         );
       },
     },

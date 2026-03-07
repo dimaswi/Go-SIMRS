@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import type { ColumnDef } from "@tanstack/react-table";
 
@@ -245,7 +245,7 @@ export default function BPJSLogsPage() {
         <Button
           variant="outline"
           size="icon"
-          onClick={() => navigate("/integrations/config")}
+          onClick={() => window.history.back()}
           className="h-9 w-9"
         >
           <ArrowLeft className="h-4 w-4" />

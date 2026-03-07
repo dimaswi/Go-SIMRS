@@ -38,6 +38,7 @@ import {
   AdmissionDrawer,
   ReferralDrawer,
   DeathDrawer,
+  OutpatientTransferDrawer,
   type DispositionFormData,
 } from "./disposition-drawers";
 
@@ -53,6 +54,7 @@ interface DispositionFormProps {
 const dispositionIcons: Record<string, React.ReactNode> = {
   pulang: <Home className="h-5 w-5" />,
   rawat_inap: <Hospital className="h-5 w-5" />,
+  rawat_jalan: <ArrowRight className="h-5 w-5" />,
   rujuk: <Ambulance className="h-5 w-5" />,
   meninggal: <FileText className="h-5 w-5" />,
   aps: <ExternalLink className="h-5 w-5" />,
@@ -62,6 +64,7 @@ const dispositionIcons: Record<string, React.ReactNode> = {
 const dispositionDescriptions: Record<string, string> = {
   pulang: "Pasien pulang dalam keadaan baik",
   rawat_inap: "Pasien memerlukan rawat inap",
+  rawat_jalan: "Pasien tidak gawat darurat, rujuk ke poli",
   rujuk: "Pasien dirujuk ke fasilitas lain",
   meninggal: "Pasien meninggal dunia",
   aps: "Pasien pulang atas permintaan sendiri",
@@ -104,6 +107,10 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
   const [loadingDoctors, setLoadingDoctors] = useState(false);
   const [roomClosed, setRoomClosed] = useState(false);
   
+  // Outpatient transfer doctors (for UGD → Rawat Jalan)
+  const [outpatientDoctors, setOutpatientDoctors] = useState<AvailableDoctor[]>([]);
+  const [loadingOutpatientDoctors, setLoadingOutpatientDoctors] = useState(false);
+  
   // Follow-up registration data for QR code
   const [followUpRegData, setFollowUpRegData] = useState<{
     id: number;
@@ -122,6 +129,7 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
   const [suratKontrolResult, setSuratKontrolResult] = useState<SuratKontrolResponse | null>(null);
   
   const [patientNoBpjs, setPatientNoBpjs] = useState<string | null>(null);
+  const [registrationId, setRegistrationId] = useState<number | null>(null);
   const [patientData, setPatientData] = useState<{
     id: number;
     no_rm: string;
@@ -137,6 +145,7 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
   const [admissionDrawerOpen, setAdmissionDrawerOpen] = useState(false);
   const [referralDrawerOpen, setReferralDrawerOpen] = useState(false);
   const [deathDrawerOpen, setDeathDrawerOpen] = useState(false);
+  const [outpatientTransferDrawerOpen, setOutpatientTransferDrawerOpen] = useState(false);
 
   // Loaded disposition data from API
   const [loadedDispositionData, setLoadedDispositionData] = useState<Disposition | null>(null);
@@ -158,6 +167,7 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
   const dispositionOptions = dispositionData
     .filter(item => !(item.code === 'rawat_inap' && pendingOrdersInfo?.is_inpatient))
     .filter(item => !['dod', 'doa'].includes(item.code))
+    .filter(item => item.code !== 'rawat_jalan' || isEmergency) // rawat_jalan only for UGD
     .map(item => ({
       value: item.code,
       label: item.name,
@@ -203,6 +213,9 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
     follow_up_doctor_id: undefined,
     discharge_medication: initialData?.discharge_medication || "",
     discharge_instruction: initialData?.discharge_instruction || "",
+    outpatient_room_id: (initialData as any)?.outpatient_room_id,
+    outpatient_doctor_id: undefined,
+    transfer_reason: (initialData as any)?.transfer_reason || "",
   });
 
   // Load available doctors when room and date change
@@ -289,6 +302,9 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
             follow_up_doctor_id: undefined,
             discharge_medication: response.data.discharge_medication || "",
             discharge_instruction: response.data.discharge_instruction || "",
+            outpatient_room_id: response.data.outpatient_room_id,
+            outpatient_doctor_id: undefined,
+            transfer_reason: response.data.transfer_reason || "",
           });
           
           if (response.data.follow_up_date) {
@@ -368,6 +384,28 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
     }
   }, [formData.follow_up_room_id, formData.follow_up_date, kontrolType, suratKontrolResult]);
 
+  // Load available doctors for outpatient transfer (today's date)
+  useEffect(() => {
+    const outpatientRoomId = (formData as any).outpatient_room_id;
+    if (!outpatientRoomId) return;
+    
+    const loadOutpatientDoctors = async () => {
+      setLoadingOutpatientDoctors(true);
+      try {
+        const today = new Date().toISOString().split("T")[0];
+        const schedResponse = await schedulesApi.getAvailableDoctors(outpatientRoomId, today);
+        const doctors = schedResponse.data?.data || [];
+        setOutpatientDoctors(doctors);
+      } catch (err) {
+        console.error("Failed to load outpatient doctors:", err);
+        setOutpatientDoctors([]);
+      } finally {
+        setLoadingOutpatientDoctors(false);
+      }
+    };
+    loadOutpatientDoctors();
+  }, [(formData as any).outpatient_room_id]);
+
   // Load active SEP and patient data
   const loadBPJSData = async () => {
     if (!visitId) return;
@@ -380,6 +418,7 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
       
       // Get registration to get patient data
       if (visitData?.registration_id) {
+        setRegistrationId(visitData.registration_id);
         try {
           const { registrationApi } = await import("@/lib/api/queue");
           const regResponse = await registrationApi.getById(visitData.registration_id);
@@ -647,6 +686,9 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
       case "rawat_inap":
         setAdmissionDrawerOpen(true);
         break;
+      case "rawat_jalan":
+        setOutpatientTransferDrawerOpen(true);
+        break;
       case "rujuk":
         setReferralDrawerOpen(true);
         break;
@@ -742,6 +784,18 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
       return;
     }
 
+    // Validate outpatient transfer fields
+    if (formData.disposition_type === "rawat_jalan") {
+      if (!(formData as any).outpatient_room_id || !(formData as any).outpatient_doctor_id) {
+        toast({
+          title: "Data tidak lengkap",
+          description: "Pilih poli dan dokter untuk rawat jalan.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     setSaving(true);
     try {
       // For rawat_inap SIMRS (without BPJS SPRI), create admission request
@@ -754,6 +808,26 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
           preferred_class: formData.preferred_class,
           special_notes: formData.special_notes,
         });
+
+        // Buat SPRI lokal (tanpa BPJS) agar masuk ke Monitoring SPRI
+        // Nanti bisa di-edit dan dikirim ke BPJS dari monitoring
+        try {
+          await vclaimApi.createLocalSPRI({
+            no_kartu: patientNoBpjs || activeSEP?.no_kartu || "",
+            nama: patientData?.nama_lengkap || "",
+            kelamin: patientData?.jenis_kelamin || "",
+            tgl_lahir: patientData?.tanggal_lahir || "",
+            kode_dokter: "",
+            poli_kontrol: "",
+            tgl_rencana_kontrol: new Date().toISOString().split("T")[0],
+            nama_diagnosa: formData.admission_reason || "",
+            visit_id: visitId,
+            registration_id: registrationId || activeSEP?.registration_id || 0,
+            sep_id: activeSEP?.id || 0,
+          });
+        } catch (localSpriErr) {
+          console.warn("Gagal membuat SPRI lokal (non-blocking):", localSpriErr);
+        }
         
         const payload = {
           ...formData,
@@ -824,6 +898,37 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
         return;
       }
       
+      // For rawat_jalan (UGD → Rawat Jalan transfer)
+      if (formData.disposition_type === "rawat_jalan" && (formData as any).outpatient_room_id) {
+        const payload = {
+          ...formData,
+          outpatient_room_id: (formData as any).outpatient_room_id,
+          outpatient_doctor_id: (formData as any).outpatient_doctor_id,
+          transfer_reason: (formData as any).transfer_reason || "",
+          create_admission: false,
+          create_follow_up: false,
+        };
+
+        await medicalRecordsApi.saveDisposition(visitId, payload);
+
+        toast({
+          title: "Berhasil",
+          description: "Pasien berhasil dirujuk ke rawat jalan. Antrian poli telah dibuat.",
+        });
+
+        window.dispatchEvent(new CustomEvent("refresh-print-options"));
+        window.dispatchEvent(new CustomEvent("refresh-final-visit"));
+
+        setOutpatientTransferDrawerOpen(false);
+        onSave?.(payload as any);
+
+        // Reload page to reflect new state
+        setTimeout(() => {
+          window.location.reload();
+        }, 1000);
+        return;
+      }
+
       // For other disposition types
       // Create follow-up for SIMRS or BPJS with SIMRS sync
       const shouldCreateFollowUp = ["pulang", "aps"].includes(formData.disposition_type) &&
@@ -887,6 +992,7 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
       setDischargeDrawerOpen(false);
       setReferralDrawerOpen(false);
       setDeathDrawerOpen(false);
+      setOutpatientTransferDrawerOpen(false);
       
       onSave?.(response.data);
       
@@ -1147,6 +1253,20 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
         isDisabled={isDisabled || readOnly}
       />
 
+      {/* Outpatient Transfer Drawer (UGD → Rawat Jalan) */}
+      <OutpatientTransferDrawer
+        open={outpatientTransferDrawerOpen}
+        onOpenChange={setOutpatientTransferDrawerOpen}
+        formData={formData}
+        onFormChange={handleChange}
+        onSubmit={handleSubmit}
+        saving={saving}
+        isDisabled={isDisabled || readOnly}
+        poliRooms={poliRooms}
+        availableDoctors={outpatientDoctors}
+        loadingDoctors={loadingOutpatientDoctors}
+      />
+
       {/* Cancel Disposition Dialog */}
       <Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
         <DialogContent>
@@ -1178,6 +1298,9 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
                   )}
                   {(loadedDispositionData?.disposition_type || formData.disposition_type) === "rawat_inap" && (
                     <li>Membatalkan permintaan rawat inap (jika masih pending)</li>
+                  )}
+                  {(loadedDispositionData?.disposition_type || formData.disposition_type) === "rawat_jalan" && (
+                    <li>Membatalkan kunjungan rawat jalan dan antrian poli</li>
                   )}
                   <li>Mengaktifkan kembali kunjungan pasien</li>
                 </ul>

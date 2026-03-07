@@ -35,7 +35,7 @@ import { PoliDokterSelector } from "./poli-dokter-selector";
 interface SPRIFormSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  activeSEP: SEPLocal;
+  activeSEP?: SEPLocal | null;
   patient: {
     id: number;
     no_rm: string;
@@ -46,6 +46,7 @@ interface SPRIFormSheetProps {
     jenis_kelamin?: string;
   };
   visitId: number;
+  registrationId?: number;
   onSPRICreated?: (spriData: VClaimSPRIResponse) => void;
 }
 
@@ -55,10 +56,14 @@ export function SPRIFormSheet({
   activeSEP,
   patient,
   visitId,
+  registrationId,
   onSPRICreated,
 }: SPRIFormSheetProps) {
   const { toast } = useToast();
   const today = format(new Date(), "yyyy-MM-dd");
+
+  // Derive no_kartu from activeSEP or patient
+  const noKartu = activeSEP?.no_kartu || patient.no_bpjs || "";
 
   // Loading states
   const [loadingPeserta, setLoadingPeserta] = useState(false);
@@ -99,11 +104,11 @@ export function SPRIFormSheet({
 
   // Auto fetch kepesertaan saat drawer buka (sekali saja)
   useEffect(() => {
-    if (open && activeSEP?.no_kartu && !hasFetchedRef.current) {
+    if (open && noKartu && !hasFetchedRef.current) {
       hasFetchedRef.current = true;
-      fetchKepesertaan(activeSEP.no_kartu, today);
+      fetchKepesertaan(noKartu, today);
     }
-  }, [open, activeSEP?.no_kartu]);
+  }, [open, noKartu]);
 
   // Function untuk fetch kepesertaan
   const fetchKepesertaan = async (kartuBpjs: string, tglPelayanan: string) => {
@@ -130,11 +135,11 @@ export function SPRIFormSheet({
 
   // Handler untuk tombol cek peserta manual
   const handleCekPeserta = () => {
-    if (!activeSEP?.no_kartu) {
-      toast({ variant: "destructive", title: "Error", description: "Data SEP tidak valid" });
+    if (!noKartu) {
+      toast({ variant: "destructive", title: "Error", description: "Nomor kartu BPJS tidak tersedia" });
       return;
     }
-    fetchKepesertaan(activeSEP.no_kartu, today);
+    fetchKepesertaan(noKartu, today);
   };
 
   // Search Poli untuk SPRI (rawat inap)
@@ -191,15 +196,15 @@ export function SPRIFormSheet({
     setLoadingSubmit(true);
     try {
       const res = await vclaimApi.createSPRI({
-        no_kartu: activeSEP.no_kartu,
+        no_kartu: noKartu,
         kode_dokter: kodeDokter,
         nama_dokter: namaDokter,
         poli_kontrol: kodePoli,
         nama_poli: namaPoli,
         tgl_rencana_kontrol: tglRencanaKontrol,
         visit_id: visitId,
-        registration_id: activeSEP.registration_id,
-        sep_id: activeSEP.id,
+        registration_id: registrationId || activeSEP?.registration_id || 0,
+        sep_id: activeSEP?.id || 0,
       });
 
       const spriData = res.data.data;
@@ -246,7 +251,8 @@ export function SPRIFormSheet({
 
           <ScrollArea className="flex-1">
             <div className="p-6 space-y-5">
-              {/* === SEP AKTIF === */}
+              {/* === SEP AKTIF (jika ada) === */}
+              {activeSEP && (
               <div className="space-y-3">
                 <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Data SEP Aktif</h3>
                 
@@ -275,6 +281,34 @@ export function SPRIFormSheet({
                   </div>
                 </div>
               </div>
+              )}
+
+              {/* Info Pasien (jika tidak ada SEP) */}
+              {!activeSEP && (
+              <div className="space-y-3">
+                <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Data Pasien</h3>
+                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="text-xs text-blue-600 font-medium">Nama</span>
+                      <p className="font-bold text-blue-800">{patient.nama_lengkap}</p>
+                    </div>
+                    <div>
+                      <span className="text-xs text-blue-600 font-medium">No. Kartu BPJS</span>
+                      <p className="font-bold text-blue-800">{patient.no_bpjs || "-"}</p>
+                    </div>
+                    <div>
+                      <span className="text-xs text-blue-600 font-medium">No. RM</span>
+                      <p className="font-medium">{patient.no_rm}</p>
+                    </div>
+                    <div>
+                      <span className="text-xs text-blue-600 font-medium">NIK</span>
+                      <p className="font-medium">{patient.nik || "-"}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              )}
 
               {/* === KEPESERTAAN === */}
               <div className="space-y-3">

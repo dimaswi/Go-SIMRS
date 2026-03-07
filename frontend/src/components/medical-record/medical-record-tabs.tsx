@@ -22,6 +22,7 @@ import {
   ArrowRightLeft,
   Skull,
   UtensilsCrossed,
+  Repeat,
 } from "lucide-react";
 
 interface Tab {
@@ -247,6 +248,13 @@ export function MedicalRecordTabs({
       label: "Order Gizi",
       icon: <UtensilsCrossed />,
       permission: "medical_records.nutrition_order",
+    }] : []),
+    // Unit Transfer tab - show for rawat_jalan and gawat_darurat (non-inpatient)
+    ...(!isInpatient ? [{
+      id: "unit-transfer",
+      label: "Mutasi Unit",
+      icon: <Repeat />,
+      permission: "medical_records.bed_transfer",
     }] : []),
     {
       id: "medicine-order",

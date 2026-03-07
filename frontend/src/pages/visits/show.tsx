@@ -31,6 +31,7 @@ import { CPPTForm } from "@/components/medical-record/cppt-form";
 import { FluidBalanceForm } from "@/components/medical-record/fluid-balance-form";
 import { NursingCareForm } from "@/components/medical-record/nursing-care-form";
 import { BedTransferForm } from "@/components/medical-record/bed-transfer-form";
+import { UnitTransferForm } from "@/components/medical-record/unit-transfer-form";
 import { NutritionOrderForm } from "@/components/medical-record/nutrition-order-form";
 import { FinalVisit } from "@/components/medical-record/final-visit";
 import { ConsultationForm } from "@/components/medical-record/consultation-form";
@@ -532,6 +533,31 @@ export default function VisitShow() {
             visitId={visit.id}
             currentRoomId={visit.room_id}
             currentBedId={visit.bed_id}
+            readOnly={isPatientDischarged}
+            onTransferComplete={() => loadVisit(true)}
+          />
+        );
+      case "unit-transfer":
+        // Unit transfer only for outpatient/emergency visits
+        if (isInpatient) {
+          return renderWrongVisitTypeMessage("Rawat Jalan / UGD");
+        }
+        if (!hasPermission("medical_records.bed_transfer")) {
+          return (
+            <Card className="p-6">
+              <p className="text-center text-muted-foreground">
+                Anda tidak memiliki akses untuk Mutasi Unit
+              </p>
+            </Card>
+          );
+        }
+        return (
+          <UnitTransferForm
+            key={`unit-transfer-${visit.id}-${tabRefreshKey}`}
+            visitId={visit.id}
+            currentRoomId={visit.room_id}
+            currentDoctorId={visit.doctor_id}
+            serviceType={visit.room?.service_type || "rawat_jalan"}
             readOnly={isPatientDischarged}
             onTransferComplete={() => loadVisit(true)}
           />

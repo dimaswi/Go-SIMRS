@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { setPageTitle } from '@/lib/page-title';
 import { Button } from '@/components/ui/button';
@@ -108,7 +108,7 @@ export default function RoleShow() {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => navigate('/roles')}
+            onClick={() => window.history.back()}
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
@@ -117,7 +117,7 @@ export default function RoleShow() {
               {role.name}
             </h1>
             <p className="text-sm text-muted-foreground">
-              {role.description || 'Tidak ada deskripsi'} • {role.permissions?.length || 0} permission
+              {role.description || 'Tidak ada deskripsi'} â€¢ {role.permissions?.length || 0} permission
             </p>
           </div>
         </div>

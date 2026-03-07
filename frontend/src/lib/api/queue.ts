@@ -119,6 +119,8 @@ export interface Registration {
     ID?: number;
     code: string;
     name: string;
+    service_type?: string;
+    room_type?: string;
   };
   doctor_id?: number;
   doctor?: {
@@ -231,6 +233,8 @@ export const registrationApi = {
     status?: string;
     patient_id?: number;
     destination_room_id?: number;
+    registration_type?: string;
+    service_type?: string;
   }) =>
     api.get<{
       data: Registration[];

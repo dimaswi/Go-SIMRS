@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+﻿import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
@@ -268,7 +268,7 @@ export default function StockRequestApprove() {
         <Button
           variant="outline"
           size="icon"
-          onClick={() => navigate(`/stock-requests/${id}`)}
+          onClick={() => window.history.back()}
           className="h-9 w-9"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -283,7 +283,7 @@ export default function StockRequestApprove() {
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground">
-            {request.request_number} • {requestTypeLabels[request.request_type]} •{" "}
+            {request.request_number} â€¢ {requestTypeLabels[request.request_type]} â€¢{" "}
             <Badge variant="outline" className={priorityColors[request.priority]}>
               Prioritas: {priorityLabels[request.priority]}
             </Badge>

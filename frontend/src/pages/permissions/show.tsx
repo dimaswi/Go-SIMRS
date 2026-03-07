@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { setPageTitle } from '@/lib/page-title';
 import { Button } from '@/components/ui/button';
@@ -102,7 +102,7 @@ export default function PermissionShow() {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => navigate('/permissions')}
+            onClick={() => window.history.back()}
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>

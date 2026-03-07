@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+﻿import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -153,7 +153,7 @@ export default function SEPDetailPage() {
     return (
       <div className="flex flex-1 flex-col p-4">
         <p className="text-muted-foreground">SEP tidak ditemukan.</p>
-        <Button variant="outline" onClick={() => navigate('/eklaim/list-sep')}>
+        <Button variant="outline" onClick={() => window.history.back()}>
           <ArrowLeft className="mr-2 h-4 w-4" />
           Kembali
         </Button>
@@ -166,7 +166,7 @@ export default function SEPDetailPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Button variant="outline" size="icon" onClick={() => navigate('/eklaim/list-sep')}>
+          <Button variant="outline" size="icon" onClick={() => window.history.back()}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>

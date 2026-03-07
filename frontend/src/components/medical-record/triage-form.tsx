@@ -12,6 +12,7 @@ import { medicalRecordsApi, signatureApi, DOCUMENT_TYPES } from "@/lib/api";
 import { medicalRecordEditLogApi } from "@/lib/api/visits";
 import { useEditMode, EditModeBanner, EditConfirmDialog, PINVerificationDialog } from "./edit-mode-controller";
 import { SignaturePINDialog } from "@/components/signature/signature-pin-dialog";
+import { cn } from "@/lib/utils";
 import type { Triage } from "@/lib/api";
 
 interface TriageFormProps {
@@ -29,6 +30,72 @@ const triageLevelColors: Record<string, string> = {
   "3": "bg-yellow-500", // Urgent - Kuning
   "4": "bg-green-500",  // Less Urgent - Hijau
   "5": "bg-blue-500",   // Non-Urgent - Biru
+};
+
+const triageLevelMeta: Record<string, { title: string; description: string; response: string }> = {
+  "0": {
+    title: "DOA",
+    description: "Datang dalam kondisi meninggal",
+    response: "Penanganan sesuai protokol verifikasi DOA",
+  },
+  "1": {
+    title: "Resusitasi",
+    description: "Ancaman nyawa, butuh tindakan segera",
+    response: "Respon: segera (0 menit)",
+  },
+  "2": {
+    title: "Emergent",
+    description: "Gawat darurat, tidak stabil",
+    response: "Respon: sangat cepat",
+  },
+  "3": {
+    title: "Urgent",
+    description: "Mendesak namun relatif stabil",
+    response: "Respon: cepat",
+  },
+  "4": {
+    title: "Less Urgent",
+    description: "Keluhan ringan-menengah",
+    response: "Respon: dapat menunggu",
+  },
+  "5": {
+    title: "Non-Urgent",
+    description: "Tidak gawat darurat",
+    response: "Respon: menunggu sesuai antrean",
+  },
+};
+
+const triageLevelSummaryPalette: Record<string, { container: string; title: string; subtitle: string }> = {
+  "0": {
+    container: "border-zinc-700 bg-zinc-100",
+    title: "text-zinc-900",
+    subtitle: "text-zinc-700",
+  },
+  "1": {
+    container: "border-red-300 bg-red-50",
+    title: "text-red-800",
+    subtitle: "text-red-700",
+  },
+  "2": {
+    container: "border-orange-300 bg-orange-50",
+    title: "text-orange-800",
+    subtitle: "text-orange-700",
+  },
+  "3": {
+    container: "border-yellow-300 bg-yellow-50",
+    title: "text-yellow-800",
+    subtitle: "text-yellow-700",
+  },
+  "4": {
+    container: "border-green-300 bg-green-50",
+    title: "text-green-800",
+    subtitle: "text-green-700",
+  },
+  "5": {
+    container: "border-blue-300 bg-blue-50",
+    title: "text-blue-800",
+    subtitle: "text-blue-700",
+  },
 };
 
 const defaultFormData = {
@@ -213,6 +280,8 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
   const airwayOptions = getOptions('airway_status');
   const breathingOptions = getOptions('breathing_status');
   const circulationOptions = getOptions('circulation_status');
+  const selectedTriageMeta = triageLevelMeta[formData.triage_level];
+  const selectedTriagePalette = triageLevelSummaryPalette[formData.triage_level];
 
   if (loading || masterDataLoading) {
     return (
@@ -297,22 +366,53 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
                 <Label className="text-sm font-semibold">
                   Level Triase <span className="text-destructive">*</span>
                 </Label>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3" role="radiogroup" aria-label="Level Triase">
                   {triageLevelOptions.map((level) => (
                     <button
                       key={level.value}
                       type="button"
                       onClick={() => handleChange("triage_level", level.value)}
-                      className={`p-3 rounded-lg border-2 text-white font-medium text-sm transition-all ${
+                      role="radio"
+                      aria-checked={formData.triage_level === level.value}
+                      className={cn(
+                        "rounded-lg border-2 p-3 text-left transition-all",
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                         formData.triage_level === level.value
-                          ? `${triageLevelColors[level.value] || "bg-gray-500"} border-white scale-105`
-                          : `${triageLevelColors[level.value] || "bg-gray-500"} opacity-60 border-transparent hover:opacity-80`
-                      }`}
+                          ? "border-primary bg-primary/5"
+                          : "border-border hover:border-primary/40 hover:bg-muted/40"
+                      )}
                     >
-                      {level.label}
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <span
+                          className={cn(
+                            "h-3 w-3 rounded-full border border-white/20",
+                            triageLevelColors[level.value] || "bg-gray-500"
+                          )}
+                        />
+                        <span className="text-xs font-semibold text-muted-foreground">Level {level.value}</span>
+                      </div>
+                      <p className="text-sm font-semibold leading-tight">{triageLevelMeta[level.value]?.title || level.label}</p>
+                      <p className="text-xs text-muted-foreground mt-1 leading-snug">
+                        {triageLevelMeta[level.value]?.description || "Pilih sesuai kondisi klinis pasien"}
+                      </p>
                     </button>
                   ))}
                 </div>
+                {selectedTriageMeta && (
+                  <div
+                    className={cn(
+                      "rounded-lg border p-3",
+                      selectedTriagePalette?.container || "border-border bg-muted/30"
+                    )}
+                  >
+                    <p className={cn("text-sm font-semibold", selectedTriagePalette?.title || "") }>
+                      Level dipilih: {selectedTriageMeta.title}
+                    </p>
+                    <p className={cn("text-xs mt-1", selectedTriagePalette?.subtitle || "text-muted-foreground") }>
+                      {selectedTriageMeta.response}
+                    </p>
+                  </div>
+                )}
               </div>
           </div>
 

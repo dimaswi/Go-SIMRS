@@ -115,6 +115,22 @@ export const printApi = {
   },
 
   /**
+   * Print SPRI (Surat Perintah Rawat Inap) - BPJS
+   * @param spriId - SPRI record ID
+   */
+  spri: async (spriId: number) => {
+    return fetchPdf(`${BASE_URL}/spri/${spriId}`);
+  },
+
+  /**
+   * Print Surat Kontrol / SKDP - BPJS
+   * @param suratKontrolId - SuratKontrol record ID
+   */
+  suratKontrol: async (suratKontrolId: number) => {
+    return fetchPdf(`${BASE_URL}/surat-kontrol/${suratKontrolId}`);
+  },
+
+  /**
    * Print Formulir Permohonan DPJP
    * @param visitId - Visit ID
    */
@@ -441,6 +457,8 @@ export const printApi = {
     nutritionEtiket: (orderId: number) => fetchPdfBlob(`${BASE_URL}/nutrition-etiket/${orderId}`),
     sep: (sepId: number, rmDuplicateId?: number) =>
       fetchPdfBlob(`${BASE_URL}/sep/${sepId}${rmDuplicateId ? `?rm_duplicate_id=${rmDuplicateId}` : ''}`),
+    spri: (spriId: number) => fetchPdfBlob(`${BASE_URL}/spri/${spriId}`),
+    suratKontrol: (suratKontrolId: number) => fetchPdfBlob(`${BASE_URL}/surat-kontrol/${suratKontrolId}`),
 
     // RM Duplicate Order Prints
     rmDuplicateLabOrder: (rmOrderId: number) => fetchPdfBlob(`${BASE_URL}/rm-duplicate/lab-order/${rmOrderId}`),

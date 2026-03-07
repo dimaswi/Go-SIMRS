@@ -13,8 +13,10 @@ type SPRI struct {
 	UpdatedAt time.Time      `json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 
-	// Nomor SPRI dari BPJS
+	// Nomor SPRI dari BPJS (atau lokal sementara dengan prefix "LOCAL-")
 	NoSPRI string `gorm:"uniqueIndex;size:50;not null" json:"no_spri"`
+	// Apakah sudah terkirim ke BPJS VClaim (false = draft lokal)
+	IsBPJS bool `gorm:"default:false" json:"is_bpjs"`
 
 	// Link ke SIMRS
 	RegistrationID *uint         `gorm:"index" json:"registration_id"`

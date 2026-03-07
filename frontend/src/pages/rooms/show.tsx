@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+﻿import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -492,7 +492,7 @@ export default function RoomShow() {
                 <Button
                   variant="outline"
                   size="icon"
-                  onClick={() => navigate("/rooms")}
+                  onClick={() => window.history.back()}
                   className="h-9 w-9"
                 >
                   <ArrowLeft className="h-4 w-4" />
@@ -543,7 +543,7 @@ export default function RoomShow() {
                     <div>
                       <h3 className="text-sm font-semibold">{selectedUnit.name}</h3>
                       <p className="text-xs text-muted-foreground">
-                        {selectedUnit.code} • Lantai {selectedUnit.floor} • 
+                        {selectedUnit.code} â€¢ Lantai {selectedUnit.floor} â€¢ 
                         Kapasitas {selectedUnit.capacity} bed
                       </p>
                     </div>

@@ -33,11 +33,12 @@ func GetRegistrations(c *gin.Context) {
 	var registrations []models.Registration
 	query := database.DB.Preload("Patient").Preload("DestinationRoom").
 		Preload("Doctor").Preload("RegisteredBy").Preload("Queue").
-		Preload("Visit").Preload("Visit.RoomQueue")
+		Preload("Visit").Preload("Visit.RoomQueue").
+		Preload("Visits").Preload("Visits.Room")
 
 	// Filter by exact registration number
 	if regNum := c.Query("registration_number"); regNum != "" {
-		query = query.Where("registration_number = ?", regNum)
+		query = query.Where("registrations.registration_number = ?", regNum)
 	}
 
 	// Filter by date
@@ -46,18 +47,26 @@ func GetRegistrations(c *gin.Context) {
 		if err == nil {
 			startOfDay := time.Date(parsed.Year(), parsed.Month(), parsed.Day(), 0, 0, 0, 0, parsed.Location())
 			endOfDay := startOfDay.Add(24 * time.Hour)
-			query = query.Where("registration_date >= ? AND registration_date < ?", startOfDay, endOfDay)
+			query = query.Where("registrations.registration_date >= ? AND registrations.registration_date < ?", startOfDay, endOfDay)
 		}
 	}
 
+	if regType := c.Query("registration_type"); regType != "" {
+		query = query.Where("registrations.registration_type = ?", regType)
+	}
+	// Filter by destination room's service_type (joins rooms table)
+	if svcType := c.Query("service_type"); svcType != "" {
+		query = query.Joins("JOIN rooms ON rooms.id = registrations.destination_room_id").
+			Where("rooms.service_type = ?", svcType)
+	}
 	if status := c.Query("status"); status != "" {
-		query = query.Where("status = ?", status)
+		query = query.Where("registrations.status = ?", status)
 	}
 	if patientID := c.Query("patient_id"); patientID != "" {
-		query = query.Where("patient_id = ?", patientID)
+		query = query.Where("registrations.patient_id = ?", patientID)
 	}
 	if roomID := c.Query("destination_room_id"); roomID != "" {
-		query = query.Where("destination_room_id = ?", roomID)
+		query = query.Where("registrations.destination_room_id = ?", roomID)
 	}
 
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
@@ -67,7 +76,7 @@ func GetRegistrations(c *gin.Context) {
 	var total int64
 	query.Model(&models.Registration{}).Count(&total)
 
-	query.Order("created_at DESC").Limit(limit).Offset(offset).Find(&registrations)
+	query.Order("registrations.created_at DESC").Limit(limit).Offset(offset).Find(&registrations)
 
 	c.JSON(http.StatusOK, gin.H{
 		"data": registrations,

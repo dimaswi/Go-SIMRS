@@ -14,6 +14,8 @@ const BPJSAPITester = lazy(() => import('@/pages/bpjs/api-tester'));
 const BPJSQueueMonitoring = lazy(() => import('@/pages/bpjs/queue-monitoring'));
 const BPJSTools = lazy(() => import('@/pages/bpjs/tools'));
 const BPJSAplicare = lazy(() => import('@/pages/bpjs/aplicare'));
+const BPJSSPRIMonitoring = lazy(() => import('@/pages/bpjs/spri-monitoring'));
+const BPJSSuratKontrolMonitoring = lazy(() => import('@/pages/bpjs/surat-kontrol-monitoring'));
 
 export function IntegrationsRoutes(ProtectedRoute: React.ComponentType<{ children: React.ReactNode }>) {
   return (
@@ -87,6 +89,20 @@ export function IntegrationsRoutes(ProtectedRoute: React.ComponentType<{ childre
         <ProtectedRoute>
           <PermissionGuard permission="integrations.view">
             <BPJSAplicare />
+          </PermissionGuard>
+        </ProtectedRoute>
+      } />
+      <Route path="/bpjs/spri-monitoring" element={
+        <ProtectedRoute>
+          <PermissionGuard permission="integrations.view">
+            <BPJSSPRIMonitoring />
+          </PermissionGuard>
+        </ProtectedRoute>
+      } />
+      <Route path="/bpjs/surat-kontrol-monitoring" element={
+        <ProtectedRoute>
+          <PermissionGuard permission="integrations.view">
+            <BPJSSuratKontrolMonitoring />
           </PermissionGuard>
         </ProtectedRoute>
       } />

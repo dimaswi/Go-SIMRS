@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+﻿import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -77,7 +77,7 @@ export default function EklaimDetailPage() {
   // Claim form payload builder (provided by ClaimDataTab)
   const claimPayloadBuilderRef = useRef<(() => Record<string, any>) | null>(null);
 
-  // Active tab state — persisted in localStorage per claim
+  // Active tab state â€” persisted in localStorage per claim
   const [activeTab, setActiveTabRaw] = useState(() => {
     try {
       return localStorage.getItem(`eklaim-tab-${id}`) || 'rm-duplicate';
@@ -288,7 +288,7 @@ export default function EklaimDetailPage() {
     return (
       <div className="flex flex-1 flex-col p-4">
         <p className="text-muted-foreground">Data E-Klaim tidak ditemukan.</p>
-        <Button variant="outline" onClick={() => navigate('/eklaim/data-klaim')}>
+        <Button variant="outline" onClick={() => window.history.back()}>
           <ArrowLeft className="mr-2 h-4 w-4" />
           Kembali
         </Button>
@@ -312,7 +312,7 @@ export default function EklaimDetailPage() {
               Detail E-Klaim
             </h1>
             <p className="text-sm text-muted-foreground">
-              {detail.nama_pasien} — <span className="font-mono">{detail.no_sep}</span>
+              {detail.nama_pasien} â€” <span className="font-mono">{detail.no_sep}</span>
             </p>
           </div>
         </div>
@@ -437,7 +437,7 @@ export default function EklaimDetailPage() {
         </div>
       )}
 
-      {/* Progress Timeline — compact, DRY */}
+      {/* Progress Timeline â€” compact, DRY */}
       {(() => {
         const ORDER: EKlaimLocalStatus[] = ['draft', 'new_claim', 'set_claim_data', 'idrg_coded', 'idrg_grouped', 'idrg_final', 'inacbg_imported', 'inacbg_coded', 'inacbg_grouped', 'inacbg_final', 'claim_final', 'claim_sent'];
         const currentIdx = ORDER.indexOf(status);
@@ -450,11 +450,11 @@ export default function EklaimDetailPage() {
         ];
         return (
           <div className="rounded-lg border p-3 space-y-2">
-            {/* Progress steps — single flow */}
+            {/* Progress steps â€” single flow */}
             <div className="flex flex-wrap items-center gap-1">
               {allSteps.map((s, i) => (
                 <div key={s} className="flex items-center gap-1">
-                  {i > 0 && <span className="text-muted-foreground text-[8px]">→</span>}
+                  {i > 0 && <span className="text-muted-foreground text-[8px]">â†’</span>}
                   <Badge variant={stepIsActive(s) ? 'default' : 'outline'} className={`text-[10px] px-1.5 py-0 h-5 ${stepIsActive(s) ? eklaimLocalStatusColors[s] : ''}`}>
                     {eklaimLocalStatusLabels[s]}
                   </Badge>
@@ -462,7 +462,7 @@ export default function EklaimDetailPage() {
               ))}
             </div>
 
-            {/* Result summaries — side-by-side cards */}
+            {/* Result summaries â€” side-by-side cards */}
             {(detail.idrg_code || detail.inacbg_cbg_code || (detail.cbg_code && !detail.idrg_code && !detail.inacbg_cbg_code)) && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                 {/* iDRG result */}
@@ -578,7 +578,7 @@ export default function EklaimDetailPage() {
           <div className="space-y-3">
             <div>
               <h3 className="text-sm font-medium">Tracking Status Klaim</h3>
-              <p className="text-xs text-muted-foreground">Alur: New Claim → Set Claim Data → Coding iDRG → Coding INACBG → Claim Final → Kirim Klaim</p>
+              <p className="text-xs text-muted-foreground">Alur: New Claim â†’ Set Claim Data â†’ Coding iDRG â†’ Coding INACBG â†’ Claim Final â†’ Kirim Klaim</p>
             </div>
 
             {/* Step tracking items (read-only status) */}

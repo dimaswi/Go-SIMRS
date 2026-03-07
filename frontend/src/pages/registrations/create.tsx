@@ -387,7 +387,7 @@ export default function RegistrationCreate() {
       // Prepare registration data
       const registrationData: any = {
         patient_id: existingPatient.id,
-        registration_type: selectedServiceType === "rawat_inap" ? "inpatient" : "outpatient",
+        registration_type: selectedServiceType === "rawat_inap" ? "inpatient" : selectedServiceType === "gawat_darurat" ? "emergency" : "outpatient",
         destination_room_id: destinationRoomId,
         doctor_id: doctorId,
         payment_method: paymentMethod,
@@ -467,7 +467,7 @@ export default function RegistrationCreate() {
         <Button
           variant="outline"
           size="icon"
-          onClick={() => step === "registration" ? setStep("search") : navigate("/registrations")}
+          onClick={() => step === "registration" ? setStep("search") : window.history.back()}
           className="h-9 w-9"
         >
           <ArrowLeft className="h-4 w-4" />

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+﻿import { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { DataTable } from '@/components/ui/data-table';
@@ -182,7 +182,7 @@ export default function CategoryListPage() {
       <div className="grid gap-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Button variant="outline" size="icon" onClick={() => navigate('/master-data')} className="h-9 w-9">
+            <Button variant="outline" size="icon" onClick={() => window.history.back()} className="h-9 w-9">
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <div className="space-y-1">

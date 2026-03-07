@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -135,7 +135,7 @@ export default function EmployeeShow() {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => navigate('/employees')}
+            onClick={() => window.history.back()}
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
@@ -144,7 +144,7 @@ export default function EmployeeShow() {
               {employee.nama_lengkap}
             </h1>
             <p className="text-sm text-muted-foreground">
-              {employee.nip || employee.nik} • {getMasterDataName('employee_type', employee.tipe_karyawan)}
+              {employee.nip || employee.nik} â€¢ {getMasterDataName('employee_type', employee.tipe_karyawan)}
             </p>
           </div>
         </div>

@@ -417,3 +417,45 @@ type AdmissionRequest struct {
 func (AdmissionRequest) TableName() string {
 	return "admission_requests"
 }
+
+// ===========================================================================
+// UNIT TRANSFER - Mutasi Unit (Pindah Ruangan untuk Rawat Jalan/UGD)
+// Berbeda dengan BedTransfer yang khusus rawat inap (pindah bed),
+// UnitTransfer untuk pindah ruangan/unit di Rawat Jalan dan UGD.
+// ===========================================================================
+
+// UnitTransfer represents a patient unit/room transfer record for outpatient & emergency
+type UnitTransfer struct {
+	ID        uint           `gorm:"primarykey" json:"id"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
+
+	VisitID uint   `gorm:"not null;index" json:"visit_id"`
+	Visit   *Visit `gorm:"foreignKey:VisitID" json:"visit,omitempty"`
+
+	// Source (From)
+	FromRoomID   uint      `gorm:"not null;index" json:"from_room_id"`
+	FromRoom     *Room     `gorm:"foreignKey:FromRoomID" json:"from_room,omitempty"`
+	FromDoctorID *uint     `gorm:"index" json:"from_doctor_id,omitempty"`
+	FromDoctor   *Employee `gorm:"foreignKey:FromDoctorID" json:"from_doctor,omitempty"`
+
+	// Destination (To)
+	ToRoomID   uint      `gorm:"not null;index" json:"to_room_id"`
+	ToRoom     *Room     `gorm:"foreignKey:ToRoomID" json:"to_room,omitempty"`
+	ToDoctorID *uint     `gorm:"index" json:"to_doctor_id,omitempty"`
+	ToDoctor   *Employee `gorm:"foreignKey:ToDoctorID" json:"to_doctor,omitempty"`
+
+	// Transfer Details
+	TransferDate   time.Time `gorm:"not null" json:"transfer_date"`
+	TransferReason string    `gorm:"type:text" json:"transfer_reason"`
+	Notes          string    `gorm:"type:text" json:"notes,omitempty"`
+
+	// Audit
+	CreatedByID *uint `gorm:"index" json:"created_by_id,omitempty"`
+	CreatedBy   *User `gorm:"foreignKey:CreatedByID" json:"created_by,omitempty"`
+}
+
+func (UnitTransfer) TableName() string {
+	return "unit_transfers"
+}

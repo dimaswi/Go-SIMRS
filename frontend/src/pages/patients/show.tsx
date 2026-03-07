@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -197,7 +197,7 @@ export default function PatientShow() {
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => navigate('/patients')}
+                onClick={() => window.history.back()}
               >
                 <ArrowLeft className="h-4 w-4" />
               </Button>
@@ -226,7 +226,7 @@ export default function PatientShow() {
                     )}
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    No. RM: {patient.no_rm} • {patient.jenis_kelamin === 'L' ? 'Laki-laki' : 'Perempuan'} • {calculateAge(patient.tanggal_lahir)}
+                    No. RM: {patient.no_rm} â€¢ {patient.jenis_kelamin === 'L' ? 'Laki-laki' : 'Perempuan'} â€¢ {calculateAge(patient.tanggal_lahir)}
                   </p>
                 </div>
               </div>

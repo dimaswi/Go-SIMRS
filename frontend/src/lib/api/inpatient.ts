@@ -519,3 +519,70 @@ export const getTransferTypeLabel = (type: string): string => {
   const found = TRANSFER_TYPES.find(t => t.value === type);
   return found?.label || type;
 };
+
+// ===========================================================================
+// UNIT TRANSFER INTERFACES - Mutasi Unit (Rawat Jalan/UGD)
+// ===========================================================================
+
+export interface UnitTransfer {
+  id: number;
+  created_at: string;
+  updated_at: string;
+  visit_id: number;
+  from_room_id: number;
+  from_room?: {
+    id: number;
+    code: string;
+    name: string;
+    service_type: string;
+  };
+  from_doctor_id?: number;
+  from_doctor?: {
+    id: number;
+    nama_lengkap: string;
+    gelar_depan?: string;
+    gelar_belakang?: string;
+  };
+  to_room_id: number;
+  to_room?: {
+    id: number;
+    code: string;
+    name: string;
+    service_type: string;
+  };
+  to_doctor_id?: number;
+  to_doctor?: {
+    id: number;
+    nama_lengkap: string;
+    gelar_depan?: string;
+    gelar_belakang?: string;
+  };
+  transfer_date: string;
+  transfer_reason?: string;
+  notes?: string;
+  created_by_id?: number;
+  created_by?: {
+    id: number;
+    username: string;
+    full_name: string;
+  };
+}
+
+export interface CreateUnitTransferInput {
+  to_room_id: number;
+  to_doctor_id?: number;
+  transfer_reason?: string;
+  notes?: string;
+}
+
+// ===========================================================================
+// UNIT TRANSFER API
+// ===========================================================================
+
+export const unitTransferApi = {
+  getAll: (visitId: number) =>
+    api.get<{ data: UnitTransfer[] }>(`/visits/${visitId}/unit-transfer`),
+
+  create: (visitId: number, data: CreateUnitTransferInput) =>
+    api.post<{ data: UnitTransfer; message: string }>(`/visits/${visitId}/unit-transfer`, data),
+};
