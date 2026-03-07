@@ -221,6 +221,9 @@ export interface Disposition {
   // Audit
   discharged_by_id?: number;
   discharged_by?: { id: number; name: string };
+  outpatient_room_id?: number
+  outpatient_doctor_id?: number
+  transfer_reason?: string
   created_at?: string;
   updated_at?: string;
 }
