@@ -1,5 +1,5 @@
 ﻿import { useEffect, useState, useCallback } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 
 import { Badge } from '@/components/ui/badge';
@@ -43,7 +43,7 @@ import { id as localeId } from 'date-fns/locale';
 
 export default function EKlaimShow() {
   const { id } = useParams();
-  const navigate = useNavigate();
+  //const navigate = useNavigate();
   const { toast } = useToast();
   
   const [loading, setLoading] = useState(true);
