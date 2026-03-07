@@ -227,7 +227,7 @@ export function PatientInfo({ visit }: PatientInfoProps) {
     setLoadingVisits(true);
     try {
       const response = await visitsApi.getAll({ registration_id: registrationId });
-      const visits = response.data?.data || response.data || [];
+      const visits: any = response.data?.data || response.data || [];
       setAllVisits(Array.isArray(visits) ? visits : []);
     } catch (error) {
       console.error("Failed to load visits:", error);
