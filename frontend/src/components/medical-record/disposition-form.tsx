@@ -393,7 +393,8 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
       setLoadingOutpatientDoctors(true);
       try {
         const today = new Date().toISOString().split("T")[0];
-        const schedResponse = await schedulesApi.getAvailableDoctors(outpatientRoomId, today);
+        //const schedResponse = await schedulesApi.getAvailableDoctors(outpatientRoomId, today);
+        const schedResponse = await schedulesApi.getAvailableDoctorsByDate(outpatientRoomId, today);
         const doctors = schedResponse.data?.data || [];
         setOutpatientDoctors(doctors);
       } catch (err) {
