@@ -654,7 +654,6 @@ export default function SuratKontrolMonitoringPage() {
                     onSearchChange={handlePoliSearchChange}
                     placeholder={loadingPoli ? "Mencari poli..." : "Ketik nama poli untuk mencari..."}
                     className="h-9"
-                    searchable
                   />
                   {editForm.nama_poli && (
                     <p className="text-xs text-muted-foreground">Terpilih: {editForm.nama_poli}</p>
@@ -669,7 +668,6 @@ export default function SuratKontrolMonitoringPage() {
                     onValueChange={handleDokterChange}
                     placeholder={loadingDokter ? "Memuat dokter..." : editForm.kode_poli ? "Pilih dokter..." : "Pilih poli terlebih dahulu"}
                     className="h-9"
-                    searchable
                   />
                   {editForm.nama_dokter && (
                     <p className="text-xs text-muted-foreground">Terpilih: {editForm.nama_dokter}</p>
