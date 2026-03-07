@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+//import { useNavigate } from "react-router-dom";
 import {
   Card,
   CardContent,
@@ -129,7 +129,7 @@ const PRESET_ENDPOINTS = [
 ];
 
 export default function BPJSAPITesterPage() {
-  const navigate = useNavigate();
+  //const navigate = useNavigate();
   const { toast } = useToast();
   
   const [loadingConfig, setLoadingConfig] = useState(true);
