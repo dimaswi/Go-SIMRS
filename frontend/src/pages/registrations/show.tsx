@@ -65,7 +65,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { api } from "@/lib/api";
-import { vclaimApi, type VClaimSEP, type SEPLocal as VClaimSEPLocal } from "@/lib/api/vclaim";
+import { vclaimApi, type VClaimSEP } from "@/lib/api/vclaim";
 import { Search } from "lucide-react";
 
 interface SEPLocal {
@@ -221,22 +221,22 @@ export default function RegistrationShow() {
     }
   };
 
-  const handleOpenEditPayment = () => {
-    if (registration) {
-      setPaymentForm({
-        payment_method: registration.payment_method || "cash",
-        bpjs_number: registration.bpjs_number || registration.patient?.no_bpjs || "",
-        insurance_name: registration.insurance_name || "",
-        insurance_number: registration.insurance_number || "",
-      });
-      // Reset SEP lookup states
-      setSepInputNumber("");
-      setFoundSEP(null);
-      setSepSearchError("");
-      setSelectedVisitId("");
-      setEditPaymentOpen(true);
-    }
-  };
+  // const handleOpenEditPayment = () => {
+  //   if (registration) {
+  //     setPaymentForm({
+  //       payment_method: registration.payment_method || "cash",
+  //       bpjs_number: registration.bpjs_number || registration.patient?.no_bpjs || "",
+  //       insurance_name: registration.insurance_name || "",
+  //       insurance_number: registration.insurance_number || "",
+  //     });
+  //     // Reset SEP lookup states
+  //     setSepInputNumber("");
+  //     setFoundSEP(null);
+  //     setSepSearchError("");
+  //     setSelectedVisitId("");
+  //     setEditPaymentOpen(true);
+  //   }
+  // };
 
   const handleSearchSEP = async () => {
     if (!sepInputNumber.trim()) return;
