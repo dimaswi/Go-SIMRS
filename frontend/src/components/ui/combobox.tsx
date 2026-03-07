@@ -2,7 +2,6 @@
 
 import * as React from "react"
 import { Check, ChevronsUpDown, Loader2 } from "lucide-react"
-
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
@@ -36,7 +35,7 @@ interface ComboboxProps {
   loading?: boolean
   className?: string
   tabIndex?: number
-  searchable?: boolean
+  //searchable?: boolean
 }
 
 export function Combobox({
@@ -51,7 +50,7 @@ export function Combobox({
   loading = false,
   className,
   tabIndex,
-  searchable = false,
+  //searchable = false,
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false)
 
