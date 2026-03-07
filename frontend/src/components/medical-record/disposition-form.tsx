@@ -167,7 +167,7 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
   const dispositionOptions = dispositionData
     .filter(item => !(item.code === 'rawat_inap' && pendingOrdersInfo?.is_inpatient))
     .filter(item => !['dod', 'doa'].includes(item.code))
-    .filter(item => item.code !== 'rawat_jalan' || isEmergency) // rawat_jalan only for UGD
+    .filter(item => item.code !== 'rawat_jalan' || _isEmergency) // rawat_jalan only for UGD
     .map(item => ({
       value: item.code,
       label: item.name,
