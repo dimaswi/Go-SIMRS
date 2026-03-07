@@ -1,5 +1,5 @@
 ﻿import { useEffect, useState, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import type { ColumnDef } from '@tanstack/react-table';
 import { DataTable } from '@/components/ui/data-table';
 import { Badge } from '@/components/ui/badge';
@@ -20,7 +20,7 @@ import { id as localeId } from 'date-fns/locale';
 
 export default function EklaimLogsPage() {
   const { id } = useParams();
-  const navigate = useNavigate();
+  //const navigate = useNavigate();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [logs, setLogs] = useState<EKlaimLocalLog[]>([]);
