@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+//import { useNavigate } from "react-router-dom";
 import type { ColumnDef } from "@tanstack/react-table";
 
 import { Button } from "@/components/ui/button";
@@ -45,7 +45,7 @@ import {
 import { cn } from "@/lib/utils";
 
 export default function BPJSLogsPage() {
-  const navigate = useNavigate();
+  //const navigate = useNavigate();
   const { toast } = useToast();
   
   const [loading, setLoading] = useState(true);
