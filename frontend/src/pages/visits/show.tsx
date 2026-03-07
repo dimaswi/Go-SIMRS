@@ -556,7 +556,7 @@ export default function VisitShow() {
             key={`unit-transfer-${visit.id}-${tabRefreshKey}`}
             visitId={visit.id}
             currentRoomId={visit.room_id}
-            currentDoctorId={visit.doctor_id}
+            //currentDoctorId={visit.doctor_id}
             serviceType={visit.room?.service_type || "rawat_jalan"}
             readOnly={isPatientDischarged}
             onTransferComplete={() => loadVisit(true)}
