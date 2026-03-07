@@ -30,7 +30,7 @@ import { cn } from "@/lib/utils";
 interface UnitTransferFormProps {
   visitId: number;
   currentRoomId?: number;
-  currentDoctorId?: number;
+  // currentDoctorId?: number;
   serviceType: string; // "rawat_jalan" | "gawat_darurat"
   readOnly?: boolean;
   onTransferComplete?: () => void;
@@ -48,7 +48,6 @@ function formatDoctorName(doctor: { nama_lengkap: string; gelar_depan?: string; 
 export function UnitTransferForm({
   visitId,
   currentRoomId,
-  currentDoctorId,
   serviceType,
   readOnly = false,
   onTransferComplete,
