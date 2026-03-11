@@ -9,7 +9,6 @@
  */
 
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -416,17 +415,8 @@ export function DeathCertificateForm({ visitId, deathType, onSave, readOnly = fa
   }
 
   return (
-    <Card>
-      <CardHeader className="py-3 px-4">
-        <CardTitle className="text-base font-semibold flex items-center gap-2">
-          <Skull className="h-4 w-4" />
-          Surat Kematian
-        </CardTitle>
-        <CardDescription>
-          Buat dan kelola surat kematian pasien
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="p-0">
+    <div>
+      <div className="p-0">
         {/* Inline Tabs with Underline */}
         <div className="border-b">
           <div className="flex">
@@ -857,7 +847,7 @@ export function DeathCertificateForm({ visitId, deathType, onSave, readOnly = fa
               </div>
             )}
         </div>
-      </CardContent>
+      </div>
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
@@ -877,6 +867,6 @@ export function DeathCertificateForm({ visitId, deathType, onSave, readOnly = fa
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </Card>
+    </div>
   );
 }

@@ -337,6 +337,14 @@ func Migrate() error {
 		&models.SickLetter{}, // Sick Letter - Surat Keterangan Sakit
 		// Death Certificates (Surat Kematian)
 		&models.DeathCertificate{}, // Death Certificate - Surat Kematian
+		// Health Certificates (Surat Keterangan Sehat)
+		&models.HealthCertificate{},
+		// Birth Certificates (Surat Keterangan Kelahiran)
+		&models.BirthCertificate{},
+		// Leave Certificates (Surat Keterangan Cuti)
+		&models.LeaveCertificate{},
+		// MCU Certificates (Medical Check-Up)
+		&models.MCUCertificate{},
 		// Medical Record Edit Logs (Audit Trail for edits after discharge)
 		&models.MedicalRecordEditLog{}, // Medical Record Edit Log - Log Edit RM setelah pulang
 		// Billing & Payment

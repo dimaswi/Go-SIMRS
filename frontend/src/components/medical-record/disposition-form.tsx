@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -12,7 +11,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  LogOut,
   Loader2,
   AlertTriangle,
   CheckCircle2,
@@ -1015,27 +1013,18 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
 
   if (loading) {
     return (
-      <Card>
-        <CardContent className="p-6 flex items-center justify-center min-h-[300px]">
+      <div>
+        <div className="p-6 flex items-center justify-center min-h-[300px]">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     );
   }
 
   return (
     <>
-      <Card>
-        <CardHeader className="py-3 px-4">
-          <CardTitle className="text-base font-semibold flex items-center gap-2">
-            <LogOut className="h-4 w-4" />
-            Pasien Pulang / Disposisi
-          </CardTitle>
-          <CardDescription>
-            Keputusan akhir terkait pemulangan, rawat inap, rujukan, atau tindakan lanjutan
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+      <div>
+        <div>
               {/* Pending Orders Warning */}
               {pendingOrdersInfo?.has_pending_orders && (
                 <Alert variant="destructive" className="mb-4">
@@ -1183,8 +1172,8 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
                   </div>
                 </div>
               )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Discharge Drawer (Pulang / APS) */}
       <DischargeDrawer

@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -379,33 +378,27 @@ export function PharmacyEditPrescription({ visitId, readOnly = false }: Pharmacy
 
   if (loading) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Edit Resep</CardTitle>
-        </CardHeader>
-        <CardContent className="p-4">
+      <div>
+        <div className="p-4">
           <div className="flex items-center justify-center py-8 gap-2">
             <Loader2 className="h-4 w-4 animate-spin" />
             <span className="text-muted-foreground">Memuat data...</span>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     );
   }
 
   if (orders.length === 0) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Edit Resep</CardTitle>
-        </CardHeader>
-        <CardContent className="p-4">
+      <div>
+        <div className="p-4">
           <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
             <Pill className="h-12 w-12 mb-4 opacity-50" />
             <p>Tidak ada order obat untuk visit ini</p>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     );
   }
 
@@ -421,17 +414,8 @@ export function PharmacyEditPrescription({ visitId, readOnly = false }: Pharmacy
 
   return (
     <>
-      <Card>
-        <CardHeader className="py-3 px-4">
-          <CardTitle className="text-base font-semibold flex items-center gap-2">
-            <Pill className="h-4 w-4" />
-            Edit Resep
-          </CardTitle>
-          <CardDescription>
-            Tambah, ubah, atau hapus obat dari resep sebelum ditelaah
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <div>
+        <div className="space-y-4">
               {/* Order Selection if multiple */}
               {orders.length > 1 && (
                 <div className="border rounded-lg p-3 bg-muted/30">
@@ -601,8 +585,8 @@ export function PharmacyEditPrescription({ visitId, readOnly = false }: Pharmacy
                   </div>
                 </>
               )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Add Item Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>

@@ -1,5 +1,4 @@
 import { useEffect, useState, useCallback } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -43,6 +42,7 @@ import {
   getCPPTProfessionLabel,
 } from "@/lib/api";
 import type { CPPT, CreateCPPTInput } from "@/lib/api";
+import { emitMedicalRecordTabIndicator } from "./tab-indicator";
 import {
   Loader2,
   Plus,
@@ -283,6 +283,11 @@ export function CPPTForm({ visitId, readOnly = false }: CPPTFormProps) {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [formData, setFormData] = useState<CreateCPPTInput>(defaultFormData);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+
+  useEffect(() => {
+    if (loading) return;
+    emitMedicalRecordTabIndicator("cppt", `${cppts.length}`);
+  }, [cppts.length, loading]);
   const [cpptToDelete, setCpptToDelete] = useState<number | null>(null);
 
   // Permissions
@@ -451,41 +456,23 @@ export function CPPTForm({ visitId, readOnly = false }: CPPTFormProps) {
 
   if (loading) {
     return (
-      <Card>
-        <CardHeader className="py-3 px-4">
-          <CardTitle className="text-base font-semibold flex items-center gap-2">
-            <ClipboardCheck className="h-4 w-4" />
-            CPPT - Catatan Perkembangan Pasien Terintegrasi
-          </CardTitle>
-          <CardDescription>
-            Catatan perkembangan harian pasien oleh berbagai profesi medis
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="p-4">
+      <div>
+        <div className="p-4">
           <div className="flex items-center justify-center py-8 gap-2">
             <Loader2 className="h-4 w-4 animate-spin" />
             <span className="text-muted-foreground">Memuat data...</span>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     );
   }
 
   return (
     <>
-      <Card>
-        <CardHeader className="py-3 px-4">
+      <div>
+        <div className="pb-2">
           <div className="flex items-center justify-between">
-            <div className="flex-1">
-              <CardTitle className="text-base font-semibold flex items-center gap-2">
-                <ClipboardCheck className="h-4 w-4" />
-                CPPT - Catatan Perkembangan Pasien Terintegrasi
-                <Badge variant="secondary" className="ml-2">{cppts.length} Catatan</Badge>
-              </CardTitle>
-              <CardDescription>
-                Catatan perkembangan harian pasien oleh berbagai profesi medis
-              </CardDescription>
-            </div>
+            
             {canCreate && !readOnly && (
               <Button onClick={handleOpenCreate} size="sm">
                 <Plus className="h-4 w-4 mr-1" />
@@ -493,8 +480,8 @@ export function CPPTForm({ visitId, readOnly = false }: CPPTFormProps) {
               </Button>
             )}
           </div>
-        </CardHeader>
-        <CardContent className="p-0">
+        </div>
+        <div className="p-0">
           {cppts.length > 0 ? (
             <div>
               {/* Table Header */}
@@ -532,8 +519,8 @@ export function CPPTForm({ visitId, readOnly = false }: CPPTFormProps) {
               <p className="text-sm mt-1">Klik "Tambah CPPT" untuk menambahkan catatan perkembangan.</p>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Create/Edit Modal - Fullscreen */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>

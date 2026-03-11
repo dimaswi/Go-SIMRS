@@ -1,5 +1,4 @@
 import { useEffect, useState, useCallback } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -51,6 +50,7 @@ import {
   getProblemStatusColor,
 } from "@/lib/api";
 import type { NursingCare, CreateNursingCareInput } from "@/lib/api";
+import { emitMedicalRecordTabIndicator } from "./tab-indicator";
 import {
   Loader2,
   Plus,
@@ -396,6 +396,11 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
   const [editingId, setEditingId] = useState<number | null>(null);
   const [formData, setFormData] = useState<CreateNursingCareInput>(defaultFormData);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+
+  useEffect(() => {
+    if (loading) return;
+    emitMedicalRecordTabIndicator("nursing-care", `${records.length}`);
+  }, [loading, records.length]);
   const [recordToDelete, setRecordToDelete] = useState<number | null>(null);
   const [activeFormTab, setActiveFormTab] = useState("pengkajian");
 
@@ -582,41 +587,23 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
 
   if (loading) {
     return (
-      <Card>
-        <CardHeader className="py-3 px-4">
-          <CardTitle className="text-base font-semibold flex items-center gap-2">
-            <HeartPulse className="h-4 w-4" />
-            Asuhan Keperawatan
-          </CardTitle>
-          <CardDescription>
-            Dokumentasi asuhan keperawatan berdasarkan SDKI-SLKI-SIKI
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="p-4">
+      <div>
+        <div className="p-4">
           <div className="flex items-center justify-center py-8 gap-2">
             <Loader2 className="h-4 w-4 animate-spin" />
             <span className="text-muted-foreground">Memuat data...</span>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     );
   }
 
   return (
     <>
-        <Card>
-          <CardHeader className="py-3 px-4">
+        <div>
+          <div className="pb-2">
             <div className="flex items-center justify-between">
-              <div className="flex-1">
-                <CardTitle className="text-base font-semibold flex items-center gap-2">
-                  <HeartPulse className="h-4 w-4" />
-                  Asuhan Keperawatan
-                  <Badge variant="secondary" className="ml-2">{records.length} Catatan</Badge>
-                </CardTitle>
-                <CardDescription>
-                  Dokumentasi asuhan keperawatan berdasarkan SDKI-SLKI-SIKI
-                </CardDescription>
-              </div>
+              
               {canCreate && !readOnly && (
                 <Button onClick={handleOpenCreate} size="sm">
                   <Plus className="h-4 w-4 mr-1" />
@@ -624,8 +611,8 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
                 </Button>
               )}
             </div>
-          </CardHeader>
-          <CardContent className="p-0">
+          </div>
+          <div className="p-0">
             {records.length > 0 ? (
               <div>
                 {/* Table Header */}
@@ -662,8 +649,8 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
                 <p className="text-sm mt-1">Klik "Tambah Asuhan" untuk menambahkan catatan.</p>
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* Create/Edit Modal - Fullscreen */}
         <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
@@ -715,12 +702,7 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
                 <ScrollArea className="h-full pr-4">
                   <div className="space-y-4 pb-4">
                 {/* Row 1 - Date, Shift */}
-                <div className="space-y-4">
-                  <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase flex items-center gap-2">
-                    <Calendar className="h-4 w-4" />
-                    Informasi Dasar
-                  </h3>
-                    <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-4"><div className="grid grid-cols-3 gap-4">
                       <div className="space-y-2">
                         <Label>Tanggal & Waktu</Label>
                         <Input
@@ -780,12 +762,7 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
                 </div>
 
                 {/* Vital Signs */}
-                <div className="space-y-4">
-                  <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase flex items-center gap-2">
-                    <Activity className="h-4 w-4" />
-                    Tanda Vital
-                  </h3>
-                  <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+                <div className="space-y-4"><div className="grid grid-cols-3 md:grid-cols-6 gap-3">
                     <div className="space-y-1">
                       <Label className="text-xs">TD (mmHg)</Label>
                       <Input
@@ -855,12 +832,7 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
                 </div>
 
                 {/* Risk Assessments */}
-                <div className="space-y-4">
-                  <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase flex items-center gap-2">
-                    <AlertTriangle className="h-4 w-4" />
-                    Pengkajian Risiko & Status Fungsional
-                  </h3>
-                    <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-4"><div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label>Status Fungsional (ADL)</Label>
                         <Select
@@ -951,12 +923,7 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
               <TabsContent value="diagnosis" className="flex-1 overflow-hidden mt-0">
                 <ScrollArea className="h-full pr-4">
                   <div className="space-y-4 pb-4">
-                <div className="space-y-4">
-                  <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase flex items-center gap-2">
-                    <FileText className="h-4 w-4" />
-                    Diagnosis Keperawatan (SDKI)
-                  </h3>
-                    <div className="grid grid-cols-3 gap-4 mb-4">
+                <div className="space-y-4"><div className="grid grid-cols-3 gap-4 mb-4">
                       <div className="col-span-2 space-y-2">
                         <Label>Diagnosis Keperawatan</Label>
                         <Textarea
@@ -999,12 +966,7 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
                 </div>
 
                 {/* Luaran */}
-                <div className="space-y-4">
-                  <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase flex items-center gap-2">
-                    <Target className="h-4 w-4" />
-                    Luaran Keperawatan (SLKI)
-                  </h3>
-                    <div className="grid grid-cols-3 gap-4 mb-4">
+                <div className="space-y-4"><div className="grid grid-cols-3 gap-4 mb-4">
                       <div className="col-span-2 space-y-2">
                         <Label>Luaran Keperawatan</Label>
                         <Textarea
@@ -1060,12 +1022,7 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
               <TabsContent value="intervensi" className="flex-1 overflow-hidden mt-0">
                 <ScrollArea className="h-full pr-4">
                   <div className="space-y-4 pb-4">
-                <div className="space-y-4">
-                  <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase flex items-center gap-2">
-                    <ClipboardList className="h-4 w-4" />
-                    Intervensi Keperawatan (SIKI)
-                  </h3>
-                    <div className="grid grid-cols-3 gap-4 mb-4">
+                <div className="space-y-4"><div className="grid grid-cols-3 gap-4 mb-4">
                       <div className="col-span-2 space-y-2">
                         <Label>Intervensi Keperawatan</Label>
                         <Textarea
@@ -1132,12 +1089,7 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
               <TabsContent value="implementasi" className="flex-1 overflow-hidden mt-0">
                 <ScrollArea className="h-full pr-4">
                   <div className="space-y-4 pb-4">
-                <div className="space-y-4">
-                  <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase flex items-center gap-2">
-                    <Stethoscope className="h-4 w-4" />
-                    Implementasi Keperawatan
-                  </h3>
-                    <div className="space-y-4">
+                <div className="space-y-4"><div className="space-y-4">
                       <div className="grid grid-cols-3 gap-4">
                         <div className="col-span-2 space-y-2">
                           <Label>Tindakan yang Dilakukan</Label>
@@ -1177,12 +1129,7 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
               <TabsContent value="evaluasi" className="flex-1 overflow-hidden mt-0">
                 <ScrollArea className="h-full pr-4">
                   <div className="space-y-4 pb-4">
-                <div className="space-y-4">
-                  <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase flex items-center gap-2">
-                    <CheckCircle className="h-4 w-4" />
-                    Evaluasi (SOAP)
-                  </h3>
-                    <div className="grid grid-cols-2 gap-4 mb-4">
+                <div className="space-y-4"><div className="grid grid-cols-2 gap-4 mb-4">
                       <div className="space-y-2">
                         <Label className="font-medium">S - Subjektif</Label>
                         <Textarea

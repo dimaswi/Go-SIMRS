@@ -1,13 +1,12 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { usePermission } from "@/hooks/usePermission";
 import { setPageTitle } from "@/lib/page-title";
-import { Loader2, History, PanelLeftClose, PanelLeft } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useBreadcrumb } from "@/contexts/breadcrumb-context";
-import { visitsApi, medicalRecordsApi } from "@/lib/api";
+import { visitsApi, medicalRecordsApi, cpptApi, fluidBalanceApi, nursingCareApi } from "@/lib/api";
 import { PatientInfo } from "@/components/medical-record/patient-info";
 import { MedicalRecordTabs } from "@/components/medical-record/medical-record-tabs";
 import { TriageForm } from "@/components/medical-record/triage-form";
@@ -38,9 +37,10 @@ import { ConsultationForm } from "@/components/medical-record/consultation-form"
 import { SurgeryOrderForm } from "@/components/medical-record/surgery-order-form";
 import { SurgeryWorkstation } from "@/components/medical-record/surgery-workstation";
 import { ProcedureEditOrder } from "@/components/medical-record/procedure-edit-order";
-import { SickLetterForm } from "@/components/medical-record/sick-letter-form";
-import { DeathCertificateForm } from "@/components/medical-record/death-certificate-form";
+import { SuratForm } from "@/components/medical-record/surat-form";
 import { VisitHistoryDrawer } from "@/components/medical-record/visit-history-drawer";
+import { CopyFromHistoryDrawer } from "@/components/medical-record/copy-from-history-drawer";
+import { MEDICAL_RECORD_TAB_INDICATOR_EVENT, MEDICAL_RECORD_TAB_SAVED_EVENT, emitMedicalRecordTabIndicator, emitMedicalRecordTabSaved } from "@/components/medical-record/tab-indicator";
 
 export default function VisitShow() {
   const { id } = useParams<{ id: string }>();
@@ -51,7 +51,7 @@ export default function VisitShow() {
   const [visit, setVisit] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<string>("");
-  const [tabRefreshKey, setTabRefreshKey] = useState(0);
+  const [mountedTabs, setMountedTabs] = useState<Set<string>>(new Set());
   const [isEmergency, setIsEmergency] = useState(false);
   const [isPharmacy, setIsPharmacy] = useState(false);
   const [isRadiology, setIsRadiology] = useState(false);
@@ -61,26 +61,25 @@ export default function VisitShow() {
   const [showProcedureTab, setShowProcedureTab] = useState(false);
   const [isInpatient, setIsInpatient] = useState(false);
   const [isPatientDischarged, setIsPatientDischarged] = useState(false);
-  const [sidebarHidden, setSidebarHidden] = useState(() => {
-    const saved = localStorage.getItem('medicalRecordSidebarHidden');
-    return saved ? JSON.parse(saved) : false;
-  });
+  const [tabIndicators, setTabIndicators] = useState<Record<string, string>>({});
+  const [tabSavedStates, setTabSavedStates] = useState<Record<string, boolean>>({});
   const [historyDrawerOpen, setHistoryDrawerOpen] = useState(false);
+  const [copyHistoryDrawerOpen, setCopyHistoryDrawerOpen] = useState(false);
   const [patientId, setPatientId] = useState<number | null>(null);
   const [patientName, setPatientName] = useState<string>("");
   const { setOverride } = useBreadcrumb();
 
-  // Refresh tab content when switching tabs
+  // Track visited tabs so they stay mounted (preserve unsaved form state)
+  useEffect(() => {
+    if (activeTab) {
+      setMountedTabs(prev => new Set([...prev, activeTab]));
+    }
+  }, [activeTab]);
+
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
-    setTabRefreshKey(prev => prev + 1);
   };
   
-  // Save sidebar state to localStorage when it changes
-  useEffect(() => {
-    localStorage.setItem('medicalRecordSidebarHidden', JSON.stringify(sidebarHidden));
-  }, [sidebarHidden]);
-
   // Update breadcrumb with patient name when available
   useEffect(() => {
     if (patientName) {
@@ -108,6 +107,9 @@ export default function VisitShow() {
       setShowProcedureTab(false);
       setIsInpatient(false);
       setIsPatientDischarged(false);
+      setTabIndicators({});
+      setTabSavedStates({});
+      setMountedTabs(new Set());
       
       // Load the visit data (this will set the correct default tab)
       loadVisit();
@@ -180,6 +182,9 @@ export default function VisitShow() {
                         visitData.registration?.status === "discharged" ||
                         visitData.status === "completed";
       setIsPatientDischarged(discharged);
+
+      // Pre-load tab indicators for all medical record sections
+      preloadTabIndicators(Number(id));
 
       // Set default active tab based on visit type and permissions (only on first load)
       if (!activeTab) {
@@ -259,10 +264,129 @@ export default function VisitShow() {
     }
   };
 
+  // Pre-load tab indicators from API so they appear immediately without opening each tab
+  const preloadTabIndicators = async (visitId: number) => {
+    try {
+      const res = await medicalRecordsApi.get(visitId);
+      const summary = res.data;
+
+      // Anamnesis: count filled fields out of 7
+      // Note: allergies are counted from structured patient allergies by the form itself,
+      // but preload can only check the legacy text field. The form will update the count on mount.
+      if (summary.anamnesis) {
+        const a = summary.anamnesis;
+        const textFields = [a.chief_complaint, a.history_of_present_illness, a.past_medical_history, a.family_history, a.social_history, a.current_medications];
+        const filledText = textFields.filter(v => v && v.trim() !== "").length;
+        const hasLegacyAllergy = a.allergies && a.allergies.trim() !== "";
+        const filled = filledText + (hasLegacyAllergy ? 1 : 0);
+        emitMedicalRecordTabIndicator("anamnesis", `${filled}/7`);
+        emitMedicalRecordTabSaved("anamnesis", !!a.id && filled > 0);
+      } else {
+        emitMedicalRecordTabIndicator("anamnesis", "0/7");
+      }
+
+      // Physical Exam: count body sections (13) + vital signs (8) = total 21
+      if (summary.physical_exam) {
+        const p = summary.physical_exam;
+        const bodySectionIds = ["head", "eyes", "ears", "nose", "throat", "neck", "chest", "heart", "lungs", "abdomen", "extremities", "skin", "neurological"];
+        const filledBody = bodySectionIds.filter(id => {
+          const val = p[id as keyof typeof p];
+          return val && typeof val === "string" && val.trim() !== "";
+        }).length;
+        const filledVitals = [
+          p.general_condition ? 1 : 0,
+          p.consciousness ? 1 : 0,
+          (p.blood_pressure_systolic || p.systolic) ? 1 : 0,
+          (p.blood_pressure_diastolic || p.diastolic) ? 1 : 0,
+          p.heart_rate ? 1 : 0,
+          p.respiratory_rate ? 1 : 0,
+          p.temperature ? 1 : 0,
+          p.oxygen_saturation ? 1 : 0,
+        ].reduce((a, b) => a + b, 0);
+        const totalFilled = filledBody + filledVitals;
+        emitMedicalRecordTabIndicator("physical-exam", `${totalFilled}/21`);
+        emitMedicalRecordTabSaved("physical-exam", !!p.id && totalFilled > 0);
+      } else {
+        emitMedicalRecordTabIndicator("physical-exam", "0/21");
+      }
+
+      // Diagnosis: count items + clinical_impression + differential_diagnosis
+      if (summary.diagnosis) {
+        const d = summary.diagnosis;
+        const count = (d.items?.length || 0) + (d.clinical_impression?.trim() ? 1 : 0) + (d.differential_diagnosis?.trim() ? 1 : 0);
+        emitMedicalRecordTabIndicator("diagnosis", `${count}`);
+        emitMedicalRecordTabSaved("diagnosis", count > 0);
+      } else {
+        emitMedicalRecordTabIndicator("diagnosis", "0");
+      }
+
+      // Assessment Plan: count filled fields out of 10
+      if (summary.assessment_plan) {
+        const ap = summary.assessment_plan;
+        const apFields = [ap.clinical_assessment, ap.treatment_plan, ap.prognosis, ap.medication_plan, ap.diet_plan, ap.activity_plan, ap.education_plan, ap.procedure_plan, ap.consultation_plan, ap.monitoring_plan];
+        const filledAP = apFields.filter(v => v && v.trim() !== "").length;
+        emitMedicalRecordTabIndicator("assessment-plan", `${filledAP}/10`);
+        emitMedicalRecordTabSaved("assessment-plan", !!ap.id && filledAP > 0);
+      } else {
+        emitMedicalRecordTabIndicator("assessment-plan", "0/10");
+      }
+    } catch {
+      // Ignore — indicators will be set when forms mount
+    }
+
+    // CPPT, Nursing Care, Fluid Balance — separate API calls (not in summary)
+    const listIndicators = [
+      { key: "cppt", fetch: () => cpptApi.getAll(visitId) },
+      { key: "nursing-care", fetch: () => nursingCareApi.getAll(visitId) },
+      { key: "fluid-balance", fetch: () => fluidBalanceApi.getAll(visitId) },
+    ];
+    await Promise.allSettled(
+      listIndicators.map(async ({ key, fetch }) => {
+        try {
+          const r = await fetch();
+          const count = r.data?.data?.length ?? 0;
+          emitMedicalRecordTabIndicator(key, `${count}`);
+        } catch {
+          // ignore
+        }
+      })
+    );
+  };
+
   // Callback to refresh visit data after status-changing operations
   const handleVisitUpdate = () => {
     loadVisit(true); // Silent reload to update visit data without showing loading state
   };
+
+  useEffect(() => {
+    const handleIndicatorUpdate = (event: Event) => {
+      const customEvent = event as CustomEvent<{ tabId: string; value: string }>;
+      const detail = customEvent.detail;
+      if (!detail?.tabId) {
+        return;
+      }
+
+      setTabIndicators((prev) => ({
+        ...prev,
+        [detail.tabId]: detail.value,
+      }));
+    };
+
+    const handleSavedUpdate = (event: Event) => {
+      const customEvent = event as CustomEvent<{ tabId: string; saved: boolean }>;
+      const detail = customEvent.detail;
+      if (!detail?.tabId) return;
+      setTabSavedStates((prev) => ({ ...prev, [detail.tabId]: detail.saved }));
+    };
+
+    window.addEventListener(MEDICAL_RECORD_TAB_INDICATOR_EVENT, handleIndicatorUpdate as EventListener);
+    window.addEventListener(MEDICAL_RECORD_TAB_SAVED_EVENT, handleSavedUpdate as EventListener);
+
+    return () => {
+      window.removeEventListener(MEDICAL_RECORD_TAB_INDICATOR_EVENT, handleIndicatorUpdate as EventListener);
+      window.removeEventListener(MEDICAL_RECORD_TAB_SAVED_EVENT, handleSavedUpdate as EventListener);
+    };
+  }, []);
 
   // Handle visit selection from history sidebar
   const handleVisitSelect = (visitId: number) => {
@@ -278,6 +402,7 @@ export default function VisitShow() {
         title: "Berhasil",
         description: "Data triase berhasil disimpan",
       });
+      emitMedicalRecordTabSaved("triage", true);
       // Trigger refresh print options dan final visit
       window.dispatchEvent(new CustomEvent("refresh-print-options"));
       window.dispatchEvent(new CustomEvent("refresh-final-visit"));
@@ -297,6 +422,7 @@ export default function VisitShow() {
         title: "Berhasil",
         description: "Data anamnesis berhasil disimpan",
       });
+      emitMedicalRecordTabSaved("anamnesis", true);
       // Trigger refresh print options dan final visit
       window.dispatchEvent(new CustomEvent("refresh-print-options"));
       window.dispatchEvent(new CustomEvent("refresh-final-visit"));
@@ -316,6 +442,7 @@ export default function VisitShow() {
         title: "Berhasil",
         description: "Data pemeriksaan fisik berhasil disimpan",
       });
+      emitMedicalRecordTabSaved("physical-exam", true);
       // Trigger refresh print options dan final visit
       window.dispatchEvent(new CustomEvent("refresh-print-options"));
       window.dispatchEvent(new CustomEvent("refresh-final-visit"));
@@ -335,6 +462,7 @@ export default function VisitShow() {
         title: "Berhasil",
         description: "Data diagnosis berhasil disimpan",
       });
+      emitMedicalRecordTabSaved("diagnosis", true);
       // Trigger refresh print options dan final visit
       window.dispatchEvent(new CustomEvent("refresh-print-options"));
       window.dispatchEvent(new CustomEvent("refresh-final-visit"));
@@ -347,7 +475,7 @@ export default function VisitShow() {
     }
   };
 
-  const renderActiveTabContent = () => {
+  const renderTabContent = (tab: string) => {
     if (!visit) return null;
 
     // Derive support visit types directly from visit data to avoid stale state
@@ -370,7 +498,7 @@ export default function VisitShow() {
       </Card>
     );
 
-    switch (activeTab) {
+    switch (tab) {
       case "triage":
         // Triage only for emergency visits
         if (!isEmergency) {
@@ -467,7 +595,7 @@ export default function VisitShow() {
             </Card>
           );
         }
-        return <ProcedureForm key={`procedure-${visit.id}-${tabRefreshKey}`} visitId={visit.id} readOnly={isPatientDischarged} />;
+        return <ProcedureForm key={`procedure-${visit.id}`} visitId={visit.id} readOnly={isPatientDischarged} />;
       case "cppt":
         // CPPT only for inpatient visits
         if (!isInpatient) {
@@ -482,7 +610,7 @@ export default function VisitShow() {
             </Card>
           );
         }
-        return <CPPTForm key={`cppt-${visit.id}-${tabRefreshKey}`} visitId={visit.id} readOnly={isPatientDischarged} />;
+        return <CPPTForm key={`cppt-${visit.id}`} visitId={visit.id} readOnly={isPatientDischarged} />;
       case "nursing-care":
         // Nursing care only for inpatient visits
         if (!isInpatient) {
@@ -497,7 +625,7 @@ export default function VisitShow() {
             </Card>
           );
         }
-        return <NursingCareForm key={`nursing-care-${visit.id}-${tabRefreshKey}`} visitId={visit.id} readOnly={isPatientDischarged} />;
+        return <NursingCareForm key={`nursing-care-${visit.id}`} visitId={visit.id} readOnly={isPatientDischarged} />;
       case "fluid-balance":
         // Fluid balance only for inpatient visits
         if (!isInpatient) {
@@ -512,7 +640,7 @@ export default function VisitShow() {
             </Card>
           );
         }
-        return <FluidBalanceForm key={`fluid-balance-${visit.id}-${tabRefreshKey}`} visitId={visit.id} readOnly={isPatientDischarged} />;
+        return <FluidBalanceForm key={`fluid-balance-${visit.id}`} visitId={visit.id} readOnly={isPatientDischarged} />;
       case "bed-transfer":
         // Bed transfer only for inpatient visits
         if (!isInpatient) {
@@ -529,7 +657,7 @@ export default function VisitShow() {
         }
         return (
           <BedTransferForm
-            key={`bed-transfer-${visit.id}-${tabRefreshKey}`}
+            key={`bed-transfer-${visit.id}`}
             visitId={visit.id}
             currentRoomId={visit.room_id}
             currentBedId={visit.bed_id}
@@ -553,7 +681,7 @@ export default function VisitShow() {
         }
         return (
           <UnitTransferForm
-            key={`unit-transfer-${visit.id}-${tabRefreshKey}`}
+            key={`unit-transfer-${visit.id}`}
             visitId={visit.id}
             currentRoomId={visit.room_id}
             //currentDoctorId={visit.doctor_id}
@@ -578,7 +706,7 @@ export default function VisitShow() {
         }
         return (
           <NutritionOrderForm
-            key={`nutrition-order-${visit.id}-${tabRefreshKey}`}
+            key={`nutrition-order-${visit.id}`}
             visitId={visit.id}
             readOnly={isPatientDischarged}
           />
@@ -706,7 +834,7 @@ export default function VisitShow() {
             </Card>
           );
         }
-        return <ProcedureEditOrder key={`surgery-edit-${visit.id}-${tabRefreshKey}`} visitId={visit.id} orderType="surgery" readOnly={visit.status === "completed"} />;
+        return <ProcedureEditOrder key={`surgery-edit-${visit.id}`} visitId={visit.id} orderType="surgery" readOnly={visit.status === "completed"} />;
 
       // Surgery workstation tab - ONLY for surgery visits
       case "surgery-workstation":
@@ -719,7 +847,7 @@ export default function VisitShow() {
             </Card>
           );
         }
-        return <SurgeryWorkstation key={`surgery-ws-${visit.id}-${tabRefreshKey}`} visitId={visit.id} readOnly={visit.status === "completed"} />;
+        return <SurgeryWorkstation key={`surgery-ws-${visit.id}`} visitId={visit.id} readOnly={visit.status === "completed"} />;
 
       case "surgery-final":
         if (!hasPermission("procedure_orders.final")) {
@@ -731,7 +859,7 @@ export default function VisitShow() {
             </Card>
           );
         }
-        return <FinalVisit key={`surgery-final-${visit.id}-${tabRefreshKey}`} visitId={visit.id} type="surgery" onVisitUpdate={handleVisitUpdate} />;
+        return <FinalVisit key={`surgery-final-${visit.id}`} visitId={visit.id} type="surgery" onVisitUpdate={handleVisitUpdate} />;
 
       // Consultation tab - form jawaban konsultasi (ONLY for consultation order visits)
       case "consultation":
@@ -744,7 +872,7 @@ export default function VisitShow() {
             </Card>
           );
         }
-        return <ConsultationForm key={`consultation-${visit.id}-${tabRefreshKey}`} visitId={visit.id} readOnly={isPatientDischarged} />;
+        return <ConsultationForm key={`consultation-${visit.id}`} visitId={visit.id} readOnly={isPatientDischarged} />;
 
       case "consultation-final":
         if (!hasPermission("procedure_orders.final")) {
@@ -756,10 +884,10 @@ export default function VisitShow() {
             </Card>
           );
         }
-        return <FinalVisit key={`consultation-final-${visit.id}-${tabRefreshKey}`} visitId={visit.id} type="consultation" onVisitUpdate={handleVisitUpdate} />;
+        return <FinalVisit key={`consultation-final-${visit.id}`} visitId={visit.id} type="consultation" onVisitUpdate={handleVisitUpdate} />;
 
-      case "sick-letter":
-        // Sick letter only for clinical visits (not support visits)
+      case "surat":
+        // Surat only for clinical visits (not support visits)
         if (isSupportVisit) {
           return renderWrongVisitTypeMessage("klinis (Rawat Jalan/Rawat Inap/UGD)");
         }
@@ -767,28 +895,12 @@ export default function VisitShow() {
           return (
             <Card className="p-6">
               <p className="text-center text-muted-foreground">
-                Anda tidak memiliki akses untuk Surat Keterangan Sakit
+                Anda tidak memiliki akses untuk Surat
               </p>
             </Card>
           );
         }
-        return <SickLetterForm key={`sick-letter-${visit.id}-${tabRefreshKey}`} visitId={visit.id} readOnly={isPatientDischarged} />;
-
-      case "death-certificate":
-        // Death certificate only for clinical visits (not support visits)
-        if (isSupportVisit) {
-          return renderWrongVisitTypeMessage("klinis (Rawat Jalan/Rawat Inap/UGD)");
-        }
-        if (!hasPermission("medical_records.death_certificate")) {
-          return (
-            <Card className="p-6">
-              <p className="text-center text-muted-foreground">
-                Anda tidak memiliki akses untuk Surat Kematian
-              </p>
-            </Card>
-          );
-        }
-        return <DeathCertificateForm key={`death-certificate-${visit.id}-${tabRefreshKey}`} visitId={visit.id} readOnly={isPatientDischarged} />;
+        return <SuratForm key={`surat-${visit.id}`} visitId={visit.id} readOnly={isPatientDischarged} />;
 
       case "disposition":
         // Disposition only for clinical visits (not support visits)
@@ -817,7 +929,7 @@ export default function VisitShow() {
             </Card>
           );
         }
-        return <PharmacyEditPrescription key={`edit-${visit.id}-${tabRefreshKey}`} visitId={visit.id} readOnly={visit.status === "completed"} />;
+        return <PharmacyEditPrescription key={`edit-${visit.id}`} visitId={visit.id} readOnly={visit.status === "completed"} />;
       case "prescription-review":
         if (!hasPermission("pharmacy.review")) {
           return (
@@ -828,7 +940,7 @@ export default function VisitShow() {
             </Card>
           );
         }
-        return <PharmacyReview key={`review-${visit.id}-${tabRefreshKey}`} visitId={visit.id} readOnly={visit.status === "completed"} />;
+        return <PharmacyReview key={`review-${visit.id}`} visitId={visit.id} readOnly={visit.status === "completed"} />;
       case "medicine-dispense":
         if (!hasPermission("pharmacy.dispense")) {
           return (
@@ -839,7 +951,7 @@ export default function VisitShow() {
             </Card>
           );
         }
-        return <PharmacyDispense key={`dispense-${visit.id}-${tabRefreshKey}`} visitId={visit.id} readOnly={visit.status === "completed"} />;
+        return <PharmacyDispense key={`dispense-${visit.id}`} visitId={visit.id} readOnly={visit.status === "completed"} />;
       case "medicine-return":
         if (!hasPermission("pharmacy.return")) {
           return (
@@ -850,7 +962,7 @@ export default function VisitShow() {
             </Card>
           );
         }
-        return <PharmacyReturn key={`return-${visit.id}-${tabRefreshKey}`} visitId={visit.id} readOnly={visit.status === "completed"} />;
+        return <PharmacyReturn key={`return-${visit.id}`} visitId={visit.id} readOnly={visit.status === "completed"} />;
       
       case "pharmacy-final":
         if (!hasPermission("pharmacy.final")) {
@@ -862,7 +974,7 @@ export default function VisitShow() {
             </Card>
           );
         }
-        return <FinalVisit key={`pharmacy-final-${visit.id}-${tabRefreshKey}`} visitId={visit.id} type="pharmacy" onVisitUpdate={handleVisitUpdate} />;
+        return <FinalVisit key={`pharmacy-final-${visit.id}`} visitId={visit.id} type="pharmacy" onVisitUpdate={handleVisitUpdate} />;
       
       // Radiology edit order tab - ONLY for radiology visits
       case "radiology-edit":
@@ -875,7 +987,7 @@ export default function VisitShow() {
             </Card>
           );
         }
-        return <ProcedureEditOrder key={`radiology-edit-${visit.id}-${tabRefreshKey}`} visitId={visit.id} orderType="radiology" readOnly={visit.status === "completed"} />;
+        return <ProcedureEditOrder key={`radiology-edit-${visit.id}`} visitId={visit.id} orderType="radiology" readOnly={visit.status === "completed"} />;
 
       // Radiology workstation tab - ONLY for radiology visits
       case "radiology-workstation":
@@ -888,7 +1000,7 @@ export default function VisitShow() {
             </Card>
           );
         }
-        return <RadiologyWorkstation key={`radiology-ws-${visit.id}-${tabRefreshKey}`} visitId={visit.id} readOnly={visit.status === "completed"} />;
+        return <RadiologyWorkstation key={`radiology-ws-${visit.id}`} visitId={visit.id} readOnly={visit.status === "completed"} />;
       
       case "radiology-final":
         if (!hasPermission("procedure_orders.final")) {
@@ -900,7 +1012,7 @@ export default function VisitShow() {
             </Card>
           );
         }
-        return <FinalVisit key={`radiology-final-${visit.id}-${tabRefreshKey}`} visitId={visit.id} type="radiology" onVisitUpdate={handleVisitUpdate} />;
+        return <FinalVisit key={`radiology-final-${visit.id}`} visitId={visit.id} type="radiology" onVisitUpdate={handleVisitUpdate} />;
       
       // Laboratory edit order tab - ONLY for laboratory visits
       case "laboratory-edit":
@@ -913,7 +1025,7 @@ export default function VisitShow() {
             </Card>
           );
         }
-        return <ProcedureEditOrder key={`laboratory-edit-${visit.id}-${tabRefreshKey}`} visitId={visit.id} orderType="laboratory" readOnly={visit.status === "completed"} />;
+        return <ProcedureEditOrder key={`laboratory-edit-${visit.id}`} visitId={visit.id} orderType="laboratory" readOnly={visit.status === "completed"} />;
 
       // Laboratory workstation tab - ONLY for laboratory visits
       case "laboratory-workstation":
@@ -926,7 +1038,7 @@ export default function VisitShow() {
             </Card>
           );
         }
-        return <LaboratoryWorkstation key={`laboratory-ws-${visit.id}-${tabRefreshKey}`} visitId={visit.id} readOnly={visit.status === "completed"} />;
+        return <LaboratoryWorkstation key={`laboratory-ws-${visit.id}`} visitId={visit.id} readOnly={visit.status === "completed"} />;
 
       case "laboratory-final":
         if (!hasPermission("procedure_orders.final")) {
@@ -938,7 +1050,7 @@ export default function VisitShow() {
             </Card>
           );
         }
-        return <FinalVisit key={`laboratory-final-${visit.id}-${tabRefreshKey}`} visitId={visit.id} type="laboratory" onVisitUpdate={handleVisitUpdate} />;
+        return <FinalVisit key={`laboratory-final-${visit.id}`} visitId={visit.id} type="laboratory" onVisitUpdate={handleVisitUpdate} />;
 
       default:
         return null;
@@ -959,80 +1071,38 @@ export default function VisitShow() {
 
   return (
     <div>
-      {/* Patient Info Header - Sticky */}
-      <div className="sticky top-0 z-40 bg-background px-6 pt-4 pb-2 border-b">
-        <PatientInfo visit={visit} />
+      {/* Patient Info + Tabs Header - Sticky */}
+      <div className="sticky top-0 z-40 bg-background">
+        <div className="px-6 pt-4 pb-2">
+        <PatientInfo visit={visit} onCopyHistoryOpen={() => setCopyHistoryDrawerOpen(true)} />
+        </div>
+
+        <div className="px-6 pb-2">
+          <MedicalRecordTabs
+            activeTab={activeTab}
+            onTabChange={handleTabChange}
+            indicators={tabIndicators}
+            savedStates={tabSavedStates}
+            isEmergency={isEmergency}
+            isPharmacy={isPharmacy}
+            isRadiology={isRadiology}
+            isLaboratory={isLaboratory}
+            isConsultation={isConsultation}
+            isSurgery={isSurgery}
+            showProcedureTab={showProcedureTab}
+            isInpatient={isInpatient}
+          />
+        </div>
       </div>
 
       {/* Main Content Area with Tabs and Form */}
-      <div className="px-6 pb-6 pt-4">
-        <div className="flex gap-6">
-          {/* Left Sidebar: Menu Navigation */}
-          <div className={`self-start sticky top-[80px] z-30 transition-all duration-300 ease-in-out ${
-            sidebarHidden ? 'w-0 overflow-hidden opacity-0' : 'w-[190px] opacity-100'
-          } flex-shrink-0`}>
-            <div className="w-[190px]">
-              {/* Sidebar Header */}
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider px-2.5">
-                  Menu
-                </h3>
-                <div className="flex items-center gap-0.5">
-                  {patientId && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 w-6 p-0 rounded-full"
-                      onClick={() => setHistoryDrawerOpen(true)}
-                      title="Riwayat Kunjungan"
-                    >
-                      <History className="h-3.5 w-3.5 text-muted-foreground" />
-                    </Button>
-                  )}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 w-6 p-0 rounded-full"
-                    onClick={() => setSidebarHidden(true)}
-                    title="Sembunyikan sidebar"
-                  >
-                    <PanelLeftClose className="h-3.5 w-3.5 text-muted-foreground" />
-                  </Button>
-                </div>
-              </div>
-              
-              <MedicalRecordTabs
-                activeTab={activeTab}
-                onTabChange={handleTabChange}
-                isEmergency={isEmergency}
-                isPharmacy={isPharmacy}
-                isRadiology={isRadiology}
-                isLaboratory={isLaboratory}
-                isConsultation={isConsultation}
-                isSurgery={isSurgery}
-                showProcedureTab={showProcedureTab}
-                isInpatient={isInpatient}
-              />
+      <div className="px-6 pb-6 pt-2">
+        <div className="min-w-0">
+          {Array.from(mountedTabs).map(tab => (
+            <div key={tab} className={tab === activeTab ? undefined : "hidden"}>
+              {renderTabContent(tab)}
             </div>
-          </div>
-
-          {/* Toggle Button to Show Sidebar */}
-          {sidebarHidden && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setSidebarHidden(false)}
-              className="self-start sticky top-[80px] h-8 w-8 p-0 rounded-full z-30 flex-shrink-0"
-              title="Tampilkan sidebar"
-            >
-              <PanelLeft className="h-4 w-4" />
-            </Button>
-          )}
-
-          {/* Right Content: Active Tab Form */}
-          <div className="flex-1 min-w-0">
-            {renderActiveTabContent()}
-          </div>
+          ))}
         </div>
       </div>
 
@@ -1047,6 +1117,17 @@ export default function VisitShow() {
           currentServiceType={visit?.room?.service_type}
           patientName={patientName}
           onVisitSelect={handleVisitSelect}
+        />
+      )}
+
+      {/* Copy from History Drawer */}
+      {patientId && (
+        <CopyFromHistoryDrawer
+          open={copyHistoryDrawerOpen}
+          onOpenChange={setCopyHistoryDrawerOpen}
+          patientId={patientId}
+          currentVisitId={Number(id)}
+          patientName={patientName}
         />
       )}
     </div>

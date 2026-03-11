@@ -84,6 +84,14 @@ func SetupPrintRoutes(api *gin.RouterGroup) {
 		// G. Surat-Surat
 		// Referral letter PDF (Surat Rujukan)
 		print.GET("/referral-letter/:visitId", handlers.PrintReferralLetter)
+		// Health certificate PDF (Surat Keterangan Sehat)
+		print.GET("/health-certificate/:visitId", handlers.PrintHealthCertificate)
+		// Birth certificate PDF (Surat Keterangan Kelahiran)
+		print.GET("/birth-certificate/:visitId", handlers.PrintBirthCertificate)
+		// Leave certificate PDF (Surat Keterangan Cuti)
+		print.GET("/leave-certificate/:visitId", handlers.PrintLeaveCertificate)
+		// MCU certificate PDF (Surat Keterangan MCU)
+		print.GET("/mcu-certificate/:visitId", handlers.PrintMCUCertificate)
 
 		// H. Billing & Kasir
 		// Billing/Invoice PDF (Kwitansi)

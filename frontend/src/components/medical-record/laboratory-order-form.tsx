@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { usePermission } from "@/hooks/usePermission";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -535,17 +534,8 @@ export function LaboratoryOrderForm({ visitId, readOnly = false }: LaboratoryOrd
   }
 
   return (
-    <Card>
-      <CardHeader className="py-3 px-4">
-        <CardTitle className="text-base font-semibold flex items-center gap-2">
-          <TestTube className="h-4 w-4" />
-          Order Laboratorium
-        </CardTitle>
-        <CardDescription>
-          Kelola pemeriksaan laboratorium untuk pasien
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="p-0">
+    <div>
+      <div className="p-0">
         {/* Inline Tabs with Underline */}
         <div className="border-b">
           <div className="flex">
@@ -776,7 +766,7 @@ export function LaboratoryOrderForm({ visitId, readOnly = false }: LaboratoryOrd
               </div>
             )}
         </div>
-      </CardContent>
+      </div>
 
       {/* Cancel Confirmation Dialog */}
       <AlertDialog open={!!cancelConfirmOrderId} onOpenChange={(open) => !open && setCancelConfirmOrderId(null)}>
@@ -798,6 +788,6 @@ export function LaboratoryOrderForm({ visitId, readOnly = false }: LaboratoryOrd
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </Card>
+    </div>
   );
 }

@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -266,24 +265,19 @@ export function NutritionOrderForm({ visitId, readOnly = false }: NutritionOrder
 
       {/* Orders list */}
       {orders.length === 0 ? (
-        <Card>
-          <CardContent className="py-8">
+        <div>
+          <div className="py-8">
             <p className="text-center text-muted-foreground text-sm">
               Belum ada order gizi untuk pasien ini.
             </p>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       ) : (
         Object.entries(ordersByDate)
           .sort(([a], [b]) => b.localeCompare(a))
           .map(([date, dateOrders]) => (
-            <Card key={date}>
-              <CardHeader className="py-3 px-4">
-                <CardTitle className="text-sm font-medium">
-                  {new Date(date).toLocaleDateString("id-ID", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="px-4 pb-4 space-y-3">
+            <div key={date}>
+              <div className="px-4 pb-4 space-y-3">
                 {dateOrders
                   .sort((a, b) => {
                     const order = ["pagi", "snack_pagi", "siang", "snack_sore", "sore", "snack_malam"];
@@ -350,8 +344,8 @@ export function NutritionOrderForm({ visitId, readOnly = false }: NutritionOrder
                       </div>
                     </div>
                   ))}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           ))
       )}
 

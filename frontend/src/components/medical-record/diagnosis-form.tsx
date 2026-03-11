@@ -1,12 +1,11 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Combobox } from "@/components/ui/combobox";
-import { Save, Plus, X, Loader2, ChevronDown, ChevronUp, FileText, Stethoscope, AlertCircle, Search } from "lucide-react";
+import { Save, Plus, X, Loader2, ChevronDown, ChevronUp, Stethoscope, AlertCircle, Search } from "lucide-react";
 import {
   Command,
   CommandEmpty,
@@ -24,6 +23,9 @@ import { useMultipleMasterData } from "@/hooks/useMasterData";
 import { medicalRecordsApi } from "@/lib/api";
 import { medicalRecordEditLogApi } from "@/lib/api/visits";
 import { useEditMode, EditModeBanner, EditConfirmDialog, PINVerificationDialog } from "./edit-mode-controller";
+import { emitMedicalRecordTabIndicator, emitMedicalRecordTabSaved, MEDICAL_RECORD_TAB_SAVED_EVENT } from "./tab-indicator";
+import { COPY_FROM_HISTORY_EVENT } from "./copy-from-history-drawer";
+import { saveFormDraft, loadFormDraft, clearFormDraft, loadPendingCopy, clearPendingCopy } from "@/lib/form-persistence";
 import { icd10Api, type ICD10 } from "@/lib/api/icd";
 import { useDebounce } from "@/hooks/use-debounce";
 import type { Diagnosis as DiagnosisData, DiagnosisItem } from "@/lib/api";
@@ -128,6 +130,7 @@ export function DiagnosisForm({ visitId, onSave, readOnly = false, isPatientDisc
   // Load existing data on mount
   useEffect(() => {
     const loadDiagnosis = async () => {
+      let serverDataLoaded = false;
       try {
         setLoading(true);
         const response = await medicalRecordsApi.getDiagnosis(visitId);
@@ -153,11 +156,48 @@ export function DiagnosisForm({ visitId, onSave, readOnly = false, isPatientDisc
               setDiagnosisId(data.items[0].id);
             }
           }
+          if ((data.items && data.items.length > 0) || data.clinical_impression || data.differential_diagnosis) {
+            serverDataLoaded = true;
+            emitMedicalRecordTabSaved("diagnosis", true);
+          }
         }
       } catch {
         // No existing data, use defaults
       } finally {
         setLoading(false);
+        // Apply local draft only if server had no saved data (prevents overriding saved data)
+        if (!serverDataLoaded) {
+          const draft = loadFormDraft<{ diagnoses: typeof diagnoses; clinicalImpression: string; differentialDiagnosis: string }>(`mr-draft-diagnosis-${visitId}`);
+          if (draft) {
+            setDiagnoses(draft.diagnoses);
+            setClinicalImpression(draft.clinicalImpression);
+            setDifferentialDiagnosis(draft.differentialDiagnosis);
+            emitMedicalRecordTabSaved("diagnosis", false);
+          }
+        } else {
+          // Server data loaded successfully — discard any stale draft
+          clearFormDraft(`mr-draft-diagnosis-${visitId}`);
+        }
+        // Check for pending copy from history (takes priority over draft)
+        const pendingCopy = loadPendingCopy<any>("diagnosis");
+        if (pendingCopy) {
+          if (pendingCopy.items && pendingCopy.items.length > 0) {
+            setDiagnoses(pendingCopy.items.map((item: any) => ({
+              icd10_code: item.icd10_code || "",
+              icd10_name: item.icd10_name || "",
+              diagnosis_type: item.diagnosis_type || "secondary",
+              clinical_status: item.clinical_status || "active",
+              verification_status: item.verification_status || "confirmed",
+              severity: item.severity || "",
+              body_site: item.body_site || "",
+              onset_date: item.onset_date || "",
+              note: item.note || "",
+            })));
+          }
+          setClinicalImpression(pendingCopy.clinical_impression || "");
+          setDifferentialDiagnosis(pendingCopy.differential_diagnosis || "");
+          emitMedicalRecordTabSaved("diagnosis", false);
+        }
       }
     };
 
@@ -179,17 +219,20 @@ export function DiagnosisForm({ visitId, onSave, readOnly = false, isPatientDisc
     setDiagnoses([...diagnoses, newDiagnosis]);
     setSearchOpen(false);
     setSearchValue("");
+    emitMedicalRecordTabSaved("diagnosis", false);
   };
 
   const handleRemoveDiagnosis = (index: number) => {
     setDiagnoses(diagnoses.filter((_, i) => i !== index));
     if (expandedDiagnosis === index) setExpandedDiagnosis(null);
+    emitMedicalRecordTabSaved("diagnosis", false);
   };
 
   const handleUpdateDiagnosis = (index: number, field: keyof DiagnosisFormItem, value: string) => {
     const updated = [...diagnoses];
     updated[index] = { ...updated[index], [field]: value };
     setDiagnoses(updated);
+    emitMedicalRecordTabSaved("diagnosis", false);
   };
 
   const doSave = async () => {
@@ -229,20 +272,72 @@ export function DiagnosisForm({ visitId, onSave, readOnly = false, isPatientDisc
 
   const primaryDiagnoses = diagnoses.filter((d) => d.diagnosis_type === "primary");
   const secondaryDiagnoses = diagnoses.filter((d) => d.diagnosis_type === "secondary");
+  const filledDiagnosisFields =
+    diagnoses.length +
+    (clinicalImpression.trim() ? 1 : 0) +
+    (differentialDiagnosis.trim() ? 1 : 0);
+
+  useEffect(() => {
+    if (loading || masterDataLoading) return;
+    emitMedicalRecordTabIndicator("diagnosis", `${filledDiagnosisFields}`);
+  }, [filledDiagnosisFields, loading, masterDataLoading]);
+
+  // Auto-save draft to localStorage on every state change
+  useEffect(() => {
+    if (loading) return;
+    saveFormDraft(`mr-draft-diagnosis-${visitId}`, { diagnoses, clinicalImpression, differentialDiagnosis });
+  }, [diagnoses, clinicalImpression, differentialDiagnosis, loading, visitId]);
+
+  // Clear draft when save is confirmed by server
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ev = e as CustomEvent<{ tabId: string; saved: boolean }>;
+      if (ev.detail?.tabId === "diagnosis" && ev.detail.saved === true) {
+        clearFormDraft(`mr-draft-diagnosis-${visitId}`);
+      }
+    };
+    window.addEventListener(MEDICAL_RECORD_TAB_SAVED_EVENT, handler as EventListener);
+    return () => window.removeEventListener(MEDICAL_RECORD_TAB_SAVED_EVENT, handler as EventListener);
+  }, [visitId]);
+
+  // Listen for copy-from-history events
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ev = e as CustomEvent<{ section: string; data: any }>;
+      if (ev.detail?.section !== "diagnosis" || !ev.detail.data) return;
+      clearPendingCopy("diagnosis");
+      const d = ev.detail.data;
+      if (d.items && d.items.length > 0) {
+        setDiagnoses(d.items.map((item: any) => ({
+          icd10_code: item.icd10_code || "",
+          icd10_name: item.icd10_name || "",
+          diagnosis_type: item.diagnosis_type || "secondary",
+          clinical_status: item.clinical_status || "active",
+          verification_status: item.verification_status || "confirmed",
+          severity: item.severity || "",
+          body_site: item.body_site || "",
+          onset_date: item.onset_date || "",
+          note: item.note || "",
+        })));
+      }
+      setClinicalImpression(d.clinical_impression || "");
+      setDifferentialDiagnosis(d.differential_diagnosis || "");
+      emitMedicalRecordTabSaved("diagnosis", false);
+    };
+    window.addEventListener(COPY_FROM_HISTORY_EVENT, handler as EventListener);
+    return () => window.removeEventListener(COPY_FROM_HISTORY_EVENT, handler as EventListener);
+  }, []);
 
   if (loading || masterDataLoading) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Diagnosis (ICD-10)</CardTitle>
-        </CardHeader>
-        <CardContent className="p-6">
+      <div>
+        <div className="p-6">
           <div className="flex items-center justify-center py-8 gap-2">
             <Loader2 className="h-4 w-4 animate-spin" />
             <span className="text-muted-foreground">Memuat data...</span>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     );
   }
 
@@ -364,24 +459,8 @@ export function DiagnosisForm({ visitId, onSave, readOnly = false, isPatientDisc
   );
 
   return (
-    <Card>
-      <CardHeader className="py-3 px-4">
-        <div className="flex items-center justify-between">
-          <div className="flex-1">
-            <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <Stethoscope className="h-4 w-4" />
-              Diagnosis (ICD-10)
-            </CardTitle>
-            <CardDescription>
-              Diagnosis primer, sekunder, dan diferensial dengan kode ICD-10
-            </CardDescription>
-          </div>
-          <Badge variant={diagnoses.length > 0 ? "default" : "secondary"}>
-            {primaryDiagnoses.length} Primer | {secondaryDiagnoses.length} Sekunder
-          </Badge>
-        </div>
-      </CardHeader>
-      <CardContent>
+    <div>
+      <div>
             <EditModeBanner
               isPatientDischarged={isPatientDischarged}
               isEditing={isEditing}
@@ -395,12 +474,7 @@ export function DiagnosisForm({ visitId, onSave, readOnly = false, isPatientDisc
             {/* Section 1: Diagnosis Primer */}
             <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Stethoscope className="h-5 w-5 text-muted-foreground" />
-                    <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase">
-                      Diagnosis Primer <span className="text-destructive">*</span>
-                    </h3>
-                    <Badge variant={primaryDiagnoses.length > 0 ? "default" : "outline"}>
+                  <div className="flex items-center gap-3"><Badge variant={primaryDiagnoses.length > 0 ? "default" : "outline"}>
                       {primaryDiagnoses.length}
                     </Badge>
                   </div>
@@ -496,10 +570,7 @@ export function DiagnosisForm({ visitId, onSave, readOnly = false, isPatientDisc
             {/* Section 2: Diagnosis Sekunder */}
             <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <FileText className="h-5 w-5 text-muted-foreground" />
-                    <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase">Diagnosis Sekunder</h3>
-                    <Badge variant={secondaryDiagnoses.length > 0 ? "default" : "outline"}>
+                  <div className="flex items-center gap-3"><Badge variant={secondaryDiagnoses.length > 0 ? "default" : "outline"}>
                       {secondaryDiagnoses.length}
                     </Badge>
                   </div>
@@ -588,10 +659,7 @@ export function DiagnosisForm({ visitId, onSave, readOnly = false, isPatientDisc
 
             {/* Section 3: Kesan Klinis & Diagnosis Banding */}
             <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <FileText className="h-5 w-5 text-muted-foreground" />
-                  <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase">Kesan Klinis & Diagnosis Banding</h3>
-                </div>
+                
                 {/* Clinical Impression */}
                 <div className="space-y-2">
                   <Label htmlFor="clinical_impression" className="text-sm font-semibold">
@@ -601,7 +669,7 @@ export function DiagnosisForm({ visitId, onSave, readOnly = false, isPatientDisc
                     id="clinical_impression"
                     placeholder="Kesan klinis berdasarkan anamnesis, pemeriksaan fisik, dan penunjang..."
                     value={clinicalImpression}
-                    onChange={(e) => setClinicalImpression(e.target.value)}
+                    onChange={(e) => { setClinicalImpression(e.target.value); emitMedicalRecordTabSaved("diagnosis", false); }}
                     className="min-h-[80px] resize-none"
                   />
                   <p className="text-xs text-muted-foreground">
@@ -619,7 +687,7 @@ export function DiagnosisForm({ visitId, onSave, readOnly = false, isPatientDisc
                     id="differential_diagnosis"
                     placeholder="Diagnosis banding yang dipertimbangkan dan perlu disingkirkan..."
                     value={differentialDiagnosis}
-                    onChange={(e) => setDifferentialDiagnosis(e.target.value)}
+                    onChange={(e) => { setDifferentialDiagnosis(e.target.value); emitMedicalRecordTabSaved("diagnosis", false); }}
                     className="min-h-[80px] resize-none"
                   />
                   <p className="text-xs text-muted-foreground">
@@ -640,7 +708,7 @@ export function DiagnosisForm({ visitId, onSave, readOnly = false, isPatientDisc
             </div>
           </form>
         </fieldset>
-      </CardContent>
+      </div>
       <EditConfirmDialog
         open={showEditDialog}
         onOpenChange={setShowEditDialog}
@@ -658,6 +726,6 @@ export function DiagnosisForm({ visitId, onSave, readOnly = false, isPatientDisc
         onPINKeyDown={handlePINKeyDown}
         onVerify={handleVerifyPIN}
       />
-    </Card>
+    </div>
   );
 }

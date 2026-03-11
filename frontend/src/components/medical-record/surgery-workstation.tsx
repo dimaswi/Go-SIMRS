@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { usePermission } from "@/hooks/usePermission";
 import { usePINVerification, PINVerificationDialog } from "@/components/medical-record/edit-mode-controller";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
@@ -370,14 +369,14 @@ export function SurgeryWorkstation({ visitId, readOnly: _readOnly = false }: Sur
 
   if (orders.length === 0) {
     return (
-      <Card>
-        <CardContent className="py-8">
+      <div>
+        <div className="py-8">
           <div className="text-center text-muted-foreground">
             <Scissors className="h-10 w-10 mx-auto mb-3 opacity-50" />
             <p>Tidak ada order operasi untuk dikerjakan</p>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     );
   }
 
@@ -387,8 +386,8 @@ export function SurgeryWorkstation({ visitId, readOnly: _readOnly = false }: Sur
     <div className="space-y-3">
       {/* Order Selection */}
       {orders.length > 1 && (
-        <Card className="shadow-sm">
-          <CardContent className="py-3">
+        <div className="shadow-sm">
+          <div className="py-3">
             <Select
               value={selectedOrder?.id.toString()}
               onValueChange={(val) => {
@@ -407,28 +406,21 @@ export function SurgeryWorkstation({ visitId, readOnly: _readOnly = false }: Sur
                 ))}
               </SelectContent>
             </Select>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
       {/* Selected Order */}
       {selectedOrder && (
-        <Card className="shadow-sm">
-          <CardHeader className="py-3 px-4">
+        <div className="shadow-sm">
+          <div className="pb-2">
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Scissors className="h-4 w-4" />
-                  {selectedOrder.order_number}
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  Order dari {selectedOrder.source_room?.name}
-                </CardDescription>
-              </div>
+                </div>
               {getStatusBadge(selectedOrder.status)}
             </div>
-          </CardHeader>
-          <CardContent className="space-y-3">
+          </div>
+          <div className="space-y-3">
                 {/* Patient Info */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs p-2 bg-muted/50 rounded">
                   <div className="flex items-center gap-1">
@@ -704,8 +696,8 @@ export function SurgeryWorkstation({ visitId, readOnly: _readOnly = false }: Sur
                     )}
                   </div>
                 )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
       <PINVerificationDialog

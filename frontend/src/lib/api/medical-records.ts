@@ -278,6 +278,84 @@ export interface DeathCertificate {
   updated_at?: string;
 }
 
+export interface HealthCertificate {
+  id: number;
+  visit_id: number;
+  letter_number?: string;
+  exam_date: string;
+  purpose?: string;
+  institution?: string;
+  result?: string; // sehat, sehat_dengan_catatan
+  notes?: string;
+  status?: string;
+  issued_by_id?: number;
+  issued_by?: { id: number; nama_lengkap: string };
+  issued_at?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface BirthCertificate {
+  id: number;
+  visit_id: number;
+  letter_number?: string;
+  birth_date: string;
+  birth_time?: string;
+  baby_name?: string;
+  gender: string;
+  birth_weight?: number;
+  birth_length?: number;
+  birth_method?: string;
+  mother_name?: string;
+  father_name?: string;
+  apgar_score?: string;
+  notes?: string;
+  status?: string;
+  issued_by_id?: number;
+  issued_by?: { id: number; nama_lengkap: string };
+  issued_at?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface LeaveCertificate {
+  id: number;
+  visit_id: number;
+  letter_number?: string;
+  leave_type: string; // sakit, hamil, melahirkan, lainnya
+  start_date: string;
+  end_date: string;
+  days: number;
+  reason?: string;
+  diagnosis?: string;
+  institution?: string;
+  notes?: string;
+  status?: string;
+  issued_by_id?: number;
+  issued_by?: { id: number; nama_lengkap: string };
+  issued_at?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface MCUCertificate {
+  id: number;
+  visit_id: number;
+  letter_number?: string;
+  exam_date: string;
+  purpose?: string;
+  institution?: string;
+  conclusion?: string; // layak, tidak_layak, layak_dengan_catatan
+  recommendation?: string;
+  notes?: string;
+  status?: string;
+  issued_by_id?: number;
+  issued_by?: { id: number; nama_lengkap: string };
+  issued_at?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface MedicalRecordSummary {
   triage?: Triage;
   anamnesis?: Anamnesis;
@@ -450,5 +528,49 @@ export const medicalRecordsApi = {
   },
   deleteDeathCertificate: async (visitId: number, certId: number) => {
     return api.delete(`/visits/${visitId}/death-certificate/${certId}`);
+  },
+
+  // Health Certificate - Surat Keterangan Sehat
+  getHealthCertificates: async (visitId: number) => {
+    return api.get<HealthCertificate[]>(`/visits/${visitId}/health-certificates`);
+  },
+  saveHealthCertificate: async (visitId: number, data: Partial<HealthCertificate>) => {
+    return api.post<HealthCertificate>(`/visits/${visitId}/health-certificate`, data);
+  },
+  deleteHealthCertificate: async (visitId: number, certId: number) => {
+    return api.delete(`/visits/${visitId}/health-certificate/${certId}`);
+  },
+
+  // Birth Certificate - Surat Keterangan Kelahiran
+  getBirthCertificates: async (visitId: number) => {
+    return api.get<BirthCertificate[]>(`/visits/${visitId}/birth-certificates`);
+  },
+  saveBirthCertificate: async (visitId: number, data: Partial<BirthCertificate>) => {
+    return api.post<BirthCertificate>(`/visits/${visitId}/birth-certificate`, data);
+  },
+  deleteBirthCertificate: async (visitId: number, certId: number) => {
+    return api.delete(`/visits/${visitId}/birth-certificate/${certId}`);
+  },
+
+  // Leave Certificate - Surat Keterangan Cuti
+  getLeaveCertificates: async (visitId: number) => {
+    return api.get<LeaveCertificate[]>(`/visits/${visitId}/leave-certificates`);
+  },
+  saveLeaveCertificate: async (visitId: number, data: Partial<LeaveCertificate>) => {
+    return api.post<LeaveCertificate>(`/visits/${visitId}/leave-certificate`, data);
+  },
+  deleteLeaveCertificate: async (visitId: number, certId: number) => {
+    return api.delete(`/visits/${visitId}/leave-certificate/${certId}`);
+  },
+
+  // MCU Certificate - Medical Check-Up
+  getMCUCertificates: async (visitId: number) => {
+    return api.get<MCUCertificate[]>(`/visits/${visitId}/mcu-certificates`);
+  },
+  saveMCUCertificate: async (visitId: number, data: Partial<MCUCertificate>) => {
+    return api.post<MCUCertificate>(`/visits/${visitId}/mcu-certificate`, data);
+  },
+  deleteMCUCertificate: async (visitId: number, certId: number) => {
+    return api.delete(`/visits/${visitId}/mcu-certificate/${certId}`);
   },
 };

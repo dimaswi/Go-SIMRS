@@ -544,6 +544,140 @@ func (DeathCertificate) TableName() string {
 }
 
 // ===========================================================================
+// SURAT KETERANGAN SEHAT (Health Certificate)
+// ===========================================================================
+
+// HealthCertificate represents a health certificate (Surat Keterangan Sehat)
+type HealthCertificate struct {
+	ID        uint           `gorm:"primarykey" json:"id"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
+
+	VisitID uint   `gorm:"not null;index" json:"visit_id"`
+	Visit   *Visit `gorm:"foreignKey:VisitID" json:"visit,omitempty"`
+
+	LetterNumber string    `gorm:"size:50" json:"letter_number,omitempty"`
+	ExamDate     time.Time `json:"exam_date"`
+	Purpose      string    `gorm:"size:200" json:"purpose,omitempty"`
+	Institution  string    `gorm:"size:200" json:"institution,omitempty"`
+	Result       string    `gorm:"size:50;default:'sehat'" json:"result"` // sehat, sehat_dengan_catatan
+	Notes        string    `gorm:"type:text" json:"notes,omitempty"`
+
+	Status     string    `gorm:"size:20;default:'active'" json:"status"`
+	IssuedByID *uint     `gorm:"index" json:"issued_by_id,omitempty"`
+	IssuedBy   *Employee `gorm:"foreignKey:IssuedByID" json:"issued_by,omitempty"`
+	IssuedAt   time.Time `json:"issued_at"`
+}
+
+func (HealthCertificate) TableName() string {
+	return "health_certificates"
+}
+
+// ===========================================================================
+// SURAT KETERANGAN KELAHIRAN (Birth Certificate)
+// ===========================================================================
+
+// BirthCertificate represents a birth certificate letter (Surat Keterangan Kelahiran)
+type BirthCertificate struct {
+	ID        uint           `gorm:"primarykey" json:"id"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
+
+	VisitID uint   `gorm:"not null;index" json:"visit_id"`
+	Visit   *Visit `gorm:"foreignKey:VisitID" json:"visit,omitempty"`
+
+	LetterNumber string    `gorm:"size:50" json:"letter_number,omitempty"`
+	BirthDate    time.Time `json:"birth_date"`
+	BirthTime    string    `gorm:"size:10" json:"birth_time,omitempty"` // HH:MM
+	BabyName     string    `gorm:"size:200" json:"baby_name,omitempty"`
+	Gender       string    `gorm:"size:20" json:"gender"`                 // laki-laki, perempuan
+	BirthWeight  float64   `json:"birth_weight,omitempty"`                // gram
+	BirthLength  float64   `json:"birth_length,omitempty"`                // cm
+	BirthMethod  string    `gorm:"size:50" json:"birth_method,omitempty"` // normal, sectio_caesarea, vakum, forcep
+	MotherName   string    `gorm:"size:200" json:"mother_name,omitempty"`
+	FatherName   string    `gorm:"size:200" json:"father_name,omitempty"`
+	ApgarScore   string    `gorm:"size:20" json:"apgar_score,omitempty"`
+	Notes        string    `gorm:"type:text" json:"notes,omitempty"`
+
+	Status     string    `gorm:"size:20;default:'active'" json:"status"`
+	IssuedByID *uint     `gorm:"index" json:"issued_by_id,omitempty"`
+	IssuedBy   *Employee `gorm:"foreignKey:IssuedByID" json:"issued_by,omitempty"`
+	IssuedAt   time.Time `json:"issued_at"`
+}
+
+func (BirthCertificate) TableName() string {
+	return "birth_certificates"
+}
+
+// ===========================================================================
+// SURAT KETERANGAN CUTI (Leave Certificate)
+// ===========================================================================
+
+// LeaveCertificate represents a medical leave certificate (Surat Keterangan Cuti)
+type LeaveCertificate struct {
+	ID        uint           `gorm:"primarykey" json:"id"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
+
+	VisitID uint   `gorm:"not null;index" json:"visit_id"`
+	Visit   *Visit `gorm:"foreignKey:VisitID" json:"visit,omitempty"`
+
+	LetterNumber string    `gorm:"size:50" json:"letter_number,omitempty"`
+	LeaveType    string    `gorm:"size:50" json:"leave_type"` // sakit, hamil, melahirkan, lainnya
+	StartDate    time.Time `json:"start_date"`
+	EndDate      time.Time `json:"end_date"`
+	Days         int       `gorm:"not null" json:"days"`
+	Reason       string    `gorm:"type:text" json:"reason,omitempty"`
+	Diagnosis    string    `gorm:"size:500" json:"diagnosis,omitempty"`
+	Institution  string    `gorm:"size:200" json:"institution,omitempty"`
+	Notes        string    `gorm:"type:text" json:"notes,omitempty"`
+
+	Status     string    `gorm:"size:20;default:'active'" json:"status"`
+	IssuedByID *uint     `gorm:"index" json:"issued_by_id,omitempty"`
+	IssuedBy   *Employee `gorm:"foreignKey:IssuedByID" json:"issued_by,omitempty"`
+	IssuedAt   time.Time `json:"issued_at"`
+}
+
+func (LeaveCertificate) TableName() string {
+	return "leave_certificates"
+}
+
+// ===========================================================================
+// MCU CERTIFICATE (Medical Check-Up)
+// ===========================================================================
+
+// MCUCertificate represents a Medical Check-Up certificate
+type MCUCertificate struct {
+	ID        uint           `gorm:"primarykey" json:"id"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
+
+	VisitID uint   `gorm:"not null;index" json:"visit_id"`
+	Visit   *Visit `gorm:"foreignKey:VisitID" json:"visit,omitempty"`
+
+	LetterNumber   string    `gorm:"size:50" json:"letter_number,omitempty"`
+	ExamDate       time.Time `json:"exam_date"`
+	Purpose        string    `gorm:"size:200" json:"purpose,omitempty"`
+	Institution    string    `gorm:"size:200" json:"institution,omitempty"`
+	Conclusion     string    `gorm:"size:50" json:"conclusion"` // layak, tidak_layak, layak_dengan_catatan
+	Recommendation string    `gorm:"type:text" json:"recommendation,omitempty"`
+	Notes          string    `gorm:"type:text" json:"notes,omitempty"`
+
+	Status     string    `gorm:"size:20;default:'active'" json:"status"`
+	IssuedByID *uint     `gorm:"index" json:"issued_by_id,omitempty"`
+	IssuedBy   *Employee `gorm:"foreignKey:IssuedByID" json:"issued_by,omitempty"`
+	IssuedAt   time.Time `json:"issued_at"`
+}
+
+func (MCUCertificate) TableName() string {
+	return "mcu_certificates"
+}
+
+// ===========================================================================
 // MEDICAL RECORD EDIT LOG - Track edits after visit completed
 // ===========================================================================
 

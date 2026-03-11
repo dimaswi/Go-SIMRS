@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -209,26 +208,17 @@ export function UnitTransferForm({
 
   if (loading) {
     return (
-      <Card>
-        <CardContent className="p-6 flex items-center justify-center min-h-[300px]">
+      <div>
+        <div className="p-6 flex items-center justify-center min-h-[300px]">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     );
   }
 
   return (
-    <Card>
-      <CardHeader className="py-3 px-4">
-        <CardTitle className="text-base font-semibold flex items-center gap-2">
-          <ArrowRightLeft className="h-4 w-4" />
-          Mutasi Unit
-        </CardTitle>
-        <CardDescription>
-          Pindahkan pasien ke ruangan Rawat Jalan atau UGD lain
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="p-0">
+    <div>
+      <div className="p-0">
         {/* Inline Tabs */}
         <div className="border-b">
           <div className="flex">
@@ -557,7 +547,7 @@ export function UnitTransferForm({
             </div>
           )}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

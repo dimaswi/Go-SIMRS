@@ -2070,6 +2070,9 @@ func GetMedicalRecordSummary(c *gin.Context) {
 	var diagnoses []models.Diagnosis
 	database.DB.Where("visit_id = ?", visitID).Preload("DiagnosedBy").Find(&diagnoses)
 
+	var diagnosisSummary models.DiagnosisSummary
+	database.DB.Where("visit_id = ?", visitID).First(&diagnosisSummary)
+
 	var assessmentPlan models.AssessmentPlan
 	database.DB.Where("visit_id = ?", visitID).Preload("AssessedBy").First(&assessmentPlan)
 
@@ -2092,12 +2095,36 @@ func GetMedicalRecordSummary(c *gin.Context) {
 	var vitalSignCount int64
 	database.DB.Model(&models.VitalSign{}).Where("visit_id = ?", visitID).Count(&vitalSignCount)
 
+	// Build diagnosis in same format as GetDiagnoses endpoint
+	diagnosisItems := make([]gin.H, 0)
+	for _, d := range diagnoses {
+		item := gin.H{
+			"id":                  d.ID,
+			"icd10_code":          d.ICD10Code,
+			"icd10_name":          d.ICD10Name,
+			"diagnosis_type":      d.Type,
+			"clinical_status":     d.ClinicalStatus,
+			"verification_status": d.VerificationStatus,
+		}
+		diagnosisItems = append(diagnosisItems, item)
+	}
+	diagnosisResult := gin.H{
+		"items":                  diagnosisItems,
+		"clinical_impression":    diagnosisSummary.ClinicalImpression,
+		"differential_diagnosis": diagnosisSummary.DifferentialDiagnosis,
+	}
+	if diagnosisSummary.ID > 0 {
+		diagnosisResult["id"] = diagnosisSummary.ID
+	} else if len(diagnoses) > 0 {
+		diagnosisResult["id"] = diagnoses[0].ID
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"visit_id":            visit.ID,
 		"triage":              triage,
 		"anamnesis":           anamnesis,
 		"physical_exam":       physExam,
-		"diagnoses":           diagnoses,
+		"diagnosis":           diagnosisResult,
 		"assessment_plan":     assessmentPlan,
 		"disposition":         disposition,
 		"cppt_count":          cpptCount,
@@ -2639,6 +2666,441 @@ func generateDeathCertificateNumber() string {
 		Count(&count)
 
 	return fmt.Sprintf("SKM/%d-%02d/%05d", now.Year(), int(now.Month()), count+1)
+}
+
+// ===========================================================================
+// HEALTH CERTIFICATE (SURAT KETERANGAN SEHAT) HANDLERS
+// ===========================================================================
+
+func GetHealthCertificates(c *gin.Context) {
+	visitID := c.Param("id")
+	var certs []models.HealthCertificate
+	database.DB.Where("visit_id = ?", visitID).Preload("IssuedBy").Order("created_at DESC").Find(&certs)
+	c.JSON(http.StatusOK, certs)
+}
+
+func SaveHealthCertificate(c *gin.Context) {
+	visitID := c.Param("id")
+	userID := c.GetUint("user_id")
+
+	var input struct {
+		ID          uint   `json:"id"`
+		ExamDate    string `json:"exam_date"`
+		Purpose     string `json:"purpose"`
+		Institution string `json:"institution"`
+		Result      string `json:"result"`
+		Notes       string `json:"notes"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	examDate, err := ParseLocalDate(input.ExamDate)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Format tanggal tidak valid"})
+		return
+	}
+
+	var employeeID *uint
+	var user models.User
+	if err := database.DB.Preload("Employee").First(&user, userID).Error; err == nil {
+		if user.Employee != nil {
+			employeeID = &user.Employee.ID
+		}
+	}
+
+	var cert models.HealthCertificate
+	if input.ID > 0 {
+		if err := database.DB.First(&cert, input.ID).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Surat keterangan sehat tidak ditemukan"})
+			return
+		}
+		cert.ExamDate = examDate
+		cert.Purpose = input.Purpose
+		cert.Institution = input.Institution
+		cert.Result = input.Result
+		cert.Notes = input.Notes
+	} else {
+		var visitIDUint uint
+		fmt.Sscanf(visitID, "%d", &visitIDUint)
+		cert = models.HealthCertificate{
+			VisitID:      visitIDUint,
+			LetterNumber: generateHealthCertificateNumber(),
+			ExamDate:     examDate,
+			Purpose:      input.Purpose,
+			Institution:  input.Institution,
+			Result:       input.Result,
+			Notes:        input.Notes,
+			Status:       "active",
+			IssuedByID:   employeeID,
+			IssuedAt:     time.Now(),
+		}
+	}
+
+	if err := database.DB.Save(&cert).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	database.DB.Preload("IssuedBy").First(&cert, cert.ID)
+	c.JSON(http.StatusOK, cert)
+}
+
+func DeleteHealthCertificate(c *gin.Context) {
+	certID := c.Param("certId")
+	var cert models.HealthCertificate
+	if err := database.DB.First(&cert, certID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Surat keterangan sehat tidak ditemukan"})
+		return
+	}
+	if err := database.DB.Delete(&cert).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Surat keterangan sehat berhasil dihapus"})
+}
+
+func generateHealthCertificateNumber() string {
+	now := time.Now()
+	var count int64
+	database.DB.Model(&models.HealthCertificate{}).Where("DATE(created_at) = DATE(?)", now).Count(&count)
+	return fmt.Sprintf("SKSH/%s/%04d", now.Format("20060102"), count+1)
+}
+
+// ===========================================================================
+// BIRTH CERTIFICATE (SURAT KETERANGAN KELAHIRAN) HANDLERS
+// ===========================================================================
+
+func GetBirthCertificates(c *gin.Context) {
+	visitID := c.Param("id")
+	var certs []models.BirthCertificate
+	database.DB.Where("visit_id = ?", visitID).Preload("IssuedBy").Order("created_at DESC").Find(&certs)
+	c.JSON(http.StatusOK, certs)
+}
+
+func SaveBirthCertificate(c *gin.Context) {
+	visitID := c.Param("id")
+	userID := c.GetUint("user_id")
+
+	var input struct {
+		ID          uint    `json:"id"`
+		BirthDate   string  `json:"birth_date"`
+		BirthTime   string  `json:"birth_time"`
+		BabyName    string  `json:"baby_name"`
+		Gender      string  `json:"gender"`
+		BirthWeight float64 `json:"birth_weight"`
+		BirthLength float64 `json:"birth_length"`
+		BirthMethod string  `json:"birth_method"`
+		MotherName  string  `json:"mother_name"`
+		FatherName  string  `json:"father_name"`
+		ApgarScore  string  `json:"apgar_score"`
+		Notes       string  `json:"notes"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	birthDate, err := ParseLocalDate(input.BirthDate)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Format tanggal lahir tidak valid"})
+		return
+	}
+
+	var employeeID *uint
+	var user models.User
+	if err := database.DB.Preload("Employee").First(&user, userID).Error; err == nil {
+		if user.Employee != nil {
+			employeeID = &user.Employee.ID
+		}
+	}
+
+	var cert models.BirthCertificate
+	if input.ID > 0 {
+		if err := database.DB.First(&cert, input.ID).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Surat kelahiran tidak ditemukan"})
+			return
+		}
+		cert.BirthDate = birthDate
+		cert.BirthTime = input.BirthTime
+		cert.BabyName = input.BabyName
+		cert.Gender = input.Gender
+		cert.BirthWeight = input.BirthWeight
+		cert.BirthLength = input.BirthLength
+		cert.BirthMethod = input.BirthMethod
+		cert.MotherName = input.MotherName
+		cert.FatherName = input.FatherName
+		cert.ApgarScore = input.ApgarScore
+		cert.Notes = input.Notes
+	} else {
+		var visitIDUint uint
+		fmt.Sscanf(visitID, "%d", &visitIDUint)
+		cert = models.BirthCertificate{
+			VisitID:      visitIDUint,
+			LetterNumber: generateBirthCertificateNumber(),
+			BirthDate:    birthDate,
+			BirthTime:    input.BirthTime,
+			BabyName:     input.BabyName,
+			Gender:       input.Gender,
+			BirthWeight:  input.BirthWeight,
+			BirthLength:  input.BirthLength,
+			BirthMethod:  input.BirthMethod,
+			MotherName:   input.MotherName,
+			FatherName:   input.FatherName,
+			ApgarScore:   input.ApgarScore,
+			Notes:        input.Notes,
+			Status:       "active",
+			IssuedByID:   employeeID,
+			IssuedAt:     time.Now(),
+		}
+	}
+
+	if err := database.DB.Save(&cert).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	database.DB.Preload("IssuedBy").First(&cert, cert.ID)
+	c.JSON(http.StatusOK, cert)
+}
+
+func DeleteBirthCertificate(c *gin.Context) {
+	certID := c.Param("certId")
+	var cert models.BirthCertificate
+	if err := database.DB.First(&cert, certID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Surat kelahiran tidak ditemukan"})
+		return
+	}
+	if err := database.DB.Delete(&cert).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Surat kelahiran berhasil dihapus"})
+}
+
+func generateBirthCertificateNumber() string {
+	now := time.Now()
+	var count int64
+	database.DB.Model(&models.BirthCertificate{}).Where("DATE(created_at) = DATE(?)", now).Count(&count)
+	return fmt.Sprintf("SKL/%s/%04d", now.Format("20060102"), count+1)
+}
+
+// ===========================================================================
+// LEAVE CERTIFICATE (SURAT KETERANGAN CUTI) HANDLERS
+// ===========================================================================
+
+func GetLeaveCertificates(c *gin.Context) {
+	visitID := c.Param("id")
+	var certs []models.LeaveCertificate
+	database.DB.Where("visit_id = ?", visitID).Preload("IssuedBy").Order("created_at DESC").Find(&certs)
+	c.JSON(http.StatusOK, certs)
+}
+
+func SaveLeaveCertificate(c *gin.Context) {
+	visitID := c.Param("id")
+	userID := c.GetUint("user_id")
+
+	var input struct {
+		ID          uint   `json:"id"`
+		LeaveType   string `json:"leave_type"`
+		StartDate   string `json:"start_date"`
+		EndDate     string `json:"end_date"`
+		Days        int    `json:"days"`
+		Reason      string `json:"reason"`
+		Diagnosis   string `json:"diagnosis"`
+		Institution string `json:"institution"`
+		Notes       string `json:"notes"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	startDate, err := ParseLocalDate(input.StartDate)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Format tanggal mulai tidak valid"})
+		return
+	}
+	endDate, err := ParseLocalDate(input.EndDate)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Format tanggal selesai tidak valid"})
+		return
+	}
+	days := input.Days
+	if days <= 0 {
+		days = int(endDate.Sub(startDate).Hours()/24) + 1
+	}
+
+	var employeeID *uint
+	var user models.User
+	if err := database.DB.Preload("Employee").First(&user, userID).Error; err == nil {
+		if user.Employee != nil {
+			employeeID = &user.Employee.ID
+		}
+	}
+
+	var cert models.LeaveCertificate
+	if input.ID > 0 {
+		if err := database.DB.First(&cert, input.ID).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Surat cuti tidak ditemukan"})
+			return
+		}
+		cert.LeaveType = input.LeaveType
+		cert.StartDate = startDate
+		cert.EndDate = endDate
+		cert.Days = days
+		cert.Reason = input.Reason
+		cert.Diagnosis = input.Diagnosis
+		cert.Institution = input.Institution
+		cert.Notes = input.Notes
+	} else {
+		var visitIDUint uint
+		fmt.Sscanf(visitID, "%d", &visitIDUint)
+		cert = models.LeaveCertificate{
+			VisitID:      visitIDUint,
+			LetterNumber: generateLeaveCertificateNumber(),
+			LeaveType:    input.LeaveType,
+			StartDate:    startDate,
+			EndDate:      endDate,
+			Days:         days,
+			Reason:       input.Reason,
+			Diagnosis:    input.Diagnosis,
+			Institution:  input.Institution,
+			Notes:        input.Notes,
+			Status:       "active",
+			IssuedByID:   employeeID,
+			IssuedAt:     time.Now(),
+		}
+	}
+
+	if err := database.DB.Save(&cert).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	database.DB.Preload("IssuedBy").First(&cert, cert.ID)
+	c.JSON(http.StatusOK, cert)
+}
+
+func DeleteLeaveCertificate(c *gin.Context) {
+	certID := c.Param("certId")
+	var cert models.LeaveCertificate
+	if err := database.DB.First(&cert, certID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Surat cuti tidak ditemukan"})
+		return
+	}
+	if err := database.DB.Delete(&cert).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Surat cuti berhasil dihapus"})
+}
+
+func generateLeaveCertificateNumber() string {
+	now := time.Now()
+	var count int64
+	database.DB.Model(&models.LeaveCertificate{}).Where("DATE(created_at) = DATE(?)", now).Count(&count)
+	return fmt.Sprintf("SKC/%s/%04d", now.Format("20060102"), count+1)
+}
+
+// ===========================================================================
+// MCU CERTIFICATE (MEDICAL CHECK-UP) HANDLERS
+// ===========================================================================
+
+func GetMCUCertificates(c *gin.Context) {
+	visitID := c.Param("id")
+	var certs []models.MCUCertificate
+	database.DB.Where("visit_id = ?", visitID).Preload("IssuedBy").Order("created_at DESC").Find(&certs)
+	c.JSON(http.StatusOK, certs)
+}
+
+func SaveMCUCertificate(c *gin.Context) {
+	visitID := c.Param("id")
+	userID := c.GetUint("user_id")
+
+	var input struct {
+		ID             uint   `json:"id"`
+		ExamDate       string `json:"exam_date"`
+		Purpose        string `json:"purpose"`
+		Institution    string `json:"institution"`
+		Conclusion     string `json:"conclusion"`
+		Recommendation string `json:"recommendation"`
+		Notes          string `json:"notes"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	examDate, err := ParseLocalDate(input.ExamDate)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Format tanggal tidak valid"})
+		return
+	}
+
+	var employeeID *uint
+	var user models.User
+	if err := database.DB.Preload("Employee").First(&user, userID).Error; err == nil {
+		if user.Employee != nil {
+			employeeID = &user.Employee.ID
+		}
+	}
+
+	var cert models.MCUCertificate
+	if input.ID > 0 {
+		if err := database.DB.First(&cert, input.ID).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Surat MCU tidak ditemukan"})
+			return
+		}
+		cert.ExamDate = examDate
+		cert.Purpose = input.Purpose
+		cert.Institution = input.Institution
+		cert.Conclusion = input.Conclusion
+		cert.Recommendation = input.Recommendation
+		cert.Notes = input.Notes
+	} else {
+		var visitIDUint uint
+		fmt.Sscanf(visitID, "%d", &visitIDUint)
+		cert = models.MCUCertificate{
+			VisitID:        visitIDUint,
+			LetterNumber:   generateMCUCertificateNumber(),
+			ExamDate:       examDate,
+			Purpose:        input.Purpose,
+			Institution:    input.Institution,
+			Conclusion:     input.Conclusion,
+			Recommendation: input.Recommendation,
+			Notes:          input.Notes,
+			Status:         "active",
+			IssuedByID:     employeeID,
+			IssuedAt:       time.Now(),
+		}
+	}
+
+	if err := database.DB.Save(&cert).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	database.DB.Preload("IssuedBy").First(&cert, cert.ID)
+	c.JSON(http.StatusOK, cert)
+}
+
+func DeleteMCUCertificate(c *gin.Context) {
+	certID := c.Param("certId")
+	var cert models.MCUCertificate
+	if err := database.DB.First(&cert, certID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Surat MCU tidak ditemukan"})
+		return
+	}
+	if err := database.DB.Delete(&cert).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Surat MCU berhasil dihapus"})
+}
+
+func generateMCUCertificateNumber() string {
+	now := time.Now()
+	var count int64
+	database.DB.Model(&models.MCUCertificate{}).Where("DATE(created_at) = DATE(?)", now).Count(&count)
+	return fmt.Sprintf("MCU/%s/%04d", now.Format("20060102"), count+1)
 }
 
 // ===========================================================================

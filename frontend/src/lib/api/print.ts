@@ -264,6 +264,42 @@ export const printApi = {
     return fetchPdf(`${BASE_URL}/death-certificate/${visitId}?certificate_id=${certificateId}`);
   },
 
+  /**
+   * Print health certificate (Surat Keterangan Sehat)
+   * @param visitId - Visit ID
+   * @param certificateId - Health certificate record ID
+   */
+  healthCertificate: async (visitId: number, certificateId: number) => {
+    return fetchPdf(`${BASE_URL}/health-certificate/${visitId}?certificate_id=${certificateId}`);
+  },
+
+  /**
+   * Print birth certificate (Surat Keterangan Kelahiran)
+   * @param visitId - Visit ID
+   * @param certificateId - Birth certificate record ID
+   */
+  birthCertificate: async (visitId: number, certificateId: number) => {
+    return fetchPdf(`${BASE_URL}/birth-certificate/${visitId}?certificate_id=${certificateId}`);
+  },
+
+  /**
+   * Print leave certificate (Surat Keterangan Cuti)
+   * @param visitId - Visit ID
+   * @param certificateId - Leave certificate record ID
+   */
+  leaveCertificate: async (visitId: number, certificateId: number) => {
+    return fetchPdf(`${BASE_URL}/leave-certificate/${visitId}?certificate_id=${certificateId}`);
+  },
+
+  /**
+   * Print MCU certificate (Surat Keterangan MCU)
+   * @param visitId - Visit ID
+   * @param certificateId - MCU certificate record ID
+   */
+  mcuCertificate: async (visitId: number, certificateId: number) => {
+    return fetchPdf(`${BASE_URL}/mcu-certificate/${visitId}?certificate_id=${certificateId}`);
+  },
+
   // =========================================================================
   // E. ORDER & PENUNJANG
   // =========================================================================

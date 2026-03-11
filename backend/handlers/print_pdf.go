@@ -2592,6 +2592,7 @@ func PrintSickLetter(c *gin.Context) {
 	var purpose string
 	var institution string
 	var notes string
+	var letterID uint
 
 	// Check if letter_id is provided (load from saved record)
 	if letterIDStr := c.Query("letter_id"); letterIDStr != "" {
@@ -2602,6 +2603,7 @@ func PrintSickLetter(c *gin.Context) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Sick letter not found"})
 			return
 		}
+		letterID = sickLetter.ID
 		days = sickLetter.Days
 		startDate = sickLetter.StartDate
 		letterNumber = sickLetter.LetterNumber
@@ -2754,7 +2756,7 @@ func PrintSickLetter(c *gin.Context) {
 	if visit.Doctor != nil {
 		doctorName = visit.Doctor.NamaLengkap
 	}
-	addSignature(pdf, hospitalInfo.City, doctorName, "Dokter Pemeriksa", models.DocTypeSickLetter, visit.ID)
+	addSignature(pdf, hospitalInfo.City, doctorName, "Dokter Pemeriksa", models.DocTypeSickLetter, letterID)
 
 	// Output PDF
 	var buf bytes.Buffer
@@ -3002,7 +3004,7 @@ func PrintDeathCertificate(c *gin.Context) {
 	if visit.Doctor != nil {
 		doctorName = visit.Doctor.NamaLengkap
 	}
-	addSignature(pdf, hospitalInfo.City, doctorName, "Dokter Pemeriksa", models.DocTypeDeathCertificate, visit.ID)
+	addSignature(pdf, hospitalInfo.City, doctorName, "Dokter Pemeriksa", models.DocTypeDeathCertificate, certificate.ID)
 
 	// Output PDF
 	var buf bytes.Buffer
@@ -3013,6 +3015,655 @@ func PrintDeathCertificate(c *gin.Context) {
 	}
 
 	filename := fmt.Sprintf("Surat_Kematian_%s.pdf", patient.NoRM)
+	c.Header("Content-Type", "application/pdf")
+	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
+	c.Data(http.StatusOK, "application/pdf", buf.Bytes())
+}
+
+// PrintHealthCertificate generates PDF for health certificate (Surat Keterangan Sehat)
+func PrintHealthCertificate(c *gin.Context) {
+	visitID := c.Param("visitId")
+	certificateIDStr := c.Query("certificate_id")
+
+	if certificateIDStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "certificate_id is required"})
+		return
+	}
+
+	var certificate models.HealthCertificate
+	if err := database.DB.
+		Preload("IssuedBy").
+		First(&certificate, certificateIDStr).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Health certificate not found"})
+		return
+	}
+
+	visitIDUint, _ := strconv.ParseUint(visitID, 10, 32)
+	if certificate.VisitID != uint(visitIDUint) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Certificate does not belong to this visit"})
+		return
+	}
+
+	var visit models.Visit
+	if err := database.DB.
+		Preload("Registration.Patient").
+		Preload("Doctor").
+		First(&visit, visitID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Visit not found"})
+		return
+	}
+
+	if visit.Registration == nil || visit.Registration.Patient == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Patient data not found"})
+		return
+	}
+
+	patient := visit.Registration.Patient
+	hospitalInfo := getHospitalInfo()
+
+	pdf := gofpdf.New("P", "mm", "A4", "")
+	pdf.SetMargins(15, 15, 15)
+	pdf.SetAutoPageBreak(false, 0)
+	pdf.AddPage()
+
+	headerSubtitle := ""
+	if certificate.LetterNumber != "" {
+		headerSubtitle = "No: " + certificate.LetterNumber
+	}
+	addHeader(pdf, hospitalInfo, "Surat Keterangan Sehat", headerSubtitle)
+
+	pdf.SetY(pdf.GetY() + 10)
+	pdf.SetFont("Arial", "", 11)
+	pdf.MultiCell(0, 6, "Yang bertanda tangan di bawah ini menerangkan bahwa:", "", "", false)
+	pdf.SetY(pdf.GetY() + 5)
+
+	// Patient details
+	pdf.SetFont("Arial", "", 11)
+	pdf.CellFormat(40, 6, "Nama", "", 0, "", false, 0, "")
+	pdf.CellFormat(5, 6, ":", "", 0, "", false, 0, "")
+	pdf.SetFont("Arial", "B", 11)
+	pdf.CellFormat(0, 6, patient.NamaLengkap, "", 1, "", false, 0, "")
+
+	pdf.SetFont("Arial", "", 11)
+	pdf.CellFormat(40, 6, "Tanggal Lahir", "", 0, "", false, 0, "")
+	pdf.CellFormat(5, 6, ":", "", 0, "", false, 0, "")
+	birthDate := "-"
+	if patient.TanggalLahir != nil && !patient.TanggalLahir.IsZero() {
+		birthDate = formatDateIndonesian(patient.TanggalLahir.Time)
+	}
+	pdf.CellFormat(0, 6, birthDate, "", 1, "", false, 0, "")
+
+	pdf.CellFormat(40, 6, "NIK", "", 0, "", false, 0, "")
+	pdf.CellFormat(5, 6, ":", "", 0, "", false, 0, "")
+	nik := patient.NIK
+	if nik == "" {
+		nik = "-"
+	}
+	pdf.CellFormat(0, 6, nik, "", 1, "", false, 0, "")
+
+	pdf.CellFormat(40, 6, "Alamat", "", 0, "", false, 0, "")
+	pdf.CellFormat(5, 6, ":", "", 0, "", false, 0, "")
+	alamat := patient.AlamatKTP
+	if alamat == "" {
+		alamat = "-"
+	}
+	pdf.CellFormat(0, 6, truncateText(alamat, 60), "", 1, "", false, 0, "")
+
+	if certificate.Institution != "" {
+		pdf.CellFormat(40, 6, "Instansi", "", 0, "", false, 0, "")
+		pdf.CellFormat(5, 6, ":", "", 0, "", false, 0, "")
+		pdf.CellFormat(0, 6, certificate.Institution, "", 1, "", false, 0, "")
+	}
+
+	pdf.SetY(pdf.GetY() + 5)
+
+	// Exam date
+	examDateStr := formatDateIndonesian(certificate.ExamDate)
+
+	// Result text
+	resultText := "dalam keadaan sehat"
+	if certificate.Result == "sehat_dengan_catatan" {
+		resultText = "dalam keadaan sehat dengan catatan"
+	}
+
+	statement := fmt.Sprintf("Berdasarkan pemeriksaan yang dilakukan pada tanggal %s, yang bersangkutan dinyatakan %s.",
+		examDateStr, resultText)
+	pdf.MultiCell(0, 6, statement, "", "", false)
+
+	// Notes for sehat_dengan_catatan
+	if certificate.Result == "sehat_dengan_catatan" && certificate.Notes != "" {
+		pdf.SetY(pdf.GetY() + 3)
+		pdf.SetFont("Arial", "I", 10)
+		pdf.MultiCell(0, 5, "Catatan: "+certificate.Notes, "", "", false)
+		pdf.SetFont("Arial", "", 11)
+	}
+
+	pdf.SetY(pdf.GetY() + 5)
+
+	purposeText := "Demikian surat keterangan ini dibuat dengan sebenarnya untuk dapat dipergunakan sebagaimana mestinya."
+	if certificate.Purpose != "" {
+		purposeText = "Demikian surat keterangan ini dibuat dengan sebenarnya " + certificate.Purpose + "."
+	}
+	pdf.MultiCell(0, 6, purposeText, "", "", false)
+
+	doctorName := "-"
+	if visit.Doctor != nil {
+		doctorName = visit.Doctor.NamaLengkap
+	}
+	addSignature(pdf, hospitalInfo.City, doctorName, "Dokter Pemeriksa", models.DocTypeHealthCertificate, certificate.ID)
+
+	var buf bytes.Buffer
+	if err := pdf.Output(&buf); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate PDF"})
+		return
+	}
+
+	filename := fmt.Sprintf("Surat_Sehat_%s.pdf", patient.NoRM)
+	c.Header("Content-Type", "application/pdf")
+	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
+	c.Data(http.StatusOK, "application/pdf", buf.Bytes())
+}
+
+// PrintBirthCertificate generates PDF for birth certificate (Surat Keterangan Kelahiran)
+func PrintBirthCertificate(c *gin.Context) {
+	visitID := c.Param("visitId")
+	certificateIDStr := c.Query("certificate_id")
+
+	if certificateIDStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "certificate_id is required"})
+		return
+	}
+
+	var certificate models.BirthCertificate
+	if err := database.DB.
+		Preload("IssuedBy").
+		First(&certificate, certificateIDStr).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Birth certificate not found"})
+		return
+	}
+
+	visitIDUint, _ := strconv.ParseUint(visitID, 10, 32)
+	if certificate.VisitID != uint(visitIDUint) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Certificate does not belong to this visit"})
+		return
+	}
+
+	var visit models.Visit
+	if err := database.DB.
+		Preload("Registration.Patient").
+		Preload("Doctor").
+		First(&visit, visitID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Visit not found"})
+		return
+	}
+
+	if visit.Registration == nil || visit.Registration.Patient == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Patient data not found"})
+		return
+	}
+
+	patient := visit.Registration.Patient
+	hospitalInfo := getHospitalInfo()
+
+	pdf := gofpdf.New("P", "mm", "A4", "")
+	pdf.SetMargins(15, 15, 15)
+	pdf.SetAutoPageBreak(false, 0)
+	pdf.AddPage()
+
+	headerSubtitle := ""
+	if certificate.LetterNumber != "" {
+		headerSubtitle = "No: " + certificate.LetterNumber
+	}
+	addHeader(pdf, hospitalInfo, "Surat Keterangan Kelahiran", headerSubtitle)
+
+	pdf.SetY(pdf.GetY() + 10)
+	pdf.SetFont("Arial", "", 11)
+	pdf.MultiCell(0, 6, "Yang bertanda tangan di bawah ini menerangkan bahwa telah lahir seorang bayi dengan keterangan sebagai berikut:", "", "", false)
+	pdf.SetY(pdf.GetY() + 5)
+
+	// Baby details
+	pdf.SetFont("Arial", "B", 11)
+	pdf.CellFormat(0, 6, "Data Bayi:", "", 1, "", false, 0, "")
+	pdf.SetFont("Arial", "", 11)
+	pdf.SetY(pdf.GetY() + 2)
+
+	babyName := certificate.BabyName
+	if babyName == "" {
+		babyName = "Belum diberi nama"
+	}
+	pdf.CellFormat(50, 6, "Nama Bayi", "", 0, "", false, 0, "")
+	pdf.CellFormat(5, 6, ":", "", 0, "", false, 0, "")
+	pdf.SetFont("Arial", "B", 11)
+	pdf.CellFormat(0, 6, babyName, "", 1, "", false, 0, "")
+	pdf.SetFont("Arial", "", 11)
+
+	genderLabel := "Laki-laki"
+	if certificate.Gender == "perempuan" {
+		genderLabel = "Perempuan"
+	}
+	pdf.CellFormat(50, 6, "Jenis Kelamin", "", 0, "", false, 0, "")
+	pdf.CellFormat(5, 6, ":", "", 0, "", false, 0, "")
+	pdf.CellFormat(0, 6, genderLabel, "", 1, "", false, 0, "")
+
+	birthDateStr := formatDateIndonesian(certificate.BirthDate)
+	if certificate.BirthTime != "" {
+		birthDateStr += " pukul " + certificate.BirthTime + " WIB"
+	}
+	pdf.CellFormat(50, 6, "Tanggal/Waktu Lahir", "", 0, "", false, 0, "")
+	pdf.CellFormat(5, 6, ":", "", 0, "", false, 0, "")
+	pdf.CellFormat(0, 6, birthDateStr, "", 1, "", false, 0, "")
+
+	if certificate.BirthWeight > 0 {
+		pdf.CellFormat(50, 6, "Berat Lahir", "", 0, "", false, 0, "")
+		pdf.CellFormat(5, 6, ":", "", 0, "", false, 0, "")
+		pdf.CellFormat(0, 6, fmt.Sprintf("%.0f gram", certificate.BirthWeight), "", 1, "", false, 0, "")
+	}
+
+	if certificate.BirthLength > 0 {
+		pdf.CellFormat(50, 6, "Panjang Lahir", "", 0, "", false, 0, "")
+		pdf.CellFormat(5, 6, ":", "", 0, "", false, 0, "")
+		pdf.CellFormat(0, 6, fmt.Sprintf("%.0f cm", certificate.BirthLength), "", 1, "", false, 0, "")
+	}
+
+	// Birth method
+	birthMethodLabel := certificate.BirthMethod
+	switch certificate.BirthMethod {
+	case "normal":
+		birthMethodLabel = "Normal / Spontan"
+	case "sectio_caesarea":
+		birthMethodLabel = "Sectio Caesarea"
+	case "vakum":
+		birthMethodLabel = "Vakum Ekstraksi"
+	case "forcep":
+		birthMethodLabel = "Forcep"
+	}
+	if birthMethodLabel != "" {
+		pdf.CellFormat(50, 6, "Metode Persalinan", "", 0, "", false, 0, "")
+		pdf.CellFormat(5, 6, ":", "", 0, "", false, 0, "")
+		pdf.CellFormat(0, 6, birthMethodLabel, "", 1, "", false, 0, "")
+	}
+
+	if certificate.ApgarScore != "" {
+		pdf.CellFormat(50, 6, "Apgar Score", "", 0, "", false, 0, "")
+		pdf.CellFormat(5, 6, ":", "", 0, "", false, 0, "")
+		pdf.CellFormat(0, 6, certificate.ApgarScore, "", 1, "", false, 0, "")
+	}
+
+	// Parents
+	pdf.SetY(pdf.GetY() + 5)
+	pdf.SetFont("Arial", "B", 11)
+	pdf.CellFormat(0, 6, "Data Orang Tua:", "", 1, "", false, 0, "")
+	pdf.SetFont("Arial", "", 11)
+	pdf.SetY(pdf.GetY() + 2)
+
+	pdf.CellFormat(50, 6, "Nama Ibu", "", 0, "", false, 0, "")
+	pdf.CellFormat(5, 6, ":", "", 0, "", false, 0, "")
+	motherName := certificate.MotherName
+	if motherName == "" {
+		motherName = patient.NamaLengkap
+	}
+	pdf.CellFormat(0, 6, motherName, "", 1, "", false, 0, "")
+
+	if certificate.FatherName != "" {
+		pdf.CellFormat(50, 6, "Nama Ayah", "", 0, "", false, 0, "")
+		pdf.CellFormat(5, 6, ":", "", 0, "", false, 0, "")
+		pdf.CellFormat(0, 6, certificate.FatherName, "", 1, "", false, 0, "")
+	}
+
+	// Notes
+	if certificate.Notes != "" {
+		pdf.SetY(pdf.GetY() + 3)
+		pdf.SetFont("Arial", "I", 10)
+		pdf.MultiCell(0, 5, "Catatan: "+certificate.Notes, "", "", false)
+		pdf.SetFont("Arial", "", 11)
+	}
+
+	pdf.SetY(pdf.GetY() + 5)
+	pdf.MultiCell(0, 6, "Demikian surat keterangan kelahiran ini dibuat dengan sebenarnya untuk dapat dipergunakan sebagaimana mestinya.", "", "", false)
+
+	doctorName := "-"
+	if visit.Doctor != nil {
+		doctorName = visit.Doctor.NamaLengkap
+	}
+	addSignature(pdf, hospitalInfo.City, doctorName, "Dokter Penolong", models.DocTypeBirthCertificate, certificate.ID)
+
+	var buf bytes.Buffer
+	if err := pdf.Output(&buf); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate PDF"})
+		return
+	}
+
+	filename := fmt.Sprintf("Surat_Kelahiran_%s.pdf", patient.NoRM)
+	c.Header("Content-Type", "application/pdf")
+	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
+	c.Data(http.StatusOK, "application/pdf", buf.Bytes())
+}
+
+// PrintLeaveCertificate generates PDF for leave certificate (Surat Keterangan Cuti)
+func PrintLeaveCertificate(c *gin.Context) {
+	visitID := c.Param("visitId")
+	certificateIDStr := c.Query("certificate_id")
+
+	if certificateIDStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "certificate_id is required"})
+		return
+	}
+
+	var certificate models.LeaveCertificate
+	if err := database.DB.
+		Preload("IssuedBy").
+		First(&certificate, certificateIDStr).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Leave certificate not found"})
+		return
+	}
+
+	visitIDUint, _ := strconv.ParseUint(visitID, 10, 32)
+	if certificate.VisitID != uint(visitIDUint) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Certificate does not belong to this visit"})
+		return
+	}
+
+	var visit models.Visit
+	if err := database.DB.
+		Preload("Registration.Patient").
+		Preload("Doctor").
+		First(&visit, visitID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Visit not found"})
+		return
+	}
+
+	if visit.Registration == nil || visit.Registration.Patient == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Patient data not found"})
+		return
+	}
+
+	patient := visit.Registration.Patient
+	hospitalInfo := getHospitalInfo()
+
+	pdf := gofpdf.New("P", "mm", "A4", "")
+	pdf.SetMargins(15, 15, 15)
+	pdf.SetAutoPageBreak(false, 0)
+	pdf.AddPage()
+
+	headerSubtitle := ""
+	if certificate.LetterNumber != "" {
+		headerSubtitle = "No: " + certificate.LetterNumber
+	}
+	addHeader(pdf, hospitalInfo, "Surat Keterangan Cuti", headerSubtitle)
+
+	pdf.SetY(pdf.GetY() + 10)
+	pdf.SetFont("Arial", "", 11)
+	pdf.MultiCell(0, 6, "Yang bertanda tangan di bawah ini menerangkan bahwa:", "", "", false)
+	pdf.SetY(pdf.GetY() + 5)
+
+	// Patient details
+	pdf.SetFont("Arial", "", 11)
+	pdf.CellFormat(40, 6, "Nama", "", 0, "", false, 0, "")
+	pdf.CellFormat(5, 6, ":", "", 0, "", false, 0, "")
+	pdf.SetFont("Arial", "B", 11)
+	pdf.CellFormat(0, 6, patient.NamaLengkap, "", 1, "", false, 0, "")
+
+	pdf.SetFont("Arial", "", 11)
+	pdf.CellFormat(40, 6, "Tanggal Lahir", "", 0, "", false, 0, "")
+	pdf.CellFormat(5, 6, ":", "", 0, "", false, 0, "")
+	birthDate := "-"
+	if patient.TanggalLahir != nil && !patient.TanggalLahir.IsZero() {
+		birthDate = formatDateIndonesian(patient.TanggalLahir.Time)
+	}
+	pdf.CellFormat(0, 6, birthDate, "", 1, "", false, 0, "")
+
+	pdf.CellFormat(40, 6, "NIK", "", 0, "", false, 0, "")
+	pdf.CellFormat(5, 6, ":", "", 0, "", false, 0, "")
+	nik := patient.NIK
+	if nik == "" {
+		nik = "-"
+	}
+	pdf.CellFormat(0, 6, nik, "", 1, "", false, 0, "")
+
+	pdf.CellFormat(40, 6, "Alamat", "", 0, "", false, 0, "")
+	pdf.CellFormat(5, 6, ":", "", 0, "", false, 0, "")
+	alamat := patient.AlamatKTP
+	if alamat == "" {
+		alamat = "-"
+	}
+	pdf.CellFormat(0, 6, truncateText(alamat, 60), "", 1, "", false, 0, "")
+
+	if certificate.Institution != "" {
+		pdf.CellFormat(40, 6, "Instansi", "", 0, "", false, 0, "")
+		pdf.CellFormat(5, 6, ":", "", 0, "", false, 0, "")
+		pdf.CellFormat(0, 6, certificate.Institution, "", 1, "", false, 0, "")
+	}
+
+	pdf.SetY(pdf.GetY() + 5)
+
+	// Leave type label
+	leaveTypeLabel := certificate.LeaveType
+	switch certificate.LeaveType {
+	case "sakit":
+		leaveTypeLabel = "Cuti Sakit"
+	case "hamil":
+		leaveTypeLabel = "Cuti Hamil"
+	case "melahirkan":
+		leaveTypeLabel = "Cuti Melahirkan"
+	case "lainnya":
+		leaveTypeLabel = "Cuti Lainnya"
+	}
+
+	// Leave details
+	dateRange := formatDateIndonesian(certificate.StartDate) + " s/d " + formatDateIndonesian(certificate.EndDate)
+
+	statement := fmt.Sprintf("Memerlukan %s selama %d (%s) hari, terhitung mulai tanggal %s.",
+		leaveTypeLabel, certificate.Days, numberToWords(certificate.Days), dateRange)
+	pdf.MultiCell(0, 6, statement, "", "", false)
+
+	// Reason
+	if certificate.Reason != "" {
+		pdf.SetY(pdf.GetY() + 3)
+		pdf.CellFormat(40, 6, "Alasan", "", 0, "", false, 0, "")
+		pdf.CellFormat(5, 6, ":", "", 0, "", false, 0, "")
+		pdf.CellFormat(0, 6, certificate.Reason, "", 1, "", false, 0, "")
+	}
+
+	// Diagnosis
+	if certificate.Diagnosis != "" {
+		pdf.CellFormat(40, 6, "Diagnosis", "", 0, "", false, 0, "")
+		pdf.CellFormat(5, 6, ":", "", 0, "", false, 0, "")
+		pdf.CellFormat(0, 6, truncateText(certificate.Diagnosis, 60), "", 1, "", false, 0, "")
+	}
+
+	// Notes
+	if certificate.Notes != "" {
+		pdf.SetY(pdf.GetY() + 3)
+		pdf.SetFont("Arial", "I", 10)
+		pdf.MultiCell(0, 5, "Catatan: "+certificate.Notes, "", "", false)
+		pdf.SetFont("Arial", "", 11)
+	}
+
+	pdf.SetY(pdf.GetY() + 5)
+	pdf.MultiCell(0, 6, "Demikian surat keterangan ini dibuat dengan sebenarnya untuk dapat dipergunakan sebagaimana mestinya.", "", "", false)
+
+	doctorName := "-"
+	if visit.Doctor != nil {
+		doctorName = visit.Doctor.NamaLengkap
+	}
+	addSignature(pdf, hospitalInfo.City, doctorName, "Dokter Pemeriksa", models.DocTypeLeaveCertificate, certificate.ID)
+
+	var buf bytes.Buffer
+	if err := pdf.Output(&buf); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate PDF"})
+		return
+	}
+
+	filename := fmt.Sprintf("Surat_Cuti_%s.pdf", patient.NoRM)
+	c.Header("Content-Type", "application/pdf")
+	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
+	c.Data(http.StatusOK, "application/pdf", buf.Bytes())
+}
+
+// PrintMCUCertificate generates PDF for MCU certificate (Surat Keterangan MCU)
+func PrintMCUCertificate(c *gin.Context) {
+	visitID := c.Param("visitId")
+	certificateIDStr := c.Query("certificate_id")
+
+	if certificateIDStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "certificate_id is required"})
+		return
+	}
+
+	var certificate models.MCUCertificate
+	if err := database.DB.
+		Preload("IssuedBy").
+		First(&certificate, certificateIDStr).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "MCU certificate not found"})
+		return
+	}
+
+	visitIDUint, _ := strconv.ParseUint(visitID, 10, 32)
+	if certificate.VisitID != uint(visitIDUint) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Certificate does not belong to this visit"})
+		return
+	}
+
+	var visit models.Visit
+	if err := database.DB.
+		Preload("Registration.Patient").
+		Preload("Doctor").
+		First(&visit, visitID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Visit not found"})
+		return
+	}
+
+	if visit.Registration == nil || visit.Registration.Patient == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Patient data not found"})
+		return
+	}
+
+	patient := visit.Registration.Patient
+	hospitalInfo := getHospitalInfo()
+
+	pdf := gofpdf.New("P", "mm", "A4", "")
+	pdf.SetMargins(15, 15, 15)
+	pdf.SetAutoPageBreak(false, 0)
+	pdf.AddPage()
+
+	headerSubtitle := ""
+	if certificate.LetterNumber != "" {
+		headerSubtitle = "No: " + certificate.LetterNumber
+	}
+	addHeader(pdf, hospitalInfo, "Surat Keterangan Medical Check-Up", headerSubtitle)
+
+	pdf.SetY(pdf.GetY() + 10)
+	pdf.SetFont("Arial", "", 11)
+	pdf.MultiCell(0, 6, "Yang bertanda tangan di bawah ini menerangkan bahwa:", "", "", false)
+	pdf.SetY(pdf.GetY() + 5)
+
+	// Patient details
+	pdf.SetFont("Arial", "", 11)
+	pdf.CellFormat(40, 6, "Nama", "", 0, "", false, 0, "")
+	pdf.CellFormat(5, 6, ":", "", 0, "", false, 0, "")
+	pdf.SetFont("Arial", "B", 11)
+	pdf.CellFormat(0, 6, patient.NamaLengkap, "", 1, "", false, 0, "")
+
+	pdf.SetFont("Arial", "", 11)
+	pdf.CellFormat(40, 6, "Tanggal Lahir", "", 0, "", false, 0, "")
+	pdf.CellFormat(5, 6, ":", "", 0, "", false, 0, "")
+	birthDate := "-"
+	if patient.TanggalLahir != nil && !patient.TanggalLahir.IsZero() {
+		birthDate = formatDateIndonesian(patient.TanggalLahir.Time)
+	}
+	pdf.CellFormat(0, 6, birthDate, "", 1, "", false, 0, "")
+
+	pdf.CellFormat(40, 6, "NIK", "", 0, "", false, 0, "")
+	pdf.CellFormat(5, 6, ":", "", 0, "", false, 0, "")
+	nik := patient.NIK
+	if nik == "" {
+		nik = "-"
+	}
+	pdf.CellFormat(0, 6, nik, "", 1, "", false, 0, "")
+
+	pdf.CellFormat(40, 6, "Alamat", "", 0, "", false, 0, "")
+	pdf.CellFormat(5, 6, ":", "", 0, "", false, 0, "")
+	alamat := patient.AlamatKTP
+	if alamat == "" {
+		alamat = "-"
+	}
+	pdf.CellFormat(0, 6, truncateText(alamat, 60), "", 1, "", false, 0, "")
+
+	if certificate.Institution != "" {
+		pdf.CellFormat(40, 6, "Instansi", "", 0, "", false, 0, "")
+		pdf.CellFormat(5, 6, ":", "", 0, "", false, 0, "")
+		pdf.CellFormat(0, 6, certificate.Institution, "", 1, "", false, 0, "")
+	}
+
+	pdf.SetY(pdf.GetY() + 5)
+
+	// Exam info
+	examDateStr := formatDateIndonesian(certificate.ExamDate)
+	statement := fmt.Sprintf("Telah dilakukan pemeriksaan kesehatan (Medical Check-Up) pada tanggal %s", examDateStr)
+	if certificate.Purpose != "" {
+		statement += " untuk keperluan " + certificate.Purpose
+	}
+	statement += "."
+	pdf.MultiCell(0, 6, statement, "", "", false)
+
+	pdf.SetY(pdf.GetY() + 5)
+
+	// Conclusion
+	conclusionLabel := certificate.Conclusion
+	switch certificate.Conclusion {
+	case "layak":
+		conclusionLabel = "LAYAK"
+	case "tidak_layak":
+		conclusionLabel = "TIDAK LAYAK"
+	case "layak_dengan_catatan":
+		conclusionLabel = "LAYAK DENGAN CATATAN"
+	}
+
+	pdf.SetFont("Arial", "", 11)
+	pdf.CellFormat(40, 6, "Kesimpulan", "", 0, "", false, 0, "")
+	pdf.CellFormat(5, 6, ":", "", 0, "", false, 0, "")
+	pdf.SetFont("Arial", "B", 11)
+	pdf.CellFormat(0, 6, conclusionLabel, "", 1, "", false, 0, "")
+	pdf.SetFont("Arial", "", 11)
+
+	// Recommendation
+	if certificate.Recommendation != "" {
+		pdf.SetY(pdf.GetY() + 3)
+		pdf.CellFormat(40, 6, "Rekomendasi", "", 0, "", false, 0, "")
+		pdf.CellFormat(5, 6, ":", "", 0, "", false, 0, "")
+		// Start MultiCell at current X position (after colon) so text is inline
+		startX := pdf.GetX()
+		startY := pdf.GetY()
+		pdf.SetLeftMargin(startX)
+		pdf.MultiCell(0, 6, certificate.Recommendation, "", "", false)
+		pdf.SetLeftMargin(15) // reset margin
+		_ = startY
+	}
+
+	// Notes
+	if certificate.Notes != "" {
+		pdf.SetY(pdf.GetY() + 3)
+		pdf.SetFont("Arial", "I", 10)
+		pdf.MultiCell(0, 5, "Catatan: "+certificate.Notes, "", "", false)
+		pdf.SetFont("Arial", "", 11)
+	}
+
+	pdf.SetY(pdf.GetY() + 5)
+	pdf.MultiCell(0, 6, "Demikian surat keterangan ini dibuat dengan sebenarnya untuk dapat dipergunakan sebagaimana mestinya.", "", "", false)
+
+	doctorName := "-"
+	if visit.Doctor != nil {
+		doctorName = visit.Doctor.NamaLengkap
+	}
+	addSignature(pdf, hospitalInfo.City, doctorName, "Dokter Pemeriksa", models.DocTypeMCUCertificate, certificate.ID)
+
+	var buf bytes.Buffer
+	if err := pdf.Output(&buf); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate PDF"})
+		return
+	}
+
+	filename := fmt.Sprintf("Surat_MCU_%s.pdf", patient.NoRM)
 	c.Header("Content-Type", "application/pdf")
 	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
 	c.Data(http.StatusOK, "application/pdf", buf.Bytes())

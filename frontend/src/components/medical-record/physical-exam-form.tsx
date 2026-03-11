@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -12,9 +11,7 @@ import {
   Save, 
   Loader2, 
   Heart,
-  Activity,
   FileText,
-  Thermometer,
   Sparkles,
   ChevronDown,
   ChevronUp,
@@ -26,6 +23,9 @@ import { useMultipleMasterData } from "@/hooks/useMasterData";
 import type { PhysicalExam } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useEditMode, EditModeBanner, EditConfirmDialog, PINVerificationDialog } from "./edit-mode-controller";
+import { emitMedicalRecordTabIndicator, emitMedicalRecordTabSaved, MEDICAL_RECORD_TAB_SAVED_EVENT } from "./tab-indicator";
+import { COPY_FROM_HISTORY_EVENT } from "./copy-from-history-drawer";
+import { saveFormDraft, loadFormDraft, clearFormDraft, loadPendingCopy, clearPendingCopy } from "@/lib/form-persistence";
 
 interface PhysicalExamFormProps {
   visitId: number;
@@ -66,6 +66,73 @@ const getBMICategory = (bmi: number): { label: string; color: string } => {
   if (bmi < 25) return { label: "Normal", color: "text-green-600" };
   if (bmi < 30) return { label: "Overweight", color: "text-orange-600" };
   return { label: "Obese", color: "text-red-600" };
+};
+
+type VitalStatus = "none" | "low" | "high" | "borderline" | "normal";
+
+const getVitalStatus = (
+  value: number,
+  normalMin: number,
+  normalMax: number,
+  warningMin?: number,
+  warningMax?: number
+): VitalStatus => {
+  if (!value || value <= 0) return "none";
+
+  if (value < normalMin) {
+    if (warningMin !== undefined && value >= warningMin) return "borderline";
+    return "low";
+  }
+
+  if (value > normalMax) {
+    if (warningMax !== undefined && value <= warningMax) return "borderline";
+    return "high";
+  }
+
+  return "normal";
+};
+
+const getVitalStatusLabel = (status: VitalStatus) => {
+  switch (status) {
+    case "low":
+      return "Di bawah";
+    case "high":
+      return "Di atas";
+    case "borderline":
+      return "Batas";
+    case "normal":
+      return "Normal";
+    default:
+      return null;
+  }
+};
+
+const getVitalStatusBadgeClass = (status: VitalStatus) => {
+  switch (status) {
+    case "normal":
+      return "bg-green-50 text-green-700 border-green-200";
+    case "borderline":
+      return "bg-yellow-50 text-yellow-700 border-yellow-200";
+    case "low":
+    case "high":
+      return "bg-red-50 text-red-700 border-red-200";
+    default:
+      return "";
+  }
+};
+
+const getVitalStatusInputClass = (status: VitalStatus) => {
+  switch (status) {
+    case "normal":
+      return "border-green-300 focus-visible:ring-green-500";
+    case "borderline":
+      return "border-yellow-300 focus-visible:ring-yellow-500";
+    case "low":
+    case "high":
+      return "border-red-300 focus-visible:ring-red-500";
+    default:
+      return "";
+  }
 };
 
 const defaultFormData = {
@@ -193,6 +260,7 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
           
           setFormData(loadedData);
           setPhysicalExamId(data.id);
+          emitMedicalRecordTabSaved("physical-exam", true);
           
           // Set checked state for sections that have data
           const checked: Record<string, boolean> = {};
@@ -208,6 +276,57 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
         // No existing data
       } finally {
         setLoading(false);
+        // Apply local draft if exists — overrides server data if user had unsaved changes
+        const draft = loadFormDraft<{ formData: typeof defaultFormData; checkedSections: Record<string, boolean> }>(`mr-draft-physical-exam-${visitId}`);
+        if (draft) {
+          setFormData(draft.formData);
+          setCheckedSections(draft.checkedSections);
+          emitMedicalRecordTabSaved("physical-exam", false);
+        }
+        // Check for pending copy from history (takes priority over draft)
+        const pendingCopy = loadPendingCopy<any>("physical-exam");
+        if (pendingCopy) {
+          const newData = {
+            general_condition: pendingCopy.general_condition || "",
+            consciousness: pendingCopy.consciousness || "",
+            blood_pressure_systolic: Number(pendingCopy.systolic || pendingCopy.blood_pressure_systolic) || 0,
+            blood_pressure_diastolic: Number(pendingCopy.diastolic || pendingCopy.blood_pressure_diastolic) || 0,
+            heart_rate: Number(pendingCopy.heart_rate) || 0,
+            respiratory_rate: Number(pendingCopy.respiratory_rate) || 0,
+            temperature: Number(pendingCopy.temperature) || 0,
+            oxygen_saturation: Number(pendingCopy.oxygen_saturation) || 0,
+            weight: Number(pendingCopy.weight) || 0,
+            height: Number(pendingCopy.height) || 0,
+            bmi: Number(pendingCopy.bmi) || 0,
+            head: pendingCopy.head || "",
+            eyes: pendingCopy.eyes || "",
+            ears: pendingCopy.ears || "",
+            nose: pendingCopy.nose || "",
+            throat: pendingCopy.throat || "",
+            neck: pendingCopy.neck || "",
+            chest: pendingCopy.chest || pendingCopy.thorax || "",
+            heart: pendingCopy.heart || pendingCopy.cardiac || "",
+            lungs: pendingCopy.lungs || pendingCopy.pulmonary || "",
+            abdomen: pendingCopy.abdomen || "",
+            extremities: pendingCopy.extremities || "",
+            skin: pendingCopy.skin || "",
+            neurological: pendingCopy.neurological || "",
+            other_findings: pendingCopy.other_findings || "",
+            ecg_performed: pendingCopy.ecg_performed || false,
+            ecg_result: pendingCopy.ecg_result || "",
+            ecg_interpretation: pendingCopy.ecg_interpretation || "",
+            ecg_notes: pendingCopy.ecg_notes || "",
+          };
+          setFormData(newData);
+          const checked: Record<string, boolean> = {};
+          ["head", "eyes", "ears", "nose", "throat", "neck", "chest", "heart", "lungs", "abdomen", "extremities", "skin", "neurological"].forEach(key => {
+            if (newData[key as keyof typeof newData] && String(newData[key as keyof typeof newData]).trim()) {
+              checked[key] = true;
+            }
+          });
+          setCheckedSections(checked);
+          emitMedicalRecordTabSaved("physical-exam", false);
+        }
       }
     };
 
@@ -224,6 +343,7 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
       }
       return updated;
     });
+    emitMedicalRecordTabSaved("physical-exam", false);
   };
 
   const handleCheckSection = (sectionId: string, checked: boolean) => {
@@ -300,37 +420,119 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
   };
 
   const bmiCategory = getBMICategory(formData.bmi);
-  const filledPhysicalExam = Object.keys(checkedSections).filter(k => checkedSections[k]).length;
-  const allPhysicalChecked = filledPhysicalExam === physicalExamSections.length;
+  const systolicStatus = getVitalStatus(formData.blood_pressure_systolic, 90, 120, 80, 129);
+  const diastolicStatus = getVitalStatus(formData.blood_pressure_diastolic, 60, 80, 50, 89);
+  const heartRateStatus = getVitalStatus(formData.heart_rate, 60, 100, 50, 110);
+  const respiratoryStatus = getVitalStatus(formData.respiratory_rate, 12, 20, 10, 24);
+  const temperatureStatus = getVitalStatus(formData.temperature, 36.1, 37.2, 35.5, 37.9);
+  const spo2Status = getVitalStatus(formData.oxygen_saturation, 95, 100, 90, 100);
+  const filledBodySections = Object.keys(checkedSections).filter(k => checkedSections[k]).length;
+  const filledVitalSigns = [
+    formData.general_condition ? 1 : 0,
+    formData.consciousness ? 1 : 0,
+    formData.blood_pressure_systolic > 0 ? 1 : 0,
+    formData.blood_pressure_diastolic > 0 ? 1 : 0,
+    formData.heart_rate > 0 ? 1 : 0,
+    formData.respiratory_rate > 0 ? 1 : 0,
+    formData.temperature > 0 ? 1 : 0,
+    formData.oxygen_saturation > 0 ? 1 : 0,
+  ].reduce((a, b) => a + b, 0);
+  const filledPhysicalExam = filledBodySections + filledVitalSigns;
+  const totalPhysicalExam = physicalExamSections.length + 8; // 13 body sections + 8 vital sign fields
+  const allPhysicalChecked = filledBodySections === physicalExamSections.length;
+
+  useEffect(() => {
+    if (loading) return;
+    emitMedicalRecordTabIndicator("physical-exam", `${filledPhysicalExam}/${totalPhysicalExam}`);
+  }, [filledPhysicalExam, loading]);
+
+  // Auto-save draft to localStorage on every form change
+  useEffect(() => {
+    if (loading) return;
+    saveFormDraft(`mr-draft-physical-exam-${visitId}`, { formData, checkedSections });
+  }, [formData, checkedSections, loading, visitId]);
+
+  // Clear draft when save is confirmed by server
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ev = e as CustomEvent<{ tabId: string; saved: boolean }>;
+      if (ev.detail?.tabId === "physical-exam" && ev.detail.saved === true) {
+        clearFormDraft(`mr-draft-physical-exam-${visitId}`);
+      }
+    };
+    window.addEventListener(MEDICAL_RECORD_TAB_SAVED_EVENT, handler as EventListener);
+    return () => window.removeEventListener(MEDICAL_RECORD_TAB_SAVED_EVENT, handler as EventListener);
+  }, [visitId]);
+
+  // Listen for copy-from-history events
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ev = e as CustomEvent<{ section: string; data: any }>;
+      if (ev.detail?.section !== "physical-exam" || !ev.detail.data) return;
+      clearPendingCopy("physical-exam");
+      const d = ev.detail.data;
+      const newData = {
+        general_condition: d.general_condition || "",
+        consciousness: d.consciousness || "",
+        blood_pressure_systolic: Number(d.systolic || d.blood_pressure_systolic) || 0,
+        blood_pressure_diastolic: Number(d.diastolic || d.blood_pressure_diastolic) || 0,
+        heart_rate: Number(d.heart_rate) || 0,
+        respiratory_rate: Number(d.respiratory_rate) || 0,
+        temperature: Number(d.temperature) || 0,
+        oxygen_saturation: Number(d.oxygen_saturation) || 0,
+        weight: Number(d.weight) || 0,
+        height: Number(d.height) || 0,
+        bmi: Number(d.bmi) || 0,
+        head: d.head || "",
+        eyes: d.eyes || "",
+        ears: d.ears || "",
+        nose: d.nose || "",
+        throat: d.throat || "",
+        neck: d.neck || "",
+        chest: d.chest || d.thorax || "",
+        heart: d.heart || d.cardiac || "",
+        lungs: d.lungs || d.pulmonary || "",
+        abdomen: d.abdomen || "",
+        extremities: d.extremities || "",
+        skin: d.skin || "",
+        neurological: d.neurological || "",
+        other_findings: d.other_findings || "",
+        ecg_performed: d.ecg_performed || false,
+        ecg_result: d.ecg_result || "",
+        ecg_interpretation: d.ecg_interpretation || "",
+        ecg_notes: d.ecg_notes || "",
+      };
+      setFormData(newData);
+      // Auto-check sections that have data
+      const checked: Record<string, boolean> = {};
+      ["head", "eyes", "ears", "nose", "throat", "neck", "chest", "heart", "lungs", "abdomen", "extremities", "skin", "neurological"].forEach(key => {
+        if (newData[key as keyof typeof newData] && String(newData[key as keyof typeof newData]).trim()) {
+          checked[key] = true;
+        }
+      });
+      setCheckedSections(checked);
+      emitMedicalRecordTabSaved("physical-exam", false);
+    };
+    window.addEventListener(COPY_FROM_HISTORY_EVENT, handler as EventListener);
+    return () => window.removeEventListener(COPY_FROM_HISTORY_EVENT, handler as EventListener);
+  }, []);
 
   if (loading) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Pemeriksaan Fisik</CardTitle>
-        </CardHeader>
-        <CardContent className="p-6">
+      <div>
+        <div className="p-6">
           <div className="flex items-center justify-center py-8 gap-2">
             <Loader2 className="h-4 w-4 animate-spin" />
             <span className="text-muted-foreground">Memuat data...</span>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     );
   }
 
   return (
-    <Card>
-      <CardHeader className="py-3 px-4">
-        <CardTitle className="text-base font-semibold flex items-center gap-2">
-          <Activity className="h-4 w-4" />
-          Pemeriksaan Fisik
-        </CardTitle>
-        <CardDescription>
-          Tanda vital dan pemeriksaan fisik head to toe
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
+    <div>
+      <div>
             <EditModeBanner
               isPatientDischarged={isPatientDischarged}
               isEditing={isEditing}
@@ -342,15 +544,9 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
             
             {/* Section 1: Kondisi Umum & Tanda Vital */}
             <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <Thermometer className="h-5 w-5 text-muted-foreground" />
-                  <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase">
-                    Kondisi Umum & Tanda Vital {isEmergency && <span className="text-destructive">(Wajib)</span>}
-                  </h3>
-                </div>
+                
                 {/* Kondisi Umum */}
                 <div>
-                  <h4 className="text-sm font-medium text-muted-foreground mb-3">Kondisi Umum</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="general_condition" className="text-sm">Keadaan Umum</Label>
@@ -387,6 +583,11 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
                       <Label htmlFor="blood_pressure_systolic" className="text-xs flex items-center gap-1.5">
                         Sistolik {isEmergency && <span className="text-destructive">*</span>}
                         <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-blue-50 text-blue-700 border-blue-200">SatuSehat</Badge>
+                        {getVitalStatusLabel(systolicStatus) && (
+                          <Badge variant="outline" className={cn("text-[10px] px-1 py-0 h-4", getVitalStatusBadgeClass(systolicStatus))}>
+                            {getVitalStatusLabel(systolicStatus)}
+                          </Badge>
+                        )}
                       </Label>
                       <div className="relative">
                         <Input
@@ -396,7 +597,7 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
                           value={formData.blood_pressure_systolic || ""}
                           onChange={(e) => handleChange("blood_pressure_systolic", parseInt(e.target.value) || 0)}
                           required={isEmergency}
-                          className="pr-12"
+                          className={cn("pr-12", getVitalStatusInputClass(systolicStatus))}
                         />
                         <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">mmHg</span>
                       </div>
@@ -405,6 +606,11 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
                       <Label htmlFor="blood_pressure_diastolic" className="text-xs flex items-center gap-1.5">
                         Diastolik {isEmergency && <span className="text-destructive">*</span>}
                         <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-blue-50 text-blue-700 border-blue-200">SatuSehat</Badge>
+                        {getVitalStatusLabel(diastolicStatus) && (
+                          <Badge variant="outline" className={cn("text-[10px] px-1 py-0 h-4", getVitalStatusBadgeClass(diastolicStatus))}>
+                            {getVitalStatusLabel(diastolicStatus)}
+                          </Badge>
+                        )}
                       </Label>
                       <div className="relative">
                         <Input
@@ -414,7 +620,7 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
                           value={formData.blood_pressure_diastolic || ""}
                           onChange={(e) => handleChange("blood_pressure_diastolic", parseInt(e.target.value) || 0)}
                           required={isEmergency}
-                          className="pr-12"
+                          className={cn("pr-12", getVitalStatusInputClass(diastolicStatus))}
                         />
                         <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">mmHg</span>
                       </div>
@@ -423,6 +629,11 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
                       <Label htmlFor="heart_rate" className="text-xs flex items-center gap-1.5">
                         Nadi {isEmergency && <span className="text-destructive">*</span>}
                         <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-blue-50 text-blue-700 border-blue-200">SatuSehat</Badge>
+                        {getVitalStatusLabel(heartRateStatus) && (
+                          <Badge variant="outline" className={cn("text-[10px] px-1 py-0 h-4", getVitalStatusBadgeClass(heartRateStatus))}>
+                            {getVitalStatusLabel(heartRateStatus)}
+                          </Badge>
+                        )}
                       </Label>
                       <div className="relative">
                         <Input
@@ -432,7 +643,7 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
                           value={formData.heart_rate || ""}
                           onChange={(e) => handleChange("heart_rate", parseInt(e.target.value) || 0)}
                           required={isEmergency}
-                          className="pr-10"
+                          className={cn("pr-10", getVitalStatusInputClass(heartRateStatus))}
                         />
                         <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">x/m</span>
                       </div>
@@ -441,6 +652,11 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
                       <Label htmlFor="respiratory_rate" className="text-xs flex items-center gap-1.5">
                         Napas {isEmergency && <span className="text-destructive">*</span>}
                         <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-blue-50 text-blue-700 border-blue-200">SatuSehat</Badge>
+                        {getVitalStatusLabel(respiratoryStatus) && (
+                          <Badge variant="outline" className={cn("text-[10px] px-1 py-0 h-4", getVitalStatusBadgeClass(respiratoryStatus))}>
+                            {getVitalStatusLabel(respiratoryStatus)}
+                          </Badge>
+                        )}
                       </Label>
                       <div className="relative">
                         <Input
@@ -450,7 +666,7 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
                           value={formData.respiratory_rate || ""}
                           onChange={(e) => handleChange("respiratory_rate", parseInt(e.target.value) || 0)}
                           required={isEmergency}
-                          className="pr-10"
+                          className={cn("pr-10", getVitalStatusInputClass(respiratoryStatus))}
                         />
                         <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">x/m</span>
                       </div>
@@ -459,6 +675,11 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
                       <Label htmlFor="temperature" className="text-xs flex items-center gap-1.5">
                         Suhu {isEmergency && <span className="text-destructive">*</span>}
                         <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-blue-50 text-blue-700 border-blue-200">SatuSehat</Badge>
+                        {getVitalStatusLabel(temperatureStatus) && (
+                          <Badge variant="outline" className={cn("text-[10px] px-1 py-0 h-4", getVitalStatusBadgeClass(temperatureStatus))}>
+                            {getVitalStatusLabel(temperatureStatus)}
+                          </Badge>
+                        )}
                       </Label>
                       <div className="relative">
                         <Input
@@ -469,7 +690,7 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
                           value={formData.temperature || ""}
                           onChange={(e) => handleChange("temperature", parseFloat(e.target.value) || 0)}
                           required={isEmergency}
-                          className="pr-8"
+                          className={cn("pr-8", getVitalStatusInputClass(temperatureStatus))}
                         />
                         <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">°C</span>
                       </div>
@@ -478,6 +699,11 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
                       <Label htmlFor="oxygen_saturation" className="text-xs flex items-center gap-1.5">
                         SpO2 {isEmergency && <span className="text-destructive">*</span>}
                         <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-blue-50 text-blue-700 border-blue-200">SatuSehat</Badge>
+                        {getVitalStatusLabel(spo2Status) && (
+                          <Badge variant="outline" className={cn("text-[10px] px-1 py-0 h-4", getVitalStatusBadgeClass(spo2Status))}>
+                            {getVitalStatusLabel(spo2Status)}
+                          </Badge>
+                        )}
                       </Label>
                       <div className="relative">
                         <Input
@@ -487,7 +713,7 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
                           value={formData.oxygen_saturation || ""}
                           onChange={(e) => handleChange("oxygen_saturation", parseInt(e.target.value) || 0)}
                           required={isEmergency}
-                          className="pr-6"
+                          className={cn("pr-6", getVitalStatusInputClass(spo2Status))}
                         />
                         <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">%</span>
                       </div>
@@ -556,11 +782,8 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
             {/* Section 2: Pemeriksaan Fisik - Table with Checkbox Column */}
             <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Activity className="h-5 w-5 text-muted-foreground" />
-                    <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase">Pemeriksaan Fisik</h3>
-                    <Badge variant={filledPhysicalExam > 0 ? "default" : "secondary"}>
-                      {filledPhysicalExam}/{physicalExamSections.length}
+                  <div className="flex items-center gap-3"><Badge variant={filledPhysicalExam > 0 ? "default" : "secondary"}>
+                      {filledBodySections}/{physicalExamSections.length}
                     </Badge>
                   </div>
                   <Button
@@ -693,10 +916,7 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
 
             {/* Section 3: Pemeriksaan Penunjang - Table with Checkbox Column */}
             <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <Heart className="h-5 w-5 text-muted-foreground" />
-                  <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase">Pemeriksaan Penunjang</h3>
-                  <Badge variant={formData.ecg_performed ? "default" : "secondary"}>
+                <div className="flex items-center gap-3"><Badge variant={formData.ecg_performed ? "default" : "secondary"}>
                     {formData.ecg_performed ? 1 : 0}/1
                   </Badge>
                 </div>
@@ -875,7 +1095,7 @@ Kesimpulan: EKG dalam batas normal`}
             )}
           </fieldset>
         </form>
-      </CardContent>
+      </div>
       <EditConfirmDialog
         open={showEditDialog}
         onOpenChange={setShowEditDialog}
@@ -893,6 +1113,6 @@ Kesimpulan: EKG dalam batas normal`}
         onPINKeyDown={handlePINKeyDown}
         onVerify={handleVerifyPIN}
       />
-    </Card>
+    </div>
   );
 }

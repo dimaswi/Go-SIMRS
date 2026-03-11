@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -16,10 +15,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Save, Loader2, FileText, Pill, AlertCircle, Search, X, Plus, AlertTriangle } from "lucide-react";
+import { Save, Loader2, Pill, AlertCircle, Search, X, Plus, AlertTriangle } from "lucide-react";
 import { medicalRecordsApi, patientAllergyApi, ALLERGY_CATEGORY_LABELS, ALLERGY_CRITICALITY_LABELS, ALLERGY_CRITICALITY_COLORS } from "@/lib/api";
 import { medicalRecordEditLogApi } from "@/lib/api/visits";
 import { useEditMode, EditModeBanner, EditConfirmDialog, PINVerificationDialog } from "./edit-mode-controller";
+import { emitMedicalRecordTabIndicator, emitMedicalRecordTabSaved, MEDICAL_RECORD_TAB_SAVED_EVENT } from "./tab-indicator";
+import { COPY_FROM_HISTORY_EVENT } from "./copy-from-history-drawer";
+import { saveFormDraft, loadFormDraft, clearFormDraft, loadPendingCopy, clearPendingCopy } from "@/lib/form-persistence";
 import type { Anamnesis, PatientAllergy, AllergyCategory, AllergyCriticality } from "@/lib/api";
 import type { SnomedMaster } from "@/lib/api/loinc";
 import { useDebounce } from "@/hooks/use-debounce";
@@ -127,11 +129,33 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false, is
             current_medications: data.current_medications || "",
           });
           setAnamnesisId(data.id);
+          emitMedicalRecordTabSaved("anamnesis", true);
         }
       } catch {
         // No existing data, use defaults
       } finally {
         setLoading(false);
+        // Apply local draft if exists — overrides server data if user had unsaved changes
+        const draft = loadFormDraft<typeof defaultFormData>(`mr-draft-anamnesis-${visitId}`);
+        if (draft) {
+          setFormData(draft);
+          emitMedicalRecordTabSaved("anamnesis", false);
+        }
+        // Check for pending copy from history (takes priority over draft)
+        const pendingCopy = loadPendingCopy<any>("anamnesis");
+        if (pendingCopy) {
+          setFormData(prev => ({
+            ...prev,
+            chief_complaint: pendingCopy.chief_complaint || "",
+            history_of_present_illness: pendingCopy.history_of_present_illness || "",
+            past_medical_history: pendingCopy.past_medical_history || "",
+            family_history: pendingCopy.family_history || "",
+            social_history: pendingCopy.social_history || "",
+            // allergies is auto-generated from structured patient allergies, don't overwrite
+            current_medications: pendingCopy.current_medications || "",
+          }));
+          emitMedicalRecordTabSaved("anamnesis", false);
+        }
       }
     };
 
@@ -181,6 +205,7 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false, is
 
   const handleChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+    emitMedicalRecordTabSaved("anamnesis", false);
   };
 
   const handleSelectSnomed = (snomed: SnomedMaster) => {
@@ -293,44 +318,74 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false, is
     doSave();
   };
 
-  const filledFields = Object.values(formData).filter(v => v && v.trim() !== "").length;
+  // Count filled fields: 6 text fields + allergies (structured OR legacy text)
+  const filledTextFields = Object.entries(formData).filter(([k, v]) => k !== "allergies" && v && v.trim() !== "").length;
+  const hasAllergies = patientAllergies.length > 0 || (formData.allergies && formData.allergies.trim() !== "");
+  const filledFields = filledTextFields + (hasAllergies ? 1 : 0);
   const totalFields = 7;
+
+  useEffect(() => {
+    if (loading || loadingAllergies) return;
+    emitMedicalRecordTabIndicator("anamnesis", `${filledFields}/${totalFields}`);
+  }, [filledFields, loading, loadingAllergies, totalFields]);
+
+  // Auto-save draft to localStorage on every form change
+  useEffect(() => {
+    if (loading) return;
+    saveFormDraft(`mr-draft-anamnesis-${visitId}`, formData);
+  }, [formData, loading, visitId]);
+
+  // Clear draft when save is confirmed by server
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ev = e as CustomEvent<{ tabId: string; saved: boolean }>;
+      if (ev.detail?.tabId === "anamnesis" && ev.detail.saved === true) {
+        clearFormDraft(`mr-draft-anamnesis-${visitId}`);
+      }
+    };
+    window.addEventListener(MEDICAL_RECORD_TAB_SAVED_EVENT, handler as EventListener);
+    return () => window.removeEventListener(MEDICAL_RECORD_TAB_SAVED_EVENT, handler as EventListener);
+  }, [visitId]);
+
+  // Listen for copy-from-history events
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ev = e as CustomEvent<{ section: string; data: any }>;
+      if (ev.detail?.section !== "anamnesis" || !ev.detail.data) return;
+      clearPendingCopy("anamnesis");
+      const d = ev.detail.data;
+      setFormData(prev => ({
+        ...prev,
+        chief_complaint: d.chief_complaint || "",
+        history_of_present_illness: d.history_of_present_illness || "",
+        past_medical_history: d.past_medical_history || "",
+        family_history: d.family_history || "",
+        social_history: d.social_history || "",
+        // allergies is auto-generated from structured patient allergies, don't overwrite
+        current_medications: d.current_medications || "",
+      }));
+      emitMedicalRecordTabSaved("anamnesis", false);
+    };
+    window.addEventListener(COPY_FROM_HISTORY_EVENT, handler as EventListener);
+    return () => window.removeEventListener(COPY_FROM_HISTORY_EVENT, handler as EventListener);
+  }, []);
 
   if (loading) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Anamnesis</CardTitle>
-        </CardHeader>
-        <CardContent className="p-4">
+      <div>
+        <div className="p-4">
           <div className="flex items-center justify-center py-8 gap-2">
             <Loader2 className="h-4 w-4 animate-spin" />
             <span className="text-muted-foreground">Memuat data...</span>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     );
   }
 
   return (
-    <Card>
-      <CardHeader className="py-3 px-4">
-        <div className="flex items-center justify-between">
-          <div className="flex-1">
-            <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <FileText className="h-4 w-4" />
-              Anamnesis
-            </CardTitle>
-            <CardDescription>
-              Keluhan utama dan riwayat penyakit pasien
-            </CardDescription>
-          </div>
-          <Badge variant={filledFields > 0 ? "default" : "secondary"}>
-            {filledFields}/{totalFields}
-          </Badge>
-        </div>
-      </CardHeader>
-      <CardContent>
+    <div>
+      <div>
           {/* Edit Mode Banner for discharged patients */}
           <EditModeBanner
             isPatientDischarged={isPatientDischarged}
@@ -343,9 +398,7 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false, is
           <fieldset disabled={isFormDisabled} className="space-y-6">
           
           {/* Section 1: Keluhan Utama & Riwayat Penyakit Sekarang */}
-          <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase">Keluhan & Riwayat Penyakit</h3>
-              <div className="space-y-2">
+          <div className="space-y-4"><div className="space-y-2">
                 <Label htmlFor="chief_complaint" className="text-sm font-semibold">
                   Keluhan Utama <span className="text-destructive">*</span>
                 </Label>
@@ -379,9 +432,7 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false, is
           </div>
 
           {/* Section 2: Riwayat Medis */}
-          <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase">Riwayat Medis</h3>
-              {/* Riwayat Penyakit Dahulu */}
+          <div className="space-y-4">{/* Riwayat Penyakit Dahulu */}
               <div className="space-y-2">
                 <Label htmlFor="past_medical_history" className="text-sm font-semibold">
                   Riwayat Penyakit Dahulu
@@ -425,10 +476,7 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false, is
           </div>
 
           {/* Section 3: Alergi & Obat */}
-          <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase">Alergi & Obat</h3>
-              
-              {/* Existing Allergies List */}
+          <div className="space-y-4">{/* Existing Allergies List */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label className="text-sm font-semibold flex items-center gap-2">
@@ -511,8 +559,8 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false, is
 
               {/* Add Allergy Form */}
               {showAllergyForm && !readOnly && (
-                <Card className="border-dashed">
-                  <CardContent className="p-4 space-y-4">
+                <div className="border-dashed">
+                  <div className="p-4 space-y-4">
                     <p className="text-sm font-medium">Tambah Alergi Baru</p>
                     
                     {/* SNOMED Search */}
@@ -676,8 +724,8 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false, is
                         )}
                       </Button>
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
               )}
 
               {/* Obat yang Sedang Dikonsumsi */}
@@ -710,7 +758,7 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false, is
           )}
           </fieldset>
         </form>
-      </CardContent>
+      </div>
       
       {/* Edit Confirmation Dialog */}
       <EditConfirmDialog
@@ -768,6 +816,6 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false, is
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </Card>
+    </div>
   );
 }

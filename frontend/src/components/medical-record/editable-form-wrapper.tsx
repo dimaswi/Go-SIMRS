@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -360,8 +359,8 @@ export function EditableFormWrapper({
             ) : (
               <div className="space-y-3">
                 {editLogs.map((log) => (
-                  <Card key={log.id} className="border-l-4 border-l-blue-500">
-                    <CardContent className="p-4">
+                  <div key={log.id} className="border-l-4 border-l-blue-500">
+                    <div className="p-4">
                       <div className="flex items-start justify-between gap-4">
                         <div className="space-y-1 flex-1">
                           <div className="flex items-center gap-2">
@@ -394,8 +393,8 @@ export function EditableFormWrapper({
                           )}
                         </div>
                       </div>
-                    </CardContent>
-                  </Card>
+                    </div>
+                  </div>
                 ))}
               </div>
             )}

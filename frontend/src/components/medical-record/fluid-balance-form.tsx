@@ -1,5 +1,4 @@
 import { useEffect, useState, useCallback } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -44,6 +43,7 @@ import {
   getShiftTypeLabel,
 } from "@/lib/api";
 import type { FluidBalance, CreateFluidBalanceInput, FluidBalanceSummary } from "@/lib/api";
+import { emitMedicalRecordTabIndicator } from "./tab-indicator";
 import {
   Loader2,
   Plus,
@@ -250,6 +250,11 @@ export function FluidBalanceForm({ visitId, readOnly = false }: FluidBalanceForm
   const [editingId, setEditingId] = useState<number | null>(null);
   const [formData, setFormData] = useState<CreateFluidBalanceInput>(defaultFormData);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+
+  useEffect(() => {
+    if (loading) return;
+    emitMedicalRecordTabIndicator("fluid-balance", `${balances.length}`);
+  }, [balances.length, loading]);
   const [balanceToDelete, setBalanceToDelete] = useState<number | null>(null);
 
   // Permissions
@@ -427,41 +432,23 @@ export function FluidBalanceForm({ visitId, readOnly = false }: FluidBalanceForm
 
   if (loading) {
     return (
-      <Card>
-        <CardHeader className="py-3 px-4">
-          <CardTitle className="text-base font-semibold flex items-center gap-2">
-            <Droplets className="h-4 w-4" />
-            Balance Cairan
-          </CardTitle>
-          <CardDescription>
-            Pencatatan asupan dan keluaran cairan pasien per shift
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="p-4">
+      <div>
+        <div className="p-4">
           <div className="flex items-center justify-center py-8 gap-2">
             <Loader2 className="h-4 w-4 animate-spin" />
             <span className="text-muted-foreground">Memuat data...</span>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     );
   }
 
   return (
     <>
-      <Card>
-        <CardHeader className="py-3 px-4">
+      <div>
+        <div className="pb-2">
           <div className="flex items-center justify-between">
-            <div className="flex-1">
-              <CardTitle className="text-base font-semibold flex items-center gap-2">
-                <Droplets className="h-4 w-4" />
-                Balance Cairan
-                <Badge variant="secondary" className="ml-2">{balances.length} Catatan</Badge>
-              </CardTitle>
-              <CardDescription>
-                Pencatatan asupan dan keluaran cairan pasien per shift
-              </CardDescription>
-            </div>
+            
             {canCreate && !readOnly && (
               <Button onClick={handleOpenCreate} size="sm">
                 <Plus className="h-4 w-4 mr-1" />
@@ -469,8 +456,8 @@ export function FluidBalanceForm({ visitId, readOnly = false }: FluidBalanceForm
               </Button>
             )}
           </div>
-        </CardHeader>
-        <CardContent className="p-4">
+        </div>
+        <div className="p-4">
           {/* Summary Cards */}
           {summary.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
@@ -543,8 +530,8 @@ export function FluidBalanceForm({ visitId, readOnly = false }: FluidBalanceForm
               <p className="text-sm mt-1">Klik "Tambah Balance" untuk menambahkan catatan.</p>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Create/Edit Modal - Fullscreen */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>

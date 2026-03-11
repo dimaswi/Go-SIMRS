@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { usePermission } from "@/hooks/usePermission";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -487,17 +486,8 @@ export function RadiologyOrderForm({ visitId, readOnly = false }: RadiologyOrder
   }
 
   return (
-    <Card>
-      <CardHeader className="py-3 px-4">
-        <CardTitle className="text-base font-semibold flex items-center gap-2">
-          <FileImage className="h-4 w-4" />
-          Order Radiologi
-        </CardTitle>
-        <CardDescription>
-          Kelola pemeriksaan radiologi untuk pasien
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="p-0">
+    <div>
+      <div className="p-0">
         {/* Inline Tabs with Underline */}
         <div className="border-b">
           <div className="flex">
@@ -727,7 +717,7 @@ export function RadiologyOrderForm({ visitId, readOnly = false }: RadiologyOrder
               </div>
             )}
         </div>
-      </CardContent>
+      </div>
 
       {/* Cancel Confirmation Dialog */}
       <AlertDialog open={!!cancelConfirmOrderId} onOpenChange={(open) => !open && setCancelConfirmOrderId(null)}>
@@ -749,6 +739,6 @@ export function RadiologyOrderForm({ visitId, readOnly = false }: RadiologyOrder
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </Card>
+    </div>
   );
 }

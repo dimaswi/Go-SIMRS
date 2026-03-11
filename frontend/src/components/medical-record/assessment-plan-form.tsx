@@ -1,12 +1,10 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   Save, 
-  ClipboardList, 
   Loader2, 
   Heart, 
   Utensils,
@@ -19,6 +17,9 @@ import {
 import { medicalRecordsApi, type AssessmentPlan } from "@/lib/api/medical-records";
 import { medicalRecordEditLogApi } from "@/lib/api/visits";
 import { useEditMode, EditModeBanner, EditConfirmDialog, PINVerificationDialog } from "./edit-mode-controller";
+import { emitMedicalRecordTabIndicator, emitMedicalRecordTabSaved, MEDICAL_RECORD_TAB_SAVED_EVENT } from "./tab-indicator";
+import { COPY_FROM_HISTORY_EVENT } from "./copy-from-history-drawer";
+import { saveFormDraft, loadFormDraft, clearFormDraft, loadPendingCopy, clearPendingCopy } from "@/lib/form-persistence";
 import { useToast } from "@/hooks/use-toast";
 
 interface AssessmentPlanFormProps {
@@ -31,7 +32,7 @@ interface AssessmentPlanFormProps {
 
 export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = false, isPatientDischarged = false }: AssessmentPlanFormProps) {
   const { toast } = useToast();
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [assessmentPlanId, setAssessmentPlanId] = useState<number | undefined>();
 
@@ -80,6 +81,7 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
     const loadData = async () => {
       if (!visitId) return;
       setLoading(true);
+      let serverDataLoaded = false;
       try {
         const response = await medicalRecordsApi.getAssessmentPlan(visitId);
         if (response.data) {
@@ -97,12 +99,42 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
           });
           if (response.data.id) {
             setAssessmentPlanId(response.data.id);
+            serverDataLoaded = true;
+            emitMedicalRecordTabSaved("assessment-plan", true);
           }
         }
       } catch {
         // No existing data, use defaults
       } finally {
         setLoading(false);
+        // Apply local draft only if server had no saved data (prevents overriding saved data)
+        if (!serverDataLoaded) {
+          const draft = loadFormDraft<typeof formData>(`mr-draft-assessment-plan-${visitId}`);
+          if (draft) {
+            setFormData(draft);
+            emitMedicalRecordTabSaved("assessment-plan", false);
+          }
+        } else {
+          // Server data loaded successfully — discard any stale draft
+          clearFormDraft(`mr-draft-assessment-plan-${visitId}`);
+        }
+        // Check for pending copy from history (takes priority over draft)
+        const pendingCopy = loadPendingCopy<any>("assessment-plan");
+        if (pendingCopy) {
+          setFormData({
+            clinical_assessment: pendingCopy.clinical_assessment || "",
+            prognosis: pendingCopy.prognosis || "",
+            treatment_plan: pendingCopy.treatment_plan || "",
+            medication_plan: pendingCopy.medication_plan || "",
+            diet_plan: pendingCopy.diet_plan || "",
+            activity_plan: pendingCopy.activity_plan || "",
+            education_plan: pendingCopy.education_plan || "",
+            monitoring_plan: pendingCopy.monitoring_plan || "",
+            procedure_plan: pendingCopy.procedure_plan || "",
+            consultation_plan: pendingCopy.consultation_plan || "",
+          });
+          emitMedicalRecordTabSaved("assessment-plan", false);
+        }
       }
     };
     loadData();
@@ -110,6 +142,7 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
 
   const handleChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+    emitMedicalRecordTabSaved("assessment-plan", false);
   };
 
   const doSave = async () => {
@@ -138,6 +171,8 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
       // Trigger refresh print options dan final visit
       window.dispatchEvent(new CustomEvent("refresh-print-options"));
       window.dispatchEvent(new CustomEvent("refresh-final-visit"));
+      emitMedicalRecordTabSaved("assessment-plan", true);
+      clearFormDraft(`mr-draft-assessment-plan-${visitId}`);
       onSave?.(response.data);
       resetEditMode();
     } catch {
@@ -166,10 +201,7 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
   const filledMainFields = [
     formData.clinical_assessment,
     formData.treatment_plan,
-    formData.prognosis
-  ].filter(v => v && v.trim() !== "").length;
-
-  const filledDetailFields = [
+    formData.prognosis,
     formData.medication_plan,
     formData.diet_plan,
     formData.activity_plan,
@@ -179,35 +211,69 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
     formData.monitoring_plan
   ].filter(v => v && v.trim() !== "").length;
 
+  const filledDetailFields = 0; // kept for any remaining references
+
+  useEffect(() => {
+    if (loading) return;
+    emitMedicalRecordTabIndicator("assessment-plan", `${filledMainFields}/10`);
+  }, [filledMainFields, loading]);
+
+  // Auto-save draft to localStorage on every form change
+  useEffect(() => {
+    if (loading) return;
+    saveFormDraft(`mr-draft-assessment-plan-${visitId}`, formData);
+  }, [formData, loading, visitId]);
+
+  // Clear draft when save is confirmed by server
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ev = e as CustomEvent<{ tabId: string; saved: boolean }>;
+      if (ev.detail?.tabId === "assessment-plan" && ev.detail.saved === true) {
+        clearFormDraft(`mr-draft-assessment-plan-${visitId}`);
+      }
+    };
+    window.addEventListener(MEDICAL_RECORD_TAB_SAVED_EVENT, handler as EventListener);
+    return () => window.removeEventListener(MEDICAL_RECORD_TAB_SAVED_EVENT, handler as EventListener);
+  }, [visitId]);
+
+  // Listen for copy-from-history events
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ev = e as CustomEvent<{ section: string; data: any }>;
+      if (ev.detail?.section !== "assessment-plan" || !ev.detail.data) return;
+      clearPendingCopy("assessment-plan");
+      const d = ev.detail.data;
+      setFormData({
+        clinical_assessment: d.clinical_assessment || "",
+        prognosis: d.prognosis || "",
+        treatment_plan: d.treatment_plan || "",
+        medication_plan: d.medication_plan || "",
+        diet_plan: d.diet_plan || "",
+        activity_plan: d.activity_plan || "",
+        education_plan: d.education_plan || "",
+        monitoring_plan: d.monitoring_plan || "",
+        procedure_plan: d.procedure_plan || "",
+        consultation_plan: d.consultation_plan || "",
+      });
+      emitMedicalRecordTabSaved("assessment-plan", false);
+    };
+    window.addEventListener(COPY_FROM_HISTORY_EVENT, handler as EventListener);
+    return () => window.removeEventListener(COPY_FROM_HISTORY_EVENT, handler as EventListener);
+  }, []);
+
   if (loading) {
     return (
-      <Card>
-        <CardContent className="p-6 flex items-center justify-center min-h-[300px]">
+      <div>
+        <div className="p-6 flex items-center justify-center min-h-[300px]">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     );
   }
 
   return (
-    <Card>
-      <CardHeader className="py-3 px-4">
-        <div className="flex items-center justify-between">
-          <div className="flex-1">
-            <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <ClipboardList className="h-4 w-4" />
-              Assessment & Plan
-            </CardTitle>
-            <CardDescription>
-              Penilaian klinis dan rencana tatalaksana pasien
-            </CardDescription>
-          </div>
-          <Badge variant={filledMainFields > 0 ? "default" : "secondary"}>
-            {filledMainFields}/3 Utama | {filledDetailFields}/7 Detail
-          </Badge>
-        </div>
-      </CardHeader>
-      <CardContent>
+    <div>
+      <div>
             <EditModeBanner
               isPatientDischarged={isPatientDischarged}
               isEditing={isEditing}
@@ -218,9 +284,7 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
           <fieldset disabled={isFormDisabled} className="space-y-6">
           
           {/* Section 1: Asesmen Klinis */}
-          <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase">Asesmen Klinis</h3>
-              {/* Clinical Assessment / Clinical Impression */}
+          <div className="space-y-4">{/* Clinical Assessment / Clinical Impression */}
               <div className="space-y-2">
                 <Label htmlFor="clinical_assessment" className="text-sm font-semibold">
                   Kesan Klinis (Clinical Impression) <span className="text-destructive">*</span>
@@ -257,9 +321,7 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
           </div>
 
           {/* Section 2: Rencana Terapi */}
-          <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase">Rencana Terapi</h3>
-              {/* Treatment Plan */}
+          <div className="space-y-4">{/* Treatment Plan */}
               <div className="space-y-2">
                 <Label htmlFor="treatment_plan" className="text-sm font-semibold">
                   Rencana Penatalaksanaan <span className="text-destructive">*</span>
@@ -303,9 +365,7 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
 
           {/* Section 3: Rencana Detail */}
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase">Rencana Detail</h3>
-              <Badge variant={filledDetailFields > 0 ? "default" : "outline"}>
+            <div className="flex items-center justify-between"><Badge variant={filledDetailFields > 0 ? "default" : "outline"}>
                 {filledDetailFields}/6
               </Badge>
             </div>
@@ -402,7 +462,7 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
           )}
           </fieldset>
         </form>
-      </CardContent>
+      </div>
       <EditConfirmDialog
         open={showEditDialog}
         onOpenChange={setShowEditDialog}
@@ -420,6 +480,6 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
         onPINKeyDown={handlePINKeyDown}
         onVerify={handleVerifyPIN}
       />
-    </Card>
+    </div>
   );
 }

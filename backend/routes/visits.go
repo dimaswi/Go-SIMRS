@@ -87,6 +87,30 @@ func SetupVisitRoutes(r *gin.Engine) {
 		visits.PUT("/:id/death-certificate", handlers.SaveDeathCertificate)
 		visits.DELETE("/:id/death-certificate/:certId", handlers.DeleteDeathCertificate)
 
+		// Health Certificate - Surat Keterangan Sehat
+		visits.GET("/:id/health-certificates", handlers.GetHealthCertificates)
+		visits.POST("/:id/health-certificate", handlers.SaveHealthCertificate)
+		visits.PUT("/:id/health-certificate", handlers.SaveHealthCertificate)
+		visits.DELETE("/:id/health-certificate/:certId", handlers.DeleteHealthCertificate)
+
+		// Birth Certificate - Surat Keterangan Kelahiran
+		visits.GET("/:id/birth-certificates", handlers.GetBirthCertificates)
+		visits.POST("/:id/birth-certificate", handlers.SaveBirthCertificate)
+		visits.PUT("/:id/birth-certificate", handlers.SaveBirthCertificate)
+		visits.DELETE("/:id/birth-certificate/:certId", handlers.DeleteBirthCertificate)
+
+		// Leave Certificate - Surat Keterangan Cuti
+		visits.GET("/:id/leave-certificates", handlers.GetLeaveCertificates)
+		visits.POST("/:id/leave-certificate", handlers.SaveLeaveCertificate)
+		visits.PUT("/:id/leave-certificate", handlers.SaveLeaveCertificate)
+		visits.DELETE("/:id/leave-certificate/:certId", handlers.DeleteLeaveCertificate)
+
+		// MCU Certificate - Medical Check-Up
+		visits.GET("/:id/mcu-certificates", handlers.GetMCUCertificates)
+		visits.POST("/:id/mcu-certificate", handlers.SaveMCUCertificate)
+		visits.PUT("/:id/mcu-certificate", handlers.SaveMCUCertificate)
+		visits.DELETE("/:id/mcu-certificate/:certId", handlers.DeleteMCUCertificate)
+
 		// Medical Record Edit Logs - Log Edit RM setelah pasien pulang
 		visits.GET("/:id/edit-logs", handlers.GetMedicalRecordEditLogs)
 		visits.POST("/:id/edit-logs", handlers.CreateMedicalRecordEditLog)

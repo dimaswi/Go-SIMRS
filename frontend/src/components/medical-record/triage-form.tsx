@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -11,6 +10,8 @@ import { useMultipleMasterData } from "@/hooks/useMasterData";
 import { medicalRecordsApi, signatureApi, DOCUMENT_TYPES } from "@/lib/api";
 import { medicalRecordEditLogApi } from "@/lib/api/visits";
 import { useEditMode, EditModeBanner, EditConfirmDialog, PINVerificationDialog } from "./edit-mode-controller";
+import { emitMedicalRecordTabSaved, MEDICAL_RECORD_TAB_SAVED_EVENT } from "./tab-indicator";
+import { saveFormDraft, loadFormDraft, clearFormDraft } from "@/lib/form-persistence";
 import { SignaturePINDialog } from "@/components/signature/signature-pin-dialog";
 import { cn } from "@/lib/utils";
 import type { Triage } from "@/lib/api";
@@ -226,11 +227,18 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
             immediate_actions: data.immediate_actions || "",
           });
           setTriageId(data.id);
+          emitMedicalRecordTabSaved("triage", true);
         }
       } catch {
         // No existing data, use defaults
       } finally {
         setLoading(false);
+        // Apply local draft if exists — overrides server data if user had unsaved changes
+        const draft = loadFormDraft<typeof defaultFormData>(`mr-draft-triage-${visitId}`);
+        if (draft) {
+          setFormData(draft);
+          emitMedicalRecordTabSaved("triage", false);
+        }
       }
     };
 
@@ -239,7 +247,26 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
 
   const handleChange = (field: string, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+    emitMedicalRecordTabSaved("triage", false);
   };
+
+  // Auto-save draft to localStorage on state change
+  useEffect(() => {
+    if (loading) return;
+    saveFormDraft(`mr-draft-triage-${visitId}`, formData);
+  }, [formData, loading, visitId]);
+
+  // Clear draft when save is confirmed by show.tsx
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ev = e as CustomEvent<{ tabId: string; saved: boolean }>;
+      if (ev.detail?.tabId === "triage" && ev.detail.saved === true) {
+        clearFormDraft(`mr-draft-triage-${visitId}`);
+      }
+    };
+    window.addEventListener(MEDICAL_RECORD_TAB_SAVED_EVENT, handler as EventListener);
+    return () => window.removeEventListener(MEDICAL_RECORD_TAB_SAVED_EVENT, handler as EventListener);
+  }, [visitId]);
 
   const doSave = async () => {
     // Log edit if patient is discharged
@@ -285,38 +312,20 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
 
   if (loading || masterDataLoading) {
     return (
-      <Card>
-        <CardHeader className="py-3 px-4">
-          <CardTitle className="text-base font-semibold flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 text-destructive" />
-            Triase UGD
-          </CardTitle>
-          <CardDescription>
-            Penilaian prioritas penanganan pasien gawat darurat
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="p-6">
+      <div>
+        <div className="p-6">
           <div className="flex items-center justify-center py-8 gap-2">
             <Loader2 className="h-4 w-4 animate-spin" />
             <span className="text-muted-foreground">Memuat data...</span>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     );
   }
 
   return (
-    <Card>
-      <CardHeader className="py-3 px-4">
-        <CardTitle className="text-base font-semibold flex items-center gap-2">
-          <AlertTriangle className="h-4 w-4 text-destructive" />
-          Triase UGD
-        </CardTitle>
-        <CardDescription>
-          Penilaian prioritas penanganan pasien gawat darurat
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
+    <div>
+      <div>
           {/* Edit Mode Banner for discharged patients */}
           <EditModeBanner
             isPatientDischarged={isPatientDischarged}
@@ -329,9 +338,7 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
           <fieldset disabled={isFormDisabled} className="space-y-6">
           
           {/* Section 1: Informasi Kedatangan */}
-          <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase">Informasi Kedatangan</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-4"><div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="arrival_mode" className="text-sm font-semibold">
                     Moda Kedatangan <span className="text-destructive">*</span>
@@ -417,9 +424,7 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
           </div>
 
           {/* Section 2: Primary Survey (ABC) */}
-          <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase">Primary Survey (ABC)</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="space-y-4"><div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="airway" className="text-sm font-semibold">Airway (Jalan Napas)</Label>
                   <Combobox
@@ -493,9 +498,7 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
           </div>
 
           {/* Section 3: Tanda Vital */}
-          <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase">Tanda Vital</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="space-y-4"><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="blood_pressure" className="text-sm font-semibold">Tekanan Darah</Label>
                   <Input
@@ -573,9 +576,7 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
           </div>
 
           {/* Section 4: GCS & Penilaian */}
-          <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-muted-foreground tracking-wide uppercase">Glasgow Coma Scale & Penilaian</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="space-y-4"><div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="gcs_e" className="text-sm font-semibold">Eye Opening (E) [1-4]</Label>
                   <Input
@@ -681,7 +682,7 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
           )}
           </fieldset>
         </form>
-      </CardContent>
+      </div>
       
       {/* Edit Confirmation Dialog */}
       <EditConfirmDialog
@@ -714,6 +715,6 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
           onSuccess={handleSignatureSuccess}
         />
       )}
-    </Card>
+    </div>
   );
 }

@@ -4,7 +4,6 @@
  */
 
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -296,17 +295,8 @@ export function SickLetterForm({ visitId, onSave, readOnly = false }: SickLetter
   }
 
   return (
-    <Card>
-      <CardHeader className="py-3 px-4">
-        <CardTitle className="text-base font-semibold flex items-center gap-2">
-          <FileText className="h-4 w-4" />
-          Surat Keterangan Sakit
-        </CardTitle>
-        <CardDescription>
-          Buat dan kelola surat keterangan sakit untuk pasien
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="p-0">
+    <div>
+      <div className="p-0">
         {/* Inline Tabs with Underline */}
         <div className="border-b">
           <div className="flex">
@@ -598,7 +588,7 @@ export function SickLetterForm({ visitId, onSave, readOnly = false }: SickLetter
               </div>
             )}
         </div>
-      </CardContent>
+      </div>
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
@@ -631,6 +621,6 @@ export function SickLetterForm({ visitId, onSave, readOnly = false }: SickLetter
           onSuccess={handleSignatureSuccess}
         />
       )}
-    </Card>
+    </div>
   );
 }

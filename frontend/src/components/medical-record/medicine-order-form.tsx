@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -65,6 +64,7 @@ interface OrderItem {
   duration: string;
   instructions: string;
   available_stock: number;
+  unit_price: number;
 }
 
 interface PharmacyMedicine {
@@ -80,9 +80,15 @@ interface PharmacyMedicine {
     category: string;
     form: string;
     strength: string;
+    selling_price?: number;
+    price?: number;
+    unit_price?: number;
   };
   quantity: number;
   min_quantity: number;
+  unit_price?: number;
+  price?: number;
+  selling_price?: number;
 }
 
 const ORDER_STATUS_LABELS: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
@@ -256,15 +262,44 @@ export function MedicineOrderForm({ visitId, readOnly = false }: MedicineOrderFo
   const [notes, setNotes] = useState("");
   const [priority, setPriority] = useState("normal");
   const [showAddDialog, setShowAddDialog] = useState(false);
-  const [selectedMedicine, setSelectedMedicine] = useState<PharmacyMedicine | null>(null);
-  const [newItem, setNewItem] = useState<Partial<OrderItem>>({
-    quantity: 1,
-    dosage: "",
-    frequency: "",
-    route: "oral",
-    duration: "",
-    instructions: "",
-  });
+  const [itemErrors, setItemErrors] = useState<Record<number, string[]>>({});
+
+  const formatRupiah = (value: number) =>
+    new Intl.NumberFormat("id-ID", {
+      style: "currency",
+      currency: "IDR",
+      maximumFractionDigits: 0,
+    }).format(value || 0);
+
+  const frequencyOptions = [
+    "1x1",
+    "2x1",
+    "3x1",
+    "4x1",
+    "1x sehari",
+    "2x sehari",
+    "3x sehari",
+    "4x sehari",
+    "setiap 4 jam",
+    "setiap 6 jam",
+    "setiap 8 jam",
+    "setiap 12 jam",
+    "bila perlu",
+  ];
+
+  const routeOptions = [
+    { value: "oral", label: "Oral" },
+    { value: "sublingual", label: "Sublingual" },
+    { value: "topikal", label: "Topikal" },
+    { value: "intramuskular", label: "Intramuskular (IM)" },
+    { value: "intravena", label: "Intravena (IV)" },
+    { value: "subkutan", label: "Subkutan (SC)" },
+    { value: "rektal", label: "Rektal" },
+    { value: "inhalasi", label: "Inhalasi" },
+    { value: "nasal", label: "Nasal" },
+    { value: "otic", label: "Otic (Telinga)" },
+    { value: "ophthalmic", label: "Ophthalmic (Mata)" },
+  ];
 
   // Only pharmacy rooms with service_type 'farmasi' (exclude depo_farmasi)
   const isPharmacyRoom = (room: any) => 
@@ -339,58 +374,95 @@ export function MedicineOrderForm({ visitId, readOnly = false }: MedicineOrderFo
     }
   };
 
-  const filteredMedicines = pharmacyMedicines.filter((pm) =>
-    pm.medicine.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    pm.medicine.generic_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    pm.medicine.code.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredMedicines = pharmacyMedicines.filter((pm) => {
+    const alreadyAdded = orderItems.some((item) => item.medicine_id === pm.medicine.id);
+    if (alreadyAdded) return false;
 
-  const handleSelectMedicine = (medicine: PharmacyMedicine) => {
-    setSelectedMedicine(medicine);
-    setNewItem({
+    return (
+      pm.medicine.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      pm.medicine.generic_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      pm.medicine.code.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  });
+
+  const orderGrandTotal = orderItems.reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
+
+  const handleAddItem = (medicine: PharmacyMedicine) => {
+    const unitPrice =
+      medicine.medicine.selling_price ||
+      medicine.medicine.unit_price ||
+      medicine.medicine.price ||
+      medicine.unit_price ||
+      medicine.price ||
+      medicine.selling_price ||
+      0;
+
+    const item: OrderItem = {
+      medicine_id: medicine.medicine.id,
+      medicine_name: medicine.medicine.name,
+      medicine_code: medicine.medicine.code,
       quantity: 1,
+      unit: medicine.medicine.unit,
       dosage: "",
       frequency: "",
       route: "oral",
       duration: "",
       instructions: "",
-    });
-  };
-
-  const handleAddItem = () => {
-    if (!selectedMedicine) return;
-
-    const item: OrderItem = {
-      medicine_id: selectedMedicine.medicine.id,
-      medicine_name: selectedMedicine.medicine.name,
-      medicine_code: selectedMedicine.medicine.code,
-      quantity: newItem.quantity || 1,
-      unit: selectedMedicine.medicine.unit,
-      dosage: newItem.dosage || "",
-      frequency: newItem.frequency || "",
-      route: newItem.route || "oral",
-      duration: newItem.duration || "",
-      instructions: newItem.instructions || "",
-      available_stock: selectedMedicine.quantity,
+      available_stock: medicine.quantity,
+      unit_price: unitPrice,
     };
 
-    setOrderItems([...orderItems, item]);
-    setShowAddDialog(false);
-    setSelectedMedicine(null);
+    setOrderItems((prev) => [...prev, item]);
+    setItemErrors({});
     setSearchTerm("");
+    setShowAddDialog(false);
   };
 
   const handleRemoveItem = (index: number) => {
     const newItems = [...orderItems];
     newItems.splice(index, 1);
     setOrderItems(newItems);
+    setItemErrors({});
   };
 
   const handleUpdateItemQuantity = (index: number, quantity: number) => {
     const newItems = [...orderItems];
-    newItems[index].quantity = quantity;
+    const maxStock = newItems[index].available_stock;
+    const nextQty = Math.max(1, Math.min(quantity || 0, maxStock));
+    newItems[index].quantity = nextQty;
     setOrderItems(newItems);
+    setItemErrors({});
   };
+
+  const handleUpdateItemField = (index: number, field: keyof OrderItem, value: string | number) => {
+    const newItems = [...orderItems];
+    (newItems[index] as any)[field] = value;
+    setOrderItems(newItems);
+    setItemErrors({});
+  };
+
+  const validateItems = () => {
+    const errors: Record<number, string[]> = {};
+
+    orderItems.forEach((item, index) => {
+      const rowErrors: string[] = [];
+      if (!item.quantity || item.quantity <= 0) rowErrors.push("Jumlah harus lebih dari 0");
+      if (item.quantity > item.available_stock) rowErrors.push("Jumlah melebihi stok");
+      if (!item.dosage?.trim()) rowErrors.push("Dosis wajib diisi");
+      if (!item.frequency?.trim()) rowErrors.push("Frekuensi wajib diisi");
+      if (!item.route?.trim()) rowErrors.push("Rute wajib diisi");
+      if (!item.duration?.trim()) rowErrors.push("Durasi wajib diisi");
+      if (!item.instructions?.trim()) rowErrors.push("Instruksi wajib diisi");
+
+      if (rowErrors.length > 0) {
+        errors[index] = rowErrors;
+      }
+    });
+
+    return errors;
+  };
+
+  const plainFieldClass = "h-8 border-0 bg-transparent shadow-none px-2 focus-visible:ring-1 focus-visible:ring-primary/30";
 
   const handleSubmitOrder = async () => {
     if (!selectedPharmacyRoom) {
@@ -407,6 +479,17 @@ export function MedicineOrderForm({ visitId, readOnly = false }: MedicineOrderFo
         variant: "destructive",
         title: "Error",
         description: "Tambahkan minimal 1 obat",
+      });
+      return;
+    }
+
+    const validationErrors = validateItems();
+    if (Object.keys(validationErrors).length > 0) {
+      setItemErrors(validationErrors);
+      toast({
+        variant: "destructive",
+        title: "Validasi gagal",
+        description: "Masih ada field wajib obat yang kosong atau tidak valid.",
       });
       return;
     }
@@ -471,17 +554,8 @@ export function MedicineOrderForm({ visitId, readOnly = false }: MedicineOrderFo
   }
 
   return (
-    <Card>
-      <CardHeader className="py-3 px-4">
-        <CardTitle className="text-base font-semibold flex items-center gap-2">
-          <Pill className="h-4 w-4" />
-          Order Obat
-        </CardTitle>
-        <CardDescription>
-          Kelola pesanan obat untuk pasien
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="p-0">
+    <div>
+      <div className="p-0">
         {/* Inline Tabs with Underline */}
         <div className="border-b">
           <div className="flex">
@@ -592,170 +666,57 @@ export function MedicineOrderForm({ visitId, readOnly = false }: MedicineOrderFo
                   <DialogHeader>
                     <DialogTitle>Pilih Obat</DialogTitle>
                     <DialogDescription>
-                      Pilih obat dari daftar yang tersedia di ruang farmasi
+                      Pilih obat, lalu lengkapi semua detail resep langsung di tabel order
                     </DialogDescription>
                   </DialogHeader>
-                  
-                  {!selectedMedicine ? (
-                    <>
-                      <div className="relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          placeholder="Cari obat..."
-                          className="pl-9"
-                          value={searchTerm}
-                          onChange={(e) => setSearchTerm(e.target.value)}
-                        />
-                      </div>
-                      <ScrollArea className="flex-1 max-h-[400px] border rounded-md">
-                        <div className="divide-y">
-                          {loadingMedicines ? (
-                            <div className="flex items-center justify-center py-8">
-                              <Loader2 className="h-6 w-6 animate-spin" />
-                            </div>
-                          ) : filteredMedicines.length === 0 ? (
-                            <div className="text-center py-8 text-muted-foreground">
-                              {searchTerm ? "Tidak ada obat yang sesuai" : "Tidak ada obat tersedia"}
-                            </div>
-                          ) : (
-                            filteredMedicines.map((pm) => (
-                              <button
-                                key={pm.id}
-                                className="w-full p-3 text-left hover:bg-muted/50 flex items-center justify-between"
-                                onClick={() => handleSelectMedicine(pm)}
-                              >
-                                <div>
-                                  <p className="font-medium text-sm">{pm.medicine.name}</p>
-                                  <p className="text-xs text-muted-foreground">
-                                    {pm.medicine.code} • {pm.medicine.form} • {pm.medicine.strength}
-                                  </p>
-                                </div>
-                                <div className="text-right">
-                                  <Badge variant={pm.quantity > pm.min_quantity ? "default" : "destructive"}>
-                                    Stok: {pm.quantity}
-                                  </Badge>
-                                </div>
-                              </button>
-                            ))
-                          )}
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Cari obat..."
+                      className="pl-9"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                  </div>
+                  <ScrollArea className="flex-1 max-h-[400px] border rounded-md">
+                    <div className="divide-y">
+                      {loadingMedicines ? (
+                        <div className="flex items-center justify-center py-8">
+                          <Loader2 className="h-6 w-6 animate-spin" />
                         </div>
-                      </ScrollArea>
-                    </>
-                  ) : (
-                    <div className="space-y-4">
-                      <div className="p-4 bg-muted/50 rounded-lg">
-                        <p className="font-medium">{selectedMedicine.medicine.name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {selectedMedicine.medicine.code} • {selectedMedicine.medicine.form} • {selectedMedicine.medicine.strength}
-                        </p>
-                        <Badge className="mt-2">Stok: {selectedMedicine.quantity} {selectedMedicine.medicine.unit}</Badge>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label>Jumlah</Label>
-                          <Input
-                            type="number"
-                            min={1}
-                            max={selectedMedicine.quantity}
-                            value={newItem.quantity}
-                            onChange={(e) => setNewItem({ ...newItem, quantity: Number(e.target.value) })}
-                          />
+                      ) : filteredMedicines.length === 0 ? (
+                        <div className="text-center py-8 text-muted-foreground">
+                          {searchTerm ? "Tidak ada obat yang sesuai" : "Semua obat yang tersedia sudah dipilih"}
                         </div>
-                        <div className="space-y-2">
-                          <Label>Dosis (contoh: 3x1)</Label>
-                          <Input
-                            placeholder="3x1"
-                            value={newItem.dosage}
-                            onChange={(e) => setNewItem({ ...newItem, dosage: e.target.value })}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Frekuensi</Label>
-                          <Select
-                            value={newItem.frequency}
-                            onValueChange={(value) => setNewItem({ ...newItem, frequency: value })}
+                      ) : (
+                        filteredMedicines.map((pm) => (
+                          <button
+                            key={pm.id}
+                            type="button"
+                            className="w-full p-3 hover:bg-muted/50 flex items-center justify-between gap-3 text-left"
+                            onClick={() => handleAddItem(pm)}
                           >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Pilih frekuensi" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="1x1">1x1</SelectItem>
-                              <SelectItem value="2x1">2x1</SelectItem>
-                              <SelectItem value="3x1">3x1</SelectItem>
-                              <SelectItem value="4x1">4x1</SelectItem>
-                              <SelectItem value="1x sehari">1x sehari</SelectItem>
-                              <SelectItem value="2x sehari">2x sehari</SelectItem>
-                              <SelectItem value="3x sehari">3x sehari</SelectItem>
-                              <SelectItem value="4x sehari">4x sehari</SelectItem>
-                              <SelectItem value="setiap 4 jam">Setiap 4 jam</SelectItem>
-                              <SelectItem value="setiap 6 jam">Setiap 6 jam</SelectItem>
-                              <SelectItem value="setiap 8 jam">Setiap 8 jam</SelectItem>
-                              <SelectItem value="setiap 12 jam">Setiap 12 jam</SelectItem>
-                              <SelectItem value="bila perlu">Bila perlu (PRN)</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Rute</Label>
-                          <Select
-                            value={newItem.route}
-                            onValueChange={(value) => setNewItem({ ...newItem, route: value })}
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="oral">Oral</SelectItem>
-                              <SelectItem value="sublingual">Sublingual</SelectItem>
-                              <SelectItem value="topikal">Topikal</SelectItem>
-                              <SelectItem value="intramuskular">Intramuskular (IM)</SelectItem>
-                              <SelectItem value="intravena">Intravena (IV)</SelectItem>
-                              <SelectItem value="subkutan">Subkutan (SC)</SelectItem>
-                              <SelectItem value="rektal">Rektal</SelectItem>
-                              <SelectItem value="inhalasi">Inhalasi</SelectItem>
-                              <SelectItem value="nasal">Nasal</SelectItem>
-                              <SelectItem value="otic">Otic (Telinga)</SelectItem>
-                              <SelectItem value="ophthalmic">Ophthalmic (Mata)</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Durasi</Label>
-                          <Input
-                            placeholder="7 hari"
-                            value={newItem.duration}
-                            onChange={(e) => setNewItem({ ...newItem, duration: e.target.value })}
-                          />
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Instruksi Tambahan</Label>
-                        <Textarea
-                          placeholder="Contoh: Sesudah makan, diminum dengan air putih"
-                          value={newItem.instructions}
-                          onChange={(e) => setNewItem({ ...newItem, instructions: e.target.value })}
-                        />
-                      </div>
+                            <div>
+                              <p className="font-medium text-sm">{pm.medicine.name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {pm.medicine.code} • {pm.medicine.form} • {pm.medicine.strength}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge variant={pm.quantity > pm.min_quantity ? "default" : "destructive"}>
+                                Stok: {pm.quantity}
+                              </Badge>
+                            </div>
+                          </button>
+                        ))
+                      )}
                     </div>
-                  )}
+                  </ScrollArea>
 
                   <DialogFooter>
-                    {selectedMedicine ? (
-                      <>
-                        <Button variant="outline" onClick={() => setSelectedMedicine(null)}>
-                          Kembali
-                        </Button>
-                        <Button onClick={handleAddItem}>
-                          <Plus className="h-4 w-4 mr-1" />
-                          Tambahkan
-                        </Button>
-                      </>
-                    ) : (
-                      <Button variant="outline" onClick={() => setShowAddDialog(false)}>
-                        Tutup
-                      </Button>
-                    )}
+                    <Button variant="outline" onClick={() => setShowAddDialog(false)}>
+                      Tutup
+                    </Button>
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
@@ -768,45 +729,125 @@ export function MedicineOrderForm({ visitId, readOnly = false }: MedicineOrderFo
                 <p className="text-sm">Klik "Tambah Obat" untuk memulai</p>
               </div>
             ) : (
-              <div className="border rounded-lg divide-y">
-                {orderItems.map((item, index) => (
-                  <div key={index} className="p-3 flex items-start gap-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-sm">{item.medicine_name}</span>
-                        <Badge variant="outline" className="text-xs">{item.medicine_code}</Badge>
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-1">
-                        {item.dosage && <span className="mr-2">Dosis: {item.dosage}</span>}
-                        {item.frequency && <span className="mr-2">• {item.frequency}</span>}
-                        {item.route && <span className="mr-2">• {item.route}</span>}
-                        {item.duration && <span>• {item.duration}</span>}
-                      </div>
-                      {item.instructions && (
-                        <p className="text-xs text-muted-foreground italic mt-1">{item.instructions}</p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="number"
-                        className="w-20 h-8 text-center"
-                        min={1}
-                        max={item.available_stock}
-                        value={item.quantity}
-                        onChange={(e) => handleUpdateItemQuantity(index, Number(e.target.value))}
-                      />
-                      <span className="text-sm text-muted-foreground">{item.unit}</span>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-destructive"
-                        onClick={() => handleRemoveItem(index)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+              <div className="border rounded-lg overflow-auto">
+                <table className="w-full text-sm min-w-[1100px]">
+                  <thead className="bg-muted/50 border-b">
+                    <tr>
+                      <th className="py-2 px-2 text-left font-medium w-[220px]">Obat</th>
+                      <th className="py-2 px-2 text-left font-medium w-[90px]">Jumlah*</th>
+                      <th className="py-2 px-2 text-left font-medium w-[140px]">Dosis*</th>
+                      <th className="py-2 px-2 text-left font-medium w-[140px]">Frekuensi*</th>
+                      <th className="py-2 px-2 text-left font-medium w-[150px]">Rute*</th>
+                      <th className="py-2 px-2 text-left font-medium w-[120px]">Durasi*</th>
+                      <th className="py-2 px-2 text-left font-medium">Instruksi*</th>
+                      <th className="py-2 px-2 text-right font-medium w-[170px]">Harga</th>
+                      <th className="py-2 px-2 text-left font-medium w-[60px]">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {orderItems.map((item, index) => (
+                      <tr key={index} className="border-t align-top">
+                        <td className="py-2 px-2">
+                          <p className="font-medium text-sm leading-4">{item.medicine_name}</p>
+                          <p className="text-xs text-muted-foreground">{item.medicine_code} • Stok {item.available_stock} {item.unit}</p>
+                        </td>
+                        <td className="py-2 px-2">
+                          <Input
+                            type="number"
+                            min={1}
+                            max={item.available_stock}
+                            value={item.quantity}
+                            onChange={(e) => handleUpdateItemQuantity(index, Number(e.target.value))}
+                            className={cn(plainFieldClass, itemErrors[index]?.length ? "border border-destructive bg-destructive/5" : "")}
+                          />
+                          <p className="text-[10px] text-muted-foreground mt-1">Maks {item.available_stock}</p>
+                        </td>
+                        <td className="py-2 px-2">
+                          <Input
+                            placeholder="Contoh: 3x1"
+                            value={item.dosage}
+                            onChange={(e) => handleUpdateItemField(index, "dosage", e.target.value)}
+                            className={cn(plainFieldClass, itemErrors[index]?.length ? "border border-destructive bg-destructive/5" : "")}
+                          />
+                        </td>
+                        <td className="py-2 px-2">
+                          <Select
+                            value={item.frequency}
+                            onValueChange={(value) => handleUpdateItemField(index, "frequency", value)}
+                          >
+                            <SelectTrigger className={cn(plainFieldClass, itemErrors[index]?.length ? "border border-destructive bg-destructive/5" : "")}> 
+                              <SelectValue placeholder="Pilih" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {frequencyOptions.map((option) => (
+                                <SelectItem key={option} value={option}>{option}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </td>
+                        <td className="py-2 px-2">
+                          <Select
+                            value={item.route}
+                            onValueChange={(value) => handleUpdateItemField(index, "route", value)}
+                          >
+                            <SelectTrigger className={cn(plainFieldClass, itemErrors[index]?.length ? "border border-destructive bg-destructive/5" : "")}> 
+                              <SelectValue placeholder="Pilih" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {routeOptions.map((option) => (
+                                <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </td>
+                        <td className="py-2 px-2">
+                          <Input
+                            placeholder="Contoh: 7 hari"
+                            value={item.duration}
+                            onChange={(e) => handleUpdateItemField(index, "duration", e.target.value)}
+                            className={cn(plainFieldClass, itemErrors[index]?.length ? "border border-destructive bg-destructive/5" : "")}
+                          />
+                        </td>
+                        <td className="py-2 px-2">
+                          <Input
+                            placeholder="Contoh: sesudah makan"
+                            value={item.instructions}
+                            onChange={(e) => handleUpdateItemField(index, "instructions", e.target.value)}
+                            className={cn(plainFieldClass, itemErrors[index]?.length ? "border border-destructive bg-destructive/5" : "")}
+                          />
+                          {itemErrors[index]?.length ? (
+                            <p className="text-[11px] text-destructive mt-1 line-clamp-2">{itemErrors[index][0]}</p>
+                          ) : null}
+                        </td>
+                        <td className="py-2 px-2 text-right">
+                          <p className="text-xs text-muted-foreground">@ {formatRupiah(item.unit_price)}</p>
+                          <p className="text-sm font-semibold leading-4">{formatRupiah(item.quantity * item.unit_price)}</p>
+                        </td>
+                        <td className="py-2 px-2">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive"
+                            onClick={() => handleRemoveItem(index)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t-2 bg-primary/5">
+                      <td colSpan={7} className="py-3 px-2 text-right">
+                        <span className="text-sm font-medium text-muted-foreground">Grand Total</span>
+                      </td>
+                      <td className="py-3 px-2 text-right">
+                        <span className="text-lg font-bold text-primary">{formatRupiah(orderGrandTotal)}</span>
+                      </td>
+                      <td className="py-3 px-2" />
+                    </tr>
+                  </tfoot>
+                </table>
               </div>
             )}
           </div>
@@ -862,7 +903,7 @@ export function MedicineOrderForm({ visitId, readOnly = false }: MedicineOrderFo
               </div>
             )}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -107,33 +106,19 @@ export function ConsultationForm({ visitId, readOnly = false }: ConsultationForm
 
   if (loading) {
     return (
-      <Card>
-        <CardContent className="flex items-center justify-center py-12">
+      <div>
+        <div className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     );
   }
 
   return (
-    <Card>
-      <CardHeader className="py-3 px-4">
+    <div>
+      <div className="pb-2">
         <div className="flex items-center justify-between">
-          <div className="flex-1">
-            <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <FileText className="h-4 w-4" />
-              Form Jawaban Konsultasi
-              {existingData?.subjective && (
-                <Badge variant="default" className="ml-2">
-                  <CheckCircle2 className="h-3 w-3 mr-1" />
-                  Sudah Dijawab
-                </Badge>
-              )}
-            </CardTitle>
-            <CardDescription>
-              Jawaban konsultasi dari dokter spesialis untuk kasus yang dikonsultasikan
-            </CardDescription>
-          </div>
+          
           {!readOnly && !existingData?.subjective && (
             <Button onClick={handleSave} disabled={saving}>
               {saving ? (
@@ -150,15 +135,13 @@ export function ConsultationForm({ visitId, readOnly = false }: ConsultationForm
             </Button>
           )}
         </div>
-      </CardHeader>
-      <CardContent>
+      </div>
+      <div>
         {/* Indikasi Konsultasi - Info from Order - Show always if procedure_order exists */}
         {existingData?.procedure_order && (
           <>
             <div className="bg-muted/50 border rounded-lg p-4 mb-6">
-              <div className="flex items-center gap-2 font-medium mb-3">
-                <Stethoscope className="h-5 w-5 text-muted-foreground" />
-                Indikasi Konsultasi
+              <div className="flex items-center gap-2 font-medium mb-3">Indikasi Konsultasi
               </div>
               <div className="space-y-2 text-sm">
                 <div className="grid grid-cols-3 gap-2">
@@ -199,9 +182,7 @@ export function ConsultationForm({ visitId, readOnly = false }: ConsultationForm
         {existingData?.subjective && (
           <>
             <div className="bg-muted/50 border rounded-lg p-4 mb-6">
-              <div className="flex items-center gap-2 font-medium mb-2">
-                <CheckCircle2 className="h-5 w-5 text-muted-foreground" />
-                Konsultasi Telah Dijawab
+              <div className="flex items-center gap-2 font-medium mb-2">Konsultasi Telah Dijawab
               </div>
               <div className="grid grid-cols-2 gap-2 text-sm">
                 {existingData.consultant && (
@@ -321,7 +302,7 @@ export function ConsultationForm({ visitId, readOnly = false }: ConsultationForm
             </div>
           )}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

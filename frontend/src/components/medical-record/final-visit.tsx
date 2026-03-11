@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -269,20 +268,14 @@ export function FinalVisit({ visitId, type, onVisitUpdate }: FinalVisitProps) {
 
   if (loading) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            {getTypeIcon()}
-            Final Kunjungan {getTypeLabel()}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-4">
+      <div>
+        <div className="p-4">
           <div className="flex items-center justify-center py-8 gap-2">
             <Loader2 className="h-4 w-4 animate-spin" />
             <span className="text-muted-foreground">Memuat data...</span>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     );
   }
 
@@ -291,17 +284,8 @@ export function FinalVisit({ visitId, type, onVisitUpdate }: FinalVisitProps) {
     visit?.registration?.status === "discharged";
 
   return (
-    <Card>
-      <CardHeader className="py-3 px-4">
-        <CardTitle className="text-base font-semibold flex items-center gap-2">
-          {getTypeIcon()}
-          Final Kunjungan {getTypeLabel()}
-        </CardTitle>
-        <CardDescription>
-          Finalisasi kunjungan setelah semua order selesai dikerjakan
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="p-4 space-y-4">
+    <div>
+      <div className="p-4 space-y-4">
         {/* Status */}
         <div className="border rounded-lg p-4 bg-muted/30">
           <div className="flex items-center justify-between mb-4">
@@ -413,7 +397,7 @@ export function FinalVisit({ visitId, type, onVisitUpdate }: FinalVisitProps) {
             )}
           </>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

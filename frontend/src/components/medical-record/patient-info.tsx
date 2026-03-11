@@ -30,6 +30,7 @@ import {
   Pencil,
   Stethoscope,
   SquarePen,
+  History,
 } from "lucide-react";
 import { patientAllergyApi, ALLERGY_CATEGORY_LABELS, ALLERGY_CRITICALITY_LABELS, api, bpjsApi, visitsApi } from "@/lib/api";
 import type { PatientAllergy } from "@/lib/api";
@@ -152,7 +153,7 @@ const getVisitCategoryLabel = (visit: PatientInfoProps["visit"]) => {
   return visitType || "Kunjungan";
 };
 
-export function PatientInfo({ visit }: PatientInfoProps) {
+export function PatientInfo({ visit, onCopyHistoryOpen }: PatientInfoProps & { onCopyHistoryOpen?: () => void }) {
   const navigate = useNavigate();
   
   const { toast } = useToast();
@@ -380,6 +381,20 @@ export function PatientInfo({ visit }: PatientInfoProps) {
                   <ExternalLink className="h-3 w-3" />
                 )}
                 I-Care
+              </Button>
+            </div>
+          )}
+          {/* Copy from History */}
+          {onCopyHistoryOpen && (
+            <div onClick={(e) => e.stopPropagation()}>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs gap-1"
+                onClick={onCopyHistoryOpen}
+              >
+                <History className="h-3 w-3" />
+                Riwayat
               </Button>
             </div>
           )}

@@ -1,5 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -86,8 +85,11 @@ export function ProcedureForm({ visitId, readOnly = false }: ProcedureFormProps)
   const [editingNotes, setEditingNotes] = useState<string>("");
 
   // New procedure form
-  const [selectedProcedureToAdd, setSelectedProcedureToAdd] = useState<number | null>(null);
+  const [selectedProcedureIds, setSelectedProcedureIds] = useState<number[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
   const [addNotes, setAddNotes] = useState("");
+  const [queueSearchQuery, setQueueSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "in_progress" | "completed" | "cancelled">("all");
 
   // Dialogs
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -149,28 +151,32 @@ export function ProcedureForm({ visitId, readOnly = false }: ProcedureFormProps)
     setExpandedProcedure(procedureId);
   };
 
-  // Add procedure
+  // Add procedures (bulk)
   const handleAddProcedure = async () => {
-    if (!selectedProcedureToAdd) {
+    if (selectedProcedureIds.length === 0) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Pilih tindakan terlebih dahulu",
+        description: "Pilih minimal satu tindakan terlebih dahulu",
       });
       return;
     }
 
     setSaving(true);
     try {
-      await visitProceduresApi.create(visitId, {
-        procedure_id: selectedProcedureToAdd,
-        notes: addNotes,
-      });
+      await Promise.all(
+        selectedProcedureIds.map((procedureId) =>
+          visitProceduresApi.create(visitId, {
+            procedure_id: procedureId,
+            notes: addNotes,
+          })
+        )
+      );
       toast({
         title: "Berhasil",
-        description: "Tindakan berhasil ditambahkan",
+        description: `${selectedProcedureIds.length} tindakan berhasil ditambahkan`,
       });
-      setSelectedProcedureToAdd(null);
+      setSelectedProcedureIds([]);
       setAddNotes("");
       loadData();
     } catch (error: any) {
@@ -375,12 +381,49 @@ export function ProcedureForm({ visitId, readOnly = false }: ProcedureFormProps)
 
   // Show all procedures (allow same procedure to be added multiple times)
   const availableProcedures = roomProcedures;
+  const filteredProcedures = availableProcedures.filter((proc) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    return proc.name.toLowerCase().includes(q) || proc.code.toLowerCase().includes(q);
+  });
   
   // Count how many times each procedure has been added
   const procedureCounts = visitProcedures.reduce((acc, vp) => {
     acc[vp.procedure_id] = (acc[vp.procedure_id] || 0) + 1;
     return acc;
   }, {} as Record<number, number>);
+
+  const toggleProcedureSelection = (procedureId: number) => {
+    setSelectedProcedureIds((prev) =>
+      prev.includes(procedureId)
+        ? prev.filter((id) => id !== procedureId)
+        : [...prev, procedureId]
+    );
+  };
+
+  const queueCounts = useMemo(() => {
+    return {
+      all: visitProcedures.length,
+      pending: visitProcedures.filter((p) => p.status === "pending").length,
+      in_progress: visitProcedures.filter((p) => p.status === "in_progress").length,
+      completed: visitProcedures.filter((p) => p.status === "completed").length,
+      cancelled: visitProcedures.filter((p) => p.status === "cancelled").length,
+    };
+  }, [visitProcedures]);
+
+  const filteredVisitProcedures = useMemo(() => {
+    return visitProcedures.filter((vp) => {
+      if (statusFilter !== "all" && vp.status !== statusFilter) return false;
+      if (!queueSearchQuery.trim()) return true;
+
+      const q = queueSearchQuery.toLowerCase();
+      const name = vp.procedure?.name?.toLowerCase() || "";
+      const code = vp.procedure?.code?.toLowerCase() || "";
+      const creator = vp.created_by?.full_name?.toLowerCase() || "";
+      const filler = vp.filled_by?.full_name?.toLowerCase() || "";
+      return name.includes(q) || code.includes(q) || creator.includes(q) || filler.includes(q);
+    });
+  }, [visitProcedures, statusFilter, queueSearchQuery]);
 
   if (loading) {
     return (
@@ -392,8 +435,8 @@ export function ProcedureForm({ visitId, readOnly = false }: ProcedureFormProps)
 
   if (roomProcedures.length === 0) {
     return (
-      <Card>
-        <CardContent className="py-12">
+      <div>
+        <div className="py-12">
           <div className="text-center text-muted-foreground">
             <Scissors className="h-12 w-12 mx-auto mb-4 opacity-50" />
             <p>Tidak ada tindakan yang tersedia untuk ruangan ini.</p>
@@ -401,77 +444,127 @@ export function ProcedureForm({ visitId, readOnly = false }: ProcedureFormProps)
               Silakan tambahkan tindakan ke ruangan melalui menu Manajemen Ruangan.
             </p>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     );
   }
 
   return (
     <fieldset disabled={readOnly}>
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <div className="space-y-4">
+    <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
       {/* Left Column - Available Procedures to Add */}
-      <Card>
-        <CardHeader className="py-3 px-4">
-          <CardTitle className="text-base font-semibold flex items-center gap-2">
-            <Plus className="h-4 w-4" />
-            Tindakan Tersedia ({availableProcedures.length})
-          </CardTitle>
-          <CardDescription>
-            Pilih tindakan medis yang tersedia di ruangan ini
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="p-0">
+      <div className="xl:col-span-2">
+        <div className="rounded-lg border bg-background overflow-hidden">
+          <div className="border-b p-3 space-y-2 bg-muted/20">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-semibold">Katalog Tindakan</p>
+              <Badge variant="secondary" className="text-xs">{filteredProcedures.length} item</Badge>
+            </div>
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Cari tindakan (nama/kode)..."
+            />
+            <Textarea
+              value={addNotes}
+              onChange={(e) => setAddNotes(e.target.value)}
+              placeholder="Catatan untuk tindakan terpilih (opsional)..."
+              rows={2}
+            />
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs text-muted-foreground">{selectedProcedureIds.length} terpilih</span>
+              <div className="flex items-center gap-2">
+                {selectedProcedureIds.length > 0 && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8"
+                    onClick={() => setSelectedProcedureIds([])}
+                  >
+                    Reset
+                  </Button>
+                )}
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-8"
+                  disabled={saving || selectedProcedureIds.length === 0}
+                  onClick={handleAddProcedure}
+                >
+                  {saving ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Menambahkan...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Assign {selectedProcedureIds.length > 0 ? selectedProcedureIds.length : ""}
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+
           {canCreate ? (
-            availableProcedures.length > 0 ? (
-              <div className="divide-y">
-                  {availableProcedures.map((proc) => {
-                    const isSelected = selectedProcedureToAdd === proc.id;
+            filteredProcedures.length > 0 ? (
+              <div className="max-h-[520px] overflow-auto">
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 bg-background z-10 border-b">
+                    <tr>
+                      <th className="py-2 px-3 w-10 text-left">✓</th>
+                      <th className="py-2 px-3 text-left">Tindakan</th>
+                      <th className="py-2 px-3 w-24 text-left">Kode</th>
+                      <th className="py-2 px-3 w-24 text-left">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                  {filteredProcedures.map((proc) => {
+                    const isSelected = selectedProcedureIds.includes(proc.id);
                     const addedCount = procedureCounts[proc.id] || 0;
                     return (
-                      <div
+                      <tr
                         key={proc.id}
-                        className={`p-3 cursor-pointer hover:bg-muted/50 transition-colors ${
-                          isSelected ? "bg-primary/10 border-l-2 border-l-primary" : ""
+                        className={`cursor-pointer border-b hover:bg-muted/40 transition-colors ${
+                          isSelected ? "bg-primary/10" : ""
                         }`}
-                        onClick={() => setSelectedProcedureToAdd(isSelected ? null : proc.id)}
+                        onClick={() => toggleProcedureSelection(proc.id)}
                       >
-                        <div className="flex items-center gap-3">
-                          <Checkbox checked={isSelected} className="flex-shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <p className="font-medium text-sm truncate">{proc.name}</p>
-                              {addedCount > 0 && (
-                                <Badge variant="secondary" className="text-xs">
-                                  {addedCount}x ditambahkan
-                                </Badge>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-                              <span>{proc.code}</span>
-                              {proc.has_parameters && (
-                                <>
-                                  <span>•</span>
-                                  <span>Memiliki parameter</span>
-                                </>
-                              )}
-                              {proc.duration && (
-                                <>
-                                  <span>•</span>
-                                  <span>{proc.duration} menit</span>
-                                </>
-                              )}
-                            </div>
+                        <td className="py-2 px-3" onClick={(e) => e.stopPropagation()}>
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={() => toggleProcedureSelection(proc.id)}
+                          />
+                        </td>
+                        <td className="py-2 px-3">
+                          <p className="font-medium text-sm truncate">{proc.name}</p>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                            {proc.has_parameters && <span>Memiliki parameter</span>}
+                            {proc.duration && <span>• {proc.duration} menit</span>}
                           </div>
-                        </div>
-                      </div>
+                        </td>
+                        <td className="py-2 px-3 text-xs text-muted-foreground">{proc.code}</td>
+                        <td className="py-2 px-3">
+                          {addedCount > 0 ? (
+                            <Badge variant="secondary" className="text-xs">{addedCount}x</Badge>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">baru</span>
+                          )}
+                        </td>
+                      </tr>
                     );
                   })}
+                  </tbody>
+                </table>
               </div>
             ) : (
               <div className="py-12 text-center text-muted-foreground">
-                <CheckCircle className="h-10 w-10 mx-auto mb-3 opacity-50 text-green-500" />
-                <p className="font-medium">Semua Tindakan Sudah Ditambahkan</p>
-                <p className="text-sm mt-1">Tidak ada tindakan lain yang tersedia.</p>
+                <AlertCircle className="h-10 w-10 mx-auto mb-3 opacity-50" />
+                <p className="font-medium">Tidak ada tindakan yang cocok</p>
+                <p className="text-sm mt-1">Ubah kata kunci pencarian untuk melihat tindakan lain.</p>
               </div>
             )
           ) : (
@@ -481,74 +574,40 @@ export function ProcedureForm({ visitId, readOnly = false }: ProcedureFormProps)
             </div>
           )}
 
-          {/* Add Procedure Form */}
-          {canCreate && selectedProcedureToAdd && (
-            <div className="border-t p-4 bg-muted/30 space-y-3">
-              <div className="bg-background rounded-lg p-3 border">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium text-sm">
-                      {availableProcedures.find((p) => p.id === selectedProcedureToAdd)?.name}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {availableProcedures.find((p) => p.id === selectedProcedureToAdd)?.code}
-                    </p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-muted-foreground"
-                    onClick={() => setSelectedProcedureToAdd(null)}
-                  >
-                    <XCircle className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <Label className="text-sm">Catatan (opsional)</Label>
-                <Textarea
-                  value={addNotes}
-                  onChange={(e) => setAddNotes(e.target.value)}
-                  placeholder="Catatan tambahan untuk tindakan ini..."
-                  rows={2}
-                />
-              </div>
-
-              <Button
-                className="w-full"
-                disabled={saving}
-                onClick={handleAddProcedure}
-              >
-                {saving ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Menambahkan...
-                  </>
-                ) : (
-                  <>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Tambah Tindakan
-                  </>
-                )}
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Right Column - Added Procedures with Collapsible Form */}
-      <Card>
-        <CardHeader className="py-3 px-4">
-          <CardTitle className="text-base font-semibold flex items-center gap-2">
-            <Clock className="h-4 w-4" />
-            Tindakan Kunjungan ({visitProcedures.length})
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          {visitProcedures.length > 0 ? (
+      <div className="xl:col-span-3">
+        <div className="rounded-lg border bg-background overflow-hidden">
+          <div className="border-b p-3 space-y-2 bg-muted/20">
+            <div className="flex flex-wrap items-center gap-2">
+              <Button type="button" variant={statusFilter === "all" ? "default" : "outline"} size="sm" onClick={() => setStatusFilter("all")}>
+                Semua ({queueCounts.all})
+              </Button>
+              <Button type="button" variant={statusFilter === "pending" ? "default" : "outline"} size="sm" onClick={() => setStatusFilter("pending")}>
+                Menunggu ({queueCounts.pending})
+              </Button>
+              <Button type="button" variant={statusFilter === "in_progress" ? "default" : "outline"} size="sm" onClick={() => setStatusFilter("in_progress")}>
+                Proses ({queueCounts.in_progress})
+              </Button>
+              <Button type="button" variant={statusFilter === "completed" ? "default" : "outline"} size="sm" onClick={() => setStatusFilter("completed")}>
+                Selesai ({queueCounts.completed})
+              </Button>
+              <Button type="button" variant={statusFilter === "cancelled" ? "default" : "outline"} size="sm" onClick={() => setStatusFilter("cancelled")}>
+                Batal ({queueCounts.cancelled})
+              </Button>
+            </div>
+            <Input
+              value={queueSearchQuery}
+              onChange={(e) => setQueueSearchQuery(e.target.value)}
+              placeholder="Cari di antrian tindakan..."
+            />
+          </div>
+
+          {filteredVisitProcedures.length > 0 ? (
             <div className="divide-y">
-                {visitProcedures.map((vp) => {
+                {filteredVisitProcedures.map((vp) => {
                   const isExpanded = expandedProcedure === vp.id;
                   const hasParams = procedureHasParameters(vp);
                   const isDisabled = vp.status === "completed" || vp.status === "cancelled";
@@ -629,6 +688,20 @@ export function ProcedureForm({ visitId, readOnly = false }: ProcedureFormProps)
                                 }}
                               >
                                 <XCircle className="h-4 w-4" />
+                              </Button>
+                            )}
+                            {canEdit && (vp.status === "pending" || vp.status === "in_progress") && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-green-600 flex-shrink-0"
+                                title="Selesaikan Tindakan"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleSaveResults(vp.id, "completed");
+                                }}
+                              >
+                                <CheckCircle className="h-4 w-4" />
                               </Button>
                             )}
                             {canEdit && vp.status === "completed" && (
@@ -844,12 +917,12 @@ export function ProcedureForm({ visitId, readOnly = false }: ProcedureFormProps)
           ) : (
             <div className="py-12 text-center text-muted-foreground">
               <Scissors className="h-10 w-10 mx-auto mb-3 opacity-50" />
-              <p className="font-medium">Belum ada tindakan</p>
-              <p className="text-sm mt-1">Pilih tindakan dari daftar di sebelah kiri untuk menambahkan.</p>
+              <p className="font-medium">Tidak ada data pada filter ini</p>
+              <p className="text-sm mt-1">Coba ubah status filter atau kata kunci pencarian.</p>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
@@ -871,6 +944,7 @@ export function ProcedureForm({ visitId, readOnly = false }: ProcedureFormProps)
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
     </div>
     </fieldset>
   );
