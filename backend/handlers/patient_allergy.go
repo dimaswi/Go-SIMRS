@@ -31,27 +31,13 @@ func GetPatientAllergies(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": allergies})
 }
 
-// GetVisitAllergies returns all allergies recorded in a specific visit
+// GetVisitAllergies returns allergies recorded in a specific visit
 func GetVisitAllergies(c *gin.Context) {
 	visitID := c.Param("visit_id")
 
-	// First get the visit with registration to get patient ID
-	var visit models.Visit
-	if err := database.DB.Preload("Registration").First(&visit, visitID).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Visit tidak ditemukan"})
-		return
-	}
-
-	// Get patient ID from registration
-	if visit.Registration == nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Registration tidak ditemukan"})
-		return
-	}
-	patientID := visit.Registration.PatientID
-
-	// Get all active allergies for this patient (not just this visit)
+	// Get allergies specifically recorded in this visit
 	var allergies []models.PatientAllergy
-	if err := database.DB.Where("patient_id = ? AND is_active = ?", patientID, true).
+	if err := database.DB.Where("visit_id = ?", visitID).
 		Order("created_at DESC").
 		Find(&allergies).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -244,11 +230,21 @@ func BulkCreatePatientAllergies(c *gin.Context) {
 	var skipped []string
 
 	for _, allergyInput := range input.Allergies {
-		// Check if already exists
+		// Check if already exists (active)
 		var existing models.PatientAllergy
 		if err := database.DB.Where("patient_id = ? AND snomed_code = ? AND is_active = ?",
 			input.PatientID, allergyInput.SnomedCode, true).First(&existing).Error; err == nil {
 			skipped = append(skipped, allergyInput.SnomedDisplay)
+			continue
+		}
+
+		// Check if exists but inactive — reactivate it
+		var inactive models.PatientAllergy
+		if err := database.DB.Where("patient_id = ? AND snomed_code = ? AND is_active = ?",
+			input.PatientID, allergyInput.SnomedCode, false).First(&inactive).Error; err == nil {
+			database.DB.Model(&inactive).Updates(map[string]interface{}{"is_active": true, "recorded_at": time.Now()})
+			database.DB.First(&inactive, inactive.ID)
+			created = append(created, inactive)
 			continue
 		}
 

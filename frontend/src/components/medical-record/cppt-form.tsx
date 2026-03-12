@@ -470,20 +470,9 @@ export function CPPTForm({ visitId, readOnly = false }: CPPTFormProps) {
   return (
     <>
       <div>
-        <div className="pb-2">
-          <div className="flex items-center justify-between">
-            
-            {canCreate && !readOnly && (
-              <Button onClick={handleOpenCreate} size="sm">
-                <Plus className="h-4 w-4 mr-1" />
-                Tambah CPPT
-              </Button>
-            )}
-          </div>
-        </div>
         <div className="p-0">
           {cppts.length > 0 ? (
-            <div>
+            <div className="rounded-lg border overflow-hidden">
               {/* Table Header */}
               <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-muted/50 text-xs font-medium text-muted-foreground border-b sticky top-0">
                 <div className="col-span-1"></div>
@@ -513,10 +502,26 @@ export function CPPTForm({ visitId, readOnly = false }: CPPTFormProps) {
               </div>
             </div>
           ) : (
-            <div className="py-12 text-center text-muted-foreground">
+            <div className="py-12 text-center text-muted-foreground border rounded-lg">
               <ClipboardCheck className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p className="font-medium">Belum ada catatan CPPT</p>
               <p className="text-sm mt-1">Klik "Tambah CPPT" untuk menambahkan catatan perkembangan.</p>
+              {canCreate && !readOnly && (
+                <div className="mt-4 flex justify-center">
+                  <Button onClick={handleOpenCreate} size="sm">
+                    <Plus className="h-4 w-4 mr-1" />
+                    Tambah CPPT
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+          {canCreate && !readOnly && cppts.length > 0 && (
+            <div className="mt-4 flex justify-center">
+              <Button onClick={handleOpenCreate} size="sm">
+                <Plus className="h-4 w-4 mr-1" />
+                Tambah CPPT
+              </Button>
             </div>
           )}
         </div>

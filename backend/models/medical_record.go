@@ -147,11 +147,12 @@ type PhysicalExamination struct {
 	OxygenSaturation string `gorm:"size:20" json:"oxygen_saturation,omitempty"` // LOINC: 2708-6
 
 	// Anthropometry
-	Weight     string  `gorm:"size:20" json:"weight,omitempty"`      // LOINC: 29463-7
-	Height     string  `gorm:"size:20" json:"height,omitempty"`      // LOINC: 8302-2
-	BMI        float64 `gorm:"default:0" json:"bmi,omitempty"`       // LOINC: 39156-5
-	Waist      string  `gorm:"size:20" json:"waist,omitempty"`       // LOINC: 8280-0
-	HeadCircum string  `gorm:"size:20" json:"head_circum,omitempty"` // Lingkar kepala (pediatrik)
+	Weight         string  `gorm:"size:20" json:"weight,omitempty"`           // LOINC: 29463-7
+	Height         string  `gorm:"size:20" json:"height,omitempty"`           // LOINC: 8302-2
+	BMI            float64 `gorm:"default:0" json:"bmi,omitempty"`            // LOINC: 39156-5
+	UpperArmCircum string  `gorm:"size:20" json:"upper_arm_circum,omitempty"` // Lingkar lengan atas
+	Waist          string  `gorm:"size:20" json:"waist,omitempty"`            // LOINC: 8280-0
+	HeadCircum     string  `gorm:"size:20" json:"head_circum,omitempty"`      // Lingkar kepala (pediatrik)
 
 	// Physical Examination by System (legacy fields)
 	HeadNeck      string `gorm:"type:text" json:"head_neck,omitempty"`

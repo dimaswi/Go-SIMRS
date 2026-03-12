@@ -1,0 +1,6 @@
+# Admisi
+1. ~~dari pasien ugd atau rawat jalan ketika ingin ke rawat inap, disini kan sebelumnya untuk BPJS kita perlu membuat SPRI dahulu baru dari permintaan rawat inap akan membuat SEP dari SPRI yang sudah di generate. namun ada kendala ketika nomor BPJS pasien tidak aktif jadi keluarga pasien harus mengurus dahulu kartunya ke dinas sosial sampai kartu aktif. di sela itu pasien harus tetap di rawat inapkan. jadi saya punya alur baru, untuk pasien BPJS bisa skip SPRI dan SEP, jadi nanti di page pendaftaran kita akan munculkan form untuk create SPRI lalu ketika SPRI sudah di create baru muncul form untuk create SEP. jadi ini seperti kita buat SPRI dan SEP di akhir-akhir atau ditengah-tengah pasien saat sudah menjalani perawatan rawat inap~~ (DONE!)
+   - payment_method tetap BPJS (tidak di-downgrade ke Umum/cash)
+   - Halaman admisi: stepper SPRI → SEP (SPRI dulu baru bisa buat SEP)
+   - Pasien BPJS bisa di-skip SPRI/SEP, dilengkapi nanti saat kartu sudah aktif
+   - List admisi menampilkan kolom Pembayaran (BPJS/Umum/Asuransi)

@@ -1,0 +1,119 @@
+{
+  "version": "1.0.0",
+  "source": "SNARS/Tim Keperawatan Internal",
+  "last_updated": "YYYY-MM-DD",
+  "items": [
+    {
+      "sdki": {
+        "code": "D.0001",
+        "label": "Bersihan Jalan Napas Tidak Efektif",
+        "definisi": "ketidakmampuan membersihkan sekret atau obstruksi jalan nafas untuk mempertahankan jalan nafas tetap paten.",
+        "fisiologis": 
+        [
+            "1. Spasme jalan napas.",
+            "2. Hipersekresi jalan napas. ",
+            "3. Disfungsi neuromuskuler.",
+            "4. Benda asing dalam jalan napas.",
+            "5. Adanya jalan napas buatan.",
+            "6. Sekresi yang tertahan.",
+            "7. Hiperplasia dinding jalan napas.",
+            "8. Proses infeksi .",
+            "9. Respon alergi.",
+            "10. Efek agen farmakologis (mis. anastesi)."
+        ],
+        "situasional": 
+        [
+            "1. Merokok aktif.",
+            "2. Merokok pasif.",
+            "3. Terpajan polutan."
+        ],
+        "gejala_tanda": {
+          "mayor": {
+            "subjektif": [
+              "Tidak ada"
+            ],
+            "objektif": [
+              "1. Batuk tidak efektif",
+              "2. Tidak mampu batuk.",
+              "3. Sputum berlebih.",
+              "4. Mengi, wheezing dan / atau ronkhi kering.",
+              "5. Mekonium di jalan nafas pada Neonatus."
+            ]
+          },
+          "minor": {
+            "subjektif": [
+              "1. Dispnea.",
+              "2. Sulit bicara.",
+              "3. Ortopnea."
+            ],
+            "objektif": [
+              "1. Gelisah.",
+              "2. Sianosis.",
+              "3. Bunyi napas menurun.",
+              "4. Frekuensi napas berubah.",
+              "5. Pola napas berubah."
+            ]
+          }
+        },
+        "kondisi_klinis_terkait": [
+            "1. Gullian barre syndrome.",
+            "2. Sklerosis multipel.",
+            "3. Myasthenia gravis.",
+            "4. Prosedur diagnostik (mis. bronkoskopi, transesophageal echocardiography [TEE] ).",
+            "5. Depresi sistem saraf pusat.",
+            "6. Cedera Kepala",
+            "7. Stroke",
+            "8. Kuadriplegia",
+            "9. Sindron aspirasi mekonium",
+            "10. Infeksi saluran Napas."
+        ]
+      },
+      "slki": {
+        "luaran_utama": [
+          "1. Bersihan Jalan Napas"
+        ],
+        "luaran_tambahan": [
+          "1. Kontrol Gejala",
+          "2. Pertukaran Gas",
+          "3. Respons Alergi Lokal",
+          "4. Respons Alergi Sistemik",
+          "5. Respons Ventilasi Mekanik",
+          "6. Tingkat Infeksi"
+        ]
+      },
+      "siki": {
+        "intervensi_utama": [
+          "1. Latihan Batuk Efektif",
+          "2. Manajemen Jalan Nafas",
+          "3. Pemantauan Respirasi"
+        ],
+        "intervensi_pendukung": [
+          "1. Dukungan Kepatuhan Program Pengobatan",
+          "2. Pemberian Obat Interpleura",
+          "3. Edukasi Fisioterapi Dada",
+          "4. Edukasi Pengukuran Respirasi",
+          "5. Fisioterapi Dada",
+          "6. Konsultasi Via Telepon",
+          "7. Manajemen Asthma",
+          "8. Manajemen Alergi",
+          "9. Manajemen Anafilaksis",
+          "10. Manajemen Isolasi",
+          "11. Manajemen Ventilasi Mekanik",
+          "12. Manajemen Jalan Napas Buatan",
+          "13. Pemberian Obat Inhalasi",
+          "14. Pemberian Obat Intradermal",
+          "15. Pemberian Obat Nasal",
+          "16. Pencegahan Aspirasi",
+          "17. Pengaturan Posisi",
+          "18. Penghisapan Jalan Napas",
+          "19. Penyapihan Ventilasi Mekanik",
+          "20. Perawatan Trakheostomi",
+          "21. Skrining Tuberkulosis",
+          "22. Stabilisasi Jalan Napas",
+          "23. Terapi Oksigen"
+        ]
+      },
+      "catatan": "Opsional"
+    }
+  ]
+}

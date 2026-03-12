@@ -60,6 +60,12 @@ const defaultNewAllergy: NewAllergyInput = {
   notes: "",
 };
 
+const isMeaningfulAllergySummary = (value?: string) => {
+  const normalized = (value || "").trim().toLowerCase().replace(/\s+/g, " ");
+  if (!normalized) return false;
+  return !/^(none|no known allergies|nkda|nka|nihil|\-|tidak ada|tidak ada alergi)$/.test(normalized);
+};
+
 export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false, isPatientDischarged = false }: AnamnesisFormProps) {
   const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState(defaultFormData);
@@ -151,7 +157,7 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false, is
             past_medical_history: pendingCopy.past_medical_history || "",
             family_history: pendingCopy.family_history || "",
             social_history: pendingCopy.social_history || "",
-            // allergies is auto-generated from structured patient allergies, don't overwrite
+            allergies: pendingCopy.allergies || "",
             current_medications: pendingCopy.current_medications || "",
           }));
           emitMedicalRecordTabSaved("anamnesis", false);
@@ -163,22 +169,29 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false, is
   }, [visitId]);
 
   // Load patient allergies
-  useEffect(() => {
-    const loadAllergies = async () => {
-      if (!patientId) return;
-      try {
-        setLoadingAllergies(true);
-        const response = await patientAllergyApi.getByPatient(patientId);
-        setPatientAllergies(response.data.data || []);
-      } catch (error) {
-        console.error("Failed to load allergies:", error);
-      } finally {
-        setLoadingAllergies(false);
-      }
-    };
-
-    loadAllergies();
+  const loadAllergies = useCallback(async () => {
+    if (!patientId) return;
+    try {
+      setLoadingAllergies(true);
+      const response = await patientAllergyApi.getByPatient(patientId);
+      setPatientAllergies(response.data.data || []);
+    } catch (error) {
+      console.error("Failed to load allergies:", error);
+    } finally {
+      setLoadingAllergies(false);
+    }
   }, [patientId]);
+
+  useEffect(() => {
+    loadAllergies();
+  }, [loadAllergies]);
+
+  // Reload allergies when copy creates new structured records
+  useEffect(() => {
+    const handler = () => { loadAllergies(); };
+    window.addEventListener("reload-patient-allergies", handler);
+    return () => window.removeEventListener("reload-patient-allergies", handler);
+  }, [loadAllergies]);
 
   // Search SNOMED CT when query changes
   useEffect(() => {
@@ -320,7 +333,7 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false, is
 
   // Count filled fields: 6 text fields + allergies (structured OR legacy text)
   const filledTextFields = Object.entries(formData).filter(([k, v]) => k !== "allergies" && v && v.trim() !== "").length;
-  const hasAllergies = patientAllergies.length > 0 || (formData.allergies && formData.allergies.trim() !== "");
+  const hasAllergies = patientAllergies.length > 0 || isMeaningfulAllergySummary(formData.allergies);
   const filledFields = filledTextFields + (hasAllergies ? 1 : 0);
   const totalFields = 7;
 
@@ -361,7 +374,7 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false, is
         past_medical_history: d.past_medical_history || "",
         family_history: d.family_history || "",
         social_history: d.social_history || "",
-        // allergies is auto-generated from structured patient allergies, don't overwrite
+        allergies: d.allergies || "",
         current_medications: d.current_medications || "",
       }));
       emitMedicalRecordTabSaved("anamnesis", false);

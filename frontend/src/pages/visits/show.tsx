@@ -6,7 +6,7 @@ import { usePermission } from "@/hooks/usePermission";
 import { setPageTitle } from "@/lib/page-title";
 import { Loader2 } from "lucide-react";
 import { useBreadcrumb } from "@/contexts/breadcrumb-context";
-import { visitsApi, medicalRecordsApi, cpptApi, fluidBalanceApi, nursingCareApi } from "@/lib/api";
+import { visitsApi, medicalRecordsApi, cpptApi, fluidBalanceApi, nursingCareApi, medicineOrdersApi, procedureOrdersApi } from "@/lib/api";
 import { PatientInfo } from "@/components/medical-record/patient-info";
 import { MedicalRecordTabs } from "@/components/medical-record/medical-record-tabs";
 import { TriageForm } from "@/components/medical-record/triage-form";
@@ -41,6 +41,12 @@ import { SuratForm } from "@/components/medical-record/surat-form";
 import { VisitHistoryDrawer } from "@/components/medical-record/visit-history-drawer";
 import { CopyFromHistoryDrawer } from "@/components/medical-record/copy-from-history-drawer";
 import { MEDICAL_RECORD_TAB_INDICATOR_EVENT, MEDICAL_RECORD_TAB_SAVED_EVENT, emitMedicalRecordTabIndicator, emitMedicalRecordTabSaved } from "@/components/medical-record/tab-indicator";
+
+const isMeaningfulAllergySummary = (value?: string) => {
+  const normalized = (value || "").trim().toLowerCase().replace(/\s+/g, " ");
+  if (!normalized) return false;
+  return !/^(none|no known allergies|nkda|nka|nihil|\-|tidak ada|tidak ada alergi)$/.test(normalized);
+};
 
 export default function VisitShow() {
   const { id } = useParams<{ id: string }>();
@@ -277,7 +283,7 @@ export default function VisitShow() {
         const a = summary.anamnesis;
         const textFields = [a.chief_complaint, a.history_of_present_illness, a.past_medical_history, a.family_history, a.social_history, a.current_medications];
         const filledText = textFields.filter(v => v && v.trim() !== "").length;
-        const hasLegacyAllergy = a.allergies && a.allergies.trim() !== "";
+        const hasLegacyAllergy = isMeaningfulAllergySummary(a.allergies);
         const filled = filledText + (hasLegacyAllergy ? 1 : 0);
         emitMedicalRecordTabIndicator("anamnesis", `${filled}/7`);
         emitMedicalRecordTabSaved("anamnesis", !!a.id && filled > 0);
@@ -285,7 +291,7 @@ export default function VisitShow() {
         emitMedicalRecordTabIndicator("anamnesis", "0/7");
       }
 
-      // Physical Exam: count body sections (13) + vital signs (8) = total 21
+      // Physical Exam: body sections (13) + core fields (11) = total 24
       if (summary.physical_exam) {
         const p = summary.physical_exam;
         const bodySectionIds = ["head", "eyes", "ears", "nose", "throat", "neck", "chest", "heart", "lungs", "abdomen", "extremities", "skin", "neurological"];
@@ -302,12 +308,15 @@ export default function VisitShow() {
           p.respiratory_rate ? 1 : 0,
           p.temperature ? 1 : 0,
           p.oxygen_saturation ? 1 : 0,
+          p.upper_arm_circum ? 1 : 0,
+          p.head_circum ? 1 : 0,
+          p.waist ? 1 : 0,
         ].reduce((a, b) => a + b, 0);
         const totalFilled = filledBody + filledVitals;
-        emitMedicalRecordTabIndicator("physical-exam", `${totalFilled}/21`);
+        emitMedicalRecordTabIndicator("physical-exam", `${totalFilled}/24`);
         emitMedicalRecordTabSaved("physical-exam", !!p.id && totalFilled > 0);
       } else {
-        emitMedicalRecordTabIndicator("physical-exam", "0/21");
+        emitMedicalRecordTabIndicator("physical-exam", "0/24");
       }
 
       // Diagnosis: count items + clinical_impression + differential_diagnosis
@@ -346,6 +355,66 @@ export default function VisitShow() {
           const r = await fetch();
           const count = r.data?.data?.length ?? 0;
           emitMedicalRecordTabIndicator(key, `${count}`);
+        } catch {
+          // ignore
+        }
+      })
+    );
+
+    // Order tabs counts: medicine/radiology/lab/consultation/surgery
+    const orderIndicators = [
+      {
+        key: "medicine-order",
+        fetch: async () => {
+          const r = await medicineOrdersApi.getAll({ source_visit_id: visitId });
+          const orders = Array.isArray(r.data) ? r.data : [];
+          return orders.filter((order: any) => order?.status !== "cancelled").length;
+        },
+      },
+      {
+        key: "radiology-order",
+        fetch: async () => {
+          const r = await procedureOrdersApi.getBySourceVisit(visitId, "radiology");
+          const orders = Array.isArray(r.data) ? r.data : [];
+          return orders.filter((order: any) => order?.status !== "cancelled").length;
+        },
+      },
+      {
+        key: "laboratory-order",
+        fetch: async () => {
+          const r = await procedureOrdersApi.getBySourceVisit(visitId, "laboratory");
+          const orders = Array.isArray(r.data) ? r.data : [];
+          return orders.filter((order: any) => order?.status !== "cancelled").length;
+        },
+      },
+      {
+        key: "consultation-order",
+        fetch: async () => {
+          const r = await procedureOrdersApi.getBySourceVisit(visitId, "consultation");
+          const orders = Array.isArray(r.data) ? r.data : [];
+          return orders.filter((order: any) => order?.status !== "cancelled").length;
+        },
+      },
+      {
+        key: "surgery-order",
+        fetch: async () => {
+          const r = await procedureOrdersApi.getBySourceVisit(visitId, "surgery");
+          const orders = Array.isArray(r.data) ? r.data : [];
+          return orders.filter((order: any) => order?.status !== "cancelled").length;
+        },
+      },
+    ];
+
+    await Promise.allSettled(
+      orderIndicators.map(async ({ key, fetch }) => {
+        try {
+          const count = await fetch();
+          const indicatorValue = `${count}`;
+          emitMedicalRecordTabIndicator(key, indicatorValue);
+          setTabIndicators((prev) => ({
+            ...prev,
+            [key]: indicatorValue,
+          }));
         } catch {
           // ignore
         }

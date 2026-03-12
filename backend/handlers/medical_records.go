@@ -287,6 +287,7 @@ func SavePhysicalExam(c *gin.Context) {
 		Weight                 float64 `json:"weight"`                   // Accept as float
 		Height                 float64 `json:"height"`                   // Accept as float
 		BMI                    float64 `json:"bmi"`
+		UpperArmCircum         string  `json:"upper_arm_circum"`
 		Waist                  string  `json:"waist"`
 		HeadCircum             string  `json:"head_circum"`
 		HeadNeck               string  `json:"head_neck"`
@@ -386,6 +387,7 @@ func SavePhysicalExam(c *gin.Context) {
 		physExam.Height = fmt.Sprintf("%.1f", input.Height)
 	}
 	physExam.BMI = input.BMI
+	physExam.UpperArmCircum = input.UpperArmCircum
 	physExam.Waist = input.Waist
 	physExam.HeadCircum = input.HeadCircum
 

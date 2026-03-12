@@ -495,15 +495,15 @@ export function MedicalRecordTabs({
 
   return (
     <nav>
-      <div className="flex items-stretch gap-2">
+      <div className="flex h-10 items-center gap-1 rounded-md border bg-background p-1 shadow-sm">
         <button
           type="button"
           onClick={() => handleScrollTabs("left")}
           disabled={!canScrollLeft}
           className={cn(
-            "shrink-0 self-center rounded-md border p-1 transition-colors",
+            "shrink-0 self-center rounded-md p-1 transition-colors",
             canScrollLeft
-              ? "text-foreground hover:bg-muted"
+              ? "text-foreground hover:bg-accent"
               : "text-muted-foreground/40"
           )}
           aria-label="Geser tab ke kiri"
@@ -516,11 +516,13 @@ export function MedicalRecordTabs({
           onWheel={handleWheelScrollTabs}
           className="flex-1 overflow-x-auto overscroll-contain"
         >
-          <div className="flex min-w-max items-stretch gap-2 px-1">
+          <div className="flex min-w-max items-center gap-1 px-0.5">
             {tabs.map((tab) => {
               const isActive = activeTab === tab.id;
               const indicatorValue = indicators[tab.id];
               const indicatorStatus = getIndicatorStatus(indicatorValue);
+              const isOrderTab = ["medicine-order", "radiology-order", "laboratory-order", "consultation-order", "surgery-order"].includes(tab.id);
+              const effectiveStatus = isOrderTab ? "neutral" : indicatorStatus;
               const savedState = savedStates[tab.id]; // true=saved, false=unsaved, undefined=untouched
 
               return (
@@ -530,31 +532,41 @@ export function MedicalRecordTabs({
                 data-tab-id={tab.id}
                 onClick={() => onTabChange(tab.id)}
                 className={cn(
-                  "relative flex min-w-[108px] flex-col items-center justify-center gap-1 px-3 py-2 text-[11px] uppercase tracking-wide transition-colors",
-                  getTabStatusClass(indicatorStatus, isActive)
+                  "group relative inline-flex h-8 min-w-fit items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 text-xs font-medium transition-colors",
+                  isActive
+                    ? "bg-background text-foreground shadow"
+                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                  getTabStatusClass(effectiveStatus, isActive)
                 )}
               >
-                <div className="relative [&>svg]:h-4 [&>svg]:w-4">
+                <div className="relative [&>svg]:h-3.5 [&>svg]:w-3.5">
                   {tab.icon}
                   {savedState === false && (
-                    <span className="absolute -right-1.5 -top-1.5 h-2 w-2 rounded-full bg-amber-500" />
+                    <span className="absolute -right-1.5 -top-1 h-1.5 w-1.5 rounded-full bg-amber-500" />
                   )}
                   {savedState === true && (
-                    <span className="absolute -right-1.5 -top-1.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-green-500">
-                      <Check className="h-2 w-2 text-white" />
+                    <span className="absolute -right-1.5 -top-1 flex h-3 w-3 items-center justify-center rounded-full bg-green-500">
+                      <Check className="h-1.5 w-1.5 text-white" />
                     </span>
                   )}
                 </div>
-                <div className="flex items-center gap-1 whitespace-nowrap">
+                <div className="flex items-center gap-1 whitespace-nowrap leading-none">
                   <span>{tab.label}</span>
                   {indicatorValue && (
                     <span
                       className={cn(
                         "rounded-full px-1.5 py-0.5 text-[10px] leading-none",
-                        indicatorStatus === "complete" && "bg-green-100 text-green-700",
-                        indicatorStatus === "progress" && "bg-amber-100 text-amber-700",
-                        indicatorStatus === "empty" && "bg-red-100 text-red-700",
-                        indicatorStatus === "neutral" && "bg-muted text-muted-foreground"
+                        isOrderTab
+                          ? Number(indicatorValue) > 0
+                            ? "bg-green-100 text-green-700"
+                            : "bg-slate-600 text-slate-100"
+                          : indicatorStatus === "complete"
+                          ? "bg-green-100 text-green-700"
+                          : indicatorStatus === "progress"
+                          ? "bg-amber-100 text-amber-700"
+                          : indicatorStatus === "empty"
+                          ? "bg-red-100 text-red-700"
+                          : "bg-muted text-muted-foreground"
                       )}
                     >
                       {indicatorValue}
@@ -563,13 +575,13 @@ export function MedicalRecordTabs({
                 </div>
                 <span
                   className={cn(
-                    "absolute bottom-0 left-3 right-3 h-0.5 rounded-full transition-opacity",
+                    "absolute bottom-0 left-2 right-2 h-0.5 rounded-full transition-opacity",
                     isActive
-                      ? indicatorStatus === "complete"
+                      ? effectiveStatus === "complete"
                         ? "bg-green-600 opacity-100"
-                        : indicatorStatus === "progress"
+                        : effectiveStatus === "progress"
                         ? "bg-amber-600 opacity-100"
-                        : indicatorStatus === "empty"
+                        : effectiveStatus === "empty"
                         ? "bg-red-600 opacity-100"
                         : "bg-primary opacity-100"
                       : "opacity-0"
@@ -586,9 +598,9 @@ export function MedicalRecordTabs({
           onClick={() => handleScrollTabs("right")}
           disabled={!canScrollRight}
           className={cn(
-            "shrink-0 self-center rounded-md border p-1 transition-colors",
+            "shrink-0 self-center rounded-md p-1 transition-colors",
             canScrollRight
-              ? "text-foreground hover:bg-muted"
+              ? "text-foreground hover:bg-accent"
               : "text-muted-foreground/40"
           )}
           aria-label="Geser tab ke kanan"

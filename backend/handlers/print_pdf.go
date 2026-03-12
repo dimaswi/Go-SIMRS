@@ -1419,6 +1419,9 @@ func PrintOutpatientResume(c *gin.Context) {
 		OxygenSaturation  string
 		Weight            string
 		Height            string
+		UpperArmCircum    string
+		HeadCircum        string
+		Waist             string
 		Head              string
 		Eyes              string
 		Ears              string
@@ -1508,6 +1511,8 @@ func PrintOutpatientResume(c *gin.Context) {
 			OxygenSaturation:  rmDup.OxygenSaturation,
 			Weight:            rmDup.Weight,
 			Height:            rmDup.Height,
+			HeadCircum:        rmDup.HeadCircum,
+			Waist:             rmDup.Waist,
 			Head:              rmDup.Head,
 			Eyes:              rmDup.Eyes,
 			Ears:              rmDup.Ears,
@@ -1598,6 +1603,9 @@ func PrintOutpatientResume(c *gin.Context) {
 			OxygenSaturation:  physicalExamModel.OxygenSaturation,
 			Weight:            physicalExamModel.Weight,
 			Height:            physicalExamModel.Height,
+			UpperArmCircum:    physicalExamModel.UpperArmCircum,
+			HeadCircum:        physicalExamModel.HeadCircum,
+			Waist:             physicalExamModel.Waist,
 			Head:              physicalExamModel.Head,
 			Eyes:              physicalExamModel.Eyes,
 			Ears:              physicalExamModel.Ears,
@@ -1761,6 +1769,15 @@ func PrintOutpatientResume(c *gin.Context) {
 		}
 		if physicalExam.Height != "" {
 			addTableRow(pdf, "Tinggi Badan", physicalExam.Height+" cm", 40)
+		}
+		if physicalExam.UpperArmCircum != "" {
+			addTableRow(pdf, "Lingkar Lengan Atas", physicalExam.UpperArmCircum+" cm", 40)
+		}
+		if physicalExam.HeadCircum != "" {
+			addTableRow(pdf, "Lingkar Kepala", physicalExam.HeadCircum+" cm", 40)
+		}
+		if physicalExam.Waist != "" {
+			addTableRow(pdf, "Lingkar Perut", physicalExam.Waist+" cm", 40)
 		}
 		// Pemeriksaan Fisik per Sistem Organ
 		if physicalExam.Head != "" {
@@ -2199,7 +2216,7 @@ func PrintInpatientResume(c *gin.Context) {
 	var anamnesisChiefComplaint, anamnesisHistory, anamnesisAllergies string
 	var physicalExam struct {
 		ID                                                                                                                                                                              uint
-		GeneralCondition, Consciousness, BloodPressure, HeartRate, RespiratoryRate, Temperature, OxygenSaturation, Weight, Height                                                       string
+		GeneralCondition, Consciousness, BloodPressure, HeartRate, RespiratoryRate, Temperature, OxygenSaturation, Weight, Height, UpperArmCircum, HeadCircum, Waist                    string
 		Head, Eyes, Ears, Nose, Throat, ENT, Neck, Chest, Thorax, Heart, Cardiac, Lungs, Pulmonary, Abdomen, Extremities, Skin, Neurological, Musculoskel, Genitourinary, OtherFindings string
 	}
 	type DiagData struct{ Type, ICD10Code, ICD10Name string }
@@ -2226,6 +2243,8 @@ func PrintInpatientResume(c *gin.Context) {
 		physicalExam.OxygenSaturation = rmDup.OxygenSaturation
 		physicalExam.Weight = rmDup.Weight
 		physicalExam.Height = rmDup.Height
+		physicalExam.HeadCircum = rmDup.HeadCircum
+		physicalExam.Waist = rmDup.Waist
 		physicalExam.Head = rmDup.Head
 		physicalExam.Eyes = rmDup.Eyes
 		physicalExam.Ears = rmDup.Ears
@@ -2276,6 +2295,9 @@ func PrintInpatientResume(c *gin.Context) {
 		physicalExam.OxygenSaturation = physExamModel.OxygenSaturation
 		physicalExam.Weight = physExamModel.Weight
 		physicalExam.Height = physExamModel.Height
+		physicalExam.UpperArmCircum = physExamModel.UpperArmCircum
+		physicalExam.HeadCircum = physExamModel.HeadCircum
+		physicalExam.Waist = physExamModel.Waist
 		physicalExam.Head = physExamModel.Head
 		physicalExam.Eyes = physExamModel.Eyes
 		physicalExam.Ears = physExamModel.Ears
@@ -2409,6 +2431,15 @@ func PrintInpatientResume(c *gin.Context) {
 		}
 		if physicalExam.Height != "" {
 			addTableRow(pdf, "Tinggi Badan", physicalExam.Height+" cm", 40)
+		}
+		if physicalExam.UpperArmCircum != "" {
+			addTableRow(pdf, "Lingkar Lengan Atas", physicalExam.UpperArmCircum+" cm", 40)
+		}
+		if physicalExam.HeadCircum != "" {
+			addTableRow(pdf, "Lingkar Kepala", physicalExam.HeadCircum+" cm", 40)
+		}
+		if physicalExam.Waist != "" {
+			addTableRow(pdf, "Lingkar Perut", physicalExam.Waist+" cm", 40)
 		}
 		if physicalExam.Head != "" {
 			addTableRow(pdf, "Kepala", physicalExam.Head, 40)

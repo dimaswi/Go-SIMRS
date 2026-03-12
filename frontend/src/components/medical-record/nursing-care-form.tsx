@@ -40,9 +40,6 @@ import { usePermission } from "@/hooks/usePermission";
 import {
   nursingCareApi,
   SHIFT_TYPES,
-  CONSCIOUSNESS_LEVELS,
-  FUNCTIONAL_STATUS,
-  PRESSURE_ULCER_RISK,
   OUTCOME_TARGETS,
   PROBLEM_STATUS,
   getShiftTypeLabel,
@@ -59,12 +56,10 @@ import {
   CheckCircle,
   HeartPulse,
   User,
-  Calendar,
   Heart,
   Thermometer,
   Activity,
   ShieldCheck,
-  AlertTriangle,
   FileText,
   Target,
   ClipboardList,
@@ -74,11 +69,56 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
+import nursingMasterRaw from "@/master-data/nursing/sdki-slki-siki.master.json?raw";
 
 interface NursingCareFormProps {
   visitId: number;
   readOnly?: boolean;
 }
+
+interface NursingMasterItem {
+  sdki: {
+    code: string;
+    label: string;
+    definisi?: string;
+    fisiologis?: string[];
+    situasional?: string[];
+    gejala_tanda?: {
+      mayor?: {
+        subjektif?: string[];
+        objektif?: string[];
+      };
+      minor?: {
+        subjektif?: string[];
+        objektif?: string[];
+      };
+    };
+  };
+  slki?: {
+    luaran_utama?: string[];
+    luaran_tambahan?: string[];
+  };
+  siki?: {
+    intervensi_utama?: string[];
+    intervensi_pendukung?: string[];
+  };
+}
+
+const normalizeSdkiCode = (code: string) => code.toUpperCase().replace(/[^A-Z0-9]/g, "");
+
+const toMultilineText = (title: string, values: string[] = []) => {
+  if (values.length === 0) return "";
+  return `${title}:\n${values.join("\n")}`;
+};
+
+const parsedNursingMasterItems: NursingMasterItem[] = (() => {
+  try {
+    const parsed = JSON.parse(nursingMasterRaw) as { items?: NursingMasterItem[] };
+    return Array.isArray(parsed.items) ? parsed.items : [];
+  } catch {
+    return [];
+  }
+})();
 
 // Collapsible Row Component for Nursing Care
 function NursingCareCollapsibleRow({
@@ -108,6 +148,17 @@ function NursingCareCollapsibleRow({
     return '-';
   };
 
+  const countNumberedItems = (text?: string) => {
+    if (!text) return 0;
+    return text
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => /^\d+[\.)]/.test(line)).length;
+  };
+
+  const slkiCount = countNumberedItems(record.nursing_outcome);
+  const sikiCount = countNumberedItems(record.nursing_intervention);
+
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
       <div className="hover:bg-muted/30">
@@ -135,9 +186,23 @@ function NursingCareCollapsibleRow({
           </div>
           <div className="col-span-4">
             <p className="text-xs text-muted-foreground truncate">{getDiagnosisSummary()}</p>
-            {record.nursing_diagnosis_code && (
-              <span className="text-xs text-primary">{record.nursing_diagnosis_code}</span>
-            )}
+            <div className="flex items-center gap-1 mt-0.5">
+              {record.nursing_diagnosis_code && (
+                <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
+                  {record.nursing_diagnosis_code}
+                </Badge>
+              )}
+              {slkiCount > 0 && (
+                <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
+                  SLKI {slkiCount}
+                </Badge>
+              )}
+              {sikiCount > 0 && (
+                <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
+                  SIKI {sikiCount}
+                </Badge>
+              )}
+            </div>
           </div>
           <div className="col-span-2">
             <div className="flex flex-col gap-0.5">
@@ -183,60 +248,78 @@ function NursingCareCollapsibleRow({
         {/* Expanded Content */}
         <CollapsibleContent>
           <div className="px-4 pb-4 pt-0 ml-8 mr-4">
-            {/* Main Content Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 text-sm">
-              {/* Diagnosis Keperawatan */}
-              {record.nursing_diagnosis && (
-                <div className="bg-muted/50 border rounded-lg p-3">
-                  <p className="font-medium mb-1 flex items-center gap-1">
-                    <FileText className="h-3.5 w-3.5 text-muted-foreground" /> Diagnosis Keperawatan
-                    {record.nursing_diagnosis_code && (
-                      <span className="text-xs font-normal text-muted-foreground">({record.nursing_diagnosis_code})</span>
-                    )}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 text-sm">
+              <div className="bg-blue-50/40 border border-blue-100 rounded-lg p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="font-semibold flex items-center gap-1.5 text-blue-900">
+                    <FileText className="h-3.5 w-3.5" /> SDKI
                   </p>
-                  <p className="whitespace-pre-wrap">{record.nursing_diagnosis}</p>
-                  {record.problem_etiology && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      <strong>Etiologi:</strong> {record.problem_etiology}
-                    </p>
+                  {record.nursing_diagnosis_code && (
+                    <Badge variant="outline" className="text-[10px] border-blue-200 text-blue-800">
+                      {record.nursing_diagnosis_code}
+                    </Badge>
                   )}
                 </div>
-              )}
-
-              {/* Luaran */}
-              {record.nursing_outcome && (
-                <div className="bg-muted/50 border rounded-lg p-3">
-                  <p className="font-medium mb-1 flex items-center gap-1">
-                    <Target className="h-3.5 w-3.5 text-muted-foreground" /> Luaran Keperawatan
-                    {record.nursing_outcome_code && (
-                      <span className="text-xs font-normal text-muted-foreground">({record.nursing_outcome_code})</span>
-                    )}
-                  </p>
-                  <p className="whitespace-pre-wrap">{record.nursing_outcome}</p>
-                  {record.outcome_target && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      <strong>Target:</strong> {record.outcome_target}
-                    </p>
-                  )}
+                <p className="text-xs font-medium text-blue-900 mb-1">Diagnosis Keperawatan</p>
+                <div className="max-h-24 overflow-auto pr-1 whitespace-pre-wrap leading-relaxed text-blue-950/90">
+                  {record.nursing_diagnosis || "-"}
                 </div>
-              )}
+                {record.problem_etiology && (
+                  <div className="mt-2 rounded-md border border-blue-100 bg-white p-2">
+                    <p className="text-[11px] font-medium text-blue-800 mb-1">Etiologi</p>
+                    <div className="max-h-24 overflow-auto pr-1 whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground">
+                      {record.problem_etiology}
+                    </div>
+                  </div>
+                )}
+                {record.signs_symptoms && (
+                  <div className="mt-2 rounded-md border border-blue-100 bg-white p-2">
+                    <p className="text-[11px] font-medium text-blue-800 mb-1">Tanda dan Gejala</p>
+                    <div className="max-h-24 overflow-auto pr-1 whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground">
+                      {record.signs_symptoms}
+                    </div>
+                  </div>
+                )}
+              </div>
 
-              {/* Intervensi */}
-              {record.nursing_intervention && (
-                <div className="bg-muted/50 border rounded-lg p-3">
-                  <p className="font-medium mb-1 flex items-center gap-1">
-                    <ClipboardList className="h-3.5 w-3.5 text-muted-foreground" /> Intervensi Keperawatan
-                    {record.nursing_intervention_code && (
-                      <span className="text-xs font-normal text-muted-foreground">({record.nursing_intervention_code})</span>
-                    )}
+              <div className="bg-emerald-50/40 border border-emerald-100 rounded-lg p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="font-semibold flex items-center gap-1.5 text-emerald-900">
+                    <Target className="h-3.5 w-3.5" /> SLKI
                   </p>
-                  <p className="whitespace-pre-wrap">{record.nursing_intervention}</p>
+                  <Badge variant="outline" className="text-[10px] border-emerald-200 text-emerald-800">
+                    Item {slkiCount || 0}
+                  </Badge>
                 </div>
-              )}
+                <p className="text-xs font-medium text-emerald-900 mb-1">Luaran Keperawatan</p>
+                <div className="max-h-[230px] overflow-auto pr-1 whitespace-pre-wrap leading-relaxed text-emerald-950/90">
+                  {record.nursing_outcome || "-"}
+                </div>
+                {record.outcome_target && (
+                  <div className="mt-2 rounded-md border border-emerald-100 bg-white p-2 text-xs text-muted-foreground">
+                    <strong>Target:</strong> {record.outcome_target}
+                  </div>
+                )}
+              </div>
+
+              <div className="bg-amber-50/40 border border-amber-100 rounded-lg p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="font-semibold flex items-center gap-1.5 text-amber-900">
+                    <ClipboardList className="h-3.5 w-3.5" /> SIKI
+                  </p>
+                  <Badge variant="outline" className="text-[10px] border-amber-200 text-amber-800">
+                    Item {sikiCount || 0}
+                  </Badge>
+                </div>
+                <p className="text-xs font-medium text-amber-900 mb-1">Intervensi Keperawatan</p>
+                <div className="max-h-[260px] overflow-auto pr-1 whitespace-pre-wrap leading-relaxed text-amber-950/90">
+                  {record.nursing_intervention || "-"}
+                </div>
+              </div>
 
               {/* Implementasi */}
               {record.implementation && (
-                <div className="bg-muted/50 border rounded-lg p-3">
+                <div className="bg-muted/50 border rounded-lg p-3 lg:col-span-3">
                   <p className="font-medium mb-1 flex items-center gap-1">
                     <Stethoscope className="h-3.5 w-3.5 text-muted-foreground" /> Implementasi
                   </p>
@@ -396,6 +479,7 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
   const [editingId, setEditingId] = useState<number | null>(null);
   const [formData, setFormData] = useState<CreateNursingCareInput>(defaultFormData);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [nursingMasterItems] = useState<NursingMasterItem[]>(parsedNursingMasterItems);
 
   useEffect(() => {
     if (loading) return;
@@ -438,7 +522,7 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
       ...defaultFormData,
       record_date: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
     });
-    setActiveFormTab("pengkajian");
+    setActiveFormTab("diagnosis");
     setIsModalOpen(true);
   };
 
@@ -497,7 +581,7 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
       problem_status: record.problem_status || "",
       notes: record.notes || "",
     });
-    setActiveFormTab("pengkajian");
+    setActiveFormTab("diagnosis");
     setIsModalOpen(true);
   };
 
@@ -506,18 +590,86 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
+  const handleApplyMasterSdki = (selectedCode: string) => {
+    const selectedItem = nursingMasterItems.find(
+      (item) => normalizeSdkiCode(item.sdki.code) === normalizeSdkiCode(selectedCode),
+    );
+
+    if (!selectedItem) return;
+
+    const mayorSubjektif = selectedItem.sdki.gejala_tanda?.mayor?.subjektif ?? [];
+    const mayorObjektif = selectedItem.sdki.gejala_tanda?.mayor?.objektif ?? [];
+    const minorSubjektif = selectedItem.sdki.gejala_tanda?.minor?.subjektif ?? [];
+    const minorObjektif = selectedItem.sdki.gejala_tanda?.minor?.objektif ?? [];
+
+    const signsSymptomsText = [
+      toMultilineText("Mayor Subjektif", mayorSubjektif),
+      toMultilineText("Mayor Objektif", mayorObjektif),
+      toMultilineText("Minor Subjektif", minorSubjektif),
+      toMultilineText("Minor Objektif", minorObjektif),
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+
+    const etiologyText = [
+      toMultilineText("Fisiologis", selectedItem.sdki.fisiologis ?? []),
+      toMultilineText("Situasional", selectedItem.sdki.situasional ?? []),
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+
+    const outcomeText = [
+      toMultilineText("Luaran Utama", selectedItem.slki?.luaran_utama ?? []),
+      toMultilineText("Luaran Tambahan", selectedItem.slki?.luaran_tambahan ?? []),
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+
+    const interventionText = [
+      toMultilineText("Intervensi Utama", selectedItem.siki?.intervensi_utama ?? []),
+      toMultilineText("Intervensi Pendukung", selectedItem.siki?.intervensi_pendukung ?? []),
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+
+    setFormData((prev) => ({
+      ...prev,
+      nursing_diagnosis_code: selectedItem.sdki.code,
+      nursing_diagnosis: selectedItem.sdki.label,
+      nursing_outcome_code: "",
+      nursing_intervention_code: "",
+      problem_etiology: etiologyText || prev.problem_etiology,
+      signs_symptoms: signsSymptomsText || prev.signs_symptoms,
+      nursing_outcome: outcomeText || prev.nursing_outcome,
+      nursing_intervention: interventionText || prev.nursing_intervention,
+    }));
+  };
+
+  const currentMasterCode = nursingMasterItems.find(
+    (item) => normalizeSdkiCode(item.sdki.code) === normalizeSdkiCode(formData.nursing_diagnosis_code || ""),
+  )?.sdki.code;
+  const selectedMasterItem = nursingMasterItems.find(
+    (item) => normalizeSdkiCode(item.sdki.code) === normalizeSdkiCode(currentMasterCode || ""),
+  );
+
   // Save
   const handleSave = async () => {
     setSaving(true);
     try {
+      const payload: CreateNursingCareInput = {
+        ...formData,
+        nursing_outcome_code: "",
+        nursing_intervention_code: "",
+      };
+
       if (editingId) {
-        await nursingCareApi.update(visitId, editingId, formData);
+        await nursingCareApi.update(visitId, editingId, payload);
         toast({
           title: "Berhasil",
           description: "Asuhan keperawatan berhasil diperbarui",
         });
       } else {
-        await nursingCareApi.create(visitId, formData);
+        await nursingCareApi.create(visitId, payload);
         toast({
           title: "Berhasil",
           description: "Asuhan keperawatan berhasil ditambahkan",
@@ -601,20 +753,9 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
   return (
     <>
         <div>
-          <div className="pb-2">
-            <div className="flex items-center justify-between">
-              
-              {canCreate && !readOnly && (
-                <Button onClick={handleOpenCreate} size="sm">
-                  <Plus className="h-4 w-4 mr-1" />
-                  Tambah Asuhan
-                </Button>
-              )}
-            </div>
-          </div>
           <div className="p-0">
             {records.length > 0 ? (
-              <div>
+              <div className="rounded-lg border overflow-hidden">
                 {/* Table Header */}
                 <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-muted/50 text-xs font-medium text-muted-foreground border-b sticky top-0">
                   <div className="col-span-1"></div>
@@ -643,10 +784,26 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
                 </div>
               </div>
             ) : (
-              <div className="py-12 text-center text-muted-foreground">
+              <div className="py-12 text-center text-muted-foreground border rounded-lg">
                 <HeartPulse className="h-12 w-12 mx-auto mb-4 opacity-50" />
                 <p className="font-medium">Belum ada catatan asuhan keperawatan</p>
                 <p className="text-sm mt-1">Klik "Tambah Asuhan" untuk menambahkan catatan.</p>
+                {canCreate && !readOnly && (
+                  <div className="mt-4 flex justify-center">
+                    <Button onClick={handleOpenCreate} size="sm">
+                      <Plus className="h-4 w-4 mr-1" />
+                      Tambah Asuhan
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+            {canCreate && !readOnly && records.length > 0 && (
+              <div className="mt-4 flex justify-center">
+                <Button onClick={handleOpenCreate} size="sm">
+                  <Plus className="h-4 w-4 mr-1" />
+                  Tambah Asuhan
+                </Button>
               </div>
             )}
           </div>
@@ -664,265 +821,110 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
 
             <div className="flex-1 flex flex-col overflow-hidden px-6 py-4">
             <Tabs value={activeFormTab} onValueChange={setActiveFormTab} className="flex-1 flex flex-col overflow-hidden">
+              <div className="mb-4 rounded-lg border bg-muted/30 p-3">
+                <div className="space-y-2">
+                  <Label>Pilih SDKI dari Master (Auto Isi)</Label>
+                  <Select value={currentMasterCode || ""} onValueChange={handleApplyMasterSdki}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Pilih diagnosis SDKI untuk isi otomatis" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {nursingMasterItems.length === 0 ? (
+                        <SelectItem value="__empty" disabled>
+                          Master data SDKI belum terbaca.
+                        </SelectItem>
+                      ) : (
+                        nursingMasterItems.map((item) => (
+                          <SelectItem key={item.sdki.code} value={item.sdki.code}>
+                            {item.sdki.code} - {item.sdki.label}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Pilihan ini mengisi otomatis Diagnosis, Etiologi, Tanda-Gejala, Luaran, dan Intervensi.
+                  </p>
+                  {selectedMasterItem && (
+                    <div className="rounded-md border bg-background p-3 text-xs text-muted-foreground space-y-2">
+                      <p className="font-medium text-foreground">
+                        {selectedMasterItem.sdki.code} - {selectedMasterItem.sdki.label}
+                      </p>
+                      {selectedMasterItem.sdki.definisi && (
+                        <p className="leading-relaxed">{selectedMasterItem.sdki.definisi}</p>
+                      )}
+                      <div className="flex flex-wrap gap-2">
+                        <Badge variant="outline">SLKI Utama: {(selectedMasterItem.slki?.luaran_utama || []).length}</Badge>
+                        <Badge variant="outline">SLKI Tambahan: {(selectedMasterItem.slki?.luaran_tambahan || []).length}</Badge>
+                        <Badge variant="outline">SIKI Utama: {(selectedMasterItem.siki?.intervensi_utama || []).length}</Badge>
+                        <Badge variant="outline">SIKI Pendukung: {(selectedMasterItem.siki?.intervensi_pendukung || []).length}</Badge>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <TabsList className="h-auto p-0 bg-transparent border-b border-border rounded-none w-full justify-start gap-6 mb-4 shrink-0">
-                <TabsTrigger 
-                  value="pengkajian"
-                  className="px-0 py-2 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none text-sm font-medium text-muted-foreground data-[state=active]:text-foreground"
-                >
-                  Pengkajian
-                </TabsTrigger>
-                <TabsTrigger 
+                <TabsTrigger
                   value="diagnosis"
                   className="px-0 py-2 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none text-sm font-medium text-muted-foreground data-[state=active]:text-foreground"
                 >
-                  Diagnosis
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="intervensi"
-                  className="px-0 py-2 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none text-sm font-medium text-muted-foreground data-[state=active]:text-foreground"
-                >
-                  Intervensi
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="implementasi"
-                  className="px-0 py-2 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none text-sm font-medium text-muted-foreground data-[state=active]:text-foreground"
-                >
-                  Implementasi
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="evaluasi"
-                  className="px-0 py-2 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none text-sm font-medium text-muted-foreground data-[state=active]:text-foreground"
-                >
-                  Evaluasi
+                  Form 3S (SDKI-SLKI-SIKI)
                 </TabsTrigger>
               </TabsList>
 
-              {/* Tab Pengkajian */}
-              <TabsContent value="pengkajian" className="flex-1 overflow-hidden mt-0">
-                <ScrollArea className="h-full pr-4">
-                  <div className="space-y-4 pb-4">
-                {/* Row 1 - Date, Shift */}
-                <div className="space-y-4"><div className="grid grid-cols-3 gap-4">
-                      <div className="space-y-2">
-                        <Label>Tanggal & Waktu</Label>
-                        <Input
-                          type="datetime-local"
-                          value={formData.record_date}
-                          onChange={(e) => handleChange("record_date", e.target.value)}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Shift</Label>
-                        <Select
-                          value={formData.shift_type}
-                          onValueChange={(v) => handleChange("shift_type", v)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Pilih shift" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {SHIFT_TYPES.map((s) => (
-                              <SelectItem key={s.value} value={s.value}>
-                                {s.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Status Kesadaran</Label>
-                        <Select
-                          value={formData.consciousness_level}
-                          onValueChange={(v) => handleChange("consciousness_level", v)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Pilih tingkat kesadaran" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {CONSCIOUSNESS_LEVELS.map((l) => (
-                              <SelectItem key={l.value} value={l.value}>
-                                {l.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-
-                    {/* Row 2 - Keluhan */}
-                    <div className="space-y-2 mt-4">
-                      <Label>Keluhan Utama</Label>
-                      <Textarea
-                        value={formData.chief_complaint}
-                        onChange={(e) => handleChange("chief_complaint", e.target.value)}
-                        placeholder="Keluhan yang dirasakan pasien..."
-                        rows={2}
-                      />
-                    </div>
-                </div>
-
-                {/* Vital Signs */}
-                <div className="space-y-4"><div className="grid grid-cols-3 md:grid-cols-6 gap-3">
-                    <div className="space-y-1">
-                      <Label className="text-xs">TD (mmHg)</Label>
-                      <Input
-                        value={formData.blood_pressure}
-                        onChange={(e) => handleChange("blood_pressure", e.target.value)}
-                        placeholder="120/80"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">HR (x/mnt)</Label>
-                      <Input
-                        type="number"
-                        value={formData.heart_rate || ""}
-                        onChange={(e) => handleChange("heart_rate", parseInt(e.target.value) || 0)}
-                        placeholder="80"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">RR (x/mnt)</Label>
-                      <Input
-                        type="number"
-                        value={formData.respiratory_rate || ""}
-                        onChange={(e) => handleChange("respiratory_rate", parseInt(e.target.value) || 0)}
-                        placeholder="18"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Suhu (°C)</Label>
-                      <Input
-                        value={formData.temperature}
-                        onChange={(e) => handleChange("temperature", e.target.value)}
-                        placeholder="36.5"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">SpO2 (%)</Label>
-                      <Input
-                        type="number"
-                        value={formData.oxygen_saturation || ""}
-                        onChange={(e) => handleChange("oxygen_saturation", parseInt(e.target.value) || 0)}
-                        placeholder="98"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Nyeri (0-10)</Label>
-                      <Input
-                        type="number"
-                        min={0}
-                        max={10}
-                        value={formData.pain_scale || ""}
-                        onChange={(e) => handleChange("pain_scale", parseInt(e.target.value) || 0)}
-                        placeholder="0"
-                      />
-                    </div>
-                  </div>
-
-                    {/* Pain Assessment */}
-                    <div className="space-y-2 mt-4">
-                      <Label>Pengkajian Nyeri (Lokasi, Karakteristik, Durasi)</Label>
-                      <Textarea
-                        value={formData.pain_assessment}
-                        onChange={(e) => handleChange("pain_assessment", e.target.value)}
-                        placeholder="Deskripsi nyeri..."
-                        rows={2}
-                      />
-                    </div>
-                </div>
-
-                {/* Risk Assessments */}
-                <div className="space-y-4"><div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label>Status Fungsional (ADL)</Label>
-                        <Select
-                          value={formData.functional_status}
-                          onValueChange={(v) => handleChange("functional_status", v)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Pilih status" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {FUNCTIONAL_STATUS.map((s) => (
-                              <SelectItem key={s.value} value={s.value}>
-                                {s.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Risiko Luka Tekan</Label>
-                        <Select
-                          value={formData.pressure_ulcer_risk}
-                          onValueChange={(v) => handleChange("pressure_ulcer_risk", v)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Pilih risiko" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {PRESSURE_ULCER_RISK.map((r) => (
-                              <SelectItem key={r.value} value={r.value}>
-                                {r.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-
-                    {/* Fall Risk */}
-                    <div className="grid grid-cols-2 gap-4 mt-4">
-                      <div className="space-y-2">
-                        <Label>Pengkajian Risiko Jatuh</Label>
-                        <Textarea
-                          value={formData.fall_risk_assessment}
-                          onChange={(e) => handleChange("fall_risk_assessment", e.target.value)}
-                          placeholder="Deskripsi pengkajian risiko jatuh..."
-                          rows={2}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Skor Risiko Jatuh (Morse Fall Scale)</Label>
-                        <Input
-                          type="number"
-                          value={formData.fall_risk_score || ""}
-                          onChange={(e) => handleChange("fall_risk_score", parseInt(e.target.value) || 0)}
-                          placeholder="0"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Nutrition & Skin */}
-                    <div className="grid grid-cols-2 gap-4 mt-4">
-                      <div className="space-y-2">
-                        <Label>Pengkajian Nutrisi</Label>
-                        <Textarea
-                          value={formData.nutrition_assessment}
-                          onChange={(e) => handleChange("nutrition_assessment", e.target.value)}
-                          placeholder="Status nutrisi pasien..."
-                          rows={2}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Pengkajian Kulit/Integritas Kulit</Label>
-                        <Textarea
-                          value={formData.skin_assessment}
-                          onChange={(e) => handleChange("skin_assessment", e.target.value)}
-                          placeholder="Kondisi kulit pasien..."
-                          rows={2}
-                        />
-                      </div>
-                    </div>
-                </div>
-                  </div>
-                </ScrollArea>
-              </TabsContent>
 
               {/* Tab Diagnosis */}
               <TabsContent value="diagnosis" className="flex-1 overflow-hidden mt-0">
                 <ScrollArea className="h-full pr-4">
                   <div className="space-y-4 pb-4">
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label>Tanggal & Waktu</Label>
+                    <Input
+                      type="datetime-local"
+                      value={formData.record_date}
+                      onChange={(e) => handleChange("record_date", e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Shift</Label>
+                    <Select
+                      value={formData.shift_type}
+                      onValueChange={(v) => handleChange("shift_type", v)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih shift" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SHIFT_TYPES.map((s) => (
+                          <SelectItem key={s.value} value={s.value}>
+                            {s.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Status Masalah</Label>
+                    <Select
+                      value={formData.problem_status}
+                      onValueChange={(v) => handleChange("problem_status", v)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih status masalah" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PROBLEM_STATUS.map((s) => (
+                          <SelectItem key={s.value} value={s.value}>
+                            {s.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
                 <div className="space-y-4"><div className="grid grid-cols-3 gap-4 mb-4">
                       <div className="col-span-2 space-y-2">
                         <Label>Diagnosis Keperawatan</Label>
@@ -967,21 +969,13 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
 
                 {/* Luaran */}
                 <div className="space-y-4"><div className="grid grid-cols-3 gap-4 mb-4">
-                      <div className="col-span-2 space-y-2">
+                      <div className="col-span-3 space-y-2">
                         <Label>Luaran Keperawatan</Label>
                         <Textarea
                           value={formData.nursing_outcome}
                           onChange={(e) => handleChange("nursing_outcome", e.target.value)}
                           placeholder="Contoh: Tingkat nyeri menurun"
                           rows={2}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Kode SLKI</Label>
-                        <Input
-                          value={formData.nursing_outcome_code}
-                          onChange={(e) => handleChange("nursing_outcome_code", e.target.value)}
-                          placeholder="L.08066"
                         />
                       </div>
                     </div>
@@ -1016,28 +1010,15 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
                       </div>
                     </div>
                 </div>
-                  </div>
-                </ScrollArea>
-              </TabsContent>
-              <TabsContent value="intervensi" className="flex-1 overflow-hidden mt-0">
-                <ScrollArea className="h-full pr-4">
-                  <div className="space-y-4 pb-4">
+
                 <div className="space-y-4"><div className="grid grid-cols-3 gap-4 mb-4">
-                      <div className="col-span-2 space-y-2">
+                      <div className="col-span-3 space-y-2">
                         <Label>Intervensi Keperawatan</Label>
                         <Textarea
                           value={formData.nursing_intervention}
                           onChange={(e) => handleChange("nursing_intervention", e.target.value)}
-                          placeholder="Contoh: Manajemen nyeri"
-                          rows={2}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Kode SIKI</Label>
-                        <Input
-                          value={formData.nursing_intervention_code}
-                          onChange={(e) => handleChange("nursing_intervention_code", e.target.value)}
-                          placeholder="I.08238"
+                          placeholder="Intervensi utama dan pendukung sesuai SIKI"
+                          rows={3}
                         />
                       </div>
                     </div>
@@ -1048,7 +1029,7 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
                         <Textarea
                           value={formData.observation_actions}
                           onChange={(e) => handleChange("observation_actions", e.target.value)}
-                          placeholder="1. Identifikasi lokasi, karakteristik nyeri&#10;2. Monitor TTV"
+                          placeholder="Ringkas tindakan observasi"
                           rows={3}
                         />
                       </div>
@@ -1057,7 +1038,7 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
                         <Textarea
                           value={formData.therapeutic_actions}
                           onChange={(e) => handleChange("therapeutic_actions", e.target.value)}
-                          placeholder="1. Berikan teknik nonfarmakologi&#10;2. Kolaborasi pemberian analgetik"
+                          placeholder="Ringkas tindakan terapeutik"
                           rows={3}
                         />
                       </div>
@@ -1066,7 +1047,7 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
                         <Textarea
                           value={formData.education_actions}
                           onChange={(e) => handleChange("education_actions", e.target.value)}
-                          placeholder="1. Jelaskan penyebab nyeri&#10;2. Ajarkan teknik relaksasi"
+                          placeholder="Ringkas tindakan edukasi"
                           rows={3}
                         />
                       </div>
@@ -1075,127 +1056,21 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
                         <Textarea
                           value={formData.collaboration_actions}
                           onChange={(e) => handleChange("collaboration_actions", e.target.value)}
-                          placeholder="1. Kolaborasi pemberian analgetik&#10;2. Kolaborasi dengan tim nyeri"
+                          placeholder="Ringkas tindakan kolaborasi"
                           rows={3}
                         />
                       </div>
                     </div>
                 </div>
-                  </div>
-                </ScrollArea>
-              </TabsContent>
 
-              {/* Tab Implementasi */}
-              <TabsContent value="implementasi" className="flex-1 overflow-hidden mt-0">
-                <ScrollArea className="h-full pr-4">
-                  <div className="space-y-4 pb-4">
-                <div className="space-y-4"><div className="space-y-4">
-                      <div className="grid grid-cols-3 gap-4">
-                        <div className="col-span-2 space-y-2">
-                          <Label>Tindakan yang Dilakukan</Label>
-                          <Textarea
-                            value={formData.implementation}
-                            onChange={(e) => handleChange("implementation", e.target.value)}
-                            placeholder="Deskripsi tindakan yang telah dilakukan..."
-                            rows={4}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Waktu Implementasi</Label>
-                          <Input
-                            type="datetime-local"
-                            value={formData.implementation_time}
-                            onChange={(e) => handleChange("implementation_time", e.target.value)}
-                          />
-                        </div>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Label>Respon Pasien</Label>
-                        <Textarea
-                          value={formData.patient_response}
-                          onChange={(e) => handleChange("patient_response", e.target.value)}
-                          placeholder="Bagaimana respon pasien terhadap tindakan yang diberikan..."
-                          rows={3}
-                        />
-                      </div>
-                    </div>
-                </div>
-                  </div>
-                </ScrollArea>
-              </TabsContent>
-
-              {/* Tab Evaluasi */}
-              <TabsContent value="evaluasi" className="flex-1 overflow-hidden mt-0">
-                <ScrollArea className="h-full pr-4">
-                  <div className="space-y-4 pb-4">
-                <div className="space-y-4"><div className="grid grid-cols-2 gap-4 mb-4">
-                      <div className="space-y-2">
-                        <Label className="font-medium">S - Subjektif</Label>
-                        <Textarea
-                          value={formData.evaluation_subjective}
-                          onChange={(e) => handleChange("evaluation_subjective", e.target.value)}
-                          placeholder="Keluhan pasien setelah tindakan..."
-                          rows={3}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="font-medium">O - Objektif</Label>
-                        <Textarea
-                          value={formData.evaluation_objective}
-                          onChange={(e) => handleChange("evaluation_objective", e.target.value)}
-                          placeholder="Hasil observasi/pemeriksaan..."
-                          rows={3}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="font-medium">A - Analisis</Label>
-                        <Textarea
-                          value={formData.evaluation_analysis}
-                          onChange={(e) => handleChange("evaluation_analysis", e.target.value)}
-                          placeholder="Analisis masalah keperawatan..."
-                          rows={3}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="font-medium">P - Planning</Label>
-                        <Textarea
-                          value={formData.evaluation_planning}
-                          onChange={(e) => handleChange("evaluation_planning", e.target.value)}
-                          placeholder="Rencana tindak lanjut..."
-                          rows={3}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label>Status Masalah</Label>
-                        <Select
-                          value={formData.problem_status}
-                          onValueChange={(v) => handleChange("problem_status", v)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Pilih status masalah" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {PROBLEM_STATUS.map((s) => (
-                              <SelectItem key={s.value} value={s.value}>
-                                {s.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Catatan Tambahan</Label>
-                        <Input
-                          value={formData.notes}
-                          onChange={(e) => handleChange("notes", e.target.value)}
-                          placeholder="Catatan tambahan..."
-                        />
-                      </div>
-                    </div>
+                <div className="space-y-2">
+                  <Label>Catatan Tambahan</Label>
+                  <Textarea
+                    value={formData.notes}
+                    onChange={(e) => handleChange("notes", e.target.value)}
+                    placeholder="Catatan ringkas asuhan keperawatan"
+                    rows={2}
+                  />
                 </div>
                   </div>
                 </ScrollArea>

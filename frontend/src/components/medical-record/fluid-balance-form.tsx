@@ -42,7 +42,7 @@ import {
   SHIFT_TYPES,
   getShiftTypeLabel,
 } from "@/lib/api";
-import type { FluidBalance, CreateFluidBalanceInput, FluidBalanceSummary } from "@/lib/api";
+import type { FluidBalance, CreateFluidBalanceInput } from "@/lib/api";
 import { emitMedicalRecordTabIndicator } from "./tab-indicator";
 import {
   Loader2,
@@ -245,7 +245,6 @@ export function FluidBalanceForm({ visitId, readOnly = false }: FluidBalanceForm
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [balances, setBalances] = useState<FluidBalance[]>([]);
-  const [summary, setSummary] = useState<FluidBalanceSummary[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [formData, setFormData] = useState<CreateFluidBalanceInput>(defaultFormData);
@@ -266,12 +265,8 @@ export function FluidBalanceForm({ visitId, readOnly = false }: FluidBalanceForm
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [balanceRes, summaryRes] = await Promise.all([
-        fluidBalanceApi.getAll(visitId),
-        fluidBalanceApi.getSummary(visitId),
-      ]);
+      const balanceRes = await fluidBalanceApi.getAll(visitId);
       setBalances(balanceRes.data.data || []);
-      setSummary(summaryRes.data.data || []);
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -446,55 +441,10 @@ export function FluidBalanceForm({ visitId, readOnly = false }: FluidBalanceForm
   return (
     <>
       <div>
-        <div className="pb-2">
-          <div className="flex items-center justify-between">
-            
-            {canCreate && !readOnly && (
-              <Button onClick={handleOpenCreate} size="sm">
-                <Plus className="h-4 w-4 mr-1" />
-                Tambah Balance
-              </Button>
-            )}
-          </div>
-        </div>
-        <div className="p-4">
-          {/* Summary Cards */}
-          {summary.length > 0 && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
-              {summary.slice(0, 3).map((s) => {
-                const status = getBalanceStatus(s.balance);
-                const StatusIcon = status.icon;
-                return (
-                  <div key={s.date} className="border rounded-lg p-3 bg-muted/30">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-xs text-muted-foreground">
-                          {format(new Date(s.date), "dd MMM yyyy", { locale: idLocale })}
-                        </p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="text-xs text-green-600">
-                            <ArrowDownToLine className="h-3 w-3 inline" /> {s.total_intake} ml
-                          </span>
-                          <span className="text-xs text-red-600">
-                            <ArrowUpFromLine className="h-3 w-3 inline" /> {s.total_output} ml
-                          </span>
-                        </div>
-                      </div>
-                      <div className={`text-right ${status.color}`}>
-                        <StatusIcon className="h-4 w-4 inline" />
-                        <p className="text-lg font-bold">{s.balance > 0 ? "+" : ""}{s.balance}</p>
-                        <p className="text-xs">ml</p>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
+        <div className="p-0">
           {/* Balance List */}
           {balances.length > 0 ? (
-            <div>
+            <div className="rounded-lg border overflow-hidden">
               {/* Table Header */}
               <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-muted/50 text-xs font-medium text-muted-foreground border-b sticky top-0 rounded-t-lg">
                 <div className="col-span-1"></div>
@@ -505,7 +455,7 @@ export function FluidBalanceForm({ visitId, readOnly = false }: FluidBalanceForm
                 <div className="col-span-2">Balance</div>
                 <div className="col-span-1">Aksi</div>
               </div>
-              <div className="divide-y border-x border-b rounded-b-lg">
+              <div className="divide-y">
                 {balances.map((balance) => (
                   <FluidBalanceCollapsibleRow
                     key={balance.id}
@@ -528,6 +478,22 @@ export function FluidBalanceForm({ visitId, readOnly = false }: FluidBalanceForm
               <Droplets className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p className="font-medium">Belum ada catatan balance cairan</p>
               <p className="text-sm mt-1">Klik "Tambah Balance" untuk menambahkan catatan.</p>
+              {canCreate && !readOnly && (
+                <div className="mt-4 flex justify-center">
+                  <Button onClick={handleOpenCreate} size="sm">
+                    <Plus className="h-4 w-4 mr-1" />
+                    Tambah Balance
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+          {canCreate && !readOnly && balances.length > 0 && (
+            <div className="mt-4 flex justify-center">
+              <Button onClick={handleOpenCreate} size="sm">
+                <Plus className="h-4 w-4 mr-1" />
+                Tambah Balance
+              </Button>
             </div>
           )}
         </div>

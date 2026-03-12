@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, Fragment } from "react";
 import { cn } from "@/lib/utils";
-import { visitsApi, medicalRecordsApi } from "@/lib/api";
+import { visitsApi, medicalRecordsApi, patientAllergyApi } from "@/lib/api";
 import type { Anamnesis, PhysicalExam, AssessmentPlan, Diagnosis, DiagnosisItem } from "@/lib/api";
 import { format } from "date-fns";
 import { id as localeId } from "date-fns/locale";
@@ -42,6 +42,13 @@ export function emitCopyFromHistory(section: string, data: unknown) {
     })
   );
 }
+
+const isMeaningfulAllergySummary = (value: unknown) => {
+  if (typeof value !== "string") return false;
+  const normalized = value.trim().toLowerCase().replace(/\s+/g, " ");
+  if (!normalized) return false;
+  return !/^(none|no known allergies|nkda|nka|nihil|\-|tidak ada|tidak ada alergi)$/.test(normalized);
+};
 
 interface CopyFromHistoryDrawerProps {
   open: boolean;
@@ -240,8 +247,9 @@ export function CopyFromHistoryDrawer({
     const d = data as Record<string, unknown>;
 
     if (section === "anamnesis") {
-      const fields = ["chief_complaint", "history_of_present_illness", "past_medical_history", "family_history", "social_history", "allergies", "current_medications"];
-      const filled = fields.filter(f => { const v = d[f]; return typeof v === "string" && v.trim() !== ""; }).length;
+      const textFields = ["chief_complaint", "history_of_present_illness", "past_medical_history", "family_history", "social_history", "current_medications"];
+      const filledText = textFields.filter(f => { const v = d[f]; return typeof v === "string" && v.trim() !== ""; }).length;
+      const filled = filledText + (isMeaningfulAllergySummary(d.allergies) ? 1 : 0);
       emitMedicalRecordTabIndicator("anamnesis", `${filled}/7`);
       emitMedicalRecordTabSaved("anamnesis", false);
     } else if (section === "physical-exam") {
@@ -253,8 +261,9 @@ export function CopyFromHistoryDrawer({
         (d.blood_pressure_diastolic || d.diastolic) ? 1 : 0,
         d.heart_rate ? 1 : 0, d.respiratory_rate ? 1 : 0,
         d.temperature ? 1 : 0, d.oxygen_saturation ? 1 : 0,
+        d.upper_arm_circum ? 1 : 0, d.head_circum ? 1 : 0, d.waist ? 1 : 0,
       ].reduce((a, b) => a + b, 0);
-      emitMedicalRecordTabIndicator("physical-exam", `${filledBody + filledVitals}/21`);
+      emitMedicalRecordTabIndicator("physical-exam", `${filledBody + filledVitals}/24`);
       emitMedicalRecordTabSaved("physical-exam", false);
     } else if (section === "diagnosis") {
       const items = Array.isArray(d.items) ? d.items : [];
@@ -269,7 +278,7 @@ export function CopyFromHistoryDrawer({
     }
   };
 
-  const handleCopy = (section: string, data: unknown, visitId: number) => {
+  const handleCopy = async (section: string, data: unknown, visitId: number) => {
     // Persist to localStorage so unmounted forms can pick it up when they mount
     savePendingCopy(section, data);
     // Dispatch event for already-mounted forms
@@ -279,6 +288,29 @@ export function CopyFromHistoryDrawer({
 
     // Immediately update tab indicators based on copied data
     emitIndicatorForCopy(section, data);
+
+    // When copying anamnesis, also copy structured allergies recorded in source visit
+    if (section === "anamnesis") {
+      try {
+        const allergyRes = await patientAllergyApi.getByVisit(visitId);
+        const sourceAllergies = allergyRes.data?.data || [];
+        if (sourceAllergies.length > 0) {
+          await patientAllergyApi.bulkCreate({
+            patient_id: patientId,
+            visit_id: currentVisitId,
+            allergies: sourceAllergies.map(a => ({
+              snomed_code: a.snomed_code,
+              snomed_display: a.snomed_display,
+              category: a.category,
+              criticality: a.criticality,
+              notes: a.notes,
+            })),
+          }).catch(() => {});
+          // Tell the anamnesis form to reload allergies
+          window.dispatchEvent(new CustomEvent("reload-patient-allergies"));
+        }
+      } catch { /* source visit may not have structured allergies */ }
+    }
 
     toast({
       title: "Data disalin",
@@ -310,11 +342,12 @@ export function CopyFromHistoryDrawer({
     const d = data as Record<string, unknown>;
 
     if (section === "anamnesis") {
-      const fields = ["chief_complaint", "history_of_present_illness", "past_medical_history", "family_history", "social_history", "allergies", "current_medications"];
-      const filled = fields.filter((f) => {
+      const textFields = ["chief_complaint", "history_of_present_illness", "past_medical_history", "family_history", "social_history", "current_medications"];
+      const filledText = textFields.filter((f) => {
         const v = d[f];
         return typeof v === "string" && v.trim() !== "";
       }).length;
+      const filled = filledText + (isMeaningfulAllergySummary(d.allergies) ? 1 : 0);
       return `${filled}/7`;
     }
 
@@ -333,8 +366,11 @@ export function CopyFromHistoryDrawer({
         d.respiratory_rate ? 1 : 0,
         d.temperature ? 1 : 0,
         d.oxygen_saturation ? 1 : 0,
+        d.upper_arm_circum ? 1 : 0,
+        d.head_circum ? 1 : 0,
+        d.waist ? 1 : 0,
       ].reduce((a, b) => a + b, 0);
-      return `${filledBody + filledVitals}/21`;
+      return `${filledBody + filledVitals}/24`;
     }
 
     if (section === "diagnosis") {
@@ -387,15 +423,12 @@ export function CopyFromHistoryDrawer({
 
     return (
       <div className="space-y-1">
-        {filledFields.slice(0, 4).map((f) => (
+        {filledFields.map((f) => (
           <div key={f.label} className="grid grid-cols-[88px_1fr] gap-1">
             <p className="text-[10px] font-medium text-muted-foreground uppercase leading-4">{f.label}</p>
-            <p className="text-xs text-foreground line-clamp-1 leading-4">{f.value}</p>
+            <p className="text-xs text-foreground line-clamp-2 leading-4">{f.value}</p>
           </div>
         ))}
-        {filledFields.length > 4 && (
-          <p className="text-[10px] text-muted-foreground">+{filledFields.length - 4} data lainnya</p>
-        )}
       </div>
     );
   };
@@ -432,13 +465,12 @@ export function CopyFromHistoryDrawer({
             <p className="text-xs text-foreground line-clamp-2 leading-4">{vitalSigns.join(" · ")}</p>
           </div>
         )}
-        {bodyParts.slice(0, 3).map((f) => (
+        {bodyParts.map((f) => (
           <div key={f.label} className="grid grid-cols-[72px_1fr] gap-1">
             <p className="text-[10px] font-medium text-muted-foreground uppercase leading-4">{f.label}</p>
-            <p className="text-xs text-foreground line-clamp-1 leading-4">{f.value}</p>
+            <p className="text-xs text-foreground line-clamp-2 leading-4">{f.value}</p>
           </div>
         ))}
-        {bodyParts.length > 3 && <p className="text-[10px] text-muted-foreground">+{bodyParts.length - 3} area lain</p>}
       </div>
     );
   };
@@ -488,15 +520,12 @@ export function CopyFromHistoryDrawer({
 
     return (
       <div className="space-y-1">
-        {filledFields.slice(0, 4).map((f) => (
+        {filledFields.map((f) => (
           <div key={f.label} className="grid grid-cols-[88px_1fr] gap-1">
             <p className="text-[10px] font-medium text-muted-foreground uppercase leading-4">{f.label}</p>
-            <p className="text-xs text-foreground line-clamp-1 leading-4">{f.value}</p>
+            <p className="text-xs text-foreground line-clamp-2 leading-4">{f.value}</p>
           </div>
         ))}
-        {filledFields.length > 4 && (
-          <p className="text-[10px] text-muted-foreground">+{filledFields.length - 4} rencana lainnya</p>
-        )}
       </div>
     );
   };

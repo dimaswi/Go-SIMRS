@@ -1,0 +1,555 @@
+{
+  "version": "1.0.0",
+  "source": "SNARS/Tim Keperawatan Internal",
+  "last_updated": "2026-03-11",
+  "items": [
+    {
+      "sdki": {
+        "code": "D.0001",
+        "label": "Bersihan Jalan Napas Tidak Efektif",
+        "definisi": "ketidakmampuan membersihkan sekret atau obstruksi jalan nafas untuk mempertahankan jalan nafas tetap paten.",
+        "fisiologis": [
+          "1. Spasme jalan napas.",
+          "2. Hipersekresi jalan napas.",
+          "3. Disfungsi neuromuskuler.",
+          "4. Benda asing dalam jalan napas.",
+          "5. Adanya jalan napas buatan.",
+          "6. Sekresi yang tertahan.",
+          "7. Hiperplasia dinding jalan napas.",
+          "8. Proses infeksi.",
+          "9. Respon alergi.",
+          "10. Efek agen farmakologis (mis. anastesi)."
+        ],
+        "situasional": [
+          "1. Merokok aktif.",
+          "2. Merokok pasif.",
+          "3. Terpajan polutan."
+        ],
+        "gejala_tanda": {
+          "mayor": {
+            "subjektif": [
+              "Tidak ada"
+            ],
+            "objektif": [
+              "1. Batuk tidak efektif",
+              "2. Tidak mampu batuk.",
+              "3. Sputum berlebih.",
+              "4. Mengi, wheezing dan / atau ronkhi kering.",
+              "5. Mekonium di jalan nafas pada Neonatus."
+            ]
+          },
+          "minor": {
+            "subjektif": [
+              "1. Dispnea.",
+              "2. Sulit bicara.",
+              "3. Ortopnea."
+            ],
+            "objektif": [
+              "1. Gelisah.",
+              "2. Sianosis.",
+              "3. Bunyi napas menurun.",
+              "4. Frekuensi napas berubah.",
+              "5. Pola napas berubah."
+            ]
+          }
+        },
+        "kondisi_klinis_terkait": [
+          "1. Gullian barre syndrome.",
+          "2. Sklerosis multipel.",
+          "3. Myasthenia gravis.",
+          "4. Prosedur diagnostik (mis. bronkoskopi, transesophageal echocardiography [TEE]).",
+          "5. Depresi sistem saraf pusat.",
+          "6. Cedera Kepala",
+          "7. Stroke",
+          "8. Kuadriplegia",
+          "9. Sindrom aspirasi mekonium",
+          "10. Infeksi saluran Napas."
+        ]
+      },
+      "slki": {
+        "luaran_utama": [
+          "1. Bersihan Jalan Napas"
+        ],
+        "luaran_tambahan": [
+          "1. Kontrol Gejala",
+          "2. Pertukaran Gas",
+          "3. Respons Alergi Lokal",
+          "4. Respons Alergi Sistemik",
+          "5. Respons Ventilasi Mekanik",
+          "6. Tingkat Infeksi"
+        ]
+      },
+      "siki": {
+        "intervensi_utama": [
+          "1. Latihan Batuk Efektif",
+          "2. Manajemen Jalan Nafas",
+          "3. Pemantauan Respirasi"
+        ],
+        "intervensi_pendukung": [
+          "1. Dukungan Kepatuhan Program Pengobatan",
+          "2. Pemberian Obat Interpleura",
+          "3. Edukasi Fisioterapi Dada",
+          "4. Edukasi Pengukuran Respirasi",
+          "5. Fisioterapi Dada",
+          "6. Konsultasi Via Telepon",
+          "7. Manajemen Asthma",
+          "8. Manajemen Alergi",
+          "9. Manajemen Anafilaksis",
+          "10. Manajemen Isolasi",
+          "11. Manajemen Ventilasi Mekanik",
+          "12. Manajemen Jalan Napas Buatan",
+          "13. Pemberian Obat Inhalasi",
+          "14. Pemberian Obat Intradermal",
+          "15. Pemberian Obat Nasal",
+          "16. Pencegahan Aspirasi",
+          "17. Pengaturan Posisi",
+          "18. Penghisapan Jalan Napas",
+          "19. Penyapihan Ventilasi Mekanik",
+          "20. Perawatan Trakheostomi",
+          "21. Skrining Tuberkulosis",
+          "22. Stabilisasi Jalan Napas",
+          "23. Terapi Oksigen"
+        ]
+      },
+      "catatan": "Opsional"
+    },
+    {
+      "sdki": {
+        "code": "D.0002",
+        "label": "Gangguan Penyapihan Ventilator",
+        "definisi": "ketidakmampuan beradaptasi dengan pengurangan bantuan ventilator mekanik yang dapat menghambat dan memperlama proses penyapihan.",
+        "fisiologis": [
+          "1. Hipersekresi jalan nafas.",
+          "2. Ketidakcukupan energi.",
+          "3. Hambatan upaya napas (misal nyeri saat bernafas, kelemahan otot pernafasan, efek sedasi)."
+        ],
+        "situasional": [
+          "Psikologis: 1. Kecemasan.",
+          "Psikologis: 2. Perasaan tidak berdaya.",
+          "Psikologis: 3. Kurang terpapar informasi tentang proses penyapihan.",
+          "Psikologis: 4. Penurunan motivasi.",
+          "1. Ketidakadekuatan dukungan sosial.",
+          "2. Ketidaktepatan kecepatan proses penyapihan.",
+          "3. Riwayat kegagalan berulang dalam upaya penyapihan.",
+          "4. Riwayat ketergantungan ventilator lebih dari 4 hari."
+        ],
+        "gejala_tanda": {
+          "mayor": {
+            "subjektif": [
+              "Tidak tersedia"
+            ],
+            "objektif": [
+              "1. Frekuensi napas meningkat.",
+              "2. Penggunaan otot bantu napas.",
+              "3. Napas megap-megap (gasping).",
+              "4. Upaya napas dan bantuan ventilator tidak sinkron.",
+              "5. Napas dangkal.",
+              "6. Agitasi.",
+              "7. Nilai gas darah arteri abnormal."
+            ]
+          },
+          "minor": {
+            "subjektif": [
+              "1. Lelah.",
+              "2. Kuatir mesin rusak.",
+              "3. Fokus meningkat pada pernafasan."
+            ],
+            "objektif": [
+              "1. Auskultasi suara inspirasi menurun.",
+              "2. Warna kulit abnormal (mis. pucat, sianosis).",
+              "3. Napas paradoks abdominal.",
+              "4. Diaforesis.",
+              "5. Ekspresi wajah takut.",
+              "6. Tekanan darah meningkat.",
+              "7. Frekuensi nadi meningkat.",
+              "8. Kesadaran menurun."
+            ]
+          }
+        },
+        "kondisi_klinis_terkait": [
+          "1. Cedera kepala.",
+          "2. Coronary artery bypass graft (CABG).",
+          "3. Gagal napas.",
+          "4. Cardiac arrest.",
+          "5. Transplantasi jantung.",
+          "6. Displasia bronkopulmonal."
+        ]
+      },
+      "slki": {
+        "luaran_utama": [
+          "1. Penyapihan Ventilator"
+        ],
+        "luaran_tambahan": [
+          "1. Konservasi Energi.",
+          "2. Motivasi.",
+          "3. Pertukaran Gas.",
+          "4. Perfusi Paru.",
+          "5. Pola Tidur.",
+          "6. Status Kenyamanan.",
+          "7. Status Neurologis.",
+          "8. Status Nutrisi.",
+          "9. Tingkat Agitasi."
+        ]
+      },
+      "siki": {
+        "intervensi_utama": [
+          "1. Penyapihan Ventilasi Mekanik",
+          "2. Pemantauan Respirasi"
+        ],
+        "intervensi_pendukung": [
+          "1. Dukungan Emosional",
+          "2. Dukungan Ventilasi",
+          "3. Edukasi Pengukuran Respirasi",
+          "4. Ekstubasi Selang Endotrakheal",
+          "5. Manajemen Asam-Basa",
+          "6. Manajemen Energi",
+          "7. Manajemen Jalan Napas",
+          "8. Manajemen Jalan Napas Buatan",
+          "9. Manajemen Ventilasi Mekanik",
+          "10. Manajemen medikasi",
+          "11. Pemantauan Asam-Basa",
+          "12. Pemberian Obat Interpleura",
+          "13. Pemberian Obat Intradermal",
+          "14. Pemberian Obat Intramuskular",
+          "15. Pemberian Obat Intravena",
+          "16. Pemberian Obat Oral",
+          "17. Pencegahan Aspirasi",
+          "18. Pencegahan Infeksi",
+          "19. Pengambilan Sampel Darah Arteri",
+          "20. Pengaturan Posisi",
+          "21. Penghisapan Jalan Napas",
+          "22. Promosi Komunikasi: Defisit Bicara",
+          "23. Promosi Koping",
+          "24. Pemantauan Tanda Vital",
+          "25. Pemberian Obat",
+          "26. Pemberian Obat Inhalasi",
+          "27. Reduksi Ansietas",
+          "28. Terapi Relaksasi"
+        ]
+      },
+      "catatan": "Sumber input mengandung blok tambahan 'Gangguan Persepsi Sensori' yang tampak diagnosis lain, sehingga tidak dimasukkan ke intervensi D.0002 agar data tetap spesifik diagnosis."
+    },
+    {
+      "sdki": {
+        "code": "D.0003",
+        "label": "Gangguan Pertukaran Gas",
+        "definisi": "Kelebihan atau kekurangan oksigenasi dan atau eliminasi karbondioksida pada membran alveolus-kapiler.",
+        "fisiologis": [
+          "1. Ketidakseimbangan ventilasi-perfusi.",
+          "2. Perubahan membran alveolus-kapiler."
+        ],
+        "situasional": [],
+        "gejala_tanda": {
+          "mayor": {
+            "subjektif": [
+              "1. Dispnea."
+            ],
+            "objektif": [
+              "1. PCO2 meningkat/menurun.",
+              "2. PO2 menurun.",
+              "3. Takikardia.",
+              "4. pH arteri meningkat/menurun.",
+              "5. Bunyi napas tambahan."
+            ]
+          },
+          "minor": {
+            "subjektif": [
+              "1. Pusing.",
+              "2. Penglihatan kabur."
+            ],
+            "objektif": [
+              "1. Sianosis.",
+              "2. Diaforesis.",
+              "3. Gelisah.",
+              "4. Napas cuping hidung.",
+              "5. Pola napas abnormal (cepat/lambat, regular/iregular, dalam/dangkal).",
+              "6. Warna kulit abnormal (mis. pucat, kebiruan).",
+              "7. Kesadaran menurun."
+            ]
+          }
+        },
+        "kondisi_klinis_terkait": [
+          "1. Penyakit paru obstruktif kronis (PPOK).",
+          "2. Gagal jantung kongestif.",
+          "3. Asma.",
+          "4. Pneumonia.",
+          "5. Tuberkulosis paru.",
+          "6. Penyakit membran hialin.",
+          "7. Asfiksia.",
+          "8. Persistent pulmonary hypertension of newborn (PPHN).",
+          "9. Prematuritas.",
+          "10. Infeksi saluran napas."
+        ]
+      },
+      "slki": {
+        "luaran_utama": [
+          "1. Pertukaran Gas"
+        ],
+        "luaran_tambahan": [
+          "1. Keseimbangan Asam-Basa.",
+          "2. Konservasi Energi.",
+          "3. Perfusi Paru.",
+          "4. Respons Ventilasi Mekanik.",
+          "5. Tingkat Delirium."
+        ]
+      },
+      "siki": {
+        "intervensi_utama": [
+          "1. Pemantauan Respirasi",
+          "2. Terapi Oksigen"
+        ],
+        "intervensi_pendukung": [
+          "1. Dukungan Berhenti Merokok",
+          "2. Dukungan Ventilasi",
+          "3. Edukasi Berhenti Merokok",
+          "4. Edukasi Pengukuran Respirasi",
+          "5. Edukasi Fisioterapi Dada",
+          "6. Fisioterapi Dada",
+          "7. Insersi Jalan Napas Buatan",
+          "8. Konsultasi Via Telepon",
+          "9. Manajemen Ventilasi Mekanik",
+          "10. Pencegahan Aspirasi",
+          "11. Pemberian Obat",
+          "12. Pemberian Obat Inhalasi",
+          "13. Pemberian Obat Interpleura",
+          "14. Pemberian Obat Intradermal",
+          "15. Pemberian Obat Intramuskular",
+          "16. Pemberian Obat Intravena",
+          "17. Perawatan Kehamilan Trimester Pertama",
+          "18. Manajemen Asam-Basa",
+          "19. Manajemen Asam-Basa: Alkalosis Respiratorik",
+          "20. Manajemen Asam-Basa: Asidosis Respiratorik",
+          "21. Manajemen Energi",
+          "22. Manajemen Jalan Napas",
+          "23. Manajemen Jalan Napas Buatan",
+          "24. Pemberian Obat Oral",
+          "25. Pengaturan Posisi",
+          "26. Pengambilan Sampel Darah Arteri",
+          "27. Penyapihan Ventilasi Mekanik",
+          "28. Perawatan Emboli Paru",
+          "29. Perawatan Selang Dada",
+          "30. Reduksi Ansietas"
+        ]
+      },
+      "catatan": "Teks promosi/non-klinis pada sumber (mis. 'Temukan lebih banyak') diabaikan saat mapping."
+    },
+    {
+      "sdki": {
+        "code": "D.0004",
+        "label": "Gangguan Ventilasi Spontan",
+        "definisi": "Penurunan cadangan energi yang mengakibatkan individu tidak mampu bernapas secara adekuat.",
+        "fisiologis": [
+          "1. Gangguan metabolisme.",
+          "2. Kelelahan otot pernafasan."
+        ],
+        "situasional": [],
+        "gejala_tanda": {
+          "mayor": {
+            "subjektif": [
+              "1. Dispnea."
+            ],
+            "objektif": [
+              "1. Penggunaan otot bantu napas meningkat.",
+              "2. Volume tidal menurun.",
+              "3. PCO2 meningkat.",
+              "4. PO2 menurun.",
+              "5. SaO2 menurun."
+            ]
+          },
+          "minor": {
+            "subjektif": [
+              "Tidak tersedia"
+            ],
+            "objektif": [
+              "1. Gelisah.",
+              "2. Takikardia."
+            ]
+          }
+        },
+        "kondisi_klinis_terkait": [
+          "1. Penyakit paru obstruktif kronis (PPOK).",
+          "2. Asma."
+        ]
+      },
+      "slki": {
+        "luaran_utama": [],
+        "luaran_tambahan": []
+      },
+      "siki": {
+        "intervensi_utama": [
+          "1. Dukungan Ventilasi",
+          "2. Pemantauan Respirasi"
+        ],
+        "intervensi_pendukung": [
+          "1. Dukungan Emosional",
+          "2. Dukungan Perawatan Diri",
+          "3. Edukasi Keluarga: Pemantauan Respirasi",
+          "4. Pemberian Obat Intraoseous",
+          "5. Edukasi Pengukuran Respirasi",
+          "6. Fisioterapi Dada",
+          "7. Konsultasi",
+          "8. Pemberian Obat Intradermal",
+          "9. Pemberian Obat Intramuskular",
+          "10. Pemberian Obat Intravena",
+          "11. Manajemen Asam-Basa",
+          "12. Manajemen Asam-Basa: Alkalosis Respiratorik",
+          "13. Manajemen Asam-Basa: Asidosis Respiratorik",
+          "14. Manajemen Energi",
+          "15. Manajemen Jalan Napas",
+          "16. Manajemen Jalan Napas Buatan",
+          "17. Manajemen Ventilasi Mekanik",
+          "18. Pemantauan Asam-Basa",
+          "19. Pemberian Obat",
+          "20. Pemberian Obat Inhalasi",
+          "21. Pemeriksaan Kelengkapan Set Emergensi",
+          "22. Pencegahan Aspirasi",
+          "23. Pencegahan Infeksi",
+          "24. Pencegahan Luka Tekan",
+          "25. Pengambilan Sampel Darah Arteri",
+          "26. Pengaturan Posisi",
+          "27. Penghisapan Jalan Napas",
+          "28. Pengontrolan Infeksi",
+          "29. Perawatan Jenazah",
+          "30. Perawatan Mulut",
+          "31. Perawatan Tirah Baring",
+          "32. Perawatan Trakheostomi",
+          "33. Reduksi Ansietas",
+          "34. Stabilisasi Jalan Napas",
+          "35. Pemberian Obat Interpleura"
+        ]
+      },
+      "catatan": "Sumber tidak memuat luaran SLKI untuk D.0004, sehingga luaran diisi kosong sementara."
+    },
+    {
+      "sdki": {
+        "code": "D.0005",
+        "label": "Pola Napas Tidak Efektif",
+        "definisi": "Inspirasi dan/atau ekspirasi yang tidak memberikan ventilasi adekuat.",
+        "fisiologis": [
+          "1. Depresi pusat pernapasan.",
+          "2. Hambatan upaya napas (mis. nyeri saat bernapas, kelemahan otot pernapasan).",
+          "3. Deformitas dinding dada.",
+          "4. Deformitas tulang dada.",
+          "5. Gangguan neuromuskular.",
+          "6. Gangguan neurologis (mis. elektroensefalogram [EEG] positif, cedera kepala, gangguan kejang).",
+          "7. Imaturitas neurologis.",
+          "8. Penurunan energi.",
+          "9. Obesitas.",
+          "10. Posisi tubuh yang menghambat ekspansi paru.",
+          "11. Sindrom hipoventilasi.",
+          "12. Kerusakan inervasi diafragma (kerusakan saraf C5 ke atas).",
+          "13. Cedera pada medula spinalis.",
+          "14. Efek agen farmakologis."
+        ],
+        "situasional": [
+          "1. Kecemasan."
+        ],
+        "gejala_tanda": {
+          "mayor": {
+            "subjektif": [
+              "1. Dispnea."
+            ],
+            "objektif": [
+              "1. Penggunaan otot bantu pernapasan.",
+              "2. Fase ekspirasi memanjang.",
+              "3. Pola napas abnormal (mis. takipnea, bradipnea, hiperventilasi, Kussmaul, Cheyne-Stokes)."
+            ]
+          },
+          "minor": {
+            "subjektif": [
+              "1. Ortopnea."
+            ],
+            "objektif": [
+              "1. Pernapasan pursed-lip.",
+              "2. Pernapasan cuping hidung.",
+              "3. Diameter thoraks anterior-posterior meningkat.",
+              "4. Ventilasi semenit menurun.",
+              "5. Kapasitas vital menurun.",
+              "6. Tekanan ekspirasi menurun.",
+              "7. Tekanan inspirasi menurun.",
+              "8. Ekskursi dada berubah."
+            ]
+          }
+        },
+        "kondisi_klinis_terkait": []
+      },
+      "slki": {
+        "luaran_utama": [],
+        "luaran_tambahan": []
+      },
+      "siki": {
+        "intervensi_utama": [],
+        "intervensi_pendukung": []
+      },
+      "catatan": "Sumber batch ini hanya memuat bagian SDKI D.0005, belum memuat luaran SLKI dan intervensi SIKI."
+    },
+    {
+      "sdki": {
+        "code": "D.0006",
+        "label": "Risiko Aspirasi",
+        "definisi": "Risiko mengalami masuknya sekresi gastrointestinal, sekresi orofaring, benda cair atau padat ke dalam saluran trakeobronkhial akibat disfungsi mekanisme protektif saluran napas.",
+        "fisiologis": [
+          "Faktor risiko: 1. Penurunan tingkat kesadaran.",
+          "Faktor risiko: 2. Penurunan refleks muntah dan/atau batuk.",
+          "Faktor risiko: 3. Gangguan menelan.",
+          "Faktor risiko: 4. Disfagia.",
+          "Faktor risiko: 5. Kerusakan mobilitas fisik.",
+          "Faktor risiko: 6. Peningkatan residu lambung.",
+          "Faktor risiko: 7. Peningkatan tekanan intragastrik.",
+          "Faktor risiko: 8. Penurunan motilitas gastrointestinal.",
+          "Faktor risiko: 9. Sfingter esofagus bawah inkompeten.",
+          "Faktor risiko: 10. Perlambatan pengosongan lambung.",
+          "Faktor risiko: 11. Terpasang selang nasogastrik.",
+          "Faktor risiko: 12. Terpasang trakeostomi atau endotracheal tube.",
+          "Faktor risiko: 13. Trauma/pembedahan leher, mulut, dan/atau wajah.",
+          "Faktor risiko: 14. Efek agen farmakologis.",
+          "Faktor risiko: 15. Ketidakmatangan koordinasi menghisap, menelan, dan bernapas."
+        ],
+        "situasional": [],
+        "gejala_tanda": {
+          "mayor": {
+            "subjektif": [],
+            "objektif": []
+          },
+          "minor": {
+            "subjektif": [],
+            "objektif": []
+          }
+        },
+        "kondisi_klinis_terkait": [
+          "1. Cedera kepala.",
+          "2. Stroke.",
+          "3. Cedera medula spinalis.",
+          "4. Guillain-Barre syndrome.",
+          "5. Penyakit Parkinson.",
+          "6. Keracunan obat dan alkohol.",
+          "7. Pembesaran uterus.",
+          "8. Miastenia gravis.",
+          "9. Fistula trakeoesofagus.",
+          "10. Striktura esofagus.",
+          "11. Sklerosis multipel.",
+          "12. Labiopalatoskizis.",
+          "13. Atresia esofagus.",
+          "14. Laringomalasia.",
+          "15. Prematuritas."
+        ]
+      },
+      "slki": {
+        "luaran_utama": [
+          "1. Tingkat Aspirasi"
+        ],
+        "luaran_tambahan": [
+          "1. Kontrol Mual/Muntah.",
+          "2. Kontrol Risiko.",
+          "3. Status Menelan.",
+          "4. Status Neurologis."
+        ]
+      },
+      "siki": {
+        "intervensi_utama": [],
+        "intervensi_pendukung": []
+      },
+      "catatan": "Sumber batch ini belum memuat daftar intervensi SIKI untuk D.0006."
+    }
+  ]
+}

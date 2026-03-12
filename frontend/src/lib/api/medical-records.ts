@@ -87,6 +87,9 @@ export interface PhysicalExam {
   weight?: string | number;
   height?: string | number;
   bmi?: number;
+  upper_arm_circum?: string;
+  head_circum?: string;
+  waist?: string;
   // Systemic Examination (new fields)
   head?: string;
   eyes?: string;

@@ -147,6 +147,9 @@ const defaultFormData = {
   weight: 0,
   height: 0,
   bmi: 0,
+  upper_arm_circum: "",
+  head_circum: "",
+  waist: "",
   head: "",
   eyes: "",
   ears: "",
@@ -238,6 +241,9 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
             weight: parseNum(data.weight),
             height: parseNum(data.height),
             bmi: data.bmi || 0,
+            upper_arm_circum: data.upper_arm_circum || "",
+            head_circum: data.head_circum || "",
+            waist: data.waist || "",
             head: data.head || "",
             eyes: data.eyes || "",
             ears: data.ears || "",
@@ -298,6 +304,9 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
             weight: Number(pendingCopy.weight) || 0,
             height: Number(pendingCopy.height) || 0,
             bmi: Number(pendingCopy.bmi) || 0,
+            upper_arm_circum: pendingCopy.upper_arm_circum || "",
+            head_circum: pendingCopy.head_circum || "",
+            waist: pendingCopy.waist || "",
             head: pendingCopy.head || "",
             eyes: pendingCopy.eyes || "",
             ears: pendingCopy.ears || "",
@@ -436,9 +445,12 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
     formData.respiratory_rate > 0 ? 1 : 0,
     formData.temperature > 0 ? 1 : 0,
     formData.oxygen_saturation > 0 ? 1 : 0,
+    formData.upper_arm_circum ? 1 : 0,
+    formData.head_circum ? 1 : 0,
+    formData.waist ? 1 : 0,
   ].reduce((a, b) => a + b, 0);
   const filledPhysicalExam = filledBodySections + filledVitalSigns;
-  const totalPhysicalExam = physicalExamSections.length + 8; // 13 body sections + 8 vital sign fields
+  const totalPhysicalExam = physicalExamSections.length + 11; // 13 body sections + 11 core fields
   const allPhysicalChecked = filledBodySections === physicalExamSections.length;
 
   useEffect(() => {
@@ -483,6 +495,9 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
         weight: Number(d.weight) || 0,
         height: Number(d.height) || 0,
         bmi: Number(d.bmi) || 0,
+        upper_arm_circum: d.upper_arm_circum || "",
+        head_circum: d.head_circum || "",
+        waist: d.waist || "",
         head: d.head || "",
         eyes: d.eyes || "",
         ears: d.ears || "",
@@ -723,8 +738,11 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
 
                 {/* Antropometri */}
                 <div>
-                  <h4 className="text-sm font-medium text-muted-foreground mb-3">Antropometri</h4>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-sm font-medium text-muted-foreground">Antropometri</h4>
+                    <p className="text-[11px] text-muted-foreground">Input dalam satuan cm/kg</p>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
                     <div className="space-y-1">
                       <Label htmlFor="weight" className="text-xs flex items-center gap-1.5">
                         Berat Badan
@@ -761,7 +779,58 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
                         <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">cm</span>
                       </div>
                     </div>
-                    <div className="space-y-1 col-span-2">
+                    <div className="space-y-1">
+                      <Label htmlFor="upper_arm_circum" className="text-xs flex items-center gap-1.5">
+                        Lingkar Lengan Atas
+                      </Label>
+                      <div className="relative">
+                        <Input
+                          id="upper_arm_circum"
+                          type="number"
+                          step="0.1"
+                          placeholder="24"
+                          value={formData.upper_arm_circum || ""}
+                          onChange={(e) => handleChange("upper_arm_circum", e.target.value)}
+                          className="pr-8"
+                        />
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">cm</span>
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="head_circum" className="text-xs flex items-center gap-1.5">
+                        Lingkar Kepala
+                      </Label>
+                      <div className="relative">
+                        <Input
+                          id="head_circum"
+                          type="number"
+                          step="0.1"
+                          placeholder="52"
+                          value={formData.head_circum || ""}
+                          onChange={(e) => handleChange("head_circum", e.target.value)}
+                          className="pr-8"
+                        />
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">cm</span>
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="waist" className="text-xs flex items-center gap-1.5">
+                        Lingkar Perut
+                      </Label>
+                      <div className="relative">
+                        <Input
+                          id="waist"
+                          type="number"
+                          step="0.1"
+                          placeholder="80"
+                          value={formData.waist || ""}
+                          onChange={(e) => handleChange("waist", e.target.value)}
+                          className="pr-8"
+                        />
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">cm</span>
+                      </div>
+                    </div>
+                    <div className="space-y-1 sm:col-span-2 lg:col-span-2">
                       <Label className="text-xs flex items-center gap-1.5">
                         BMI
                       </Label>

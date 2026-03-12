@@ -1,0 +1,29 @@
+{
+  "sdki": {
+    "code": "D.XXXX",
+    "label": "Nama Diagnosis Keperawatan",
+    "definisi": "",
+    "fisiologis": [],
+    "situasional": [],
+    "gejala_tanda": {
+      "mayor": {
+        "subjektif": [],
+        "objektif": []
+      },
+      "minor": {
+        "subjektif": [],
+        "objektif": []
+      }
+    },
+    "kondisi_klinis_terkait": []
+  },
+  "slki": {
+    "luaran_utama": [],
+    "luaran_tambahan": []
+  },
+  "siki": {
+    "intervensi_utama": [],
+    "intervensi_pendukung": []
+  },
+  "catatan": ""
+}
