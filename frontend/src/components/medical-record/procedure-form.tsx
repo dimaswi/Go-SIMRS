@@ -50,7 +50,6 @@ import {
   Scissors,
   User,
   AlertTriangle,
-  Clock,
   AlertCircle,
   ChevronDown,
   ChevronRight,

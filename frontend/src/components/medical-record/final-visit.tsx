@@ -8,10 +8,6 @@ import {
   CheckCircle2,
   AlertCircle,
   XCircle,
-  Package,
-  FileImage,
-  TestTube,
-  Stethoscope,
 } from "lucide-react";
 import { visitsApi, medicineOrdersApi, procedureOrdersApi, medicalRecordsApi } from "@/lib/api";
 import type { MedicineOrder, ProcedureOrder } from "@/lib/api";
@@ -222,19 +218,6 @@ export function FinalVisit({ visitId, type, onVisitUpdate }: FinalVisitProps) {
       });
     } finally {
       setSubmitting(false);
-    }
-  };
-
-  const getTypeIcon = () => {
-    switch (type) {
-      case "pharmacy":
-        return <Package className="h-5 w-5" />;
-      case "radiology":
-        return <FileImage className="h-5 w-5" />;
-      case "laboratory":
-        return <TestTube className="h-5 w-5" />;
-      case "consultation":
-        return <Stethoscope className="h-5 w-5" />;
     }
   };
 

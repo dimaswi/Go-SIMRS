@@ -33,7 +33,6 @@ import {
   Clock,
   Plus,
   Edit,
-  Skull,
   User,
   MapPin,
   Stethoscope,

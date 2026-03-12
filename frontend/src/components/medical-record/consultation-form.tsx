@@ -5,7 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Save, FileText, CheckCircle2, User, Stethoscope } from "lucide-react";
+import { Loader2, Save, User } from "lucide-react";
 import { medicalRecordsApi } from "@/lib/api";
 
 interface ConsultationFormProps {

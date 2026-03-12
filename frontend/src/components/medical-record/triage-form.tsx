@@ -5,7 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Combobox } from "@/components/ui/combobox";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Save, AlertTriangle, Loader2, ShieldCheck } from "lucide-react";
+import { Save, Loader2, ShieldCheck } from "lucide-react";
 import { useMultipleMasterData } from "@/hooks/useMasterData";
 import { medicalRecordsApi, signatureApi, DOCUMENT_TYPES } from "@/lib/api";
 import { medicalRecordEditLogApi } from "@/lib/api/visits";
