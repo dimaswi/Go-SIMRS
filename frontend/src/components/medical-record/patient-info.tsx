@@ -84,6 +84,7 @@ interface PatientInfoProps {
         alergi_lainnya?: string;
         penyakit_kronis?: string;
         obat_rutin?: string;
+        status_perkawinan?: string;
       };
     };
     room?: {

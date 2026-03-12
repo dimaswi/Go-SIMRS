@@ -102,6 +102,7 @@ export interface Registration {
     foto?: string;
     no_bpjs?: string;
     kelas_bpjs?: string;
+    status_perkawinan?: string;
     registration_source?: string; // "manual" | "mjkn"
     // English fallbacks
     name?: string;

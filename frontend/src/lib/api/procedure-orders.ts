@@ -88,6 +88,8 @@ export interface ProcedureOrder {
         id: number;
         no_rm: string;
         nama_lengkap: string;
+        jenis_kelamin?: string;
+        tanggal_lahir?: string;
       };
     };
   };
@@ -103,6 +105,8 @@ export interface ProcedureOrder {
       id: number;
       no_rm: string;
       nama_lengkap: string;
+      jenis_kelamin?: string;
+      tanggal_lahir?: string;
     };
   };
   ordered_by_id: number;

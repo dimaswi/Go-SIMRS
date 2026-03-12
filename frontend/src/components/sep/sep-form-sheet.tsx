@@ -52,6 +52,7 @@ interface SEPFormSheetProps {
     jenis_kelamin?: string;
     no_telepon?: string;
     kelas_bpjs?: string;
+    status_perkawinan?: string;
   };
   registrationId?: number;
   visitId?: number;

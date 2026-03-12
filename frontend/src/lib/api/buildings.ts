@@ -216,6 +216,7 @@ export interface BedsideVisit {
       no_telepon?: string;
       jenis_jaminan?: string;
       no_jaminan?: string;
+      status_perkawinan?: string;
     };
   };
   room?: {
