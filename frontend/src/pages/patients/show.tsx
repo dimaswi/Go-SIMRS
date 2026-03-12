@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { format, parseISO, differenceInYears } from 'date-fns';
 import { id } from 'date-fns/locale';
+import { formatPatientName } from '@/lib/print-utils';
 
 export default function PatientShow() {
   const navigate = useNavigate();
@@ -216,7 +217,7 @@ export default function PatientShow() {
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
                     <h1 className="text-lg font-semibold">
-                      {patient.nama_lengkap}
+                      {formatPatientName(patient.nama_lengkap, patient.jenis_kelamin, patient.status_perkawinan, patient.tanggal_lahir)}
                     </h1>
                     {patient.registration_source === 'mjkn' && (
                       <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800 gap-1">
@@ -319,7 +320,7 @@ export default function PatientShow() {
               </div>
               <div>
                 <label className="text-xs text-muted-foreground">Nama Lengkap</label>
-                <p className="font-medium text-sm">{patient.nama_lengkap}</p>
+                <p className="font-medium text-sm">{formatPatientName(patient.nama_lengkap, patient.jenis_kelamin, patient.status_perkawinan, patient.tanggal_lahir)}</p>
               </div>
               <div>
                 <label className="text-xs text-muted-foreground">Nama Panggilan</label>

@@ -26,6 +26,7 @@ export interface Triage {
   gcs_v?: number;
   gcs_m?: number;
   // Pain & Assessment
+  pain_method?: string;
   pain_scale?: number;
   triage_assessment?: string;
   immediate_actions?: string;
@@ -39,6 +40,8 @@ export interface Triage {
 export interface Anamnesis {
   id: number;
   visit_id: number;
+  anamnesis_source?: string;
+  functional_status?: string;
   chief_complaint?: string;
   history_of_present_illness?: string;
   onset?: string;
@@ -118,6 +121,18 @@ export interface PhysicalExam {
   ecg_result?: string;
   ecg_interpretation?: string;
   ecg_notes?: string;
+  // Supporting Examinations - CTG
+  ctg_performed?: boolean;
+  ctg_result?: string;
+  ctg_interpretation?: string;
+  ctg_notes?: string;
+  // Supporting Examinations - Pelvis
+  pelvic_performed?: boolean;
+  pelvic_result?: string;
+  pelvic_notes?: string;
+  // Pain Assessment
+  pain_method?: string;
+  pain_scale?: number;
   // Extra fields
   liver?: string;
   spleen?: string;
@@ -175,6 +190,7 @@ export interface AssessmentPlan {
   monitoring_plan?: string;
   procedure_plan?: string;
   consultation_plan?: string;
+  informed_consent?: string;
   created_by_id?: number;
   updated_by_id?: number;
   created_at?: string;
@@ -311,6 +327,9 @@ export interface BirthCertificate {
   birth_method?: string;
   mother_name?: string;
   father_name?: string;
+  mother_mrn?: string;
+  dpjp_name?: string;
+  midwife_name?: string;
   apgar_score?: string;
   notes?: string;
   status?: string;

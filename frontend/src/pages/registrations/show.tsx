@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { id as localeId } from "date-fns/locale";
+import { formatPatientName } from "@/lib/print-utils";
 import {
   registrationStatusLabels,
   paymentMethodLabels,
@@ -491,7 +492,7 @@ export default function RegistrationShow() {
           </Button>
           <div className="space-y-1">
             <h1 className="text-lg font-semibold">
-              {registration.patient?.nama_lengkap || registration.patient?.name || "-"}
+              {formatPatientName(registration.patient?.nama_lengkap || registration.patient?.name, registration.patient?.jenis_kelamin, undefined, registration.patient?.tanggal_lahir) || "-"}
             </h1>
             <p className="text-sm text-muted-foreground">
               No. RM: {registration.patient?.no_rm || registration.patient?.medical_record_number || "-"} â€¢ 
@@ -522,7 +523,7 @@ export default function RegistrationShow() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
               <div>
                 <label className="text-xs text-muted-foreground">Nama Lengkap</label>
-                <p className="font-medium text-sm">{registration.patient?.nama_lengkap || registration.patient?.name || "-"}</p>
+                <p className="font-medium text-sm">{formatPatientName(registration.patient?.nama_lengkap || registration.patient?.name, registration.patient?.jenis_kelamin, undefined, registration.patient?.tanggal_lahir) || "-"}</p>
               </div>
               <div>
                 <label className="text-xs text-muted-foreground">No. Rekam Medis</label>

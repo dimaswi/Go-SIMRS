@@ -247,10 +247,10 @@ export function CopyFromHistoryDrawer({
     const d = data as Record<string, unknown>;
 
     if (section === "anamnesis") {
-      const textFields = ["chief_complaint", "history_of_present_illness", "past_medical_history", "family_history", "social_history", "current_medications"];
+      const textFields = ["anamnesis_source", "functional_status", "chief_complaint", "history_of_present_illness", "past_medical_history", "family_history", "social_history", "current_medications"];
       const filledText = textFields.filter(f => { const v = d[f]; return typeof v === "string" && v.trim() !== ""; }).length;
       const filled = filledText + (isMeaningfulAllergySummary(d.allergies) ? 1 : 0);
-      emitMedicalRecordTabIndicator("anamnesis", `${filled}/7`);
+      emitMedicalRecordTabIndicator("anamnesis", `${filled}/9`);
       emitMedicalRecordTabSaved("anamnesis", false);
     } else if (section === "physical-exam") {
       const bodySectionIds = ["head", "eyes", "ears", "nose", "throat", "neck", "chest", "heart", "lungs", "abdomen", "extremities", "skin", "neurological"];
@@ -271,9 +271,9 @@ export function CopyFromHistoryDrawer({
       emitMedicalRecordTabIndicator("diagnosis", `${count}`);
       emitMedicalRecordTabSaved("diagnosis", false);
     } else if (section === "assessment-plan") {
-      const apFields = ["clinical_assessment", "treatment_plan", "prognosis", "medication_plan", "diet_plan", "activity_plan", "education_plan", "procedure_plan", "consultation_plan", "monitoring_plan"];
+      const apFields = ["clinical_assessment", "treatment_plan", "prognosis", "medication_plan", "diet_plan", "activity_plan", "education_plan", "procedure_plan", "consultation_plan", "monitoring_plan", "informed_consent"];
       const filled = apFields.filter(f => { const v = d[f]; return typeof v === "string" && v.trim() !== ""; }).length;
-      emitMedicalRecordTabIndicator("assessment-plan", `${filled}/10`);
+      emitMedicalRecordTabIndicator("assessment-plan", `${filled}/11`);
       emitMedicalRecordTabSaved("assessment-plan", false);
     }
   };

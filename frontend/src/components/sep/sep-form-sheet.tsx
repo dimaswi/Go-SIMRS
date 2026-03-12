@@ -29,6 +29,7 @@ import {
   type VClaimPeserta,
 } from "@/lib/api/vclaim";
 import { SEP_OPTIONS, type SEPOptionItem } from "@/lib/sep-options";
+import { formatPatientName } from "@/lib/print-utils";
 import { SearchModal } from "./search-modal";
 import { RujukanModal, type RujukanData } from "./rujukan-modal";
 import { SKDPModal, type SKDPData } from "./skdp-modal";
@@ -478,7 +479,7 @@ export function SEPFormSheet({
               Buat SEP BPJS
             </SheetTitle>
             <SheetDescription>
-              Surat Eligibilitas Peserta untuk <strong>{patient.nama_lengkap}</strong> (RM: {patient.no_rm})
+              Surat Eligibilitas Peserta untuk <strong>{formatPatientName(patient.nama_lengkap, patient.jenis_kelamin, patient.status_perkawinan, patient.tanggal_lahir)}</strong> (RM: {patient.no_rm})
             </SheetDescription>
           </SheetHeader>
 

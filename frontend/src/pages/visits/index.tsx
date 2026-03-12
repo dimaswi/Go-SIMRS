@@ -52,6 +52,7 @@ import {
 import { roomQueuesApi, roomsApi, visitsApi } from "@/lib/api";
 import type { Room } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { formatPatientName } from "@/lib/print-utils";
 import { useAuthStore } from "@/lib/store";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
@@ -366,7 +367,7 @@ export default function VisitsIndex() {
 
       toast({
         title: "Antrian Dipanggil",
-        description: `Nomor antrian ${visit.room_queue.queue_number} - ${visit.registration?.patient?.nama_lengkap}`,
+        description: `Nomor antrian ${visit.room_queue.queue_number} - ${formatPatientName(visit.registration?.patient?.nama_lengkap, visit.registration?.patient?.jenis_kelamin, undefined, visit.registration?.patient?.tanggal_lahir)}`,
       });
 
       loadVisits();
@@ -397,7 +398,7 @@ export default function VisitsIndex() {
 
       toast({
         title: "Antrian Dipanggil Ulang",
-        description: `Nomor antrian ${visit.room_queue.queue_number} - ${visit.registration?.patient?.nama_lengkap}`,
+        description: `Nomor antrian ${visit.room_queue.queue_number} - ${formatPatientName(visit.registration?.patient?.nama_lengkap, visit.registration?.patient?.jenis_kelamin, undefined, visit.registration?.patient?.tanggal_lahir)}`,
       });
 
       loadVisits();
@@ -420,7 +421,7 @@ export default function VisitsIndex() {
 
       toast({
         title: "Pasien Diterima",
-        description: `${visit.registration?.patient?.nama_lengkap} telah diterima untuk pemeriksaan`,
+        description: `${formatPatientName(visit.registration?.patient?.nama_lengkap, visit.registration?.patient?.jenis_kelamin, undefined, visit.registration?.patient?.tanggal_lahir)} telah diterima untuk pemeriksaan`,
       });
 
       loadVisits();
@@ -454,7 +455,7 @@ export default function VisitsIndex() {
 
       toast({
         title: "Kunjungan Dibatalkan",
-        description: `Kunjungan ${visit.registration?.patient?.nama_lengkap} berhasil dibatalkan`,
+        description: `Kunjungan ${formatPatientName(visit.registration?.patient?.nama_lengkap, visit.registration?.patient?.jenis_kelamin, undefined, visit.registration?.patient?.tanggal_lahir)} berhasil dibatalkan`,
       });
 
       loadVisits();
@@ -746,7 +747,7 @@ export default function VisitsIndex() {
                   <dl className="border rounded-md px-3 py-2 space-y-1">
                     <div className="flex justify-between">
                       <dt className="text-muted-foreground">Pasien</dt>
-                      <dd className="font-medium">{cancelConfirmVisit.registration?.patient?.nama_lengkap}</dd>
+                      <dd className="font-medium">{formatPatientName(cancelConfirmVisit.registration?.patient?.nama_lengkap, cancelConfirmVisit.registration?.patient?.jenis_kelamin, undefined, cancelConfirmVisit.registration?.patient?.tanggal_lahir)}</dd>
                     </div>
                     <div className="flex justify-between">
                       <dt className="text-muted-foreground">No. RM</dt>

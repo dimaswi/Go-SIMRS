@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { patientsApi, type Patient } from '@/lib/api';
+import { formatPatientName } from '@/lib/print-utils';
 import { Search, Loader2, User } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Kbd } from '@/components/ui/kbd';
@@ -212,7 +213,7 @@ export function PatientSearch() {
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
-                              <span className="font-medium truncate">{patient.nama_lengkap}</span>
+                              <span className="font-medium truncate">{formatPatientName(patient.nama_lengkap, patient.jenis_kelamin, patient.status_perkawinan, patient.tanggal_lahir)}</span>
                               <Badge variant="outline" className="shrink-0 text-xs font-mono">
                                 {patient.no_rm}
                               </Badge>

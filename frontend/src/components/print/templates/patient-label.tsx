@@ -5,7 +5,7 @@
  */
 
 import type { HospitalInfo } from "@/components/print/print-header";
-import { calculateAge, formatDateID, formatGenderID } from "@/lib/print-utils";
+import { calculateAge, formatDateID, formatGenderID, formatPatientName } from "@/lib/print-utils";
 import type { PatientPrintInfo } from "@/lib/print-utils";
 import jsPDF from "jspdf";
 
@@ -76,9 +76,10 @@ export function printPatientLabels(data: PatientLabelData): void {
     // Patient name (bold, larger)
     pdf.setFontSize(9);
     pdf.setFont("helvetica", "bold");
-    const name = data.patient.nama_lengkap.length > 20 
-      ? data.patient.nama_lengkap.substring(0, 20) + "..."
-      : data.patient.nama_lengkap;
+    const fullName = formatPatientName(data.patient.nama_lengkap, data.patient.jenis_kelamin, data.patient.status_perkawinan, data.patient.tanggal_lahir);
+    const name = fullName.length > 20 
+      ? fullName.substring(0, 20) + "..."
+      : fullName;
     pdf.text(name, contentX, contentY + 3);
 
     // No RM
@@ -142,7 +143,7 @@ export function generatePatientLabelHTML(data: PatientLabelData): string {
       box-sizing: border-box;
     ">
       <div style="font-weight: bold; font-size: 9px; margin-bottom: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-        ${data.patient.nama_lengkap}
+        ${formatPatientName(data.patient.nama_lengkap, data.patient.jenis_kelamin, data.patient.status_perkawinan, data.patient.tanggal_lahir)}
       </div>
       <div style="font-weight: bold;">RM: ${data.patient.no_rm}</div>
       <div>${formatDateID(data.patient.tanggal_lahir)} (${age})</div>

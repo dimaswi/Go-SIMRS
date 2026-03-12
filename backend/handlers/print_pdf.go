@@ -4170,12 +4170,14 @@ func PrintTriageForm(c *gin.Context) {
 
 	// Primary Survey (ABC)
 	addTableHeader(pdf, "B. PRIMARY SURVEY (ABC)")
-	airwayDisplay := strings.Title(strings.ToLower(safeString(airway)))
+	airwayDisplay := strings.ReplaceAll(safeString(airway), "_", " ")
+	airwayDisplay = strings.Title(strings.ToLower(airwayDisplay))
 	if airwayNote != "" {
 		airwayDisplay += " - " + airwayNote
 	}
 	addTableRow(pdf, "Airway", airwayDisplay, 45)
-	breathingDisplay := strings.Title(strings.ToLower(safeString(breathing)))
+	breathingDisplay := strings.ReplaceAll(safeString(breathing), "_", " ")
+	breathingDisplay = strings.Title(strings.ToLower(breathingDisplay))
 	if breathingNote != "" {
 		breathingDisplay += " - " + breathingNote
 	}
@@ -4183,7 +4185,8 @@ func PrintTriageForm(c *gin.Context) {
 	if breathingRate != "" {
 		addTableRow(pdf, "Frekuensi Napas", breathingRate+" x/menit", 45)
 	}
-	circulationDisplay := strings.Title(strings.ToLower(safeString(circulation)))
+	circulationDisplay := strings.ReplaceAll(safeString(circulation), "_", " ")
+	circulationDisplay = strings.Title(strings.ToLower(circulationDisplay))
 	if circulationNote != "" {
 		circulationDisplay += " - " + circulationNote
 	}

@@ -23,6 +23,7 @@ import { roomMedicinesApi, type RoomMedicine } from "@/lib/api/medicines";
 import type { Patient, Room, RoomStaff } from "@/lib/api";
 import { ArrowLeft, Loader2, UserPlus, User, Search, Plus, Minus, X, FileText, CheckCircle2 } from "lucide-react";
 import { SEPFormSheet } from "@/components/sep/sep-form-sheet";
+import { formatPatientName } from "@/lib/print-utils";
 
 export default function RegistrationCreate() {
   const navigate = useNavigate();
@@ -435,7 +436,7 @@ export default function RegistrationCreate() {
         title: "Pendaftaran Berhasil!",
         description: (
           <div className="space-y-1">
-            <p className="font-semibold">Pasien: {existingPatient.nama_lengkap}</p>
+            <p className="font-semibold">Pasien: {formatPatientName(existingPatient.nama_lengkap, existingPatient.jenis_kelamin, existingPatient.status_perkawinan, existingPatient.tanggal_lahir)}</p>
             <p>No. RM: {existingPatient.no_rm}</p>
             <p>Ruangan: {roomName}</p>
             {roomQueueNumber && (
@@ -589,7 +590,7 @@ export default function RegistrationCreate() {
                               />
                             </TableCell>
                             <TableCell className="font-medium">{patient.no_rm}</TableCell>
-                            <TableCell className="font-medium">{patient.nama_lengkap}</TableCell>
+                            <TableCell className="font-medium">{formatPatientName(patient.nama_lengkap, patient.jenis_kelamin, patient.status_perkawinan, patient.tanggal_lahir)}</TableCell>
                             <TableCell>{patient.nik || "-"}</TableCell>
                             <TableCell>{patient.no_bpjs || "-"}</TableCell>
                             <TableCell>{patient.jenis_kelamin === "L" ? "Laki-laki" : "Perempuan"}</TableCell>
@@ -638,7 +639,7 @@ export default function RegistrationCreate() {
                 <div className="grid grid-cols-4 gap-2 text-sm">
                   <div>
                     <span className="text-xs text-muted-foreground">Nama:</span>
-                    <p className="font-medium text-sm">{existingPatient.nama_lengkap}</p>
+                    <p className="font-medium text-sm">{formatPatientName(existingPatient.nama_lengkap, existingPatient.jenis_kelamin, existingPatient.status_perkawinan, existingPatient.tanggal_lahir)}</p>
                   </div>
                   <div>
                     <span className="text-xs text-muted-foreground">No. RM:</span>

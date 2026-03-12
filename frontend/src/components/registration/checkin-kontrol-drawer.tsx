@@ -9,6 +9,7 @@ import {
 } from "@/lib/api/vclaim";
 import { registrationApi, type AntreanStatus } from "@/lib/api/queue";
 import { api } from "@/lib/api";
+import { formatPatientName } from "@/lib/print-utils";
 import { SEPFormSheet } from "@/components/sep/sep-form-sheet";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -408,7 +409,7 @@ export function CheckInKontrolDrawer({
               <CardContent className="py-2 space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Nama</span>
-                  <span className="font-medium">{kontrolInfo.patient.nama_lengkap}</span>
+                  <span className="font-medium">{formatPatientName(kontrolInfo.patient.nama_lengkap, kontrolInfo.patient.jenis_kelamin, undefined, kontrolInfo.patient.tanggal_lahir)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">No. RM</span>
@@ -569,7 +570,7 @@ export function CheckInKontrolDrawer({
               <CardContent className="py-2 space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Nama</span>
-                  <span className="font-medium">{kontrolInfo.patient.nama_lengkap}</span>
+                  <span className="font-medium">{formatPatientName(kontrolInfo.patient.nama_lengkap, kontrolInfo.patient.jenis_kelamin, undefined, kontrolInfo.patient.tanggal_lahir)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">No. BPJS</span>
@@ -647,7 +648,7 @@ export function CheckInKontrolDrawer({
               <CardContent className="py-2 space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Nama</span>
-                  <span className="font-medium">{kontrolInfo.patient.nama_lengkap}</span>
+                  <span className="font-medium">{formatPatientName(kontrolInfo.patient.nama_lengkap, kontrolInfo.patient.jenis_kelamin, undefined, kontrolInfo.patient.tanggal_lahir)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">No. RM</span>

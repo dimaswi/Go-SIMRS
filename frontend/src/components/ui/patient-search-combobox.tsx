@@ -20,6 +20,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { patientsApi, type Patient } from "@/lib/api"
+import { formatPatientName } from "@/lib/print-utils"
 
 interface PatientSearchComboboxProps {
   value?: Patient | null
@@ -106,7 +107,7 @@ export function PatientSearchCombobox({
             <div className="flex items-center gap-2 text-left w-full">
               <User className="h-4 w-4 shrink-0" />
               <div className="flex-1 min-w-0">
-                <div className="font-medium truncate">{value.nama_lengkap}</div>
+                <div className="font-medium truncate">{formatPatientName(value.nama_lengkap, value.jenis_kelamin, value.status_perkawinan, value.tanggal_lahir)}</div>
                 <div className="text-xs text-muted-foreground">
                   {value.no_rm} • {value.nik || "NIK -"}
                 </div>
@@ -248,7 +249,7 @@ export function PatientSearchCombobox({
                       </div>
                       <div className="flex-1 min-w-0 space-y-1">
                         <div className="flex items-center gap-2">
-                          <span className="font-semibold truncate">{patient.nama_lengkap}</span>
+                          <span className="font-semibold truncate">{formatPatientName(patient.nama_lengkap, patient.jenis_kelamin, patient.status_perkawinan, patient.tanggal_lahir)}</span>
                           <span className="text-xs px-1.5 py-0.5 rounded bg-muted shrink-0">
                             {patient.jenis_kelamin === "L" ? "Laki-Laki" : "Perempuan"}
                           </span>

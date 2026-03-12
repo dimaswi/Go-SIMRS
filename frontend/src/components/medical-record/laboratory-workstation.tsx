@@ -35,6 +35,7 @@ import {
 import { procedureOrdersApi, PROCEDURE_ORDER_STATUS, printApi, signatureApi, DOCUMENT_TYPES } from "@/lib/api";
 import { SignaturePINDialog } from "@/components/signature/signature-pin-dialog";
 import type { ProcedureOrder, ProcedureOrderItem, ProcedureParameter } from "@/lib/api/procedure-orders";
+import { formatPatientName } from "@/lib/print-utils";
 import { usePINVerification, PINVerificationDialog } from "./edit-mode-controller";
 
 interface LaboratoryWorkstationProps {
@@ -354,8 +355,15 @@ export function LaboratoryWorkstation({ visitId, readOnly: _readOnly = false }: 
                   <div className="flex items-center gap-1">
                     <User className="h-3 w-3 text-muted-foreground" />
                     <span className="font-medium truncate">
-                      {selectedOrder.source_visit?.registration?.patient?.nama_lengkap ||
-                        selectedOrder.registration?.patient?.nama_lengkap || "-"}
+                      {formatPatientName(
+                        selectedOrder.source_visit?.registration?.patient?.nama_lengkap ||
+                          selectedOrder.registration?.patient?.nama_lengkap,
+                        selectedOrder.source_visit?.registration?.patient?.jenis_kelamin ||
+                          selectedOrder.registration?.patient?.jenis_kelamin,
+                        undefined,
+                        selectedOrder.source_visit?.registration?.patient?.tanggal_lahir ||
+                          selectedOrder.registration?.patient?.tanggal_lahir
+                      ) || "-"}
                     </span>
                   </div>
                   <div>

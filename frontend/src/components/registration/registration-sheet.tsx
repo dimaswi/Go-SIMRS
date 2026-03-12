@@ -14,6 +14,7 @@ import { Combobox } from "@/components/ui/combobox";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { roomsApi, registrationApi, api } from "@/lib/api";
+import { formatPatientName } from "@/lib/print-utils";
 import { roomProceduresApi, type RoomProcedure } from "@/lib/api/procedures";
 import { roomMedicinesApi, type RoomMedicine } from "@/lib/api/medicines";
 import type { Patient, Room, RoomStaff } from "@/lib/api";
@@ -402,7 +403,7 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
         title: "Pendaftaran Berhasil!",
         description: (
           <div className="space-y-1">
-            <p className="font-semibold">Pasien: {patient.nama_lengkap}</p>
+            <p className="font-semibold">Pasien: {formatPatientName(patient.nama_lengkap, patient.jenis_kelamin, patient.status_perkawinan, patient.tanggal_lahir)}</p>
             <p>No. RM: {patient.no_rm}</p>
             <p>Ruangan: {roomName}</p>
             {roomQueueNumber && (
@@ -500,7 +501,7 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h4 className="font-semibold truncate">{patient.nama_lengkap}</h4>
+                  <h4 className="font-semibold truncate">{formatPatientName(patient.nama_lengkap, patient.jenis_kelamin, patient.status_perkawinan, patient.tanggal_lahir)}</h4>
                   <div className="text-xs text-muted-foreground mt-1">
                     <span className="font-mono font-medium text-foreground">{patient.no_rm}</span>
                     {" • "}
@@ -628,7 +629,7 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h4 className="font-semibold truncate">{patient.nama_lengkap}</h4>
+                  <h4 className="font-semibold truncate">{formatPatientName(patient.nama_lengkap, patient.jenis_kelamin, patient.status_perkawinan, patient.tanggal_lahir)}</h4>
                   <div className="grid grid-cols-3 gap-2 text-xs text-muted-foreground mt-1">
                     <div>
                       <span className="block">No. RM:</span>

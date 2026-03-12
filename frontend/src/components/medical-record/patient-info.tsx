@@ -37,6 +37,7 @@ import type { PatientAllergy } from "@/lib/api";
 import { MedicalRecordPrintSelect } from "./print-select";
 import { EditDoctorDialog } from "./edit-doctor-dialog";
 import { useToast } from "@/hooks/use-toast";
+import { formatPatientName } from "@/lib/print-utils";
 
 interface SEPInfo {
   no_sep: string;
@@ -330,7 +331,7 @@ export function PatientInfo({ visit, onCopyHistoryOpen }: PatientInfoProps & { o
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <h3 className="text-sm font-semibold truncate">
-                {patient?.nama_lengkap || "-"}
+                {formatPatientName(patient?.nama_lengkap, patient?.jenis_kelamin, patient?.status_perkawinan, patient?.tanggal_lahir)}
               </h3>
               <span className="font-mono text-[11px] text-muted-foreground flex-shrink-0">
                 {patient?.no_rm || "-"}

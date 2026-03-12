@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
+import { Combobox } from "@/components/ui/combobox";
 import { useToast } from "@/hooks/use-toast";
 import { usePermission } from "@/hooks/usePermission";
 import {
@@ -42,7 +43,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { roomsApi, medicineOrdersApi, getPharmacyRoomMedicines, printApi } from "@/lib/api";
+import { roomsApi, medicineOrdersApi, getPharmacyRoomMedicines, printApi, medicalRecordsApi } from "@/lib/api";
 import type { MedicineOrder, CreateMedicineOrderInput } from "@/lib/api";
 
 interface MedicineOrderFormProps {
@@ -301,6 +302,26 @@ export function MedicineOrderForm({ visitId, readOnly = false }: MedicineOrderFo
     { value: "ophthalmic", label: "Ophthalmic (Mata)" },
   ];
 
+  const instructionOptions = [
+    "Sebelum makan",
+    "Sesudah makan",
+    "Bersama makan",
+    "Pagi hari",
+    "Malam hari",
+    "Pagi dan malam",
+    "Saat perut kosong",
+    "Sebelum tidur",
+    "Bila perlu",
+    "Bila demam",
+    "Bila nyeri",
+    "Bila mual",
+    "Dikunyah",
+    "Diteteskan",
+    "Dioleskan",
+    "Dikocok dulu",
+    "Dilarutkan dulu",
+  ].map((o) => ({ value: o, label: o }));
+
   // Only pharmacy rooms with service_type 'farmasi' (exclude depo_farmasi)
   const isPharmacyRoom = (room: any) => 
     room.service_type === 'farmasi' && 
@@ -350,6 +371,20 @@ export function MedicineOrderForm({ visitId, readOnly = false }: MedicineOrderFo
       if (pharmRooms.length > 0 && !selectedPharmacyRoom) {
         setSelectedPharmacyRoom(pharmRooms[0].id);
       }
+
+      // Auto-fill diagnosis from diagnosis tab
+      try {
+        const diagRes = await medicalRecordsApi.getDiagnosis(visitId);
+        if (diagRes.data?.items?.length) {
+          const diagTexts = diagRes.data.items
+            .filter((d: any) => d.icd10_code && d.icd10_name)
+            .map((d: any) => `${d.icd10_code} - ${d.icd10_name}`)
+            .join("; ");
+          if (diagTexts && !diagnosis) {
+            setDiagnosis(diagTexts);
+          }
+        }
+      } catch { /* diagnosis data may not exist yet */ }
     } catch (error) {
       console.error("Error loading data:", error);
       toast({
@@ -403,7 +438,7 @@ export function MedicineOrderForm({ visitId, readOnly = false }: MedicineOrderFo
       medicine_code: medicine.medicine.code,
       quantity: 1,
       unit: medicine.medicine.unit,
-      dosage: "",
+      dosage: medicine.medicine.strength || "",
       frequency: "",
       route: "oral",
       duration: "",
@@ -648,11 +683,8 @@ export function MedicineOrderForm({ visitId, readOnly = false }: MedicineOrderFo
               onChange={(e) => setDiagnosis(e.target.value)}
             />
           </div>
-
-          <Separator />
-
           {/* Order Items */}
-          <div className="space-y-2">
+          <div className="space-y-2 pt-2">
             <div className="flex items-center justify-between">
               <Label className="text-base font-medium">Daftar Obat</Label>
               <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
@@ -809,11 +841,14 @@ export function MedicineOrderForm({ visitId, readOnly = false }: MedicineOrderFo
                           />
                         </td>
                         <td className="py-2 px-2">
-                          <Input
-                            placeholder="Contoh: sesudah makan"
+                          <Combobox
+                            options={instructionOptions}
                             value={item.instructions}
-                            onChange={(e) => handleUpdateItemField(index, "instructions", e.target.value)}
-                            className={cn(plainFieldClass, itemErrors[index]?.length ? "border border-destructive bg-destructive/5" : "")}
+                            onValueChange={(value) => handleUpdateItemField(index, "instructions", value)}
+                            placeholder="Pilih instruksi"
+                            searchPlaceholder="Cari instruksi..."
+                            emptyText="Instruksi tidak ditemukan"
+                            className={cn("w-full", itemErrors[index]?.length ? "border border-destructive bg-destructive/5" : "")}
                           />
                           {itemErrors[index]?.length ? (
                             <p className="text-[11px] text-destructive mt-1 line-clamp-2">{itemErrors[index][0]}</p>

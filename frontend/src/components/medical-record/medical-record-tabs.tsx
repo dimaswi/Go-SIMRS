@@ -241,6 +241,14 @@ export function MedicalRecordTabs({
       permission: "medical_records.assessment_plan",
       section: "assessment",
     },
+    // Orders - urut: Obat → Tindakan → Lab → Radiologi → Konsultasi → Operasi
+    {
+      id: "medicine-order",
+      label: "Order Obat",
+      icon: <Pill />,
+      permission: "medical_records.medicine_order",
+      section: "order",
+    },
     // Procedure tab - show for clinical visits (rawat_jalan, rawat_inap, gawat_darurat)
     ...(showProcedureTab ? [{
       id: "procedure",
@@ -248,6 +256,42 @@ export function MedicalRecordTabs({
       icon: <Scissors />,
       permission: "medical_records.procedure",
       section: "care",
+    }] : []),
+    {
+      id: "laboratory-order",
+      label: "Order Lab",
+      icon: <TestTube />,
+      permission: "medical_records.laboratory_order",
+      section: "order",
+    },
+    {
+      id: "radiology-order",
+      label: "Order Radiologi",
+      icon: <FileImage />,
+      permission: "medical_records.radiology_order",
+      section: "order",
+    },
+    {
+      id: "consultation-order",
+      label: "Order Konsultasi",
+      icon: <Users />,
+      permission: "medical_records.consultation_order",
+      section: "order",
+    },
+    {
+      id: "surgery-order",
+      label: "Order Operasi",
+      icon: <Scissors />,
+      permission: "medical_records.surgery_order",
+      section: "order",
+    },
+    // Nutrition Order tab - show for rawat_inap only
+    ...(isInpatient ? [{
+      id: "nutrition-order",
+      label: "Order Gizi",
+      icon: <UtensilsCrossed />,
+      permission: "medical_records.nutrition_order",
+      section: "order",
     }] : []),
     // CPPT tab - show for rawat_inap only
     ...(isInpatient ? [{
@@ -281,14 +325,6 @@ export function MedicalRecordTabs({
       permission: "medical_records.bed_transfer",
       section: "care",
     }] : []),
-    // Nutrition Order tab - show for rawat_inap only
-    ...(isInpatient ? [{
-      id: "nutrition-order",
-      label: "Order Gizi",
-      icon: <UtensilsCrossed />,
-      permission: "medical_records.nutrition_order",
-      section: "order",
-    }] : []),
     // Unit Transfer tab - show for rawat_jalan and gawat_darurat (non-inpatient)
     ...(!isInpatient ? [{
       id: "unit-transfer",
@@ -297,41 +333,6 @@ export function MedicalRecordTabs({
       permission: "medical_records.bed_transfer",
       section: "care",
     }] : []),
-    {
-      id: "medicine-order",
-      label: "Order Obat",
-      icon: <Pill />,
-      permission: "medical_records.medicine_order",
-      section: "order",
-    },
-    {
-      id: "radiology-order",
-      label: "Order Radiologi",
-      icon: <FileImage />,
-      permission: "medical_records.radiology_order",
-      section: "order",
-    },
-    {
-      id: "laboratory-order",
-      label: "Order Lab",
-      icon: <TestTube />,
-      permission: "medical_records.laboratory_order",
-      section: "order",
-    },
-    {
-      id: "consultation-order",
-      label: "Order Konsultasi",
-      icon: <Users />,
-      permission: "medical_records.consultation_order",
-      section: "order",
-    },
-    {
-      id: "surgery-order",
-      label: "Order Operasi",
-      icon: <Scissors />,
-      permission: "medical_records.surgery_order",
-      section: "order",
-    },
     {
       id: "surat",
       label: "Surat",

@@ -57,6 +57,7 @@ import { patientsApi, type Patient, api } from "@/lib/api";
 import { vclaimApi, type SEPLocal } from "@/lib/api/vclaim";
 import { SEPFormSheet } from "@/components/sep/sep-form-sheet";
 import { SPRIFormSheet } from "@/components/sep/spri-form-sheet";
+import { formatPatientName } from "@/lib/print-utils";
 
 interface RoomWithBeds extends Room {
   available_beds?: number;
@@ -634,7 +635,7 @@ export default function AdmissionRequestShowPage() {
                   to={`/patient-search/${patient?.id}`}
                   className="font-semibold text-lg hover:underline hover:text-primary"
                 >
-                  {patient?.name || patient?.nama_lengkap || "N/A"}
+                  {formatPatientName(patient?.name || patient?.nama_lengkap, patientDetail?.jenis_kelamin, undefined, patientDetail?.tanggal_lahir) || "N/A"}
                 </Link>
                 <p className="text-sm text-muted-foreground">
                   RM: {patient?.medical_record_number || patient?.no_rm || "N/A"}
@@ -1298,7 +1299,7 @@ export default function AdmissionRequestShowPage() {
           <div className="space-y-4">
             <div className="p-4 bg-muted/30 rounded-lg">
               <p className="font-medium">
-                {patient?.name || patient?.nama_lengkap}
+                {formatPatientName(patient?.name || patient?.nama_lengkap, patientDetail?.jenis_kelamin, undefined, patientDetail?.tanggal_lahir)}
               </p>
               <p className="text-sm text-muted-foreground">
                 RM: {patient?.medical_record_number || patient?.no_rm}

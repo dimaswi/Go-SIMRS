@@ -80,6 +80,7 @@ import { id } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { formatPatientName } from "@/lib/print-utils";
 import {
   Tooltip,
   TooltipContent,
@@ -1080,7 +1081,7 @@ export default function PatientSearchShow() {
               </div>
               <div className="space-y-1">
                 <h1 className="text-lg font-semibold">
-                  {patient.nama_lengkap} <Badge variant={getStatusVariant(patient.status)} className="text-sm">{patient.status}</Badge>
+                  {formatPatientName(patient.nama_lengkap, patient.jenis_kelamin, patient.status_perkawinan, patient.tanggal_lahir)} <Badge variant={getStatusVariant(patient.status)} className="text-sm">{patient.status}</Badge>
                 </h1>
                 <p className="text-sm text-muted-foreground">
                   No. RM:{" "}

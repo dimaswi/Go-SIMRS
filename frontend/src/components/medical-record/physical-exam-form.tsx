@@ -7,6 +7,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Combobox } from "@/components/ui/combobox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { 
   Save, 
   Loader2, 
@@ -16,6 +18,8 @@ import {
   ChevronDown,
   ChevronUp,
   X,
+  Activity,
+  Stethoscope,
 } from "lucide-react";
 import { medicalRecordsApi } from "@/lib/api";
 import { medicalRecordEditLogApi } from "@/lib/api/visits";
@@ -168,6 +172,15 @@ const defaultFormData = {
   ecg_result: "",
   ecg_interpretation: "",
   ecg_notes: "",
+  ctg_performed: false,
+  ctg_result: "",
+  ctg_interpretation: "",
+  ctg_notes: "",
+  pelvic_performed: false,
+  pelvic_result: "",
+  pelvic_notes: "",
+  pain_method: "nrs",
+  pain_scale: 0,
 };
 
 export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnly = false, isPatientDischarged = false }: PhysicalExamFormProps) {
@@ -221,6 +234,13 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
           ecg_result?: string;
           ecg_interpretation?: string;
           ecg_notes?: string;
+          ctg_performed?: boolean;
+          ctg_result?: string;
+          ctg_interpretation?: string;
+          ctg_notes?: string;
+          pelvic_performed?: boolean;
+          pelvic_result?: string;
+          pelvic_notes?: string;
         };
         if (data && data.id) {
           const parseNum = (val: string | number | undefined): number => {
@@ -262,6 +282,15 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
             ecg_result: data.ecg_result || "",
             ecg_interpretation: data.ecg_interpretation || "",
             ecg_notes: data.ecg_notes || "",
+            ctg_performed: data.ctg_performed || false,
+            ctg_result: data.ctg_result || "",
+            ctg_interpretation: data.ctg_interpretation || "",
+            ctg_notes: data.ctg_notes || "",
+            pelvic_performed: data.pelvic_performed || false,
+            pelvic_result: data.pelvic_result || "",
+            pelvic_notes: data.pelvic_notes || "",
+            pain_method: data.pain_method || "nrs",
+            pain_scale: data.pain_scale || 0,
           };
           
           setFormData(loadedData);
@@ -325,6 +354,15 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
             ecg_result: pendingCopy.ecg_result || "",
             ecg_interpretation: pendingCopy.ecg_interpretation || "",
             ecg_notes: pendingCopy.ecg_notes || "",
+            ctg_performed: pendingCopy.ctg_performed || false,
+            ctg_result: pendingCopy.ctg_result || "",
+            ctg_interpretation: pendingCopy.ctg_interpretation || "",
+            ctg_notes: pendingCopy.ctg_notes || "",
+            pelvic_performed: pendingCopy.pelvic_performed || false,
+            pelvic_result: pendingCopy.pelvic_result || "",
+            pelvic_notes: pendingCopy.pelvic_notes || "",
+            pain_method: pendingCopy.pain_method || "nrs",
+            pain_scale: Number(pendingCopy.pain_scale) || 0,
           };
           setFormData(newData);
           const checked: Record<string, boolean> = {};
@@ -445,12 +483,13 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
     formData.respiratory_rate > 0 ? 1 : 0,
     formData.temperature > 0 ? 1 : 0,
     formData.oxygen_saturation > 0 ? 1 : 0,
+    formData.pain_scale > 0 ? 1 : 0,
     formData.upper_arm_circum ? 1 : 0,
     formData.head_circum ? 1 : 0,
     formData.waist ? 1 : 0,
   ].reduce((a, b) => a + b, 0);
   const filledPhysicalExam = filledBodySections + filledVitalSigns;
-  const totalPhysicalExam = physicalExamSections.length + 11; // 13 body sections + 11 core fields
+  const totalPhysicalExam = physicalExamSections.length + 12; // 13 body sections + 12 core fields
   const allPhysicalChecked = filledBodySections === physicalExamSections.length;
 
   useEffect(() => {
@@ -516,6 +555,15 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
         ecg_result: d.ecg_result || "",
         ecg_interpretation: d.ecg_interpretation || "",
         ecg_notes: d.ecg_notes || "",
+        ctg_performed: d.ctg_performed || false,
+        ctg_result: d.ctg_result || "",
+        ctg_interpretation: d.ctg_interpretation || "",
+        ctg_notes: d.ctg_notes || "",
+        pelvic_performed: d.pelvic_performed || false,
+        pelvic_result: d.pelvic_result || "",
+        pelvic_notes: d.pelvic_notes || "",
+        pain_method: d.pain_method || "nrs",
+        pain_scale: Number(d.pain_scale) || 0,
       };
       setFormData(newData);
       // Auto-check sections that have data
@@ -732,6 +780,109 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
                         />
                         <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">%</span>
                       </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Skala Nyeri */}
+                <div>
+                  <h4 className="text-sm font-medium text-muted-foreground mb-3">Skala Nyeri</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="pain_method" className="text-xs">Metode Penilaian Nyeri</Label>
+                      <Select
+                        value={formData.pain_method}
+                        onValueChange={(value) => handleChange("pain_method", value)}
+                        disabled={isFormDisabled}
+                      >
+                        <SelectTrigger id="pain_method">
+                          <SelectValue placeholder="Pilih metode" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="nrs">NRS (Numeric Rating Scale)</SelectItem>
+                          <SelectItem value="wong_baker">Wong-Baker FACES</SelectItem>
+                          <SelectItem value="vas">VAS (Visual Analog Scale)</SelectItem>
+                          <SelectItem value="flacc">FLACC (bayi/anak non-verbal)</SelectItem>
+                          <SelectItem value="bps">BPS (pasien ICU/ventilator)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="pain_scale" className="text-xs">Skala Nyeri (0-10)</Label>
+                      {/* Wong-Baker FACES visual */}
+                      {formData.pain_method === "wong_baker" && (
+                        <div className="flex items-center justify-between gap-1 pb-1">
+                          {[0, 2, 4, 6, 8, 10].map((v) => (
+                            <TooltipProvider key={v}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <button
+                                    type="button"
+                                    disabled={isFormDisabled}
+                                    onClick={() => handleChange("pain_scale", v)}
+                                    className={cn("text-2xl cursor-pointer rounded-lg p-1 transition-all", formData.pain_scale === v ? "bg-primary/10 ring-2 ring-primary" : "hover:bg-muted")}
+                                  >
+                                    {v === 0 ? "😊" : v === 2 ? "🙂" : v === 4 ? "😐" : v === 6 ? "🙁" : v === 8 ? "😢" : "😭"}
+                                  </button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>{v === 0 ? "Tidak nyeri" : v === 2 ? "Nyeri ringan" : v === 4 ? "Nyeri sedang" : v === 6 ? "Nyeri cukup berat" : v === 8 ? "Nyeri berat" : "Nyeri sangat berat"}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          ))}
+                        </div>
+                      )}
+                      {/* NRS / VAS numeric bar */}
+                      {(formData.pain_method === "nrs" || formData.pain_method === "vas") && (
+                        <div className="flex items-center gap-1 pb-1">
+                          {[0,1,2,3,4,5,6,7,8,9,10].map((v) => (
+                            <button
+                              key={v}
+                              type="button"
+                              disabled={isFormDisabled}
+                              onClick={() => handleChange("pain_scale", v)}
+                              className={cn("flex-1 h-8 text-xs font-medium rounded transition-all",
+                                formData.pain_scale === v 
+                                  ? "ring-2 ring-primary text-primary-foreground " + (v <= 3 ? "bg-green-500" : v <= 6 ? "bg-yellow-500" : "bg-red-500")
+                                  : v <= 3 ? "bg-green-100 hover:bg-green-200 text-green-800" 
+                                  : v <= 6 ? "bg-yellow-100 hover:bg-yellow-200 text-yellow-800" 
+                                  : "bg-red-100 hover:bg-red-200 text-red-800"
+                              )}
+                            >
+                              {v}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {/* FLACC / BPS numeric bar */}
+                      {(formData.pain_method === "flacc" || formData.pain_method === "bps") && (
+                        <div className="flex items-center gap-1 pb-1">
+                          {[0,1,2,3,4,5,6,7,8,9,10].map((v) => (
+                            <button
+                              key={v}
+                              type="button"
+                              disabled={isFormDisabled}
+                              onClick={() => handleChange("pain_scale", v)}
+                              className={cn("flex-1 h-8 text-xs font-medium rounded transition-all",
+                                formData.pain_scale === v 
+                                  ? "ring-2 ring-primary text-primary-foreground " + (v <= 3 ? "bg-green-500" : v <= 6 ? "bg-yellow-500" : "bg-red-500")
+                                  : v <= 3 ? "bg-green-100 hover:bg-green-200 text-green-800" 
+                                  : v <= 6 ? "bg-yellow-100 hover:bg-yellow-200 text-yellow-800" 
+                                  : "bg-red-100 hover:bg-red-200 text-red-800"
+                              )}
+                            >
+                              {v}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      <p className="text-xs text-muted-foreground">
+                        {formData.pain_method === "flacc" ? "FLACC: Face, Legs, Activity, Cry, Consolability — untuk bayi/anak yang belum bisa bicara" 
+                        : formData.pain_method === "bps" ? "BPS: Behavioral Pain Scale — untuk pasien di bawah sedasi/ventilator" 
+                        : formData.pain_method === "wong_baker" ? "Pilih wajah yang paling sesuai dengan kondisi nyeri pasien"
+                        : "0 = Tidak nyeri, 1-3 = Ringan, 4-6 = Sedang, 7-10 = Berat"}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -985,8 +1136,8 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
 
             {/* Section 3: Pemeriksaan Penunjang - Table with Checkbox Column */}
             <div className="space-y-4">
-                <div className="flex items-center gap-3"><Badge variant={formData.ecg_performed ? "default" : "secondary"}>
-                    {formData.ecg_performed ? 1 : 0}/1
+                <div className="flex items-center gap-3"><Badge variant={formData.ecg_performed || formData.ctg_performed || formData.pelvic_performed ? "default" : "secondary"}>
+                    {(formData.ecg_performed ? 1 : 0) + (formData.ctg_performed ? 1 : 0) + (formData.pelvic_performed ? 1 : 0)}/3
                   </Badge>
                 </div>
                 <div className="w-full">
@@ -1133,6 +1284,251 @@ Kesimpulan: EKG dalam batas normal`}
                                       value={formData.ecg_notes}
                                       onChange={(e) => handleChange("ecg_notes", e.target.value)}
                                       className="min-h-[120px] resize-none font-mono text-sm"
+                                      disabled={isFormDisabled}
+                                    />
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          </CollapsibleContent>
+                        </>
+                      </Collapsible>
+
+                      {/* Pelvis Row */}
+                      <Collapsible open={expandedRows.pelvic} asChild>
+                        <>
+                          <tr 
+                            className={cn(
+                              "border-b transition-colors hover:bg-muted/50",
+                              formData.pelvic_performed && "bg-pink-50/50 dark:bg-pink-950/10",
+                              formData.pelvic_performed && "cursor-pointer hover:bg-pink-100/50 dark:hover:bg-pink-950/20"
+                            )}
+                            onClick={() => formData.pelvic_performed && setExpandedRows(prev => ({ ...prev, pelvic: !prev.pelvic }))}
+                          >
+                            <td className="p-2 align-middle text-center" onClick={(e) => e.stopPropagation()}>
+                              <Checkbox
+                                id="pelvic_performed"
+                                checked={formData.pelvic_performed}
+                                onCheckedChange={(checked) => {
+                                  handleChange("pelvic_performed", checked as boolean);
+                                  if (checked) {
+                                    setExpandedRows(prev => ({ ...prev, pelvic: true }));
+                                  } else {
+                                    setExpandedRows(prev => ({ ...prev, pelvic: false }));
+                                    handleChange("pelvic_result", "");
+                                    handleChange("pelvic_notes", "");
+                                  }
+                                }}
+                                disabled={isFormDisabled}
+                              />
+                            </td>
+                            <td className="p-4 align-middle">
+                              <div className="flex items-center gap-2">
+                                <Stethoscope className={cn(
+                                  "h-4 w-4",
+                                  formData.pelvic_performed ? "text-pink-500" : "text-muted-foreground"
+                                )} />
+                                <div>
+                                  <span className="font-medium">Pemeriksaan Pelvis</span>
+                                  <p className="text-xs text-muted-foreground">Pemeriksaan panggul / ginekologi</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="p-4 align-middle">
+                              {formData.pelvic_performed ? (
+                                formData.pelvic_result ? (
+                                  <p className="text-sm text-muted-foreground line-clamp-1">{formData.pelvic_result}</p>
+                                ) : (
+                                  <span className="text-sm text-muted-foreground/50 italic">Klik untuk mengisi detail</span>
+                                )
+                              ) : (
+                                <span className="text-sm text-muted-foreground/50 italic">Belum dilakukan</span>
+                              )}
+                            </td>
+                            <td className="p-2 align-middle">
+                              {formData.pelvic_performed && (
+                                <CollapsibleTrigger asChild>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 p-0"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setExpandedRows(prev => ({ ...prev, pelvic: !prev.pelvic }));
+                                    }}
+                                  >
+                                    {expandedRows.pelvic ? (
+                                      <ChevronUp className="h-4 w-4" />
+                                    ) : (
+                                      <ChevronDown className="h-4 w-4" />
+                                    )}
+                                  </Button>
+                                </CollapsibleTrigger>
+                              )}
+                            </td>
+                          </tr>
+                          <CollapsibleContent asChild>
+                            <tr>
+                              <td colSpan={4} className="p-0">
+                                <div className="px-4 py-3 bg-muted/30 border-t space-y-4">
+                                  <div className="space-y-2">
+                                    <Label htmlFor="pelvic_result" className="text-sm font-medium">Hasil Pemeriksaan Pelvis</Label>
+                                    <Input
+                                      id="pelvic_result"
+                                      placeholder="Inspekulo: portio livide, OUE tertutup..."
+                                      value={formData.pelvic_result}
+                                      onChange={(e) => handleChange("pelvic_result", e.target.value)}
+                                      disabled={isFormDisabled}
+                                      className="text-sm"
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label htmlFor="pelvic_notes" className="text-sm font-medium flex items-center gap-2">
+                                      <FileText className="h-4 w-4" />
+                                      Catatan Detail Pelvis
+                                    </Label>
+                                    <Textarea
+                                      id="pelvic_notes"
+                                      placeholder={`Inspekulo: ...\nVaginal Toucher: ...\nKesimpulan: ...`}
+                                      value={formData.pelvic_notes}
+                                      onChange={(e) => handleChange("pelvic_notes", e.target.value)}
+                                      className="min-h-[80px] resize-none font-mono text-sm"
+                                      disabled={isFormDisabled}
+                                    />
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          </CollapsibleContent>
+                        </>
+                      </Collapsible>
+
+                      {/* CTG Row */}
+                      <Collapsible open={expandedRows.ctg} asChild>
+                        <>
+                          <tr 
+                            className={cn(
+                              "border-b transition-colors hover:bg-muted/50",
+                              formData.ctg_performed && "bg-blue-50/50 dark:bg-blue-950/10",
+                              formData.ctg_performed && "cursor-pointer hover:bg-blue-100/50 dark:hover:bg-blue-950/20"
+                            )}
+                            onClick={() => formData.ctg_performed && setExpandedRows(prev => ({ ...prev, ctg: !prev.ctg }))}
+                          >
+                            <td className="p-2 align-middle text-center" onClick={(e) => e.stopPropagation()}>
+                              <Checkbox
+                                id="ctg_performed"
+                                checked={formData.ctg_performed}
+                                onCheckedChange={(checked) => {
+                                  handleChange("ctg_performed", checked as boolean);
+                                  if (checked) {
+                                    setExpandedRows(prev => ({ ...prev, ctg: true }));
+                                  } else {
+                                    setExpandedRows(prev => ({ ...prev, ctg: false }));
+                                    handleChange("ctg_result", "");
+                                    handleChange("ctg_interpretation", "");
+                                    handleChange("ctg_notes", "");
+                                  }
+                                }}
+                                disabled={isFormDisabled}
+                              />
+                            </td>
+                            <td className="p-4 align-middle">
+                              <div className="flex items-center gap-2">
+                                <Activity className={cn(
+                                  "h-4 w-4",
+                                  formData.ctg_performed ? "text-blue-500" : "text-muted-foreground"
+                                )} />
+                                <div>
+                                  <span className="font-medium">CTG</span>
+                                  <p className="text-xs text-muted-foreground">Cardiotocography (monitoring janin)</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="p-4 align-middle">
+                              {formData.ctg_performed ? (
+                                <div className="text-sm">
+                                  {formData.ctg_result || formData.ctg_interpretation ? (
+                                    <div className="space-y-0.5">
+                                      {formData.ctg_result && (
+                                        <p className="text-muted-foreground line-clamp-1">
+                                          <span className="font-medium">Hasil:</span> {formData.ctg_result}
+                                        </p>
+                                      )}
+                                      {formData.ctg_interpretation && (
+                                        <p className="text-muted-foreground line-clamp-1">
+                                          <span className="font-medium">Interpretasi:</span> {formData.ctg_interpretation}
+                                        </p>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <span className="text-muted-foreground/50 italic">Klik untuk mengisi detail</span>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-sm text-muted-foreground/50 italic">Belum dilakukan</span>
+                              )}
+                            </td>
+                            <td className="p-2 align-middle">
+                              {formData.ctg_performed && (
+                                <CollapsibleTrigger asChild>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 p-0"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setExpandedRows(prev => ({ ...prev, ctg: !prev.ctg }));
+                                    }}
+                                  >
+                                    {expandedRows.ctg ? (
+                                      <ChevronUp className="h-4 w-4" />
+                                    ) : (
+                                      <ChevronDown className="h-4 w-4" />
+                                    )}
+                                  </Button>
+                                </CollapsibleTrigger>
+                              )}
+                            </td>
+                          </tr>
+                          <CollapsibleContent asChild>
+                            <tr>
+                              <td colSpan={4} className="p-0">
+                                <div className="px-4 py-3 bg-muted/30 border-t space-y-4">
+                                  <div className="space-y-2">
+                                    <Label htmlFor="ctg_result" className="text-sm font-medium">Hasil CTG</Label>
+                                    <Input
+                                      id="ctg_result"
+                                      placeholder="Baseline FHR: 140 bpm, Variabilitas: moderate..."
+                                      value={formData.ctg_result}
+                                      onChange={(e) => handleChange("ctg_result", e.target.value)}
+                                      disabled={isFormDisabled}
+                                      className="text-sm"
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label htmlFor="ctg_interpretation" className="text-sm font-medium">Interpretasi</Label>
+                                    <Input
+                                      id="ctg_interpretation"
+                                      placeholder="Reaktif / Non-Reaktif"
+                                      value={formData.ctg_interpretation}
+                                      onChange={(e) => handleChange("ctg_interpretation", e.target.value)}
+                                      disabled={isFormDisabled}
+                                      className="text-sm"
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label htmlFor="ctg_notes" className="text-sm font-medium flex items-center gap-2">
+                                      <FileText className="h-4 w-4" />
+                                      Catatan Detail CTG
+                                    </Label>
+                                    <Textarea
+                                      id="ctg_notes"
+                                      placeholder={`Baseline FHR: ...\nVariabilitas: ...\nAkselerasi: ...\nDeselerasi: ...\nKontraksi: ...\nKesimpulan: ...`}
+                                      value={formData.ctg_notes}
+                                      onChange={(e) => handleChange("ctg_notes", e.target.value)}
+                                      className="min-h-[100px] resize-none font-mono text-sm"
                                       disabled={isFormDisabled}
                                     />
                                   </div>

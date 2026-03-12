@@ -22,6 +22,7 @@ import {
   X,
 } from 'lucide-react';
 import { differenceInYears, parseISO } from 'date-fns';
+import { formatPatientName } from '@/lib/print-utils';
 
 export default function PatientSearchIndex() {
   const [searchParams] = useSearchParams();
@@ -270,7 +271,7 @@ export default function PatientSearchIndex() {
                           <User className="h-4 w-4 text-muted-foreground" />
                         </div>
                         <div>
-                          <p className="font-medium">{patient.nama_lengkap}</p>
+                          <p className="font-medium">{formatPatientName(patient.nama_lengkap, patient.jenis_kelamin, patient.status_perkawinan, patient.tanggal_lahir)}</p>
                           {patient.alamat_ktp && (
                             <p className="text-xs text-muted-foreground truncate max-w-[250px]">
                               {patient.alamat_ktp}

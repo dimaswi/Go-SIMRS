@@ -46,6 +46,7 @@ import {
 } from "@/components/ui/collapsible";
 import { format, parseISO, isToday, isBefore, startOfDay } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
+import { formatPatientName } from "@/lib/print-utils";
 
 // Helper to get today's date string
 const getTodayString = (): string => {
@@ -277,7 +278,7 @@ export default function ScheduledRegistrationsPage() {
       cell: ({ row }) => (
         <div>
           <div className="font-medium">
-            {row.original.patient?.nama_lengkap || "-"}
+            {formatPatientName(row.original.patient?.nama_lengkap, row.original.patient?.jenis_kelamin, undefined, row.original.patient?.tanggal_lahir) || "-"}
           </div>
           <div className="text-sm text-muted-foreground">
             {row.original.patient?.no_rm || "-"}

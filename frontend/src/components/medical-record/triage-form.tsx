@@ -5,12 +5,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Combobox } from "@/components/ui/combobox";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Save, Loader2, ShieldCheck } from "lucide-react";
 import { useMultipleMasterData } from "@/hooks/useMasterData";
 import { medicalRecordsApi, signatureApi, DOCUMENT_TYPES } from "@/lib/api";
 import { medicalRecordEditLogApi } from "@/lib/api/visits";
 import { useEditMode, EditModeBanner, EditConfirmDialog, PINVerificationDialog } from "./edit-mode-controller";
-import { emitMedicalRecordTabSaved, MEDICAL_RECORD_TAB_SAVED_EVENT } from "./tab-indicator";
+import { emitMedicalRecordTabIndicator, emitMedicalRecordTabSaved, MEDICAL_RECORD_TAB_SAVED_EVENT } from "./tab-indicator";
 import { saveFormDraft, loadFormDraft, clearFormDraft } from "@/lib/form-persistence";
 import { SignaturePINDialog } from "@/components/signature/signature-pin-dialog";
 import { cn } from "@/lib/utils";
@@ -99,6 +101,63 @@ const triageLevelSummaryPalette: Record<string, { container: string; title: stri
   },
 };
 
+// Vital sign status helpers (same as physical-exam)
+type VitalStatus = "none" | "low" | "high" | "borderline" | "normal";
+
+const getVitalStatus = (
+  value: number,
+  normalMin: number,
+  normalMax: number,
+  warningMin?: number,
+  warningMax?: number
+): VitalStatus => {
+  if (!value || value <= 0) return "none";
+  if (value < normalMin) {
+    if (warningMin !== undefined && value >= warningMin) return "borderline";
+    return "low";
+  }
+  if (value > normalMax) {
+    if (warningMax !== undefined && value <= warningMax) return "borderline";
+    return "high";
+  }
+  return "normal";
+};
+
+const getVitalStatusLabel = (status: VitalStatus) => {
+  switch (status) {
+    case "low": return "Di bawah";
+    case "high": return "Di atas";
+    case "borderline": return "Batas";
+    case "normal": return "Normal";
+    default: return null;
+  }
+};
+
+const getVitalStatusBadgeClass = (status: VitalStatus) => {
+  switch (status) {
+    case "normal": return "bg-green-50 text-green-700 border-green-200";
+    case "borderline": return "bg-yellow-50 text-yellow-700 border-yellow-200";
+    case "low":
+    case "high": return "bg-red-50 text-red-700 border-red-200";
+    default: return "";
+  }
+};
+
+const getVitalStatusInputClass = (status: VitalStatus) => {
+  switch (status) {
+    case "normal": return "border-green-300 focus-visible:ring-green-500";
+    case "borderline": return "border-yellow-300 focus-visible:ring-yellow-500";
+    case "low":
+    case "high": return "border-red-300 focus-visible:ring-red-500";
+    default: return "";
+  }
+};
+
+const parseBP = (bp: string): { systolic: number; diastolic: number } => {
+  const parts = bp.split("/").map(s => parseInt(s.trim()));
+  return { systolic: parts[0] || 0, diastolic: parts[1] || 0 };
+};
+
 const defaultFormData = {
   arrival_mode: "",
   triage_complaint: "",
@@ -115,6 +174,7 @@ const defaultFormData = {
   temperature: 0,
   oxygen_saturation: 0,
   pain_scale: 0,
+  pain_method: "nrs",
   gcs_e: 4,
   gcs_v: 5,
   gcs_m: 6,
@@ -220,6 +280,7 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
             temperature: temp,
             oxygen_saturation: spo2,
             pain_scale: data.pain_scale || 0,
+            pain_method: data.pain_method || "nrs",
             gcs_e: data.gcs_e || 4,
             gcs_v: data.gcs_v || 5,
             gcs_m: data.gcs_m || 6,
@@ -249,6 +310,18 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
     setFormData((prev) => ({ ...prev, [field]: value }));
     emitMedicalRecordTabSaved("triage", false);
   };
+
+  // Count filled fields for tab indicator
+  const triageTextFilled = [formData.arrival_mode, formData.triage_complaint, formData.triage_level, formData.airway, formData.airway_note, formData.breathing, formData.breathing_note, formData.circulation, formData.circulation_note, formData.blood_pressure, formData.triage_assessment, formData.immediate_actions, formData.pain_method].filter(v => v && v.trim() !== "").length;
+  const triageNumericFilled = [formData.heart_rate, formData.respiratory_rate, formData.temperature, formData.oxygen_saturation, formData.pain_scale].filter(v => v > 0).length;
+  const triageGCSFilled = (formData.gcs_e ? 1 : 0) + (formData.gcs_v ? 1 : 0) + (formData.gcs_m ? 1 : 0);
+  const filledTriage = triageTextFilled + triageNumericFilled + triageGCSFilled;
+  const totalTriage = 21;
+
+  useEffect(() => {
+    if (loading) return;
+    emitMedicalRecordTabIndicator("triage", `${filledTriage}/${totalTriage}`);
+  }, [filledTriage, loading]);
 
   // Auto-save draft to localStorage on state change
   useEffect(() => {
@@ -300,6 +373,20 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
   };
 
   const gcsTotal = formData.gcs_e + formData.gcs_v + formData.gcs_m;
+
+  // Vital sign status indicators
+  const bp = parseBP(formData.blood_pressure);
+  const systolicStatus = getVitalStatus(bp.systolic, 90, 120, 80, 129);
+  const diastolicStatus = getVitalStatus(bp.diastolic, 60, 80, 50, 89);
+  const bpStatus: VitalStatus = bp.systolic > 0 || bp.diastolic > 0
+    ? ([systolicStatus, diastolicStatus].includes("high") || [systolicStatus, diastolicStatus].includes("low")
+      ? ([systolicStatus, diastolicStatus].includes("high") ? "high" : "low")
+      : [systolicStatus, diastolicStatus].includes("borderline") ? "borderline" : "normal")
+    : "none";
+  const heartRateStatus = getVitalStatus(formData.heart_rate, 60, 100, 50, 110);
+  const respiratoryStatus = getVitalStatus(formData.respiratory_rate, 12, 20, 10, 24);
+  const temperatureStatus = getVitalStatus(formData.temperature, 36.1, 37.2, 35.5, 37.9);
+  const spo2Status = getVitalStatus(formData.oxygen_saturation, 95, 100, 90, 100);
 
   // Get options from master data
   const arrivalModeOptions = getOptions('arrival_mode');
@@ -500,42 +587,70 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
           {/* Section 3: Tanda Vital */}
           <div className="space-y-4"><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="blood_pressure" className="text-sm font-semibold">Tekanan Darah</Label>
+                  <Label htmlFor="blood_pressure" className="text-sm font-semibold flex items-center gap-1.5">
+                    Tekanan Darah
+                    {getVitalStatusLabel(bpStatus) && (
+                      <Badge variant="outline" className={cn("text-[10px] px-1 py-0 h-4", getVitalStatusBadgeClass(bpStatus))}>
+                        {getVitalStatusLabel(bpStatus)}
+                      </Badge>
+                    )}
+                  </Label>
                   <Input
                     id="blood_pressure"
                     placeholder="120/80 mmHg"
                     value={formData.blood_pressure}
                     onChange={(e) => handleChange("blood_pressure", e.target.value)}
-                    className="h-11"
+                    className={cn("h-11", getVitalStatusInputClass(bpStatus))}
                     required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="heart_rate" className="text-sm font-semibold">Nadi (x/menit)</Label>
+                  <Label htmlFor="heart_rate" className="text-sm font-semibold flex items-center gap-1.5">
+                    Nadi (x/menit)
+                    {getVitalStatusLabel(heartRateStatus) && (
+                      <Badge variant="outline" className={cn("text-[10px] px-1 py-0 h-4", getVitalStatusBadgeClass(heartRateStatus))}>
+                        {getVitalStatusLabel(heartRateStatus)}
+                      </Badge>
+                    )}
+                  </Label>
                   <Input
                     id="heart_rate"
                     type="number"
                     placeholder="80"
                     value={formData.heart_rate || ""}
                     onChange={(e) => handleChange("heart_rate", parseInt(e.target.value) || 0)}
-                    className="h-11"
+                    className={cn("h-11", getVitalStatusInputClass(heartRateStatus))}
                     required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="respiratory_rate" className="text-sm font-semibold">Frekuensi Napas (x/menit)</Label>
+                  <Label htmlFor="respiratory_rate" className="text-sm font-semibold flex items-center gap-1.5">
+                    Frekuensi Napas (x/menit)
+                    {getVitalStatusLabel(respiratoryStatus) && (
+                      <Badge variant="outline" className={cn("text-[10px] px-1 py-0 h-4", getVitalStatusBadgeClass(respiratoryStatus))}>
+                        {getVitalStatusLabel(respiratoryStatus)}
+                      </Badge>
+                    )}
+                  </Label>
                   <Input
                     id="respiratory_rate"
                     type="number"
                     placeholder="20"
                     value={formData.respiratory_rate || ""}
                     onChange={(e) => handleChange("respiratory_rate", parseInt(e.target.value) || 0)}
-                    className="h-11"
+                    className={cn("h-11", getVitalStatusInputClass(respiratoryStatus))}
                     required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="temperature" className="text-sm font-semibold">Suhu (°C)</Label>
+                  <Label htmlFor="temperature" className="text-sm font-semibold flex items-center gap-1.5">
+                    Suhu (°C)
+                    {getVitalStatusLabel(temperatureStatus) && (
+                      <Badge variant="outline" className={cn("text-[10px] px-1 py-0 h-4", getVitalStatusBadgeClass(temperatureStatus))}>
+                        {getVitalStatusLabel(temperatureStatus)}
+                      </Badge>
+                    )}
+                  </Label>
                   <Input
                     id="temperature"
                     type="number"
@@ -543,24 +658,93 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
                     placeholder="36.5"
                     value={formData.temperature || ""}
                     onChange={(e) => handleChange("temperature", parseFloat(e.target.value) || 0)}
-                    className="h-11"
+                    className={cn("h-11", getVitalStatusInputClass(temperatureStatus))}
                     required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="oxygen_saturation" className="text-sm font-semibold">SpO2 (%)</Label>
+                  <Label htmlFor="oxygen_saturation" className="text-sm font-semibold flex items-center gap-1.5">
+                    SpO2 (%)
+                    {getVitalStatusLabel(spo2Status) && (
+                      <Badge variant="outline" className={cn("text-[10px] px-1 py-0 h-4", getVitalStatusBadgeClass(spo2Status))}>
+                        {getVitalStatusLabel(spo2Status)}
+                      </Badge>
+                    )}
+                  </Label>
                   <Input
                     id="oxygen_saturation"
                     type="number"
                     placeholder="98"
                     value={formData.oxygen_saturation || ""}
                     onChange={(e) => handleChange("oxygen_saturation", parseInt(e.target.value) || 0)}
-                    className="h-11"
+                    className={cn("h-11", getVitalStatusInputClass(spo2Status))}
                     required
                   />
                 </div>
                 <div className="space-y-2">
+                  <Label htmlFor="pain_method" className="text-sm font-semibold">Metode Penilaian Nyeri</Label>
+                  <Select
+                    value={formData.pain_method}
+                    onValueChange={(value) => handleChange("pain_method", value)}
+                  >
+                    <SelectTrigger id="pain_method" className="h-11">
+                      <SelectValue placeholder="Pilih metode" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="nrs">NRS (Numeric Rating Scale)</SelectItem>
+                      <SelectItem value="wong_baker">Wong-Baker FACES</SelectItem>
+                      <SelectItem value="vas">VAS (Visual Analog Scale)</SelectItem>
+                      <SelectItem value="flacc">FLACC (bayi/anak non-verbal)</SelectItem>
+                      <SelectItem value="bps">BPS (pasien ICU/ventilator)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
                   <Label htmlFor="pain_scale" className="text-sm font-semibold">Skala Nyeri (0-10)</Label>
+                  {/* Wong-Baker FACES visual */}
+                  {formData.pain_method === "wong_baker" && (
+                    <div className="flex items-center justify-between gap-1 pb-1">
+                      {[0, 2, 4, 6, 8, 10].map((v) => (
+                        <TooltipProvider key={v}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                type="button"
+                                onClick={() => handleChange("pain_scale", v)}
+                                className={`text-2xl cursor-pointer rounded-lg p-1 transition-all ${formData.pain_scale === v ? "bg-primary/10 ring-2 ring-primary" : "hover:bg-muted"}`}
+                              >
+                                {v === 0 ? "😊" : v === 2 ? "🙂" : v === 4 ? "😐" : v === 6 ? "🙁" : v === 8 ? "😢" : "😭"}
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>{v === 0 ? "Tidak nyeri" : v === 2 ? "Nyeri ringan" : v === 4 ? "Nyeri sedang" : v === 6 ? "Nyeri cukup berat" : v === 8 ? "Nyeri berat" : "Nyeri sangat berat"}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      ))}
+                    </div>
+                  )}
+                  {/* NRS / VAS numeric bar */}
+                  {(formData.pain_method === "nrs" || formData.pain_method === "vas") && (
+                    <div className="flex items-center gap-1 pb-1">
+                      {[0,1,2,3,4,5,6,7,8,9,10].map((v) => (
+                        <button
+                          key={v}
+                          type="button"
+                          onClick={() => handleChange("pain_scale", v)}
+                          className={`flex-1 h-8 text-xs font-medium rounded transition-all ${
+                            formData.pain_scale === v 
+                              ? "ring-2 ring-primary text-primary-foreground " + (v <= 3 ? "bg-green-500" : v <= 6 ? "bg-yellow-500" : "bg-red-500")
+                              : v <= 3 ? "bg-green-100 hover:bg-green-200 text-green-800" 
+                              : v <= 6 ? "bg-yellow-100 hover:bg-yellow-200 text-yellow-800" 
+                              : "bg-red-100 hover:bg-red-200 text-red-800"
+                          }`}
+                        >
+                          {v}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                   <Input
                     id="pain_scale"
                     type="number"
@@ -571,6 +755,12 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
                     onChange={(e) => handleChange("pain_scale", parseInt(e.target.value) || 0)}
                     className="h-11"
                   />
+                  <p className="text-xs text-muted-foreground">
+                    {formData.pain_method === "flacc" ? "FLACC: Face, Legs, Activity, Cry, Consolability — untuk bayi/anak yang belum bisa bicara" 
+                    : formData.pain_method === "bps" ? "BPS: Behavioral Pain Scale — untuk pasien di bawah sedasi/ventilator" 
+                    : formData.pain_method === "wong_baker" ? "Pilih wajah yang paling sesuai dengan kondisi nyeri pasien"
+                    : "0 = Tidak nyeri, 1-3 = Ringan, 4-6 = Sedang, 7-10 = Berat"}
+                  </p>
                 </div>
               </div>
           </div>

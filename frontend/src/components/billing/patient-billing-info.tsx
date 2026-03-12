@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { id } from "date-fns/locale";
+import { formatPatientName } from "@/lib/print-utils";
 
 interface PatientBillingInfoProps {
   visit: any;
@@ -102,7 +103,7 @@ export function PatientBillingInfo({ visit, billing, actionButtons }: PatientBil
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <h3 className="text-sm font-semibold truncate">
-                {patient?.nama_lengkap || "-"}
+                {formatPatientName(patient?.nama_lengkap, patient?.jenis_kelamin, patient?.status_perkawinan, patient?.tanggal_lahir)}
               </h3>
               <span className="font-mono text-[11px] text-muted-foreground flex-shrink-0">
                 {patient?.no_rm || "-"}

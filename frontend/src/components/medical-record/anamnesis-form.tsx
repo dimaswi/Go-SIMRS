@@ -43,6 +43,8 @@ interface NewAllergyInput {
 }
 
 const defaultFormData = {
+  anamnesis_source: "autoanamnesis",
+  functional_status: "",
   chief_complaint: "",
   history_of_present_illness: "",
   past_medical_history: "",
@@ -51,6 +53,12 @@ const defaultFormData = {
   allergies: "", // Legacy field - will still save as summary
   current_medications: "",
 };
+
+const FUNCTIONAL_STATUS_OPTIONS = [
+  { value: "mandiri", label: "Mandiri", description: "Pasien mampu melakukan aktivitas sehari-hari tanpa bantuan" },
+  { value: "bantuan_sebagian", label: "Perlu Bantuan Sebagian", description: "Pasien membutuhkan bantuan untuk sebagian aktivitas" },
+  { value: "bantuan_total", label: "Perlu Bantuan Total", description: "Pasien membutuhkan bantuan penuh untuk semua aktivitas" },
+];
 
 const defaultNewAllergy: NewAllergyInput = {
   snomed_code: "",
@@ -126,6 +134,8 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false, is
         const data = response.data as Anamnesis;
         if (data && data.id) {
           setFormData({
+            anamnesis_source: data.anamnesis_source || "autoanamnesis",
+            functional_status: data.functional_status || "",
             chief_complaint: data.chief_complaint || "",
             history_of_present_illness: data.history_of_present_illness || "",
             past_medical_history: data.past_medical_history || "",
@@ -152,6 +162,8 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false, is
         if (pendingCopy) {
           setFormData(prev => ({
             ...prev,
+            anamnesis_source: pendingCopy.anamnesis_source || "autoanamnesis",
+            functional_status: pendingCopy.functional_status || "",
             chief_complaint: pendingCopy.chief_complaint || "",
             history_of_present_illness: pendingCopy.history_of_present_illness || "",
             past_medical_history: pendingCopy.past_medical_history || "",
@@ -335,7 +347,7 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false, is
   const filledTextFields = Object.entries(formData).filter(([k, v]) => k !== "allergies" && v && v.trim() !== "").length;
   const hasAllergies = patientAllergies.length > 0 || isMeaningfulAllergySummary(formData.allergies);
   const filledFields = filledTextFields + (hasAllergies ? 1 : 0);
-  const totalFields = 7;
+  const totalFields = 9;
 
   useEffect(() => {
     if (loading || loadingAllergies) return;
@@ -369,6 +381,8 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false, is
       const d = ev.detail.data;
       setFormData(prev => ({
         ...prev,
+        anamnesis_source: d.anamnesis_source || "autoanamnesis",
+        functional_status: d.functional_status || "",
         chief_complaint: d.chief_complaint || "",
         history_of_present_illness: d.history_of_present_illness || "",
         past_medical_history: d.past_medical_history || "",
@@ -410,6 +424,53 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false, is
         <form onSubmit={handleSubmit}>
           <fieldset disabled={isFormDisabled} className="space-y-6">
           
+          {/* Section 0: Sumber Anamnesis & Status Fungsional */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="anamnesis_source" className="text-sm font-semibold">
+                Sumber Anamnesis
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Dari siapa informasi riwayat penyakit ini diperoleh?
+              </p>
+              <Select
+                value={formData.anamnesis_source}
+                onValueChange={(value) => handleChange("anamnesis_source", value)}
+              >
+                <SelectTrigger id="anamnesis_source">
+                  <SelectValue placeholder="Pilih sumber" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="autoanamnesis">Autoanamnesis (langsung dari pasien)</SelectItem>
+                  <SelectItem value="alloanamnesis">Alloanamnesis (dari keluarga/pengantar)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="functional_status" className="text-sm font-semibold">
+                Status Fungsional
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Kemampuan pasien dalam melakukan aktivitas sehari-hari (makan, mandi, berpakaian, dll)
+              </p>
+              <Select
+                value={formData.functional_status}
+                onValueChange={(value) => handleChange("functional_status", value)}
+              >
+                <SelectTrigger id="functional_status">
+                  <SelectValue placeholder="Pilih status fungsional" />
+                </SelectTrigger>
+                <SelectContent>
+                  {FUNCTIONAL_STATUS_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
           {/* Section 1: Keluhan Utama & Riwayat Penyakit Sekarang */}
           <div className="space-y-4"><div className="space-y-2">
                 <Label htmlFor="chief_complaint" className="text-sm font-semibold">

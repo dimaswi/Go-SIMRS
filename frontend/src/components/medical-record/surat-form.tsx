@@ -42,6 +42,7 @@ import {
   medicalRecordsApi,
   printApi,
   signatureApi,
+  visitsApi,
   DOCUMENT_TYPES,
 } from "@/lib/api";
 import { SignaturePINDialog } from "@/components/signature/signature-pin-dialog";
@@ -363,6 +364,25 @@ function SickLetterSubForm({ visitId, readOnly = false, onCountChange }: SubForm
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  // Auto-fill reason with diagnosis data
+  useEffect(() => {
+    const fetchDiagnosis = async () => {
+      try {
+        const diagRes = await medicalRecordsApi.getDiagnosis(visitId);
+        if (diagRes.data?.items?.length) {
+          const diagTexts = diagRes.data.items
+            .filter((d: any) => d.icd10_code && d.icd10_name)
+            .map((d: any) => `${d.icd10_code} - ${d.icd10_name}`)
+            .join("; ");
+          if (diagTexts) {
+            setFormData((prev) => ({ ...prev, reason: prev.reason || diagTexts }));
+          }
+        }
+      } catch { /* diagnosis may not exist yet */ }
+    };
+    fetchDiagnosis();
+  }, [visitId]);
+
   const checkSignature = async (id: number) => {
     try {
       const res = await signatureApi.getDocumentSignature(DOCUMENT_TYPES.SICK_LETTER, id);
@@ -479,8 +499,8 @@ function SickLetterSubForm({ visitId, readOnly = false, onCountChange }: SubForm
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label>Alasan / Keluhan</Label>
-              <Textarea placeholder="Alasan sakit / keluhan pasien" value={formData.reason} onChange={(e) => setFormData({ ...formData, reason: e.target.value })} rows={2} />
+              <Label>Diagnosis</Label>
+              <Textarea placeholder="Diagnosis pasien (otomatis dari tab diagnosis)" value={formData.reason} onChange={(e) => setFormData({ ...formData, reason: e.target.value })} rows={2} />
             </div>
             <div className="space-y-1.5">
               <Label>Tujuan / Keperluan</Label>
@@ -760,6 +780,9 @@ function BirthCertificateSubForm({ visitId, readOnly = false, onCountChange }: S
     birth_method: "normal",
     mother_name: "",
     father_name: "",
+    mother_mrn: "",
+    dpjp_name: "",
+    midwife_name: "",
     apgar_score: "",
     notes: "",
   };
@@ -777,6 +800,31 @@ function BirthCertificateSubForm({ visitId, readOnly = false, onCountChange }: S
   }, [visitId]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  // Auto-fill mother/father names from patient/registration data
+  useEffect(() => {
+    const fetchVisitData = async () => {
+      try {
+        const visitRes = await visitsApi.getById(visitId);
+        const patient = visitRes.data?.registration?.patient;
+        const doctor = visitRes.data?.doctor;
+        if (patient) {
+          setFormData((prev) => ({
+            ...prev,
+            mother_name: prev.mother_name || `Ny. ${patient.nama_lengkap || ""}`.trim(),
+            mother_mrn: prev.mother_mrn || patient.no_rm || "",
+            father_name: prev.father_name || (
+              patient.hubungan_penanggung_jawab?.toLowerCase() === "suami"
+                ? patient.nama_penanggung_jawab || ""
+                : ""
+            ),
+            dpjp_name: prev.dpjp_name || doctor?.nama_lengkap || "",
+          }));
+        }
+      } catch { /* visit data may not be accessible */ }
+    };
+    fetchVisitData();
+  }, [visitId]);
 
   const checkSignature = async (id: number) => {
     try {
@@ -818,6 +866,9 @@ function BirthCertificateSubForm({ visitId, readOnly = false, onCountChange }: S
       birth_method: item.birth_method || "normal",
       mother_name: item.mother_name || "",
       father_name: item.father_name || "",
+      mother_mrn: item.mother_mrn || "",
+      dpjp_name: item.dpjp_name || "",
+      midwife_name: item.midwife_name || "",
       apgar_score: item.apgar_score || "",
       notes: item.notes || "",
     });
@@ -911,11 +962,27 @@ function BirthCertificateSubForm({ visitId, readOnly = false, onCountChange }: S
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Nama Ibu</Label>
-                <Input placeholder="Nama lengkap ibu" value={formData.mother_name} onChange={(e) => setFormData({ ...formData, mother_name: e.target.value })} />
+                <Input placeholder="Ny. Nama lengkap ibu" value={formData.mother_name} onChange={(e) => setFormData({ ...formData, mother_name: e.target.value })} />
               </div>
+              <div className="space-y-1.5">
+                <Label>NORM Ibu</Label>
+                <Input placeholder="Nomor rekam medis ibu" value={formData.mother_mrn} onChange={(e) => setFormData({ ...formData, mother_mrn: e.target.value })} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Nama Ayah</Label>
                 <Input placeholder="Nama lengkap ayah" value={formData.father_name} onChange={(e) => setFormData({ ...formData, father_name: e.target.value })} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Nama DPJP</Label>
+                <Input placeholder="Nama dokter penanggung jawab" value={formData.dpjp_name} onChange={(e) => setFormData({ ...formData, dpjp_name: e.target.value })} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Nama Bidan</Label>
+                <Input placeholder="Nama bidan penolong" value={formData.midwife_name} onChange={(e) => setFormData({ ...formData, midwife_name: e.target.value })} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">

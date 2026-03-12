@@ -48,6 +48,7 @@ type Triage struct {
 	HeartRate        string `gorm:"size:20" json:"heart_rate,omitempty"`        // x/menit
 	Temperature      string `gorm:"size:20" json:"temperature,omitempty"`       // °C
 	OxygenSaturation string `gorm:"size:20" json:"oxygen_saturation,omitempty"` // %
+	PainMethod       string `gorm:"size:50" json:"pain_method,omitempty"`       // nrs, wong_baker, flacc, bps, vas
 	PainScale        int    `gorm:"default:0" json:"pain_scale,omitempty"`      // 0-10
 
 	// Assessment
@@ -89,6 +90,10 @@ type Anamnesis struct {
 
 	VisitID uint   `gorm:"not null;uniqueIndex" json:"visit_id"`
 	Visit   *Visit `gorm:"foreignKey:VisitID" json:"visit,omitempty"`
+
+	// Sumber Anamnesis
+	AnamnesisSource  string `gorm:"size:50" json:"anamnesis_source,omitempty"`   // autoanamnesis, alloanamnesis
+	FunctionalStatus string `gorm:"size:100" json:"functional_status,omitempty"` // Mandiri, Perlu Bantuan Sebagian, Perlu Bantuan Total
 
 	// Chief Complaint
 	ChiefComplaint string `gorm:"type:text" json:"chief_complaint,omitempty"` // Keluhan utama
@@ -184,6 +189,21 @@ type PhysicalExamination struct {
 	ECGResult         string `gorm:"type:text" json:"ecg_result,omitempty"`        // Hasil EKG
 	ECGInterpretation string `gorm:"size:100" json:"ecg_interpretation,omitempty"` // Interpretasi (Normal/Abnormal)
 	ECGNotes          string `gorm:"type:text" json:"ecg_notes,omitempty"`         // Catatan detail EKG
+
+	// Supporting Examinations - CTG (Cardiotocography)
+	CTGPerformed      bool   `gorm:"default:false" json:"ctg_performed"`           // CTG dilakukan
+	CTGResult         string `gorm:"type:text" json:"ctg_result,omitempty"`        // Hasil CTG
+	CTGInterpretation string `gorm:"size:100" json:"ctg_interpretation,omitempty"` // Interpretasi (Reaktif/Non-Reaktif)
+	CTGNotes          string `gorm:"type:text" json:"ctg_notes,omitempty"`         // Catatan detail CTG
+
+	// Supporting Examinations - Pemeriksaan Pelvis
+	PelvicPerformed bool   `gorm:"default:false" json:"pelvic_performed"`    // Pemeriksaan pelvis dilakukan
+	PelvicResult    string `gorm:"type:text" json:"pelvic_result,omitempty"` // Hasil pemeriksaan pelvis
+	PelvicNotes     string `gorm:"type:text" json:"pelvic_notes,omitempty"`  // Catatan detail pelvis
+
+	// Pain Assessment - Skala Nyeri
+	PainMethod string `gorm:"size:20" json:"pain_method,omitempty"` // Metode penilaian nyeri (nrs, wong_baker, vas, flacc, bps)
+	PainScale  int    `gorm:"default:0" json:"pain_scale"`          // Skala nyeri 0-10
 
 	// SatuSehat Integration
 	SatusehatVitalSignsSent bool       `gorm:"default:false" json:"satusehat_vital_signs_sent"`
@@ -296,6 +316,7 @@ type AssessmentPlan struct {
 	MonitoringPlan   string `gorm:"type:text" json:"monitoring_plan,omitempty"`   // Rencana monitoring
 	ProcedurePlan    string `gorm:"type:text" json:"procedure_plan,omitempty"`    // Rencana tindakan
 	ConsultationPlan string `gorm:"type:text" json:"consultation_plan,omitempty"` // Rencana konsultasi
+	InformedConsent  string `gorm:"type:text" json:"informed_consent,omitempty"`  // Informed consent
 
 	// SatuSehat Integration - Rasional Klinis & Prognosis
 	SatusehatClinicalImpressionRationaleID string     `gorm:"size:100" json:"satusehat_ci_rationale_id,omitempty"`
@@ -599,6 +620,9 @@ type BirthCertificate struct {
 	BirthMethod  string    `gorm:"size:50" json:"birth_method,omitempty"` // normal, sectio_caesarea, vakum, forcep
 	MotherName   string    `gorm:"size:200" json:"mother_name,omitempty"`
 	FatherName   string    `gorm:"size:200" json:"father_name,omitempty"`
+	MotherMRN    string    `gorm:"size:50" json:"mother_mrn,omitempty"`    // NORM ibu
+	DPJPName     string    `gorm:"size:200" json:"dpjp_name,omitempty"`    // Nama DPJP
+	MidwifeName  string    `gorm:"size:200" json:"midwife_name,omitempty"` // Nama Bidan
 	ApgarScore   string    `gorm:"size:20" json:"apgar_score,omitempty"`
 	Notes        string    `gorm:"type:text" json:"notes,omitempty"`
 

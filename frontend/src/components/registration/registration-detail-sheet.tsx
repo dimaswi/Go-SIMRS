@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { registrationApi, type Registration } from "@/lib/api/queue";
 import { bpjsApi, type BPJSQueue } from "@/lib/api/bpjs";
+import { formatPatientName } from "@/lib/print-utils";
 import { api } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -248,7 +249,7 @@ export function RegistrationDetailSheet({
               <div>
                 <label className="text-xs text-muted-foreground">Nama Lengkap</label>
                 <p className="font-medium text-sm">
-                  {registration.patient?.nama_lengkap || registration.patient?.name || "-"}
+                  {formatPatientName(registration.patient?.nama_lengkap || registration.patient?.name, registration.patient?.jenis_kelamin, registration.patient?.status_perkawinan, registration.patient?.tanggal_lahir)}
                 </p>
               </div>
               <div>

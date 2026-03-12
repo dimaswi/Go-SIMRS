@@ -70,6 +70,7 @@ import {
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { id } from 'date-fns/locale';
+import { formatPatientName } from '@/lib/print-utils';
 
 interface VisitDetail {
   id: number;
@@ -603,7 +604,7 @@ export default function BillingShow() {
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <h1 className="text-sm font-semibold truncate">{patient?.nama_lengkap || '-'}</h1>
+                  <h1 className="text-sm font-semibold truncate">{formatPatientName(patient?.nama_lengkap, patient?.jenis_kelamin, undefined, patient?.tanggal_lahir) || '-'}</h1>
                   <span className="text-xs text-muted-foreground font-mono flex-shrink-0">{patient?.no_rm}</span>
                   {billing && billingStatusBadge(billing.status)}
                 </div>

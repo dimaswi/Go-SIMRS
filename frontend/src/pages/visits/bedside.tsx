@@ -34,6 +34,7 @@ import {
   ClipboardList,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatPatientName } from "@/lib/print-utils";
 
 export default function BedsideView() {
   const { id } = useParams<{ id: string }>();
@@ -186,7 +187,7 @@ export default function BedsideView() {
           </Button>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <h1 className="text-lg font-bold truncate">{patient?.nama_lengkap || "Pasien"}</h1>
+              <h1 className="text-lg font-bold truncate">{formatPatientName(patient?.nama_lengkap, patient?.jenis_kelamin, patient?.status_perkawinan, patient?.tanggal_lahir) || "Pasien"}</h1>
               {patient?.jenis_kelamin && (
                 <Badge variant={genderLabel === "L" ? "default" : "secondary"} className="shrink-0 text-xs">
                   {genderLabel}

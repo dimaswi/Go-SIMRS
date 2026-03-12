@@ -21,6 +21,7 @@ import { roomMedicinesApi, type RoomMedicine } from "@/lib/api/medicines";
 import type { PatientRequest, MasterData, Province, Regency, District, Village, Patient, Room, RoomStaff } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, UserPlus, User, MapPin, Search, Plus, Minus, X, FileText, CheckCircle2 } from "lucide-react";
+import { formatPatientName } from "@/lib/print-utils";
 import {
   Table,
   TableBody,
@@ -699,7 +700,7 @@ export function RegistrationDialog({
         title: "Pendaftaran Berhasil!",
         description: (
           <div className="space-y-1">
-            <p className="font-semibold">Pasien: {existingPatient.nama_lengkap}</p>
+            <p className="font-semibold">Pasien: {formatPatientName(existingPatient.nama_lengkap, existingPatient.jenis_kelamin, existingPatient.status_perkawinan, existingPatient.tanggal_lahir)}</p>
             <p>No. RM: {existingPatient.no_rm}</p>
             <p>Ruangan: {roomName}</p>
             <p className="text-lg font-bold">Nomor Antrian Ruangan: {roomQueueNumber}</p>
@@ -1230,7 +1231,7 @@ export function RegistrationDialog({
               <div className="grid grid-cols-4 gap-2 text-sm">
                 <div>
                   <span className="text-xs text-muted-foreground">Nama:</span>
-                  <p className="font-medium text-sm">{existingPatient.nama_lengkap}</p>
+                  <p className="font-medium text-sm">{formatPatientName(existingPatient.nama_lengkap, existingPatient.jenis_kelamin, existingPatient.status_perkawinan, existingPatient.tanggal_lahir)}</p>
                 </div>
                 <div>
                   <span className="text-xs text-muted-foreground">No. RM:</span>

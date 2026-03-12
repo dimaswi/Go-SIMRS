@@ -1,5 +1,6 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import type { Patient } from "@/lib/api";
+import { formatPatientName } from "@/lib/print-utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { 
@@ -140,7 +141,7 @@ export const createPatientColumns = ({
               onClick={() => meta?.onView?.(row.original)}
               className="font-medium text-left hover:text-primary hover:underline cursor-pointer"
             >
-              {row.original.nama_lengkap}
+              {formatPatientName(row.original.nama_lengkap, row.original.jenis_kelamin, row.original.status_perkawinan, row.original.tanggal_lahir)}
             </button>
             <p className="text-xs text-muted-foreground">
               {row.original.nik || 'NIK: -'}

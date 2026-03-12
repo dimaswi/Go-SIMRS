@@ -14,7 +14,8 @@ import {
   Stethoscope,
   Users,
   Eye,
-  WandSparkles
+  WandSparkles,
+  FileText
 } from "lucide-react";
 import { medicalRecordsApi, type AssessmentPlan, type MedicalRecordSummary } from "@/lib/api/medical-records";
 import { medicalRecordEditLogApi } from "@/lib/api/visits";
@@ -137,6 +138,7 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
     monitoring_plan: initialData?.monitoring_plan || "",
     procedure_plan: initialData?.procedure_plan || "",
     consultation_plan: initialData?.consultation_plan || "",
+    informed_consent: (initialData as any)?.informed_consent || "",
   });
 
   // Load existing data
@@ -164,6 +166,7 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
             monitoring_plan: response.data.monitoring_plan || "",
             procedure_plan: response.data.procedure_plan || "",
             consultation_plan: response.data.consultation_plan || "",
+            informed_consent: (response.data as any).informed_consent || "",
           });
           if (response.data.id) {
             setAssessmentPlanId(response.data.id);
@@ -209,6 +212,7 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
             monitoring_plan: pendingCopy.monitoring_plan || "",
             procedure_plan: pendingCopy.procedure_plan || "",
             consultation_plan: pendingCopy.consultation_plan || "",
+            informed_consent: pendingCopy.informed_consent || "",
           });
           emitMedicalRecordTabSaved("assessment-plan", false);
         }
@@ -745,7 +749,8 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
     formData.education_plan,
     formData.procedure_plan,
     formData.consultation_plan,
-    formData.monitoring_plan
+    formData.monitoring_plan,
+    formData.informed_consent
   ].filter(v => v && v.trim() !== "").length;
 
   const filledDetailFields = [
@@ -759,7 +764,7 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
 
   useEffect(() => {
     if (loading) return;
-    emitMedicalRecordTabIndicator("assessment-plan", `${filledMainFields}/10`);
+    emitMedicalRecordTabIndicator("assessment-plan", `${filledMainFields}/11`);
   }, [filledMainFields, loading]);
 
   // Auto-save draft to localStorage on every form change
@@ -802,6 +807,7 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
         monitoring_plan: d.monitoring_plan || "",
         procedure_plan: d.procedure_plan || "",
         consultation_plan: d.consultation_plan || "",
+        informed_consent: d.informed_consent || "",
       });
       emitMedicalRecordTabSaved("assessment-plan", false);
     };
@@ -1048,6 +1054,7 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
                   <Label htmlFor="education_plan" className="text-sm flex items-center gap-2">
                     <GraduationCap className="h-4 w-4 text-muted-foreground" />
                     Rencana Edukasi
+                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">Opsional</Badge>
                   </Label>
                   <div className="space-y-2">
                     <p className="text-xs text-muted-foreground">Checklist edukasi (otomatis terisi ke rencana)</p>
@@ -1091,6 +1098,19 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
                     placeholder="Konsultasi ke spesialis yang diperlukan..."
                     value={formData.consultation_plan}
                     onChange={(e) => handleChange("consultation_plan", e.target.value)}
+                    className="min-h-[80px] resize-none"
+                  />
+                </div>
+                <div className="space-y-2 rounded-md border p-3 col-span-2">
+                  <Label htmlFor="informed_consent" className="text-sm flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-muted-foreground" />
+                    Informed Consent
+                  </Label>
+                  <Textarea
+                    id="informed_consent"
+                    placeholder="Catatan informed consent pasien/keluarga..."
+                    value={formData.informed_consent}
+                    onChange={(e) => handleChange("informed_consent", e.target.value)}
                     className="min-h-[80px] resize-none"
                   />
                 </div>

@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Phone, Clock, CheckCircle, XCircle, Pause, AlertCircle, Smartphone } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
+import { formatPatientName } from '@/lib/print-utils';
 
 export default function RoomQueueManagement() {
   const { roomId: paramRoomId } = useParams<{ roomId: string }>();
@@ -226,7 +227,7 @@ export default function RoomQueueManagement() {
               <div>
                 <p className="text-sm text-muted-foreground">Patient Name</p>
                 <p className="text-2xl font-semibold">
-                  {currentQueue.visit?.registration?.patient?.nama_lengkap || '-'}
+                  {formatPatientName(currentQueue.visit?.registration?.patient?.nama_lengkap, currentQueue.visit?.registration?.patient?.jenis_kelamin, undefined, currentQueue.visit?.registration?.patient?.tanggal_lahir) || '-'}
                 </p>
               </div>
               <div>

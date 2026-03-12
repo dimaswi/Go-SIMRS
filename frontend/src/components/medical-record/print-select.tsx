@@ -4,19 +4,28 @@
  */
 
 import { useState, useEffect } from "react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Printer, ChevronDown, ShieldCheck, ShieldX } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Loader2, Printer, ShieldCheck, ShieldX, FileText, FolderOpen, CheckCircle2 } from "lucide-react";
 import { visitsApi, medicalRecordsApi, medicineOrdersApi, procedureOrdersApi, printApi, signatureApi, DOCUMENT_TYPES } from "@/lib/api";
 import { SignaturePINDialog } from "@/components/signature/signature-pin-dialog";
 import { RevokePINDialog } from "@/components/signature/revoke-pin-dialog";
@@ -57,6 +66,7 @@ export function MedicalRecordPrintSelect({
 }: PrintSelectProps) {
   const { toast } = useToast();
   
+  const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [printing, setPrinting] = useState(false);
   const [visit, setVisit] = useState<any>(null);
@@ -165,8 +175,9 @@ export function MedicalRecordPrintSelect({
     if (visitId) {
       // Check resume signature
       checkSignatureStatus(DOCUMENT_TYPES.VISIT_RESUME, visitId);
-      // Check emergency summary if UGD
+      // Check triage + emergency summary if UGD
       if (isEmergency) {
+        checkSignatureStatus(DOCUMENT_TYPES.TRIAGE, visitId);
         checkSignatureStatus(DOCUMENT_TYPES.EMERGENCY_SUMMARY, visitId);
       }
       // Check referral if exists
@@ -343,6 +354,8 @@ export function MedicalRecordPrintSelect({
           label: "Formulir Triage",
           category: "UGD",
           handler: () => printApi.triageForm(visitId),
+          documentType: DOCUMENT_TYPES.TRIAGE,
+          documentId: visitId,
         });
       }
       if (medicalRecord) {
@@ -510,6 +523,32 @@ export function MedicalRecordPrintSelect({
   const sortedCategories = Object.keys(groupedOptions).sort(
     (a, b) => categoryOrder.indexOf(a) - categoryOrder.indexOf(b)
   );
+  const signedOptionsCount = printOptions.filter((option) =>
+    option.documentType && option.documentId ? isDocumentSigned(option.documentType, option.documentId) : false
+  ).length;
+
+  const getCategoryBadgeClass = (category: string) => {
+    switch (category) {
+      case "UGD":
+        return "border-red-200 bg-red-50 text-red-700";
+      case "Rawat Inap":
+        return "border-blue-200 bg-blue-50 text-blue-700";
+      case "Rawat Jalan":
+        return "border-emerald-200 bg-emerald-50 text-emerald-700";
+      case "Farmasi":
+        return "border-amber-200 bg-amber-50 text-amber-700";
+      case "Laboratorium":
+        return "border-violet-200 bg-violet-50 text-violet-700";
+      case "Radiologi":
+        return "border-sky-200 bg-sky-50 text-sky-700";
+      case "Operasi":
+        return "border-rose-200 bg-rose-50 text-rose-700";
+      case "Surat":
+        return "border-slate-200 bg-slate-50 text-slate-700";
+      default:
+        return "border-muted bg-muted/50 text-muted-foreground";
+    }
+  };
 
   const handleItemClick = async (option: PrintOption) => {
     await handlePrint(option.handler, option.label);
@@ -517,8 +556,8 @@ export function MedicalRecordPrintSelect({
 
   if (loading) {
     return (
-      <Button variant="outline" size="sm" disabled className="gap-1.5">
-        <Loader2 className="h-4 w-4 animate-spin" />
+      <Button variant="outline" size="sm" disabled className="h-7 gap-1 text-xs whitespace-nowrap px-2.5">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
         Memuat...
       </Button>
     );
@@ -526,84 +565,186 @@ export function MedicalRecordPrintSelect({
 
   return (
     <>
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" disabled={printing} className="gap-1.5">
-          {printing ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={loading || printing}
+          className="h-7 gap-1 text-xs whitespace-nowrap px-2.5 shrink-0"
+        >
+          {loading || printing ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
           ) : (
-            <Printer className="h-4 w-4" />
+            <Printer className="h-3.5 w-3.5" />
           )}
           Cetak
-          <ChevronDown className="h-3 w-3 opacity-50" />
+          {printOptions.length > 0 && (
+            <Badge variant="secondary" className="ml-0.5 h-4 min-w-4 px-1 text-[10px] leading-none">
+              {printOptions.length}
+            </Badge>
+          )}
         </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-64">
-        {sortedCategories.map((category, idx) => (
-          <div key={category}>
-            {idx > 0 && <DropdownMenuSeparator />}
-            <DropdownMenuLabel className="text-xs text-muted-foreground">
-              {category}
-            </DropdownMenuLabel>
-            <DropdownMenuGroup>
-              {groupedOptions[category].map((option) => {
-                const isSigned = option.documentType && option.documentId 
-                  ? isDocumentSigned(option.documentType, option.documentId) 
-                  : false;
-                return (
-                <DropdownMenuItem
-                  key={option.value}
-                  onClick={() => handleItemClick(option)}
-                  className="cursor-pointer flex justify-between items-center"
-                >
-                  <span>{option.label}</span>
-                  <div className="flex items-center gap-1">
-                    {option.documentType && option.documentId && (
-                      isSigned ? (
-                        <div className="flex items-center gap-0.5">
-                          <Badge variant="default" className="text-[10px] h-5 bg-green-600 gap-0.5">
-                            <ShieldCheck className="h-3 w-3" />
-                          </Badge>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-5 px-1 text-red-500 hover:text-red-700 hover:bg-red-50"
-                            title="Batalkan tanda tangan"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleRevokeDocument(option.documentType!, option.documentId!, option.label);
-                            }}
-                          >
-                            <ShieldX className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      ) : (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-5 px-1 text-muted-foreground hover:text-primary"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleSignDocument(option.documentType!, option.documentId!, option.label);
-                          }}
-                        >
-                          <ShieldCheck className="h-3 w-3" />
-                        </Button>
-                      )
-                    )}
+      </SheetTrigger>
+      <SheetContent side="right" className="w-screen max-w-[100vw] p-0 sm:w-[50vw] sm:max-w-[50vw]">
+        <SheetHeader className="border-b bg-muted/30 px-5 py-4">
+          <div className="pr-8">
+            <SheetTitle className="flex items-center gap-2 text-base">
+              <Printer className="h-4 w-4" />
+              Pilihan Cetak Rekam Medis
+            </SheetTitle>
+            <SheetDescription className="mt-1 text-xs">
+              Pilih dokumen yang ingin dicetak, cek status tanda tangan, dan akses aksi dokumen dalam satu daftar yang ringkas.
+            </SheetDescription>
+          </div>
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            <div className="rounded-lg border bg-background px-3 py-2">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <FileText className="h-3.5 w-3.5" />
+                <span className="text-[11px] uppercase tracking-wide">Dokumen</span>
+              </div>
+              <p className="mt-1 text-lg font-semibold leading-none">{printOptions.length}</p>
+            </div>
+            <div className="rounded-lg border bg-background px-3 py-2">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <FolderOpen className="h-3.5 w-3.5" />
+                <span className="text-[11px] uppercase tracking-wide">Kategori</span>
+              </div>
+              <p className="mt-1 text-lg font-semibold leading-none">{sortedCategories.length}</p>
+            </div>
+            <div className="rounded-lg border bg-background px-3 py-2">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                <span className="text-[11px] uppercase tracking-wide">Tertanda</span>
+              </div>
+              <p className="mt-1 text-lg font-semibold leading-none">{signedOptionsCount}</p>
+            </div>
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            <Badge variant="outline" className="font-normal">{visit?.registration?.patient?.nama_lengkap || "Pasien"}</Badge>
+            <Badge variant="outline" className="font-normal">Kunjungan #{visit?.id || visitId}</Badge>
+            {printing && <Badge className="gap-1 bg-primary/10 text-primary hover:bg-primary/10"><Loader2 className="h-3 w-3 animate-spin" />Mencetak...</Badge>}
+          </div>
+        </SheetHeader>
+
+        <ScrollArea className="h-[calc(100vh-214px)]">
+          {printOptions.length === 0 ? (
+            <div className="flex min-h-[260px] flex-col items-center justify-center gap-2 px-6 text-center">
+              <Printer className="h-10 w-10 text-muted-foreground/30" />
+              <p className="text-sm font-medium">Belum ada dokumen yang bisa dicetak</p>
+              <p className="max-w-md text-xs text-muted-foreground">
+                Opsi cetak akan muncul otomatis setelah dokumen rekam medis, order, atau surat tersedia.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4 p-4">
+              {sortedCategories.map((category) => (
+                <section key={category} className="overflow-hidden rounded-xl border bg-background">
+                  <div className="flex items-center justify-between border-b bg-muted/20 px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm font-semibold">{category}</h3>
+                      <Badge variant="outline" className={cn("text-[10px]", getCategoryBadgeClass(category))}>
+                        {groupedOptions[category].length} dokumen
+                      </Badge>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">Aksi cetak dan tanda tangan tersedia per baris</p>
                   </div>
-                </DropdownMenuItem>
-              );})}
-            </DropdownMenuGroup>
-          </div>
-        ))}
-        {printOptions.length === 0 && (
-          <div className="py-4 text-center text-sm text-muted-foreground">
-            Tidak ada cetakan tersedia
-          </div>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead className="w-[42%] px-4 text-xs">Dokumen</TableHead>
+                        <TableHead className="w-[18%] text-xs">Kategori</TableHead>
+                        <TableHead className="w-[18%] text-xs">Tanda Tangan</TableHead>
+                        <TableHead className="w-[22%] px-4 text-right text-xs">Aksi</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {groupedOptions[category].map((option) => {
+                        const isSigned = option.documentType && option.documentId
+                          ? isDocumentSigned(option.documentType, option.documentId)
+                          : false;
+
+                        return (
+                          <TableRow key={option.value}>
+                            <TableCell className="px-4 py-3">
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-medium">{option.label}</p>
+                                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                                  {option.documentType && option.documentId
+                                    ? "Dokumen mendukung proses tanda tangan elektronik"
+                                    : "Dokumen siap dicetak langsung"}
+                                </p>
+                              </div>
+                            </TableCell>
+                            <TableCell className="py-3">
+                              <Badge variant="outline" className={cn("text-[10px]", getCategoryBadgeClass(category))}>
+                                {category}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="py-3">
+                              {option.documentType && option.documentId ? (
+                                isSigned ? (
+                                  <Badge className="gap-1 bg-green-600 hover:bg-green-600">
+                                    <ShieldCheck className="h-3 w-3" />
+                                    Signed
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline" className="gap-1 text-muted-foreground">
+                                    <ShieldX className="h-3 w-3" />
+                                    Belum
+                                  </Badge>
+                                )
+                              ) : (
+                                <span className="text-xs text-muted-foreground">N/A</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="px-4 py-3">
+                              <div className="flex items-center justify-end gap-1.5">
+                                {option.documentType && option.documentId && !isSigned && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-8 px-2 text-xs"
+                                    onClick={() => handleSignDocument(option.documentType!, option.documentId!, option.label)}
+                                  >
+                                    <ShieldCheck className="h-3.5 w-3.5" />
+                                    TTD
+                                  </Button>
+                                )}
+                                {option.documentType && option.documentId && isSigned && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-8 px-2 text-xs text-red-600 hover:text-red-700"
+                                    onClick={() => handleRevokeDocument(option.documentType!, option.documentId!, option.label)}
+                                  >
+                                    <ShieldX className="h-3.5 w-3.5" />
+                                    Batal
+                                  </Button>
+                                )}
+                                <Button
+                                  size="sm"
+                                  className="h-8 px-3 text-xs"
+                                  disabled={printing}
+                                  onClick={() => handleItemClick(option)}
+                                >
+                                  {printing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Printer className="h-3.5 w-3.5" />}
+                                  Cetak
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </section>
+              ))}
+            </div>
+          )}
+        </ScrollArea>
+      </SheetContent>
+    </Sheet>
 
     {/* Signature Dialog */}
     {signatureDoc && (

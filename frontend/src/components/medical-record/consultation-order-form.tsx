@@ -57,7 +57,7 @@ import {
   ChevronsUpDown,
   Check,
 } from "lucide-react";
-import { procedureOrdersApi, PROCEDURE_ORDER_STATUS, printApi } from "@/lib/api";
+import { procedureOrdersApi, PROCEDURE_ORDER_STATUS, printApi, medicalRecordsApi } from "@/lib/api";
 import type { ProcedureOrder, Procedure as ProcedureType } from "@/lib/api/procedure-orders";
 
 interface ConsultationOrderFormProps {
@@ -347,6 +347,20 @@ export function ConsultationOrderForm({ visitId, sourceRoomId, readOnly = false 
         ? roomsRes.data 
         : ((roomsRes.data as any)?.data || []);
       setConsultationRooms(roomsData);
+
+      // Auto-fill diagnosis from diagnosis tab
+      try {
+        const diagRes = await medicalRecordsApi.getDiagnosis(visitId);
+        if (diagRes.data?.items?.length) {
+          const diagTexts = diagRes.data.items
+            .filter((d: any) => d.icd10_code && d.icd10_name)
+            .map((d: any) => `${d.icd10_code} - ${d.icd10_name}`)
+            .join("; ");
+          if (diagTexts && !diagnosis) {
+            setDiagnosis(diagTexts);
+          }
+        }
+      } catch { /* diagnosis data may not exist yet */ }
     } catch (error) {
       console.error("Error loading data:", error);
       toast({

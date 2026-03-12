@@ -22,6 +22,7 @@ import {
 } from "@/lib/api/queue";
 import { format } from "date-fns";
 import { id as localeId } from "date-fns/locale";
+import { formatPatientName } from "@/lib/print-utils";
 
 interface ColumnOptions {
   onView: (id: number) => void;
@@ -126,7 +127,7 @@ export function createRegistrationColumns(
       cell: ({ row }) => {
         const patient = row.original.patient;
         if (!patient) return "-";
-        const name = patient.nama_lengkap || patient.name || "-";
+        const name = formatPatientName(patient.nama_lengkap || patient.name, patient.jenis_kelamin, undefined, patient.tanggal_lahir) || "-";
         const mrn = patient.no_rm || patient.medical_record_number || "";
         return (
           <div>

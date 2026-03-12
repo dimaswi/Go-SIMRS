@@ -12,6 +12,7 @@ export interface PatientPrintInfo {
   nama_lengkap: string;
   tanggal_lahir?: string;
   jenis_kelamin?: string;
+  status_perkawinan?: string;
   nik?: string;
   alamat?: string;
   no_hp?: string;
@@ -108,6 +109,60 @@ export function formatGenderID(gender?: string): string {
 }
 
 /**
+ * Calculate age in years from birth date string
+ */
+function getAgeInYears(birthDate?: string): number | null {
+  if (!birthDate) return null;
+  const birth = new Date(birthDate);
+  if (isNaN(birth.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const monthDiff = today.getMonth() - birth.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+    age--;
+  }
+  return age;
+}
+
+/**
+ * Get patient title based on gender, marital status, and age.
+ * Indonesian medical record conventions:
+ * - By. (Bayi) — baby under 1 year
+ * - An. (Anak) — child under 18 years (male or female)
+ * - Tn. (Tuan) — adult male (18+)
+ * - Ny. (Nyonya) — married adult woman
+ * - Nn. (Nona) — unmarried adult woman (18+)
+ */
+export function getPatientTitle(gender?: string, maritalStatus?: string, birthDate?: string): string {
+  if (!gender) return "";
+  
+  const age = getAgeInYears(birthDate);
+  
+  // Baby (under 1 year)
+  if (age !== null && age < 1) return "By.";
+  
+  // Child (1-17 years)
+  if (age !== null && age < 18) return "An.";
+  
+  // Adult (18+ or age unknown)
+  if (gender === "L") return "Tn.";
+  if (gender === "P") {
+    if (maritalStatus === "belum_menikah") return "Nn.";
+    return "Ny.";
+  }
+  return "";
+}
+
+/**
+ * Format patient name with title prefix (Tn./Ny./Nn./An./By.)
+ */
+export function formatPatientName(name?: string, gender?: string, maritalStatus?: string, birthDate?: string): string {
+  if (!name) return "-";
+  const title = getPatientTitle(gender, maritalStatus, birthDate);
+  return title ? `${title} ${name}` : name;
+}
+
+/**
  * Generate patient info HTML table for print documents
  */
 export function generatePatientInfoHTML(patient: PatientPrintInfo): string {
@@ -126,7 +181,7 @@ export function generatePatientInfoHTML(patient: PatientPrintInfo): string {
       <tr>
         <td>Nama Lengkap</td>
         <td>:</td>
-        <td><strong>${patient.nama_lengkap || "-"}</strong></td>
+        <td><strong>${formatPatientName(patient.nama_lengkap, patient.jenis_kelamin, patient.status_perkawinan, patient.tanggal_lahir)}</strong></td>
         <td>Gol. Darah</td>
         <td>:</td>
         <td>${patient.golongan_darah || "-"}${patient.rhesus ? ` (${patient.rhesus})` : ""}</td>

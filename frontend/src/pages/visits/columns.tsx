@@ -2,6 +2,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Eye, PhoneCall, Loader2, UserCheck, XCircle } from "lucide-react";
+import { formatPatientName } from "@/lib/print-utils";
 
 interface Visit {
   id: number;
@@ -240,7 +241,7 @@ export const createVisitColumns = ({
         : null;
       return (
         <div className="flex flex-col gap-0.5">
-          <span className="font-medium">{patient?.nama_lengkap || "-"}</span>
+          <span className="font-medium">{formatPatientName(patient?.nama_lengkap, patient?.jenis_kelamin, undefined, patient?.tanggal_lahir)}</span>
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <span className="font-mono">{patient?.no_rm || "-"}</span>
             {patient?.jenis_kelamin && (

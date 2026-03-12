@@ -276,6 +276,26 @@ export default function VisitShow() {
       const res = await medicalRecordsApi.get(visitId);
       const summary = res.data;
 
+      // Triage: count filled fields out of 20
+      if (summary.triage) {
+        const t = summary.triage;
+        const triageTextFields = [t.arrival_mode, t.triage_complaint, t.triage_level, t.airway, t.airway_note, t.breathing, t.breathing_note, t.circulation, t.circulation_note, t.blood_pressure, t.triage_assessment, t.immediate_actions];
+        const filledText = triageTextFields.filter(v => v && String(v).trim() !== "").length;
+        const filledNumeric = [
+          t.heart_rate, t.respiratory_rate, t.temperature, t.oxygen_saturation, t.pain_scale
+        ].filter(v => v !== undefined && v !== null && v !== 0).length;
+        const filledGCS = [
+          t.gcs_e !== undefined && t.gcs_e !== null ? 1 : 0,
+          t.gcs_v !== undefined && t.gcs_v !== null ? 1 : 0,
+          t.gcs_m !== undefined && t.gcs_m !== null ? 1 : 0,
+        ].reduce((a, b) => a + b, 0);
+        const filledTriage = filledText + filledNumeric + filledGCS;
+        emitMedicalRecordTabIndicator("triage", `${filledTriage}/20`);
+        emitMedicalRecordTabSaved("triage", !!t.id && filledTriage > 0);
+      } else {
+        emitMedicalRecordTabIndicator("triage", "0/20");
+      }
+
       // Anamnesis: count filled fields out of 7
       // Note: allergies are counted from structured patient allergies by the form itself,
       // but preload can only check the legacy text field. The form will update the count on mount.
@@ -472,6 +492,18 @@ export default function VisitShow() {
         description: "Data triase berhasil disimpan",
       });
       emitMedicalRecordTabSaved("triage", true);
+      // Update triage field count indicator
+      const triageTextFields = [data.arrival_mode, data.triage_complaint, data.triage_level, data.airway, data.airway_note, data.breathing, data.breathing_note, data.circulation, data.circulation_note, data.blood_pressure, data.triage_assessment, data.immediate_actions];
+      const filledText = triageTextFields.filter((v: any) => v && String(v).trim() !== "").length;
+      const filledNumeric = [
+        data.heart_rate, data.respiratory_rate, data.temperature, data.oxygen_saturation, data.pain_scale
+      ].filter((v: any) => v !== undefined && v !== null && v !== 0).length;
+      const filledGCS = [
+        data.gcs_e !== undefined && data.gcs_e !== null ? 1 : 0,
+        data.gcs_v !== undefined && data.gcs_v !== null ? 1 : 0,
+        data.gcs_m !== undefined && data.gcs_m !== null ? 1 : 0,
+      ].reduce((a: number, b: number) => a + b, 0);
+      emitMedicalRecordTabIndicator("triage", `${filledText + filledNumeric + filledGCS}/20`);
       // Trigger refresh print options dan final visit
       window.dispatchEvent(new CustomEvent("refresh-print-options"));
       window.dispatchEvent(new CustomEvent("refresh-final-visit"));
