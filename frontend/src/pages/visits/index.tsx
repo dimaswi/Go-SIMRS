@@ -82,7 +82,7 @@ const VISIT_TABS: VisitTab[] = [
   {
     key: "pharmacy",
     label: "Farmasi",
-    roomTypes: ["pharmacy", "farmasi"],
+    roomTypes: ["depo_farmasi", "farmasi", "apotek", "pharmacy"],
   },
   {
     key: "lab",
@@ -103,11 +103,6 @@ const VISIT_TABS: VisitTab[] = [
     key: "surgery",
     label: "Operasi",
     roomTypes: ["ok", "kamar_operasi", "bedah", "surgery"],
-  },
-  {
-    key: "pharmacy",
-    label: "Farmasi",
-    roomTypes: ["depo_farmasi", "farmasi", "apotek", "pharmacy"],
   },
 ];
 
