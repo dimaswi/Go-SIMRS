@@ -194,6 +194,8 @@ func SaveAnamnesis(c *gin.Context) {
 	userID := c.GetUint("user_id")
 
 	var input struct {
+		AnamnesisSource         string `json:"anamnesis_source"`
+		FunctionalStatus        string `json:"functional_status"`
 		ChiefComplaint          string `json:"chief_complaint"`
 		HistoryOfPresentIllness string `json:"history_of_present_illness"`
 		PastMedicalHistory      string `json:"past_medical_history"`
@@ -232,6 +234,8 @@ func SaveAnamnesis(c *gin.Context) {
 		anamnesis.RecordedByID = recorderID
 	}
 
+	anamnesis.AnamnesisSource = input.AnamnesisSource
+	anamnesis.FunctionalStatus = input.FunctionalStatus
 	anamnesis.ChiefComplaint = input.ChiefComplaint
 	anamnesis.HistoryOfPresentIllness = input.HistoryOfPresentIllness
 	anamnesis.PastMedicalHistory = input.PastMedicalHistory
@@ -316,6 +320,18 @@ func SavePhysicalExam(c *gin.Context) {
 		ECGResult         string `json:"ecg_result"`
 		ECGInterpretation string `json:"ecg_interpretation"`
 		ECGNotes          string `json:"ecg_notes"`
+		// Supporting Examinations - CTG
+		CTGPerformed      bool   `json:"ctg_performed"`
+		CTGResult         string `json:"ctg_result"`
+		CTGInterpretation string `json:"ctg_interpretation"`
+		CTGNotes          string `json:"ctg_notes"`
+		// Supporting Examinations - Pelvic
+		PelvicPerformed bool   `json:"pelvic_performed"`
+		PelvicResult    string `json:"pelvic_result"`
+		PelvicNotes     string `json:"pelvic_notes"`
+		// Pain Assessment
+		PainMethod string `json:"pain_method"`
+		PainScale  int    `json:"pain_scale"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -468,6 +484,21 @@ func SavePhysicalExam(c *gin.Context) {
 	physExam.ECGResult = input.ECGResult
 	physExam.ECGInterpretation = input.ECGInterpretation
 	physExam.ECGNotes = input.ECGNotes
+
+	// Supporting Examinations - CTG
+	physExam.CTGPerformed = input.CTGPerformed
+	physExam.CTGResult = input.CTGResult
+	physExam.CTGInterpretation = input.CTGInterpretation
+	physExam.CTGNotes = input.CTGNotes
+
+	// Supporting Examinations - Pelvic
+	physExam.PelvicPerformed = input.PelvicPerformed
+	physExam.PelvicResult = input.PelvicResult
+	physExam.PelvicNotes = input.PelvicNotes
+
+	// Pain Assessment
+	physExam.PainMethod = input.PainMethod
+	physExam.PainScale = input.PainScale
 
 	if err := database.DB.Save(&physExam).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -745,6 +776,7 @@ func SaveAssessmentPlan(c *gin.Context) {
 		MonitoringPlan     string `json:"monitoring_plan"`
 		ProcedurePlan      string `json:"procedure_plan"`
 		ConsultationPlan   string `json:"consultation_plan"`
+		InformedConsent    string `json:"informed_consent"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -785,6 +817,7 @@ func SaveAssessmentPlan(c *gin.Context) {
 	assessmentPlan.MonitoringPlan = input.MonitoringPlan
 	assessmentPlan.ProcedurePlan = input.ProcedurePlan
 	assessmentPlan.ConsultationPlan = input.ConsultationPlan
+	assessmentPlan.InformedConsent = input.InformedConsent
 
 	if err := database.DB.Save(&assessmentPlan).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

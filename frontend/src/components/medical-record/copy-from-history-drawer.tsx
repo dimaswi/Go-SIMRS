@@ -342,13 +342,13 @@ export function CopyFromHistoryDrawer({
     const d = data as Record<string, unknown>;
 
     if (section === "anamnesis") {
-      const textFields = ["chief_complaint", "history_of_present_illness", "past_medical_history", "family_history", "social_history", "current_medications"];
+      const textFields = ["anamnesis_source", "functional_status", "chief_complaint", "history_of_present_illness", "past_medical_history", "family_history", "social_history", "current_medications"];
       const filledText = textFields.filter((f) => {
         const v = d[f];
         return typeof v === "string" && v.trim() !== "";
       }).length;
       const filled = filledText + (isMeaningfulAllergySummary(d.allergies) ? 1 : 0);
-      return `${filled}/7`;
+      return `${filled}/9`;
     }
 
     if (section === "physical-exam") {
@@ -383,12 +383,12 @@ export function CopyFromHistoryDrawer({
     }
 
     if (section === "assessment-plan") {
-      const apFields = ["clinical_assessment", "treatment_plan", "prognosis", "medication_plan", "diet_plan", "activity_plan", "education_plan", "procedure_plan", "consultation_plan", "monitoring_plan"];
+      const apFields = ["clinical_assessment", "treatment_plan", "prognosis", "medication_plan", "diet_plan", "activity_plan", "education_plan", "procedure_plan", "consultation_plan", "monitoring_plan", "informed_consent"];
       const filled = apFields.filter((f) => {
         const v = d[f];
         return typeof v === "string" && v.trim() !== "";
       }).length;
-      return `${filled}/10`;
+      return `${filled}/11`;
     }
 
     return null;
@@ -410,6 +410,8 @@ export function CopyFromHistoryDrawer({
 
   const renderAnamnesisPreview = (data: Anamnesis) => {
     const fields = [
+      { label: "Sumber", value: data.anamnesis_source === "autoanamnesis" ? "Autoanamnesis" : data.anamnesis_source === "alloanamnesis" ? "Alloanamnesis" : data.anamnesis_source },
+      { label: "Status Fungsional", value: data.functional_status },
       { label: "Keluhan Utama", value: data.chief_complaint },
       { label: "Riwayat Penyakit Sekarang", value: data.history_of_present_illness },
       { label: "Riwayat Penyakit Dahulu", value: data.past_medical_history },
