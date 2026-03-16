@@ -242,7 +242,7 @@ export function BedTransferForm({
                     <Building className="h-4 w-4" />
                     Pilih Ruangan Tujuan
                   </Label>
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                     {rooms.map(room => {
                       const isSelected = selectedRoomId === room.id;
                       const isCurrent = room.id === currentRoomId;
@@ -306,7 +306,7 @@ export function BedTransferForm({
                 {/* Unit and Bed Selection */}
                 {selectedRoomId && (
                   <div className="space-y-4 border rounded-lg p-4 bg-muted/30 mt-6">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
                       <Label className="text-sm font-semibold flex items-center gap-2">
                         <Bed className="h-4 w-4" />
                         Pilih Tempat Tidur
@@ -339,7 +339,7 @@ export function BedTransferForm({
                     ) : roomUnits.length > 0 ? (
                       <div className="space-y-4">
                         {/* Unit/Kamar Tabs */}
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
                           {roomUnits.map(unit => {
                             const availableCount = unit.beds?.filter(b => b.status === 'available').length || 0;
                             const totalCount = unit.beds?.length || 0;
@@ -383,7 +383,7 @@ export function BedTransferForm({
                               {selectedUnit.name} - Lantai {selectedUnit.floor || 1}
                             </div>
                             <TooltipProvider delayDuration={200}>
-                              <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
+                              <div className="grid grid-cols-2 sm:grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
                                 {bedsInUnit.map(bed => {
                                   const isAvailable = bed.status === 'available';
                                   const isSelected = selectedBedId === bed.id;
@@ -465,7 +465,7 @@ export function BedTransferForm({
                 {/* Transfer Type */}
                 <div className="space-y-3 mt-6">
                   <Label className="text-sm font-semibold">Tipe Mutasi</Label>
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-2">
                     {TRANSFER_TYPES.map(type => (
                       <button
                         key={type.value}

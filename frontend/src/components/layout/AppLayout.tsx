@@ -24,7 +24,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       <AppSidebar />
       <SidebarInset>
         <AppHeader />
-        <div className="flex flex-col flex-1 overflow-auto">
+        <div id="app-main-scroll-container" className="flex flex-col flex-1 overflow-auto">
           {children}
         </div>
       </SidebarInset>

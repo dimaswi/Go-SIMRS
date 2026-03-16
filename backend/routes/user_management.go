@@ -13,6 +13,8 @@ func setupPublicSettingsRoutes(rg *gin.RouterGroup) {
 
 func setupProtectedSettingsRoutes(rg *gin.RouterGroup) {
 	rg.GET("/auth/profile", handlers.GetProfile)
+	rg.GET("/auth/preferences/medical-record-tabs", handlers.GetMedicalRecordTabPreference)
+	rg.PUT("/auth/preferences/medical-record-tabs", handlers.UpsertMedicalRecordTabPreference)
 	rg.PUT("/settings", handlers.UpdateSettings)
 	rg.POST("/settings/upload", handlers.UploadLogo)
 }

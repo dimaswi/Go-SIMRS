@@ -14,8 +14,7 @@ import {
   Stethoscope,
   Users,
   Eye,
-  WandSparkles,
-  FileText
+  WandSparkles
 } from "lucide-react";
 import { medicalRecordsApi, type AssessmentPlan, type MedicalRecordSummary } from "@/lib/api/medical-records";
 import { medicalRecordEditLogApi } from "@/lib/api/visits";
@@ -37,6 +36,8 @@ interface AssessmentPlanFormProps {
 }
 
 export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = false, isPatientDischarged = false }: AssessmentPlanFormProps) {
+  const INFORMED_CONSENT_EDU_OPTION = "Informed consent";
+
   const DEFAULT_PROGNOSIS_OPTIONS = [
     "Baik",
     "Meragukan cenderung baik",
@@ -64,6 +65,7 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
     "Kepatuhan kontrol/rawat jalan",
     "Edukasi rujukan pasien",
     "Edukasi perencanaan pulang",
+    INFORMED_CONSENT_EDU_OPTION,
   ];
 
   const BASE_ACTIVITY_OPTIONS = [
@@ -89,7 +91,9 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [syncingPlans, setSyncingPlans] = useState(false);
+  const [syncingMedicationPlan, setSyncingMedicationPlan] = useState(false);
+  const [syncingProcedurePlan, setSyncingProcedurePlan] = useState(false);
+  const [syncingConsultationPlan, setSyncingConsultationPlan] = useState(false);
   const [generatingClinicalAssessment, setGeneratingClinicalAssessment] = useState(false);
   const [syncingActivityFromSupportOrders, setSyncingActivityFromSupportOrders] = useState(false);
   const [prognosisOptions, setPrognosisOptions] = useState<string[]>(DEFAULT_PROGNOSIS_OPTIONS);
@@ -152,7 +156,7 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
         if (response.data) {
           addPrognosisOption(response.data.prognosis || "");
           setSelectedDietItems(extractSelectedItems(response.data.diet_plan, DIET_CHECKLIST_OPTIONS));
-          setSelectedEducationItems(extractSelectedItems(response.data.education_plan, EDUCATION_CHECKLIST_OPTIONS));
+          setSelectedEducationItems(buildEducationSelections(response.data.education_plan, (response.data as any).informed_consent));
           setSelectedActivityItems(extractSelectedItems(response.data.activity_plan, BASE_ACTIVITY_OPTIONS));
           setSelectedMonitoringItems(extractSelectedItems(response.data.monitoring_plan, MONITORING_CHECKLIST_OPTIONS));
           setFormData({
@@ -183,7 +187,7 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
           const draft = loadFormDraft<typeof formData>(`mr-draft-assessment-plan-${visitId}`);
           if (draft) {
             setSelectedDietItems(extractSelectedItems(draft.diet_plan, DIET_CHECKLIST_OPTIONS));
-            setSelectedEducationItems(extractSelectedItems(draft.education_plan, EDUCATION_CHECKLIST_OPTIONS));
+            setSelectedEducationItems(buildEducationSelections(draft.education_plan, draft.informed_consent));
             setSelectedActivityItems(extractSelectedItems(draft.activity_plan, BASE_ACTIVITY_OPTIONS));
             setSelectedMonitoringItems(extractSelectedItems(draft.monitoring_plan, MONITORING_CHECKLIST_OPTIONS));
             setFormData(draft);
@@ -198,7 +202,7 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
         if (pendingCopy) {
             addPrognosisOption(pendingCopy.prognosis || "");
           setSelectedDietItems(extractSelectedItems(pendingCopy.diet_plan, DIET_CHECKLIST_OPTIONS));
-          setSelectedEducationItems(extractSelectedItems(pendingCopy.education_plan, EDUCATION_CHECKLIST_OPTIONS));
+          setSelectedEducationItems(buildEducationSelections(pendingCopy.education_plan, pendingCopy.informed_consent));
           setSelectedActivityItems(extractSelectedItems(pendingCopy.activity_plan, BASE_ACTIVITY_OPTIONS));
           setSelectedMonitoringItems(extractSelectedItems(pendingCopy.monitoring_plan, MONITORING_CHECKLIST_OPTIONS));
           setFormData({
@@ -249,6 +253,15 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
     return options.filter((option) => new RegExp(escapeRegExp(option), "i").test(source));
   };
 
+  const buildEducationSelections = (educationPlan?: string, informedConsent?: string) => {
+    const selected = extractSelectedItems(educationPlan, EDUCATION_CHECKLIST_OPTIONS);
+    const hasInformedConsent = Boolean(informedConsent?.trim());
+    if (hasInformedConsent && !selected.includes(INFORMED_CONSENT_EDU_OPTION)) {
+      return [...selected, INFORMED_CONSENT_EDU_OPTION];
+    }
+    return selected;
+  };
+
   const handleToggleDietItem = (item: string) => {
     setSelectedDietItems((prev) => {
       const next = prev.includes(item) ? prev.filter((x) => x !== item) : [...prev, item];
@@ -267,6 +280,9 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
       setFormData((current) => ({
         ...current,
         education_plan: formatChecklistPlan("Rencana edukasi", next),
+        informed_consent: next.includes(INFORMED_CONSENT_EDU_OPTION)
+          ? INFORMED_CONSENT_EDU_OPTION
+          : "",
       }));
       emitMedicalRecordTabSaved("assessment-plan", false);
       return next;
@@ -474,169 +490,198 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
     }
   };
 
-  const handleSyncPlansFromOrders = async () => {
-    setSyncingPlans(true);
+  const buildMedicationPlanFromOrders = async () => {
+    const response = await medicineOrdersApi.getAll({ source_visit_id: visitId });
+    const orders = asArray<any>(response.data);
+    const activeOrders = orders.filter((order) => order?.status !== "cancelled");
+    const itemLines = activeOrders.flatMap((order) => {
+      const items = Array.isArray(order?.items) ? order.items : [];
+      return items.map((item: any) => {
+        const medicineName = item?.medicine?.name || item?.medicine_name || "Obat";
+        const dosage = item?.dosage ? `, dosis ${item.dosage}` : "";
+        const frequency = item?.frequency ? `, frekuensi ${item.frequency}` : "";
+        const duration = item?.duration ? `, durasi ${item.duration}` : "";
+        const route = item?.route ? `, rute ${item.route}` : "";
+        return `- ${medicineName}${dosage}${frequency}${route}${duration}`;
+      });
+    });
+
+    if (itemLines.length === 0) return "";
+    return ["Rencana obat (diambil dari Order Obat):", ...itemLines].join("\n");
+  };
+
+  const buildProcedurePlanFromOrders = async () => {
+    const response = await visitProceduresApi.getAll(visitId);
+    const procedures = asArray<any>(response.data);
+    const activeProcedures = procedures.filter((p) => p?.status !== "cancelled");
+    const procedureLines = activeProcedures.map((p) => {
+      const procedureName = p?.procedure?.name || "Tindakan";
+      const status = p?.status ? ` (${p.status})` : "";
+      const note = p?.notes ? ` - ${p.notes}` : "";
+      return `- ${procedureName}${status}${note}`;
+    });
+
+    if (procedureLines.length === 0) return "";
+    return ["Rencana tindakan (diambil dari Tindakan):", ...procedureLines].join("\n");
+  };
+
+  const buildConsultationPlanFromOrders = async () => {
+    const response = await procedureOrdersApi.getBySourceVisit(visitId, "consultation");
+    const orders = asArray<any>(response.data);
+    const toTimestamp = (value?: string) => {
+      if (!value) return Number.NaN;
+      const time = new Date(value).getTime();
+      return Number.isNaN(time) ? Number.NaN : time;
+    };
+
+    const getConsultationOrderTime = (order: any) => {
+      const candidates = [
+        order?.completed_at,
+        order?.consultation?.updated_at,
+        order?.consultation?.created_at,
+        order?.updated_at,
+        order?.created_at,
+      ];
+
+      for (const candidate of candidates) {
+        const ts = toTimestamp(candidate);
+        if (!Number.isNaN(ts)) return ts;
+      }
+
+      return Number.POSITIVE_INFINITY;
+    };
+
+    const activeOrders = orders
+      .filter((order) => order?.status !== "cancelled")
+      .sort((a, b) => {
+        const ta = getConsultationOrderTime(a);
+        const tb = getConsultationOrderTime(b);
+        if (ta !== tb) return ta - tb;
+        return (a?.id || 0) - (b?.id || 0);
+      });
+
+    const consultationBlocks = activeOrders.map((order, index) => {
+      const targetRoom = order?.target_room?.name ? ` ke ${order.target_room.name}` : "";
+      const consultantName = order?.consultation?.consultant?.nama_lengkap;
+      const resultSummary = order?.result_summary?.trim?.() || "";
+      const subjective = order?.consultation?.subjective?.trim?.() || "";
+      const objective = order?.consultation?.objective?.trim?.() || "";
+      const plan = order?.consultation?.plan?.trim?.() || "";
+      const recommendation = order?.consultation?.recommendation?.trim?.() || "";
+      const assessment = order?.consultation?.assessment?.trim?.() || "";
+      const baseHeader = `- Konsultasi ${index + 1}${targetRoom}${consultantName ? ` (dr. ${consultantName})` : ""}`;
+
+      if (resultSummary) {
+        const formattedSummary = resultSummary
+          .split("\n")
+          .map((line: string) => line.trim())
+          .filter(Boolean)
+          .map((line: string) => `  ${line}`)
+          .join("\n");
+        return [baseHeader, formattedSummary].join("\n");
+      }
+
+      if (subjective || objective || assessment || plan || recommendation) {
+        const answerLines = [
+          subjective ? `  S: ${subjective}` : "",
+          objective ? `  O: ${objective}` : "",
+          assessment ? `  A: ${assessment}` : "",
+          plan ? `  P: ${plan}` : "",
+          recommendation ? `  Rekomendasi: ${recommendation}` : "",
+        ].filter(Boolean);
+        return [baseHeader, ...answerLines].join("\n");
+      }
+
+      const notes = order?.clinical_notes || order?.notes || "";
+      return `${baseHeader}${notes ? `\n  Catatan order: ${notes}` : ""}`;
+    });
+
+    if (consultationBlocks.length === 0) return "";
+    return [
+      "Rencana konsultasi (diambil dari jawaban dokter konsulen):",
+      "",
+      consultationBlocks.join("\n\n"),
+    ].join("\n");
+  };
+
+  const handleSyncMedicationPlanFromOrders = async () => {
+    setSyncingMedicationPlan(true);
     try {
-      const [medicineRes, visitProcedureRes, consultationOrderRes] = await Promise.allSettled([
-        medicineOrdersApi.getAll({ source_visit_id: visitId }),
-        visitProceduresApi.getAll(visitId),
-        procedureOrdersApi.getBySourceVisit(visitId, "consultation"),
-      ]);
-
-      let medicationPlan = "";
-      let procedurePlan = "";
-      let consultationPlan = "";
-
-      if (medicineRes.status === "fulfilled") {
-        const orders = asArray<any>(medicineRes.value.data);
-        const activeOrders = orders.filter((order) => order?.status !== "cancelled");
-        const itemLines = activeOrders.flatMap((order) => {
-          const items = Array.isArray(order?.items) ? order.items : [];
-          return items.map((item: any) => {
-            const medicineName = item?.medicine?.name || item?.medicine_name || "Obat";
-            const dosage = item?.dosage ? `, dosis ${item.dosage}` : "";
-            const frequency = item?.frequency ? `, frekuensi ${item.frequency}` : "";
-            const duration = item?.duration ? `, durasi ${item.duration}` : "";
-            const route = item?.route ? `, rute ${item.route}` : "";
-            return `- ${medicineName}${dosage}${frequency}${route}${duration}`;
-          });
-        });
-
-        if (itemLines.length > 0) {
-          medicationPlan = [
-            "Rencana obat (diambil dari Order Obat):",
-            ...itemLines,
-          ].join("\n");
-        }
-      }
-
-      if (visitProcedureRes.status === "fulfilled") {
-        const procedures = asArray<any>(visitProcedureRes.value.data);
-        const activeProcedures = procedures.filter((p) => p?.status !== "cancelled");
-        const procedureLines = activeProcedures.map((p) => {
-          const procedureName = p?.procedure?.name || "Tindakan";
-          const status = p?.status ? ` (${p.status})` : "";
-          const note = p?.notes ? ` - ${p.notes}` : "";
-          return `- ${procedureName}${status}${note}`;
-        });
-
-        if (procedureLines.length > 0) {
-          procedurePlan = [
-            "Rencana tindakan (diambil dari Tindakan):",
-            ...procedureLines,
-          ].join("\n");
-        }
-      }
-
-      if (consultationOrderRes.status === "fulfilled") {
-        const orders = asArray<any>(consultationOrderRes.value.data);
-        const toTimestamp = (value?: string) => {
-          if (!value) return Number.NaN;
-          const time = new Date(value).getTime();
-          return Number.isNaN(time) ? Number.NaN : time;
-        };
-
-        const getConsultationOrderTime = (order: any) => {
-          const candidates = [
-            order?.completed_at,
-            order?.consultation?.updated_at,
-            order?.consultation?.created_at,
-            order?.updated_at,
-            order?.created_at,
-          ];
-
-          for (const candidate of candidates) {
-            const ts = toTimestamp(candidate);
-            if (!Number.isNaN(ts)) return ts;
-          }
-
-          return Number.POSITIVE_INFINITY;
-        };
-
-        const activeOrders = orders
-          .filter((order) => order?.status !== "cancelled")
-          .sort((a, b) => {
-            const ta = getConsultationOrderTime(a);
-            const tb = getConsultationOrderTime(b);
-            if (ta !== tb) return ta - tb;
-            return (a?.id || 0) - (b?.id || 0);
-          });
-        const consultationBlocks = activeOrders.map((order, index) => {
-          const targetRoom = order?.target_room?.name ? ` ke ${order.target_room.name}` : "";
-          const consultantName = order?.consultation?.consultant?.nama_lengkap;
-          const resultSummary = order?.result_summary?.trim?.() || "";
-          const subjective = order?.consultation?.subjective?.trim?.() || "";
-          const objective = order?.consultation?.objective?.trim?.() || "";
-          const plan = order?.consultation?.plan?.trim?.() || "";
-          const recommendation = order?.consultation?.recommendation?.trim?.() || "";
-          const assessment = order?.consultation?.assessment?.trim?.() || "";
-          const baseHeader = `- Konsultasi ${index + 1}${targetRoom}${consultantName ? ` (dr. ${consultantName})` : ""}`;
-
-          // Primary source: jawaban dokter konsulen as shown in consultation history card.
-          if (resultSummary) {
-            const formattedSummary = resultSummary
-              .split("\n")
-              .map((line: string) => line.trim())
-              .filter(Boolean)
-              .map((line: string) => `  ${line}`)
-              .join("\n");
-            return [baseHeader, formattedSummary].join("\n");
-          }
-
-          if (subjective || objective || assessment || plan || recommendation) {
-            const answerLines = [
-              subjective ? `  S: ${subjective}` : "",
-              objective ? `  O: ${objective}` : "",
-              assessment ? `  A: ${assessment}` : "",
-              plan ? `  P: ${plan}` : "",
-              recommendation ? `  Rekomendasi: ${recommendation}` : "",
-            ].filter(Boolean);
-
-            return [baseHeader, ...answerLines].join("\n");
-          }
-
-          const notes = order?.clinical_notes || order?.notes || "";
-          return `${baseHeader}${notes ? `\n  Catatan order: ${notes}` : ""}`;
-        });
-
-        if (consultationBlocks.length > 0) {
-          consultationPlan = [
-            "Rencana konsultasi (diambil dari jawaban dokter konsulen):",
-            "",
-            consultationBlocks.join("\n\n"),
-          ].join("\n");
-        }
-      }
-
-      if (!medicationPlan && !procedurePlan && !consultationPlan) {
+      const medicationPlan = await buildMedicationPlanFromOrders();
+      if (!medicationPlan) {
         toast({
           title: "Data belum tersedia",
-          description: "Belum ada data Order Obat/Tindakan/Order Konsultasi yang bisa diambil.",
+          description: "Belum ada data Order Obat yang bisa diambil.",
           variant: "destructive",
         });
         return;
       }
 
-      setFormData((prev) => ({
-        ...prev,
-        medication_plan: medicationPlan || prev.medication_plan,
-        procedure_plan: procedurePlan || prev.procedure_plan,
-        consultation_plan: consultationPlan || prev.consultation_plan,
-      }));
-
+      setFormData((prev) => ({ ...prev, medication_plan: medicationPlan }));
       emitMedicalRecordTabSaved("assessment-plan", false);
-      toast({
-        title: "Berhasil",
-        description: "Rencana Obat/Tindakan/Konsultasi berhasil diisi, termasuk jawaban dokter konsulen jika tersedia.",
-      });
+      toast({ title: "Berhasil", description: "Rencana Obat diambil dari Order Obat." });
     } catch {
       toast({
         title: "Gagal sinkronisasi",
-        description: "Terjadi kendala saat mengambil data order. Coba lagi.",
+        description: "Terjadi kendala saat mengambil Order Obat.",
         variant: "destructive",
       });
     } finally {
-      setSyncingPlans(false);
+      setSyncingMedicationPlan(false);
+    }
+  };
+
+  const handleSyncProcedurePlanFromOrders = async () => {
+    setSyncingProcedurePlan(true);
+    try {
+      const procedurePlan = await buildProcedurePlanFromOrders();
+      if (!procedurePlan) {
+        toast({
+          title: "Data belum tersedia",
+          description: "Belum ada data Tindakan yang bisa diambil.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setFormData((prev) => ({ ...prev, procedure_plan: procedurePlan }));
+      emitMedicalRecordTabSaved("assessment-plan", false);
+      toast({ title: "Berhasil", description: "Rencana Tindakan diambil dari data Tindakan." });
+    } catch {
+      toast({
+        title: "Gagal sinkronisasi",
+        description: "Terjadi kendala saat mengambil data Tindakan.",
+        variant: "destructive",
+      });
+    } finally {
+      setSyncingProcedurePlan(false);
+    }
+  };
+
+  const handleSyncConsultationPlanFromOrders = async () => {
+    setSyncingConsultationPlan(true);
+    try {
+      const consultationPlan = await buildConsultationPlanFromOrders();
+      if (!consultationPlan) {
+        toast({
+          title: "Data belum tersedia",
+          description: "Belum ada data Order Konsultasi/Jawaban Konsulen yang bisa diambil.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setFormData((prev) => ({ ...prev, consultation_plan: consultationPlan }));
+      emitMedicalRecordTabSaved("assessment-plan", false);
+      toast({ title: "Berhasil", description: "Rencana Konsultasi diambil dari jawaban dokter konsulen." });
+    } catch {
+      toast({
+        title: "Gagal sinkronisasi",
+        description: "Terjadi kendala saat mengambil Order Konsultasi.",
+        variant: "destructive",
+      });
+    } finally {
+      setSyncingConsultationPlan(false);
     }
   };
 
@@ -793,7 +838,7 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
       clearPendingCopy("assessment-plan");
       const d = ev.detail.data;
       setSelectedDietItems(extractSelectedItems(d.diet_plan, DIET_CHECKLIST_OPTIONS));
-      setSelectedEducationItems(extractSelectedItems(d.education_plan, EDUCATION_CHECKLIST_OPTIONS));
+      setSelectedEducationItems(buildEducationSelections(d.education_plan, d.informed_consent));
       setSelectedActivityItems(extractSelectedItems(d.activity_plan, BASE_ACTIVITY_OPTIONS));
       setSelectedMonitoringItems(extractSelectedItems(d.monitoring_plan, MONITORING_CHECKLIST_OPTIONS));
       setFormData({
@@ -835,12 +880,12 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
               recordTypeLabel="Assessment & Plan"
             />
         <form onSubmit={handleSubmit}>
-          <fieldset disabled={isFormDisabled} className="space-y-6">
+          <fieldset disabled={isFormDisabled} className="space-y-4 sm:space-y-6">
           
           {/* Section 1: Asesmen Klinis */}
           <div className="space-y-4">{/* Clinical Assessment / Clinical Impression */}
               <div className="space-y-2">
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                   <Label htmlFor="clinical_assessment" className="text-sm font-semibold">
                     Kesan Klinis (Clinical Impression) <span className="text-destructive">*</span>
                   </Label>
@@ -848,7 +893,7 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="h-8"
+                    className="h-8 w-full sm:w-auto"
                     onClick={handleAutoGenerateClinicalAssessment}
                     disabled={isFormDisabled || generatingClinicalAssessment}
                   >
@@ -946,35 +991,37 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
 
           {/* Section 3: Rencana Detail */}
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <Badge variant={filledDetailFields > 0 ? "default" : "outline"}>
                 {filledDetailFields}/6
               </Badge>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleSyncPlansFromOrders}
-                disabled={isFormDisabled || syncingPlans}
-                className="h-8"
-              >
-                {syncingPlans ? (
-                  <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <WandSparkles className="mr-1 h-3.5 w-3.5" />
-                )}
-                Ambil dari Order
-              </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Tombol ini mengisi otomatis Rencana Obat dan Rencana Tindakan dari data order, serta Rencana Konsultasi dari jawaban dokter konsulen (jika sudah ada), pada kunjungan ini.
+              Gunakan tombol per bagian untuk mengambil data order sesuai kebutuhan, tanpa menimpa semua rencana sekaligus.
             </p>
               <div className="space-y-4">
                 <div className="space-y-2 rounded-md border p-3">
-                  <Label htmlFor="medication_plan" className="text-sm flex items-center gap-2">
-                    <Heart className="h-4 w-4 text-muted-foreground" />
-                    Rencana Obat
-                  </Label>
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <Label htmlFor="medication_plan" className="text-sm flex items-center gap-2">
+                      <Heart className="h-4 w-4 text-muted-foreground" />
+                      Rencana Obat
+                    </Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 w-full sm:w-auto"
+                      onClick={handleSyncMedicationPlanFromOrders}
+                      disabled={isFormDisabled || syncingMedicationPlan}
+                    >
+                      {syncingMedicationPlan ? (
+                        <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <WandSparkles className="mr-1 h-3.5 w-3.5" />
+                      )}
+                      Ambil dari Order Obat
+                    </Button>
+                  </div>
                   <Textarea
                     id="medication_plan"
                     placeholder="Obat-obatan yang akan diberikan..."
@@ -1008,7 +1055,7 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
                   </div>
                 </div>
                 <div className="space-y-2 rounded-md border p-3">
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                     <Label htmlFor="activity_plan" className="text-sm flex items-center gap-2">
                       <Activity className="h-4 w-4 text-muted-foreground" />
                       Rencana Aktivitas
@@ -1017,7 +1064,7 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="h-8"
+                      className="h-8 w-full sm:w-auto"
                       onClick={handleSyncActivityFromSupportOrders}
                       disabled={isFormDisabled || syncingActivityFromSupportOrders}
                     >
@@ -1076,10 +1123,27 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
                   </div>
                 </div>
                 <div className="space-y-2 rounded-md border p-3">
-                  <Label htmlFor="procedure_plan" className="text-sm flex items-center gap-2">
-                    <Stethoscope className="h-4 w-4 text-muted-foreground" />
-                    Rencana Tindakan
-                  </Label>
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <Label htmlFor="procedure_plan" className="text-sm flex items-center gap-2">
+                      <Stethoscope className="h-4 w-4 text-muted-foreground" />
+                      Rencana Tindakan
+                    </Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 w-full sm:w-auto"
+                      onClick={handleSyncProcedurePlanFromOrders}
+                      disabled={isFormDisabled || syncingProcedurePlan}
+                    >
+                      {syncingProcedurePlan ? (
+                        <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <WandSparkles className="mr-1 h-3.5 w-3.5" />
+                      )}
+                      Ambil dari Tindakan
+                    </Button>
+                  </div>
                   <Textarea
                     id="procedure_plan"
                     placeholder="Prosedur/tindakan yang akan dilakukan..."
@@ -1089,10 +1153,27 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
                   />
                 </div>
                 <div className="space-y-2 rounded-md border p-3">
-                  <Label htmlFor="consultation_plan" className="text-sm flex items-center gap-2">
-                    <Users className="h-4 w-4 text-muted-foreground" />
-                    Rencana Konsultasi
-                  </Label>
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <Label htmlFor="consultation_plan" className="text-sm flex items-center gap-2">
+                      <Users className="h-4 w-4 text-muted-foreground" />
+                      Rencana Konsultasi
+                    </Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 w-full sm:w-auto"
+                      onClick={handleSyncConsultationPlanFromOrders}
+                      disabled={isFormDisabled || syncingConsultationPlan}
+                    >
+                      {syncingConsultationPlan ? (
+                        <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <WandSparkles className="mr-1 h-3.5 w-3.5" />
+                      )}
+                      Ambil dari Order Konsultasi
+                    </Button>
+                  </div>
                   <Textarea
                     id="consultation_plan"
                     placeholder="Konsultasi ke spesialis yang diperlukan..."
@@ -1101,25 +1182,12 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
                     className="min-h-[80px] resize-none"
                   />
                 </div>
-                <div className="space-y-2 rounded-md border p-3 col-span-2">
-                  <Label htmlFor="informed_consent" className="text-sm flex items-center gap-2">
-                    <FileText className="h-4 w-4 text-muted-foreground" />
-                    Informed Consent
-                  </Label>
-                  <Textarea
-                    id="informed_consent"
-                    placeholder="Catatan informed consent pasien/keluarga..."
-                    value={formData.informed_consent}
-                    onChange={(e) => handleChange("informed_consent", e.target.value)}
-                    className="min-h-[80px] resize-none"
-                  />
-                </div>
               </div>
           </div>
 
           {/* Section 4: Rencana Penatalaksanaan */}
           <div className="space-y-2">
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
               <Label htmlFor="treatment_plan" className="text-sm font-semibold">
                 Rencana Penatalaksanaan <span className="text-destructive">*</span>
               </Label>
@@ -1127,7 +1195,7 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-8"
+                className="h-8 w-full sm:w-auto"
                 onClick={handleGenerateTreatmentPlanFromDetails}
                 disabled={isFormDisabled}
               >

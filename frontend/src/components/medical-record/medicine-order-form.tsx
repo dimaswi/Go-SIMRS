@@ -179,36 +179,38 @@ function OrderCollapsible({ order }: { order: MedicineOrder }) {
           <div className="mt-3 ml-6 space-y-3">
             {/* Order Info Table */}
             <div className="bg-muted/30 rounded-lg p-3">
-              <table className="w-full text-sm">
-                <tbody>
-                  <tr>
-                    <td className="py-1 text-muted-foreground w-1/3">Farmasi Tujuan</td>
-                    <td className="py-1 font-medium">{order.pharmacy_room?.name || "-"}</td>
-                  </tr>
-                  <tr>
-                    <td className="py-1 text-muted-foreground">Prioritas</td>
-                    <td className="py-1">
-                      <Badge variant={order.priority === "urgent" ? "destructive" : "outline"} className="text-xs">
-                        {order.priority === "urgent" ? "Urgent" : "Normal"}
-                      </Badge>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="py-1 text-muted-foreground">Diagnosis</td>
-                    <td className="py-1">{order.diagnosis || "-"}</td>
-                  </tr>
-                  <tr>
-                    <td className="py-1 text-muted-foreground">Catatan</td>
-                    <td className="py-1">{order.notes || "-"}</td>
-                  </tr>
-                </tbody>
-              </table>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[640px] text-sm">
+                  <tbody>
+                    <tr>
+                      <td className="py-1 text-muted-foreground w-1/3">Farmasi Tujuan</td>
+                      <td className="py-1 font-medium">{order.pharmacy_room?.name || "-"}</td>
+                    </tr>
+                    <tr>
+                      <td className="py-1 text-muted-foreground">Prioritas</td>
+                      <td className="py-1">
+                        <Badge variant={order.priority === "urgent" ? "destructive" : "outline"} className="text-xs">
+                          {order.priority === "urgent" ? "Urgent" : "Normal"}
+                        </Badge>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="py-1 text-muted-foreground">Diagnosis</td>
+                      <td className="py-1">{order.diagnosis || "-"}</td>
+                    </tr>
+                    <tr>
+                      <td className="py-1 text-muted-foreground">Catatan</td>
+                      <td className="py-1">{order.notes || "-"}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
             
             {/* Order Items Table */}
             {order.items && order.items.length > 0 && (
-              <div className="border rounded-lg overflow-hidden">
-                <table className="w-full text-sm">
+              <div className="border rounded-lg overflow-x-auto">
+                <table className="w-full min-w-[640px] text-sm">
                   <thead className="bg-muted/50">
                     <tr>
                       <th className="py-2 px-3 text-left font-medium">Obat</th>
@@ -223,7 +225,14 @@ function OrderCollapsible({ order }: { order: MedicineOrder }) {
                       .map((item, idx) => (
                       <tr key={idx} className="border-t">
                         <td className="py-2 px-3">
-                          <p className="font-medium">{item.medicine?.name}</p>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-medium">{item.medicine?.name}</p>
+                            {item.added_by_pharmacy && (
+                              <Badge variant="outline" className="text-[10px] h-5 px-1.5 border-blue-300 text-blue-700 bg-blue-50">
+                                Ditambah Farmasi
+                              </Badge>
+                            )}
+                          </div>
                           {item.instructions && (
                             <p className="text-xs text-blue-600">"{item.instructions}"</p>
                           )}
@@ -684,7 +693,7 @@ export function MedicineOrderForm({ visitId, readOnly = false }: MedicineOrderFo
           </div>
           {/* Order Items */}
           <div className="space-y-2 pt-2">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <Label className="text-base font-medium">Daftar Obat</Label>
               <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
                 <DialogTrigger asChild>
@@ -693,7 +702,7 @@ export function MedicineOrderForm({ visitId, readOnly = false }: MedicineOrderFo
                     Tambah Obat
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+                <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
                   <DialogHeader>
                     <DialogTitle>Pilih Obat</DialogTitle>
                     <DialogDescription>
@@ -760,8 +769,126 @@ export function MedicineOrderForm({ visitId, readOnly = false }: MedicineOrderFo
                 <p className="text-sm">Klik "Tambah Obat" untuk memulai</p>
               </div>
             ) : (
-              <div className="border rounded-lg overflow-auto">
-                <table className="w-full text-sm min-w-[1100px]">
+              <>
+                <div className="space-y-3 md:hidden">
+                  {orderItems.map((item, index) => (
+                    <div key={index} className="rounded-lg border p-3 space-y-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="font-medium text-sm leading-5">{item.medicine_name}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">{item.medicine_code} • Stok {item.available_stock} {item.unit}</p>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive shrink-0"
+                          onClick={() => handleRemoveItem(index)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Jumlah*</Label>
+                          <Input
+                            type="number"
+                            min={1}
+                            max={item.available_stock}
+                            value={item.quantity}
+                            onChange={(e) => handleUpdateItemQuantity(index, Number(e.target.value))}
+                            className={cn(plainFieldClass, itemErrors[index]?.length ? "border border-destructive bg-destructive/5" : "")}
+                          />
+                          <p className="text-[10px] text-muted-foreground">Maks {item.available_stock}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Dosis*</Label>
+                          <Input
+                            placeholder="Contoh: 3x1"
+                            value={item.dosage}
+                            onChange={(e) => handleUpdateItemField(index, "dosage", e.target.value)}
+                            className={cn(plainFieldClass, itemErrors[index]?.length ? "border border-destructive bg-destructive/5" : "")}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-2">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Frekuensi*</Label>
+                          <Select
+                            value={item.frequency}
+                            onValueChange={(value) => handleUpdateItemField(index, "frequency", value)}
+                          >
+                            <SelectTrigger className={cn(plainFieldClass, itemErrors[index]?.length ? "border border-destructive bg-destructive/5" : "")}> 
+                              <SelectValue placeholder="Pilih" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {frequencyOptions.map((option) => (
+                                <SelectItem key={option} value={option}>{option}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-1">
+                          <Label className="text-xs">Rute*</Label>
+                          <Select
+                            value={item.route}
+                            onValueChange={(value) => handleUpdateItemField(index, "route", value)}
+                          >
+                            <SelectTrigger className={cn(plainFieldClass, itemErrors[index]?.length ? "border border-destructive bg-destructive/5" : "")}> 
+                              <SelectValue placeholder="Pilih" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {routeOptions.map((option) => (
+                                <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-1">
+                          <Label className="text-xs">Durasi*</Label>
+                          <Input
+                            placeholder="Contoh: 7 hari"
+                            value={item.duration}
+                            onChange={(e) => handleUpdateItemField(index, "duration", e.target.value)}
+                            className={cn(plainFieldClass, itemErrors[index]?.length ? "border border-destructive bg-destructive/5" : "")}
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <Label className="text-xs">Instruksi*</Label>
+                          <Combobox
+                            options={instructionOptions}
+                            value={item.instructions}
+                            onValueChange={(value) => handleUpdateItemField(index, "instructions", value)}
+                            placeholder="Pilih instruksi"
+                            searchPlaceholder="Cari instruksi..."
+                            emptyText="Instruksi tidak ditemukan"
+                            className={cn("w-full", itemErrors[index]?.length ? "border border-destructive bg-destructive/5" : "")}
+                          />
+                          {itemErrors[index]?.length ? (
+                            <p className="text-[11px] text-destructive mt-1">{itemErrors[index][0]}</p>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      <div className="rounded-md bg-primary/5 p-2 text-right">
+                        <p className="text-xs text-muted-foreground">@ {formatRupiah(item.unit_price)}</p>
+                        <p className="text-sm font-semibold leading-4">{formatRupiah(item.quantity * item.unit_price)}</p>
+                      </div>
+                    </div>
+                  ))}
+
+                  <div className="rounded-lg border bg-primary/5 p-3 text-right">
+                    <p className="text-sm font-medium text-muted-foreground">Grand Total</p>
+                    <p className="text-lg font-bold text-primary">{formatRupiah(orderGrandTotal)}</p>
+                  </div>
+                </div>
+
+                <div className="hidden md:block border rounded-lg overflow-auto">
+                  <table className="w-full text-sm min-w-[1100px]">
                   <thead className="bg-muted/50 border-b">
                     <tr>
                       <th className="py-2 px-2 text-left font-medium w-[220px]">Obat</th>
@@ -882,7 +1009,8 @@ export function MedicineOrderForm({ visitId, readOnly = false }: MedicineOrderFo
                     </tr>
                   </tfoot>
                 </table>
-              </div>
+                </div>
+              </>
             )}
           </div>
 
@@ -896,9 +1024,10 @@ export function MedicineOrderForm({ visitId, readOnly = false }: MedicineOrderFo
           </div>
 
           {/* Submit Button */}
-          <div className="flex justify-end pt-4">
+          <div className="flex justify-stretch sm:justify-end pt-4">
             <Button
               size="lg"
+              className="w-full sm:w-auto"
               disabled={submitting || orderItems.length === 0 || !hasPermission('medicine_orders.create') || readOnly}
               onClick={handleSubmitOrder}
             >

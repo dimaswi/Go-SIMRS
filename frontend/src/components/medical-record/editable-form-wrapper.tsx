@@ -253,7 +253,7 @@ export function EditableFormWrapper({
     <div className="relative">
       {/* Header with Edit/History buttons for discharged patients */}
       {isPatientDischarged && (
-        <div className="mb-4 flex items-center justify-between bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
+        <div className="mb-4 flex flex-col gap-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
             <Lock className="h-4 w-4 text-amber-600" />
             <span className="text-sm text-amber-800 dark:text-amber-200">
@@ -262,12 +262,12 @@ export function EditableFormWrapper({
                 : "Pasien sudah pulang - klik Edit untuk mengubah"}
             </span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="outline"
               size="sm"
               onClick={() => setShowHistoryDialog(true)}
-              className="gap-1.5"
+              className="w-full gap-1.5 sm:w-auto"
             >
               <History className="h-4 w-4" />
               Riwayat Edit
@@ -276,7 +276,7 @@ export function EditableFormWrapper({
               <Button
                 size="sm"
                 onClick={handleRequestEdit}
-                className="gap-1.5 bg-amber-600 hover:bg-amber-700"
+                  className="w-full gap-1.5 bg-amber-600 hover:bg-amber-700 sm:w-auto"
               >
                 <Pencil className="h-4 w-4" />
                 Edit {title || getRecordTypeLabel(recordType)}
@@ -296,7 +296,7 @@ export function EditableFormWrapper({
 
       {/* Edit Confirmation Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent>
+        <DialogContent className="w-[calc(100vw-1rem)] max-w-lg p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-amber-500" />
@@ -323,11 +323,11 @@ export function EditableFormWrapper({
               </p>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowEditDialog(false)}>
+          <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
+            <Button variant="outline" onClick={() => setShowEditDialog(false)} className="w-full sm:w-auto">
               Batal
             </Button>
-            <Button onClick={handleConfirmEdit} disabled={!editReason.trim()}>
+            <Button onClick={handleConfirmEdit} disabled={!editReason.trim()} className="w-full sm:w-auto">
               Lanjutkan Edit
             </Button>
           </DialogFooter>
@@ -336,7 +336,7 @@ export function EditableFormWrapper({
 
       {/* Edit History Dialog */}
       <Dialog open={showHistoryDialog} onOpenChange={setShowHistoryDialog}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="w-[calc(100vw-1rem)] max-w-2xl p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <History className="h-5 w-5" />
@@ -346,7 +346,7 @@ export function EditableFormWrapper({
               Log perubahan rekam medis setelah pasien pulang
             </DialogDescription>
           </DialogHeader>
-          <ScrollArea className="h-[400px] pr-4">
+          <ScrollArea className="h-[65vh] pr-2 sm:pr-4">
             {loadingLogs ? (
               <div className="flex items-center justify-center h-32">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>

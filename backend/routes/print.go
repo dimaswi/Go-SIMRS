@@ -54,6 +54,8 @@ func SetupPrintRoutes(api *gin.RouterGroup) {
 		print.GET("/fluid-balance/:visitId", handlers.PrintFluidBalance)
 		// Bed transfer PDF
 		print.GET("/bed-transfer/:visitId", handlers.PrintBedTransfer)
+		// Unit transfer PDF (Rawat Jalan/UGD)
+		print.GET("/unit-transfer/:visitId", handlers.PrintUnitTransfer)
 		// Vital sign chart PDF
 		print.GET("/vital-sign-chart/:visitId", handlers.PrintVitalSignChart)
 		// Inpatient certificate PDF (Surat Keterangan Rawat Inap)

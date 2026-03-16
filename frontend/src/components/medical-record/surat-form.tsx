@@ -204,7 +204,7 @@ export function SuratForm({ visitId, readOnly = false }: SuratFormProps) {
         <div className="flex items-center gap-2">
           <Label className="text-sm font-semibold">Pilih Jenis Surat</Label>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
           {letterTypes.map((lt) => {
             const count = letterCounts[lt.id] || 0;
             return (
@@ -340,7 +340,6 @@ function SickLetterSubForm({ visitId, readOnly = false, onCountChange }: SubForm
     start_date: format(new Date(), "yyyy-MM-dd"),
     end_date: format(new Date(), "yyyy-MM-dd"),
     days: 1,
-    reason: "",
     purpose: "Untuk dapat dipergunakan sebagaimana mestinya",
     institution: "",
     notes: "",
@@ -363,25 +362,6 @@ function SickLetterSubForm({ visitId, readOnly = false, onCountChange }: SubForm
   }, [visitId]);
 
   useEffect(() => { loadData(); }, [loadData]);
-
-  // Auto-fill reason with diagnosis data
-  useEffect(() => {
-    const fetchDiagnosis = async () => {
-      try {
-        const diagRes = await medicalRecordsApi.getDiagnosis(visitId);
-        if (diagRes.data?.items?.length) {
-          const diagTexts = diagRes.data.items
-            .filter((d: any) => d.icd10_code && d.icd10_name)
-            .map((d: any) => `${d.icd10_code} - ${d.icd10_name}`)
-            .join("; ");
-          if (diagTexts) {
-            setFormData((prev) => ({ ...prev, reason: prev.reason || diagTexts }));
-          }
-        }
-      } catch { /* diagnosis may not exist yet */ }
-    };
-    fetchDiagnosis();
-  }, [visitId]);
 
   const checkSignature = async (id: number) => {
     try {
@@ -417,6 +397,7 @@ function SickLetterSubForm({ visitId, readOnly = false, onCountChange }: SubForm
         id: editingId || undefined,
         visit_id: visitId,
         ...formData,
+        reason: "",
       } as any);
       toast({ title: "Berhasil", description: editingId ? "Surat sakit diperbarui" : "Surat sakit disimpan" });
       await loadData();
@@ -435,7 +416,6 @@ function SickLetterSubForm({ visitId, readOnly = false, onCountChange }: SubForm
       start_date: l.start_date?.split("T")[0] || format(new Date(), "yyyy-MM-dd"),
       end_date: l.end_date?.split("T")[0] || format(new Date(), "yyyy-MM-dd"),
       days: l.days || 1,
-      reason: l.reason || "",
       purpose: l.purpose || "Untuk dapat dipergunakan sebagaimana mestinya",
       institution: l.institution || "",
       notes: l.notes || "",
@@ -484,7 +464,7 @@ function SickLetterSubForm({ visitId, readOnly = false, onCountChange }: SubForm
       <div className="pt-4">
         {activeTab === "form" && (
           <fieldset disabled={readOnly} className="space-y-4">
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="space-y-1.5">
                 <Label><Calendar className="h-3.5 w-3.5 inline mr-1" />Tanggal Mulai</Label>
                 <Input type="date" value={formData.start_date} onChange={(e) => handleDateChange("start_date", e.target.value)} />
@@ -497,10 +477,6 @@ function SickLetterSubForm({ visitId, readOnly = false, onCountChange }: SubForm
                 <Label><Clock className="h-3.5 w-3.5 inline mr-1" />Jumlah Hari</Label>
                 <Input type="number" min="1" value={formData.days} onChange={(e) => handleDaysChange(parseInt(e.target.value) || 1)} />
               </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Diagnosis</Label>
-              <Textarea placeholder="Diagnosis pasien (otomatis dari tab diagnosis)" value={formData.reason} onChange={(e) => setFormData({ ...formData, reason: e.target.value })} rows={2} />
             </div>
             <div className="space-y-1.5">
               <Label>Tujuan / Keperluan</Label>
@@ -675,7 +651,7 @@ function HealthCertificateSubForm({ visitId, readOnly = false, onCountChange }: 
       <div className="pt-4">
         {activeTab === "form" && (
           <fieldset disabled={readOnly} className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label><Calendar className="h-3.5 w-3.5 inline mr-1" />Tanggal Pemeriksaan</Label>
                 <Input type="date" value={formData.exam_date} onChange={(e) => setFormData({ ...formData, exam_date: e.target.value })} />
@@ -783,7 +759,6 @@ function BirthCertificateSubForm({ visitId, readOnly = false, onCountChange }: S
     mother_mrn: "",
     dpjp_name: "",
     midwife_name: "",
-    apgar_score: "",
     notes: "",
   };
   const [formData, setFormData] = useState(defaultForm);
@@ -809,9 +784,13 @@ function BirthCertificateSubForm({ visitId, readOnly = false, onCountChange }: S
         const patient = visitRes.data?.registration?.patient;
         const doctor = visitRes.data?.doctor;
         if (patient) {
+          const patientName = (patient.nama_lengkap || "").trim();
+          const defaultMotherName = patientName ? `Ny. ${patientName}` : "";
+          const defaultBabyName = defaultMotherName ? `By ${defaultMotherName}` : "";
           setFormData((prev) => ({
             ...prev,
-            mother_name: prev.mother_name || `Ny. ${patient.nama_lengkap || ""}`.trim(),
+            mother_name: prev.mother_name || defaultMotherName,
+            baby_name: prev.baby_name || defaultBabyName,
             mother_mrn: prev.mother_mrn || patient.no_rm || "",
             father_name: prev.father_name || (
               patient.hubungan_penanggung_jawab?.toLowerCase() === "suami"
@@ -869,7 +848,6 @@ function BirthCertificateSubForm({ visitId, readOnly = false, onCountChange }: S
       mother_mrn: item.mother_mrn || "",
       dpjp_name: item.dpjp_name || "",
       midwife_name: item.midwife_name || "",
-      apgar_score: item.apgar_score || "",
       notes: item.notes || "",
     });
     setEditingId(item.id);
@@ -913,7 +891,7 @@ function BirthCertificateSubForm({ visitId, readOnly = false, onCountChange }: S
       <div className="pt-4">
         {activeTab === "form" && (
           <fieldset disabled={readOnly} className="space-y-4">
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="space-y-1.5">
                 <Label><Calendar className="h-3.5 w-3.5 inline mr-1" />Tanggal Lahir</Label>
                 <Input type="date" value={formData.birth_date} onChange={(e) => setFormData({ ...formData, birth_date: e.target.value })} />
@@ -937,7 +915,7 @@ function BirthCertificateSubForm({ visitId, readOnly = false, onCountChange }: S
               <Label>Nama Bayi</Label>
               <Input placeholder="Nama bayi (opsional jika belum ditentukan)" value={formData.baby_name} onChange={(e) => setFormData({ ...formData, baby_name: e.target.value })} />
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="space-y-1.5">
                 <Label>Berat Lahir (gram)</Label>
                 <Input type="number" placeholder="cth: 3200" value={formData.birth_weight} onChange={(e) => setFormData({ ...formData, birth_weight: e.target.value })} />
@@ -959,7 +937,7 @@ function BirthCertificateSubForm({ visitId, readOnly = false, onCountChange }: S
                 </Select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Nama Ibu</Label>
                 <Input placeholder="Ny. Nama lengkap ibu" value={formData.mother_name} onChange={(e) => setFormData({ ...formData, mother_name: e.target.value })} />
@@ -969,13 +947,13 @@ function BirthCertificateSubForm({ visitId, readOnly = false, onCountChange }: S
                 <Input placeholder="Nomor rekam medis ibu" value={formData.mother_mrn} onChange={(e) => setFormData({ ...formData, mother_mrn: e.target.value })} />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Nama Ayah</Label>
                 <Input placeholder="Nama lengkap ayah" value={formData.father_name} onChange={(e) => setFormData({ ...formData, father_name: e.target.value })} />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Nama DPJP</Label>
                 <Input placeholder="Nama dokter penanggung jawab" value={formData.dpjp_name} onChange={(e) => setFormData({ ...formData, dpjp_name: e.target.value })} />
@@ -983,12 +961,6 @@ function BirthCertificateSubForm({ visitId, readOnly = false, onCountChange }: S
               <div className="space-y-1.5">
                 <Label>Nama Bidan</Label>
                 <Input placeholder="Nama bidan penolong" value={formData.midwife_name} onChange={(e) => setFormData({ ...formData, midwife_name: e.target.value })} />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Apgar Score</Label>
-                <Input placeholder="cth: 8/9/10" value={formData.apgar_score} onChange={(e) => setFormData({ ...formData, apgar_score: e.target.value })} />
               </div>
             </div>
             <div className="space-y-1.5">
@@ -1199,7 +1171,7 @@ function LeaveCertificateSubForm({ visitId, readOnly = false, onCountChange }: S
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="space-y-1.5">
                 <Label><Calendar className="h-3.5 w-3.5 inline mr-1" />Tanggal Mulai</Label>
                 <Input type="date" value={formData.start_date} onChange={(e) => handleDateChange("start_date", e.target.value)} />
@@ -1398,7 +1370,7 @@ function MCUCertificateSubForm({ visitId, readOnly = false, onCountChange }: Sub
       <div className="pt-4">
         {activeTab === "form" && (
           <fieldset disabled={readOnly} className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label><Calendar className="h-3.5 w-3.5 inline mr-1" />Tanggal Pemeriksaan</Label>
                 <Input type="date" value={formData.exam_date} onChange={(e) => setFormData({ ...formData, exam_date: e.target.value })} />

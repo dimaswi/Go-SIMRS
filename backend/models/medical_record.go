@@ -50,6 +50,7 @@ type Triage struct {
 	OxygenSaturation string `gorm:"size:20" json:"oxygen_saturation,omitempty"` // %
 	PainMethod       string `gorm:"size:50" json:"pain_method,omitempty"`       // nrs, wong_baker, flacc, bps, vas
 	PainScale        int    `gorm:"default:0" json:"pain_scale,omitempty"`      // 0-10
+	PainLocation     string `gorm:"size:255" json:"pain_location,omitempty"`    // Lokasi nyeri
 
 	// Assessment
 	Consciousness    string `gorm:"size:50" json:"consciousness,omitempty"`       // composmentis/apatis/somnolen/sopor/koma
@@ -202,8 +203,9 @@ type PhysicalExamination struct {
 	PelvicNotes     string `gorm:"type:text" json:"pelvic_notes,omitempty"`  // Catatan detail pelvis
 
 	// Pain Assessment - Skala Nyeri
-	PainMethod string `gorm:"size:20" json:"pain_method,omitempty"` // Metode penilaian nyeri (nrs, wong_baker, vas, flacc, bps)
-	PainScale  int    `gorm:"default:0" json:"pain_scale"`          // Skala nyeri 0-10
+	PainMethod   string `gorm:"size:20" json:"pain_method,omitempty"`    // Metode penilaian nyeri (nrs, wong_baker, vas, flacc, bps)
+	PainScale    int    `gorm:"default:0" json:"pain_scale"`             // Skala nyeri 0-10
+	PainLocation string `gorm:"size:255" json:"pain_location,omitempty"` // Lokasi nyeri
 
 	// SatuSehat Integration
 	SatusehatVitalSignsSent bool       `gorm:"default:false" json:"satusehat_vital_signs_sent"`

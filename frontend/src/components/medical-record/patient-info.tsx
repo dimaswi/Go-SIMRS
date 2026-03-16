@@ -28,11 +28,10 @@ import {
   ShieldCheck,
   ExternalLink,
   Pencil,
-  Stethoscope,
   SquarePen,
   History,
 } from "lucide-react";
-import { patientAllergyApi, ALLERGY_CATEGORY_LABELS, ALLERGY_CRITICALITY_LABELS, api, bpjsApi, visitsApi } from "@/lib/api";
+import { patientAllergyApi, ALLERGY_CATEGORY_LABELS, ALLERGY_CRITICALITY_LABELS, api, bpjsApi } from "@/lib/api";
 import type { PatientAllergy } from "@/lib/api";
 import { MedicalRecordPrintSelect } from "./print-select";
 import { EditDoctorDialog } from "./edit-doctor-dialog";
@@ -222,27 +221,6 @@ export function PatientInfo({ visit, onCopyHistoryOpen }: PatientInfoProps & { o
     loadSEP();
   }, [visit.id, visit.registration?.payment_method]);
 
-  // Load all visits for this registration
-  const registrationId = visit.registration_id || (visit.registration as any)?.id;
-  
-  const loadAllVisits = useCallback(async () => {
-    if (!registrationId) return;
-    setLoadingVisits(true);
-    try {
-      const response = await visitsApi.getAll({ registration_id: registrationId });
-      const visits = response.data || [];
-      setAllVisits(Array.isArray(visits) ? visits : []);
-    } catch (error) {
-      console.error("Failed to load visits:", error);
-    } finally {
-      setLoadingVisits(false);
-    }
-  }, [registrationId]);
-
-  useEffect(() => {
-    loadAllVisits();
-  }, [loadAllVisits]);
-  
   // Check if patient has allergies - prefer allergies from database, fallback to master data
   const hasAllergyRecords = patientAllergies.length > 0;
   const hasLegacyAllergies = patient?.alergi_obat || patient?.alergi_makanan || patient?.alergi_lainnya;
@@ -258,6 +236,10 @@ export function PatientInfo({ visit, onCopyHistoryOpen }: PatientInfoProps & { o
                       visit.room?.type === "igd" || 
                       visit.room?.type === "emergency" ||
                       visit.visit_type === "emergency";
+
+  // History button is only relevant for main clinical visits (RJ/RI/UGD),
+  // not for order visits like consultation/radiology/lab/pharmacy/surgery.
+  const canShowHistoryButton = isEmergency || isInpatient || visit.visit_type === "outpatient";
   
   // Check if patient is discharged
   const isPatientDischarged = visit.registration?.status === "completed" || 
@@ -269,9 +251,6 @@ export function PatientInfo({ visit, onCopyHistoryOpen }: PatientInfoProps & { o
   const [icareUrl, setIcareUrl] = useState<string | null>(null);
   const [icareLoading, setIcareLoading] = useState(false);
 
-  // All visits for this registration (for DPJP management)
-  const [allVisits, setAllVisits] = useState<any[]>([]);
-  const [loadingVisits, setLoadingVisits] = useState(false);
   const [editDoctorOpen, setEditDoctorOpen] = useState(false);
   const [selectedVisitForEdit, setSelectedVisitForEdit] = useState<{ id: number; roomId: number; doctorId?: number | null } | null>(null);
 
@@ -314,10 +293,10 @@ export function PatientInfo({ visit, onCopyHistoryOpen }: PatientInfoProps & { o
     <div>
       {/* Header Bar */}
       <div
-        className="flex items-center justify-between py-2 cursor-pointer select-none group"
+        className="flex items-start sm:items-center justify-between gap-2 py-2 cursor-pointer select-none group"
         onClick={() => setIsOpen(!isOpen)}
       >
-        <div className="flex items-center gap-3 min-w-0">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
           <Button 
             variant="ghost" 
             size="icon" 
@@ -330,15 +309,15 @@ export function PatientInfo({ visit, onCopyHistoryOpen }: PatientInfoProps & { o
             {getInitials(patient?.nama_lengkap)}
           </div>
           <div className="min-w-0">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2">
               <h3 className="text-sm font-semibold truncate">
                 {formatPatientName(patient?.nama_lengkap, patient?.jenis_kelamin, patient?.status_perkawinan, patient?.tanggal_lahir)}
               </h3>
-              <span className="font-mono text-[11px] text-muted-foreground flex-shrink-0">
+              <span className="font-mono text-[10px] sm:text-[11px] text-muted-foreground flex-shrink-0">
                 {patient?.no_rm || "-"}
               </span>
             </div>
-            <div className="flex items-center gap-1.5 mt-0.5 text-xs text-muted-foreground">
+            <div className="flex items-center gap-1 mt-0.5 text-[11px] sm:text-xs text-muted-foreground flex-wrap">
               <span>{patient?.jenis_kelamin === "L" ? "Laki-laki" : patient?.jenis_kelamin === "P" ? "Perempuan" : "-"}</span>
               {patient?.tanggal_lahir && (
                 <><span className="text-muted-foreground/40">·</span><span>{calculateAge(patient.tanggal_lahir)} thn</span></>
@@ -348,23 +327,24 @@ export function PatientInfo({ visit, onCopyHistoryOpen }: PatientInfoProps & { o
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex items-center justify-end gap-1.5 sm:gap-2 flex-shrink-0 flex-wrap max-w-[48%] sm:max-w-none">
           {/* Quick badges */}
           {hasAllergies && (
             <Badge variant="destructive" className="gap-1 text-[10px] px-1.5 py-0 h-5">
               <AlertTriangle className="h-3 w-3" />
-              Alergi
+              <span className="hidden sm:inline">Alergi</span>
             </Badge>
           )}
           {sepInfo && (
             <Badge variant="outline" className="gap-1 text-[10px] px-1.5 py-0 h-5 text-muted-foreground">
               <ShieldCheck className="h-3 w-3" />
-              SEP
+              <span className="hidden sm:inline">SEP</span>
             </Badge>
           )}
           {isPatientDischarged && (
             <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5">
-              Selesai
+              <span className="hidden sm:inline">Selesai</span>
+              <span className="sm:hidden">OK</span>
             </Badge>
           )}
           {/* I-Care Button (only for BPJS patients with SEP) */}
@@ -373,7 +353,7 @@ export function PatientInfo({ visit, onCopyHistoryOpen }: PatientInfoProps & { o
               <Button
                 variant="outline"
                 size="sm"
-                className="h-7 text-xs gap-1"
+                className="h-7 w-7 sm:w-auto px-0 sm:px-2 text-xs gap-1"
                 onClick={handleICareOpen}
                 disabled={icareLoading}
               >
@@ -382,21 +362,21 @@ export function PatientInfo({ visit, onCopyHistoryOpen }: PatientInfoProps & { o
                 ) : (
                   <ExternalLink className="h-3 w-3" />
                 )}
-                I-Care
+                <span className="hidden sm:inline">I-Care</span>
               </Button>
             </div>
           )}
           {/* Copy from History */}
-          {onCopyHistoryOpen && (
+          {onCopyHistoryOpen && canShowHistoryButton && (
             <div onClick={(e) => e.stopPropagation()}>
               <Button
                 variant="outline"
                 size="sm"
-                className="h-7 text-xs gap-1"
+                className="h-7 w-7 sm:w-auto px-0 sm:px-2 text-xs gap-1"
                 onClick={onCopyHistoryOpen}
               >
                 <History className="h-3 w-3" />
-                Riwayat
+                <span className="hidden sm:inline">Riwayat</span>
               </Button>
             </div>
           )}
@@ -472,7 +452,7 @@ export function PatientInfo({ visit, onCopyHistoryOpen }: PatientInfoProps & { o
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-x-6 gap-y-4">
             {/* Column 1: Demographic */}
             <div className="space-y-2.5">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <h4 className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
                   Demografis
                 </h4>
@@ -535,16 +515,16 @@ export function PatientInfo({ visit, onCopyHistoryOpen }: PatientInfoProps & { o
                 Kunjungan
               </h4>
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="text-xs text-muted-foreground">No. Visit</span>
                   <span className="font-mono text-xs font-medium">{visit.visit_number}</span>
                 </div>
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="text-xs text-muted-foreground">No. Daftar</span>
                   <span className="font-mono text-xs font-medium">{visit.registration?.registration_number || "-"}</span>
                 </div>
                 {visit.room_queue?.queue_number && (
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="text-xs text-muted-foreground">Antrian</span>
                     <div className="flex items-center gap-1.5">
                       <span className="font-mono text-xs font-medium">{visit.room_queue.queue_number}</span>
@@ -552,12 +532,12 @@ export function PatientInfo({ visit, onCopyHistoryOpen }: PatientInfoProps & { o
                     </div>
                   </div>
                 )}
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="text-xs text-muted-foreground">Status</span>
                   {getStatusBadge(visit.status)}
                 </div>
                 {!isInpatient && visit.check_in_time && (
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="text-xs text-muted-foreground">Check-in</span>
                     <span className="text-xs font-medium">
                       {new Date(visit.check_in_time).toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
@@ -565,7 +545,7 @@ export function PatientInfo({ visit, onCopyHistoryOpen }: PatientInfoProps & { o
                   </div>
                 )}
                 {isInpatient && visit.admission_time && (
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="text-xs text-muted-foreground">Masuk RI</span>
                     <span className="text-xs font-medium">
                       {new Date(visit.admission_time).toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
@@ -573,7 +553,7 @@ export function PatientInfo({ visit, onCopyHistoryOpen }: PatientInfoProps & { o
                   </div>
                 )}
                 {isInpatient && visit.discharge_time && (
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="text-xs text-muted-foreground">Keluar RI</span>
                     <span className="text-xs font-medium text-green-600 dark:text-green-400">
                       {new Date(visit.discharge_time).toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
@@ -589,11 +569,11 @@ export function PatientInfo({ visit, onCopyHistoryOpen }: PatientInfoProps & { o
                 Layanan
               </h4>
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="text-xs text-muted-foreground">Ruangan</span>
                   <span className="text-xs font-medium">{visit.room?.name || "-"}</span>
                 </div>
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="text-xs text-muted-foreground">Dokter</span>
                   <div className="flex items-center gap-1">
                     <span className="text-xs font-medium truncate max-w-[120px]">{visit.doctor?.nama_lengkap || "-"}</span>
@@ -622,7 +602,7 @@ export function PatientInfo({ visit, onCopyHistoryOpen }: PatientInfoProps & { o
                     </TooltipProvider>
                   </div>
                 </div>
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="text-xs text-muted-foreground">Pembayaran</span>
                   <span className="text-xs font-medium">
                     {visit.registration?.payment_method === "bpjs" ? "BPJS"
@@ -632,13 +612,13 @@ export function PatientInfo({ visit, onCopyHistoryOpen }: PatientInfoProps & { o
                   </span>
                 </div>
                 {visit.registration?.payment_method === "bpjs" && visit.registration?.bpjs_number && (
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="text-xs text-muted-foreground">No. BPJS</span>
                     <span className="font-mono text-xs font-medium">{visit.registration.bpjs_number}</span>
                   </div>
                 )}
                 {visit.registration?.payment_method === "insurance" && visit.registration?.insurance_name && (
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="text-xs text-muted-foreground">Asuransi</span>
                     <span className="text-xs font-medium">{visit.registration.insurance_name}</span>
                   </div>
@@ -651,20 +631,20 @@ export function PatientInfo({ visit, onCopyHistoryOpen }: PatientInfoProps & { o
                       <span className="text-[11px] font-semibold">SEP</span>
                     </div>
                     <div className="space-y-1">
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
                         <span className="text-[10px] text-muted-foreground">No. SEP</span>
                         <span className="font-mono text-[11px] font-bold">{sepInfo.no_sep}</span>
                       </div>
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
                         <span className="text-[10px] text-muted-foreground">Poli</span>
                         <span className="text-[11px] font-medium">{sepInfo.nama_poli || '-'}</span>
                       </div>
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
                         <span className="text-[10px] text-muted-foreground">DPJP</span>
                         <span className="text-[11px] font-medium">{sepInfo.nama_dpjp || '-'}</span>
                       </div>
                       {sepInfo.nama_diagnosa && (
-                        <div className="flex items-center justify-between">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
                           <span className="text-[10px] text-muted-foreground">Diagnosa</span>
                           <span className="text-[11px] font-medium">{sepInfo.nama_diagnosa}</span>
                         </div>
@@ -694,87 +674,6 @@ export function PatientInfo({ visit, onCopyHistoryOpen }: PatientInfoProps & { o
               )}
             </div>
           </div>
-
-          {/* All Visits / DPJP Management */}
-          {allVisits.length > 1 && (
-            <div className="mt-4 pt-3 border-t">
-              <h4 className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-2">
-                Kunjungan & DPJP
-              </h4>
-              {loadingVisits ? (
-                <div className="flex items-center gap-2 py-2 text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span className="text-xs">Memuat kunjungan...</span>
-                </div>
-              ) : (
-                <div className="space-y-1.5">
-                  {allVisits.map((v) => {
-                    const visitLabel = getVisitCategoryLabel(v);
-                    const isCurrentVisit = v.id === visit.id;
-                    const doctorName = v.doctor?.nama_lengkap || "-";
-                    const roomName = v.room?.name || "-";
-                    const visitStatus = v.status;
-                    const statusLabel = visitStatus === "completed" ? "Selesai" : visitStatus === "in_progress" ? "Berlangsung" : visitStatus === "waiting" ? "Menunggu" : visitStatus === "in_queue" ? "Antrian" : visitStatus === "cancelled" ? "Dibatalkan" : visitStatus;
-
-                    return (
-                      <div
-                        key={v.id}
-                        className={`flex items-center justify-between px-2.5 py-2 rounded-md text-xs ${
-                          isCurrentVisit
-                            ? "bg-primary/5 border border-primary/20"
-                            : "bg-muted/30 hover:bg-muted/50"
-                        }`}
-                      >
-                        <div className="flex items-center gap-2 min-w-0">
-                          <Stethoscope className="h-3.5 w-3.5 text-muted-foreground/70 flex-shrink-0" />
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-medium">{visitLabel}</span>
-                              <span className="text-muted-foreground">—</span>
-                              <span className="text-muted-foreground truncate">{roomName}</span>
-                              {isCurrentVisit && (
-                                <Badge variant="outline" className="text-[9px] px-1 py-0 h-4">Saat ini</Badge>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-1.5 mt-0.5 text-muted-foreground">
-                              <span>DPJP: <span className="text-foreground font-medium">{doctorName}</span></span>
-                              <span className="text-muted-foreground/40">·</span>
-                              <span>{statusLabel}</span>
-                            </div>
-                          </div>
-                        </div>
-                        <TooltipProvider delayDuration={300}>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7 flex-shrink-0"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedVisitForEdit({
-                                    id: v.id,
-                                    roomId: v.room_id,
-                                    doctorId: v.doctor_id,
-                                  });
-                                  setEditDoctorOpen(true);
-                                }}
-                              >
-                                <Pencil className="h-3.5 w-3.5" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Ganti DPJP</TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-
-
         </div>
       )}
 
@@ -787,7 +686,6 @@ export function PatientInfo({ visit, onCopyHistoryOpen }: PatientInfoProps & { o
           roomId={selectedVisitForEdit.roomId}
           currentDoctorId={selectedVisitForEdit.doctorId}
           onSuccess={() => {
-            loadAllVisits();
             // Dispatch event to refresh visit data in parent
             window.dispatchEvent(new CustomEvent("refresh-visit-data"));
           }}

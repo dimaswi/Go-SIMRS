@@ -523,6 +523,8 @@ func GetDefaultParameterTemplates(c *gin.Context) {
 	switch procedureType {
 	case models.ProcedureTypeMedical:
 		templates = models.GetDefaultMedicalParameters()
+	case models.ProcedureTypeConsultation:
+		templates = models.GetDefaultMedicalParameters()
 	case models.ProcedureTypeRadiology:
 		templates = models.GetDefaultRadiologyParameters()
 	case models.ProcedureTypeLaboratory:

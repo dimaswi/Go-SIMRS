@@ -1,12 +1,15 @@
 package handlers
 
 import (
+	"bytes"
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jung-kurt/gofpdf"
 	"gorm.io/gorm"
 
 	"starter/backend/database"
@@ -23,6 +26,7 @@ func GetProcedureOrders(c *gin.Context) {
 	query := database.DB.
 		Preload("SourceVisit.Registration.Patient").
 		Preload("TargetVisit.RoomQueue").
+		Preload("TargetVisit.Doctor").
 		Preload("SourceRoom").
 		Preload("TargetRoom").
 		Preload("Registration.Patient").
@@ -560,8 +564,8 @@ func StartProcedureOrder(c *gin.Context) {
 			Update("status", models.VisitStatusInProgress)
 		database.DB.Model(&models.RoomQueue{}).Where("visit_id = ?", *order.TargetVisitID).
 			Updates(map[string]interface{}{
-				"status":     models.RoomQueueStatusServing,
-				"started_at": now,
+				"status":    models.RoomQueueStatusServing,
+				"served_at": now,
 			})
 	}
 
@@ -655,17 +659,33 @@ func SubmitProcedureResults(c *gin.Context) {
 
 	// Process items and results
 	for _, itemInput := range input.Items {
+		// Ensure item belongs to this order
+		var item models.ProcedureOrderItem
+		if err := tx.Where("id = ? AND procedure_order_id = ?", itemInput.ItemID, order.ID).First(&item).Error; err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid order item for this procedure order"})
+			return
+		}
+
 		// Update item
-		tx.Model(&models.ProcedureOrderItem{}).Where("id = ?", itemInput.ItemID).
+		if err := tx.Model(&models.ProcedureOrderItem{}).Where("id = ?", itemInput.ItemID).
 			Updates(map[string]interface{}{
 				"status":          models.ProcedureOrderStatusCompleted,
 				"completed_at":    now,
 				"performed_by_id": user.EmployeeID,
 				"notes":           itemInput.Notes,
-			})
+			}).Error; err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update order item: " + err.Error()})
+			return
+		}
 
 		// Delete existing results for this item
-		tx.Where("procedure_order_item_id = ?", itemInput.ItemID).Delete(&models.ProcedureOrderResult{})
+		if err := tx.Where("procedure_order_item_id = ?", itemInput.ItemID).Delete(&models.ProcedureOrderResult{}).Error; err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to reset item results: " + err.Error()})
+			return
+		}
 
 		// Create new results
 		for _, resultInput := range itemInput.Results {
@@ -708,25 +728,40 @@ func SubmitProcedureResults(c *gin.Context) {
 				}
 			}
 
-			tx.Create(&result)
+			if err := tx.Create(&result).Error; err != nil {
+				tx.Rollback()
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save parameter result: " + err.Error()})
+				return
+			}
 		}
 	}
 
 	// Update target visit and queue
 	if order.TargetVisitID != nil {
-		tx.Model(&models.Visit{}).Where("id = ?", *order.TargetVisitID).
+		if err := tx.Model(&models.Visit{}).Where("id = ?", *order.TargetVisitID).
 			Updates(map[string]interface{}{
 				"status":   models.VisitStatusCompleted,
 				"end_time": now,
-			})
-		tx.Model(&models.RoomQueue{}).Where("visit_id = ?", *order.TargetVisitID).
+			}).Error; err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update target visit status: " + err.Error()})
+			return
+		}
+		if err := tx.Model(&models.RoomQueue{}).Where("visit_id = ?", *order.TargetVisitID).
 			Updates(map[string]interface{}{
 				"status":       models.RoomQueueStatusCompleted,
 				"completed_at": now,
-			})
+			}).Error; err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update target queue status: " + err.Error()})
+			return
+		}
 	}
 
-	tx.Commit()
+	if err := tx.Commit().Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction: " + err.Error()})
+		return
+	}
 
 	// Reload order
 	database.DB.
@@ -812,13 +847,21 @@ func SaveItemResults(c *gin.Context) {
 
 		// Update target visit status
 		if order.TargetVisitID != nil {
-			tx.Model(&models.Visit{}).Where("id = ?", *order.TargetVisitID).
-				Update("status", models.VisitStatusInProgress)
-			tx.Model(&models.RoomQueue{}).Where("visit_id = ?", *order.TargetVisitID).
+			if err := tx.Model(&models.Visit{}).Where("id = ?", *order.TargetVisitID).
+				Update("status", models.VisitStatusInProgress).Error; err != nil {
+				tx.Rollback()
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update target visit status: " + err.Error()})
+				return
+			}
+			if err := tx.Model(&models.RoomQueue{}).Where("visit_id = ?", *order.TargetVisitID).
 				Updates(map[string]interface{}{
-					"status":     models.RoomQueueStatusServing,
-					"started_at": now,
-				})
+					"status":    models.RoomQueueStatusServing,
+					"served_at": now,
+				}).Error; err != nil {
+				tx.Rollback()
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update target queue status: " + err.Error()})
+				return
+			}
 		}
 	}
 
@@ -830,17 +873,33 @@ func SaveItemResults(c *gin.Context) {
 
 	// Process items and results
 	for _, itemInput := range input.Items {
+		// Ensure item belongs to this order
+		var item models.ProcedureOrderItem
+		if err := tx.Where("id = ? AND procedure_order_id = ?", itemInput.ItemID, order.ID).First(&item).Error; err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid order item for this procedure order"})
+			return
+		}
+
 		// Update item status to completed but don't mark order as complete
-		tx.Model(&models.ProcedureOrderItem{}).Where("id = ?", itemInput.ItemID).
+		if err := tx.Model(&models.ProcedureOrderItem{}).Where("id = ?", itemInput.ItemID).
 			Updates(map[string]interface{}{
 				"status":          models.ProcedureOrderStatusCompleted,
 				"completed_at":    now,
 				"performed_by_id": user.EmployeeID,
 				"notes":           itemInput.Notes,
-			})
+			}).Error; err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update order item: " + err.Error()})
+			return
+		}
 
 		// Delete existing results for this item
-		tx.Where("procedure_order_item_id = ?", itemInput.ItemID).Delete(&models.ProcedureOrderResult{})
+		if err := tx.Where("procedure_order_item_id = ?", itemInput.ItemID).Delete(&models.ProcedureOrderResult{}).Error; err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to reset item results: " + err.Error()})
+			return
+		}
 
 		// Create new results
 		for _, resultInput := range itemInput.Results {
@@ -883,11 +942,18 @@ func SaveItemResults(c *gin.Context) {
 				}
 			}
 
-			tx.Create(&result)
+			if err := tx.Create(&result).Error; err != nil {
+				tx.Rollback()
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save parameter result: " + err.Error()})
+				return
+			}
 		}
 	}
 
-	tx.Commit()
+	if err := tx.Commit().Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction: " + err.Error()})
+		return
+	}
 
 	// Reload order
 	database.DB.
@@ -1263,6 +1329,7 @@ func PrintProcedureOrderResult(c *gin.Context) {
 		Preload("SurgeonDoctor").
 		Preload("PerformedBy").
 		Preload("ValidatedBy").
+		Preload("Consultation.Consultant").
 		Preload("Items.Procedure.Parameters", func(db *gorm.DB) *gorm.DB {
 			return db.Where("is_active = ?", true).Order("sort_order ASC")
 		}).
@@ -1272,7 +1339,255 @@ func PrintProcedureOrderResult(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, order)
+	if order.OrderType != models.ProcedureOrderTypeSurgery && order.OrderType != models.ProcedureOrderTypeConsultation {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Order type tidak didukung untuk cetak hasil prosedur"})
+		return
+	}
+
+	var patient *models.Patient
+	if order.Registration != nil && order.Registration.Patient != nil {
+		patient = order.Registration.Patient
+	}
+	if patient == nil && order.SourceVisit != nil && order.SourceVisit.Registration != nil {
+		patient = order.SourceVisit.Registration.Patient
+	}
+	if patient == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Patient data not found"})
+		return
+	}
+
+	hospitalInfo := getHospitalInfo()
+
+	pdf := gofpdf.New("P", "mm", "A4", "")
+	pdf.SetMargins(marginLeft, 10, marginRight)
+	pdf.SetAutoPageBreak(false, 15)
+	pdf.AddPage()
+
+	title := "HASIL KONSULTASI"
+	if order.OrderType == models.ProcedureOrderTypeSurgery {
+		title = "CATATAN OPERASI"
+	}
+	addHeader(pdf, hospitalInfo, title, order.OrderNumber)
+
+	// Identitas pasien dan order
+	addTableHeader(pdf, "INFORMASI PASIEN")
+	addTableRow(pdf, "No. RM", safeString(patient.NoRM), 40)
+	addTableRow(pdf, "Nama Pasien", safeString(patient.NamaLengkap), 40)
+	birthDate := "-"
+	if patient.TanggalLahir != nil && !patient.TanggalLahir.IsZero() {
+		birthDate = formatDateIndonesian(patient.TanggalLahir.Time)
+	}
+	addTableRow(pdf, "Tanggal Lahir", birthDate, 40)
+	if order.SourceVisit != nil {
+		addTableRow(pdf, "No. Kunjungan", safeString(order.SourceVisit.VisitNumber), 40)
+	}
+	addTableRow(pdf, "No. Order", safeString(order.OrderNumber), 40)
+	addTableRow(pdf, "Tanggal Order", formatDateTimeIndonesian(order.CreatedAt), 40)
+	if order.CompletedAt != nil {
+		addTableRow(pdf, "Tanggal Selesai", formatDateTimeIndonesian(*order.CompletedAt), 40)
+	}
+	addTableEnd(pdf)
+
+	if order.OrderType == models.ProcedureOrderTypeConsultation {
+		hasNarrativeResults := false
+		if order.Consultation != nil {
+			hasNarrativeResults = strings.TrimSpace(order.Consultation.Subjective) != "" ||
+				strings.TrimSpace(order.Consultation.Objective) != "" ||
+				strings.TrimSpace(order.Consultation.Assessment) != "" ||
+				strings.TrimSpace(order.Consultation.Plan) != "" ||
+				strings.TrimSpace(order.Consultation.Recommendation) != "" ||
+				strings.TrimSpace(order.Consultation.Notes) != ""
+		} else {
+			hasNarrativeResults = strings.TrimSpace(order.ResultSummary) != "" ||
+				strings.TrimSpace(order.Conclusion) != "" ||
+				strings.TrimSpace(order.Suggestion) != ""
+		}
+
+		if hasNarrativeResults {
+			addTableHeader(pdf, "HASIL KONSULTASI")
+		}
+		if order.Consultation != nil {
+			if order.Consultation.Consultant != nil {
+				addTableMultiRow(pdf, "Dokter Konsultan", order.Consultation.Consultant.NamaLengkap, 40)
+			}
+			if order.Consultation.Subjective != "" {
+				addTableMultiRow(pdf, "Subjective (S)", order.Consultation.Subjective, 40)
+			}
+			if order.Consultation.Objective != "" {
+				addTableMultiRow(pdf, "Objective (O)", order.Consultation.Objective, 40)
+			}
+			if order.Consultation.Assessment != "" {
+				addTableMultiRow(pdf, "Assessment (A)", order.Consultation.Assessment, 40)
+			}
+			if order.Consultation.Plan != "" {
+				addTableMultiRow(pdf, "Plan (P)", order.Consultation.Plan, 40)
+			}
+			if order.Consultation.Recommendation != "" {
+				addTableMultiRow(pdf, "Rekomendasi", order.Consultation.Recommendation, 40)
+			}
+			if order.Consultation.Notes != "" {
+				addTableMultiRow(pdf, "Catatan", order.Consultation.Notes, 40)
+			}
+		} else {
+			if order.ResultSummary != "" {
+				addTableMultiRow(pdf, "Ringkasan", order.ResultSummary, 40)
+			}
+			if order.Conclusion != "" {
+				addTableMultiRow(pdf, "Kesimpulan", order.Conclusion, 40)
+			}
+			if order.Suggestion != "" {
+				addTableMultiRow(pdf, "Saran", order.Suggestion, 40)
+			}
+		}
+		if hasNarrativeResults {
+			addTableEnd(pdf)
+		}
+
+		// Consultation now supports parameter-based results via procedure_order_items/results.
+		// Render them so printed output matches what user filled in consultation form.
+		hasParameterResults := false
+		for _, item := range order.Items {
+			if item.Status == "cancelled" {
+				continue
+			}
+
+			resultByParamID := map[uint]models.ProcedureOrderResult{}
+			for _, result := range item.Results {
+				resultByParamID[result.ProcedureParameterID] = result
+			}
+
+			procedureName := ""
+			if item.Procedure != nil {
+				procedureName = item.Procedure.Name
+			}
+
+			itemRows := 0
+			for _, param := range item.Procedure.Parameters {
+				res, ok := resultByParamID[param.ID]
+				if !ok {
+					continue
+				}
+
+				value := strings.TrimSpace(res.Value)
+				if value == "" {
+					if param.InputType == models.InputTypeNumber || res.NumericValue != 0 {
+						value = strconv.FormatFloat(res.NumericValue, 'f', -1, 64)
+					}
+				}
+				if value == "" {
+					continue
+				}
+
+				if param.Unit != "" {
+					value = fmt.Sprintf("%s %s", value, param.Unit)
+				}
+
+				if !hasParameterResults {
+					addTableHeader(pdf, "HASIL PARAMETER KONSULTASI")
+					hasParameterResults = true
+				}
+
+				if itemRows == 0 && procedureName != "" {
+					addTableMultiRow(pdf, "Tindakan", procedureName, 40)
+				}
+
+				addTableMultiRow(pdf, param.Name, value, 40)
+				if strings.TrimSpace(res.Notes) != "" {
+					addTableMultiRow(pdf, param.Name+" (Catatan)", strings.TrimSpace(res.Notes), 40)
+				}
+
+				itemRows++
+			}
+		}
+		if hasParameterResults {
+			addTableEnd(pdf)
+		}
+	} else {
+		addTableHeader(pdf, "LAPORAN OPERASI")
+		if order.SurgeonDoctor != nil {
+			addTableMultiRow(pdf, "Dokter Operator", order.SurgeonDoctor.NamaLengkap, 40)
+		}
+		if order.ScheduledDate != nil {
+			addTableMultiRow(pdf, "Jadwal Operasi", formatDateTimeIndonesian(*order.ScheduledDate), 40)
+		}
+		if order.ResultSummary != "" {
+			addTableMultiRow(pdf, "Deskripsi", order.ResultSummary, 40)
+		}
+		if order.Conclusion != "" {
+			addTableMultiRow(pdf, "Kesimpulan", order.Conclusion, 40)
+		}
+		if order.Suggestion != "" {
+			addTableMultiRow(pdf, "Saran", order.Suggestion, 40)
+		}
+		for idx, item := range order.Items {
+			name := ""
+			if item.Procedure != nil {
+				name = item.Procedure.Name
+			}
+			if name == "" {
+				continue
+			}
+			addTableMultiRow(pdf, fmt.Sprintf("Tindakan %d", idx+1), name, 40)
+			if item.Notes != "" {
+				addTableMultiRow(pdf, "Catatan", item.Notes, 40)
+			}
+		}
+		addTableEnd(pdf)
+	}
+
+	if order.ClinicalNotes != "" {
+		addTableHeader(pdf, "CATATAN KLINIS")
+		addTableFullRow(pdf, order.ClinicalNotes, false)
+		addTableEnd(pdf)
+	}
+
+	docType := models.DocTypeOperativeReport
+	sigLabel := "Dokter Operator"
+	doctorName := "-"
+	if order.SurgeonDoctor != nil {
+		doctorName = resolveAssignedUserNameFromEmployee(order.SurgeonDoctor, doctorName)
+	}
+	if order.OrderType == models.ProcedureOrderTypeConsultation {
+		docType = models.DocTypeConsultationResult
+		sigLabel = "Dokter Konsultan"
+		if order.Consultation != nil && order.Consultation.Consultant != nil {
+			doctorName = resolveAssignedUserNameFromEmployee(order.Consultation.Consultant, doctorName)
+		}
+		if doctorName == "-" && order.TargetVisit != nil && order.TargetVisit.Doctor != nil {
+			doctorName = resolveAssignedUserNameFromEmployee(order.TargetVisit.Doctor, doctorName)
+		}
+	}
+	if doctorName == "-" && order.ValidatedBy != nil {
+		doctorName = resolveAssignedUserNameFromEmployee(order.ValidatedBy, doctorName)
+	}
+	if doctorName == "-" && order.PerformedBy != nil {
+		doctorName = resolveAssignedUserNameFromEmployee(order.PerformedBy, doctorName)
+	}
+	if doctorName == "-" && order.OrderedBy != nil {
+		doctorName = resolveAssignedUserNameFromEmployee(order.OrderedBy, doctorName)
+	}
+	if order.OrderType == models.ProcedureOrderTypeConsultation {
+		// Keep backward compatibility with older signatures that might have used operative_report.
+		addSignature(pdf, hospitalInfo.City, doctorName, sigLabel, docType, order.ID,
+			signatureLookup{DocType: models.DocTypeOperativeReport, DocID: order.ID})
+	} else {
+		addSignature(pdf, hospitalInfo.City, doctorName, sigLabel, docType, order.ID)
+	}
+
+	var buf bytes.Buffer
+	if err := pdf.Output(&buf); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate PDF"})
+		return
+	}
+
+	filePrefix := "Hasil_Konsultasi"
+	if order.OrderType == models.ProcedureOrderTypeSurgery {
+		filePrefix = "Laporan_Operasi"
+	}
+	filename := fmt.Sprintf("%s_%s.pdf", filePrefix, order.OrderNumber)
+	c.Header("Content-Type", "application/pdf")
+	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
+	c.Data(http.StatusOK, "application/pdf", buf.Bytes())
 }
 
 // ValidateProcedureResult validates the result by a doctor

@@ -36,6 +36,7 @@ export interface MedicineOrderItem {
   substituted_medicine: string;
   substitution_reason: string;
   notes: string;
+  added_by_pharmacy?: boolean;
 }
 
 export interface MedicineOrder {

@@ -65,7 +65,6 @@ const PatientSearchIndex = lazy(() => import('./pages/patient-search/index'));
 const PatientSearchShow = lazy(() => import('./pages/patient-search/show'));
 
 // Admission Requests
-const AdmissionRequestsIndex = lazy(() => import('./pages/admisi/index'));
 const AdmissionRequestsShow = lazy(() => import('./pages/admisi/show'));
 
 // Check-in Scanner
@@ -207,7 +206,7 @@ function App() {
           <Route path="/admisi" element={
             <ProtectedRoute>
               <PermissionGuard permission="registrations.view">
-                <AdmissionRequestsIndex />
+                <Navigate to="/registrations?tab=admission_requests" replace />
               </PermissionGuard>
             </ProtectedRoute>
           } />

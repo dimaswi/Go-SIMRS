@@ -414,7 +414,7 @@ export function SurgeryWorkstation({ visitId, readOnly: _readOnly = false }: Sur
       {selectedOrder && (
         <div className="shadow-sm">
           <div className="pb-2">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 </div>
               {getStatusBadge(selectedOrder.status)}
@@ -422,7 +422,7 @@ export function SurgeryWorkstation({ visitId, readOnly: _readOnly = false }: Sur
           </div>
           <div className="space-y-3">
                 {/* Patient Info */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs p-2 bg-muted/50 rounded">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 text-xs p-2 bg-muted/50 rounded">
                   <div className="flex items-center gap-1">
                     <User className="h-3 w-3 text-muted-foreground" />
                     <span className="font-medium truncate">
@@ -506,7 +506,7 @@ export function SurgeryWorkstation({ visitId, readOnly: _readOnly = false }: Sur
                         <div className="p-3 space-y-3">
                           {isEditable ? (
                             <>
-                              <div className="grid grid-cols-2 gap-3">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div className="space-y-1">
                                   <Label className="text-xs">Diagnosis Pre-Op</Label>
                                   <Textarea value={diagnosisPreOp} onChange={(e) => setDiagnosisPreOp(e.target.value)} rows={2} className="text-sm" />
@@ -517,7 +517,7 @@ export function SurgeryWorkstation({ visitId, readOnly: _readOnly = false }: Sur
                                 </div>
                               </div>
 
-                              <div className="grid grid-cols-2 gap-3">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div className="space-y-1">
                                   <Label className="text-xs">Jenis Anestesi</Label>
                                   <Select value={anesthesiaType} onValueChange={setAnesthesiaType}>
@@ -552,7 +552,7 @@ export function SurgeryWorkstation({ visitId, readOnly: _readOnly = false }: Sur
                                 <Textarea value={surgicalProcedure} onChange={(e) => setSurgicalProcedure(e.target.value)} rows={2} className="text-sm" />
                               </div>
 
-                              <div className="grid grid-cols-2 gap-3">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div className="space-y-1">
                                   <Label className="text-xs">Perkiraan Perdarahan (ml)</Label>
                                   <Input type="number" value={bloodLoss} onChange={(e) => setBloodLoss(e.target.value)} className="h-8 text-sm" />

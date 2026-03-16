@@ -1,9 +1,9 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { Combobox } from "@/components/ui/combobox";
 import { useToast } from "@/hooks/use-toast";
 import { usePermission } from "@/hooks/usePermission";
 import {
@@ -24,6 +24,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -33,10 +34,10 @@ import {
 } from "@/components/ui/select";
 import {
   Loader2,
+  Save,
   Pill,
   User,
   Plus,
-  Pencil,
   Trash2,
   Search,
   AlertCircle,
@@ -58,6 +59,19 @@ const ORDER_STATUS_LABELS: Record<string, { label: string; variant: "default" | 
   cancelled: { label: "Dibatalkan", variant: "destructive" },
   partial: { label: "Sebagian", variant: "outline" },
   returned: { label: "Ada Return", variant: "outline" },
+};
+
+const formatRupiah = (value: number) => {
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(Number.isFinite(value) ? value : 0);
+};
+
+const getUnitPrice = (item: any): number => {
+  return Number(item?.unit_price ?? item?.price ?? item?.medicine?.selling_price ?? 0);
 };
 
 const ROUTE_OPTIONS = [
@@ -83,16 +97,39 @@ const FREQUENCY_OPTIONS = [
   { value: "2x sehari", label: "2x sehari" },
   { value: "3x sehari", label: "3x sehari" },
   { value: "4x sehari", label: "4x sehari" },
-  { value: "setiap 4 jam", label: "Setiap 4 jam" },
-  { value: "setiap 6 jam", label: "Setiap 6 jam" },
-  { value: "setiap 8 jam", label: "Setiap 8 jam" },
-  { value: "setiap 12 jam", label: "Setiap 12 jam" },
-  { value: "bila perlu", label: "Bila perlu (PRN)" },
+  { value: "setiap 4 jam", label: "setiap 4 jam" },
+  { value: "setiap 6 jam", label: "setiap 6 jam" },
+  { value: "setiap 8 jam", label: "setiap 8 jam" },
+  { value: "setiap 12 jam", label: "setiap 12 jam" },
+  { value: "bila perlu", label: "bila perlu" },
 ];
+
+const INSTRUCTION_OPTIONS = [
+  "Sebelum makan",
+  "Sesudah makan",
+  "Bersama makan",
+  "Pagi hari",
+  "Malam hari",
+  "Pagi dan malam",
+  "Saat perut kosong",
+  "Sebelum tidur",
+  "Bila perlu",
+  "Bila demam",
+  "Bila nyeri",
+  "Bila mual",
+  "Dikunyah",
+  "Diteteskan",
+  "Dioleskan",
+  "Dikocok dulu",
+  "Dilarutkan dulu",
+].map((option) => ({ value: option, label: option }));
 
 interface RoomMedicine {
   id: number;
   medicine_id: number;
+  unit_price?: number;
+  price?: number;
+  selling_price?: number;
   medicine: {
     id: number;
     name: string;
@@ -102,14 +139,15 @@ interface RoomMedicine {
     category: string;
     form: string;
     strength: string;
+    selling_price?: number;
+    price?: number;
+    unit_price?: number;
   };
   quantity: number;
   min_quantity: number;
 }
 
-interface ItemFormData {
-  medicine_id: number;
-  medicineName: string;
+interface RowEditData {
   quantity: number;
   unit: string;
   dosage: string;
@@ -131,25 +169,12 @@ export function PharmacyEditPrescription({ visitId, readOnly = false }: Pharmacy
   
   // Dialog states
   const [showAddDialog, setShowAddDialog] = useState(false);
-  const [showEditDialog, setShowEditDialog] = useState(false);
-  const [editingItem, setEditingItem] = useState<MedicineOrderItem | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  
-  // Form state
-  const [itemForm, setItemForm] = useState<ItemFormData>({
-    medicine_id: 0,
-    medicineName: "",
-    quantity: 1,
-    unit: "",
-    dosage: "",
-    frequency: "",
-    route: "oral",
-    duration: "",
-    instructions: "",
-    notes: "",
-  });
+
   const [deleteConfirmItem, setDeleteConfirmItem] = useState<MedicineOrderItem | null>(null);
   const [cancelConfirmOrder, setCancelConfirmOrder] = useState(false);
+  const [rowEdits, setRowEdits] = useState<Record<number, RowEditData>>({});
+  const [savingRowId, setSavingRowId] = useState<number | null>(null);
 
   useEffect(() => {
     loadOrders();
@@ -161,8 +186,30 @@ export function PharmacyEditPrescription({ visitId, readOnly = false }: Pharmacy
     }
   }, [selectedOrder?.pharmacy_room_id]);
 
-  const loadOrders = async () => {
-    setLoading(true);
+  useEffect(() => {
+    const next: Record<number, RowEditData> = {};
+    (selectedOrder?.items || [])
+      .filter((item) => item.status !== "cancelled")
+      .forEach((item, index) => {
+        const key = item.id ?? -(index + 1);
+        next[key] = {
+          quantity: Number(item.quantity || 1),
+          unit: item.unit || "",
+          dosage: item.dosage || "",
+          frequency: item.frequency || "",
+          route: item.route || "oral",
+          duration: item.duration || "",
+          instructions: item.instructions || "",
+          notes: item.notes || "",
+        };
+      });
+    setRowEdits(next);
+  }, [selectedOrder]);
+
+  const loadOrders = async (silent = false) => {
+    if (!silent) {
+      setLoading(true);
+    }
     try {
       const res = await medicineOrdersApi.getAll({ pharmacy_visit_id: visitId });
       const data = res.data || [];
@@ -178,7 +225,9 @@ export function PharmacyEditPrescription({ visitId, readOnly = false }: Pharmacy
         description: "Gagal memuat data order",
       });
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   };
 
@@ -191,72 +240,33 @@ export function PharmacyEditPrescription({ visitId, readOnly = false }: Pharmacy
     }
   };
 
-  const resetItemForm = useCallback(() => {
-    setItemForm({
-      medicine_id: 0,
-      medicineName: "",
-      quantity: 1,
-      unit: "",
-      dosage: "",
-      frequency: "",
-      route: "oral",
-      duration: "",
-      instructions: "",
-      notes: "",
-    });
-    setSearchTerm("");
-  }, []);
-
   const openAddDialog = () => {
-    resetItemForm();
+    setSearchTerm("");
     setShowAddDialog(true);
   };
 
-  const openEditDialog = (item: MedicineOrderItem) => {
-    setEditingItem(item);
-    setItemForm({
-      medicine_id: item.medicine_id,
-      medicineName: item.medicine?.name || "",
-      quantity: item.quantity,
-      unit: item.unit,
-      dosage: item.dosage,
-      frequency: item.frequency,
-      route: item.route,
-      duration: item.duration,
-      instructions: item.instructions,
-      notes: item.notes,
-    });
-    setShowEditDialog(true);
-  };
-
-  const handleAddItem = async () => {
+  const handleAddItemFromMedicine = async (roomMedicine: RoomMedicine) => {
     if (!selectedOrder) return;
-    if (!itemForm.medicine_id) {
-      toast({ variant: "destructive", title: "Pilih obat terlebih dahulu" });
-      return;
-    }
-    if (itemForm.quantity < 1) {
-      toast({ variant: "destructive", title: "Jumlah minimal 1" });
-      return;
-    }
 
     setSubmitting(true);
     try {
+      const medicine = roomMedicine.medicine;
       await medicineOrdersApi.addItem(selectedOrder.id, {
-        medicine_id: itemForm.medicine_id,
-        quantity: itemForm.quantity,
-        unit: itemForm.unit,
-        dosage: itemForm.dosage,
-        frequency: itemForm.frequency,
-        route: itemForm.route,
-        duration: itemForm.duration,
-        instructions: itemForm.instructions,
-        notes: itemForm.notes,
+        medicine_id: medicine.id,
+        quantity: 1,
+        unit: medicine.unit,
+        dosage: medicine.strength || "-",
+        frequency: "1x sehari",
+        route: "oral",
+        duration: "1 hari",
+        instructions: "Sesudah makan",
+        notes: "",
       });
       
       toast({ title: "Berhasil", description: "Obat berhasil ditambahkan" });
       setShowAddDialog(false);
-      loadOrders();
+      setSearchTerm("");
+      await loadOrders(true);
       // Trigger refresh on final visit component
       window.dispatchEvent(new CustomEvent("refresh-print-options"));
       window.dispatchEvent(new CustomEvent("refresh-final-visit"));
@@ -265,40 +275,6 @@ export function PharmacyEditPrescription({ visitId, readOnly = false }: Pharmacy
         variant: "destructive",
         title: "Error",
         description: error.response?.data?.error || "Gagal menambahkan obat",
-      });
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleUpdateItem = async () => {
-    if (!selectedOrder || !editingItem) return;
-
-    setSubmitting(true);
-    try {
-      await medicineOrdersApi.updateItem(selectedOrder.id, editingItem.id!, {
-        quantity: itemForm.quantity,
-        unit: itemForm.unit,
-        dosage: itemForm.dosage,
-        frequency: itemForm.frequency,
-        route: itemForm.route,
-        duration: itemForm.duration,
-        instructions: itemForm.instructions,
-        notes: itemForm.notes,
-      });
-      
-      toast({ title: "Berhasil", description: "Obat berhasil diperbarui" });
-      setShowEditDialog(false);
-      setEditingItem(null);
-      loadOrders();
-      // Trigger refresh on final visit component
-      window.dispatchEvent(new CustomEvent("refresh-print-options"));
-      window.dispatchEvent(new CustomEvent("refresh-final-visit"));
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.response?.data?.error || "Gagal memperbarui obat",
       });
     } finally {
       setSubmitting(false);
@@ -318,7 +294,7 @@ export function PharmacyEditPrescription({ visitId, readOnly = false }: Pharmacy
     try {
       await medicineOrdersApi.deleteItem(selectedOrder.id, item.id!);
       toast({ title: "Berhasil", description: "Obat berhasil dihapus" });
-      loadOrders();
+      await loadOrders(true);
       // Trigger refresh on final visit component
       window.dispatchEvent(new CustomEvent("refresh-print-options"));
       window.dispatchEvent(new CustomEvent("refresh-final-visit"));
@@ -356,25 +332,110 @@ export function PharmacyEditPrescription({ visitId, readOnly = false }: Pharmacy
     }
   };
 
-  const selectMedicine = (medicine: RoomMedicine["medicine"]) => {
-    setItemForm(prev => ({
+  const filteredMedicines = useMemo(() => {
+    const selectedMedicineIds = new Set(
+      (selectedOrder?.items || [])
+        .filter((item) => item.status !== "cancelled")
+        .map((item) => item.medicine_id)
+    );
+
+    if (!searchTerm) {
+      return roomMedicines
+        .filter((rm) => !selectedMedicineIds.has(rm.medicine.id))
+        .slice(0, 10);
+    }
+    const lower = searchTerm.toLowerCase();
+    return roomMedicines.filter(rm =>
+      !selectedMedicineIds.has(rm.medicine.id) && (
+        rm.medicine.name.toLowerCase().includes(lower) ||
+        rm.medicine.generic_name?.toLowerCase().includes(lower) ||
+        rm.medicine.code?.toLowerCase().includes(lower)
+      )
+    ).slice(0, 20);
+  }, [roomMedicines, searchTerm, selectedOrder?.items]);
+
+  const updateRowEdit = (rowKey: number, field: keyof RowEditData, value: string | number) => {
+    setRowEdits((prev) => ({
       ...prev,
-      medicine_id: medicine.id,
-      medicineName: medicine.name,
-      unit: medicine.unit,
+      [rowKey]: {
+        ...(prev[rowKey] || {
+          quantity: 1,
+          unit: "",
+          dosage: "",
+          frequency: "",
+          route: "oral",
+          duration: "",
+          instructions: "",
+          notes: "",
+        }),
+        [field]: value,
+      },
     }));
-    setSearchTerm("");
   };
 
-  const filteredMedicines = useMemo(() => {
-    if (!searchTerm) return roomMedicines.slice(0, 10);
-    const lower = searchTerm.toLowerCase();
-    return roomMedicines.filter(rm => 
-      rm.medicine.name.toLowerCase().includes(lower) ||
-      rm.medicine.generic_name?.toLowerCase().includes(lower) ||
-      rm.medicine.code?.toLowerCase().includes(lower)
-    ).slice(0, 20);
-  }, [roomMedicines, searchTerm]);
+  const handleSaveRow = async (item: MedicineOrderItem, rowKey: number) => {
+    if (!selectedOrder || !item.id) return;
+    const row = rowEdits[rowKey];
+    if (!row) return;
+
+    if (!row.quantity || row.quantity < 1) {
+      toast({ variant: "destructive", title: "Jumlah minimal 1" });
+      return;
+    }
+
+    const availableStock = roomMedicines.find((rm) => rm.medicine.id === item.medicine_id)?.quantity || 0;
+    if (availableStock > 0 && row.quantity > availableStock) {
+      toast({ variant: "destructive", title: "Jumlah melebihi stok tersedia" });
+      return;
+    }
+    if (!row.dosage?.trim()) {
+      toast({ variant: "destructive", title: "Dosis wajib diisi" });
+      return;
+    }
+    if (!row.frequency?.trim()) {
+      toast({ variant: "destructive", title: "Frekuensi wajib diisi" });
+      return;
+    }
+    if (!row.route?.trim()) {
+      toast({ variant: "destructive", title: "Rute wajib diisi" });
+      return;
+    }
+    if (!row.duration?.trim()) {
+      toast({ variant: "destructive", title: "Durasi wajib diisi" });
+      return;
+    }
+    if (!row.instructions?.trim()) {
+      toast({ variant: "destructive", title: "Cara pemakaian wajib diisi" });
+      return;
+    }
+
+    setSavingRowId(item.id);
+    try {
+      await medicineOrdersApi.updateItem(selectedOrder.id, item.id, {
+        quantity: row.quantity,
+        unit: row.unit,
+        dosage: row.dosage,
+        frequency: row.frequency,
+        route: row.route,
+        duration: row.duration,
+        instructions: row.instructions,
+        notes: row.notes,
+      });
+
+      toast({ title: "Berhasil", description: "Obat berhasil diperbarui" });
+      await loadOrders();
+      window.dispatchEvent(new CustomEvent("refresh-print-options"));
+      window.dispatchEvent(new CustomEvent("refresh-final-visit"));
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.response?.data?.error || "Gagal memperbarui obat",
+      });
+    } finally {
+      setSavingRowId(null);
+    }
+  };
 
   if (loading) {
     return (
@@ -411,6 +472,9 @@ export function PharmacyEditPrescription({ visitId, readOnly = false }: Pharmacy
   
   // Filter out cancelled items
   const activeItems = selectedOrder?.items?.filter(item => item.status !== 'cancelled') || [];
+  const grandTotal = activeItems.reduce((total, item) => {
+    return total + getUnitPrice(item) * Number(item.quantity || 0);
+  }, 0);
 
   return (
     <>
@@ -472,7 +536,7 @@ export function PharmacyEditPrescription({ visitId, readOnly = false }: Pharmacy
                       </div>
                     </div>
                     <div className="p-3">
-                      <table className="w-full text-sm">
+                      <table className="w-full min-w-[640px] text-sm">
                         <tbody>
                           <tr className="border-b">
                             <td className="py-2 text-muted-foreground w-1/4">Diagnosis</td>
@@ -520,67 +584,198 @@ export function PharmacyEditPrescription({ visitId, readOnly = false }: Pharmacy
                       )}
                     </div>
                     <div className="p-0">
-                      <table className="w-full text-sm">
+                      <table className="w-full min-w-[640px] text-sm">
                         <thead className="bg-muted/50">
                           <tr>
-                            <th className="py-2 px-3 text-left font-medium">Nama Obat</th>
-                            <th className="py-2 px-3 text-left font-medium">Dosis</th>
-                            <th className="py-2 px-3 text-left font-medium">Frekuensi</th>
-                            <th className="py-2 px-3 text-left font-medium">Rute</th>
-                            <th className="py-2 px-3 text-right font-medium">Jumlah</th>
-                            {canModify && <th className="py-2 px-3 text-center font-medium w-24">Aksi</th>}
+                            <th className="py-1.5 px-2 text-left font-medium">Nama Obat</th>
+                            <th className="py-1.5 px-2 text-left font-medium">Jumlah*</th>
+                            <th className="py-1.5 px-2 text-left font-medium">Dosis*</th>
+                            <th className="py-1.5 px-2 text-left font-medium">Frekuensi*</th>
+                            <th className="py-1.5 px-2 text-left font-medium">Rute*</th>
+                            <th className="py-1.5 px-2 text-left font-medium">Durasi*</th>
+                            <th className="py-1.5 px-2 text-left font-medium">Cara Pakai*</th>
+                            <th className="py-1.5 px-2 text-right font-medium">Harga</th>
+                            {canModify && <th className="py-1.5 px-2 text-center font-medium w-24">Aksi</th>}
                           </tr>
                         </thead>
                         <tbody>
                           {activeItems.length === 0 ? (
                             <tr>
-                              <td colSpan={canModify ? 6 : 5} className="py-8 text-center text-muted-foreground">
+                              <td colSpan={canModify ? 9 : 8} className="py-8 text-center text-muted-foreground">
                                 Belum ada obat dalam resep
                               </td>
                             </tr>
                           ) : (
-                            activeItems.map((item, index) => (
-                              <tr key={item.id || index} className="border-b last:border-0">
-                                <td className="py-3 px-3">
-                                  <p className="font-medium">{item.medicine?.name || "Obat"}</p>
-                                  <p className="text-xs text-muted-foreground">{item.medicine?.generic_name}</p>
-                                  {item.instructions && (
-                                    <p className="text-xs text-blue-600 mt-1">"{item.instructions}"</p>
-                                  )}
-                                </td>
-                                <td className="py-3 px-3">{item.dosage || "-"}</td>
-                                <td className="py-3 px-3">{item.frequency || "-"}</td>
-                                <td className="py-3 px-3">{item.route || "-"}</td>
-                                <td className="py-3 px-3 text-right font-medium">{item.quantity} {item.unit}</td>
-                                {canModify && (
-                                  <td className="py-3 px-3">
-                                    <div className="flex justify-center gap-1">
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-8 w-8"
-                                        onClick={() => openEditDialog(item)}
-                                        disabled={item.dispensed_qty > 0}
-                                      >
-                                        <Pencil className="h-4 w-4" />
-                                      </Button>
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-8 w-8 text-destructive hover:text-destructive"
-                                        onClick={() => handleDeleteItem(item)}
-                                        disabled={item.dispensed_qty > 0}
-                                      >
-                                        <Trash2 className="h-4 w-4" />
-                                      </Button>
-                                    </div>
+                            activeItems.map((item, index) => {
+                              const rowKey = item.id ?? -(index + 1);
+                              const row = rowEdits[rowKey] || {
+                                quantity: Number(item.quantity || 1),
+                                unit: item.unit || "",
+                                dosage: item.dosage || "",
+                                frequency: item.frequency || "",
+                                route: item.route || "oral",
+                                duration: item.duration || "",
+                                instructions: item.instructions || "",
+                                notes: item.notes || "",
+                              };
+                              const availableStock = roomMedicines.find((rm) => rm.medicine.id === item.medicine_id)?.quantity || 0;
+                              const unitPrice = getUnitPrice(item);
+
+                              return (
+                                <tr key={item.id || index} className="border-b last:border-0 align-top">
+                                  <td className="py-2 px-2">
+                                    <p className="font-medium">{item.medicine?.name || "Obat"}</p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {item.medicine?.code || "-"} • Stok {availableStock} {item.unit}
+                                    </p>
                                   </td>
-                                )}
-                              </tr>
-                            ))
+                                  <td className="py-2 px-2">
+                                    {canModify ? (
+                                      <>
+                                        <Input
+                                          type="number"
+                                          min={1}
+                                          max={availableStock > 0 ? availableStock : undefined}
+                                          value={row.quantity}
+                                          onChange={(e) => updateRowEdit(rowKey, "quantity", Number(e.target.value) || 1)}
+                                          className="h-8"
+                                          disabled={item.dispensed_qty > 0}
+                                        />
+                                        {availableStock > 0 && (
+                                          <p className="text-[10px] text-muted-foreground mt-1">Maks {availableStock}</p>
+                                        )}
+                                      </>
+                                    ) : (
+                                      <span className="font-medium">{item.quantity} {item.unit}</span>
+                                    )}
+                                  </td>
+                                  <td className="py-2 px-2">
+                                    {canModify ? (
+                                      <Input
+                                        value={row.dosage}
+                                        onChange={(e) => updateRowEdit(rowKey, "dosage", e.target.value)}
+                                        className="h-8"
+                                        disabled={item.dispensed_qty > 0}
+                                      />
+                                    ) : (
+                                      item.dosage || "-"
+                                    )}
+                                  </td>
+                                  <td className="py-2 px-2">
+                                    {canModify ? (
+                                      <Select
+                                        value={row.frequency}
+                                        onValueChange={(value) => updateRowEdit(rowKey, "frequency", value)}
+                                        disabled={item.dispensed_qty > 0}
+                                      >
+                                        <SelectTrigger className="h-8">
+                                          <SelectValue placeholder="Pilih" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {FREQUENCY_OPTIONS.map((opt) => (
+                                            <SelectItem key={opt.value} value={opt.value}>
+                                              {opt.label}
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    ) : (
+                                      item.frequency || "-"
+                                    )}
+                                  </td>
+                                  <td className="py-2 px-2">
+                                    {canModify ? (
+                                      <Select
+                                        value={row.route}
+                                        onValueChange={(value) => updateRowEdit(rowKey, "route", value)}
+                                        disabled={item.dispensed_qty > 0}
+                                      >
+                                        <SelectTrigger className="h-8">
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {ROUTE_OPTIONS.map((opt) => (
+                                            <SelectItem key={opt.value} value={opt.value}>
+                                              {opt.label}
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    ) : (
+                                      item.route || "-"
+                                    )}
+                                  </td>
+                                  <td className="py-2 px-2">
+                                    {canModify ? (
+                                      <Input
+                                        value={row.duration}
+                                        onChange={(e) => updateRowEdit(rowKey, "duration", e.target.value)}
+                                        className="h-8"
+                                        disabled={item.dispensed_qty > 0}
+                                      />
+                                    ) : (
+                                      item.duration || "-"
+                                    )}
+                                  </td>
+                                  <td className="py-2 px-2 min-w-[220px]">
+                                    {canModify ? (
+                                      <Combobox
+                                        options={INSTRUCTION_OPTIONS}
+                                        value={row.instructions}
+                                        onValueChange={(value) => updateRowEdit(rowKey, "instructions", value)}
+                                        placeholder="Pilih cara pemakaian"
+                                        searchPlaceholder="Cari cara pemakaian..."
+                                        emptyText="Cara pemakaian tidak ditemukan"
+                                        className="w-full"
+                                      />
+                                    ) : (
+                                      item.instructions || item.notes || "-"
+                                    )}
+                                  </td>
+                                  <td className="py-2 px-2 text-right">
+                                    <p className="text-xs text-muted-foreground">@ {formatRupiah(unitPrice)}</p>
+                                    <p className="text-sm font-semibold leading-4">{formatRupiah(Number(row.quantity || 0) * unitPrice)}</p>
+                                  </td>
+                                  {canModify && (
+                                    <td className="py-2 px-2">
+                                      <div className="flex justify-center gap-1">
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-8 w-8 text-primary"
+                                          onClick={() => handleSaveRow(item, rowKey)}
+                                          disabled={item.dispensed_qty > 0 || savingRowId === item.id}
+                                        >
+                                          {savingRowId === item.id ? (
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                          ) : (
+                                            <Save className="h-4 w-4" />
+                                          )}
+                                        </Button>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-8 w-8 text-destructive hover:text-destructive"
+                                          onClick={() => handleDeleteItem(item)}
+                                          disabled={item.dispensed_qty > 0}
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      </div>
+                                    </td>
+                                  )}
+                                </tr>
+                              );
+                            })
                           )}
                         </tbody>
                       </table>
+                    </div>
+                    <div className="border-t bg-primary/5 px-3 py-2 flex items-center justify-end">
+                      <div className="text-right">
+                        <p className="text-xs text-muted-foreground">Grand Total</p>
+                        <p className="text-base font-semibold text-primary">{formatRupiah(grandTotal)}</p>
+                      </div>
                     </div>
                   </div>
                 </>
@@ -590,227 +785,58 @@ export function PharmacyEditPrescription({ visitId, readOnly = false }: Pharmacy
 
       {/* Add Item Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
           <DialogHeader>
-            <DialogTitle>Tambah Obat</DialogTitle>
+            <DialogTitle>Pilih Obat</DialogTitle>
             <DialogDescription>
-              Tambahkan obat baru ke dalam resep
+              Pilih obat, lalu ubah detail resep langsung di row tabel
             </DialogDescription>
           </DialogHeader>
           
-          <div className="space-y-4">
-            {/* Medicine Search */}
-            <div className="space-y-2">
-              <Label>Pilih Obat *</Label>
-              {itemForm.medicine_id ? (
-                <div className="flex items-center justify-between border rounded-lg p-3 bg-muted/30">
-                  <div>
-                    <p className="font-medium">{itemForm.medicineName}</p>
-                    <p className="text-xs text-muted-foreground">Unit: {itemForm.unit}</p>
-                  </div>
-                  <Button variant="ghost" size="sm" onClick={resetItemForm}>
-                    Ganti
-                  </Button>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Cari obat..."
+              className="pl-9"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          <ScrollArea className="flex-1 max-h-[400px] border rounded-md">
+            <div className="divide-y">
+              {filteredMedicines.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  {searchTerm ? "Tidak ada obat yang sesuai" : "Semua obat yang tersedia sudah dipilih"}
                 </div>
               ) : (
-                <div className="space-y-2">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Cari obat..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-9"
-                    />
-                  </div>
-                  <div className="border rounded-lg max-h-48 overflow-auto">
-                    {filteredMedicines.length === 0 ? (
-                      <div className="p-4 text-center text-muted-foreground text-sm">
-                        {searchTerm ? "Obat tidak ditemukan" : "Ketik untuk mencari obat"}
-                      </div>
-                    ) : (
-                      filteredMedicines.map((rm) => (
-                        <div
-                          key={rm.id}
-                          className="p-2 hover:bg-muted cursor-pointer border-b last:border-0"
-                          onClick={() => selectMedicine(rm.medicine)}
-                        >
-                          <p className="font-medium text-sm">{rm.medicine.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {rm.medicine.generic_name} • Stok: {rm.quantity} {rm.medicine.unit}
-                          </p>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
+                filteredMedicines.map((rm) => (
+                  <button
+                    key={rm.id}
+                    type="button"
+                    className="w-full p-3 hover:bg-muted/50 flex items-center justify-between gap-3 text-left"
+                    onClick={() => handleAddItemFromMedicine(rm)}
+                    disabled={submitting}
+                  >
+                    <div>
+                      <p className="font-medium text-sm">{rm.medicine.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {rm.medicine.code} • {rm.medicine.form} • {rm.medicine.strength}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={rm.quantity > rm.min_quantity ? "default" : "destructive"}>
+                        Stok: {rm.quantity}
+                      </Badge>
+                    </div>
+                  </button>
+                ))
               )}
             </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Jumlah</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  value={itemForm.quantity}
-                  onChange={(e) => setItemForm({ ...itemForm, quantity: parseInt(e.target.value) || 1 })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Dosis (contoh: 3x1)</Label>
-                <Input
-                  placeholder="3x1"
-                  value={itemForm.dosage}
-                  onChange={(e) => setItemForm({ ...itemForm, dosage: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Frekuensi</Label>
-                <Select value={itemForm.frequency} onValueChange={(v) => setItemForm({ ...itemForm, frequency: v })}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Pilih frekuensi" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {FREQUENCY_OPTIONS.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Rute</Label>
-                <Select value={itemForm.route} onValueChange={(v) => setItemForm({ ...itemForm, route: v })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ROUTE_OPTIONS.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Durasi</Label>
-                <Input
-                  placeholder="7 hari"
-                  value={itemForm.duration}
-                  onChange={(e) => setItemForm({ ...itemForm, duration: e.target.value })}
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Instruksi Tambahan</Label>
-              <Textarea
-                placeholder="Contoh: Sesudah makan, diminum dengan air putih"
-                value={itemForm.instructions}
-                onChange={(e) => setItemForm({ ...itemForm, instructions: e.target.value })}
-              />
-            </div>
-          </div>
+          </ScrollArea>
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowAddDialog(false)}>
-              Batal
-            </Button>
-            <Button onClick={handleAddItem} disabled={submitting || !itemForm.medicine_id}>
-              {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Tambahkan
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit Item Dialog */}
-      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Edit Obat</DialogTitle>
-            <DialogDescription>
-              Ubah detail obat: {editingItem?.medicine?.name}
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Jumlah</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  value={itemForm.quantity}
-                  onChange={(e) => setItemForm({ ...itemForm, quantity: parseInt(e.target.value) || 1 })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Dosis (contoh: 3x1)</Label>
-                <Input
-                  placeholder="3x1"
-                  value={itemForm.dosage}
-                  onChange={(e) => setItemForm({ ...itemForm, dosage: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Frekuensi</Label>
-                <Select value={itemForm.frequency} onValueChange={(v) => setItemForm({ ...itemForm, frequency: v })}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Pilih frekuensi" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {FREQUENCY_OPTIONS.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Rute</Label>
-                <Select value={itemForm.route} onValueChange={(v) => setItemForm({ ...itemForm, route: v })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ROUTE_OPTIONS.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Durasi</Label>
-                <Input
-                  placeholder="7 hari"
-                  value={itemForm.duration}
-                  onChange={(e) => setItemForm({ ...itemForm, duration: e.target.value })}
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Instruksi Tambahan</Label>
-              <Textarea
-                placeholder="Contoh: Sesudah makan, diminum dengan air putih"
-                value={itemForm.instructions}
-                onChange={(e) => setItemForm({ ...itemForm, instructions: e.target.value })}
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setShowEditDialog(false); setEditingItem(null); }}>
-              Batal
-            </Button>
-            <Button onClick={handleUpdateItem} disabled={submitting}>
-              {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Simpan
+              Tutup
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -766,7 +766,7 @@ export function AdmissionDrawer({
                 {/* Admission Type Selection */}
                 <div className="space-y-2">
                   <Label className="text-sm">Tipe Rawat Inap <span className="text-destructive">*</span></Label>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {[
                       { value: "elektif", label: "Elektif", desc: "Rawat inap terencana" },
                       { value: "emergency", label: "Emergency", desc: "Rawat inap darurat" },
@@ -793,7 +793,7 @@ export function AdmissionDrawer({
                 {/* Priority Selection */}
                 <div className="space-y-2">
                   <Label className="text-sm">Prioritas <span className="text-destructive">*</span></Label>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     {[
                       { value: "normal", label: "Normal", desc: "Prioritas standar", color: "text-green-600" },
                       { value: "urgent", label: "Urgent", desc: "Perlu segera", color: "text-orange-600" },
@@ -889,7 +889,7 @@ export function AdmissionDrawer({
                   {/* Admission Type Selection */}
                   <div className="space-y-2">
                     <Label className="text-sm">Tipe Rawat Inap <span className="text-destructive">*</span></Label>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {[
                         { value: "elektif", label: "Elektif", desc: "Rawat inap terencana" },
                         { value: "emergency", label: "Emergency", desc: "Rawat inap darurat" },
@@ -916,7 +916,7 @@ export function AdmissionDrawer({
                   {/* Priority Selection */}
                   <div className="space-y-2">
                     <Label className="text-sm">Prioritas <span className="text-destructive">*</span></Label>
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       {[
                         { value: "normal", label: "Normal", desc: "Prioritas standar", color: "text-green-600" },
                         { value: "urgent", label: "Urgent", desc: "Perlu segera", color: "text-orange-600" },

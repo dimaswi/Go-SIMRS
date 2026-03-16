@@ -755,7 +755,7 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
         <div>
           <div className="p-0">
             {records.length > 0 ? (
-              <div className="rounded-lg border overflow-hidden">
+              <div className="rounded-lg border overflow-x-auto">
                 {/* Table Header */}
                 <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-muted/50 text-xs font-medium text-muted-foreground border-b sticky top-0">
                   <div className="col-span-1"></div>
@@ -878,7 +878,7 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
               <TabsContent value="diagnosis" className="flex-1 overflow-hidden mt-0">
                 <ScrollArea className="h-full pr-4">
                   <div className="space-y-4 pb-4">
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <Label>Tanggal & Waktu</Label>
                     <Input
@@ -925,7 +925,7 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
                   </div>
                 </div>
 
-                <div className="space-y-4"><div className="grid grid-cols-3 gap-4 mb-4">
+                <div className="space-y-4"><div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
                       <div className="col-span-2 space-y-2">
                         <Label>Diagnosis Keperawatan</Label>
                         <Textarea
@@ -945,7 +945,7 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label>Etiologi (Penyebab/Berhubungan dengan)</Label>
                         <Textarea
@@ -968,7 +968,7 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
                 </div>
 
                 {/* Luaran */}
-                <div className="space-y-4"><div className="grid grid-cols-3 gap-4 mb-4">
+                <div className="space-y-4"><div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
                       <div className="col-span-3 space-y-2">
                         <Label>Luaran Keperawatan</Label>
                         <Textarea
@@ -980,7 +980,7 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label>Indikator Luaran</Label>
                         <Textarea
@@ -1011,7 +1011,7 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
                     </div>
                 </div>
 
-                <div className="space-y-4"><div className="grid grid-cols-3 gap-4 mb-4">
+                <div className="space-y-4"><div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
                       <div className="col-span-3 space-y-2">
                         <Label>Intervensi Keperawatan</Label>
                         <Textarea
@@ -1023,7 +1023,7 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label>Tindakan Observasi</Label>
                         <Textarea

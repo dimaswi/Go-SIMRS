@@ -872,7 +872,7 @@ export function MedicalRecordPrintDialog({
                   {activeTab === "surat" && (
                     <div className="p-4 border rounded-lg bg-muted/50 space-y-4">
                       <div className="font-medium text-sm">Opsi Surat Keterangan Sakit</div>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-1.5">
                           <Label className="text-sm">Jumlah Hari Istirahat</Label>
                           <Input

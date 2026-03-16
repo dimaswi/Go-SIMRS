@@ -369,7 +369,7 @@ export function BPJSControlSection({
         : "border-green-300 bg-green-50"
     }`}>
       {/* Header with Toggle */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div className={`flex items-center gap-2 ${isRawatInap ? "text-blue-700" : "text-green-700"}`}>
           {isRawatInap ? <Hospital className="h-5 w-5" /> : <FileCheck className="h-5 w-5" />}
           <span className="font-semibold">
@@ -406,7 +406,7 @@ export function BPJSControlSection({
         <div className={`text-xs font-medium mb-2 ${isRawatInap ? "text-blue-600" : "text-green-600"}`}>
           {activeSEP ? "Data SEP Aktif" : "Data BPJS Pasien"}
         </div>
-        <div className="grid grid-cols-2 gap-2 text-sm">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
           {activeSEP ? (
             <>
               <div>
@@ -441,7 +441,7 @@ export function BPJSControlSection({
             {isRawatInap ? "SPRI" : "Surat Kontrol"} Berhasil Dibuat
           </AlertTitle>
           <AlertDescription className={isRawatInap ? "text-blue-700" : "text-green-700"}>
-            <div className="grid grid-cols-2 gap-2 mt-2 text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2 text-sm">
               {isRawatInap && spriResult ? (
                 <>
                   <div>No. SPRI: <strong>{spriResult.noSPRI}</strong></div>
@@ -480,7 +480,7 @@ export function BPJSControlSection({
             <Alert className={isRawatInap ? "bg-blue-100 border-blue-200" : "bg-green-100 border-green-200"}>
               <UserCheck className={`h-4 w-4 ${isRawatInap ? "text-blue-600" : "text-green-600"}`} />
               <AlertDescription className={isRawatInap ? "text-blue-700" : "text-green-700"}>
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <span>
                     <strong>{peserta.nama}</strong> - {peserta.noKartu}
                   </span>
@@ -572,7 +572,7 @@ export function BPJSControlSection({
           {/* PRB Section - Only for Surat Kontrol v2 */}
           {!isRawatInap && version === "v2" && (
             <div className="space-y-4 p-4 bg-white/60 rounded-lg border border-green-200">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <Pill className="h-4 w-4 text-green-600" />
                   <Label className="text-sm font-medium">Program Rujuk Balik (PRB)</Label>
@@ -605,7 +605,7 @@ export function BPJSControlSection({
 
                   {/* PRB Fields based on selected status */}
                   {kdStatusPRB && PRB_FIELDS[kdStatusPRB] && (
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {PRB_FIELDS[kdStatusPRB].map((field) => (
                         <div key={field.key} className="space-y-1">
                           <Label className="text-xs">{field.label}</Label>

@@ -13,7 +13,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Eye, XCircle, Printer, Loader2, Ticket, User, Smartphone, CheckCircle, Stethoscope, BedDouble, Pencil } from "lucide-react";
+import { Eye, XCircle, Printer, Loader2, Ticket, User, Smartphone, CheckCircle, Stethoscope, BedDouble, Pencil, GitBranch } from "lucide-react";
 import type { Registration } from "@/lib/api/queue";
 import type { BPJSQueue } from "@/lib/api/bpjs";
 import {
@@ -26,6 +26,7 @@ import { formatPatientName } from "@/lib/print-utils";
 
 interface ColumnOptions {
   onView: (id: number) => void;
+  onViewJourney: (registration: Registration) => void;
   onPrintQueueTicket: (registration: Registration) => void;
   onPrintPatientLabel: (registration: Registration) => void;
   onCancel: (id: number) => void;
@@ -368,6 +369,22 @@ export function createRegistrationColumns(
                   </DropdownMenuContent>
                 </DropdownMenu>
               )}
+              {options.hasViewPermission && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => options.onViewJourney(reg)}
+                      className="h-8 w-8"
+                    >
+                      <GitBranch className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Perjalanan Pasien</TooltipContent>
+                </Tooltip>
+              )}
+
               {options.hasViewPermission && (
                 <Tooltip>
                   <TooltipTrigger asChild>

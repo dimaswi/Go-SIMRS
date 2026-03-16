@@ -1,12 +1,37 @@
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Save, User } from "lucide-react";
-import { medicalRecordsApi } from "@/lib/api";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { usePermission } from "@/hooks/usePermission";
+import { cn } from "@/lib/utils";
+import { Loader2, Save, CheckCircle2 } from "lucide-react";
+import {
+  procedureOrdersApi,
+  PROCEDURE_ORDER_STATUS,
+} from "@/lib/api";
+import type {
+  ProcedureOrder,
+  ProcedureOrderItem,
+  ProcedureParameter,
+} from "@/lib/api/procedure-orders";
 
 interface ConsultationFormProps {
   visitId: number;
@@ -15,18 +40,12 @@ interface ConsultationFormProps {
 
 export function ConsultationForm({ visitId, readOnly = false }: ConsultationFormProps) {
   const { toast } = useToast();
+  const { hasPermission } = usePermission();
+  const canPerform = hasPermission("procedure_orders.perform");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [existingData, setExistingData] = useState<any>(null);
-  
-  const [formData, setFormData] = useState({
-    subjective: "",
-    objective: "",
-    assessment: "",
-    plan: "",
-    recommendation: "",
-    notes: "",
-  });
+  const [order, setOrder] = useState<ProcedureOrder | null>(null);
+  const [inlineResults, setInlineResults] = useState<Record<number, Record<number, string>>>({});
 
   useEffect(() => {
     loadConsultation();
@@ -35,23 +54,30 @@ export function ConsultationForm({ visitId, readOnly = false }: ConsultationForm
   const loadConsultation = async () => {
     setLoading(true);
     try {
-      const response = await medicalRecordsApi.getConsultation(visitId);
-      if (response.data) {
-        setExistingData(response.data);
-        // If there's consultation data (already answered)
-        if (response.data.subjective !== undefined) {
-          setFormData({
-            subjective: response.data.subjective || "",
-            objective: response.data.objective || "",
-            assessment: response.data.assessment || "",
-            plan: response.data.plan || "",
-            recommendation: response.data.recommendation || "",
-            notes: response.data.notes || "",
+      const orderRes = await procedureOrdersApi.getAll({ target_visit_id: visitId, order_type: "consultation" });
+
+      const orders = orderRes.data || [];
+      const activeOrder =
+        orders.find((item) => item.status === "in_progress" || item.status === "pending") ||
+        orders[0] ||
+        null;
+      setOrder(activeOrder);
+
+      if (activeOrder?.items?.length) {
+        const mappedResults: Record<number, Record<number, string>> = {};
+        activeOrder.items.forEach((item) => {
+          if (!item.id) return;
+          mappedResults[item.id] = {};
+          item.procedure?.parameters?.forEach((param) => {
+            const existingResult = item.results?.find((r) => r.procedure_parameter_id === param.id);
+            mappedResults[item.id][param.id] = existingResult?.value || "";
           });
-        }
+        });
+        setInlineResults(mappedResults);
+      } else {
+        setInlineResults({});
       }
     } catch (error: any) {
-      // If 404, it's okay - no existing data
       if (error.response?.status !== 404) {
         console.error("Error loading consultation:", error);
       }
@@ -60,38 +86,198 @@ export function ConsultationForm({ visitId, readOnly = false }: ConsultationForm
     }
   };
 
+  const isLocked = readOnly || !canPerform || order?.status === "completed";
+
+  const getConsultationStatusLabel = (status?: string) => {
+    if (!status) return "-";
+    const key = status as keyof typeof PROCEDURE_ORDER_STATUS;
+    return PROCEDURE_ORDER_STATUS[key]?.label || status;
+  };
+
+  const updateInlineResult = (itemId: number, paramId: number, value: string) => {
+    setInlineResults((prev) => ({
+      ...prev,
+      [itemId]: {
+        ...(prev[itemId] || {}),
+        [paramId]: value,
+      },
+    }));
+  };
+
+  const parseSelectOptions = (param: ProcedureParameter): string[] => {
+    if (!param.options) return [];
+    try {
+      const parsed = JSON.parse(param.options);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return param.options
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+    }
+  };
+
+  const renderInlineInput = (item: ProcedureOrderItem, param: ProcedureParameter) => {
+    const itemId = item.id || 0;
+    const value = inlineResults[itemId]?.[param.id] || "";
+
+    if (isLocked) {
+      return <span className="text-sm">{value || "-"}</span>;
+    }
+
+    if (param.input_type === "textarea") {
+      return (
+        <Textarea
+          value={value}
+          onChange={(e) => updateInlineResult(itemId, param.id, e.target.value)}
+          className="min-h-[56px] text-xs"
+          placeholder="Isi hasil..."
+        />
+      );
+    }
+
+    if (param.input_type === "number") {
+      return (
+        <Input
+          type="number"
+          value={value}
+          onChange={(e) => updateInlineResult(itemId, param.id, e.target.value)}
+          className="h-7 text-xs"
+          placeholder="0"
+        />
+      );
+    }
+
+    if (param.input_type === "select") {
+      const options = parseSelectOptions(param);
+      return (
+        <Select
+          value={value}
+          onValueChange={(selected) => updateInlineResult(itemId, param.id, selected)}
+        >
+          <SelectTrigger className="h-7 min-w-[120px] text-xs">
+            <SelectValue placeholder="Pilih" />
+          </SelectTrigger>
+          <SelectContent>
+            {options.map((option) => (
+              <SelectItem key={option} value={option}>
+                {option}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      );
+    }
+
+    if (param.input_type === "checkbox") {
+      return (
+        <Select
+          value={value || "false"}
+          onValueChange={(selected) => updateInlineResult(itemId, param.id, selected)}
+        >
+          <SelectTrigger className="h-7 min-w-[92px] text-xs">
+            <SelectValue placeholder="Pilih" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="true">Ya</SelectItem>
+            <SelectItem value="false">Tidak</SelectItem>
+          </SelectContent>
+        </Select>
+      );
+    }
+
+    return (
+      <Input
+        value={value}
+        onChange={(e) => updateInlineResult(itemId, param.id, e.target.value)}
+        className="h-7 text-xs"
+        placeholder="Isi hasil..."
+      />
+    );
+  };
+
+  const hasAnyResultInput = useMemo(() => {
+    return Object.values(inlineResults).some((itemMap) =>
+      Object.values(itemMap || {}).some((value) => String(value || "").trim() !== "")
+    );
+  }, [inlineResults]);
+
   const handleSave = async () => {
-    if (!formData.subjective && !formData.objective && !formData.assessment && !formData.plan) {
+    if (!order) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Minimal isi satu field untuk menyimpan konsultasi",
+        description: "Order konsultasi tidak ditemukan untuk visit ini",
+      });
+      return;
+    }
+
+    if (!hasAnyResultInput) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Isi minimal satu hasil parameter tindakan konsultasi",
       });
       return;
     }
 
     setSaving(true);
     try {
-      // Save konsultasi
-      await medicalRecordsApi.saveConsultation(visitId, {
-        subjective: formData.subjective,
-        objective: formData.objective,
-        assessment: formData.assessment,
-        plan: formData.plan,
-        recommendation: formData.recommendation,
-        notes: formData.notes,
+      const mappedItems = (order.items || [])
+        .filter((item) => item.id && item.status !== "cancelled")
+        .map((item) => {
+          const itemId = item.id as number;
+          const results = (item.procedure?.parameters || [])
+            .map((param) => {
+              const rawValue = inlineResults[itemId]?.[param.id] ?? "";
+              const value = String(rawValue).trim();
+              if (value === "") return null;
+
+              const payload: {
+                parameter_id: number;
+                value: string;
+                numeric_value?: number;
+                notes?: string;
+              } = {
+                parameter_id: param.id,
+                value,
+              };
+
+              if (param.input_type === "number") {
+                const numeric = Number(value);
+                if (!Number.isNaN(numeric)) {
+                  payload.numeric_value = numeric;
+                }
+              }
+
+              return payload;
+            })
+            .filter((result): result is NonNullable<typeof result> => Boolean(result));
+
+          return {
+            item_id: itemId,
+            notes: item.notes || "",
+            results,
+          };
+        });
+
+      await procedureOrdersApi.saveResults(order.id, {
+        result_summary: "",
+        conclusion: "",
+        suggestion: "",
+        items: mappedItems,
       });
+
+      await procedureOrdersApi.complete(order.id);
 
       toast({
         title: "Berhasil",
         description: "Hasil konsultasi berhasil disimpan",
       });
-      
-      // Trigger refresh print options dan final visit
+
       window.dispatchEvent(new CustomEvent("refresh-print-options"));
       window.dispatchEvent(new CustomEvent("refresh-final-visit"));
-      
-      // Reload data
+
       await loadConsultation();
     } catch (error: any) {
       toast({
@@ -116,11 +302,158 @@ export function ConsultationForm({ visitId, readOnly = false }: ConsultationForm
 
   return (
     <div>
-      <div className="pb-2">
-        <div className="flex items-center justify-between">
-          
-          {!readOnly && !existingData?.subjective && (
-            <Button onClick={handleSave} disabled={saving}>
+      <div className="mb-2 border-b pb-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="font-medium text-sm">Pengisian Konsultasi</p>
+            {order && (
+              <p className="text-xs text-muted-foreground">Order: {order.order_number}</p>
+            )}
+          </div>
+
+          {!canPerform && (
+            <Badge variant="destructive">Butuh permission: procedure_orders.perform</Badge>
+          )}
+        </div>
+      </div>
+      <div>
+        {order && (
+          <>
+            <div className="mb-2 rounded-lg border bg-muted/30 p-2">
+              <div className="mb-1.5 flex items-center gap-2 text-xs font-semibold">Indikasi Konsultasi</div>
+              <div className="grid grid-cols-1 gap-x-6 gap-y-1 text-xs lg:grid-cols-2">
+                {order && (
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-muted-foreground">Status</div>
+                    <div>
+                      <Badge variant={PROCEDURE_ORDER_STATUS[order.status as keyof typeof PROCEDURE_ORDER_STATUS]?.variant || "secondary"}>
+                        {getConsultationStatusLabel(order.status)}
+                      </Badge>
+                    </div>
+                  </div>
+                )}
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-muted-foreground">No. Order</div>
+                  <div className="font-medium">{order.order_number || "-"}</div>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-muted-foreground">Dokter Pengirim</div>
+                  <div className="font-medium">{order.ordered_by?.nama_lengkap || "-"}</div>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-muted-foreground">Prioritas</div>
+                  <div>
+                    <Badge variant={order.priority === "urgent" || order.priority === "cito" ? "destructive" : "outline"}>
+                      {order.priority === "urgent" || order.priority === "cito"
+                        ? String(order.priority).toUpperCase()
+                        : "Normal"}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-1.5 space-y-1 text-xs">
+                <div className="rounded bg-background/70 px-2 py-1">
+                  <span className="text-muted-foreground">Diagnosis: </span>
+                  <span className="font-medium">{order.diagnosis || "-"}</span>
+                </div>
+                {order.clinical_notes && (
+                  <div className="rounded bg-background/70 px-2 py-1">
+                    <span className="text-muted-foreground">Alasan Konsultasi: </span>
+                    <div className="mt-0.5 max-h-8 overflow-auto whitespace-pre-wrap font-medium leading-4">
+                      {order.clinical_notes}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
+        )}
+
+        {!order && (
+          <div className="bg-muted/40 border rounded-lg p-4 mb-6 text-sm text-muted-foreground">
+            Tidak ada order konsultasi aktif untuk visit ini.
+          </div>
+        )}
+
+        {order && (
+          <div className="mb-2 space-y-2">
+            <div className="flex items-center gap-2 font-medium text-sm">
+              <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+              Parameter Tindakan Konsultasi
+            </div>
+            <div className="rounded-lg border">
+              <div className="max-h-[62vh] overflow-auto">
+                <Table className="min-w-[760px]">
+                <TableHeader>
+                  <TableRow className="sticky top-0 bg-muted/80 backdrop-blur-sm">
+                    <TableHead className="text-[11px]">Tindakan</TableHead>
+                    <TableHead className="text-[11px]">Parameter</TableHead>
+                    <TableHead className="text-[11px]">Hasil</TableHead>
+                    <TableHead className="text-[11px]">Normal</TableHead>
+                    <TableHead className="text-[11px]">Satuan</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {(order.items || []).map((item) => {
+                    const parameters = item.procedure?.parameters || [];
+                    const rowSpan = Math.max(parameters.length, 1);
+
+                    if (parameters.length === 0) {
+                      return (
+                        <TableRow key={item.id || item.procedure_id}>
+                          <TableCell className="py-2 text-xs font-medium">{item.procedure?.name || "-"}</TableCell>
+                          <TableCell colSpan={4} className="py-2 text-xs text-muted-foreground italic">
+                            Tindakan ini belum punya parameter
+                          </TableCell>
+                        </TableRow>
+                      );
+                    }
+
+                    return parameters.map((param, index) => (
+                      <TableRow key={`${item.id || item.procedure_id}-${param.id}`}>
+                        {index === 0 && (
+                          <TableCell rowSpan={rowSpan} className="align-top border-r py-2">
+                            <div className="text-xs font-medium">{item.procedure?.name || "-"}</div>
+                            <div className="text-[11px] text-muted-foreground">{item.procedure?.code || ""}</div>
+                          </TableCell>
+                        )}
+                        <TableCell className="py-1.5 text-xs">
+                          <span className={cn(param.is_required ? "font-medium" : "")}>{param.name}</span>
+                          {param.is_required && <span className="text-destructive ml-1">*</span>}
+                        </TableCell>
+                        <TableCell className="min-w-[200px] py-1">{renderInlineInput(item, param)}</TableCell>
+                        <TableCell className="py-1 text-xs text-muted-foreground">
+                          {param.normal_text ||
+                            (param.normal_min !== undefined && param.normal_max !== undefined
+                              ? `${param.normal_min} - ${param.normal_max}`
+                              : "-")}
+                        </TableCell>
+                        <TableCell className="py-1 text-xs text-muted-foreground">{param.unit || "-"}</TableCell>
+                      </TableRow>
+                    ));
+                  })}
+                </TableBody>
+              </Table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {isLocked && (
+          <div className="bg-muted/50 border border-muted rounded-md p-3 text-sm text-muted-foreground">
+            <p>
+              {readOnly
+                ? "Mode baca saja - Hasil konsultasi tidak dapat diubah"
+                : order?.status === "completed"
+                  ? "Order konsultasi sudah selesai - hasil tidak dapat diubah"
+                  : "Anda tidak memiliki akses untuk menyimpan hasil order konsultasi"}
+            </p>
+          </div>
+        )}
+
+        {!isLocked && (
+          <div className="mt-2 flex justify-end">
+            <Button onClick={handleSave} disabled={saving || !order}>
               {saving ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -133,175 +466,8 @@ export function ConsultationForm({ visitId, readOnly = false }: ConsultationForm
                 </>
               )}
             </Button>
-          )}
-        </div>
-      </div>
-      <div>
-        {/* Indikasi Konsultasi - Info from Order - Show always if procedure_order exists */}
-        {existingData?.procedure_order && (
-          <>
-            <div className="bg-muted/50 border rounded-lg p-4 mb-6">
-              <div className="flex items-center gap-2 font-medium mb-3">Indikasi Konsultasi
-              </div>
-              <div className="space-y-2 text-sm">
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="text-muted-foreground">No. Order:</div>
-                  <div className="col-span-2 font-medium">{existingData.procedure_order.order_number}</div>
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="text-muted-foreground">Dokter Pengirim:</div>
-                  <div className="col-span-2 font-medium">{existingData.procedure_order.ordered_by?.nama_lengkap || "-"}</div>
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="text-muted-foreground">Diagnosis:</div>
-                  <div className="col-span-2">{existingData.procedure_order.diagnosis || "-"}</div>
-                </div>
-                {existingData.procedure_order.clinical_notes && (
-                  <div className="grid grid-cols-3 gap-2">
-                    <div className="text-muted-foreground">Alasan Konsultasi:</div>
-                    <div className="col-span-2 font-medium bg-muted p-2 rounded whitespace-pre-wrap">
-                      {existingData.procedure_order.clinical_notes}
-                    </div>
-                  </div>
-                )}
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="text-muted-foreground">Prioritas:</div>
-                  <div className="col-span-2">
-                    <Badge variant={existingData.procedure_order.priority === "urgent" || existingData.procedure_order.priority === "cito" ? "destructive" : "outline"}>
-                      {existingData.procedure_order.priority === "urgent" || existingData.procedure_order.priority === "cito" ? existingData.procedure_order.priority.toUpperCase() : "Normal"}
-                    </Badge>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <Separator className="my-4" />
-          </>
+          </div>
         )}
-        
-        {/* Show this badge only if consultation has been answered (has subjective field) */}
-        {existingData?.subjective && (
-          <>
-            <div className="bg-muted/50 border rounded-lg p-4 mb-6">
-              <div className="flex items-center gap-2 font-medium mb-2">Konsultasi Telah Dijawab
-              </div>
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                {existingData.consultant && (
-                  <div className="flex items-center gap-1 text-muted-foreground">
-                    <User className="h-4 w-4" />
-                    <span>Konsultan: {existingData.consultant.nama_lengkap}</span>
-                  </div>
-                )}
-                <div className="text-muted-foreground">
-                  Tanggal: {new Date(existingData.created_at).toLocaleString("id-ID")}
-                </div>
-              </div>
-            </div>
-            <Separator className="my-4" />
-          </>
-        )}
-        <div className="space-y-6">
-          {/* Subjective */}
-          <div className="space-y-2">
-            <Label htmlFor="subjective" className="text-sm font-semibold">
-              S (Subjective) - Keluhan Pasien
-            </Label>
-            <Textarea
-              id="subjective"
-              placeholder="Keluhan atau anamnesis pasien yang dikonsultasikan..."
-              value={formData.subjective}
-              onChange={(e) => setFormData({ ...formData, subjective: e.target.value })}
-              disabled={readOnly || !!existingData?.subjective}
-              rows={4}
-              className="resize-none"
-            />
-          </div>
-
-          {/* Objective */}
-          <div className="space-y-2">
-            <Label htmlFor="objective" className="text-sm font-semibold">
-              O (Objective) - Pemeriksaan & Temuan
-            </Label>
-            <Textarea
-              id="objective"
-              placeholder="Hasil pemeriksaan objektif, tanda vital, pemeriksaan penunjang yang relevan..."
-              value={formData.objective}
-              onChange={(e) => setFormData({ ...formData, objective: e.target.value })}
-              disabled={readOnly || !!existingData?.subjective}
-              rows={4}
-              className="resize-none"
-            />
-          </div>
-
-          {/* Assessment */}
-          <div className="space-y-2">
-            <Label htmlFor="assessment" className="text-sm font-semibold">
-              A (Assessment) - Penilaian & Diagnosis
-            </Label>
-            <Textarea
-              id="assessment"
-              placeholder="Penilaian klinis, diagnosis, interpretasi hasil konsultasi..."
-              value={formData.assessment}
-              onChange={(e) => setFormData({ ...formData, assessment: e.target.value })}
-              disabled={readOnly || !!existingData?.subjective}
-              rows={4}
-              className="resize-none"
-            />
-          </div>
-
-          {/* Plan */}
-          <div className="space-y-2">
-            <Label htmlFor="plan" className="text-sm font-semibold">
-              P (Plan) - Rencana Tindak Lanjut
-            </Label>
-            <Textarea
-              id="plan"
-              placeholder="Rencana terapi, tindakan, atau anjuran dari hasil konsultasi..."
-              value={formData.plan}
-              onChange={(e) => setFormData({ ...formData, plan: e.target.value })}
-              disabled={readOnly || !!existingData?.subjective}
-              rows={4}
-              className="resize-none"
-            />
-          </div>
-
-          {/* Recommendation */}
-          <div className="space-y-2">
-            <Label htmlFor="recommendation" className="text-sm font-semibold">
-              Rekomendasi Khusus <span className="text-muted-foreground text-xs font-normal">(Opsional)</span>
-            </Label>
-            <Textarea
-              id="recommendation"
-              placeholder="Rekomendasi atau saran khusus dari konsultan..."
-              value={formData.recommendation}
-              onChange={(e) => setFormData({ ...formData, recommendation: e.target.value })}
-              disabled={readOnly || !!existingData?.subjective}
-              rows={3}
-              className="resize-none"
-            />
-          </div>
-
-          {/* Notes */}
-          <div className="space-y-2">
-            <Label htmlFor="notes" className="text-sm font-semibold">
-              Catatan Tambahan <span className="text-muted-foreground text-xs font-normal">(Opsional)</span>
-            </Label>
-            <Textarea
-              id="notes"
-              placeholder="Catatan tambahan jika diperlukan..."
-              value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              disabled={readOnly || !!existingData?.subjective}
-              rows={2}
-              className="resize-none"
-            />
-          </div>
-
-          {(readOnly || existingData?.subjective) && (
-            <div className="bg-muted/50 border border-muted rounded-md p-3 text-sm text-muted-foreground">
-              <p>Mode baca saja - Hasil konsultasi tidak dapat diubah</p>
-            </div>
-          )}
-        </div>
       </div>
     </div>
   );

@@ -52,6 +52,11 @@ export interface DocumentSignatureStatus {
   };
 }
 
+export interface CanSignResponse {
+  allowed: boolean;
+  reason?: string;
+}
+
 export interface SignatureLog {
   id: number;
   created_at: string;
@@ -160,6 +165,7 @@ export const DOCUMENT_TYPES = {
   TRIAGE: 'triage',
   EMERGENCY_SUMMARY: 'emergency_summary',
   OPERATIVE_REPORT: 'operative_report',
+  CONSULTATION_RESULT: 'consultation_result',
   INPATIENT_CERT: 'inpatient_cert',
   PHARMACY_HANDOVER: 'pharmacy_handover',
   // RM Duplicate (E-Klaim)
@@ -204,6 +210,7 @@ export const DOCUMENT_TYPE_LABELS: Record<string, string> = {
   triage: 'Form Triage',
   emergency_summary: 'Ringkasan UGD',
   operative_report: 'Laporan Operasi',
+  consultation_result: 'Hasil Konsultasi',
   inpatient_cert: 'Surat Keterangan Rawat Inap',
   pharmacy_handover: 'Serah Terima Obat',
 };
@@ -233,6 +240,11 @@ export const signatureApi = {
 
   getDocumentSignature: (documentType: string, documentId: number) =>
     api.get<DocumentSignatureStatus>('/signature/status', {
+      params: { document_type: documentType, document_id: documentId }
+    }),
+
+  canSignDocument: (documentType: string, documentId: number) =>
+    api.get<CanSignResponse>('/signature/can-sign', {
       params: { document_type: documentType, document_id: documentId }
     }),
 

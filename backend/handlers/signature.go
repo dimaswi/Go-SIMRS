@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // ================= PIN Management =================
@@ -197,7 +198,7 @@ func SignDocument(c *gin.Context) {
 	}
 
 	var user models.User
-	if err := database.DB.Preload("Employee").First(&user, userID).Error; err != nil {
+	if err := database.DB.Preload("Employee").Preload("Role").First(&user, userID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "User tidak ditemukan"})
 		return
 	}
@@ -261,7 +262,12 @@ func SignDocument(c *gin.Context) {
 			req.Notes = auditNote
 		}
 	} else if user.Employee != nil {
-		signerName = user.Employee.NamaLengkap
+		// Default signer name follows account identity to avoid mismatch between account label
+		// and linked employee profile (e.g. System Admin account linked to specific employee).
+		signerName = user.FullName
+		if signerName == "" {
+			signerName = user.Employee.NamaLengkap
+		}
 		signerNIP = user.Employee.NIP
 		signerSTR = user.Employee.NoSTR
 		signerSIP = user.Employee.NoSIP
@@ -269,6 +275,11 @@ func SignDocument(c *gin.Context) {
 		signerEmployeeID = &user.Employee.ID
 	} else {
 		signerName = user.FullName
+	}
+
+	if err := ensureAllowedOrderDocumentSigner(req.DocumentType, req.DocumentID, signerEmployeeID); err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+		return
 	}
 
 	// Create signature log
@@ -319,6 +330,50 @@ func SignDocument(c *gin.Context) {
 		"signed_at":      signedAt,
 		"signed_by":      signerName,
 	})
+}
+
+func ensureAllowedOrderDocumentSigner(documentType string, documentID uint, signerEmployeeID *uint) error {
+	if documentType != models.DocTypeConsultationResult {
+		return nil
+	}
+
+	if signerEmployeeID == nil {
+		return fmt.Errorf("TTD hasil konsultasi hanya bisa dilakukan oleh petugas pengisi")
+	}
+
+	var order models.ProcedureOrder
+	if err := database.DB.Select("id", "ordered_by_id", "performed_by_id").Preload("Items", func(db *gorm.DB) *gorm.DB {
+		return db.Select("id", "procedure_order_id", "performed_by_id")
+	}).Preload("Consultation", func(db *gorm.DB) *gorm.DB {
+		return db.Select("id", "procedure_order_id", "consultant_id")
+	}).First(&order, documentID).Error; err != nil {
+		return fmt.Errorf("Order konsultasi tidak ditemukan")
+	}
+
+	performed := false
+	if order.PerformedByID != nil && *order.PerformedByID == *signerEmployeeID {
+		performed = true
+	}
+	if !performed && order.Consultation != nil && order.Consultation.ConsultantID != nil && *order.Consultation.ConsultantID == *signerEmployeeID {
+		performed = true
+	}
+	if !performed {
+		for _, item := range order.Items {
+			if item.PerformedByID != nil && *item.PerformedByID == *signerEmployeeID {
+				performed = true
+				break
+			}
+		}
+	}
+
+	if !performed {
+		if order.OrderedByID == *signerEmployeeID {
+			return fmt.Errorf("Pengorder tidak bisa TTD hasil konsultasi")
+		}
+		return fmt.Errorf("TTD hasil konsultasi hanya bisa dilakukan oleh petugas pengisi")
+	}
+
+	return nil
 }
 
 // VerifySignaturePIN verifies PIN without signing (for validation)
@@ -395,6 +450,40 @@ func GetDocumentSignature(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, result)
+}
+
+// CanSignDocument checks whether current user can sign the requested document.
+func CanSignDocument(c *gin.Context) {
+	userID := c.MustGet("user_id").(uint)
+
+	docType := c.Query("document_type")
+	docIDStr := c.Query("document_id")
+	if docType == "" || docIDStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "document_type dan document_id diperlukan"})
+		return
+	}
+
+	docID, err := strconv.ParseUint(docIDStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "document_id tidak valid"})
+		return
+	}
+
+	var user models.User
+	if err := database.DB.Select("id", "employee_id").First(&user, userID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User tidak ditemukan"})
+		return
+	}
+
+	err = ensureAllowedOrderDocumentSigner(docType, uint(docID), user.EmployeeID)
+	allowed := err == nil
+
+	resp := gin.H{"allowed": allowed}
+	if err != nil {
+		resp["reason"] = err.Error()
+	}
+
+	c.JSON(http.StatusOK, resp)
 }
 
 // ================= Audit Logs =================
@@ -554,23 +643,24 @@ func generateHMAC(data, secret string) string {
 // RM Duplicate types are mapped to their original document names (without exposing "rm_dup" prefix).
 func humanDocTypeName(dt string) string {
 	names := map[string]string{
-		models.DocTypeVisitResume:      "Resume Medis",
-		models.DocTypePrescription:     "Resep Obat",
-		models.DocTypeLabResult:        "Hasil Laboratorium",
-		models.DocTypeRadiologyResult:  "Hasil Radiologi",
-		models.DocTypeSickLetter:       "Surat Keterangan Sakit",
-		models.DocTypeDeathCertificate: "Surat Kematian",
-		models.DocTypeReferralLetter:   "Surat Rujukan",
-		models.DocTypeGeneralConsent:   "General Consent",
-		models.DocTypeInformedConsent:  "Informed Consent",
-		models.DocTypeCPPT:            "CPPT",
-		models.DocTypeNursingCare:     "Asuhan Keperawatan",
-		models.DocTypeTriage:          "Formulir Triage",
-		models.DocTypeEmergencySummary: "Ringkasan Pelayanan UGD",
-		models.DocTypeOperativeReport:  "Laporan Operasi",
-		models.DocTypeInpatientCert:    "Surat Keterangan Rawat Inap",
-		models.DocTypePharmacyHandover: "Serah Terima Obat",
-		models.DocTypeRegistration:     "Bukti Registrasi",
+		models.DocTypeVisitResume:        "Resume Medis",
+		models.DocTypePrescription:       "Resep Obat",
+		models.DocTypeLabResult:          "Hasil Laboratorium",
+		models.DocTypeRadiologyResult:    "Hasil Radiologi",
+		models.DocTypeSickLetter:         "Surat Keterangan Sakit",
+		models.DocTypeDeathCertificate:   "Surat Kematian",
+		models.DocTypeReferralLetter:     "Surat Rujukan",
+		models.DocTypeGeneralConsent:     "General Consent",
+		models.DocTypeInformedConsent:    "Informed Consent",
+		models.DocTypeCPPT:               "CPPT",
+		models.DocTypeNursingCare:        "Asuhan Keperawatan",
+		models.DocTypeTriage:             "Formulir Triage",
+		models.DocTypeEmergencySummary:   "Ringkasan Pelayanan UGD",
+		models.DocTypeOperativeReport:    "Laporan Operasi",
+		models.DocTypeConsultationResult: "Hasil Konsultasi",
+		models.DocTypeInpatientCert:      "Surat Keterangan Rawat Inap",
+		models.DocTypePharmacyHandover:   "Serah Terima Obat",
+		models.DocTypeRegistration:       "Bukti Registrasi",
 
 		// RM Duplicate — map to the same human-readable name as the original
 		models.DocTypeRMDupLabResult:       "Hasil Laboratorium",
@@ -637,6 +727,11 @@ func RevokeDocumentSignature(c *gin.Context) {
 
 	if !user.CheckSignaturePin(req.PIN) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "PIN salah"})
+		return
+	}
+
+	if err := ensureNotOrdererRevokingOrderDoc(req.DocumentType, req.DocumentID, user.EmployeeID); err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -726,6 +821,33 @@ func RevokeDocumentSignature(c *gin.Context) {
 		"revoked_at": revokedAt,
 		"revoked_by": signerName,
 	})
+}
+
+func ensureNotOrdererRevokingOrderDoc(documentType string, documentID uint, employeeID *uint) error {
+	if employeeID == nil {
+		return nil
+	}
+
+	switch documentType {
+	case models.DocTypeLabResult, models.DocTypeRadiologyResult, models.DocTypeOperativeReport, models.DocTypeConsultationResult:
+		var order models.ProcedureOrder
+		if err := database.DB.Select("ordered_by_id").First(&order, documentID).Error; err != nil {
+			return nil
+		}
+		if order.OrderedByID == *employeeID {
+			return fmt.Errorf("TTD dokumen order tidak bisa dibatalkan dari pengorder")
+		}
+	case models.DocTypePrescription:
+		var order models.MedicineOrder
+		if err := database.DB.Select("prescriber_id").First(&order, documentID).Error; err != nil {
+			return nil
+		}
+		if order.PrescriberID == *employeeID {
+			return fmt.Errorf("TTD dokumen order tidak bisa dibatalkan dari pengorder")
+		}
+	}
+
+	return nil
 }
 
 // BatchDocumentStatusRequest for checking multiple document signatures at once

@@ -28,6 +28,10 @@ export type { Province, Regency, District, Village, RegionStats } from './region
 // Settings
 export { settingsApi } from './settings';
 
+// User Preferences
+export { userPreferencesApi } from './user-preferences';
+export type { MedicalRecordTabPreference } from './user-preferences';
+
 // Digital Signature & Audit Logs
 export { signatureApi, DOCUMENT_TYPES, DOCUMENT_TYPE_LABELS } from './signature';
 export type {

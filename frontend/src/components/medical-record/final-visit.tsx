@@ -92,21 +92,40 @@ export function FinalVisit({ visitId, type, onVisitUpdate }: FinalVisitProps) {
           });
         setCanFinalize(allDelivered);
       } else if (type === "consultation") {
-        // Consultation - cek apakah ada jawaban konsultasi yang sudah disimpan
+        // Consultation - primary source: consultation procedure order status
         try {
-          const consultationRes = await medicalRecordsApi.getConsultation(visitId);
-          const consultationData = consultationRes.data;
-          
-          // Jika ada data consultation, berarti sudah dijawab dan bisa difinalisasi
-          if (consultationData && consultationData.id) {
-            setOrders([{ id: consultationData.id, order_number: "Konsultasi", status: "completed" }]);
-            setCanFinalize(true);
+          const ordersRes = await procedureOrdersApi.getAll({
+            target_visit_id: visitId,
+            order_type: "consultation",
+          });
+          const ordersData = ordersRes.data || [];
+
+          if (ordersData.length > 0) {
+            setOrders(ordersData);
+
+            // Can finalize if all consultation orders are completed/cancelled
+            // or all items inside each order are completed.
+            const allCompleted = ordersData.every((o: ProcedureOrder) =>
+              o.status === "completed" ||
+              o.status === "cancelled" ||
+              (o.items && o.items.length > 0 && o.items.every((item) => item.status === "completed" || item.status === "cancelled"))
+            );
+            setCanFinalize(allCompleted);
           } else {
-            setOrders([]);
-            setCanFinalize(false);
+            // Fallback for legacy SOAP consultation without order result workflow.
+            const consultationRes = await medicalRecordsApi.getConsultation(visitId);
+            const consultationData = consultationRes.data;
+
+            if (consultationData && consultationData.id) {
+              setOrders([{ id: consultationData.id, order_number: "Konsultasi", status: "completed" }]);
+              setCanFinalize(true);
+            } else {
+              setOrders([]);
+              setCanFinalize(false);
+            }
           }
         } catch (error) {
-          // Jika error 404, berarti belum ada jawaban konsultasi
+          // Jika gagal load data konsultasi/order, anggap belum siap final.
           setOrders([]);
           setCanFinalize(false);
         }
@@ -252,7 +271,7 @@ export function FinalVisit({ visitId, type, onVisitUpdate }: FinalVisitProps) {
   if (loading) {
     return (
       <div>
-        <div className="p-4">
+        <div className="p-3 sm:p-4">
           <div className="flex items-center justify-center py-8 gap-2">
             <Loader2 className="h-4 w-4 animate-spin" />
             <span className="text-muted-foreground">Memuat data...</span>
@@ -268,10 +287,10 @@ export function FinalVisit({ visitId, type, onVisitUpdate }: FinalVisitProps) {
 
   return (
     <div>
-      <div className="p-4 space-y-4">
+      <div className="space-y-4 p-3 sm:p-4">
         {/* Status */}
         <div className="border rounded-lg p-4 bg-muted/30">
-          <div className="flex items-center justify-between mb-4">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
             <span className="text-sm font-medium">Status Kunjungan</span>
             {isFinal ? (
               <Badge variant="default" className="bg-green-600">
@@ -294,7 +313,7 @@ export function FinalVisit({ visitId, type, onVisitUpdate }: FinalVisitProps) {
             ) : (
               <div className="space-y-1">
                 {orders.map((order: any) => (
-                  <div key={order.id} className="flex items-center justify-between text-sm bg-background p-2 rounded">
+                  <div key={order.id} className="flex flex-wrap items-center justify-between gap-2 text-sm bg-background p-2 rounded">
                     <span>{order.order_number}</span>
                     <Badge variant={getOrderStatusLabel(order.status).variant}>
                       {getOrderStatusLabel(order.status).label}

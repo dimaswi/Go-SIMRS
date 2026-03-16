@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
@@ -74,6 +74,65 @@ export default function VisitShow() {
   const [patientId, setPatientId] = useState<number | null>(null);
   const [patientName, setPatientName] = useState<string>("");
   const { setOverride } = useBreadcrumb();
+  const tabScrollPositionsRef = useRef<Record<string, number>>({});
+  const scrollStorageKey = `mr-tab-scroll:${id || ""}`;
+
+  const getScrollTargets = (): HTMLElement[] => {
+    const targets: (HTMLElement | null | undefined)[] = [
+      document.getElementById("app-main-scroll-container") as HTMLElement | null,
+      document.scrollingElement as HTMLElement | null,
+      document.documentElement,
+      document.body,
+    ];
+
+    const uniqueTargets: HTMLElement[] = [];
+    const seen = new Set<HTMLElement>();
+    for (const target of targets) {
+      if (!target || seen.has(target)) continue;
+      seen.add(target);
+      uniqueTargets.push(target);
+    }
+    return uniqueTargets;
+  };
+
+  const getCurrentScrollTop = () => {
+    const tops = getScrollTargets().map((target) => target.scrollTop || 0);
+    return tops.length ? Math.max(...tops) : 0;
+  };
+
+  const setScrollTopAllTargets = (top: number) => {
+    for (const target of getScrollTargets()) {
+      target.scrollTop = top;
+    }
+    window.scrollTo({ top, behavior: "auto" });
+  };
+  
+  const triggerActiveTabSave = (): boolean => {
+    if (!activeTab) return false;
+
+    const activePane = document.querySelector<HTMLElement>(`[data-mr-tab-pane="${activeTab}"]`);
+    if (!activePane) return false;
+
+    const activeForm = activePane.querySelector<HTMLFormElement>("form");
+    if (activeForm) {
+      activeForm.requestSubmit();
+      return true;
+    }
+
+    const buttons = Array.from(activePane.querySelectorAll<HTMLButtonElement>("button"));
+    const candidate = buttons.find((button) => {
+      if (button.disabled) return false;
+      const label = (button.textContent || "").trim().toLowerCase();
+      return /(simpan|save|perbarui|update)/.test(label);
+    });
+
+    if (candidate) {
+      candidate.click();
+      return true;
+    }
+
+    return false;
+  };
 
   // Track visited tabs so they stay mounted (preserve unsaved form state)
   useEffect(() => {
@@ -82,8 +141,28 @@ export default function VisitShow() {
     }
   }, [activeTab]);
 
+  const saveCurrentTabScroll = () => {
+    if (!activeTab) return;
+    const currentTop = getCurrentScrollTop();
+    tabScrollPositionsRef.current[activeTab] = currentTop;
+    try {
+      sessionStorage.setItem(scrollStorageKey, JSON.stringify(tabScrollPositionsRef.current));
+    } catch {
+      // Ignore storage errors
+    }
+  };
+
   const handleTabChange = (tab: string) => {
+    if (tab === activeTab) return;
+    saveCurrentTabScroll();
     setActiveTab(tab);
+  };
+
+  const restoreTabScroll = (tab: string) => {
+    const targetTop = tabScrollPositionsRef.current[tab] ?? 0;
+    requestAnimationFrame(() => {
+      setScrollTopAllTargets(targetTop);
+    });
   };
   
   // Update breadcrumb with patient name when available
@@ -116,11 +195,68 @@ export default function VisitShow() {
       setTabIndicators({});
       setTabSavedStates({});
       setMountedTabs(new Set());
+
+      try {
+        const savedRaw = sessionStorage.getItem(scrollStorageKey);
+        tabScrollPositionsRef.current = savedRaw ? JSON.parse(savedRaw) : {};
+      } catch {
+        tabScrollPositionsRef.current = {};
+      }
       
       // Load the visit data (this will set the correct default tab)
       loadVisit();
     }
   }, [id]);
+
+  useLayoutEffect(() => {
+    if (!activeTab) return;
+    restoreTabScroll(activeTab);
+  }, [activeTab]);
+  
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "s") return;
+
+      event.preventDefault();
+      const saved = triggerActiveTabSave();
+
+      if (!saved) {
+        toast({
+          title: "Simpan tidak tersedia",
+          description: "Tab aktif tidak memiliki aksi simpan.",
+          variant: "destructive",
+        });
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [activeTab, toast]);
+
+  useEffect(() => {
+    if (!activeTab) return;
+    const targets = getScrollTargets();
+
+    const onScroll = () => {
+      tabScrollPositionsRef.current[activeTab] = getCurrentScrollTop();
+      try {
+        sessionStorage.setItem(scrollStorageKey, JSON.stringify(tabScrollPositionsRef.current));
+      } catch {
+        // Ignore storage errors
+      }
+    };
+
+    for (const target of targets) {
+      target.addEventListener("scroll", onScroll, { passive: true });
+    }
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      for (const target of targets) {
+        target.removeEventListener("scroll", onScroll);
+      }
+      window.removeEventListener("scroll", onScroll);
+    };
+  }, [activeTab, scrollStorageKey]);
 
   const loadVisit = async (silent = false) => {
     if (!silent) {
@@ -276,10 +412,10 @@ export default function VisitShow() {
       const res = await medicalRecordsApi.get(visitId);
       const summary = res.data;
 
-      // Triage: count filled fields out of 20
+      // Triage: count filled fields out of 22
       if (summary.triage) {
         const t = summary.triage;
-        const triageTextFields = [t.arrival_mode, t.triage_complaint, t.triage_level, t.airway, t.airway_note, t.breathing, t.breathing_note, t.circulation, t.circulation_note, t.blood_pressure, t.triage_assessment, t.immediate_actions];
+        const triageTextFields = [t.arrival_mode, t.triage_complaint, t.triage_level, t.airway, t.airway_note, t.breathing, t.breathing_note, t.circulation, t.circulation_note, t.blood_pressure, t.triage_assessment, t.immediate_actions, t.pain_method, t.pain_location];
         const filledText = triageTextFields.filter(v => v && String(v).trim() !== "").length;
         const filledNumeric = [
           t.heart_rate, t.respiratory_rate, t.temperature, t.oxygen_saturation, t.pain_scale
@@ -290,10 +426,10 @@ export default function VisitShow() {
           t.gcs_m !== undefined && t.gcs_m !== null ? 1 : 0,
         ].reduce((a, b) => a + b, 0);
         const filledTriage = filledText + filledNumeric + filledGCS;
-        emitMedicalRecordTabIndicator("triage", `${filledTriage}/20`);
+        emitMedicalRecordTabIndicator("triage", `${filledTriage}/22`);
         emitMedicalRecordTabSaved("triage", !!t.id && filledTriage > 0);
       } else {
-        emitMedicalRecordTabIndicator("triage", "0/20");
+        emitMedicalRecordTabIndicator("triage", "0/22");
       }
 
       // Anamnesis: count filled fields out of 7
@@ -493,7 +629,7 @@ export default function VisitShow() {
       });
       emitMedicalRecordTabSaved("triage", true);
       // Update triage field count indicator
-      const triageTextFields = [data.arrival_mode, data.triage_complaint, data.triage_level, data.airway, data.airway_note, data.breathing, data.breathing_note, data.circulation, data.circulation_note, data.blood_pressure, data.triage_assessment, data.immediate_actions];
+      const triageTextFields = [data.arrival_mode, data.triage_complaint, data.triage_level, data.airway, data.airway_note, data.breathing, data.breathing_note, data.circulation, data.circulation_note, data.blood_pressure, data.triage_assessment, data.immediate_actions, data.pain_method, data.pain_location];
       const filledText = triageTextFields.filter((v: any) => v && String(v).trim() !== "").length;
       const filledNumeric = [
         data.heart_rate, data.respiratory_rate, data.temperature, data.oxygen_saturation, data.pain_scale
@@ -503,7 +639,7 @@ export default function VisitShow() {
         data.gcs_v !== undefined && data.gcs_v !== null ? 1 : 0,
         data.gcs_m !== undefined && data.gcs_m !== null ? 1 : 0,
       ].reduce((a: number, b: number) => a + b, 0);
-      emitMedicalRecordTabIndicator("triage", `${filledText + filledNumeric + filledGCS}/20`);
+      emitMedicalRecordTabIndicator("triage", `${filledText + filledNumeric + filledGCS}/22`);
       // Trigger refresh print options dan final visit
       window.dispatchEvent(new CustomEvent("refresh-print-options"));
       window.dispatchEvent(new CustomEvent("refresh-final-visit"));
@@ -1174,11 +1310,11 @@ export default function VisitShow() {
     <div>
       {/* Patient Info + Tabs Header - Sticky */}
       <div className="sticky top-0 z-40 bg-background">
-        <div className="px-6 pt-4 pb-2">
+        <div className="px-3 sm:px-6 pt-3 sm:pt-4 pb-2">
         <PatientInfo visit={visit} onCopyHistoryOpen={() => setCopyHistoryDrawerOpen(true)} />
         </div>
 
-        <div className="px-6 pb-2">
+        <div className="px-3 sm:px-6 pb-2">
           <MedicalRecordTabs
             activeTab={activeTab}
             onTabChange={handleTabChange}
@@ -1197,10 +1333,14 @@ export default function VisitShow() {
       </div>
 
       {/* Main Content Area with Tabs and Form */}
-      <div className="px-6 pb-6 pt-2">
+      <div className="px-3 sm:px-6 pb-4 sm:pb-6 pt-2">
         <div className="min-w-0">
           {Array.from(mountedTabs).map(tab => (
-            <div key={tab} className={tab === activeTab ? undefined : "hidden"}>
+            <div
+              key={tab}
+              data-mr-tab-pane={tab}
+              className={tab === activeTab ? "" : "hidden"}
+            >
               {renderTabContent(tab)}
             </div>
           ))}

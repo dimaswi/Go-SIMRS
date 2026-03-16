@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { usePermission } from "@/hooks/usePermission";
+import { useAuthStore } from "@/lib/store";
+import { userPreferencesApi } from "@/lib/api";
 import {
   FileText,
   Stethoscope,
@@ -68,9 +70,14 @@ export function MedicalRecordTabs({
   isInpatient = false,
 }: MedicalRecordTabsProps) {
   const { hasPermission } = usePermission();
+  const user = useAuthStore((state) => state.user);
   const tabScrollRef = useRef<HTMLDivElement | null>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
+  const [tabOrder, setTabOrder] = useState<string[]>([]);
+  const [draggingTabId, setDraggingTabId] = useState<string | null>(null);
+  const [dragOverTabId, setDragOverTabId] = useState<string | null>(null);
+  const [dragOverPosition, setDragOverPosition] = useState<"before" | "after">("before");
 
   // Tabs for pharmacy visits
   const pharmacyTabs: Tab[] = [
@@ -363,6 +370,115 @@ export function MedicalRecordTabs({
 
   // Filter tabs based on permissions
   const tabs = allTabs.filter(tab => hasPermission(tab.permission));
+  const tabIdsKey = useMemo(() => tabs.map((tab) => tab.id).join("|"), [tabs]);
+  const tabIds = useMemo(() => (tabIdsKey ? tabIdsKey.split("|") : []), [tabIdsKey]);
+
+  const tabOrderStorageMode = useMemo(() => {
+    const mode = isPharmacy
+      ? "pharmacy"
+      : isRadiology
+      ? "radiology"
+      : isLaboratory
+      ? "laboratory"
+      : isConsultation
+      ? "consultation"
+      : isSurgery
+      ? "surgery"
+      : `clinical-${isEmergency ? "emergency" : "regular"}-${isInpatient ? "inpatient" : "noninpatient"}-${showProcedureTab ? "procedure" : "noprocedure"}`;
+
+    return mode;
+  }, [isConsultation, isEmergency, isInpatient, isLaboratory, isPharmacy, isRadiology, isSurgery, showProcedureTab]);
+
+  const userScopedTabOrderKey = useMemo(() => {
+    const userKey = user?.id ? `u${user.id}` : user?.username ? `name:${user.username}` : "guest";
+    return `mr-tabs-order:${userKey}:${tabOrderStorageMode}`;
+  }, [tabOrderStorageMode, user?.id, user?.username]);
+
+  const legacyTabOrderKey = useMemo(() => `mr-tabs-order:${tabOrderStorageMode}`, [tabOrderStorageMode]);
+
+  const orderTabIds = useCallback((sourceTabs: Tab[], preferredOrder: string[]) => {
+    if (!sourceTabs.length) return [] as Tab[];
+    if (!preferredOrder.length) return sourceTabs;
+
+    const tabById = new Map(sourceTabs.map((tab) => [tab.id, tab]));
+    const ordered = preferredOrder
+      .map((id) => tabById.get(id))
+      .filter((tab): tab is Tab => Boolean(tab));
+    const missing = sourceTabs.filter((tab) => !preferredOrder.includes(tab.id));
+
+    return [...ordered, ...missing];
+  }, []);
+
+  const normalizeOrder = useCallback((candidateOrder: string[], validIds: string[]) => {
+    if (!validIds.length) return [] as string[];
+
+    return [
+      ...candidateOrder.filter((id) => validIds.includes(id)),
+      ...validIds.filter((id) => !candidateOrder.includes(id)),
+    ];
+  }, []);
+
+  useEffect(() => {
+    if (tabIds.length === 0) {
+      setTabOrder([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    const readLocalOrder = (): string[] => {
+      try {
+        const savedRaw = localStorage.getItem(userScopedTabOrderKey) ?? localStorage.getItem(legacyTabOrderKey);
+        const savedOrder = savedRaw ? (JSON.parse(savedRaw) as string[]) : [];
+        const normalized = normalizeOrder(savedOrder, tabIds);
+
+        if (!localStorage.getItem(userScopedTabOrderKey) && savedOrder.length > 0) {
+          localStorage.setItem(userScopedTabOrderKey, JSON.stringify(normalized));
+        }
+
+        return normalized;
+      } catch {
+        return [...tabIds];
+      }
+    };
+
+    const syncOrder = async () => {
+      const localOrder = readLocalOrder();
+      if (!cancelled) {
+        setTabOrder(localOrder);
+      }
+
+      try {
+        const response = await userPreferencesApi.getMedicalRecordTabs(tabOrderStorageMode);
+        const serverOrder = Array.isArray(response.data?.tab_order) ? response.data.tab_order : [];
+        const normalizedServerOrder = normalizeOrder(serverOrder, tabIds);
+
+        if (cancelled) return;
+
+        if (serverOrder.length > 0) {
+          setTabOrder(normalizedServerOrder);
+          localStorage.setItem(userScopedTabOrderKey, JSON.stringify(normalizedServerOrder));
+          return;
+        }
+
+        // Seed backend from existing local preference when server has no value yet.
+        const localIsCustom = localOrder.some((id, index) => id !== tabIds[index]);
+        if (localIsCustom) {
+          await userPreferencesApi.saveMedicalRecordTabs(tabOrderStorageMode, localOrder);
+        }
+      } catch {
+        // Keep local fallback if backend is unavailable.
+      }
+    };
+
+    void syncOrder();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [legacyTabOrderKey, normalizeOrder, tabIds, tabOrderStorageMode, userScopedTabOrderKey]);
+
+  const orderedTabs = useMemo(() => orderTabIds(tabs, tabOrder), [orderTabIds, tabs, tabOrder]);
 
   const getIndicatorStatus = (value?: string): TabIndicatorStatus => {
     if (!value) {
@@ -445,7 +561,7 @@ export function MedicalRecordTabs({
       element.removeEventListener("scroll", updateScrollButtons);
       window.removeEventListener("resize", handleResize);
     };
-  }, [tabs.length, updateScrollButtons]);
+  }, [orderedTabs.length, updateScrollButtons]);
 
   useEffect(() => {
     const element = tabScrollRef.current;
@@ -455,7 +571,7 @@ export function MedicalRecordTabs({
 
     const activeElement = element.querySelector<HTMLButtonElement>(`button[data-tab-id="${activeTab}"]`);
     if (activeElement) {
-      activeElement.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+      activeElement.scrollIntoView({ behavior: "auto", block: "nearest", inline: "center" });
     }
   }, [activeTab]);
 
@@ -494,8 +610,101 @@ export function MedicalRecordTabs({
     element.scrollBy({ left: delta, behavior: "auto" });
   };
 
+  const handleContainerDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+    if (!draggingTabId) return;
+    const element = tabScrollRef.current;
+    if (!element) return;
+
+    event.preventDefault();
+
+    // Auto-scroll horizontally when dragging near left/right edges.
+    const rect = element.getBoundingClientRect();
+    const edge = 48;
+    const speed = 18;
+
+    if (event.clientX < rect.left + edge) {
+      element.scrollBy({ left: -speed, behavior: "auto" });
+    } else if (event.clientX > rect.right - edge) {
+      element.scrollBy({ left: speed, behavior: "auto" });
+    }
+  };
+
+  const persistTabOrder = useCallback((nextOrder: string[]) => {
+    try {
+      localStorage.setItem(userScopedTabOrderKey, JSON.stringify(nextOrder));
+    } catch {
+      // Ignore persistence errors (private mode/full storage)
+    }
+
+    void userPreferencesApi.saveMedicalRecordTabs(tabOrderStorageMode, nextOrder).catch(() => {
+      // Keep local preference even if backend save fails.
+    });
+  }, [tabOrderStorageMode, userScopedTabOrderKey]);
+
+  const handleDropOnTab = (targetTabId: string, position: "before" | "after") => {
+    if (!draggingTabId || draggingTabId === targetTabId) return;
+
+    const container = tabScrollRef.current;
+    const previousPositions = new Map<string, DOMRect>();
+    if (container) {
+      container.querySelectorAll<HTMLButtonElement>("button[data-tab-id]").forEach((el) => {
+        const id = el.dataset.tabId;
+        if (id) previousPositions.set(id, el.getBoundingClientRect());
+      });
+    }
+
+    const currentOrder = orderedTabs.map((tab) => tab.id);
+    const fromIndex = currentOrder.indexOf(draggingTabId);
+    const toIndex = currentOrder.indexOf(targetTabId);
+    if (fromIndex < 0 || toIndex < 0) return;
+
+    const nextOrder = [...currentOrder];
+    const [moved] = nextOrder.splice(fromIndex, 1);
+
+    // Insert before/after target, adjusted for removed source index.
+    const targetIndexAfterRemoval = nextOrder.indexOf(targetTabId);
+    const insertIndex = position === "after" ? targetIndexAfterRemoval + 1 : targetIndexAfterRemoval;
+    nextOrder.splice(insertIndex, 0, moved);
+
+    setTabOrder(nextOrder);
+    persistTabOrder(nextOrder);
+    setDraggingTabId(null);
+    setDragOverTabId(null);
+    setDragOverPosition("before");
+
+    // Animate tab chips to their new positions (FLIP) for a Chrome-like drag reorder feel.
+    requestAnimationFrame(() => {
+      const nextContainer = tabScrollRef.current;
+      if (!nextContainer) return;
+
+      nextContainer.querySelectorAll<HTMLButtonElement>("button[data-tab-id]").forEach((el) => {
+        const id = el.dataset.tabId;
+        if (!id) return;
+
+        const previous = previousPositions.get(id);
+        if (!previous) return;
+
+        const next = el.getBoundingClientRect();
+        const dx = previous.left - next.left;
+        const dy = previous.top - next.top;
+        if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+
+        el.animate(
+          [
+            { transform: `translate(${dx}px, ${dy}px)` },
+            { transform: "translate(0, 0)" },
+          ],
+          {
+            duration: 220,
+            easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+          }
+        );
+      });
+    });
+  };
+
   return (
-    <nav>
+    <nav className="medical-record-tabs">
       <div className="flex h-10 items-center gap-1 rounded-md border bg-background p-1 shadow-sm">
         <button
           type="button"
@@ -515,10 +724,15 @@ export function MedicalRecordTabs({
         <div
           ref={tabScrollRef}
           onWheel={handleWheelScrollTabs}
+          onDragOver={handleContainerDragOver}
+          onDragLeave={(event) => {
+            if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+            setDragOverTabId(null);
+          }}
           className="flex-1 overflow-x-auto overscroll-contain"
         >
           <div className="flex min-w-max items-center gap-1 px-0.5">
-            {tabs.map((tab) => {
+            {orderedTabs.map((tab) => {
               const isActive = activeTab === tab.id;
               const indicatorValue = indicators[tab.id];
               const indicatorStatus = getIndicatorStatus(indicatorValue);
@@ -531,15 +745,56 @@ export function MedicalRecordTabs({
                 key={tab.id}
                 type="button"
                 data-tab-id={tab.id}
+                draggable
+                onDragStart={(event) => {
+                  setDraggingTabId(tab.id);
+                  setDragOverTabId(null);
+                  setDragOverPosition("before");
+                  event.dataTransfer.effectAllowed = "move";
+                }}
+                onDragEnd={() => {
+                  setDraggingTabId(null);
+                  setDragOverTabId(null);
+                  setDragOverPosition("before");
+                }}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = "move";
+                  if (draggingTabId && draggingTabId !== tab.id) {
+                    setDragOverTabId(tab.id);
+                    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+                    const isAfter = event.clientX > rect.left + rect.width / 2;
+                    setDragOverPosition(isAfter ? "after" : "before");
+                  }
+                }}
+                onDragLeave={() => {
+                  if (dragOverTabId === tab.id) {
+                    setDragOverTabId(null);
+                  }
+                }}
+                onDrop={() => handleDropOnTab(tab.id, dragOverPosition)}
                 onClick={() => onTabChange(tab.id)}
                 className={cn(
-                  "group relative inline-flex h-8 min-w-fit items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 text-xs font-medium transition-colors",
+                  "group relative inline-flex h-9 sm:h-8 min-w-fit cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-md px-3 sm:px-2.5 text-[13px] sm:text-xs font-medium transition-[color,background-color,opacity,transform,box-shadow] duration-200",
                   isActive
                     ? "bg-background text-foreground shadow"
                     : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                  draggingTabId === tab.id && "z-20 scale-105 -translate-y-0.5 bg-background text-foreground shadow-lg ring-2 ring-orange-500/60 opacity-45",
+                  dragOverTabId === tab.id && draggingTabId !== tab.id && "ring-2 ring-orange-500/80 bg-orange-100/60",
+                  dragOverTabId === tab.id && draggingTabId !== tab.id && dragOverPosition === "before" && "translate-x-1",
+                  dragOverTabId === tab.id && draggingTabId !== tab.id && dragOverPosition === "after" && "-translate-x-1",
                   getTabStatusClass(effectiveStatus, isActive)
                 )}
+                title="Klik untuk buka tab"
               >
+                {dragOverTabId === tab.id && draggingTabId !== tab.id && (
+                  <span
+                    className={cn(
+                      "pointer-events-none absolute inset-y-0.5 w-1 rounded-full bg-orange-600 animate-pulse shadow-[0_0_0_1px_rgba(255,255,255,0.55),0_0_12px_rgba(234,88,12,0.95)]",
+                      dragOverPosition === "before" ? "left-0" : "right-0"
+                    )}
+                  />
+                )}
                 <div className="relative [&>svg]:h-3.5 [&>svg]:w-3.5">
                   {tab.icon}
                   {savedState === false && (

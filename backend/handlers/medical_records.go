@@ -60,7 +60,9 @@ func SaveTriage(c *gin.Context) {
 		HeartRate         interface{} `json:"heart_rate"`
 		Temperature       interface{} `json:"temperature"`
 		OxygenSaturation  interface{} `json:"oxygen_saturation"`
+		PainMethod        string      `json:"pain_method"`
 		PainScale         int         `json:"pain_scale"`
+		PainLocation      string      `json:"pain_location"`
 		GCSE              int         `json:"gcs_e"`
 		GCSV              int         `json:"gcs_v"`
 		GCSM              int         `json:"gcs_m"`
@@ -155,11 +157,13 @@ func SaveTriage(c *gin.Context) {
 	triage.HeartRate = toString(input.HeartRate)
 	triage.Temperature = toString(input.Temperature)
 	triage.OxygenSaturation = toString(input.OxygenSaturation)
+	triage.PainMethod = input.PainMethod
 	triage.PainScale = input.PainScale
+	triage.PainLocation = input.PainLocation
 	triage.GCSE = input.GCSE
 	triage.GCSV = input.GCSV
 	triage.GCSM = input.GCSM
-	triage.TriageAssessment = input.TriageAssessment
+	triage.TriageAssessment = assessment
 	triage.ImmediateActions = input.ImmediateActions
 
 	if err := database.DB.Save(&triage).Error; err != nil {
@@ -330,8 +334,9 @@ func SavePhysicalExam(c *gin.Context) {
 		PelvicResult    string `json:"pelvic_result"`
 		PelvicNotes     string `json:"pelvic_notes"`
 		// Pain Assessment
-		PainMethod string `json:"pain_method"`
-		PainScale  int    `json:"pain_scale"`
+		PainMethod   string `json:"pain_method"`
+		PainScale    int    `json:"pain_scale"`
+		PainLocation string `json:"pain_location"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -499,6 +504,7 @@ func SavePhysicalExam(c *gin.Context) {
 	// Pain Assessment
 	physExam.PainMethod = input.PainMethod
 	physExam.PainScale = input.PainScale
+	physExam.PainLocation = input.PainLocation
 
 	if err := database.DB.Save(&physExam).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -2842,6 +2848,22 @@ func SaveBirthCertificate(c *gin.Context) {
 		return
 	}
 
+	var fatherName string
+	var visit models.Visit
+	if err := database.DB.
+		Preload("Registration.Patient").
+		First(&visit, visitID).Error; err == nil {
+		if visit.Registration != nil && visit.Registration.Patient != nil {
+			patient := visit.Registration.Patient
+			if strings.EqualFold(patient.HubunganPenanggungJawab, "suami") && patient.NamaPenanggungJawab != "" {
+				fatherName = patient.NamaPenanggungJawab
+			}
+		}
+	}
+	if fatherName == "" {
+		fatherName = input.FatherName
+	}
+
 	var employeeID *uint
 	var user models.User
 	if err := database.DB.Preload("Employee").First(&user, userID).Error; err == nil {
@@ -2864,8 +2886,8 @@ func SaveBirthCertificate(c *gin.Context) {
 		cert.BirthLength = input.BirthLength
 		cert.BirthMethod = input.BirthMethod
 		cert.MotherName = input.MotherName
-		cert.FatherName = input.FatherName
-		cert.ApgarScore = input.ApgarScore
+		cert.FatherName = fatherName
+		cert.ApgarScore = ""
 		cert.Notes = input.Notes
 	} else {
 		var visitIDUint uint
@@ -2881,8 +2903,8 @@ func SaveBirthCertificate(c *gin.Context) {
 			BirthLength:  input.BirthLength,
 			BirthMethod:  input.BirthMethod,
 			MotherName:   input.MotherName,
-			FatherName:   input.FatherName,
-			ApgarScore:   input.ApgarScore,
+			FatherName:   fatherName,
+			ApgarScore:   "",
 			Notes:        input.Notes,
 			Status:       "active",
 			IssuedByID:   employeeID,

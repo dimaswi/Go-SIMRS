@@ -469,7 +469,7 @@ export function DeathCertificateForm({ visitId, deathType, onSave, readOnly = fa
                   {/* Death Type Selection */}
                   <div className="space-y-1.5">
                     <Label>Jenis Kematian <span className="text-destructive">*</span></Label>
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                       {deathTypeOptions.map((option) => (
                         <button
                           key={option.value}
@@ -491,7 +491,7 @@ export function DeathCertificateForm({ visitId, deathType, onSave, readOnly = fa
                   </div>
 
                   {/* Death DateTime & Location */}
-                  <div className="grid grid-cols-2 gap-3 mt-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
                     <div className="space-y-1.5">
                       <Label htmlFor="death_datetime">
                         <Calendar className="h-3.5 w-3.5 inline mr-1" />
@@ -636,7 +636,7 @@ export function DeathCertificateForm({ visitId, deathType, onSave, readOnly = fa
                   </div>
 
                   {/* Manner of Death & Duration */}
-                  <div className="grid grid-cols-2 gap-3 mt-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
                     <div className="space-y-1.5">
                       <Label>Cara Kematian</Label>
                       <Select
@@ -684,7 +684,7 @@ export function DeathCertificateForm({ visitId, deathType, onSave, readOnly = fa
                   </div>
 
                   {/* Witness */}
-                  <div className="grid grid-cols-2 gap-3 mt-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
                     <div className="space-y-1.5">
                       <Label htmlFor="witness_name">
                         <User className="h-3.5 w-3.5 inline mr-1" />

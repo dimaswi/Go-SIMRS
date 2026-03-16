@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -175,12 +175,70 @@ const defaultFormData = {
   oxygen_saturation: 0,
   pain_scale: 0,
   pain_method: "nrs",
+  pain_location: "",
   gcs_e: 4,
   gcs_v: 5,
   gcs_m: 6,
   triage_assessment: "",
   immediate_actions: "",
 };
+
+const painLocationOptionsBase = [
+  { value: "kepala", label: "Kepala" },
+  { value: "wajah", label: "Wajah" },
+  { value: "mata", label: "Mata" },
+  { value: "telinga", label: "Telinga" },
+  { value: "hidung", label: "Hidung" },
+  { value: "mulut", label: "Mulut" },
+  { value: "gigi", label: "Gigi" },
+  { value: "rahang", label: "Rahang" },
+  { value: "leher", label: "Leher" },
+  { value: "bahu_kanan", label: "Bahu Kanan" },
+  { value: "bahu_kiri", label: "Bahu Kiri" },
+  { value: "lengan_atas_kanan", label: "Lengan Atas Kanan" },
+  { value: "lengan_atas_kiri", label: "Lengan Atas Kiri" },
+  { value: "siku_kanan", label: "Siku Kanan" },
+  { value: "siku_kiri", label: "Siku Kiri" },
+  { value: "lengan_bawah_kanan", label: "Lengan Bawah Kanan" },
+  { value: "lengan_bawah_kiri", label: "Lengan Bawah Kiri" },
+  { value: "pergelangan_tangan_kanan", label: "Pergelangan Tangan Kanan" },
+  { value: "pergelangan_tangan_kiri", label: "Pergelangan Tangan Kiri" },
+  { value: "tangan_kanan", label: "Tangan Kanan" },
+  { value: "tangan_kiri", label: "Tangan Kiri" },
+  { value: "jari_tangan", label: "Jari Tangan" },
+  { value: "dada", label: "Dada" },
+  { value: "payudara", label: "Payudara" },
+  { value: "ulu_hati", label: "Ulu Hati / Epigastrium" },
+  { value: "perut_atas", label: "Perut Atas" },
+  { value: "perut_bawah", label: "Perut Bawah" },
+  { value: "perut_kanan_atas", label: "Perut Kanan Atas" },
+  { value: "perut_kiri_atas", label: "Perut Kiri Atas" },
+  { value: "perut_kanan_bawah", label: "Perut Kanan Bawah" },
+  { value: "perut_kiri_bawah", label: "Perut Kiri Bawah" },
+  { value: "pinggang_kanan", label: "Pinggang Kanan" },
+  { value: "pinggang_kiri", label: "Pinggang Kiri" },
+  { value: "punggung_atas", label: "Punggung Atas" },
+  { value: "punggung_tengah", label: "Punggung Tengah" },
+  { value: "punggung_bawah", label: "Punggung Bawah" },
+  { value: "bokong", label: "Bokong" },
+  { value: "selangkangan", label: "Selangkangan" },
+  { value: "genital", label: "Area Genital" },
+  { value: "panggul", label: "Panggul" },
+  { value: "paha_kanan", label: "Paha Kanan" },
+  { value: "paha_kiri", label: "Paha Kiri" },
+  { value: "lutut_kanan", label: "Lutut Kanan" },
+  { value: "lutut_kiri", label: "Lutut Kiri" },
+  { value: "betis_kanan", label: "Betis Kanan" },
+  { value: "betis_kiri", label: "Betis Kiri" },
+  { value: "tulang_kering", label: "Tulang Kering" },
+  { value: "pergelangan_kaki_kanan", label: "Pergelangan Kaki Kanan" },
+  { value: "pergelangan_kaki_kiri", label: "Pergelangan Kaki Kiri" },
+  { value: "kaki_kanan", label: "Kaki Kanan" },
+  { value: "kaki_kiri", label: "Kaki Kiri" },
+  { value: "jari_kaki", label: "Jari Kaki" },
+  { value: "seluruh_tubuh", label: "Seluruh Tubuh" },
+  { value: "multi_lokasi", label: "Multi Lokasi" },
+];
 
 export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischarged = false }: TriageFormProps) {
   const [loading, setLoading] = useState(true);
@@ -281,6 +339,7 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
             oxygen_saturation: spo2,
             pain_scale: data.pain_scale || 0,
             pain_method: data.pain_method || "nrs",
+            pain_location: data.pain_location || "",
             gcs_e: data.gcs_e || 4,
             gcs_v: data.gcs_v || 5,
             gcs_m: data.gcs_m || 6,
@@ -312,11 +371,11 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
   };
 
   // Count filled fields for tab indicator
-  const triageTextFilled = [formData.arrival_mode, formData.triage_complaint, formData.triage_level, formData.airway, formData.airway_note, formData.breathing, formData.breathing_note, formData.circulation, formData.circulation_note, formData.blood_pressure, formData.triage_assessment, formData.immediate_actions, formData.pain_method].filter(v => v && v.trim() !== "").length;
+  const triageTextFilled = [formData.arrival_mode, formData.triage_complaint, formData.triage_level, formData.airway, formData.airway_note, formData.breathing, formData.breathing_note, formData.circulation, formData.circulation_note, formData.blood_pressure, formData.triage_assessment, formData.immediate_actions, formData.pain_method, formData.pain_location].filter(v => v && v.trim() !== "").length;
   const triageNumericFilled = [formData.heart_rate, formData.respiratory_rate, formData.temperature, formData.oxygen_saturation, formData.pain_scale].filter(v => v > 0).length;
   const triageGCSFilled = (formData.gcs_e ? 1 : 0) + (formData.gcs_v ? 1 : 0) + (formData.gcs_m ? 1 : 0);
   const filledTriage = triageTextFilled + triageNumericFilled + triageGCSFilled;
-  const totalTriage = 21;
+  const totalTriage = 22;
 
   useEffect(() => {
     if (loading) return;
@@ -396,6 +455,12 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
   const circulationOptions = getOptions('circulation_status');
   const selectedTriageMeta = triageLevelMeta[formData.triage_level];
   const selectedTriagePalette = triageLevelSummaryPalette[formData.triage_level];
+  const painLocationOptions = useMemo(() => {
+    const selected = (formData.pain_location || "").trim();
+    if (!selected) return painLocationOptionsBase;
+    if (painLocationOptionsBase.some((option) => option.value === selected)) return painLocationOptionsBase;
+    return [{ value: selected, label: `${selected} (custom)` }, ...painLocationOptionsBase];
+  }, [formData.pain_location]);
 
   if (loading || masterDataLoading) {
     return (
@@ -421,8 +486,8 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
             recordTypeLabel="Triase"
           />
           
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <fieldset disabled={isFormDisabled} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
+          <fieldset disabled={isFormDisabled} className="space-y-4 sm:space-y-6">
           
           {/* Section 1: Informasi Kedatangan */}
           <div className="space-y-4"><div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -681,86 +746,118 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
                     required
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="pain_method" className="text-sm font-semibold">Metode Penilaian Nyeri</Label>
-                  <Select
-                    value={formData.pain_method}
-                    onValueChange={(value) => handleChange("pain_method", value)}
-                  >
-                    <SelectTrigger id="pain_method" className="h-11">
-                      <SelectValue placeholder="Pilih metode" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="nrs">NRS (Numeric Rating Scale)</SelectItem>
-                      <SelectItem value="wong_baker">Wong-Baker FACES</SelectItem>
-                      <SelectItem value="vas">VAS (Visual Analog Scale)</SelectItem>
-                      <SelectItem value="flacc">FLACC (bayi/anak non-verbal)</SelectItem>
-                      <SelectItem value="bps">BPS (pasien ICU/ventilator)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="pain_scale" className="text-sm font-semibold">Skala Nyeri (0-10)</Label>
-                  {/* Wong-Baker FACES visual */}
-                  {formData.pain_method === "wong_baker" && (
-                    <div className="flex items-center justify-between gap-1 pb-1">
-                      {[0, 2, 4, 6, 8, 10].map((v) => (
-                        <TooltipProvider key={v}>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <button
-                                type="button"
-                                onClick={() => handleChange("pain_scale", v)}
-                                className={`text-2xl cursor-pointer rounded-lg p-1 transition-all ${formData.pain_scale === v ? "bg-primary/10 ring-2 ring-primary" : "hover:bg-muted"}`}
-                              >
-                                {v === 0 ? "😊" : v === 2 ? "🙂" : v === 4 ? "😐" : v === 6 ? "🙁" : v === 8 ? "😢" : "😭"}
-                              </button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>{v === 0 ? "Tidak nyeri" : v === 2 ? "Nyeri ringan" : v === 4 ? "Nyeri sedang" : v === 6 ? "Nyeri cukup berat" : v === 8 ? "Nyeri berat" : "Nyeri sangat berat"}</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      ))}
+                <div className="space-y-4 md:col-span-3">
+                  <h4 className="text-sm font-medium text-muted-foreground">Skala Nyeri</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="pain_method" className="text-xs">Metode Penilaian Nyeri</Label>
+                      <Select
+                        value={formData.pain_method}
+                        onValueChange={(value) => handleChange("pain_method", value)}
+                        disabled={isFormDisabled}
+                      >
+                        <SelectTrigger id="pain_method">
+                          <SelectValue placeholder="Pilih metode" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="nrs">NRS (Numeric Rating Scale)</SelectItem>
+                          <SelectItem value="wong_baker">Wong-Baker FACES</SelectItem>
+                          <SelectItem value="vas">VAS (Visual Analog Scale)</SelectItem>
+                          <SelectItem value="flacc">FLACC (bayi/anak non-verbal)</SelectItem>
+                          <SelectItem value="bps">BPS (pasien ICU/ventilator)</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
-                  )}
-                  {/* NRS / VAS numeric bar */}
-                  {(formData.pain_method === "nrs" || formData.pain_method === "vas") && (
-                    <div className="flex items-center gap-1 pb-1">
-                      {[0,1,2,3,4,5,6,7,8,9,10].map((v) => (
-                        <button
-                          key={v}
-                          type="button"
-                          onClick={() => handleChange("pain_scale", v)}
-                          className={`flex-1 h-8 text-xs font-medium rounded transition-all ${
-                            formData.pain_scale === v 
-                              ? "ring-2 ring-primary text-primary-foreground " + (v <= 3 ? "bg-green-500" : v <= 6 ? "bg-yellow-500" : "bg-red-500")
-                              : v <= 3 ? "bg-green-100 hover:bg-green-200 text-green-800" 
-                              : v <= 6 ? "bg-yellow-100 hover:bg-yellow-200 text-yellow-800" 
-                              : "bg-red-100 hover:bg-red-200 text-red-800"
-                          }`}
-                        >
-                          {v}
-                        </button>
-                      ))}
+                    <div className="space-y-2">
+                      <Label htmlFor="pain_location" className="text-xs">Lokasi Nyeri</Label>
+                      <Combobox
+                        options={painLocationOptions}
+                        value={formData.pain_location || ""}
+                        onValueChange={(value) => handleChange("pain_location", value)}
+                        placeholder="Pilih lokasi nyeri"
+                        searchPlaceholder="Cari lokasi nyeri..."
+                        emptyText="Lokasi tidak ditemukan"
+                        disabled={isFormDisabled}
+                      />
                     </div>
-                  )}
-                  <Input
-                    id="pain_scale"
-                    type="number"
-                    min="0"
-                    max="10"
-                    placeholder="0"
-                    value={formData.pain_scale || ""}
-                    onChange={(e) => handleChange("pain_scale", parseInt(e.target.value) || 0)}
-                    className="h-11"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    {formData.pain_method === "flacc" ? "FLACC: Face, Legs, Activity, Cry, Consolability — untuk bayi/anak yang belum bisa bicara" 
-                    : formData.pain_method === "bps" ? "BPS: Behavioral Pain Scale — untuk pasien di bawah sedasi/ventilator" 
-                    : formData.pain_method === "wong_baker" ? "Pilih wajah yang paling sesuai dengan kondisi nyeri pasien"
-                    : "0 = Tidak nyeri, 1-3 = Ringan, 4-6 = Sedang, 7-10 = Berat"}
-                  </p>
+                    <div className="space-y-2">
+                      <Label htmlFor="pain_scale" className="text-xs">Skala Nyeri (0-10)</Label>
+                      {/* Wong-Baker FACES visual */}
+                      {formData.pain_method === "wong_baker" && (
+                        <div className="flex items-center justify-between gap-1 pb-1">
+                          {[0, 2, 4, 6, 8, 10].map((v) => (
+                            <TooltipProvider key={v}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <button
+                                    type="button"
+                                    disabled={isFormDisabled}
+                                    onClick={() => handleChange("pain_scale", v)}
+                                    className={cn("text-2xl cursor-pointer rounded-lg p-1 transition-all", formData.pain_scale === v ? "bg-primary/10 ring-2 ring-primary" : "hover:bg-muted")}
+                                  >
+                                    {v === 0 ? "😊" : v === 2 ? "🙂" : v === 4 ? "😐" : v === 6 ? "🙁" : v === 8 ? "😢" : "😭"}
+                                  </button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>{v === 0 ? "Tidak nyeri" : v === 2 ? "Nyeri ringan" : v === 4 ? "Nyeri sedang" : v === 6 ? "Nyeri cukup berat" : v === 8 ? "Nyeri berat" : "Nyeri sangat berat"}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          ))}
+                        </div>
+                      )}
+                      {/* NRS / VAS numeric bar */}
+                      {(formData.pain_method === "nrs" || formData.pain_method === "vas") && (
+                        <div className="flex items-center gap-1 pb-1">
+                          {[0,1,2,3,4,5,6,7,8,9,10].map((v) => (
+                            <button
+                              key={v}
+                              type="button"
+                              disabled={isFormDisabled}
+                              onClick={() => handleChange("pain_scale", v)}
+                              className={cn("flex-1 h-8 text-xs font-medium rounded transition-all",
+                                formData.pain_scale === v
+                                  ? "ring-2 ring-primary text-primary-foreground " + (v <= 3 ? "bg-green-500" : v <= 6 ? "bg-yellow-500" : "bg-red-500")
+                                  : v <= 3 ? "bg-green-100 hover:bg-green-200 text-green-800"
+                                  : v <= 6 ? "bg-yellow-100 hover:bg-yellow-200 text-yellow-800"
+                                  : "bg-red-100 hover:bg-red-200 text-red-800"
+                              )}
+                            >
+                              {v}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {/* FLACC / BPS numeric bar */}
+                      {(formData.pain_method === "flacc" || formData.pain_method === "bps") && (
+                        <div className="flex items-center gap-1 pb-1">
+                          {[0,1,2,3,4,5,6,7,8,9,10].map((v) => (
+                            <button
+                              key={v}
+                              type="button"
+                              disabled={isFormDisabled}
+                              onClick={() => handleChange("pain_scale", v)}
+                              className={cn("flex-1 h-8 text-xs font-medium rounded transition-all",
+                                formData.pain_scale === v
+                                  ? "ring-2 ring-primary text-primary-foreground " + (v <= 3 ? "bg-green-500" : v <= 6 ? "bg-yellow-500" : "bg-red-500")
+                                  : v <= 3 ? "bg-green-100 hover:bg-green-200 text-green-800"
+                                  : v <= 6 ? "bg-yellow-100 hover:bg-yellow-200 text-yellow-800"
+                                  : "bg-red-100 hover:bg-red-200 text-red-800"
+                              )}
+                            >
+                              {v}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      <p className="text-xs text-muted-foreground">
+                        {formData.pain_method === "flacc" ? "FLACC: Face, Legs, Activity, Cry, Consolability — untuk bayi/anak yang belum bisa bicara"
+                        : formData.pain_method === "bps" ? "BPS: Behavioral Pain Scale — untuk pasien di bawah sedasi/ventilator"
+                        : formData.pain_method === "wong_baker" ? "Pilih wajah yang paling sesuai dengan kondisi nyeri pasien"
+                        : "0 = Tidak nyeri, 1-3 = Ringan, 4-6 = Sedang, 7-10 = Berat"}
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
           </div>
@@ -846,8 +943,8 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
 
           {/* Submit Button - only show when can edit */}
           {!isFormDisabled && (
-            <div className="flex justify-end gap-3 pt-4 border-t">
-              <Button type="submit" className="gap-2">
+            <div className="flex flex-col sm:flex-row sm:justify-end gap-2 sm:gap-3 pt-4 border-t">
+              <Button type="submit" className="gap-2 w-full sm:w-auto">
                 <Save className="h-4 w-4" />
                 Simpan Triase
               </Button>
@@ -855,7 +952,7 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
                 <Button
                   type="button"
                   variant="outline"
-                  className="gap-2"
+                  className="gap-2 w-full sm:w-auto"
                   onClick={() => setShowSignatureDialog(true)}
                 >
                   <ShieldCheck className="h-4 w-4" />

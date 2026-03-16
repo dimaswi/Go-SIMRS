@@ -29,12 +29,15 @@ import {
   User,
   Printer,
   ShieldCheck,
+  ShieldX,
   CheckCircle2,
 } from "lucide-react";
 import { procedureOrdersApi, PROCEDURE_ORDER_STATUS, printApi, signatureApi, DOCUMENT_TYPES } from "@/lib/api";
 import type { ProcedureOrder, ProcedureOrderItem, ProcedureParameter } from "@/lib/api/procedure-orders";
 import { usePINVerification, PINVerificationDialog } from "./edit-mode-controller";
 import { SignaturePINDialog } from "@/components/signature/signature-pin-dialog";
+import { RevokePINDialog } from "@/components/signature/revoke-pin-dialog";
+import { formatPatientName } from "@/lib/print-utils";
 
 interface RadiologyWorkstationProps {
   visitId: number;
@@ -75,6 +78,7 @@ export function RadiologyWorkstation({ visitId, readOnly: _readOnly = false }: R
 
   // Signature state
   const [showSignatureDialog, setShowSignatureDialog] = useState(false);
+  const [showRevokeDialog, setShowRevokeDialog] = useState(false);
   const [signatureStatus, setSignatureStatus] = useState<{
     is_signed: boolean;
     signed_at?: string;
@@ -85,6 +89,20 @@ export function RadiologyWorkstation({ visitId, readOnly: _readOnly = false }: R
 
   useEffect(() => {
     loadOrders();
+  }, [visitId]);
+
+  useEffect(() => {
+    const handleRefreshOrders = () => {
+      loadOrders();
+    };
+
+    window.addEventListener("refresh-final-visit", handleRefreshOrders);
+    window.addEventListener("refresh-print-options", handleRefreshOrders);
+
+    return () => {
+      window.removeEventListener("refresh-final-visit", handleRefreshOrders);
+      window.removeEventListener("refresh-print-options", handleRefreshOrders);
+    };
   }, [visitId]);
 
   useEffect(() => {
@@ -127,6 +145,13 @@ export function RadiologyWorkstation({ visitId, readOnly: _readOnly = false }: R
     toast({ variant: "success", title: "Berhasil", description: "Hasil radiologi berhasil ditandatangani" });
   };
 
+  const handleRevokeSuccess = () => {
+    if (selectedOrder) {
+      checkSignatureStatus(selectedOrder.id);
+    }
+    toast({ variant: "success", title: "Berhasil", description: "Tanda tangan radiologi berhasil dibatalkan" });
+  };
+
   const loadOrders = async () => {
     setLoading(true);
     try {
@@ -134,14 +159,29 @@ export function RadiologyWorkstation({ visitId, readOnly: _readOnly = false }: R
         target_visit_id: visitId,
         order_type: "radiology",
       });
-      setOrders(res.data || []);
-      const activeOrder = (res.data || []).find(
+      const data = res.data || [];
+      setOrders(data);
+
+      // Keep currently selected order if still present after refresh.
+      const currentSelectedOrder = selectedOrder
+        ? data.find((o: ProcedureOrder) => o.id === selectedOrder.id)
+        : null;
+
+      if (currentSelectedOrder) {
+        setSelectedOrder(currentSelectedOrder);
+        return;
+      }
+
+      const activeOrder = data.find(
         (o: ProcedureOrder) => o.status === "pending" || o.status === "in_progress"
       );
       if (activeOrder) {
         setSelectedOrder(activeOrder);
-      } else if (res.data?.length > 0) {
-        setSelectedOrder(res.data[0]);
+      } else if (data.length > 0) {
+        setSelectedOrder(data[0]);
+      } else {
+        setSelectedOrder(null);
+        setSignatureStatus(null);
       }
     } catch (error) {
       console.error("Error loading orders:", error);
@@ -274,6 +314,14 @@ export function RadiologyWorkstation({ visitId, readOnly: _readOnly = false }: R
     return <Badge variant="secondary" className="text-xs">Menunggu</Badge>;
   };
 
+  const allItemsCompleted =
+    selectedOrder?.items?.length
+      ? selectedOrder.items.every((item) => item.status === "completed")
+      : false;
+  const canShowSignatureArea =
+    !!selectedOrder &&
+    (selectedOrder.status === "completed" || allItemsCompleted || !!signatureStatus?.is_signed);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-48">
@@ -327,20 +375,35 @@ export function RadiologyWorkstation({ visitId, readOnly: _readOnly = false }: R
       {selectedOrder && (
         <div className="shadow-sm">
           <div className="pb-2">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 </div>
-              {getStatusBadge(selectedOrder.status)}
+              <div className="flex items-center gap-2">
+                {canPerform && selectedOrder.status === "pending" && (
+                  <Button onClick={handleStartOrder} disabled={submitting} size="sm">
+                    {submitting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Play className="h-4 w-4 mr-1" />}
+                    Mulai Pemeriksaan
+                  </Button>
+                )}
+                {getStatusBadge(selectedOrder.status)}
+              </div>
             </div>
           </div>
           <div className="space-y-3">
                 {/* Patient Info */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs p-2 bg-muted/50 rounded">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 text-xs p-2 bg-muted/50 rounded">
                   <div className="flex items-center gap-1">
                     <User className="h-3 w-3 text-muted-foreground" />
                     <span className="font-medium truncate">
-                      {selectedOrder.source_visit?.registration?.patient?.nama_lengkap ||
-                        selectedOrder.registration?.patient?.nama_lengkap || "-"}
+                      {formatPatientName(
+                        selectedOrder.source_visit?.registration?.patient?.nama_lengkap ||
+                          selectedOrder.registration?.patient?.nama_lengkap,
+                        selectedOrder.source_visit?.registration?.patient?.jenis_kelamin ||
+                          selectedOrder.registration?.patient?.jenis_kelamin,
+                        undefined,
+                        selectedOrder.source_visit?.registration?.patient?.tanggal_lahir ||
+                          selectedOrder.registration?.patient?.tanggal_lahir,
+                      ) || "-"}
                     </span>
                   </div>
                   <div>
@@ -369,13 +432,25 @@ export function RadiologyWorkstation({ visitId, readOnly: _readOnly = false }: R
                   </div>
                 )}
 
-                {/* Start Button */}
-                {canPerform && selectedOrder.status === "pending" && (
-                  <Button onClick={handleStartOrder} disabled={submitting} size="sm">
-                    {submitting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Play className="h-4 w-4 mr-1" />}
-                    Mulai Pemeriksaan
-                  </Button>
-                )}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                  <div className="p-2 rounded border bg-muted/30">
+                    <span className="text-muted-foreground">No. Order</span>
+                    <p className="font-medium mt-0.5">{selectedOrder.order_number}</p>
+                  </div>
+                  <div className="p-2 rounded border bg-muted/30">
+                    <span className="text-muted-foreground">Item Selesai</span>
+                    <p className="font-medium mt-0.5">
+                      {selectedOrder.items?.filter((item) => item.status === "completed").length || 0}/
+                      {selectedOrder.items?.length || 0}
+                    </p>
+                  </div>
+                  <div className="p-2 rounded border bg-muted/30">
+                    <span className="text-muted-foreground">Status TTD</span>
+                    <p className="font-medium mt-0.5">
+                      {signatureStatus?.is_signed ? "Sudah TTD" : "Belum TTD"}
+                    </p>
+                  </div>
+                </div>
 
                 {/* Results Table - Inline Edit */}
                 <div className="border rounded overflow-hidden">
@@ -473,22 +548,33 @@ export function RadiologyWorkstation({ visitId, readOnly: _readOnly = false }: R
                   </Button>
                 )}
 
-                {/* Signature Status & Button - Only when completed */}
-                {selectedOrder.status === "completed" && (
+                {/* Signature status remains visible once signed even if order status changes. */}
+                {canShowSignatureArea && (
                   <div className="border-t pt-3 mt-3 space-y-2">
                     {signatureStatus?.is_signed ? (
-                      <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 dark:bg-green-950 p-3 rounded">
-                        <CheckCircle2 className="h-4 w-4" />
-                        <div>
-                          <span className="font-medium">Ditandatangani oleh {signatureStatus.signer_name}</span>
-                          {signatureStatus.signed_at && (
-                            <span className="text-xs text-muted-foreground ml-2">
-                              {new Date(signatureStatus.signed_at).toLocaleString("id-ID")}
-                            </span>
-                          )}
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-sm text-green-600 bg-green-50 dark:bg-green-950 p-3 rounded">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className="h-4 w-4" />
+                          <div>
+                            <span className="font-medium">Ditandatangani oleh {signatureStatus.signer_name}</span>
+                            {signatureStatus.signed_at && (
+                              <span className="text-xs text-muted-foreground ml-2">
+                                {new Date(signatureStatus.signed_at).toLocaleString("id-ID")}
+                              </span>
+                            )}
+                          </div>
                         </div>
+                        <Button
+                          onClick={() => setShowRevokeDialog(true)}
+                          variant="outline"
+                          size="sm"
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          <ShieldX className="h-4 w-4 mr-1" />
+                          Batal TTD
+                        </Button>
                       </div>
-                    ) : (
+                    ) : (selectedOrder.status === "completed" || allItemsCompleted) ? (
                       <Button 
                         onClick={() => setShowSignatureDialog(true)} 
                         variant="outline" 
@@ -498,6 +584,11 @@ export function RadiologyWorkstation({ visitId, readOnly: _readOnly = false }: R
                         <ShieldCheck className="h-4 w-4 mr-1" />
                         Tanda Tangani Hasil Radiologi
                       </Button>
+                    ) : null}
+                    {signatureStatus?.is_signed && selectedOrder.status !== "completed" && (
+                      <p className="text-xs text-muted-foreground">
+                        Dokumen sudah ditandatangani. Status order saat ini: {selectedOrder.status}.
+                      </p>
                     )}
                   </div>
                 )}
@@ -528,6 +619,17 @@ export function RadiologyWorkstation({ visitId, readOnly: _readOnly = false }: R
           documentTitle={selectedOrder.order_number}
           patientName={selectedOrder.source_visit?.registration?.patient?.nama_lengkap}
           onSuccess={handleSignatureSuccess}
+        />
+      )}
+
+      {selectedOrder && (
+        <RevokePINDialog
+          open={showRevokeDialog}
+          onOpenChange={setShowRevokeDialog}
+          documentType={DOCUMENT_TYPES.RADIOLOGY_RESULT}
+          documentId={selectedOrder.id}
+          documentTitle={selectedOrder.order_number}
+          onSuccess={handleRevokeSuccess}
         />
       )}
     </div>

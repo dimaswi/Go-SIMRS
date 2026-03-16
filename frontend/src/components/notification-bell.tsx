@@ -50,7 +50,7 @@ export function NotificationBell() {
           break;
         case "admission_request":
           if (data.request_id) {
-            navigate(`/admisi/${data.request_id}`);
+            navigate(`/registrations?tab=admission_requests`);
             setOpen(false);
           }
           break;

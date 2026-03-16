@@ -37,6 +37,19 @@ const ORDER_STATUS_LABELS: Record<string, { label: string; variant: "default" | 
   returned: { label: "Ada Return", variant: "outline" },
 };
 
+const formatRupiah = (value: number) => {
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(Number.isFinite(value) ? value : 0);
+};
+
+const getUnitPrice = (item: any): number => {
+  return Number(item?.unit_price ?? item?.price ?? item?.medicine?.selling_price ?? 0);
+};
+
 export function PharmacyReview({ visitId, readOnly = false }: PharmacyReviewProps) {
   const { toast } = useToast();
   const { hasPermission } = usePermission();
@@ -202,6 +215,10 @@ export function PharmacyReview({ visitId, readOnly = false }: PharmacyReviewProp
   
   // Can only approve if all checklist is completed, not already reviewed, and not already approved
   const canApprove = canReview && allChecklistCompleted && !isAlreadyReviewed && !isAlreadyApproved;
+  const activeItems = selectedOrder?.items?.filter((i) => i.status !== "cancelled") || [];
+  const grandTotal = activeItems.reduce((total, item) => {
+    return total + getUnitPrice(item) * Number(item.quantity || 0);
+  }, 0);
   
   return (
     <div>
@@ -249,7 +266,7 @@ export function PharmacyReview({ visitId, readOnly = false }: PharmacyReviewProp
               </div>
             </div>
             <div className="p-3">
-              <table className="w-full text-sm">
+              <table className="w-full min-w-[640px] text-sm">
                 <tbody>
                   <tr className="border-b">
                     <td className="py-2 text-muted-foreground w-1/4">Diagnosis</td>
@@ -287,40 +304,49 @@ export function PharmacyReview({ visitId, readOnly = false }: PharmacyReviewProp
             <div className="p-3 border-b bg-muted/30">
               <Label className="text-sm font-semibold flex items-center gap-2">
                 <Pill className="h-4 w-4" />
-                Daftar Obat ({selectedOrder.items?.filter(i => i.status !== 'cancelled').length || 0} item)
+                Daftar Obat ({activeItems.length} item)
               </Label>
             </div>
             <div className="p-0">
-              <table className="w-full text-sm">
+              <table className="w-full min-w-[640px] text-sm">
                 <thead className="bg-muted/50">
                   <tr>
-                    <th className="py-2 px-3 text-left font-medium">Nama Obat</th>
-                    <th className="py-2 px-3 text-left font-medium">Dosis</th>
-                    <th className="py-2 px-3 text-left font-medium">Frekuensi</th>
-                    <th className="py-2 px-3 text-left font-medium">Rute</th>
-                    <th className="py-2 px-3 text-left font-medium">Durasi</th>
-                    <th className="py-2 px-3 text-right font-medium">Jumlah</th>
+                    <th className="py-1.5 px-2 text-left font-medium">Nama Obat</th>
+                    <th className="py-1.5 px-2 text-left font-medium">Dosis</th>
+                    <th className="py-1.5 px-2 text-left font-medium">Frekuensi</th>
+                    <th className="py-1.5 px-2 text-left font-medium">Rute</th>
+                    <th className="py-1.5 px-2 text-left font-medium">Durasi</th>
+                    <th className="py-1.5 px-2 text-left font-medium">Cara Pakai</th>
+                    <th className="py-1.5 px-2 text-right font-medium">Harga</th>
+                    <th className="py-1.5 px-2 text-right font-medium">Subtotal</th>
+                    <th className="py-1.5 px-2 text-right font-medium">Jumlah</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {selectedOrder.items?.filter(i => i.status !== 'cancelled').map((item, index) => (
+                  {activeItems.map((item, index) => (
                     <tr key={item.id || index} className="border-b last:border-0">
-                      <td className="py-3 px-3">
+                      <td className="py-2 px-2 align-top">
                         <p className="font-medium">{item.medicine?.name || "Obat"}</p>
                         <p className="text-xs text-muted-foreground">{item.medicine?.generic_name}</p>
-                        {item.instructions && (
-                          <p className="text-xs text-blue-600 mt-1">"{item.instructions}"</p>
-                        )}
                       </td>
-                      <td className="py-3 px-3">{item.dosage}</td>
-                      <td className="py-3 px-3">{item.frequency}</td>
-                      <td className="py-3 px-3">{item.route}</td>
-                      <td className="py-3 px-3">{item.duration}</td>
-                      <td className="py-3 px-3 text-right font-medium">{item.quantity} {item.unit}</td>
+                      <td className="py-2 px-2 align-top">{item.dosage || "-"}</td>
+                      <td className="py-2 px-2 align-top">{item.frequency || "-"}</td>
+                      <td className="py-2 px-2 align-top">{item.route || "-"}</td>
+                      <td className="py-2 px-2 align-top">{item.duration || "-"}</td>
+                      <td className="py-2 px-2 align-top">{item.instructions || item.notes || "-"}</td>
+                      <td className="py-2 px-2 text-right font-medium align-top">{formatRupiah(getUnitPrice(item))}</td>
+                      <td className="py-2 px-2 text-right font-medium align-top">{formatRupiah(getUnitPrice(item) * Number(item.quantity || 0))}</td>
+                      <td className="py-2 px-2 text-right font-medium align-top">{item.quantity} {item.unit}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+            </div>
+            <div className="border-t bg-primary/5 px-3 py-2 flex items-center justify-end">
+              <div className="text-right">
+                <p className="text-xs text-muted-foreground">Grand Total</p>
+                <p className="text-base font-semibold text-primary">{formatRupiah(grandTotal)}</p>
+              </div>
             </div>
           </div>
 
@@ -340,7 +366,7 @@ export function PharmacyReview({ visitId, readOnly = false }: PharmacyReviewProp
             </div>
             <div className="p-3 space-y-4">
               {/* Checklist Items */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="drug_interaction"
@@ -469,7 +495,7 @@ export function PharmacyReview({ visitId, readOnly = false }: PharmacyReviewProp
 
               {/* Approval */}
               <div className="space-y-4">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center space-x-2">
                     <Switch
                       id="requires_confirmation"

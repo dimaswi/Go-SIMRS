@@ -1056,7 +1056,7 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
                   <AlertTitle className="text-green-700">Pasien Sudah Dipulangkan</AlertTitle>
                   <AlertDescription className="text-green-600">
                     <div className="mt-2 p-3 bg-white rounded-lg border space-y-2">
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <div>
                           <span className="text-xs text-muted-foreground">Status Disposisi</span>
                           <p className="font-medium">{dispositionOptions.find(o => o.value === formData.disposition_type)?.label || formData.disposition_type || "-"}</p>
@@ -1133,7 +1133,7 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
                   <div className="flex items-center gap-2">
                     <Label className="text-sm font-semibold">Pilih Status Pemulangan</Label>
                   </div>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                     {dispositionOptions.map((option) => {
                       const isBlockedByPending = pendingOrdersInfo?.has_pending_orders;
                       

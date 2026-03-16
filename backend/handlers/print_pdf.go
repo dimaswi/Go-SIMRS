@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"starter/backend/database"
 	"starter/backend/models"
 	"strconv"
@@ -435,7 +436,7 @@ func addPatientInfoTableLandscape(pdf *gofpdf.Fpdf, patient *models.Patient, vis
 	pdf.CellFormat(col2, rowH, " "+roomName, "1", 0, "L", false, 0, "")
 	doctorName := "-"
 	if visit != nil && visit.Doctor != nil {
-		doctorName = visit.Doctor.NamaLengkap
+		doctorName = resolveAssignedUserNameFromEmployee(visit.Doctor, doctorName)
 	}
 	pdf.CellFormat(col3, rowH, " Dokter", "1", 0, "L", true, 0, "")
 	pdf.CellFormat(col4, rowH, " "+doctorName, "1", 1, "L", false, 0, "")
@@ -570,7 +571,7 @@ func addPatientInfoTable(pdf *gofpdf.Fpdf, patient *models.Patient, visit *model
 		pdf.CellFormat(col3, rowHeight, " Dokter", "1", 0, "L", true, 0, "")
 		doctorName := "-"
 		if visit.Doctor != nil {
-			doctorName = visit.Doctor.NamaLengkap
+			doctorName = resolveAssignedUserNameFromEmployee(visit.Doctor, doctorName)
 		}
 		pdf.CellFormat(col4, rowHeight, " "+truncateText(doctorName, 28), "1", 1, "L", false, 0, "")
 	}
@@ -680,7 +681,7 @@ func addProcedureOrderInfoTable(pdf *gofpdf.Fpdf, patient *models.Patient, order
 		pdf.CellFormat(col3, rowHeight, " Dokter Pengirim", "1", 0, "L", true, 0, "")
 		doctorName := "-"
 		if order.OrderedBy != nil {
-			doctorName = order.OrderedBy.NamaLengkap
+			doctorName = resolveAssignedUserNameFromEmployee(order.OrderedBy, doctorName)
 		}
 		pdf.CellFormat(col4, rowHeight, " "+truncateText(doctorName, 28), "1", 1, "L", false, 0, "")
 	}
@@ -698,6 +699,7 @@ const (
 	marginBottom    = 15.0
 	contentWidth    = pageWidth - marginLeft - marginRight // 180mm
 	signatureHeight = 55.0                                 // Space needed for signature area (increased for QR)
+	footerHeight    = 20.0                                 // Space used by digital signature footer block
 	rowHeight       = 5.0                                  // Standard row height
 )
 
@@ -837,6 +839,48 @@ func addTableMultiRow(pdf *gofpdf.Fpdf, label, value string, labelWidth float64)
 	pdf.SetY(startY + height)
 }
 
+// addHighlightedTableRow adds a bold, lightly shaded row for important summary signals.
+func addHighlightedTableRow(pdf *gofpdf.Fpdf, label, value string, labelWidth float64, fillR, fillG, fillB, textR, textG, textB int) {
+	pdf.SetFont("Arial", "B", 9)
+	pdf.SetDrawColor(0, 0, 0)
+	pdf.SetLineWidth(0.2)
+
+	valueWidth := contentWidth - labelWidth
+	maxTextWidth := valueWidth - 2
+	if maxTextWidth < 10 {
+		maxTextWidth = valueWidth
+	}
+
+	lines := pdf.SplitLines([]byte(safeString(value)), maxTextWidth)
+	lineCount := len(lines)
+	if lineCount < 1 {
+		lineCount = 1
+	}
+	height := float64(lineCount) * rowHeight
+	if height < rowHeight {
+		height = rowHeight
+	}
+
+	if pdf.GetY()+height > pageHeight-marginBottom {
+		pdf.AddPage()
+	}
+
+	startY := pdf.GetY()
+	pdf.SetFillColor(fillR, fillG, fillB)
+	pdf.Rect(marginLeft, startY, labelWidth, height, "FD")
+	pdf.Rect(marginLeft+labelWidth, startY, valueWidth, height, "FD")
+
+	pdf.SetTextColor(textR, textG, textB)
+	pdf.SetXY(marginLeft+1, startY+0.5)
+	pdf.CellFormat(labelWidth-2, rowHeight, label, "", 0, "L", false, 0, "")
+
+	pdf.SetXY(marginLeft+labelWidth+1, startY+0.5)
+	pdf.MultiCell(valueWidth-2, rowHeight, safeString(value), "", "L", false)
+
+	pdf.SetY(startY + height)
+	pdf.SetTextColor(0, 0, 0)
+}
+
 // addTableFullRow adds a full-width row with auto-height for long text
 func addTableFullRow(pdf *gofpdf.Fpdf, value string, isBold bool, color ...int) {
 	if value == "" {
@@ -898,6 +942,38 @@ func addTableEnd(pdf *gofpdf.Fpdf) {
 	pdf.SetY(pdf.GetY() + 3)
 }
 
+// resolveAssignedUserNameFromEmployee returns assigned employee full name.
+func resolveAssignedUserNameFromEmployee(emp *models.Employee, fallback string) string {
+	if emp == nil {
+		return fallback
+	}
+
+	if name := strings.TrimSpace(emp.NamaLengkap); name != "" {
+		return name
+	}
+
+	return fallback
+}
+
+// resolveSignedUserName returns signer employee name when available,
+// then falls back to signer snapshot in signature log.
+func resolveSignedUserName(sig models.SignatureLog, fallback string) string {
+	if sig.SignerEmployeeID != nil {
+		var emp models.Employee
+		if err := database.DB.Select("nama_lengkap").Where("id = ?", *sig.SignerEmployeeID).First(&emp).Error; err == nil {
+			if name := strings.TrimSpace(emp.NamaLengkap); name != "" {
+				return name
+			}
+		}
+	}
+
+	if name := strings.TrimSpace(sig.SignerName); name != "" {
+		return name
+	}
+
+	return fallback
+}
+
 // signatureLookup is an alternate document_type + document_id pair for signature lookup
 type signatureLookup struct {
 	DocType string
@@ -908,20 +984,11 @@ type signatureLookup struct {
 // Jika sudah ditandatangani digital, QR code di area TTD + footer validasi di bawah halaman terakhir
 // altLookups: optional alternate document_type+document_id pairs to check (e.g. rm_dup_* types)
 func addSignature(pdf *gofpdf.Fpdf, city, doctorName, patientLabel, docType string, docID uint, altLookups ...signatureLookup) {
-	// Check if we have enough space for signature
-	checkPageBreak(pdf, signatureHeight)
-
-	pdf.SetY(pdf.GetY() + 10)
-
 	// Date in Indonesian
 	dateStr := formatDateIndonesian(time.Now())
 	if city != "" {
 		dateStr = city + ", " + dateStr
 	}
-
-	// Check if document is digitally signed — try alternates (rm_dup) first, then primary
-	var signatureLog models.SignatureLog
-	isSigned := false
 
 	// Build lookup pairs: alternates first (rm_dup takes priority), then primary as fallback
 	lookups := append([]signatureLookup{}, altLookups...)
@@ -929,27 +996,26 @@ func addSignature(pdf *gofpdf.Fpdf, city, doctorName, patientLabel, docType stri
 		lookups = append(lookups, signatureLookup{docType, docID})
 	}
 
-	for _, lk := range lookups {
-		if lk.DocType == "" || lk.DocID == 0 {
-			continue
+	// Check active digital signature from current signature state first.
+	signatureLog, isSigned := findSignatureLog(lookups...)
+	if isSigned {
+		signedDate := formatDateIndonesian(signatureLog.SignedAt)
+		if city != "" {
+			dateStr = city + ", " + signedDate
+		} else {
+			dateStr = signedDate
 		}
-		if err := database.DB.Where("document_type = ? AND document_id = ?", lk.DocType, lk.DocID).
-			Order("signed_at DESC").First(&signatureLog).Error; err == nil {
-			if signatureLog.Action != models.SignActionRevoke {
-				isSigned = true
-				signedDate := formatDateIndonesian(signatureLog.SignedAt)
-				if city != "" {
-					dateStr = city + ", " + signedDate
-				} else {
-					dateStr = signedDate
-				}
-				if signatureLog.SignerName != "" {
-					doctorName = signatureLog.SignerName
-				}
-				break
-			}
-		}
+		doctorName = resolveSignedUserName(signatureLog, doctorName)
 	}
+
+	// Reserve space for signature area + footer (if signed) to prevent overlap.
+	requiredHeight := signatureHeight
+	if isSigned {
+		requiredHeight += footerHeight
+	}
+	checkPageBreak(pdf, requiredHeight)
+
+	pdf.SetY(pdf.GetY() + 10)
 
 	sigAreaWidth := 70.0
 	sigAreaX := marginLeft + contentWidth - sigAreaWidth
@@ -1021,46 +1087,37 @@ func addSignature(pdf *gofpdf.Fpdf, city, doctorName, patientLabel, docType stri
 // addDualSignature menambahkan area tanda tangan ganda: Pasien/Keluarga di kiri, Dokter di kanan
 // Digunakan untuk resume medis, consent, dsb.
 func addDualSignature(pdf *gofpdf.Fpdf, city, doctorName, docType string, docID uint, altLookups ...signatureLookup) {
-	checkPageBreak(pdf, signatureHeight)
-
-	pdf.SetY(pdf.GetY() + 10)
-
 	// Date
 	dateStr := formatDateIndonesian(time.Now())
 	if city != "" {
 		dateStr = city + ", " + dateStr
 	}
 
-	// Check if signed — try alternates (rm_dup) first, then primary as fallback
-	var signatureLog models.SignatureLog
-	isSigned := false
-
 	lookups := append([]signatureLookup{}, altLookups...)
 	if docType != "" && docID > 0 {
 		lookups = append(lookups, signatureLookup{docType, docID})
 	}
 
-	for _, lk := range lookups {
-		if lk.DocType == "" || lk.DocID == 0 {
-			continue
+	// Check active digital signature from current signature state first.
+	signatureLog, isSigned := findSignatureLog(lookups...)
+	if isSigned {
+		signedDate := formatDateIndonesian(signatureLog.SignedAt)
+		if city != "" {
+			dateStr = city + ", " + signedDate
+		} else {
+			dateStr = signedDate
 		}
-		if err := database.DB.Where("document_type = ? AND document_id = ?", lk.DocType, lk.DocID).
-			Order("signed_at DESC").First(&signatureLog).Error; err == nil {
-			if signatureLog.Action != models.SignActionRevoke {
-				isSigned = true
-				signedDate := formatDateIndonesian(signatureLog.SignedAt)
-				if city != "" {
-					dateStr = city + ", " + signedDate
-				} else {
-					dateStr = signedDate
-				}
-				if signatureLog.SignerName != "" {
-					doctorName = signatureLog.SignerName
-				}
-				break
-			}
-		}
+		doctorName = resolveSignedUserName(signatureLog, doctorName)
 	}
+
+	// Reserve space for dual-signature block + footer (if signed) to prevent overlap.
+	requiredHeight := signatureHeight
+	if isSigned {
+		requiredHeight += footerHeight
+	}
+	checkPageBreak(pdf, requiredHeight)
+
+	pdf.SetY(pdf.GetY() + 10)
 
 	sigAreaWidth := 70.0
 	leftX := marginLeft + 10
@@ -1173,9 +1230,24 @@ func findSignatureLog(lookups ...signatureLookup) (models.SignatureLog, bool) {
 		if lk.DocType == "" || lk.DocID == 0 {
 			continue
 		}
-		if err := database.DB.Where("document_type = ? AND document_id = ?", lk.DocType, lk.DocID).
-			Order("signed_at DESC").First(&signatureLog).Error; err == nil {
-			if signatureLog.Action != models.SignActionRevoke {
+
+		// Prefer active signature state to avoid stale signer names from old/revoked logs.
+		var docSig models.DocumentSignature
+		if err := database.DB.
+			Where("document_type = ? AND document_id = ?", lk.DocType, lk.DocID).
+			First(&docSig).Error; err == nil && docSig.SignedAt != nil && docSig.SignatureHash != "" {
+			if err := database.DB.
+				Where("signature_hash = ? AND action = ?", docSig.SignatureHash, models.SignActionSign).
+				Order("signed_at DESC").
+				First(&signatureLog).Error; err == nil {
+				return signatureLog, true
+			}
+
+			// Fallback if hash lookup misses for legacy data.
+			if err := database.DB.
+				Where("document_type = ? AND document_id = ? AND action = ?", lk.DocType, lk.DocID, models.SignActionSign).
+				Order("signed_at DESC").
+				First(&signatureLog).Error; err == nil {
 				return signatureLog, true
 			}
 		}
@@ -1257,7 +1329,13 @@ func addLogoOverlayOnQR(pdf *gofpdf.Fpdf, qrX, qrY, qrSize float64) {
 // addDigitalSignatureFooter menambahkan footer validasi tanda tangan digital
 // di bagian bawah halaman terakhir dengan QR code dan info verifikasi
 func addDigitalSignatureFooter(pdf *gofpdf.Fpdf, signatureLog models.SignatureLog, docType string, docID uint) {
-	footerY := pageHeight - marginBottom - 20
+	footerY := pageHeight - marginBottom - footerHeight
+
+	// If content/signature area has reached footer zone, move footer to a new page.
+	if pdf.GetY() > footerY-2 {
+		pdf.AddPage()
+		footerY = pageHeight - marginBottom - footerHeight
+	}
 
 	// Thin separator line
 	pdf.SetDrawColor(180, 180, 180)
@@ -1295,7 +1373,7 @@ func addDigitalSignatureFooter(pdf *gofpdf.Fpdf, signatureLog models.SignatureLo
 	pdf.SetFont("Arial", "", 6)
 	pdf.SetXY(textX, footerY+3.5)
 	signedTimeStr := signatureLog.SignedAt.Format("02/01/2006 15:04 WIB")
-	pdf.CellFormat(0, 3, fmt.Sprintf("Ditandatangani oleh: %s  |  %s", signatureLog.SignerName, signedTimeStr), "", 1, "L", false, 0, "")
+	pdf.CellFormat(0, 3, fmt.Sprintf("Ditandatangani oleh: %s  |  %s", resolveSignedUserName(signatureLog, "-"), signedTimeStr), "", 1, "L", false, 0, "")
 	pdf.SetXY(textX, footerY+6.5)
 	pdf.CellFormat(0, 3, fmt.Sprintf("Hash: %s", truncateText(signatureLog.SignatureHash, 40)), "", 1, "L", false, 0, "")
 	pdf.SetXY(textX, footerY+9.5)
@@ -1333,6 +1411,79 @@ func truncateText(text string, maxLen int) string {
 		return text
 	}
 	return text[:maxLen-3] + "..."
+}
+
+// formatEnumDisplay converts stored enum-like values to printable labels.
+// Example: perut_atas -> Perut Atas
+func formatEnumDisplay(value string) string {
+	v := strings.TrimSpace(value)
+	if v == "" {
+		return ""
+	}
+	v = strings.ReplaceAll(v, "_", " ")
+	v = strings.ReplaceAll(v, "-", " ")
+	return strings.Title(strings.ToLower(v))
+}
+
+func formatPainMethodDisplay(value string) string {
+	methodMap := map[string]string{
+		"nrs":          "NRS",
+		"wong_baker":   "Wong-Baker",
+		"vas":          "VAS",
+		"flacc":        "FLACC",
+		"bps":          "BPS",
+		"numeric":      "Numeric",
+		"numeric_rate": "Numeric Rate",
+	}
+	key := strings.ToLower(strings.TrimSpace(value))
+	if label, ok := methodMap[key]; ok {
+		return label
+	}
+	return formatEnumDisplay(value)
+}
+
+func painScaleWithSeverity(scale int) string {
+	severity := "Tidak Nyeri"
+	if scale >= 1 && scale <= 3 {
+		severity = "Ringan"
+	} else if scale >= 4 && scale <= 6 {
+		severity = "Sedang"
+	} else if scale >= 7 {
+		severity = "Berat"
+	}
+	return fmt.Sprintf("%d/10 (%s)", scale, severity)
+}
+
+func diagnosisTypeRank(t string) int {
+	switch strings.ToLower(strings.TrimSpace(t)) {
+	case "primary":
+		return 0
+	case "secondary":
+		return 1
+	case "differential":
+		return 2
+	default:
+		return 3
+	}
+}
+
+func parseLeadingInt(value string) int {
+	digits := ""
+	for _, ch := range value {
+		if ch >= '0' && ch <= '9' {
+			digits += string(ch)
+		} else if digits != "" {
+			break
+		}
+	}
+	if digits == "" {
+		return 0
+	}
+	n, err := strconv.Atoi(digits)
+	if err != nil {
+		return 0
+	}
+	return n
 }
 
 func safeString(s string) string {
@@ -1446,6 +1597,9 @@ func PrintOutpatientResume(c *gin.Context) {
 		ECGResult         string
 		ECGInterpretation string
 		ECGNotes          string
+		PainMethod        string
+		PainScale         int
+		PainLocation      string
 	}
 	type DiagnosisData struct {
 		Type      string
@@ -1630,6 +1784,9 @@ func PrintOutpatientResume(c *gin.Context) {
 			ECGResult:         physicalExamModel.ECGResult,
 			ECGInterpretation: physicalExamModel.ECGInterpretation,
 			ECGNotes:          physicalExamModel.ECGNotes,
+			PainMethod:        physicalExamModel.PainMethod,
+			PainScale:         physicalExamModel.PainScale,
+			PainLocation:      physicalExamModel.PainLocation,
 		}
 
 		var diagnosesModel []models.Diagnosis
@@ -1692,6 +1849,19 @@ func PrintOutpatientResume(c *gin.Context) {
 		}
 	}
 
+	// Keep diagnosis order consistent and clinically meaningful.
+	sort.Slice(diagnoses, func(i, j int) bool {
+		ri := diagnosisTypeRank(diagnoses[i].Type)
+		rj := diagnosisTypeRank(diagnoses[j].Type)
+		if ri != rj {
+			return ri < rj
+		}
+		if diagnoses[i].ICD10Code != diagnoses[j].ICD10Code {
+			return diagnoses[i].ICD10Code < diagnoses[j].ICD10Code
+		}
+		return diagnoses[i].ICD10Name < diagnoses[j].ICD10Name
+	})
+
 	// Get hospital info
 	hospitalInfo := getHospitalInfo()
 
@@ -1723,6 +1893,142 @@ func PrintOutpatientResume(c *gin.Context) {
 
 	// Patient info table
 	addPatientInfoTable(pdf, patient, &visit)
+
+	// Clinical Snapshot - concise high-value summary for faster reading.
+	primaryDx := "-"
+	for _, d := range diagnoses {
+		if d.Type == "primary" {
+			if d.ICD10Code != "" && d.ICD10Name != "" {
+				primaryDx = fmt.Sprintf("%s - %s", d.ICD10Code, d.ICD10Name)
+			} else {
+				primaryDx = safeString(d.ICD10Name)
+			}
+			break
+		}
+	}
+	if primaryDx == "-" && len(diagnoses) > 0 {
+		d := diagnoses[0]
+		if d.ICD10Code != "" && d.ICD10Name != "" {
+			primaryDx = fmt.Sprintf("%s - %s", d.ICD10Code, d.ICD10Name)
+		} else {
+			primaryDx = safeString(d.ICD10Name)
+		}
+	}
+
+	vitals := []string{}
+	if physicalExam.BloodPressure != "" {
+		vitals = append(vitals, "TD "+physicalExam.BloodPressure)
+	}
+	if physicalExam.HeartRate != "" {
+		vitals = append(vitals, "N "+physicalExam.HeartRate)
+	}
+	if physicalExam.RespiratoryRate != "" {
+		vitals = append(vitals, "RR "+physicalExam.RespiratoryRate)
+	}
+	if physicalExam.Temperature != "" {
+		vitals = append(vitals, "S "+physicalExam.Temperature)
+	}
+	if physicalExam.OxygenSaturation != "" {
+		vitals = append(vitals, "SpO2 "+physicalExam.OxygenSaturation+"%")
+	}
+	vitalSummary := "-"
+	if len(vitals) > 0 {
+		vitalSummary = strings.Join(vitals, " | ")
+	}
+	spo2Val := parseLeadingInt(physicalExam.OxygenSaturation)
+	oxygenAlert := spo2Val > 0 && spo2Val < 94
+	if oxygenAlert {
+		vitalSummary += " | SpO2 Rendah"
+	}
+
+	painSummary := "Tidak Nyeri"
+	if physicalExam.PainScale > 0 {
+		painSummary = painScaleWithSeverity(physicalExam.PainScale)
+	}
+	painAlert := physicalExam.PainScale >= 4
+	if physicalExam.PainLocation != "" {
+		painSummary += " - " + formatEnumDisplay(physicalExam.PainLocation)
+	}
+
+	allergyStatus := "Tidak Ada"
+	if strings.TrimSpace(anamnesis.Allergies) != "" && strings.TrimSpace(anamnesis.Allergies) != "-" {
+		allergyStatus = "Ada"
+	}
+	allergyR, allergyG, allergyB := 22, 101, 52
+	if allergyStatus == "Ada" {
+		allergyR, allergyG, allergyB = 185, 28, 28
+	}
+
+	complexityScore := 0
+	if len(diagnoses) >= 3 {
+		complexityScore += 2
+	} else if len(diagnoses) >= 1 {
+		complexityScore += 1
+	}
+	if oxygenAlert {
+		complexityScore += 1
+	}
+	if painAlert {
+		complexityScore += 1
+	}
+	if allergyStatus == "Ada" {
+		complexityScore += 1
+	}
+
+	complexityLabel := "Ringan"
+	complexityR, complexityG, complexityB := 22, 101, 52
+	if complexityScore >= 4 {
+		complexityLabel = "Tinggi"
+		complexityR, complexityG, complexityB = 185, 28, 28
+	} else if complexityScore >= 2 {
+		complexityLabel = "Sedang"
+		complexityR, complexityG, complexityB = 180, 83, 9
+	}
+	complexityDisplay := fmt.Sprintf("%s (%d)", complexityLabel, complexityScore)
+
+	alertItems := []string{}
+	if allergyStatus == "Ada" {
+		alertItems = append(alertItems, "Alergi")
+	}
+	if oxygenAlert {
+		alertItems = append(alertItems, "SpO2 Rendah")
+	}
+	if painAlert {
+		alertItems = append(alertItems, "Nyeri Sedang/Berat")
+	}
+	alertSummary := "Tidak ada alert utama"
+	if len(alertItems) > 0 {
+		alertSummary = strings.Join(alertItems, " + ")
+	}
+
+	addTableHeader(pdf, "CLINICAL SNAPSHOT")
+	if len(alertItems) > 0 {
+		addHighlightedTableRow(pdf, "Alert Utama", alertSummary, 40, 242, 242, 242, 185, 28, 28)
+	} else {
+		addHighlightedTableRow(pdf, "Alert Utama", alertSummary, 40, 242, 242, 242, 0, 0, 0)
+	}
+	addTableRow(pdf, "Diagnosis Utama", primaryDx, 40)
+	if oxygenAlert {
+		pdf.SetTextColor(180, 83, 9)
+		addTableRow(pdf, "Tanda Vital Inti", vitalSummary, 40)
+		pdf.SetTextColor(0, 0, 0)
+	} else {
+		addTableRow(pdf, "Tanda Vital Inti", vitalSummary, 40)
+	}
+	if painAlert {
+		pdf.SetTextColor(185, 28, 28)
+		addTableRow(pdf, "Ringkasan Nyeri", painSummary, 40)
+		pdf.SetTextColor(0, 0, 0)
+	} else {
+		addTableRow(pdf, "Ringkasan Nyeri", painSummary, 40)
+	}
+	pdf.SetTextColor(allergyR, allergyG, allergyB)
+	addTableRow(pdf, "Alergi", allergyStatus, 40)
+	pdf.SetTextColor(0, 0, 0)
+	addHighlightedTableRow(pdf, "Kompleksitas Kasus", complexityDisplay, 40, 242, 242, 242, complexityR, complexityG, complexityB)
+	addTableRow(pdf, "Legend Skor", "0-1 Ringan | 2-3 Sedang | >=4 Tinggi", 40)
+	addTableRow(pdf, "Disposisi", formatEnumDisplay(disposition.DispositionType), 40)
+	addTableEnd(pdf)
 
 	// Anamnesis Section
 	addTableHeader(pdf, "ANAMNESIS")
@@ -1851,6 +2157,15 @@ func PrintOutpatientResume(c *gin.Context) {
 			if physicalExam.ECGNotes != "" {
 				addTableRow(pdf, "Catatan EKG", physicalExam.ECGNotes, 40)
 			}
+		}
+		if physicalExam.PainMethod != "" {
+			addTableRow(pdf, "Metode Nyeri", formatPainMethodDisplay(physicalExam.PainMethod), 40)
+		}
+		if physicalExam.PainScale > 0 {
+			addTableRow(pdf, "Skala Nyeri", painScaleWithSeverity(physicalExam.PainScale), 40)
+		}
+		if physicalExam.PainLocation != "" {
+			addTableRow(pdf, "Lokasi Nyeri", formatEnumDisplay(physicalExam.PainLocation), 40)
 		}
 	} else {
 		addTableFullRow(pdf, "Tidak ada data pemeriksaan fisik", false)
@@ -2034,7 +2349,7 @@ func PrintOutpatientResume(c *gin.Context) {
 	// Signature
 	doctorName := "-"
 	if visit.Doctor != nil {
-		doctorName = visit.Doctor.NamaLengkap
+		doctorName = resolveAssignedUserNameFromEmployee(visit.Doctor, doctorName)
 	}
 	addDualSignature(pdf, hospitalInfo.City, doctorName, models.DocTypeVisitResume, visit.ID,
 		rmDupSignatureLookup(c, models.DocTypeRMDupResume))
@@ -2218,6 +2533,9 @@ func PrintInpatientResume(c *gin.Context) {
 		ID                                                                                                                                                                              uint
 		GeneralCondition, Consciousness, BloodPressure, HeartRate, RespiratoryRate, Temperature, OxygenSaturation, Weight, Height, UpperArmCircum, HeadCircum, Waist                    string
 		Head, Eyes, Ears, Nose, Throat, ENT, Neck, Chest, Thorax, Heart, Cardiac, Lungs, Pulmonary, Abdomen, Extremities, Skin, Neurological, Musculoskel, Genitourinary, OtherFindings string
+		PainMethod                                                                                                                                                                      string
+		PainScale                                                                                                                                                                       int
+		PainLocation                                                                                                                                                                    string
 	}
 	type DiagData struct{ Type, ICD10Code, ICD10Name string }
 	var diagnosesList []DiagData
@@ -2318,6 +2636,9 @@ func PrintInpatientResume(c *gin.Context) {
 		physicalExam.Musculoskel = physExamModel.Musculoskel
 		physicalExam.Genitourinary = physExamModel.Genitourinary
 		physicalExam.OtherFindings = physExamModel.OtherFindings
+		physicalExam.PainMethod = physExamModel.PainMethod
+		physicalExam.PainScale = physExamModel.PainScale
+		physicalExam.PainLocation = physExamModel.PainLocation
 
 		var diagModels []models.Diagnosis
 		database.DB.Where("visit_id = ?", visitID).Find(&diagModels)
@@ -2346,6 +2667,19 @@ func PrintInpatientResume(c *gin.Context) {
 			}
 		}
 	}
+
+	// Keep diagnosis order consistent and clinically meaningful.
+	sort.Slice(diagnosesList, func(i, j int) bool {
+		ri := diagnosisTypeRank(diagnosesList[i].Type)
+		rj := diagnosisTypeRank(diagnosesList[j].Type)
+		if ri != rj {
+			return ri < rj
+		}
+		if diagnosesList[i].ICD10Code != diagnosesList[j].ICD10Code {
+			return diagnosesList[i].ICD10Code < diagnosesList[j].ICD10Code
+		}
+		return diagnosesList[i].ICD10Name < diagnosesList[j].ICD10Name
+	})
 
 	// Get hospital info
 	hospitalInfo := getHospitalInfo()
@@ -2386,6 +2720,142 @@ func PrintInpatientResume(c *gin.Context) {
 		}
 	}
 	addTableRow(pdf, "Lama Rawat", fmt.Sprintf("%d hari", los), 40)
+	addTableEnd(pdf)
+
+	// Clinical Snapshot - concise high-value summary for faster reading.
+	primaryDx := "-"
+	for _, d := range diagnosesList {
+		if d.Type == "primary" {
+			if d.ICD10Code != "" && d.ICD10Name != "" {
+				primaryDx = fmt.Sprintf("%s - %s", d.ICD10Code, d.ICD10Name)
+			} else {
+				primaryDx = safeString(d.ICD10Name)
+			}
+			break
+		}
+	}
+	if primaryDx == "-" && len(diagnosesList) > 0 {
+		d := diagnosesList[0]
+		if d.ICD10Code != "" && d.ICD10Name != "" {
+			primaryDx = fmt.Sprintf("%s - %s", d.ICD10Code, d.ICD10Name)
+		} else {
+			primaryDx = safeString(d.ICD10Name)
+		}
+	}
+
+	vitals := []string{}
+	if physicalExam.BloodPressure != "" {
+		vitals = append(vitals, "TD "+physicalExam.BloodPressure)
+	}
+	if physicalExam.HeartRate != "" {
+		vitals = append(vitals, "N "+physicalExam.HeartRate)
+	}
+	if physicalExam.RespiratoryRate != "" {
+		vitals = append(vitals, "RR "+physicalExam.RespiratoryRate)
+	}
+	if physicalExam.Temperature != "" {
+		vitals = append(vitals, "S "+physicalExam.Temperature)
+	}
+	if physicalExam.OxygenSaturation != "" {
+		vitals = append(vitals, "SpO2 "+physicalExam.OxygenSaturation+"%")
+	}
+	vitalSummary := "-"
+	if len(vitals) > 0 {
+		vitalSummary = strings.Join(vitals, " | ")
+	}
+	spo2Val := parseLeadingInt(physicalExam.OxygenSaturation)
+	oxygenAlert := spo2Val > 0 && spo2Val < 94
+	if oxygenAlert {
+		vitalSummary += " | SpO2 Rendah"
+	}
+
+	painSummary := "Tidak Nyeri"
+	if physicalExam.PainScale > 0 {
+		painSummary = painScaleWithSeverity(physicalExam.PainScale)
+	}
+	painAlert := physicalExam.PainScale >= 4
+	if physicalExam.PainLocation != "" {
+		painSummary += " - " + formatEnumDisplay(physicalExam.PainLocation)
+	}
+
+	allergyStatus := "Tidak Ada"
+	if strings.TrimSpace(anamnesisAllergies) != "" && strings.TrimSpace(anamnesisAllergies) != "-" {
+		allergyStatus = "Ada"
+	}
+	allergyR, allergyG, allergyB := 22, 101, 52
+	if allergyStatus == "Ada" {
+		allergyR, allergyG, allergyB = 185, 28, 28
+	}
+
+	complexityScore := 0
+	if len(diagnosesList) >= 3 {
+		complexityScore += 2
+	} else if len(diagnosesList) >= 1 {
+		complexityScore += 1
+	}
+	if oxygenAlert {
+		complexityScore += 1
+	}
+	if painAlert {
+		complexityScore += 1
+	}
+	if allergyStatus == "Ada" {
+		complexityScore += 1
+	}
+
+	complexityLabel := "Ringan"
+	complexityR, complexityG, complexityB := 22, 101, 52
+	if complexityScore >= 4 {
+		complexityLabel = "Tinggi"
+		complexityR, complexityG, complexityB = 185, 28, 28
+	} else if complexityScore >= 2 {
+		complexityLabel = "Sedang"
+		complexityR, complexityG, complexityB = 180, 83, 9
+	}
+	complexityDisplay := fmt.Sprintf("%s (%d)", complexityLabel, complexityScore)
+
+	alertItems := []string{}
+	if allergyStatus == "Ada" {
+		alertItems = append(alertItems, "Alergi")
+	}
+	if oxygenAlert {
+		alertItems = append(alertItems, "SpO2 Rendah")
+	}
+	if painAlert {
+		alertItems = append(alertItems, "Nyeri Sedang/Berat")
+	}
+	alertSummary := "Tidak ada alert utama"
+	if len(alertItems) > 0 {
+		alertSummary = strings.Join(alertItems, " + ")
+	}
+
+	addTableHeader(pdf, "CLINICAL SNAPSHOT")
+	if len(alertItems) > 0 {
+		addHighlightedTableRow(pdf, "Alert Utama", alertSummary, 40, 242, 242, 242, 185, 28, 28)
+	} else {
+		addHighlightedTableRow(pdf, "Alert Utama", alertSummary, 40, 242, 242, 242, 0, 0, 0)
+	}
+	addTableRow(pdf, "Diagnosis Utama", primaryDx, 40)
+	if oxygenAlert {
+		pdf.SetTextColor(180, 83, 9)
+		addTableRow(pdf, "Tanda Vital Inti", vitalSummary, 40)
+		pdf.SetTextColor(0, 0, 0)
+	} else {
+		addTableRow(pdf, "Tanda Vital Inti", vitalSummary, 40)
+	}
+	if painAlert {
+		pdf.SetTextColor(185, 28, 28)
+		addTableRow(pdf, "Ringkasan Nyeri", painSummary, 40)
+		pdf.SetTextColor(0, 0, 0)
+	} else {
+		addTableRow(pdf, "Ringkasan Nyeri", painSummary, 40)
+	}
+	pdf.SetTextColor(allergyR, allergyG, allergyB)
+	addTableRow(pdf, "Alergi", allergyStatus, 40)
+	pdf.SetTextColor(0, 0, 0)
+	addHighlightedTableRow(pdf, "Kompleksitas Kasus", complexityDisplay, 40, 242, 242, 242, complexityR, complexityG, complexityB)
+	addTableRow(pdf, "Legend Skor", "0-1 Ringan | 2-3 Sedang | >=4 Tinggi", 40)
+	addTableRow(pdf, "Disposisi", formatEnumDisplay(dispType), 40)
 	addTableEnd(pdf)
 
 	// Anamnesis Section
@@ -2501,6 +2971,15 @@ func PrintInpatientResume(c *gin.Context) {
 		if physicalExam.OtherFindings != "" {
 			addTableRow(pdf, "Temuan Lain", physicalExam.OtherFindings, 40)
 		}
+		if physicalExam.PainMethod != "" {
+			addTableRow(pdf, "Metode Nyeri", formatPainMethodDisplay(physicalExam.PainMethod), 45)
+		}
+		if physicalExam.PainScale > 0 {
+			addTableRow(pdf, "Skala Nyeri", painScaleWithSeverity(physicalExam.PainScale), 45)
+		}
+		if physicalExam.PainLocation != "" {
+			addTableRow(pdf, "Lokasi Nyeri", formatEnumDisplay(physicalExam.PainLocation), 45)
+		}
 	} else {
 		addTableFullRow(pdf, "Tidak ada data pemeriksaan fisik", false)
 	}
@@ -2594,7 +3073,7 @@ func PrintInpatientResume(c *gin.Context) {
 	// Signature
 	doctorName := "-"
 	if visit.Doctor != nil {
-		doctorName = visit.Doctor.NamaLengkap
+		doctorName = resolveAssignedUserNameFromEmployee(visit.Doctor, doctorName)
 	}
 	addDualSignature(pdf, hospitalInfo.City, doctorName, models.DocTypeVisitResume, visit.ID,
 		rmDupSignatureLookup(c, models.DocTypeRMDupInpatientResume))
@@ -2619,7 +3098,6 @@ func PrintSickLetter(c *gin.Context) {
 	days := 1
 	startDate := time.Now()
 	var letterNumber string
-	var reason string
 	var purpose string
 	var institution string
 	var notes string
@@ -2638,7 +3116,6 @@ func PrintSickLetter(c *gin.Context) {
 		days = sickLetter.Days
 		startDate = sickLetter.StartDate
 		letterNumber = sickLetter.LetterNumber
-		reason = sickLetter.Reason
 		purpose = sickLetter.Purpose
 		institution = sickLetter.Institution
 		notes = sickLetter.Notes
@@ -2746,23 +3223,12 @@ func PrintSickLetter(c *gin.Context) {
 	pdf.SetFont("Arial", "", 11)
 
 	// Build statement with reason if available
-	var statement string
-	if reason != "" {
-		statement = fmt.Sprintf("Berdasarkan pemeriksaan yang dilakukan pada tanggal %s, yang bersangkutan dinyatakan sakit dengan keluhan %s dan memerlukan istirahat selama %d (%s) hari, terhitung mulai tanggal %s.",
-			formatDateIndonesian(*visit.StartTime),
-			reason,
-			days,
-			numberToWords(days),
-			dateRange,
-		)
-	} else {
-		statement = fmt.Sprintf("Berdasarkan pemeriksaan yang dilakukan pada tanggal %s, yang bersangkutan dinyatakan sakit dan memerlukan istirahat selama %d (%s) hari, terhitung mulai tanggal %s.",
-			formatDateIndonesian(*visit.StartTime),
-			days,
-			numberToWords(days),
-			dateRange,
-		)
-	}
+	statement := fmt.Sprintf("Berdasarkan pemeriksaan yang dilakukan pada tanggal %s, yang bersangkutan dinyatakan sakit dan memerlukan istirahat selama %d (%s) hari, terhitung mulai tanggal %s.",
+		formatDateIndonesian(*visit.StartTime),
+		days,
+		numberToWords(days),
+		dateRange,
+	)
 	pdf.MultiCell(0, 6, statement, "", "", false)
 
 	pdf.SetY(pdf.GetY() + 5)
@@ -2785,7 +3251,7 @@ func PrintSickLetter(c *gin.Context) {
 	// Signature
 	doctorName := "-"
 	if visit.Doctor != nil {
-		doctorName = visit.Doctor.NamaLengkap
+		doctorName = resolveAssignedUserNameFromEmployee(visit.Doctor, doctorName)
 	}
 	addSignature(pdf, hospitalInfo.City, doctorName, "Dokter Pemeriksa", models.DocTypeSickLetter, letterID)
 
@@ -3033,7 +3499,7 @@ func PrintDeathCertificate(c *gin.Context) {
 	// Signature
 	doctorName := "-"
 	if visit.Doctor != nil {
-		doctorName = visit.Doctor.NamaLengkap
+		doctorName = resolveAssignedUserNameFromEmployee(visit.Doctor, doctorName)
 	}
 	addSignature(pdf, hospitalInfo.City, doctorName, "Dokter Pemeriksa", models.DocTypeDeathCertificate, certificate.ID)
 
@@ -3179,7 +3645,7 @@ func PrintHealthCertificate(c *gin.Context) {
 
 	doctorName := "-"
 	if visit.Doctor != nil {
-		doctorName = visit.Doctor.NamaLengkap
+		doctorName = resolveAssignedUserNameFromEmployee(visit.Doctor, doctorName)
 	}
 	addSignature(pdf, hospitalInfo.City, doctorName, "Dokter Pemeriksa", models.DocTypeHealthCertificate, certificate.ID)
 
@@ -3260,7 +3726,11 @@ func PrintBirthCertificate(c *gin.Context) {
 
 	babyName := certificate.BabyName
 	if babyName == "" {
-		babyName = "Belum diberi nama"
+		if patient.NamaLengkap != "" {
+			babyName = "By Ny. " + patient.NamaLengkap
+		} else {
+			babyName = "Belum diberi nama"
+		}
 	}
 	pdf.CellFormat(50, 6, "Nama Bayi", "", 0, "", false, 0, "")
 	pdf.CellFormat(5, 6, ":", "", 0, "", false, 0, "")
@@ -3314,12 +3784,6 @@ func PrintBirthCertificate(c *gin.Context) {
 		pdf.CellFormat(0, 6, birthMethodLabel, "", 1, "", false, 0, "")
 	}
 
-	if certificate.ApgarScore != "" {
-		pdf.CellFormat(50, 6, "Apgar Score", "", 0, "", false, 0, "")
-		pdf.CellFormat(5, 6, ":", "", 0, "", false, 0, "")
-		pdf.CellFormat(0, 6, certificate.ApgarScore, "", 1, "", false, 0, "")
-	}
-
 	// Parents
 	pdf.SetY(pdf.GetY() + 5)
 	pdf.SetFont("Arial", "B", 11)
@@ -3354,7 +3818,7 @@ func PrintBirthCertificate(c *gin.Context) {
 
 	doctorName := "-"
 	if visit.Doctor != nil {
-		doctorName = visit.Doctor.NamaLengkap
+		doctorName = resolveAssignedUserNameFromEmployee(visit.Doctor, doctorName)
 	}
 	addSignature(pdf, hospitalInfo.City, doctorName, "Dokter Penolong", models.DocTypeBirthCertificate, certificate.ID)
 
@@ -3515,7 +3979,7 @@ func PrintLeaveCertificate(c *gin.Context) {
 
 	doctorName := "-"
 	if visit.Doctor != nil {
-		doctorName = visit.Doctor.NamaLengkap
+		doctorName = resolveAssignedUserNameFromEmployee(visit.Doctor, doctorName)
 	}
 	addSignature(pdf, hospitalInfo.City, doctorName, "Dokter Pemeriksa", models.DocTypeLeaveCertificate, certificate.ID)
 
@@ -3684,7 +4148,7 @@ func PrintMCUCertificate(c *gin.Context) {
 
 	doctorName := "-"
 	if visit.Doctor != nil {
-		doctorName = visit.Doctor.NamaLengkap
+		doctorName = resolveAssignedUserNameFromEmployee(visit.Doctor, doctorName)
 	}
 	addSignature(pdf, hospitalInfo.City, doctorName, "Dokter Pemeriksa", models.DocTypeMCUCertificate, certificate.ID)
 
@@ -3778,7 +4242,7 @@ func PrintPrescription(c *gin.Context) {
 	// Signature
 	doctorName := "-"
 	if visit.Doctor != nil {
-		doctorName = visit.Doctor.NamaLengkap
+		doctorName = resolveAssignedUserNameFromEmployee(visit.Doctor, doctorName)
 	}
 	addSignature(pdf, hospitalInfo.City, doctorName, "", models.DocTypePrescription, order.ID)
 
@@ -3871,7 +4335,7 @@ func PrintLabOrder(c *gin.Context) {
 	// Signature
 	doctorName := "-"
 	if visit.Doctor != nil {
-		doctorName = visit.Doctor.NamaLengkap
+		doctorName = resolveAssignedUserNameFromEmployee(visit.Doctor, doctorName)
 	}
 	addSignature(pdf, hospitalInfo.City, doctorName, "", models.DocTypeLabResult, order.ID)
 
@@ -4048,11 +4512,15 @@ func PrintTriageForm(c *gin.Context) {
 		breathingRate    string
 		circulation      string
 		circulationNote  string
+		crt              string
 		bloodPressure    string
 		heartRate        string
 		temperature      string
 		oxygenSaturation string
+		painMethod       string
 		painScale        int
+		painLocation     string
+		consciousness    string
 		gcsE             int
 		gcsV             int
 		gcsM             int
@@ -4113,11 +4581,15 @@ func PrintTriageForm(c *gin.Context) {
 		breathingRate = triage.BreathingRate
 		circulation = triage.Circulation
 		circulationNote = triage.CirculationNote
+		crt = triage.CRT
 		bloodPressure = triage.BloodPressure
 		heartRate = triage.HeartRate
 		temperature = triage.Temperature
 		oxygenSaturation = triage.OxygenSaturation
+		painMethod = triage.PainMethod
 		painScale = triage.PainScale
+		painLocation = triage.PainLocation
+		consciousness = triage.Consciousness
 		gcsE = triage.GCSE
 		gcsV = triage.GCSV
 		gcsM = triage.GCSM
@@ -4166,6 +4638,276 @@ func PrintTriageForm(c *gin.Context) {
 		}
 	}
 	addTableRow(pdf, "Level Triage", safeString(triageLevelDisplay), 45)
+
+	// Visual priority banner (color-coded) to make triage urgency easier to scan.
+	bannerR, bannerG, bannerB := 107, 114, 128 // neutral gray
+	textR, textG, textB := 255, 255, 255
+	switch triageLevel {
+	case "0": // DOA
+		bannerR, bannerG, bannerB = 17, 24, 39
+	case "1": // Resusitasi
+		bannerR, bannerG, bannerB = 220, 38, 38
+	case "2": // Emergent
+		bannerR, bannerG, bannerB = 234, 88, 12
+	case "3": // Urgent
+		bannerR, bannerG, bannerB = 217, 119, 6
+	case "4": // Less urgent
+		bannerR, bannerG, bannerB = 22, 163, 74
+	case "5": // Non urgent
+		bannerR, bannerG, bannerB = 37, 99, 235
+	}
+	pdf.SetFont("Arial", "B", 9)
+	pdf.SetFillColor(bannerR, bannerG, bannerB)
+	pdf.SetTextColor(textR, textG, textB)
+	pdf.CellFormat(contentWidth, 7, "PRIORITAS TRIAGE: "+safeString(triageLevelDisplay), "1", 1, "C", true, 0, "")
+	pdf.SetTextColor(0, 0, 0)
+
+	// Show full color triage matrix and mark selected level.
+	triageLevels := []struct {
+		Code       string
+		Label      string
+		Indication string
+		R, G, B    int
+	}{
+		{Code: "0", Label: "DOA", Indication: "Death on Arrival / tanpa tanda vital", R: 17, G: 24, B: 39},
+		{Code: "1", Label: "Resusitasi", Indication: "Kondisi kritis, tindakan segera", R: 220, G: 38, B: 38},
+		{Code: "2", Label: "Emergent", Indication: "Mengancam nyawa, prioritas sangat tinggi", R: 234, G: 88, B: 12},
+		{Code: "3", Label: "Urgent", Indication: "Perlu penanganan cepat", R: 217, G: 119, B: 6},
+		{Code: "4", Label: "Less Urgent", Indication: "Stabil, dapat menunggu terbatas", R: 22, G: 163, B: 74},
+		{Code: "5", Label: "Non-Urgent", Indication: "Tidak gawat, pelayanan rutin", R: 37, G: 99, B: 235},
+	}
+
+	pdf.SetFont("Arial", "B", 8)
+	pdf.SetFillColor(240, 240, 240)
+	pdf.CellFormat(24, 6, "Level", "1", 0, "C", true, 0, "")
+	pdf.CellFormat(58, 6, "Kategori", "1", 0, "C", true, 0, "")
+	pdf.CellFormat(74, 6, "Indikasi Klinis", "1", 0, "C", true, 0, "")
+	pdf.CellFormat(24, 6, "Checklist", "1", 1, "C", true, 0, "")
+
+	pdf.SetFont("Arial", "", 8)
+	for _, lvl := range triageLevels {
+		checkMark := "[ ]"
+		isSelected := false
+		if triageLevel == lvl.Code {
+			checkMark = "[v] TERPILIH"
+			isSelected = true
+		}
+
+		pdf.SetFillColor(lvl.R, lvl.G, lvl.B)
+		pdf.SetTextColor(255, 255, 255)
+		pdf.CellFormat(24, 6, "L"+lvl.Code, "1", 0, "C", true, 0, "")
+
+		pdf.SetFillColor(255, 255, 255)
+		pdf.SetTextColor(0, 0, 0)
+		pdf.CellFormat(58, 6, lvl.Label, "1", 0, "L", false, 0, "")
+		pdf.CellFormat(74, 6, lvl.Indication, "1", 0, "L", false, 0, "")
+		if isSelected {
+			pdf.SetFillColor(220, 252, 231)
+			pdf.SetTextColor(22, 101, 52)
+			pdf.CellFormat(24, 6, checkMark, "1", 1, "C", true, 0, "")
+		} else {
+			pdf.SetTextColor(90, 90, 90)
+			pdf.CellFormat(24, 6, checkMark, "1", 1, "C", false, 0, "")
+		}
+	}
+	pdf.SetTextColor(0, 0, 0)
+	pdf.SetFont("Arial", "I", 7)
+	pdf.CellFormat(contentWidth, 4.5, "Keterangan: [v] TERPILIH = level triage aktif pada kunjungan ini", "1", 1, "L", false, 0, "")
+	pdf.SetFont("Arial", "", 9)
+	addTableEnd(pdf)
+
+	// Priority interpretation block (without adding new schema fields)
+	responseTarget := "Belum terdefinisi"
+	serviceZone := "Area observasi"
+	priorityNote := "Perlu validasi klinis lanjutan"
+	switch triageLevel {
+	case "0":
+		responseTarget = "Segera (Immediate)"
+		serviceZone = "Area Resusitasi / Konfirmasi DOA"
+		priorityNote = "Prioritas absolut"
+	case "1":
+		responseTarget = "Segera (0 menit)"
+		serviceZone = "Ruang Resusitasi"
+		priorityNote = "Prioritas absolut"
+	case "2":
+		responseTarget = "<= 10 menit"
+		serviceZone = "Zona Emergensi"
+		priorityNote = "Prioritas sangat tinggi"
+	case "3":
+		responseTarget = "<= 30 menit"
+		serviceZone = "Zona Urgent"
+		priorityNote = "Prioritas tinggi"
+	case "4":
+		responseTarget = "<= 60 menit"
+		serviceZone = "Zona Observasi"
+		priorityNote = "Prioritas sedang"
+	case "5":
+		responseTarget = "<= 120 menit"
+		serviceZone = "Zona Non-Urgent"
+		priorityNote = "Prioritas rendah"
+	}
+
+	addTableHeader(pdf, "A1. RINGKASAN PRIORITAS TRIAGE")
+	addTableRow(pdf, "Target Waktu Respons", responseTarget, 55)
+	addTableRow(pdf, "Zona Pelayanan", serviceZone, 55)
+	addTableRow(pdf, "Status Prioritas", priorityNote, 55)
+	addTableEnd(pdf)
+
+	// Quick risk checklist derived from existing triage values.
+	firstInt := func(s string) int {
+		digits := ""
+		for _, ch := range s {
+			if ch >= '0' && ch <= '9' {
+				digits += string(ch)
+			} else if digits != "" {
+				break
+			}
+		}
+		if digits == "" {
+			return 0
+		}
+		n, err := strconv.Atoi(digits)
+		if err != nil {
+			return 0
+		}
+		return n
+	}
+	containsAny := func(value string, keys ...string) bool {
+		v := strings.ToLower(value)
+		for _, k := range keys {
+			if strings.Contains(v, k) {
+				return true
+			}
+		}
+		return false
+	}
+	normalizeDisplay := func(value string) string {
+		normalized := strings.ReplaceAll(safeString(value), "_", " ")
+		normalized = strings.Title(strings.ToLower(normalized))
+		return normalized
+	}
+
+	spo2Value := firstInt(oxygenSaturation)
+	gcsTotalForRisk := gcsE + gcsV + gcsM
+	riskItems := []struct {
+		Item   string
+		Risk   bool
+		Reason string
+	}{
+		{Item: "Gangguan Airway", Risk: containsAny(airway, "obstruct", "sumbat", "henti", "stridor"), Reason: normalizeDisplay(airway)},
+		{Item: "Gangguan Breathing", Risk: containsAny(breathing, "sesak", "distress", "apnea", "assisted"), Reason: normalizeDisplay(breathing)},
+		{Item: "Gangguan Sirkulasi", Risk: containsAny(circulation, "shock", "syok", "buruk", "lemah"), Reason: normalizeDisplay(circulation)},
+		{Item: "Penurunan Kesadaran (GCS < 13)", Risk: gcsTotalForRisk > 0 && gcsTotalForRisk < 13, Reason: fmt.Sprintf("GCS %d", gcsTotalForRisk)},
+		{Item: "Hipoksemia (SpO2 < 94)", Risk: spo2Value > 0 && spo2Value < 94, Reason: safeString(oxygenSaturation) + "%"},
+		{Item: "Nyeri Berat (>= 7)", Risk: painScale >= 7, Reason: fmt.Sprintf("%d/10", painScale)},
+	}
+
+	addTableHeader(pdf, "A2. CHECKLIST RISIKO CEPAT")
+	pdf.SetFont("Arial", "B", 8)
+	pdf.SetFillColor(240, 240, 240)
+	pdf.CellFormat(95, 6, "Parameter", "1", 0, "C", true, 0, "")
+	pdf.CellFormat(22, 6, "Status", "1", 0, "C", true, 0, "")
+	pdf.CellFormat(63, 6, "Keterangan", "1", 1, "C", true, 0, "")
+	pdf.SetFont("Arial", "", 8)
+
+	for _, r := range riskItems {
+		statusMark := "[ ]"
+		statusLabel := "TIDAK"
+		if r.Risk {
+			statusMark = "[x]"
+			statusLabel = "YA"
+		}
+
+		pdf.SetTextColor(0, 0, 0)
+		pdf.CellFormat(95, 6, r.Item, "1", 0, "L", false, 0, "")
+		if r.Risk {
+			pdf.SetFillColor(254, 226, 226)
+			pdf.SetTextColor(185, 28, 28)
+		} else {
+			pdf.SetFillColor(220, 252, 231)
+			pdf.SetTextColor(22, 101, 52)
+		}
+		pdf.CellFormat(22, 6, statusMark+" "+statusLabel, "1", 0, "C", true, 0, "")
+		pdf.SetTextColor(0, 0, 0)
+		pdf.CellFormat(63, 6, truncateText(r.Reason, 42), "1", 1, "L", false, 0, "")
+	}
+	pdf.SetTextColor(0, 0, 0)
+	addTableEnd(pdf)
+
+	riskCount := 0
+	for _, item := range riskItems {
+		if item.Risk {
+			riskCount++
+		}
+	}
+
+	// Operational decision mini-protocol (derived from existing triage values only).
+	// Reserve space so A3 block doesn't get awkwardly cut at page bottom.
+	checkPageBreak(pdf, 60)
+	addTableHeader(pdf, "A3. ALGORITMA KEPUTUSAN TRIAGE")
+
+	protocolRows := []struct {
+		Code   string
+		Level  string
+		Action string
+		SLA    string
+		Zone   string
+	}{
+		{Code: "0", Level: "DOA", Action: "Konfirmasi tanda kematian / alur DOA", SLA: "Immediate", Zone: "Resus/DOA"},
+		{Code: "1", Level: "Resusitasi", Action: "Aktifkan tim resusitasi, ABC stabilisasi", SLA: "0 menit", Zone: "Resusitasi"},
+		{Code: "2", Level: "Emergent", Action: "Dokter evaluasi segera, monitor ketat", SLA: "<= 10 menit", Zone: "Emergensi"},
+		{Code: "3", Level: "Urgent", Action: "Observasi aktif + reassessment berkala", SLA: "<= 30 menit", Zone: "Urgent"},
+		{Code: "4", Level: "Less Urgent", Action: "Tatalaksana simptomatik, observasi", SLA: "<= 60 menit", Zone: "Observasi"},
+		{Code: "5", Level: "Non-Urgent", Action: "Pelayanan rutin / alur non-gawat", SLA: "<= 120 menit", Zone: "Non-Urgent"},
+	}
+
+	printA3TableHeader := func() {
+		pdf.SetFont("Arial", "B", 8)
+		pdf.SetFillColor(240, 240, 240)
+		pdf.CellFormat(16, 6, "Aktif", "1", 0, "C", true, 0, "")
+		pdf.CellFormat(30, 6, "Level", "1", 0, "C", true, 0, "")
+		pdf.CellFormat(72, 6, "Aksi Operasional", "1", 0, "C", true, 0, "")
+		pdf.CellFormat(30, 6, "SLA", "1", 0, "C", true, 0, "")
+		pdf.CellFormat(32, 6, "Zona", "1", 1, "C", true, 0, "")
+		pdf.SetFont("Arial", "", 8)
+	}
+
+	printA3TableHeader()
+
+	for _, row := range protocolRows {
+		if checkPageBreak(pdf, 8) {
+			addTableHeader(pdf, "A3. ALGORITMA KEPUTUSAN TRIAGE (Lanjutan)")
+			printA3TableHeader()
+		}
+
+		active := "[ ]"
+		isSelected := row.Code == triageLevel
+		if isSelected {
+			active = "[v]"
+			pdf.SetFillColor(220, 252, 231)
+		} else {
+			pdf.SetFillColor(255, 255, 255)
+		}
+
+		pdf.CellFormat(16, 6, active, "1", 0, "C", isSelected, 0, "")
+		pdf.CellFormat(30, 6, "L"+row.Code+" - "+row.Level, "1", 0, "L", isSelected, 0, "")
+		pdf.CellFormat(72, 6, row.Action, "1", 0, "L", isSelected, 0, "")
+		pdf.CellFormat(30, 6, row.SLA, "1", 0, "C", isSelected, 0, "")
+		pdf.CellFormat(32, 6, row.Zone, "1", 1, "L", isSelected, 0, "")
+	}
+
+	reAssessmentText := "Ulang triage bila kondisi berubah atau setelah intervensi"
+	if triageLevel == "1" || triageLevel == "2" || riskCount >= 2 {
+		reAssessmentText = "Re-assessment ketat tiap 5-15 menit sampai stabil"
+	} else if triageLevel == "3" {
+		reAssessmentText = "Re-assessment tiap 30 menit atau jika ada perburukan"
+	}
+
+	checkPageBreak(pdf, 8)
+
+	pdf.SetFont("Arial", "I", 7)
+	pdf.CellFormat(contentWidth, 5, fmt.Sprintf("Ringkasan: Level %s aktif, Risiko Positif %d, %s", safeString(triageLevel), riskCount, reAssessmentText), "1", 1, "L", false, 0, "")
+	pdf.SetFont("Arial", "", 9)
 	addTableEnd(pdf)
 
 	// Primary Survey (ABC)
@@ -4198,19 +4940,58 @@ func PrintTriageForm(c *gin.Context) {
 	gcsTotal := gcsE + gcsV + gcsM
 	gcsStr := fmt.Sprintf("E%d V%d M%d = %d", gcsE, gcsV, gcsM, gcsTotal)
 	addTableRow(pdf, "GCS (E/V/M)", gcsStr, 45)
+	if consciousness != "" {
+		addTableRow(pdf, "Kesadaran", safeString(consciousness), 45)
+	}
 	addTableEnd(pdf)
 
 	// Vital Signs
 	addTableHeader(pdf, "D. TANDA VITAL")
-	addTableRow(pdf, "Tekanan Darah", safeString(bloodPressure)+" mmHg", 45)
-	addTableRow(pdf, "Nadi", safeString(heartRate)+" x/menit", 45)
-	addTableRow(pdf, "Suhu", safeString(temperature)+" C", 45)
-	addTableRow(pdf, "SpO2", safeString(oxygenSaturation)+" %%", 45)
-	addTableRow(pdf, "Skala Nyeri", fmt.Sprintf("%d/10", painScale), 45)
+	if bloodPressure != "" {
+		addTableRow(pdf, "Tekanan Darah", safeString(bloodPressure)+" mmHg", 45)
+	}
+	if heartRate != "" {
+		addTableRow(pdf, "Nadi", safeString(heartRate)+" x/menit", 45)
+	}
+	if temperature != "" {
+		addTableRow(pdf, "Suhu", safeString(temperature)+" C", 45)
+	}
+	if oxygenSaturation != "" {
+		addTableRow(pdf, "SpO2", safeString(oxygenSaturation)+" %%", 45)
+	}
+	if painMethod != "" {
+		painMethodDisplay := strings.ReplaceAll(safeString(painMethod), "_", " ")
+		painMethodDisplay = strings.Title(strings.ToLower(painMethodDisplay))
+		addTableRow(pdf, "Metode Nyeri", painMethodDisplay, 45)
+	}
+
+	// Color-coded pain scale severity for faster clinical interpretation.
+	if painScale >= 7 {
+		pdf.SetTextColor(220, 38, 38)
+	} else if painScale >= 4 {
+		pdf.SetTextColor(217, 119, 6)
+	} else {
+		pdf.SetTextColor(22, 163, 74)
+	}
+	painScaleDisplay := fmt.Sprintf("%d/10", painScale)
+	if painLocation != "" {
+		painScaleDisplay += " | Lokasi: " + formatEnumDisplay(painLocation)
+	}
+	addTableRow(pdf, "Skala/Lokasi Nyeri", painScaleDisplay, 45)
+	pdf.SetTextColor(0, 0, 0)
 	addTableEnd(pdf)
 
+	// Secondary Survey (peripheral perfusion)
+	if crt != "" {
+		addTableHeader(pdf, "E. SURVEI SEKUNDER")
+		if crt != "" {
+			addTableRow(pdf, "CRT", safeString(crt), 45)
+		}
+		addTableEnd(pdf)
+	}
+
 	// Assessment
-	addTableHeader(pdf, "E. ASESMEN & TINDAKAN SEGERA")
+	addTableHeader(pdf, "F. ASESMEN & TINDAKAN SEGERA")
 	addTableMultiRow(pdf, "Asesmen Triage", safeString(triageAssessment), 45)
 	addTableMultiRow(pdf, "Tindakan Segera", safeString(immediateActions), 45)
 	addTableEnd(pdf)
@@ -4515,7 +5296,7 @@ func PrintEmergencySummary(c *gin.Context) {
 	// Signature
 	doctorName := "-"
 	if visit.Doctor != nil {
-		doctorName = visit.Doctor.NamaLengkap
+		doctorName = resolveAssignedUserNameFromEmployee(visit.Doctor, doctorName)
 	}
 	addSignature(pdf, hospitalInfo.City, doctorName, "Dokter Jaga UGD", models.DocTypeEmergencySummary, visit.ID,
 		rmDupSignatureLookup(c, models.DocTypeRMDupEmergency))
@@ -4704,7 +5485,7 @@ func PrintCPPT(c *gin.Context) {
 	// Document-level signature (for cetakan TTD)
 	cpptDoctorName := "-"
 	if visit.Doctor != nil {
-		cpptDoctorName = visit.Doctor.NamaLengkap
+		cpptDoctorName = resolveAssignedUserNameFromEmployee(visit.Doctor, cpptDoctorName)
 	}
 	addSignature(pdf, hospitalInfo.City, cpptDoctorName, "DPJP", models.DocTypeCPPT, visit.ID,
 		rmDupSignatureLookup(c, models.DocTypeRMDupCPPT))
@@ -4878,15 +5659,15 @@ func PrintNursingCare(c *gin.Context) {
 		}
 		doctorName := "-"
 		if visit.Doctor != nil {
-			doctorName = visit.Doctor.NamaLengkap
+			doctorName = resolveAssignedUserNameFromEmployee(visit.Doctor, doctorName)
 		}
 		// Override names if signed via rm_dup
 		ncSigLog, ncIsSigned := findSignatureLog(
 			rmDupSignatureLookup(c, models.DocTypeRMDupNursingCare),
 			signatureLookup{models.DocTypeNursingCare, visit.ID},
 		)
-		if ncIsSigned && ncSigLog.SignerName != "" {
-			doctorName = ncSigLog.SignerName
+		if ncIsSigned {
+			doctorName = resolveSignedUserName(ncSigLog, doctorName)
 		}
 
 		pdf.SetY(pdf.GetY() + 5)
@@ -5103,15 +5884,15 @@ func PrintFluidBalance(c *gin.Context) {
 	// Doctor Signature at bottom
 	doctorName := "-"
 	if visit.Doctor != nil {
-		doctorName = visit.Doctor.NamaLengkap
+		doctorName = resolveAssignedUserNameFromEmployee(visit.Doctor, doctorName)
 	}
 	// Override if signed via rm_dup
 	fbSigLog, fbIsSigned := findSignatureLog(
 		rmDupSignatureLookup(c, models.DocTypeRMDupFluidBalance),
 		signatureLookup{models.DocTypeCPPT, visit.ID},
 	)
-	if fbIsSigned && fbSigLog.SignerName != "" {
-		doctorName = fbSigLog.SignerName
+	if fbIsSigned {
+		doctorName = resolveSignedUserName(fbSigLog, doctorName)
 	}
 	pdf.SetY(pdf.GetY() + 10)
 	sigStartY := pdf.GetY()
@@ -5288,7 +6069,7 @@ func PrintBedTransfer(c *gin.Context) {
 	// Document-level signature (for cetakan TTD)
 	btDoctorName := "-"
 	if visit.Doctor != nil {
-		btDoctorName = visit.Doctor.NamaLengkap
+		btDoctorName = resolveAssignedUserNameFromEmployee(visit.Doctor, btDoctorName)
 	}
 	addSignature(pdf, hospitalInfo.City, btDoctorName, "Perawat", "", 0,
 		rmDupSignatureLookup(c, models.DocTypeRMDupBedTransfer))
@@ -5301,6 +6082,128 @@ func PrintBedTransfer(c *gin.Context) {
 	}
 
 	filename := fmt.Sprintf("Mutasi_Pasien_%s.pdf", visit.VisitNumber)
+	c.Header("Content-Type", "application/pdf")
+	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
+	c.Data(http.StatusOK, "application/pdf", buf.Bytes())
+}
+
+// PrintUnitTransfer prints the outpatient/emergency unit transfer sheet
+// GET /api/print/unit-transfer/:visitId
+func PrintUnitTransfer(c *gin.Context) {
+	visitID := c.Param("visitId")
+
+	// Load visit with relations
+	var visit models.Visit
+	if err := database.DB.
+		Preload("Registration.Patient").
+		Preload("Room").
+		Preload("Doctor").
+		First(&visit, visitID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Visit tidak ditemukan"})
+		return
+	}
+
+	// Load unit transfer records
+	var transfers []models.UnitTransfer
+	if err := database.DB.
+		Preload("FromRoom").
+		Preload("FromDoctor").
+		Preload("ToRoom").
+		Preload("ToDoctor").
+		Preload("CreatedBy").
+		Where("visit_id = ?", visitID).
+		Order("transfer_date ASC").
+		Find(&transfers).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memuat data mutasi unit"})
+		return
+	}
+
+	if len(transfers) == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Data mutasi unit tidak ditemukan"})
+		return
+	}
+
+	patient := visit.Registration.Patient
+	hospitalInfo := getHospitalInfo()
+
+	// Create PDF
+	pdf := gofpdf.New("P", "mm", "A4", "")
+	pdf.SetMargins(marginLeft, marginTop, marginRight)
+	pdf.SetAutoPageBreak(false, 0)
+	pdf.AddPage()
+
+	// Header
+	addHeader(pdf, hospitalInfo, "LEMBAR MUTASI UNIT", "")
+
+	// Patient Info
+	addPatientInfoTable(pdf, patient, &visit)
+
+	// Transfer Records
+	addTableHeader(pdf, "RIWAYAT MUTASI UNIT / RUANGAN")
+
+	for i, t := range transfers {
+		checkPageBreak(pdf, 45)
+
+		// Transfer number
+		pdf.SetFont("Arial", "B", 9)
+		pdf.SetFillColor(240, 240, 240)
+		pdf.CellFormat(contentWidth, 6, fmt.Sprintf(" Mutasi Unit #%d - %s", i+1, formatDateTimeIndonesian(t.TransferDate)), "1", 1, "L", true, 0, "")
+
+		pdf.SetFont("Arial", "", 9)
+
+		fromRoom := "-"
+		if t.FromRoom != nil {
+			fromRoom = t.FromRoom.Name
+		}
+		toRoom := "-"
+		if t.ToRoom != nil {
+			toRoom = t.ToRoom.Name
+		}
+		addTableRow(pdf, "Dari Unit", fromRoom, 45)
+		addTableRow(pdf, "Ke Unit", toRoom, 45)
+
+		fromDoctor := "-"
+		if t.FromDoctor != nil {
+			fromDoctor = resolveAssignedUserNameFromEmployee(t.FromDoctor, fromDoctor)
+		}
+		toDoctor := "-"
+		if t.ToDoctor != nil {
+			toDoctor = resolveAssignedUserNameFromEmployee(t.ToDoctor, toDoctor)
+		}
+		addTableRow(pdf, "Dokter Asal", fromDoctor, 45)
+		addTableRow(pdf, "Dokter Tujuan", toDoctor, 45)
+
+		if t.TransferReason != "" {
+			addTableMultiRow(pdf, "Alasan", t.TransferReason, 45)
+		}
+		if t.Notes != "" {
+			addTableMultiRow(pdf, "Catatan", t.Notes, 45)
+		}
+
+		officer := "-"
+		if t.CreatedBy != nil {
+			officer = t.CreatedBy.FullName
+		}
+		addTableRow(pdf, "Petugas", officer, 45)
+
+		pdf.SetY(pdf.GetY() + 3)
+	}
+
+	// Signature
+	doctorName := "-"
+	if visit.Doctor != nil {
+		doctorName = resolveAssignedUserNameFromEmployee(visit.Doctor, doctorName)
+	}
+	addSignature(pdf, hospitalInfo.City, doctorName, "Dokter Penanggung Jawab", "", 0)
+
+	// Output PDF
+	var buf bytes.Buffer
+	if err := pdf.Output(&buf); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate PDF"})
+		return
+	}
+
+	filename := fmt.Sprintf("Mutasi_Unit_%s.pdf", visit.VisitNumber)
 	c.Header("Content-Type", "application/pdf")
 	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
 	c.Data(http.StatusOK, "application/pdf", buf.Bytes())
@@ -5459,7 +6362,7 @@ func PrintVitalSignChart(c *gin.Context) {
 	// Document-level signature (for cetakan TTD)
 	vsDoctorName := "-"
 	if visit.Doctor != nil {
-		vsDoctorName = visit.Doctor.NamaLengkap
+		vsDoctorName = resolveAssignedUserNameFromEmployee(visit.Doctor, vsDoctorName)
 	}
 	addSignature(pdf, hospitalInfo.City, vsDoctorName, "Perawat", "", 0,
 		rmDupSignatureLookup(c, models.DocTypeRMDupVitalSign))
@@ -5702,7 +6605,7 @@ func PrintReferralLetter(c *gin.Context) {
 	// Signature
 	doctorName := "-"
 	if visit.Doctor != nil {
-		doctorName = visit.Doctor.NamaLengkap
+		doctorName = resolveAssignedUserNameFromEmployee(visit.Doctor, doctorName)
 	}
 	addSignature(pdf, hospitalInfo.City, doctorName, "Dokter yang merujuk", models.DocTypeReferralLetter, visit.ID,
 		rmDupSignatureLookup(c, models.DocTypeRMDupReferral))
@@ -5865,7 +6768,7 @@ func PrintInpatientCertificate(c *gin.Context) {
 	// Doctor
 	doctorName := "-"
 	if visit.Doctor != nil {
-		doctorName = visit.Doctor.NamaLengkap
+		doctorName = resolveAssignedUserNameFromEmployee(visit.Doctor, doctorName)
 	}
 	addTableRow(pdf, "Dokter Penanggung Jawab", doctorName, 45)
 	addTableEnd(pdf)
@@ -6444,17 +7347,17 @@ func PrintPrescriptionThermal(c *gin.Context) {
 	// Get doctor info
 	doctorName := "-"
 	if order.SourceVisit != nil && order.SourceVisit.Doctor != nil {
-		doctorName = order.SourceVisit.Doctor.NamaLengkap
+		doctorName = resolveAssignedUserNameFromEmployee(order.SourceVisit.Doctor, doctorName)
 	} else if order.Prescriber != nil {
-		doctorName = order.Prescriber.NamaLengkap
+		doctorName = resolveAssignedUserNameFromEmployee(order.Prescriber, doctorName)
 	}
 
 	// Get pharmacist/petugas info - prefer DeliveredBy, then ReviewedBy
 	pharmacistName := ""
 	if order.DeliveredBy != nil {
-		pharmacistName = order.DeliveredBy.NamaLengkap
+		pharmacistName = resolveAssignedUserNameFromEmployee(order.DeliveredBy, pharmacistName)
 	} else if order.ReviewedBy != nil {
-		pharmacistName = order.ReviewedBy.NamaLengkap
+		pharmacistName = resolveAssignedUserNameFromEmployee(order.ReviewedBy, pharmacistName)
 	}
 
 	// Get room info
@@ -6856,31 +7759,12 @@ func PrintLaboratoryResult(c *gin.Context) {
 			pdf.MultiCell(0, 5, item.Notes, "", "L", false)
 		}
 
-		// Signature section
-		pdf.Ln(10)
-		signY := pdf.GetY()
-
-		// Examination date
-		pdf.SetFont("Arial", "", 9)
-		examDate := formatDateIndonesian(order.CreatedAt)
-		if item.CompletedAt != nil {
-			examDate = formatDateIndonesian(*item.CompletedAt)
-		}
-		pdf.CellFormat(0, 5, fmt.Sprintf("Tanggal Pemeriksaan: %s", examDate), "", 1, "L", false, 0, "")
-		pdf.Ln(2)
-
-		// Petugas
-		pdf.SetXY(marginLeft+120, signY+5)
-		pdf.SetFont("Arial", "", 9)
-		pdf.CellFormat(60, 5, "Petugas Pemeriksa,", "", 1, "C", false, 0, "")
-
-		pdf.SetXY(marginLeft+120, signY+25)
+		// Signature section (digital-aware: reads signature log for lab_result)
 		performedByName := ""
 		if item.PerformedBy != nil {
-			performedByName = item.PerformedBy.NamaLengkap
+			performedByName = resolveAssignedUserNameFromEmployee(item.PerformedBy, performedByName)
 		}
-		pdf.SetFont("Arial", "BU", 9)
-		pdf.CellFormat(60, 5, performedByName, "", 1, "C", false, 0, "")
+		addSignature(pdf, info.City, performedByName, "Petugas Laboratorium", models.DocTypeLabResult, order.ID)
 
 		// Page number
 		pdf.SetFont("Arial", "", 8)
@@ -7021,31 +7905,12 @@ func PrintLaboratoryResultItem(c *gin.Context) {
 		pdf.MultiCell(0, 5, item.Notes, "", "L", false)
 	}
 
-	// Signature section
-	pdf.Ln(10)
-	signY := pdf.GetY()
-
-	// Examination date
-	pdf.SetFont("Arial", "", 9)
-	examDate := formatDateIndonesian(order.CreatedAt)
-	if item.CompletedAt != nil {
-		examDate = formatDateIndonesian(*item.CompletedAt)
-	}
-	pdf.CellFormat(0, 5, fmt.Sprintf("Tanggal Pemeriksaan: %s", examDate), "", 1, "L", false, 0, "")
-	pdf.Ln(2)
-
-	// Petugas
-	pdf.SetXY(marginLeft+120, signY+5)
-	pdf.SetFont("Arial", "", 9)
-	pdf.CellFormat(60, 5, "Petugas Pemeriksa,", "", 1, "C", false, 0, "")
-
-	pdf.SetXY(marginLeft+120, signY+25)
+	// Signature section (digital-aware: reads signature log for lab_result)
 	performedByName := ""
 	if item.PerformedBy != nil {
-		performedByName = item.PerformedBy.NamaLengkap
+		performedByName = resolveAssignedUserNameFromEmployee(item.PerformedBy, performedByName)
 	}
-	pdf.SetFont("Arial", "BU", 9)
-	pdf.CellFormat(60, 5, performedByName, "", 1, "C", false, 0, "")
+	addSignature(pdf, info.City, performedByName, "Petugas Laboratorium", models.DocTypeLabResult, order.ID)
 
 	// Output PDF
 	var buf bytes.Buffer
@@ -7150,31 +8015,15 @@ func PrintRadiologyResult(c *gin.Context) {
 			addTableEnd(pdf)
 		}
 
-		// Signature section
+		// Signature section (digital-aware: reads signature log for radiology_result)
 		pdf.Ln(10)
-		signY := pdf.GetY()
-
-		// Examination date
-		pdf.SetFont("Arial", "", 9)
-		examDate := formatDateIndonesian(order.CreatedAt)
-		if item.CompletedAt != nil {
-			examDate = formatDateIndonesian(*item.CompletedAt)
-		}
-		pdf.CellFormat(0, 5, fmt.Sprintf("Tanggal Pemeriksaan: %s", examDate), "", 1, "L", false, 0, "")
-		pdf.Ln(2)
-
-		// Petugas
-		pdf.SetXY(marginLeft+120, signY+5)
-		pdf.SetFont("Arial", "", 9)
-		pdf.CellFormat(60, 5, "Petugas Pemeriksa,", "", 1, "C", false, 0, "")
-
-		pdf.SetXY(marginLeft+120, signY+25)
 		performedByName := ""
 		if item.PerformedBy != nil {
-			performedByName = item.PerformedBy.NamaLengkap
+			performedByName = resolveAssignedUserNameFromEmployee(item.PerformedBy, performedByName)
+		} else if order.PerformedBy != nil {
+			performedByName = resolveAssignedUserNameFromEmployee(order.PerformedBy, performedByName)
 		}
-		pdf.SetFont("Arial", "BU", 9)
-		pdf.CellFormat(60, 5, performedByName, "", 1, "C", false, 0, "")
+		addSignature(pdf, info.City, performedByName, "Petugas Radiologi", models.DocTypeRadiologyResult, order.ID)
 
 		// Page number
 		pdf.SetFont("Arial", "", 8)
@@ -7274,31 +8123,15 @@ func PrintRadiologyResultItem(c *gin.Context) {
 		addTableEnd(pdf)
 	}
 
-	// Signature section
+	// Signature section (digital-aware: reads signature log for radiology_result)
 	pdf.Ln(10)
-	signY := pdf.GetY()
-
-	// Examination date
-	pdf.SetFont("Arial", "", 9)
-	examDate := formatDateIndonesian(order.CreatedAt)
-	if item.CompletedAt != nil {
-		examDate = formatDateIndonesian(*item.CompletedAt)
-	}
-	pdf.CellFormat(0, 5, fmt.Sprintf("Tanggal Pemeriksaan: %s", examDate), "", 1, "L", false, 0, "")
-	pdf.Ln(2)
-
-	// Petugas
-	pdf.SetXY(marginLeft+120, signY+5)
-	pdf.SetFont("Arial", "", 9)
-	pdf.CellFormat(60, 5, "Petugas Pemeriksa,", "", 1, "C", false, 0, "")
-
-	pdf.SetXY(marginLeft+120, signY+25)
 	performedByName := ""
 	if item.PerformedBy != nil {
-		performedByName = item.PerformedBy.NamaLengkap
+		performedByName = resolveAssignedUserNameFromEmployee(item.PerformedBy, performedByName)
+	} else if order.PerformedBy != nil {
+		performedByName = resolveAssignedUserNameFromEmployee(order.PerformedBy, performedByName)
 	}
-	pdf.SetFont("Arial", "BU", 9)
-	pdf.CellFormat(60, 5, performedByName, "", 1, "C", false, 0, "")
+	addSignature(pdf, info.City, performedByName, "Petugas Radiologi", models.DocTypeRadiologyResult, order.ID)
 
 	// Output PDF
 	var buf bytes.Buffer
@@ -7551,7 +8384,7 @@ func PrintBilling(c *gin.Context) {
 					visitLabel += " - " + g.visit.Room.Name
 				}
 				if g.visit.Doctor != nil {
-					visitLabel += " (" + g.visit.Doctor.NamaLengkap + ")"
+					visitLabel += " (" + resolveAssignedUserNameFromEmployee(g.visit.Doctor, g.visit.Doctor.NamaLengkap) + ")"
 				}
 			}
 
@@ -8027,8 +8860,8 @@ func PrintInformedConsent(c *gin.Context) {
 		rmDupSignatureLookup(c, models.DocTypeRMDupConsent),
 		signatureLookup{models.DocTypeInformedConsent, patient.ID},
 	)
-	if consentIsSigned && consentSigLog.SignerName != "" {
-		staffName = consentSigLog.SignerName
+	if consentIsSigned {
+		staffName = resolveSignedUserName(consentSigLog, staffName)
 	}
 
 	// Right: Petugas RS
@@ -8343,7 +9176,7 @@ func PrintAdmissionDischargeSummary(c *gin.Context) {
 			}
 			vDoctor := "-"
 			if v.Doctor != nil {
-				vDoctor = v.Doctor.NamaLengkap
+				vDoctor = resolveAssignedUserNameFromEmployee(v.Doctor, vDoctor)
 			}
 			vStatus := v.Status
 			switch v.Status {
@@ -8460,10 +9293,10 @@ func PrintAdmissionDischargeSummary(c *gin.Context) {
 		// DPJP
 		mvDoctor := "-"
 		if mv.Doctor != nil {
-			mvDoctor = mv.Doctor.NamaLengkap
+			mvDoctor = resolveAssignedUserNameFromEmployee(mv.Doctor, mvDoctor)
 			lastMainDoctor = mvDoctor
 		} else if registration.Doctor != nil {
-			mvDoctor = registration.Doctor.NamaLengkap
+			mvDoctor = resolveAssignedUserNameFromEmployee(registration.Doctor, mvDoctor)
 			lastMainDoctor = mvDoctor
 		}
 		addTableRow(pdf, "DPJP", mvDoctor, 40)
@@ -9138,7 +9971,7 @@ func PrintRegistrationReceipt(c *gin.Context) {
 	pdf.CellFormat(col1, rowHeight, " Dokter", "1", 0, "L", true, 0, "")
 	doctorName := "-"
 	if registration.Doctor != nil {
-		doctorName = registration.Doctor.NamaLengkap
+		doctorName = resolveAssignedUserNameFromEmployee(registration.Doctor, doctorName)
 	}
 	pdf.CellFormat(col2, rowHeight, " "+truncateText(doctorName, 25), "1", 0, "L", false, 0, "")
 	pdf.CellFormat(col3, rowHeight, " Status", "1", 0, "L", true, 0, "")
@@ -9318,8 +10151,8 @@ func PrintRegistrationReceipt(c *gin.Context) {
 		rmDupSignatureLookup(c, models.DocTypeRMDupRegistration),
 		signatureLookup{models.DocTypeRegistration, registration.ID},
 	)
-	if isSigned && sigLog.SignerName != "" {
-		registeredBy = sigLog.SignerName
+	if isSigned {
+		registeredBy = resolveSignedUserName(sigLog, registeredBy)
 	}
 
 	signY := pdf.GetY()
@@ -9423,9 +10256,9 @@ func PrintDPJPRequest(c *gin.Context) {
 	// DPJP
 	dpjpName := "-"
 	if visit.Doctor != nil {
-		dpjpName = visit.Doctor.NamaLengkap
+		dpjpName = resolveAssignedUserNameFromEmployee(visit.Doctor, dpjpName)
 	} else if registration.Doctor != nil {
-		dpjpName = registration.Doctor.NamaLengkap
+		dpjpName = resolveAssignedUserNameFromEmployee(registration.Doctor, dpjpName)
 	}
 
 	// Visit type label
@@ -9704,9 +10537,9 @@ func PrintInformedConsentReceipt(c *gin.Context) {
 	// DPJP
 	dpjpName := "-"
 	if visit.Doctor != nil {
-		dpjpName = visit.Doctor.NamaLengkap
+		dpjpName = resolveAssignedUserNameFromEmployee(visit.Doctor, dpjpName)
 	} else if registration.Doctor != nil {
-		dpjpName = registration.Doctor.NamaLengkap
+		dpjpName = resolveAssignedUserNameFromEmployee(registration.Doctor, dpjpName)
 	}
 
 	// Visit type label
@@ -10912,7 +11745,7 @@ func PrintRMDuplicateLabOrder(c *gin.Context) {
 	// Signature
 	doctorName := "-"
 	if visit != nil && visit.Doctor != nil {
-		doctorName = visit.Doctor.NamaLengkap
+		doctorName = resolveAssignedUserNameFromEmployee(visit.Doctor, doctorName)
 	}
 	addSignature(pdf, info.City, doctorName, "Petugas Laboratorium", models.DocTypeRMDupLabResult, rmOrder.ID)
 
@@ -11028,13 +11861,13 @@ func PrintRMDuplicateLabResult(c *gin.Context) {
 		// Signature section
 		labSignerName := "-"
 		if visit != nil && visit.Doctor != nil {
-			labSignerName = visit.Doctor.NamaLengkap
+			labSignerName = resolveAssignedUserNameFromEmployee(visit.Doctor, labSignerName)
 		}
 		labSigLog, labIsSigned := findSignatureLog(
 			signatureLookup{models.DocTypeRMDupLabResult, rmOrder.ID},
 		)
-		if labIsSigned && labSigLog.SignerName != "" {
-			labSignerName = labSigLog.SignerName
+		if labIsSigned {
+			labSignerName = resolveSignedUserName(labSigLog, labSignerName)
 		}
 
 		pdf.Ln(10)
@@ -11150,13 +11983,13 @@ func PrintRMDuplicateRadiologyResult(c *gin.Context) {
 		// Signature section
 		radSignerName := "-"
 		if visit != nil && visit.Doctor != nil {
-			radSignerName = visit.Doctor.NamaLengkap
+			radSignerName = resolveAssignedUserNameFromEmployee(visit.Doctor, radSignerName)
 		}
 		radSigLog, radIsSigned := findSignatureLog(
 			signatureLookup{models.DocTypeRMDupRadResult, rmOrder.ID},
 		)
-		if radIsSigned && radSigLog.SignerName != "" {
-			radSignerName = radSigLog.SignerName
+		if radIsSigned {
+			radSignerName = resolveSignedUserName(radSigLog, radSignerName)
 		}
 
 		pdf.Ln(10)
@@ -11323,7 +12156,7 @@ func PrintRMDuplicateProcedureResult(c *gin.Context) {
 		}
 	}
 	if doctorName == "-" && visit != nil && visit.Doctor != nil {
-		doctorName = visit.Doctor.NamaLengkap
+		doctorName = resolveAssignedUserNameFromEmployee(visit.Doctor, doctorName)
 	}
 	addSignature(pdf, info.City, doctorName, sigLabel, procSigDocType, rmOrder.ID)
 
@@ -11535,7 +12368,7 @@ func PrintSPRI(c *gin.Context) {
 	// === SIGNATURE (DPJP from Visit) ===
 	dpjpName := "-"
 	if spri.Visit != nil && spri.Visit.Doctor != nil {
-		dpjpName = spri.Visit.Doctor.NamaLengkap
+		dpjpName = resolveAssignedUserNameFromEmployee(spri.Visit.Doctor, dpjpName)
 	} else if spri.NamaDokter != "" {
 		dpjpName = spri.NamaDokter
 	}
@@ -11656,7 +12489,7 @@ func PrintSuratKontrol(c *gin.Context) {
 	// === SIGNATURE (DPJP from Visit) ===
 	dpjpName := "-"
 	if sk.Visit != nil && sk.Visit.Doctor != nil {
-		dpjpName = sk.Visit.Doctor.NamaLengkap
+		dpjpName = resolveAssignedUserNameFromEmployee(sk.Visit.Doctor, dpjpName)
 	} else if sk.NamaDokter != "" {
 		dpjpName = sk.NamaDokter
 	}

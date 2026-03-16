@@ -247,7 +247,7 @@ export function NutritionOrderForm({ visitId, readOnly = false }: NutritionOrder
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h3 className="font-medium flex items-center gap-2">
             <UtensilsCrossed className="h-5 w-5" /> Order Gizi
@@ -285,7 +285,7 @@ export function NutritionOrderForm({ visitId, readOnly = false }: NutritionOrder
                   })
                   .map((order) => (
                     <div key={order.id} className="rounded-lg border p-3 space-y-2">
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
                           <Badge variant="secondary">
                             {nutritionMealTimeLabels[order.meal_time] || order.meal_time}
@@ -321,7 +321,7 @@ export function NutritionOrderForm({ visitId, readOnly = false }: NutritionOrder
                       {order.items && order.items.length > 0 && (
                         <div className="text-xs space-y-1">
                           {order.items.map((item) => (
-                            <div key={item.id} className="flex items-center justify-between">
+                            <div key={item.id} className="flex flex-wrap items-center justify-between gap-2">
                               <span>{item.menu?.name || `Menu #${item.menu_id}`}</span>
                               <span className="text-muted-foreground">x{item.quantity}</span>
                             </div>
@@ -360,7 +360,7 @@ export function NutritionOrderForm({ visitId, readOnly = false }: NutritionOrder
 
           <div className="space-y-4">
             {/* Date & Time */}
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="space-y-1">
                 <Label className="text-xs">Tanggal *</Label>
                 <Input type="date" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} />
@@ -421,7 +421,7 @@ export function NutritionOrderForm({ visitId, readOnly = false }: NutritionOrder
                           }`}
                         onClick={() => setSelectedPackageId(pkg.id)}
                       >
-                        <div className="flex items-center justify-between">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
                           <div>
                             <div className="font-medium text-sm">{pkg.name}</div>
                             <div className="text-xs text-muted-foreground">{pkg.code}</div>
@@ -517,7 +517,7 @@ export function NutritionOrderForm({ visitId, readOnly = false }: NutritionOrder
             <Separator />
 
             {/* Notes */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label className="text-xs">Catatan Alergi</Label>
                 <Textarea value={allergyNotes} onChange={(e) => setAllergyNotes(e.target.value)} rows={2} placeholder="Alergi makanan..." />

@@ -348,7 +348,7 @@ export function SickLetterForm({ visitId, onSave, readOnly = false }: SickLetter
               <div className="space-y-4">
                 <fieldset disabled={readOnly}>
             {/* Date Range */}
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="start_date">
                   <Calendar className="h-3.5 w-3.5 inline mr-1" />

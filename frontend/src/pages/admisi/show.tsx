@@ -168,7 +168,7 @@ export default function AdmissionRequestShowPage() {
         title: "Error",
         description: "Gagal memuat data permintaan rawat inap",
       });
-      navigate("/admisi");
+      navigate("/registrations?tab=admission_requests");
     } finally {
       setLoading(false);
     }
@@ -455,7 +455,7 @@ export default function AdmissionRequestShowPage() {
       });
 
       // Navigate to admisi list
-      navigate("/admisi");
+      navigate("/registrations?tab=admission_requests");
     } catch (error) {
       console.error("Failed to process request:", error);
       toast({
@@ -490,7 +490,7 @@ export default function AdmissionRequestShowPage() {
       });
 
       setRejectDialogOpen(false);
-      navigate("/admisi");
+      navigate("/registrations?tab=admission_requests");
     } catch (error) {
       console.error("Failed to reject request:", error);
       toast({
@@ -575,7 +575,7 @@ export default function AdmissionRequestShowPage() {
       <div className="flex flex-1 flex-col items-center justify-center p-4">
         <p className="text-muted-foreground">Permintaan tidak ditemukan</p>
         <Button variant="outline" asChild>
-          <Link to="/admisi">
+          <Link to="/registrations?tab=admission_requests">
             <ChevronLeft className="h-4 w-4 mr-2" />
             Kembali
           </Link>
@@ -598,7 +598,7 @@ export default function AdmissionRequestShowPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" asChild>
-            <Link to="/admisi">
+            <Link to="/registrations?tab=admission_requests">
               <ChevronLeft className="h-5 w-5" />
             </Link>
           </Button>

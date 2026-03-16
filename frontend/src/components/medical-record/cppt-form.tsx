@@ -472,7 +472,7 @@ export function CPPTForm({ visitId, readOnly = false }: CPPTFormProps) {
       <div>
         <div className="p-0">
           {cppts.length > 0 ? (
-            <div className="rounded-lg border overflow-hidden">
+            <div className="rounded-lg border overflow-x-auto">
               {/* Table Header */}
               <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-muted/50 text-xs font-medium text-muted-foreground border-b sticky top-0">
                 <div className="col-span-1"></div>
@@ -540,7 +540,7 @@ export function CPPTForm({ visitId, readOnly = false }: CPPTFormProps) {
           <ScrollArea className="flex-1 px-6 py-4">
             <div className="grid gap-4 pb-4">
               {/* Row 1 - Date, Profession */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Tanggal & Waktu</Label>
                   <Input
@@ -570,7 +570,7 @@ export function CPPTForm({ visitId, readOnly = false }: CPPTFormProps) {
               </div>
 
               {/* SOAP */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>S - Subjektif (Keluhan)</Label>
                   <Textarea
@@ -612,7 +612,7 @@ export function CPPTForm({ visitId, readOnly = false }: CPPTFormProps) {
             {/* Vital Signs */}
             <div className="border rounded-lg p-4 bg-muted/30">
               <Label className="text-sm font-medium mb-3 block">Tanda Vital (Opsional)</Label>
-              <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-6 gap-3">
                 <div className="space-y-1">
                   <Label className="text-xs">TD (mmHg)</Label>
                   <Input

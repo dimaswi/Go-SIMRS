@@ -552,7 +552,7 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false, is
           {/* Section 3: Alergi & Obat */}
           <div className="space-y-4">{/* Existing Allergies List */}
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <Label className="text-sm font-semibold flex items-center gap-2">
                     <AlertTriangle className="h-4 w-4 text-muted-foreground" />
                     Daftar Alergi Pasien
@@ -680,7 +680,7 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false, is
                         {snomedResults.length > 0 && (
                           <div className="absolute z-50 w-full mt-1 border rounded-md bg-popover shadow-lg">
                             <div className="max-h-48 overflow-y-auto">
-                              <table className="w-full text-sm">
+                              <table className="w-full min-w-[640px] text-sm">
                                 <thead className="bg-muted sticky top-0">
                                   <tr className="border-b">
                                     <th className="text-left p-2 font-medium w-28">Kode</th>
@@ -719,7 +719,7 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false, is
                     </div>
 
                     {/* Category & Criticality */}
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label className="text-sm">Kategori</Label>
                         <Select

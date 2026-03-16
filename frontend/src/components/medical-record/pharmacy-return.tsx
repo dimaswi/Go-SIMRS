@@ -50,6 +50,19 @@ const ORDER_STATUS_LABELS: Record<string, { label: string; variant: "default" | 
   returned: { label: "Ada Return", variant: "outline" },
 };
 
+const formatRupiah = (value: number) => {
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(Number.isFinite(value) ? value : 0);
+};
+
+const getUnitPrice = (item: any): number => {
+  return Number(item?.unit_price ?? item?.price ?? item?.medicine?.selling_price ?? 0);
+};
+
 export function PharmacyReturn({ visitId, readOnly = false }: PharmacyReturnProps) {
   const { toast } = useToast();
   const { hasPermission } = usePermission();
@@ -256,7 +269,7 @@ export function PharmacyReturn({ visitId, readOnly = false }: PharmacyReturnProp
               </div>
             </div>
             <div className="p-3">
-              <table className="w-full text-sm">
+              <table className="w-full min-w-[640px] text-sm">
                 <tbody>
                   <tr className="border-b">
                     <td className="py-2 text-muted-foreground w-1/4">Diagnosis</td>
@@ -375,6 +388,18 @@ export function PharmacyReturn({ visitId, readOnly = false }: PharmacyReturnProp
                                 <span className="text-muted-foreground">Dikembalikan:</span>{" "}
                                 <span className="font-medium">{item.returned_qty || 0}</span>
                               </div>
+                              <div>
+                                <span className="text-muted-foreground">Harga:</span>{" "}
+                                <span className="font-medium">{formatRupiah(getUnitPrice(item))}</span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">Subtotal Diserahkan:</span>{" "}
+                                <span className="font-medium">{formatRupiah(getUnitPrice(item) * Number(item.dispensed_qty || 0))}</span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">Subtotal Returnable:</span>{" "}
+                                <span className="font-medium">{formatRupiah(getUnitPrice(item) * Number(returnableQty || 0))}</span>
+                              </div>
                             </div>
                           </div>
                           <Button
@@ -466,7 +491,7 @@ export function PharmacyReturn({ visitId, readOnly = false }: PharmacyReturnProp
               </Select>
             </div>
 
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center space-x-2">
                 <Switch
                   id="is_restocked"

@@ -402,7 +402,7 @@ export default function PatientEdit() {
             break;
           case "b":
             e.preventDefault();
-            navigate(`/patients/${id}`);
+            window.history.back();
             break;
           case "/":
             e.preventDefault();
@@ -415,7 +415,7 @@ export default function PatientEdit() {
         if (showShortcuts) {
           setShowShortcuts(false);
         } else {
-          navigate(`/patients/${id}`);
+          window.history.back();
         }
       }
 
@@ -638,7 +638,7 @@ export default function PatientEdit() {
         title: "Berhasil",
         description: "Data pasien berhasil diperbarui",
       });
-      navigate(`/patients/${id}`);
+      window.history.back();
     } catch (error: any) {
       toast({
         title: "Error",
@@ -1746,7 +1746,7 @@ export default function PatientEdit() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => navigate(`/patients/${id}`)}
+                  onClick={() => window.history.back()}
                   className="h-9"
                   tabIndex={-1}
                 >

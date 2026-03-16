@@ -376,9 +376,9 @@ export function VisitHistoryDrawer({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-[400px] sm:w-[450px] p-0">
+      <SheetContent side="right" className="w-screen max-w-[100vw] sm:w-[450px] p-0">
         <SheetHeader className="px-4 py-3 border-b bg-muted/30">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <SheetTitle className="text-base font-semibold flex items-center gap-2">
                 <FileText className="h-4 w-4" />
@@ -408,7 +408,7 @@ export function VisitHistoryDrawer({
               {registrationGroups.map((group) => (
                 <div key={group.registrationId} className="space-y-2">
                   {/* Registration Header */}
-                  <div className="flex items-center gap-2 px-2">
+                  <div className="flex flex-wrap items-center gap-2 px-2">
                     <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
                     <span className="text-xs font-medium text-muted-foreground">
                       {group.registrationDate
@@ -457,7 +457,7 @@ export function VisitHistoryDrawer({
 
                                   {/* Content */}
                                   <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 mb-1">
+                                    <div className="mb-1 flex flex-wrap items-center gap-2">
                                       <Badge
                                         variant="outline"
                                         className={cn("text-[10px] px-1.5 py-0", getVisitTypeBadgeColor(visit.visit_type))}

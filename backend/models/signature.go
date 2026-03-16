@@ -75,29 +75,30 @@ func (DocumentSignature) TableName() string {
 
 // Document type constants for signature
 const (
-	DocTypeVisitResume       = "visit_resume"       // Resume Rawat Jalan/Inap
-	DocTypePrescription      = "prescription"       // Resep Obat
-	DocTypeLabResult         = "lab_result"         // Hasil Laboratorium
-	DocTypeRadiologyResult   = "radiology_result"   // Hasil Radiologi
-	DocTypeSickLetter        = "sick_letter"        // Surat Keterangan Sakit
-	DocTypeHealthCertificate = "health_certificate" // Surat Keterangan Sehat
-	DocTypeBirthCertificate  = "birth_certificate"  // Surat Keterangan Kelahiran
-	DocTypeLeaveCertificate  = "leave_certificate"  // Surat Keterangan Cuti
-	DocTypeMCUCertificate    = "mcu_certificate"    // Surat Keterangan MCU
-	DocTypeDeathCertificate  = "death_certificate"  // Surat Kematian
-	DocTypeReferralLetter    = "referral_letter"    // Surat Rujukan
-	DocTypeGeneralConsent    = "general_consent"    // General Consent
-	DocTypeInformedConsent   = "informed_consent"   // Informed Consent
-	DocTypeCPPT              = "cppt"               // CPPT
-	DocTypeNursingCare       = "nursing_care"       // Asuhan Keperawatan
-	DocTypeTriage            = "triage"             // Form Triage
-	DocTypeEmergencySummary  = "emergency_summary"  // Ringkasan UGD
-	DocTypeOperativeReport   = "operative_report"   // Laporan Operasi
-	DocTypeInpatientCert     = "inpatient_cert"     // Surat Keterangan Rawat Inap
-	DocTypePharmacyHandover  = "pharmacy_handover"  // Serah Terima Obat
-	DocTypeRegistration      = "registration"       // Bukti Registrasi
-	DocTypeSPRI              = "spri"               // SPRI (Surat Perintah Rawat Inap)
-	DocTypeSuratKontrol      = "surat_kontrol"      // Surat Kontrol / SKDP
+	DocTypeVisitResume        = "visit_resume"        // Resume Rawat Jalan/Inap
+	DocTypePrescription       = "prescription"        // Resep Obat
+	DocTypeLabResult          = "lab_result"          // Hasil Laboratorium
+	DocTypeRadiologyResult    = "radiology_result"    // Hasil Radiologi
+	DocTypeSickLetter         = "sick_letter"         // Surat Keterangan Sakit
+	DocTypeHealthCertificate  = "health_certificate"  // Surat Keterangan Sehat
+	DocTypeBirthCertificate   = "birth_certificate"   // Surat Keterangan Kelahiran
+	DocTypeLeaveCertificate   = "leave_certificate"   // Surat Keterangan Cuti
+	DocTypeMCUCertificate     = "mcu_certificate"     // Surat Keterangan MCU
+	DocTypeDeathCertificate   = "death_certificate"   // Surat Kematian
+	DocTypeReferralLetter     = "referral_letter"     // Surat Rujukan
+	DocTypeGeneralConsent     = "general_consent"     // General Consent
+	DocTypeInformedConsent    = "informed_consent"    // Informed Consent
+	DocTypeCPPT               = "cppt"                // CPPT
+	DocTypeNursingCare        = "nursing_care"        // Asuhan Keperawatan
+	DocTypeTriage             = "triage"              // Form Triage
+	DocTypeEmergencySummary   = "emergency_summary"   // Ringkasan UGD
+	DocTypeOperativeReport    = "operative_report"    // Laporan Operasi
+	DocTypeConsultationResult = "consultation_result" // Hasil Konsultasi
+	DocTypeInpatientCert      = "inpatient_cert"      // Surat Keterangan Rawat Inap
+	DocTypePharmacyHandover   = "pharmacy_handover"   // Serah Terima Obat
+	DocTypeRegistration       = "registration"        // Bukti Registrasi
+	DocTypeSPRI               = "spri"                // SPRI (Surat Perintah Rawat Inap)
+	DocTypeSuratKontrol       = "surat_kontrol"       // Surat Kontrol / SKDP
 
 	// RM Duplicate (E-Klaim) document types
 	DocTypeRMDupLabResult       = "rm_dup_lab_result"       // Hasil Lab RM Duplikat

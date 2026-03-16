@@ -208,7 +208,7 @@ export function EditModeBanner({
   if (!isPatientDischarged) return null;
 
   return (
-    <div className="mb-4 flex items-center justify-between bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
+    <div className="mb-4 flex flex-col gap-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex items-center gap-2">
         <Lock className="h-4 w-4 text-amber-600" />
         <span className="text-sm text-amber-800 dark:text-amber-200">
@@ -217,12 +217,12 @@ export function EditModeBanner({
             : "Pasien sudah pulang - klik tombol Edit untuk mengubah data"}
         </span>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {!isEditing ? (
           <Button
             size="sm"
             onClick={onRequestEdit}
-            className="gap-1.5 bg-amber-600 hover:bg-amber-700"
+            className="w-full gap-1.5 bg-amber-600 hover:bg-amber-700 sm:w-auto"
           >
             <Pencil className="h-4 w-4" />
             Edit {recordTypeLabel}
@@ -254,7 +254,7 @@ export function EditConfirmDialog({
 }: EditConfirmDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="w-[calc(100vw-1rem)] max-w-lg p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <AlertTriangle className="h-5 w-5 text-amber-500" />
@@ -282,11 +282,11 @@ export function EditConfirmDialog({
             </p>
           </div>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+        <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
+          <Button variant="outline" onClick={() => onOpenChange(false)} className="w-full sm:w-auto">
             Batal
           </Button>
-          <Button onClick={onConfirm} disabled={!editReason.trim()}>
+          <Button onClick={onConfirm} disabled={!editReason.trim()} className="w-full sm:w-auto">
             Lanjutkan Edit
           </Button>
         </DialogFooter>
@@ -318,7 +318,7 @@ export function PINVerificationDialog({
 }: PINVerificationDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-sm">
+      <DialogContent className="w-[calc(100vw-1rem)] max-w-sm p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ShieldCheck className="h-5 w-5 text-primary" />
@@ -331,7 +331,7 @@ export function PINVerificationDialog({
         <div className="space-y-4 py-4">
           <div className="space-y-2">
             <Label className="text-sm font-medium">PIN (6 digit)</Label>
-            <div className="flex justify-center gap-2">
+            <div className="flex justify-center gap-1.5 sm:gap-2">
               {pin.map((digit, index) => (
                 <Input
                   key={index}
@@ -342,7 +342,7 @@ export function PINVerificationDialog({
                   value={digit}
                   onChange={(e) => onPINChange(index, e.target.value)}
                   onKeyDown={(e) => onPINKeyDown(index, e)}
-                  className="w-10 h-10 text-center text-lg font-mono"
+                  className="h-10 w-9 text-center text-base font-mono sm:w-10 sm:text-lg"
                   disabled={verifying}
                 />
               ))}
@@ -352,11 +352,11 @@ export function PINVerificationDialog({
             PIN digunakan untuk memverifikasi bahwa Anda yang melakukan perubahan rekam medis
           </p>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={verifying}>
+        <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={verifying} className="w-full sm:w-auto">
             Batal
           </Button>
-          <Button onClick={onVerify} disabled={verifying || pin.some(d => !d)}>
+          <Button onClick={onVerify} disabled={verifying || pin.some(d => !d)} className="w-full sm:w-auto">
             {verifying ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

@@ -641,6 +641,7 @@ func AddMedicineOrderItem(c *gin.Context) {
 		Duration:        input.Duration,
 		Instructions:    input.Instructions,
 		Notes:           input.Notes,
+		AddedByPharmacy: true,
 		Status:          models.ItemStatusOrdered,
 	}
 

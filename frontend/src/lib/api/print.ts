@@ -242,6 +242,13 @@ export const printApi = {
   },
 
   /**
+   * Print unit transfer (Lembar Mutasi Unit Rawat Jalan/UGD)
+   */
+  unitTransfer: async (visitId: number) => {
+    return fetchPdf(`${BASE_URL}/unit-transfer/${visitId}`);
+  },
+
+  /**
    * Print vital sign chart (Grafik Tanda Vital)
    */
   vitalSignChart: async (visitId: number) => {

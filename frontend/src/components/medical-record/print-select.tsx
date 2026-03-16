@@ -26,9 +26,11 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { Loader2, Printer, ShieldCheck, ShieldX, FileText, FolderOpen, CheckCircle2 } from "lucide-react";
-import { visitsApi, medicalRecordsApi, medicineOrdersApi, procedureOrdersApi, printApi, signatureApi, DOCUMENT_TYPES } from "@/lib/api";
+import { authApi, visitsApi, medicalRecordsApi, medicineOrdersApi, procedureOrdersApi, printApi, signatureApi, DOCUMENT_TYPES } from "@/lib/api";
+import { unitTransferApi } from "@/lib/api/inpatient";
 import { SignaturePINDialog } from "@/components/signature/signature-pin-dialog";
 import { RevokePINDialog } from "@/components/signature/revoke-pin-dialog";
+import { useAuthStore } from "@/lib/store";
 import { format } from "date-fns";
 import { id as localeId } from "date-fns/locale";
 
@@ -46,7 +48,15 @@ interface PrintOption {
   handler: () => Promise<void>;
   documentType?: string; // For signature
   documentId?: number;   // For signature
+  sourceVisitId?: number; // For order-based docs: the orderer's visit
 }
+
+const ORDER_DOC_TYPES = new Set<string>([
+  DOCUMENT_TYPES.LAB_RESULT,
+  DOCUMENT_TYPES.RADIOLOGY_RESULT,
+  DOCUMENT_TYPES.OPERATIVE_REPORT,
+  DOCUMENT_TYPES.CONSULTATION_RESULT,
+]);
 
 // Format date to Indonesian short
 function formatDateShort(dateStr?: string) {
@@ -65,6 +75,8 @@ export function MedicalRecordPrintSelect({
   refreshTrigger = 0
 }: PrintSelectProps) {
   const { toast } = useToast();
+  const user = useAuthStore((state) => state.user);
+  const setUser = useAuthStore((state) => state.setUser);
   
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -74,9 +86,16 @@ export function MedicalRecordPrintSelect({
   const [medicineOrders, setMedicineOrders] = useState<any[]>([]);
   const [procedureOrders, setProcedureOrders] = useState<any[]>([]);
   const [sickLetters, setSickLetters] = useState<any[]>([]);
+  const [healthCertificates, setHealthCertificates] = useState<any[]>([]);
+  const [birthCertificates, setBirthCertificates] = useState<any[]>([]);
+  const [leaveCertificates, setLeaveCertificates] = useState<any[]>([]);
+  const [mcuCertificates, setMcuCertificates] = useState<any[]>([]);
+  const [deathCertificates, setDeathCertificates] = useState<any[]>([]);
+  const [unitTransfers, setUnitTransfers] = useState<any[]>([]);
   
   // Signature state
   const [signatureStatuses, setSignatureStatuses] = useState<Record<string, { is_signed: boolean; signer_name?: string }>>({});
+  const [signEligibility, setSignEligibility] = useState<Record<string, { allowed: boolean; reason?: string }>>({});
   const [showSignatureDialog, setShowSignatureDialog] = useState(false);
   const [signatureDoc, setSignatureDoc] = useState<{ type: string; id: number; title: string } | null>(null);
   const [showRevokeDialog, setShowRevokeDialog] = useState(false);
@@ -102,6 +121,30 @@ export function MedicalRecordPrintSelect({
       window.removeEventListener("refresh-print-options", handleRefresh);
     };
   }, [visitId]);
+
+  // Ensure employee_id is available in user store for accurate TTD authorization checks.
+  useEffect(() => {
+    let active = true;
+
+    if (!user || user.employee_id) {
+      return () => {
+        active = false;
+      };
+    }
+
+    authApi.getProfile()
+      .then((res) => {
+        if (!active || !res.data) return;
+        setUser({ ...user, ...res.data });
+      })
+      .catch(() => {
+        // Keep current session if profile refresh fails.
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [user?.id, user?.employee_id, setUser]);
 
   const loadData = async () => {
     setLoading(true);
@@ -129,19 +172,16 @@ export function MedicalRecordPrintSelect({
       }
 
       try {
-        // Load procedure orders - for lab/radiology visits, also load by target_visit_id
-        const isLabOrRadiology = visitRes.data?.visit_type === "lab" || visitRes.data?.visit_type === "radiology" ||
-          visitRes.data?.room?.service_type === "laboratorium" || visitRes.data?.room?.service_type === "radiologi";
-        
-        if (isLabOrRadiology) {
-          // For lab/radiology workstation - load orders where this visit is the target
-          const poRes = await procedureOrdersApi.getAll({ target_visit_id: visitId });
-          setProcedureOrders(poRes.data || []);
-        } else {
-          // For other visits - load orders created from this visit
-          const poRes = await procedureOrdersApi.getAll({ source_visit_id: visitId });
-          setProcedureOrders(poRes.data || []);
-        }
+        // Load from both source and target visit contexts.
+        // Consultation screen often opens from target visit, while order list may be expected from source visit.
+        const [poSourceRes, poTargetRes] = await Promise.all([
+          procedureOrdersApi.getAll({ source_visit_id: visitId }),
+          procedureOrdersApi.getAll({ target_visit_id: visitId }),
+        ]);
+
+        const mergedOrders = [...(poSourceRes.data || []), ...(poTargetRes.data || [])];
+        const uniqueOrders = Array.from(new Map(mergedOrders.map((order) => [order.id, order])).values());
+        setProcedureOrders(uniqueOrders);
       } catch {
         setProcedureOrders([]);
       }
@@ -152,6 +192,48 @@ export function MedicalRecordPrintSelect({
         setSickLetters(slRes.data || []);
       } catch {
         setSickLetters([]);
+      }
+
+      try {
+        const res = await medicalRecordsApi.getHealthCertificates(visitId);
+        setHealthCertificates(res.data || []);
+      } catch {
+        setHealthCertificates([]);
+      }
+
+      try {
+        const res = await medicalRecordsApi.getBirthCertificates(visitId);
+        setBirthCertificates(res.data || []);
+      } catch {
+        setBirthCertificates([]);
+      }
+
+      try {
+        const res = await medicalRecordsApi.getLeaveCertificates(visitId);
+        setLeaveCertificates(res.data || []);
+      } catch {
+        setLeaveCertificates([]);
+      }
+
+      try {
+        const res = await medicalRecordsApi.getMCUCertificates(visitId);
+        setMcuCertificates(res.data || []);
+      } catch {
+        setMcuCertificates([]);
+      }
+
+      try {
+        const res = await medicalRecordsApi.getDeathCertificates(visitId);
+        setDeathCertificates(res.data || []);
+      } catch {
+        setDeathCertificates([]);
+      }
+
+      try {
+        const res = await unitTransferApi.getAll(visitId);
+        setUnitTransfers(res.data?.data || []);
+      } catch {
+        setUnitTransfers([]);
       }
     } catch (error) {
       console.error("Error loading print data:", error);
@@ -184,14 +266,12 @@ export function MedicalRecordPrintSelect({
       if (medicalRecord?.disposition?.disposition_type === "rujuk") {
         checkSignatureStatus(DOCUMENT_TYPES.REFERRAL_LETTER, visitId);
       }
-      // Check sick letter
-      checkSignatureStatus(DOCUMENT_TYPES.SICK_LETTER, visitId);
       // Check inpatient cert
       if (isInpatient) {
         checkSignatureStatus(DOCUMENT_TYPES.INPATIENT_CERT, visitId);
       }
     }
-  }, [visitId, medicalRecord]);
+  }, [visitId, medicalRecord, isEmergency, isInpatient]);
 
   // Check signatures for order-level documents  
   useEffect(() => {
@@ -201,14 +281,98 @@ export function MedicalRecordPrintSelect({
       }
     });
     procedureOrders.forEach((order) => {
-      if (order.order_type === "laboratory" && (order.status === "completed" || order.status === "validated")) {
+      const hasCompletedOrValidatedItems =
+        order.items?.some((i: any) => i.status === "completed" || i.status === "validated") || false;
+
+      if (
+        order.order_type === "laboratory" &&
+        (order.status === "completed" || order.status === "validated" || hasCompletedOrValidatedItems)
+      ) {
         checkSignatureStatus(DOCUMENT_TYPES.LAB_RESULT, order.id);
       }
-      if (order.order_type === "radiology" && (order.status === "completed" || order.status === "validated")) {
+      if (
+        order.order_type === "radiology" &&
+        (order.status === "completed" || order.status === "validated" || hasCompletedOrValidatedItems)
+      ) {
         checkSignatureStatus(DOCUMENT_TYPES.RADIOLOGY_RESULT, order.id);
+      }
+      if (
+        order.order_type === "surgery" &&
+        (order.status === "completed" || order.status === "validated" || hasCompletedOrValidatedItems)
+      ) {
+        checkSignatureStatus(DOCUMENT_TYPES.OPERATIVE_REPORT, order.id);
+      }
+      if (
+        order.order_type === "consultation" &&
+        (order.status === "completed" || order.status === "validated" || hasCompletedOrValidatedItems)
+      ) {
+        checkSignatureStatus(DOCUMENT_TYPES.CONSULTATION_RESULT, order.id);
       }
     });
   }, [medicineOrders, procedureOrders]);
+
+  useEffect(() => {
+    let active = true;
+
+    const checkConsultationEligibility = async () => {
+      const consultationOrders = procedureOrders.filter((order) => {
+        if (order.order_type !== "consultation") return false;
+        const hasCompletedOrValidatedItems = order.items?.some((i: any) => i.status === "completed" || i.status === "validated") || false;
+        return order.status === "completed" || order.status === "validated" || hasCompletedOrValidatedItems;
+      });
+
+      await Promise.all(
+        consultationOrders.map(async (order) => {
+          try {
+            const res = await signatureApi.canSignDocument(DOCUMENT_TYPES.CONSULTATION_RESULT, order.id);
+            if (!active) return;
+            setSignEligibility((prev) => ({
+              ...prev,
+              [`${DOCUMENT_TYPES.CONSULTATION_RESULT}-${order.id}`]: {
+                allowed: !!res.data?.allowed,
+                reason: res.data?.reason,
+              },
+            }));
+          } catch {
+            if (!active) return;
+            setSignEligibility((prev) => ({
+              ...prev,
+              [`${DOCUMENT_TYPES.CONSULTATION_RESULT}-${order.id}`]: { allowed: false },
+            }));
+          }
+        })
+      );
+    };
+
+    if (procedureOrders.length > 0) {
+      checkConsultationEligibility();
+    }
+
+    return () => {
+      active = false;
+    };
+  }, [procedureOrders]);
+
+  useEffect(() => {
+    sickLetters.forEach((letter) => {
+      checkSignatureStatus(DOCUMENT_TYPES.SICK_LETTER, letter.id);
+    });
+    healthCertificates.forEach((cert) => {
+      checkSignatureStatus(DOCUMENT_TYPES.HEALTH_CERTIFICATE, cert.id);
+    });
+    birthCertificates.forEach((cert) => {
+      checkSignatureStatus(DOCUMENT_TYPES.BIRTH_CERTIFICATE, cert.id);
+    });
+    leaveCertificates.forEach((cert) => {
+      checkSignatureStatus(DOCUMENT_TYPES.LEAVE_CERTIFICATE, cert.id);
+    });
+    mcuCertificates.forEach((cert) => {
+      checkSignatureStatus(DOCUMENT_TYPES.MCU_CERTIFICATE, cert.id);
+    });
+    deathCertificates.forEach((cert) => {
+      checkSignatureStatus(DOCUMENT_TYPES.DEATH_CERTIFICATE, cert.id);
+    });
+  }, [sickLetters, healthCertificates, birthCertificates, leaveCertificates, mcuCertificates, deathCertificates]);
 
   const handleSignDocument = (docType: string, docId: number, title: string) => {
     setSignatureDoc({ type: docType, id: docId, title });
@@ -236,6 +400,26 @@ export function MedicalRecordPrintSelect({
 
   const isDocumentSigned = (docType: string, docId: number) => {
     return signatureStatuses[`${docType}-${docId}`]?.is_signed || false;
+  };
+
+  const canSignDocument = (docType?: string, docId?: number) => {
+    if (!docType || !docId) return true;
+
+    const eligibility = signEligibility[`${docType}-${docId}`];
+    if (docType === DOCUMENT_TYPES.CONSULTATION_RESULT) {
+      const order = procedureOrders.find((o) => o.id === docId && o.order_type === "consultation");
+      if (!order) return true;
+
+      // If viewing from orderer's visit, never show TTD
+      if (order.source_visit_id === visitId) return false;
+
+      // If backend eligibility check returned, use it
+      if (eligibility) return eligibility.allowed;
+
+      return true;
+    }
+
+    return true;
   };
 
   const handlePrint = async (printFn: () => Promise<void>, description: string) => {
@@ -282,6 +466,10 @@ export function MedicalRecordPrintSelect({
   );
   const completedSurgeryOrders = procedureOrders.filter(o => 
     o.order_type === "surgery" && 
+    (o.status === "completed" || o.status === "validated" || o.items?.some((i: any) => i.status === "completed" || i.status === "validated"))
+  );
+  const completedConsultationOrders = procedureOrders.filter(o =>
+    o.order_type === "consultation" &&
     (o.status === "completed" || o.status === "validated" || o.items?.some((i: any) => i.status === "completed" || i.status === "validated"))
   );
   const completedMedicineOrders = medicineOrders.filter(o => o.status === "completed" || o.status === "dispensed");
@@ -420,6 +608,16 @@ export function MedicalRecordPrintSelect({
       }
     }
 
+    // ============ MUTASI UNIT (Rawat Jalan / UGD) ============
+    if (!isInpatientVisit && unitTransfers.length > 0) {
+      options.push({
+        value: "unit-transfer",
+        label: `Mutasi Unit (${unitTransfers.length})`,
+        category: isUGDVisit ? "UGD" : "Rawat Jalan",
+        handler: () => printApi.unitTransfer(visitId),
+      });
+    }
+
     // ============ FARMASI (Resep - only for non-pharmacy visits) ============
     if (!isPharmacyVisit) {
       completedMedicineOrders.forEach((order, idx) => {
@@ -444,6 +642,7 @@ export function MedicalRecordPrintSelect({
         handler: () => printApi.laboratoryResult(order.id),
         documentType: DOCUMENT_TYPES.LAB_RESULT,
         documentId: order.id,
+        sourceVisitId: order.source_visit_id,
       });
     });
 
@@ -456,6 +655,7 @@ export function MedicalRecordPrintSelect({
         handler: () => printApi.radiologyResult(order.id),
         documentType: DOCUMENT_TYPES.RADIOLOGY_RESULT,
         documentId: order.id,
+        sourceVisitId: order.source_visit_id,
       });
     });
 
@@ -466,6 +666,22 @@ export function MedicalRecordPrintSelect({
         label: `Hasil Operasi`,
         category: "Operasi",
         handler: () => printApi.procedureOrderResult(order.id),
+        documentType: DOCUMENT_TYPES.OPERATIVE_REPORT,
+        documentId: order.id,
+        sourceVisitId: order.source_visit_id,
+      });
+    });
+
+    // ============ KONSULTASI ============
+    completedConsultationOrders.forEach((order) => {
+      options.push({
+        value: `consultation-${order.id}`,
+        label: `Hasil Konsultasi`,
+        category: "Konsultasi",
+        handler: () => printApi.procedureOrderResult(order.id),
+        documentType: DOCUMENT_TYPES.CONSULTATION_RESULT,
+        documentId: order.id,
+        sourceVisitId: order.source_visit_id,
       });
     });
 
@@ -479,7 +695,67 @@ export function MedicalRecordPrintSelect({
         category: "Surat",
         handler: () => printApi.sickLetterById(visitId, letter.id),
         documentType: DOCUMENT_TYPES.SICK_LETTER,
-        documentId: visitId,
+        documentId: letter.id,
+      });
+    });
+
+    healthCertificates.forEach((cert, idx) => {
+      const certDate = formatDateShort(cert.exam_date);
+      options.push({
+        value: `health-certificate-${cert.id}`,
+        label: `Surat Sehat ${certDate || `#${idx + 1}`}`,
+        category: "Surat",
+        handler: () => printApi.healthCertificate(visitId, cert.id),
+        documentType: DOCUMENT_TYPES.HEALTH_CERTIFICATE,
+        documentId: cert.id,
+      });
+    });
+
+    birthCertificates.forEach((cert, idx) => {
+      const certDate = formatDateShort(cert.birth_date);
+      options.push({
+        value: `birth-certificate-${cert.id}`,
+        label: `Surat Kelahiran ${certDate || `#${idx + 1}`}`,
+        category: "Surat",
+        handler: () => printApi.birthCertificate(visitId, cert.id),
+        documentType: DOCUMENT_TYPES.BIRTH_CERTIFICATE,
+        documentId: cert.id,
+      });
+    });
+
+    leaveCertificates.forEach((cert, idx) => {
+      const certDate = formatDateShort(cert.start_date);
+      options.push({
+        value: `leave-certificate-${cert.id}`,
+        label: `Surat Cuti ${certDate || `#${idx + 1}`}`,
+        category: "Surat",
+        handler: () => printApi.leaveCertificate(visitId, cert.id),
+        documentType: DOCUMENT_TYPES.LEAVE_CERTIFICATE,
+        documentId: cert.id,
+      });
+    });
+
+    mcuCertificates.forEach((cert, idx) => {
+      const certDate = formatDateShort(cert.exam_date);
+      options.push({
+        value: `mcu-certificate-${cert.id}`,
+        label: `Surat MCU ${certDate || `#${idx + 1}`}`,
+        category: "Surat",
+        handler: () => printApi.mcuCertificate(visitId, cert.id),
+        documentType: DOCUMENT_TYPES.MCU_CERTIFICATE,
+        documentId: cert.id,
+      });
+    });
+
+    deathCertificates.forEach((cert, idx) => {
+      const certDate = formatDateShort(cert.death_datetime);
+      options.push({
+        value: `death-certificate-${cert.id}`,
+        label: `Surat Kematian ${certDate || `#${idx + 1}`}`,
+        category: "Surat",
+        handler: () => printApi.deathCertificate(visitId, cert.id),
+        documentType: DOCUMENT_TYPES.DEATH_CERTIFICATE,
+        documentId: cert.id,
       });
     });
     
@@ -519,7 +795,7 @@ export function MedicalRecordPrintSelect({
     return acc;
   }, {} as Record<string, PrintOption[]>);
 
-  const categoryOrder = ["Umum", "Rawat Jalan", "UGD", "Rawat Inap", "Farmasi", "Laboratorium", "Radiologi", "Operasi", "Surat"];
+  const categoryOrder = ["Umum", "Rawat Jalan", "UGD", "Rawat Inap", "Farmasi", "Laboratorium", "Radiologi", "Operasi", "Konsultasi", "Surat"];
   const sortedCategories = Object.keys(groupedOptions).sort(
     (a, b) => categoryOrder.indexOf(a) - categoryOrder.indexOf(b)
   );
@@ -543,6 +819,8 @@ export function MedicalRecordPrintSelect({
         return "border-sky-200 bg-sky-50 text-sky-700";
       case "Operasi":
         return "border-rose-200 bg-rose-50 text-rose-700";
+      case "Konsultasi":
+        return "border-teal-200 bg-teal-50 text-teal-700";
       case "Surat":
         return "border-slate-200 bg-slate-50 text-slate-700";
       default:
@@ -587,7 +865,7 @@ export function MedicalRecordPrintSelect({
         </Button>
       </SheetTrigger>
       <SheetContent side="right" className="w-screen max-w-[100vw] p-0 sm:w-[50vw] sm:max-w-[50vw]">
-        <SheetHeader className="border-b bg-muted/30 px-5 py-4">
+        <SheetHeader className="border-b bg-muted/30 px-3 py-3 sm:px-5 sm:py-4">
           <div className="pr-8">
             <SheetTitle className="flex items-center gap-2 text-base">
               <Printer className="h-4 w-4" />
@@ -597,7 +875,7 @@ export function MedicalRecordPrintSelect({
               Pilih dokumen yang ingin dicetak, cek status tanda tangan, dan akses aksi dokumen dalam satu daftar yang ringkas.
             </SheetDescription>
           </div>
-          <div className="mt-3 grid grid-cols-3 gap-2">
+          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
             <div className="rounded-lg border bg-background px-3 py-2">
               <div className="flex items-center gap-2 text-muted-foreground">
                 <FileText className="h-3.5 w-3.5" />
@@ -627,7 +905,7 @@ export function MedicalRecordPrintSelect({
           </div>
         </SheetHeader>
 
-        <ScrollArea className="h-[calc(100vh-214px)]">
+        <ScrollArea className="h-[calc(100vh-246px)] sm:h-[calc(100vh-214px)]">
           {printOptions.length === 0 ? (
             <div className="flex min-h-[260px] flex-col items-center justify-center gap-2 px-6 text-center">
               <Printer className="h-10 w-10 text-muted-foreground/30" />
@@ -637,11 +915,11 @@ export function MedicalRecordPrintSelect({
               </p>
             </div>
           ) : (
-            <div className="space-y-4 p-4">
+            <div className="space-y-4 p-3 sm:p-4">
               {sortedCategories.map((category) => (
                 <section key={category} className="overflow-hidden rounded-xl border bg-background">
-                  <div className="flex items-center justify-between border-b bg-muted/20 px-4 py-3">
-                    <div className="flex items-center gap-2">
+                  <div className="flex flex-col gap-2 border-b bg-muted/20 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
+                    <div className="flex flex-wrap items-center gap-2">
                       <h3 className="text-sm font-semibold">{category}</h3>
                       <Badge variant="outline" className={cn("text-[10px]", getCategoryBadgeClass(category))}>
                         {groupedOptions[category].length} dokumen
@@ -649,7 +927,8 @@ export function MedicalRecordPrintSelect({
                     </div>
                     <p className="text-[11px] text-muted-foreground">Aksi cetak dan tanda tangan tersedia per baris</p>
                   </div>
-                  <Table>
+                  <div className="overflow-x-auto">
+                  <Table className="min-w-[760px]">
                     <TableHeader>
                       <TableRow className="hover:bg-transparent">
                         <TableHead className="w-[42%] px-4 text-xs">Dokumen</TableHead>
@@ -663,6 +942,10 @@ export function MedicalRecordPrintSelect({
                         const isSigned = option.documentType && option.documentId
                           ? isDocumentSigned(option.documentType, option.documentId)
                           : false;
+                        const canSign = canSignDocument(option.documentType, option.documentId);
+                        const isOrderDoc = option.documentType ? ORDER_DOC_TYPES.has(option.documentType) : false;
+                        const isOrdererView = isOrderDoc && option.sourceVisitId === visitId;
+                        const canRevoke = option.documentType ? !isOrdererView : false;
 
                         return (
                           <TableRow key={option.value}>
@@ -699,8 +982,8 @@ export function MedicalRecordPrintSelect({
                               )}
                             </TableCell>
                             <TableCell className="px-4 py-3">
-                              <div className="flex items-center justify-end gap-1.5">
-                                {option.documentType && option.documentId && !isSigned && (
+                              <div className="flex flex-wrap items-center justify-start gap-1.5 sm:justify-end">
+                                {option.documentType && option.documentId && !isSigned && canSign && (
                                   <Button
                                     variant="outline"
                                     size="sm"
@@ -711,7 +994,10 @@ export function MedicalRecordPrintSelect({
                                     TTD
                                   </Button>
                                 )}
-                                {option.documentType && option.documentId && isSigned && (
+                                {option.documentType === DOCUMENT_TYPES.CONSULTATION_RESULT && option.documentId && !isSigned && !canSign && (
+                                  <span className="text-[11px] text-muted-foreground">Hanya pengisi</span>
+                                )}
+                                {option.documentType && option.documentId && isSigned && canRevoke && (
                                   <Button
                                     variant="outline"
                                     size="sm"
@@ -738,6 +1024,7 @@ export function MedicalRecordPrintSelect({
                       })}
                     </TableBody>
                   </Table>
+                  </div>
                 </section>
               ))}
             </div>

@@ -1,13 +1,18 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 
 import { DataTable } from "@/components/ui/data-table";
+import type { ColumnDef } from "@tanstack/react-table";
 import { createRegistrationColumns } from "./columns";
 import { registrationApi, type Registration } from "@/lib/api/queue";
 import { bpjsApi, type BPJSQueue } from "@/lib/api/bpjs";
 import { patientsApi, type Patient } from "@/lib/api";
+import { visitsApi, type Visit } from "@/lib/api/visits";
 import { vclaimApi, type SEPLocal } from "@/lib/api/vclaim";
+import { admissionRequestApi, type AdmissionRequest } from "@/lib/api/admission-request";
 import { SPRIFormSheet } from "@/components/sep/spri-form-sheet";
 import { SEPFormSheet } from "@/components/sep/sep-form-sheet";
 import { usePermission } from "@/hooks/usePermission";
@@ -24,6 +29,11 @@ import {
   ChevronsUpDown,
   SlidersHorizontal,
   CalendarClock,
+  Clock,
+  Eye,
+  XCircle,
+  ArrowRight,
+  ExternalLink,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -34,6 +44,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Command,
   CommandEmpty,
@@ -48,6 +65,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { api } from "@/lib/api/client";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
@@ -65,6 +83,7 @@ interface RegTab {
   key: string;          // service_type value sent to API ("" = all)
   label: string;        // displayed label
   serviceTypes: string[]; // service_type values used to filter room dropdown
+  mode?: "registrations" | "admission_requests";
 }
 
 const REG_TABS: RegTab[] = [
@@ -83,10 +102,17 @@ const REG_TABS: RegTab[] = [
     label: "UGD / IGD",
     serviceTypes: ["gawat_darurat"],
   },
+  {
+    key: "admission_requests",
+    label: "Permintaan Rawat Inap",
+    serviceTypes: [],
+    mode: "admission_requests",
+  },
 ];
 
 export default function RegistrationIndex() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { hasPermission } = usePermission();
   const { toast } = useToast();
   const [registrations, setRegistrations] = useState<Registration[]>([]);
@@ -96,6 +122,10 @@ export default function RegistrationIndex() {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [activeTab, setActiveTab] = useState<string>(() => {
     try {
+      const queryTab = new URLSearchParams(window.location.search).get("tab");
+      if (queryTab && REG_TABS.some((tab) => tab.key === queryTab)) {
+        return queryTab;
+      }
       return localStorage.getItem("reg_filter_tab") || "";
     } catch {
       return "";
@@ -118,6 +148,7 @@ export default function RegistrationIndex() {
     });
   };
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
+  const [selectedAdmissionStatus, setSelectedAdmissionStatus] = useState<string>("pending");
   const [selectedDate, setSelectedDate] = useState<string>(""); // Empty = show all data
   const [cancelId, setCancelId] = useState<number | null>(null);
   const [cancelMjknId, setCancelMjknId] = useState<number | null>(null);
@@ -127,6 +158,15 @@ export default function RegistrationIndex() {
   const [activatingCheckin, setActivatingCheckin] = useState<number | null>(null);
   const [scheduledTodayCount, setScheduledTodayCount] = useState(0);
   const [editPaymentReg, setEditPaymentReg] = useState<Registration | null>(null);
+  const [admissionRequests, setAdmissionRequests] = useState<AdmissionRequest[]>([]);
+  const [pendingAdmissionCount, setPendingAdmissionCount] = useState(0);
+  const [journeyDialogOpen, setJourneyDialogOpen] = useState(false);
+  const [journeyRegistration, setJourneyRegistration] = useState<Registration | null>(null);
+  const [journeyLoading, setJourneyLoading] = useState(false);
+  const [journeyDetailsLoaded, setJourneyDetailsLoaded] = useState(false);
+  const [journeyVisitDetails, setJourneyVisitDetails] = useState<Map<number, Visit>>(new Map());
+  const [journeyNodeLimit, setJourneyNodeLimit] = useState(8);
+  const [journeyExpandedNodes, setJourneyExpandedNodes] = useState<Set<string>>(new Set());
 
   // SPRI & SEP Ranap state
   const [spriMap, setSpriMap] = useState<Map<number, { no_spri: string; is_bpjs: boolean }>>(new Map());
@@ -135,9 +175,30 @@ export default function RegistrationIndex() {
   const [sepRanapSheetReg, setSepRanapSheetReg] = useState<Registration | null>(null);
   const [spriPatient, setSpriPatient] = useState<Patient | null>(null);
   const [sepRanapPatient, setSepRanapPatient] = useState<Patient | null>(null);
+  const spriSepLoadedRegIdsRef = useRef<Set<number>>(new Set());
 
   // Current tab definition
   const currentTab = REG_TABS.find((t) => t.key === activeTab) ?? REG_TABS[0];
+  const isAdmissionRequestTab = currentTab.mode === "admission_requests";
+
+  useEffect(() => {
+    const queryTab = searchParams.get("tab") || "";
+    const normalizedTab = REG_TABS.some((tab) => tab.key === queryTab) ? queryTab : "";
+
+    setActiveTab((prev) => (prev === normalizedTab ? prev : normalizedTab));
+  }, [searchParams]);
+
+  const handleTabChange = (tabKey: string) => {
+    setActiveTab(tabKey);
+    const nextParams = new URLSearchParams(searchParams);
+    if (tabKey) {
+      nextParams.set("tab", tabKey);
+    } else {
+      nextParams.delete("tab");
+    }
+    setSearchParams(nextParams, { replace: true });
+    setRoomPopoverOpen(false);
+  };
 
   // Rooms filtered to match current tab's service types
   const tabRoomOptions = useMemo(() => {
@@ -154,6 +215,10 @@ export default function RegistrationIndex() {
     const activeStatuses = ["registered", "in_queue", "in_progress", "scheduled"];
     const counts: Record<string, number> = {};
     for (const tab of REG_TABS) {
+      if (tab.mode === "admission_requests") {
+        counts[tab.key] = pendingAdmissionCount;
+        continue;
+      }
       if (tab.key === "") {
         // "Semua" tab: count all active
         counts[tab.key] = allRegistrations.filter((r) =>
@@ -170,7 +235,7 @@ export default function RegistrationIndex() {
       }
     }
     return counts;
-  }, [allRegistrations]);
+  }, [allRegistrations, pendingAdmissionCount]);
 
   // Persist active tab
   useEffect(() => {
@@ -186,6 +251,30 @@ export default function RegistrationIndex() {
       setScheduledTodayCount(response.data.summary?.today || response.data.data?.length || 0);
     } catch {
       // Silently fail
+    }
+  }, []);
+
+  const loadAdmissionRequests = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await admissionRequestApi.getAll({
+        status: selectedAdmissionStatus === "all" ? undefined : selectedAdmissionStatus,
+        limit: 1000,
+      });
+      setAdmissionRequests(response.data.data || []);
+    } catch {
+      setAdmissionRequests([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedAdmissionStatus]);
+
+  const loadPendingAdmissionCount = useCallback(async () => {
+    try {
+      const response = await admissionRequestApi.getPendingCount();
+      setPendingAdmissionCount(response.data.count || 0);
+    } catch {
+      setPendingAdmissionCount(0);
     }
   }, []);
 
@@ -347,34 +436,60 @@ export default function RegistrationIndex() {
     loadRooms();
     loadMjknQueues();
     loadScheduledCount();
-  }, [loadRooms, loadMjknQueues, loadScheduledCount]);
+    loadPendingAdmissionCount();
+  }, [loadRooms, loadMjknQueues, loadScheduledCount, loadPendingAdmissionCount]);
 
   useEffect(() => {
     loadAllRegistrations();
   }, [loadAllRegistrations]);
 
   useEffect(() => {
-    loadData();
-    const interval = setInterval(() => {
+    if (!isAdmissionRequestTab) {
       loadData();
+    } else {
+      loadAdmissionRequests();
+      loadPendingAdmissionCount();
+    }
+
+    const interval = setInterval(() => {
+      if (!isAdmissionRequestTab) {
+        loadData();
+      } else {
+        loadAdmissionRequests();
+      }
       loadAllRegistrations();
+      loadPendingAdmissionCount();
     }, 60000);
+
     return () => clearInterval(interval);
-  }, [loadData, loadAllRegistrations]);
+  }, [
+    loadData,
+    isAdmissionRequestTab,
+    loadAdmissionRequests,
+    loadPendingAdmissionCount,
+  ]);
 
   // Load SPRI/SEP Ranap status for BPJS inpatient registrations
   const loadSPRIAndSEPData = useCallback(async (regs: Registration[]) => {
-    const bpjsInpatient = regs.filter(
-      (r) => r.payment_method === "bpjs" && r.registration_type === "inpatient"
-    );
+    const bpjsInpatient = regs
+      .filter((r) => r.payment_method === "bpjs" && r.registration_type === "inpatient")
+      .filter((r) => {
+        const regId = r.ID || r.id || 0;
+        return regId > 0 && !spriSepLoadedRegIdsRef.current.has(regId);
+      });
+
     if (bpjsInpatient.length === 0) return;
 
     const newSpriMap = new Map<number, { no_spri: string; is_bpjs: boolean }>();
     const newSepRanapMap = new Map<number, string>();
+    const processedRegIds = new Set<number>();
 
     await Promise.allSettled(
       bpjsInpatient.map(async (reg) => {
         const regId = reg.ID || reg.id || 0;
+        if (regId <= 0) return;
+
+        processedRegIds.add(regId);
         const sourceVisit = reg.visits?.find((v) => v.visit_type !== "inpatient");
         const sourceVisitId = sourceVisit?.id || sourceVisit?.ID;
         const inpatientVisit = reg.visits?.find((v) => v.visit_type === "inpatient");
@@ -422,15 +537,36 @@ export default function RegistrationIndex() {
       })
     );
 
-    setSpriMap(newSpriMap);
-    setSepRanapMap(newSepRanapMap);
+    if (newSpriMap.size > 0) {
+      setSpriMap((prev) => {
+        const merged = new Map(prev);
+        for (const [key, value] of newSpriMap.entries()) {
+          merged.set(key, value);
+        }
+        return merged;
+      });
+    }
+
+    if (newSepRanapMap.size > 0) {
+      setSepRanapMap((prev) => {
+        const merged = new Map(prev);
+        for (const [key, value] of newSepRanapMap.entries()) {
+          merged.set(key, value);
+        }
+        return merged;
+      });
+    }
+
+    for (const regId of processedRegIds) {
+      spriSepLoadedRegIdsRef.current.add(regId);
+    }
   }, []);
 
   useEffect(() => {
-    if (registrations.length > 0) {
+    if (!isAdmissionRequestTab && registrations.length > 0) {
       loadSPRIAndSEPData(registrations);
     }
-  }, [registrations, loadSPRIAndSEPData]);
+  }, [isAdmissionRequestTab, registrations, loadSPRIAndSEPData]);
 
   const handleOpenSPRI = async (reg: Registration) => {
     // Load patient — that's all we need, activeSEP is optional now
@@ -478,6 +614,105 @@ export default function RegistrationIndex() {
 
   const handleView = (id: number) => {
     navigate(`/registrations/show/${id}`);
+  };
+
+  const handleOpenJourney = (registration: Registration) => {
+    setJourneyLoading(false);
+    setJourneyDetailsLoaded(false);
+    setJourneyNodeLimit(8);
+    setJourneyExpandedNodes(new Set());
+    setJourneyVisitDetails(new Map());
+    setJourneyRegistration(registration);
+    setJourneyDialogOpen(true);
+  };
+
+  const toggleJourneyNode = (nodeKey: string) => {
+    const shouldExpand = !journeyExpandedNodes.has(nodeKey);
+    if (shouldExpand && !journeyDetailsLoaded && !journeyLoading) {
+      void loadJourneyDetails();
+    }
+
+    setJourneyExpandedNodes((prev) => {
+      const next = new Set(prev);
+      if (next.has(nodeKey)) next.delete(nodeKey);
+      else next.add(nodeKey);
+      return next;
+    });
+  };
+
+  const loadJourneyDetails = useCallback(async () => {
+    if (!journeyRegistration || journeyLoading || journeyDetailsLoaded) return;
+
+    const visitIds = (journeyRegistration.visits || [])
+      .map((v) => v.ID || v.id)
+      .filter((id): id is number => typeof id === "number" && id > 0);
+
+    if (visitIds.length === 0) {
+      setJourneyVisitDetails(new Map());
+      setJourneyDetailsLoaded(true);
+      return;
+    }
+
+    setJourneyLoading(true);
+    const results = await Promise.allSettled(visitIds.map((visitId) => visitsApi.getById(visitId)));
+
+    const nextMap = new Map<number, Visit>();
+    results.forEach((result, index) => {
+      const visitId = visitIds[index];
+      if (result.status === "fulfilled" && result.value?.data) {
+        nextMap.set(visitId, result.value.data);
+      }
+    });
+
+    setJourneyVisitDetails(nextMap);
+    setJourneyDetailsLoaded(true);
+    setJourneyLoading(false);
+  }, [journeyRegistration, journeyLoading, journeyDetailsLoaded]);
+
+  const getVisitTypeLabel = (visitType?: string) => {
+    switch ((visitType || "").toLowerCase()) {
+      case "outpatient":
+        return "Rawat Jalan";
+      case "emergency":
+        return "UGD / IGD";
+      case "inpatient":
+        return "Rawat Inap";
+      case "radiology":
+        return "Order Radiologi";
+      case "lab":
+      case "laboratory":
+        return "Order Laboratorium";
+      case "pharmacy":
+        return "Order Farmasi";
+      case "consultation":
+        return "Konsultasi";
+      case "surgery":
+        return "Operasi";
+      default:
+        return visitType || "Kunjungan";
+    }
+  };
+
+  const getVisitStatusBadge = (status?: string) => {
+    const value = (status || "").toLowerCase();
+    if (value === "completed" || value === "done") {
+      return <Badge className="bg-green-100 text-green-700">Selesai</Badge>;
+    }
+    if (value === "in_progress" || value === "serving") {
+      return <Badge className="bg-blue-100 text-blue-700">Berjalan</Badge>;
+    }
+    if (value === "cancelled") {
+      return <Badge className="bg-red-100 text-red-700">Batal</Badge>;
+    }
+    if (value === "waiting" || value === "in_queue") {
+      return <Badge className="bg-amber-100 text-amber-700">Menunggu</Badge>;
+    }
+    return <Badge variant="outline">{status || "-"}</Badge>;
+  };
+
+  const getDoctorName = (visit?: Partial<Visit>) => {
+    const doctor = visit?.doctor as any;
+    return doctor?.nama_lengkap || doctor?.nama || doctor?.name || "-";
   };
 
   const handlePrintQueueTicket = async (registration: Registration) => {
@@ -534,6 +769,7 @@ export default function RegistrationIndex() {
 
   const columns = createRegistrationColumns({
     onView: handleView,
+    onViewJourney: handleOpenJourney,
     onPrintQueueTicket: handlePrintQueueTicket,
     onPrintPatientLabel: handlePrintPatientLabel,
     onCancel: setCancelId,
@@ -551,7 +787,120 @@ export default function RegistrationIndex() {
     sepRanapMap,
   });
 
-  if (loading && registrations.length === 0) {
+  const getAdmissionStatusBadge = (status: string) => {
+    switch (status) {
+      case "pending":
+        return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-300"><Clock className="h-3 w-3 mr-1" /> Menunggu</Badge>;
+      case "approved":
+        return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300">Disetujui</Badge>;
+      case "rejected":
+        return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-300"><XCircle className="h-3 w-3 mr-1" /> Ditolak</Badge>;
+      case "cancelled":
+        return <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-300">Dibatalkan</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
+  };
+
+  const admissionColumns: ColumnDef<AdmissionRequest>[] = [
+    {
+      accessorKey: "request_number",
+      header: "No. Request",
+      cell: ({ row }) => <span className="font-mono text-sm">{row.original.request_number}</span>,
+    },
+    {
+      id: "patient",
+      header: "Pasien",
+      cell: ({ row }) => {
+        const patient = row.original.patient || row.original.registration?.patient || row.original.source_visit?.registration?.patient;
+        return (
+          <div>
+            <Link
+              to={`/patient-search/${patient?.id}`}
+              className="font-medium hover:underline hover:text-primary"
+            >
+              {patient?.name || patient?.nama_lengkap || "N/A"}
+            </Link>
+            <p className="text-xs text-muted-foreground">RM: {patient?.medical_record_number || patient?.no_rm || "N/A"}</p>
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: "source_visit",
+      header: "Asal Unit",
+      cell: ({ row }) => {
+        const visit = row.original.source_visit;
+        return visit?.id ? (
+          <Link to={`/visits/${visit.id}`} className="hover:underline hover:text-primary flex items-center gap-1">
+            {visit?.room?.name || "N/A"}
+            <ExternalLink className="h-3 w-3" />
+          </Link>
+        ) : (
+          <span>{visit?.room?.name || "N/A"}</span>
+        );
+      },
+    },
+    {
+      accessorKey: "admission_type",
+      header: "Tipe",
+      cell: ({ row }) => <span className="capitalize">{row.original.admission_type}</span>,
+    },
+    {
+      accessorKey: "requested_at",
+      header: "Tanggal Request",
+      cell: ({ row }) => (
+        <div className="text-sm">
+          {row.original.requested_at
+            ? format(new Date(row.original.requested_at), "dd MMM yyyy HH:mm", { locale: idLocale })
+            : "N/A"}
+        </div>
+      ),
+    },
+    {
+      accessorKey: "status",
+      header: "Status",
+      cell: ({ row }) => getAdmissionStatusBadge(row.original.status),
+    },
+    {
+      id: "actions",
+      header: "Aksi",
+      cell: ({ row }) => {
+        const request = row.original;
+        if (request.status === "pending") {
+          return (
+            <Button size="sm" asChild>
+              <Link to={`/admisi/${request.id}`}>
+                <ArrowRight className="h-4 w-4 mr-1" />
+                Proses
+              </Link>
+            </Button>
+          );
+        }
+        return request.inpatient_visit_id ? (
+          <Button variant="ghost" size="sm" asChild>
+            <Link to={`/visits/${request.inpatient_visit_id}`}>
+              <Eye className="h-4 w-4 mr-1" />
+              Lihat
+            </Link>
+          </Button>
+        ) : (
+          <Button variant="ghost" size="sm" asChild>
+            <Link to={`/admisi/${request.id}`}>
+              <Eye className="h-4 w-4 mr-1" />
+              Detail
+            </Link>
+          </Button>
+        );
+      },
+    },
+  ];
+
+  if (
+    loading &&
+    ((isAdmissionRequestTab && admissionRequests.length === 0) ||
+      (!isAdmissionRequestTab && registrations.length === 0))
+  ) {
     return (
       <div className="flex items-center justify-center h-full">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -680,7 +1029,7 @@ export default function RegistrationIndex() {
           >
             <SlidersHorizontal className="h-3.5 w-3.5 mr-1.5" />
             Filter
-            {(selectedDate || selectedStatus !== "all") && (
+            {(selectedDate || selectedStatus !== "all" || selectedAdmissionStatus !== "all") && (
               <span className="ml-1.5 h-1.5 w-1.5 rounded-full bg-primary inline-block" />
             )}
           </Button>
@@ -702,29 +1051,55 @@ export default function RegistrationIndex() {
             </Button>
           )}
           <div className="h-5 border-r" />
-          <Select
-            value={selectedStatus}
-            onValueChange={setSelectedStatus}
-          >
-            <SelectTrigger className="h-8 w-[155px] text-xs">
-              <SelectValue placeholder="Semua Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Semua Status</SelectItem>
-              <SelectItem value="scheduled">Terjadwal (MJKN)</SelectItem>
-              <SelectItem value="registered">Terdaftar</SelectItem>
-              <SelectItem value="in_queue">Dalam Antrean</SelectItem>
-              <SelectItem value="in_progress">Sedang Diproses</SelectItem>
-              <SelectItem value="completed">Selesai</SelectItem>
-              <SelectItem value="discharged">Sudah Pulang</SelectItem>
-              <SelectItem value="cancelled">Dibatalkan</SelectItem>
-            </SelectContent>
-          </Select>
+          {isAdmissionRequestTab ? (
+            <Select
+              value={selectedAdmissionStatus}
+              onValueChange={setSelectedAdmissionStatus}
+            >
+              <SelectTrigger className="h-8 w-[170px] text-xs">
+                <SelectValue placeholder="Status Permintaan" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua Status</SelectItem>
+                <SelectItem value="pending">Menunggu</SelectItem>
+                <SelectItem value="approved">Disetujui</SelectItem>
+                <SelectItem value="rejected">Ditolak</SelectItem>
+                <SelectItem value="cancelled">Dibatalkan</SelectItem>
+              </SelectContent>
+            </Select>
+          ) : (
+            <Select
+              value={selectedStatus}
+              onValueChange={setSelectedStatus}
+            >
+              <SelectTrigger className="h-8 w-[155px] text-xs">
+                <SelectValue placeholder="Semua Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua Status</SelectItem>
+                <SelectItem value="scheduled">Terjadwal (MJKN)</SelectItem>
+                <SelectItem value="registered">Terdaftar</SelectItem>
+                <SelectItem value="in_queue">Dalam Antrean</SelectItem>
+                <SelectItem value="in_progress">Sedang Diproses</SelectItem>
+                <SelectItem value="completed">Selesai</SelectItem>
+                <SelectItem value="discharged">Sudah Pulang</SelectItem>
+                <SelectItem value="cancelled">Dibatalkan</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
           <Button
             variant="outline"
             size="icon"
             className="h-8 w-8"
-            onClick={() => { loadData(); loadAllRegistrations(); }}
+            onClick={() => {
+              if (isAdmissionRequestTab) {
+                loadAdmissionRequests();
+              } else {
+                loadData();
+              }
+              loadAllRegistrations();
+              loadPendingAdmissionCount();
+            }}
           >
             <RefreshCcw className="h-3.5 w-3.5" />
           </Button>
@@ -739,7 +1114,7 @@ export default function RegistrationIndex() {
           return (
             <button
               key={tab.key}
-              onClick={() => { setActiveTab(tab.key); setRoomPopoverOpen(false); }}
+              onClick={() => handleTabChange(tab.key)}
               className={cn(
                 "relative flex shrink-0 items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px",
                 isActive
@@ -759,14 +1134,24 @@ export default function RegistrationIndex() {
       </div>
 
       {/* ── Data Table ───────────────────────────────────────────── */}
-      <DataTable
-        columns={columns}
-        data={registrations}
-        searchPlaceholder="Cari no. registrasi, nama pasien, atau no. RM..."
-        pageSize={10}
-        tableId="registrations"
-        searchSlot={roomFilterSlot}
-      />
+      {isAdmissionRequestTab ? (
+        <DataTable
+          columns={admissionColumns}
+          data={admissionRequests}
+          searchPlaceholder="Cari no. request, nama pasien, atau RM..."
+          pageSize={10}
+          tableId="admission-requests-in-registrations"
+        />
+      ) : (
+        <DataTable
+          columns={columns}
+          data={registrations}
+          searchPlaceholder="Cari no. registrasi, nama pasien, atau no. RM..."
+          pageSize={10}
+          tableId="registrations"
+          searchSlot={roomFilterSlot}
+        />
+      )}
 
       {/* Confirm dialog for regular registration cancellation */}
       <ConfirmDialog
@@ -806,6 +1191,142 @@ export default function RegistrationIndex() {
           onSuccess={() => { loadData(); loadAllRegistrations(); }}
         />
       )}
+
+      <Dialog open={journeyDialogOpen} onOpenChange={setJourneyDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Perjalanan Pasien</DialogTitle>
+            <DialogDescription>
+              Alur perpindahan pasien berdasarkan kunjungan dan order pada pendaftaran ini.
+            </DialogDescription>
+          </DialogHeader>
+
+          <ScrollArea className="max-h-[60vh] pr-3">
+            {!journeyRegistration ? (
+              <div className="text-sm text-muted-foreground">Data tidak tersedia.</div>
+            ) : (
+              <div className="space-y-4">
+                <div className="rounded-md border bg-muted/30 p-3">
+                  <p className="text-xs text-muted-foreground">Registrasi</p>
+                  <p className="font-mono text-sm">{journeyRegistration.registration_number}</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {journeyRegistration.patient?.nama_lengkap || journeyRegistration.patient?.name || "Pasien"}
+                  </p>
+                </div>
+
+                <div className="space-y-0">
+                  {journeyLoading && (
+                    <div className="mb-3 flex items-center gap-2 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Memuat detail kunjungan...
+                    </div>
+                  )}
+
+                  {(journeyRegistration.visits || [])
+                    .slice()
+                    .sort((a, b) => {
+                      const ta = new Date(a.created_at || "").getTime() || 0;
+                      const tb = new Date(b.created_at || "").getTime() || 0;
+                      return ta - tb;
+                    })
+                    .slice(0, journeyNodeLimit)
+                    .map((visit, index, arr) => {
+                      const visitId = visit.ID || visit.id;
+                      const detailed = (visitId ? journeyVisitDetails.get(visitId) : undefined) || (visit as any);
+                      const nodeKey = String(visitId || `${visit.visit_number}-${index}`);
+                      const expanded = journeyExpandedNodes.has(nodeKey);
+                      const isLast = index === arr.length - 1;
+                      return (
+                        <div key={nodeKey} className="flex gap-3">
+                          <div className="flex w-6 flex-col items-center">
+                            <span className="mt-1 h-2.5 w-2.5 rounded-full bg-primary" />
+                            {!isLast && <span className="mt-1 h-full w-px bg-border" />}
+                          </div>
+                          <div className="flex-1 pb-5">
+                            <div className="rounded-md border p-3">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <p className="text-sm font-semibold">{getVisitTypeLabel(detailed.visit_type)}</p>
+                                <div className="flex items-center gap-2">
+                                  {getVisitStatusBadge(detailed.status)}
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-7 px-2 text-xs"
+                                    onClick={() => toggleJourneyNode(nodeKey)}
+                                  >
+                                    {expanded ? "Sembunyikan" : "Detail"}
+                                  </Button>
+                                </div>
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {detailed.visit_number || "-"}
+                                {(detailed.room as any)?.name ? ` • ${(detailed.room as any).name}` : ""}
+                              </p>
+
+                              {journeyDetailsLoaded && expanded && (
+                                <>
+                                  <div className="mt-2 grid grid-cols-1 gap-1.5 text-xs text-muted-foreground sm:grid-cols-2">
+                                    <p>Dokter: <span className="text-foreground">{getDoctorName(detailed)}</span></p>
+                                    <p>Antrian: <span className="text-foreground">{(detailed.room_queue as any)?.queue_number || "-"}</span></p>
+                                    <p>Check-in: <span className="text-foreground">{detailed.check_in_time ? format(new Date(detailed.check_in_time), "dd MMM yyyy HH:mm", { locale: idLocale }) : "-"}</span></p>
+                                    <p>Mulai: <span className="text-foreground">{detailed.start_time ? format(new Date(detailed.start_time), "dd MMM yyyy HH:mm", { locale: idLocale }) : "-"}</span></p>
+                                    <p>Selesai: <span className="text-foreground">{detailed.end_time ? format(new Date(detailed.end_time), "dd MMM yyyy HH:mm", { locale: idLocale }) : "-"}</span></p>
+                                    <p>Masuk/Keluar RI: <span className="text-foreground">{detailed.admission_time ? format(new Date(detailed.admission_time), "dd MMM yyyy HH:mm", { locale: idLocale }) : "-"} / {detailed.discharge_time ? format(new Date(detailed.discharge_time), "dd MMM yyyy HH:mm", { locale: idLocale }) : "-"}</span></p>
+                                  </div>
+
+                                  {(detailed.complaint || detailed.diagnosis || detailed.notes) && (
+                                    <div className="mt-2 rounded-sm bg-muted/40 p-2 text-xs text-muted-foreground space-y-1">
+                                      {detailed.complaint && <p>Keluhan: <span className="text-foreground">{detailed.complaint}</span></p>}
+                                      {detailed.diagnosis && <p>Diagnosis: <span className="text-foreground">{detailed.diagnosis}</span></p>}
+                                      {detailed.notes && <p>Catatan: <span className="text-foreground">{detailed.notes}</span></p>}
+                                    </div>
+                                  )}
+
+                                  {typeof detailed.referral_from === "number" && detailed.referral_from > 0 && (
+                                    <p className="mt-2 text-xs text-muted-foreground">
+                                      Rujukan dari Visit ID: <span className="font-mono text-foreground">{detailed.referral_from}</span>
+                                    </p>
+                                  )}
+                                </>
+                              )}
+
+                              {expanded && !journeyDetailsLoaded && (
+                                <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  Memuat detail kunjungan...
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                  {(journeyRegistration.visits || []).length > journeyNodeLimit && (
+                    <div className="pt-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setJourneyNodeLimit((prev) => prev + 10)}
+                      >
+                        Tampilkan lebih banyak
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                {(journeyRegistration.visits || []).length === 0 && (
+                  <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+                    Belum ada data perjalanan kunjungan untuk registrasi ini.
+                  </div>
+                )}
+              </div>
+            )}
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
 
       {/* SPRI Form Sheet */}
       {spriSheetReg && spriPatient && (

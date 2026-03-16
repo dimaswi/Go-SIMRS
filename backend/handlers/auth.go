@@ -20,13 +20,14 @@ type LoginResponse struct {
 }
 
 type UserResponse struct {
-	ID       uint          `json:"id"`
-	Email    string        `json:"email"`
-	Username string        `json:"username"`
-	FullName string        `json:"full_name"`
-	IsActive bool          `json:"is_active"`
-	RoleID   uint          `json:"role_id,omitempty"`
-	Role     *RoleResponse `json:"role,omitempty"`
+	ID         uint          `json:"id"`
+	Email      string        `json:"email"`
+	Username   string        `json:"username"`
+	FullName   string        `json:"full_name"`
+	IsActive   bool          `json:"is_active"`
+	EmployeeID *uint         `json:"employee_id,omitempty"`
+	RoleID     uint          `json:"role_id,omitempty"`
+	Role       *RoleResponse `json:"role,omitempty"`
 }
 
 type RoleResponse struct {
@@ -77,12 +78,13 @@ func Login(c *gin.Context) {
 	response := LoginResponse{
 		Token: token,
 		User: UserResponse{
-			ID:       user.ID,
-			Email:    user.Email,
-			Username: user.Username,
-			FullName: user.FullName,
-			IsActive: user.IsActive,
-			RoleID:   user.RoleID,
+			ID:         user.ID,
+			Email:      user.Email,
+			Username:   user.Username,
+			FullName:   user.FullName,
+			IsActive:   user.IsActive,
+			EmployeeID: user.EmployeeID,
+			RoleID:     user.RoleID,
 		},
 	}
 
@@ -123,12 +125,13 @@ func GetProfile(c *gin.Context) {
 	}
 
 	response := UserResponse{
-		ID:       user.ID,
-		Email:    user.Email,
-		Username: user.Username,
-		FullName: user.FullName,
-		IsActive: user.IsActive,
-		RoleID:   user.RoleID,
+		ID:         user.ID,
+		Email:      user.Email,
+		Username:   user.Username,
+		FullName:   user.FullName,
+		IsActive:   user.IsActive,
+		EmployeeID: user.EmployeeID,
+		RoleID:     user.RoleID,
 	}
 
 	if user.Role.ID > 0 {

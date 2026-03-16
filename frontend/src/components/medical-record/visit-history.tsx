@@ -236,7 +236,7 @@ export function VisitHistory({ patientId, currentVisitId, currentVisitType, curr
   }
 
   return (
-    <div className="space-y-2 max-h-[calc(100vh-400px)] overflow-y-auto pr-1">
+    <div className="space-y-2 max-h-[60vh] sm:max-h-[calc(100vh-400px)] overflow-y-auto pr-1">
       {visits.map((visit) => {
         const isActive = visit.id === currentVisitId;
 
@@ -254,7 +254,7 @@ export function VisitHistory({ patientId, currentVisitId, currentVisitType, curr
             )}
           >
             {/* Visit Number & Date */}
-            <div className="flex items-start justify-between gap-2 mb-2">
+            <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
               <div className="flex-1 min-w-0">
                 <div className="text-xs font-semibold text-foreground mb-0.5">
                   {visit.visit_number}

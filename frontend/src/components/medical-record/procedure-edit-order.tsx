@@ -369,8 +369,8 @@ export function ProcedureEditOrder({
   return (
     <div className="space-y-4">
       <div>
-        <div className="py-3">
-          <div className="flex items-center justify-between">
+        <div className="">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             {orders.length > 1 && (
               <Select
                 value={selectedOrder?.id.toString()}
@@ -395,7 +395,7 @@ export function ProcedureEditOrder({
         </div>
 
         {selectedOrder && (
-          <div className="p-4 space-y-4">
+          <div className="space-y-4">
             {/* Order Info */}
             <div className="flex items-center justify-between text-sm">
               <div className="flex items-center gap-4">

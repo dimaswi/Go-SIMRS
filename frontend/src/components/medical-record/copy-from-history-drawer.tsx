@@ -50,6 +50,91 @@ const isMeaningfulAllergySummary = (value: unknown) => {
   return !/^(none|no known allergies|nkda|nka|nihil|\-|tidak ada|tidak ada alergi)$/.test(normalized);
 };
 
+const anamnesisFields = [
+  "anamnesis_source",
+  "functional_status",
+  "chief_complaint",
+  "history_of_present_illness",
+  "onset",
+  "duration",
+  "severity",
+  "location",
+  "character",
+  "aggravating_factors",
+  "relieving_factors",
+  "past_medical_history",
+  "past_surgical_history",
+  "family_history",
+  "social_history",
+  "smoking_status",
+  "alcohol_use",
+  "drug_use",
+  "allergy_type",
+  "allergy_reaction",
+  "current_medications",
+  "immunization_history",
+  "menstrual_history",
+  "obstetric_history",
+  "review_of_systems",
+] as const;
+
+const physicalBodyFields = [
+  "head",
+  "eyes",
+  "ears",
+  "nose",
+  "throat",
+  "neck",
+  "chest",
+  "heart",
+  "lungs",
+  "abdomen",
+  "extremities",
+  "skin",
+  "neurological",
+  "genitourinary",
+  "other_findings",
+] as const;
+
+const physicalSupportingFields = [
+  "pain_method",
+  "pain_scale",
+  "pain_location",
+  "ecg_result",
+  "ecg_interpretation",
+  "ecg_notes",
+  "ctg_result",
+  "ctg_interpretation",
+  "ctg_notes",
+  "pelvic_result",
+  "pelvic_notes",
+] as const;
+
+const assessmentPlanFields = [
+  "clinical_assessment",
+  "treatment_plan",
+  "prognosis",
+  "medication_plan",
+  "diet_plan",
+  "activity_plan",
+  "education_plan",
+  "procedure_plan",
+  "consultation_plan",
+  "monitoring_plan",
+  "informed_consent",
+] as const;
+
+const hasMeaningfulValue = (value: unknown) => {
+  if (typeof value === "string") return value.trim() !== "";
+  if (typeof value === "number") return value > 0;
+  if (typeof value === "boolean") return value;
+  if (Array.isArray(value)) return value.length > 0;
+  return false;
+};
+
+const countFilledFields = (source: Record<string, unknown>, fields: readonly string[]) =>
+  fields.filter((field) => hasMeaningfulValue(source[field])).length;
+
 interface CopyFromHistoryDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -247,23 +332,31 @@ export function CopyFromHistoryDrawer({
     const d = data as Record<string, unknown>;
 
     if (section === "anamnesis") {
-      const textFields = ["anamnesis_source", "functional_status", "chief_complaint", "history_of_present_illness", "past_medical_history", "family_history", "social_history", "current_medications"];
-      const filledText = textFields.filter(f => { const v = d[f]; return typeof v === "string" && v.trim() !== ""; }).length;
+      const filledText = countFilledFields(d, anamnesisFields);
       const filled = filledText + (isMeaningfulAllergySummary(d.allergies) ? 1 : 0);
-      emitMedicalRecordTabIndicator("anamnesis", `${filled}/9`);
+      emitMedicalRecordTabIndicator("anamnesis", `${filled}/${anamnesisFields.length + 1}`);
       emitMedicalRecordTabSaved("anamnesis", false);
     } else if (section === "physical-exam") {
-      const bodySectionIds = ["head", "eyes", "ears", "nose", "throat", "neck", "chest", "heart", "lungs", "abdomen", "extremities", "skin", "neurological"];
-      const filledBody = bodySectionIds.filter(id => { const v = d[id]; return typeof v === "string" && v.trim() !== ""; }).length;
+      const filledBody = countFilledFields(d, physicalBodyFields);
       const filledVitals = [
-        d.general_condition ? 1 : 0, d.consciousness ? 1 : 0,
-        (d.blood_pressure_systolic || d.systolic) ? 1 : 0,
-        (d.blood_pressure_diastolic || d.diastolic) ? 1 : 0,
-        d.heart_rate ? 1 : 0, d.respiratory_rate ? 1 : 0,
-        d.temperature ? 1 : 0, d.oxygen_saturation ? 1 : 0,
-        d.upper_arm_circum ? 1 : 0, d.head_circum ? 1 : 0, d.waist ? 1 : 0,
+        hasMeaningfulValue(d.general_condition) ? 1 : 0,
+        hasMeaningfulValue(d.consciousness) ? 1 : 0,
+        hasMeaningfulValue(d.blood_pressure_systolic) || hasMeaningfulValue(d.systolic) ? 1 : 0,
+        hasMeaningfulValue(d.blood_pressure_diastolic) || hasMeaningfulValue(d.diastolic) ? 1 : 0,
+        hasMeaningfulValue(d.heart_rate) ? 1 : 0,
+        hasMeaningfulValue(d.respiratory_rate) ? 1 : 0,
+        hasMeaningfulValue(d.temperature) ? 1 : 0,
+        hasMeaningfulValue(d.oxygen_saturation) ? 1 : 0,
+        hasMeaningfulValue(d.weight) ? 1 : 0,
+        hasMeaningfulValue(d.height) ? 1 : 0,
+        hasMeaningfulValue(d.bmi) ? 1 : 0,
+        hasMeaningfulValue(d.upper_arm_circum) ? 1 : 0,
+        hasMeaningfulValue(d.head_circum) ? 1 : 0,
+        hasMeaningfulValue(d.waist) ? 1 : 0,
       ].reduce((a, b) => a + b, 0);
-      emitMedicalRecordTabIndicator("physical-exam", `${filledBody + filledVitals}/24`);
+      const filledSupporting = countFilledFields(d, physicalSupportingFields);
+      const totalTarget = 15 + physicalBodyFields.length + physicalSupportingFields.length;
+      emitMedicalRecordTabIndicator("physical-exam", `${filledBody + filledVitals + filledSupporting}/${totalTarget}`);
       emitMedicalRecordTabSaved("physical-exam", false);
     } else if (section === "diagnosis") {
       const items = Array.isArray(d.items) ? d.items : [];
@@ -271,9 +364,8 @@ export function CopyFromHistoryDrawer({
       emitMedicalRecordTabIndicator("diagnosis", `${count}`);
       emitMedicalRecordTabSaved("diagnosis", false);
     } else if (section === "assessment-plan") {
-      const apFields = ["clinical_assessment", "treatment_plan", "prognosis", "medication_plan", "diet_plan", "activity_plan", "education_plan", "procedure_plan", "consultation_plan", "monitoring_plan", "informed_consent"];
-      const filled = apFields.filter(f => { const v = d[f]; return typeof v === "string" && v.trim() !== ""; }).length;
-      emitMedicalRecordTabIndicator("assessment-plan", `${filled}/11`);
+      const filled = countFilledFields(d, assessmentPlanFields);
+      emitMedicalRecordTabIndicator("assessment-plan", `${filled}/${assessmentPlanFields.length}`);
       emitMedicalRecordTabSaved("assessment-plan", false);
     }
   };
@@ -342,35 +434,32 @@ export function CopyFromHistoryDrawer({
     const d = data as Record<string, unknown>;
 
     if (section === "anamnesis") {
-      const textFields = ["anamnesis_source", "functional_status", "chief_complaint", "history_of_present_illness", "past_medical_history", "family_history", "social_history", "current_medications"];
-      const filledText = textFields.filter((f) => {
-        const v = d[f];
-        return typeof v === "string" && v.trim() !== "";
-      }).length;
+      const filledText = countFilledFields(d, anamnesisFields);
       const filled = filledText + (isMeaningfulAllergySummary(d.allergies) ? 1 : 0);
-      return `${filled}/9`;
+      return `${filled}/${anamnesisFields.length + 1}`;
     }
 
     if (section === "physical-exam") {
-      const bodySectionIds = ["head", "eyes", "ears", "nose", "throat", "neck", "chest", "heart", "lungs", "abdomen", "extremities", "skin", "neurological"];
-      const filledBody = bodySectionIds.filter((id) => {
-        const v = d[id];
-        return typeof v === "string" && v.trim() !== "";
-      }).length;
+      const filledBody = countFilledFields(d, physicalBodyFields);
       const filledVitals = [
-        d.general_condition ? 1 : 0,
-        d.consciousness ? 1 : 0,
-        (d.blood_pressure_systolic || d.systolic) ? 1 : 0,
-        (d.blood_pressure_diastolic || d.diastolic) ? 1 : 0,
-        d.heart_rate ? 1 : 0,
-        d.respiratory_rate ? 1 : 0,
-        d.temperature ? 1 : 0,
-        d.oxygen_saturation ? 1 : 0,
-        d.upper_arm_circum ? 1 : 0,
-        d.head_circum ? 1 : 0,
-        d.waist ? 1 : 0,
+        hasMeaningfulValue(d.general_condition) ? 1 : 0,
+        hasMeaningfulValue(d.consciousness) ? 1 : 0,
+        hasMeaningfulValue(d.blood_pressure_systolic) || hasMeaningfulValue(d.systolic) ? 1 : 0,
+        hasMeaningfulValue(d.blood_pressure_diastolic) || hasMeaningfulValue(d.diastolic) ? 1 : 0,
+        hasMeaningfulValue(d.heart_rate) ? 1 : 0,
+        hasMeaningfulValue(d.respiratory_rate) ? 1 : 0,
+        hasMeaningfulValue(d.temperature) ? 1 : 0,
+        hasMeaningfulValue(d.oxygen_saturation) ? 1 : 0,
+        hasMeaningfulValue(d.weight) ? 1 : 0,
+        hasMeaningfulValue(d.height) ? 1 : 0,
+        hasMeaningfulValue(d.bmi) ? 1 : 0,
+        hasMeaningfulValue(d.upper_arm_circum) ? 1 : 0,
+        hasMeaningfulValue(d.head_circum) ? 1 : 0,
+        hasMeaningfulValue(d.waist) ? 1 : 0,
       ].reduce((a, b) => a + b, 0);
-      return `${filledBody + filledVitals}/24`;
+      const filledSupporting = countFilledFields(d, physicalSupportingFields);
+      const totalTarget = 15 + physicalBodyFields.length + physicalSupportingFields.length;
+      return `${filledBody + filledVitals + filledSupporting}/${totalTarget}`;
     }
 
     if (section === "diagnosis") {
@@ -383,12 +472,8 @@ export function CopyFromHistoryDrawer({
     }
 
     if (section === "assessment-plan") {
-      const apFields = ["clinical_assessment", "treatment_plan", "prognosis", "medication_plan", "diet_plan", "activity_plan", "education_plan", "procedure_plan", "consultation_plan", "monitoring_plan", "informed_consent"];
-      const filled = apFields.filter((f) => {
-        const v = d[f];
-        return typeof v === "string" && v.trim() !== "";
-      }).length;
-      return `${filled}/11`;
+      const filled = countFilledFields(d, assessmentPlanFields);
+      return `${filled}/${assessmentPlanFields.length}`;
     }
 
     return null;
@@ -403,6 +488,7 @@ export function CopyFromHistoryDrawer({
       if (["id", "visit_id", "created_at", "updated_at", "created_by_id", "updated_by_id"].includes(key)) return false;
       if (typeof value === "string" && value.trim()) return true;
       if (typeof value === "number" && value > 0 && key !== "id" && key !== "visit_id") return true;
+      if (typeof value === "boolean" && value) return true;
       if (Array.isArray(value) && value.length > 0) return true;
       return false;
     });
@@ -414,21 +500,38 @@ export function CopyFromHistoryDrawer({
       { label: "Status Fungsional", value: data.functional_status },
       { label: "Keluhan Utama", value: data.chief_complaint },
       { label: "Riwayat Penyakit Sekarang", value: data.history_of_present_illness },
+      { label: "Onset", value: data.onset },
+      { label: "Durasi", value: data.duration },
+      { label: "Derajat", value: data.severity },
+      { label: "Lokasi", value: data.location },
+      { label: "Karakter", value: data.character },
+      { label: "Faktor Memberatkan", value: data.aggravating_factors },
+      { label: "Faktor Meringankan", value: data.relieving_factors },
       { label: "Riwayat Penyakit Dahulu", value: data.past_medical_history },
+      { label: "Riwayat Operasi", value: data.past_surgical_history },
       { label: "Riwayat Keluarga", value: data.family_history },
       { label: "Riwayat Sosial", value: data.social_history },
+      { label: "Merokok", value: data.smoking_status },
+      { label: "Alkohol", value: data.alcohol_use },
+      { label: "Narkoba", value: data.drug_use },
       { label: "Alergi", value: data.allergies },
+      { label: "Tipe Alergi", value: data.allergy_type },
+      { label: "Reaksi Alergi", value: data.allergy_reaction },
       { label: "Obat Saat Ini", value: data.current_medications },
+      { label: "Imunisasi", value: data.immunization_history },
+      { label: "Riwayat Menstruasi", value: data.menstrual_history },
+      { label: "Riwayat Obstetri", value: data.obstetric_history },
+      { label: "Review of Systems", value: data.review_of_systems },
     ];
     const filledFields = fields.filter((f) => f.value?.trim());
     if (filledFields.length === 0) return <p className="text-xs text-muted-foreground italic">Tidak ada data</p>;
 
     return (
-      <div className="space-y-1">
+      <div className="space-y-1.5">
         {filledFields.map((f) => (
-          <div key={f.label} className="grid grid-cols-[88px_1fr] gap-1">
-            <p className="text-[10px] font-medium text-muted-foreground uppercase leading-4">{f.label}</p>
-            <p className="text-xs text-foreground line-clamp-2 leading-4">{f.value}</p>
+          <div key={f.label} className="grid grid-cols-[130px_1fr] gap-2 items-start">
+            <p className="text-[10px] font-semibold text-muted-foreground leading-4 whitespace-nowrap truncate">{f.label}</p>
+            <p className="text-xs text-foreground leading-5 break-words">{f.value}</p>
           </div>
         ))}
       </div>
@@ -436,43 +539,89 @@ export function CopyFromHistoryDrawer({
   };
 
   const renderPhysicalExamPreview = (data: PhysicalExam) => {
+    const systolic = data.systolic || data.blood_pressure_systolic;
+    const diastolic = data.diastolic || data.blood_pressure_diastolic;
     const vitalSigns = [
-      data.general_condition && `Keadaan Umum: ${data.general_condition}`,
-      data.consciousness && `Kesadaran: ${data.consciousness}`,
-      (data.systolic || data.blood_pressure_systolic) && `TD: ${data.systolic || data.blood_pressure_systolic}/${data.diastolic || data.blood_pressure_diastolic} mmHg`,
-      data.heart_rate && `HR: ${data.heart_rate}/mnt`,
-      data.respiratory_rate && `RR: ${data.respiratory_rate}/mnt`,
-      data.temperature && `Suhu: ${data.temperature}°C`,
-      data.oxygen_saturation && `SpO2: ${data.oxygen_saturation}%`,
-    ].filter(Boolean);
+      data.general_condition ? { label: "Keadaan Umum", value: `${data.general_condition}` } : null,
+      data.consciousness ? { label: "Kesadaran", value: `${data.consciousness}` } : null,
+      systolic && diastolic ? { label: "TD", value: `${systolic}/${diastolic} mmHg` } : null,
+      data.heart_rate ? { label: "HR", value: `${data.heart_rate}/mnt` } : null,
+      data.respiratory_rate ? { label: "RR", value: `${data.respiratory_rate}/mnt` } : null,
+      data.temperature ? { label: "Suhu", value: `${data.temperature}°C` } : null,
+      data.oxygen_saturation ? { label: "SpO2", value: `${data.oxygen_saturation}%` } : null,
+      data.weight ? { label: "BB", value: `${data.weight} kg` } : null,
+      data.height ? { label: "TB", value: `${data.height} cm` } : null,
+      data.bmi ? { label: "BMI", value: `${data.bmi}` } : null,
+      data.upper_arm_circum ? { label: "LILA", value: `${data.upper_arm_circum}` } : null,
+      data.head_circum ? { label: "Lingkar Kepala", value: `${data.head_circum}` } : null,
+      data.waist ? { label: "Lingkar Perut", value: `${data.waist}` } : null,
+    ].filter(Boolean) as { label: string; value: string }[];
 
     const bodyParts = [
       { label: "Kepala", value: data.head },
       { label: "Mata", value: data.eyes },
+      { label: "Telinga", value: data.ears },
+      { label: "Hidung", value: data.nose },
+      { label: "Tenggorokan", value: data.throat },
       { label: "Leher", value: data.neck },
       { label: "Dada", value: data.chest },
+      { label: "Jantung", value: data.heart },
+      { label: "Paru", value: data.lungs },
       { label: "Abdomen", value: data.abdomen },
       { label: "Ekstremitas", value: data.extremities },
+      { label: "Kulit", value: data.skin },
+      { label: "Neurologis", value: data.neurological },
+      { label: "Genitourinaria", value: data.genitourinary },
+      { label: "Temuan Lain", value: data.other_findings },
     ].filter((f) => f.value?.trim());
 
-    if (vitalSigns.length === 0 && bodyParts.length === 0) {
+    const supporting = [
+      data.pain_method ? { label: "Metode Nyeri", value: `${data.pain_method}` } : null,
+      (data.pain_scale || data.pain_scale === 0) ? { label: "Skala Nyeri", value: `${data.pain_scale}` } : null,
+      data.pain_location ? { label: "Lokasi Nyeri", value: `${data.pain_location}` } : null,
+      data.ecg_result ? { label: "ECG", value: `${data.ecg_result}` } : null,
+      data.ecg_interpretation ? { label: "Interpretasi ECG", value: `${data.ecg_interpretation}` } : null,
+      data.ctg_result ? { label: "CTG", value: `${data.ctg_result}` } : null,
+      data.ctg_interpretation ? { label: "Interpretasi CTG", value: `${data.ctg_interpretation}` } : null,
+      data.pelvic_result ? { label: "Pemeriksaan Pelvis", value: `${data.pelvic_result}` } : null,
+    ].filter(Boolean) as { label: string; value: string }[];
+
+    if (vitalSigns.length === 0 && bodyParts.length === 0 && supporting.length === 0) {
       return <p className="text-xs text-muted-foreground italic">Tidak ada data</p>;
     }
 
     return (
-      <div className="space-y-1">
+      <div className="space-y-2">
         {vitalSigns.length > 0 && (
           <div>
             <p className="text-[10px] font-medium text-muted-foreground uppercase leading-4">Tanda Vital</p>
-            <p className="text-xs text-foreground line-clamp-2 leading-4">{vitalSigns.join(" · ")}</p>
+            <div className="mt-0.5 grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-0.5">
+              {vitalSigns.map((item) => (
+                <p key={item.label} className="text-xs text-foreground leading-5 break-words">
+                  <span className="text-muted-foreground">{item.label}:</span> {item.value}
+                </p>
+              ))}
+            </div>
           </div>
         )}
         {bodyParts.map((f) => (
-          <div key={f.label} className="grid grid-cols-[72px_1fr] gap-1">
-            <p className="text-[10px] font-medium text-muted-foreground uppercase leading-4">{f.label}</p>
-            <p className="text-xs text-foreground line-clamp-2 leading-4">{f.value}</p>
+          <div key={f.label} className="grid grid-cols-[130px_1fr] gap-2 items-start">
+            <p className="text-[10px] font-semibold text-muted-foreground leading-4 whitespace-nowrap truncate">{f.label}</p>
+            <p className="text-xs text-foreground leading-5 break-words">{f.value}</p>
           </div>
         ))}
+        {supporting.length > 0 && (
+          <div>
+            <p className="text-[10px] font-medium text-muted-foreground uppercase leading-4">Pemeriksaan Penunjang</p>
+            <div className="mt-0.5 grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-0.5">
+              {supporting.map((item) => (
+                <p key={item.label} className="text-xs text-foreground leading-5 break-words">
+                  <span className="text-muted-foreground">{item.label}:</span> {item.value}
+                </p>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -484,13 +633,17 @@ export function CopyFromHistoryDrawer({
     }
 
     const primaryCount = items.filter((i) => i.diagnosis_type === "primary").length;
+    const secondaryCount = items.filter((i) => i.diagnosis_type === "secondary").length;
+    const differentialCount = items.filter((i) => i.diagnosis_type === "differential").length;
 
     return (
-      <div className="space-y-1">
+      <div className="space-y-1.5">
         {items.length > 0 && (
           <div className="flex items-center gap-1.5 flex-wrap">
             <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5">{items.length} ICD</Badge>
             {primaryCount > 0 && <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5">{primaryCount} primer</Badge>}
+            {secondaryCount > 0 && <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5">{secondaryCount} sekunder</Badge>}
+            {differentialCount > 0 && <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5">{differentialCount} banding</Badge>}
           </div>
         )}
         {items.slice(0, 2).map((item: DiagnosisItem, idx: number) => (
@@ -498,11 +651,14 @@ export function CopyFromHistoryDrawer({
             <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 leading-4 flex-shrink-0">
               {item.icd10_code}
             </Badge>
-            <span className="text-xs text-foreground line-clamp-1 leading-4">{item.icd10_name}</span>
+            <span className="text-xs text-foreground leading-5 break-words">{item.icd10_name}</span>
           </div>
         ))}
         {data.clinical_impression && (
-          <p className="text-xs text-foreground line-clamp-2 leading-4">{data.clinical_impression}</p>
+          <p className="text-xs text-foreground leading-5 break-words">{data.clinical_impression}</p>
+        )}
+        {data.differential_diagnosis && (
+          <p className="text-xs text-foreground leading-5 break-words">DDx: {data.differential_diagnosis}</p>
         )}
       </div>
     );
@@ -515,17 +671,22 @@ export function CopyFromHistoryDrawer({
       { label: "Rencana Terapi", value: data.treatment_plan },
       { label: "Rencana Obat", value: data.medication_plan },
       { label: "Rencana Diet", value: data.diet_plan },
+      { label: "Rencana Aktivitas", value: data.activity_plan },
       { label: "Rencana Edukasi", value: data.education_plan },
+      { label: "Rencana Prosedur", value: data.procedure_plan },
+      { label: "Rencana Konsultasi", value: data.consultation_plan },
+      { label: "Rencana Monitoring", value: data.monitoring_plan },
+      { label: "Informed Consent", value: data.informed_consent },
     ];
     const filledFields = fields.filter((f) => f.value?.trim());
     if (filledFields.length === 0) return <p className="text-xs text-muted-foreground italic">Tidak ada data</p>;
 
     return (
-      <div className="space-y-1">
+      <div className="space-y-1.5">
         {filledFields.map((f) => (
-          <div key={f.label} className="grid grid-cols-[88px_1fr] gap-1">
-            <p className="text-[10px] font-medium text-muted-foreground uppercase leading-4">{f.label}</p>
-            <p className="text-xs text-foreground line-clamp-2 leading-4">{f.value}</p>
+          <div key={f.label} className="grid grid-cols-[130px_1fr] gap-2 items-start">
+            <p className="text-[10px] font-semibold text-muted-foreground leading-4 whitespace-nowrap truncate">{f.label}</p>
+            <p className="text-xs text-foreground leading-5 break-words">{f.value}</p>
           </div>
         ))}
       </div>
@@ -545,10 +706,10 @@ export function CopyFromHistoryDrawer({
     const metric = getSectionMetric(section, data);
 
     return (
-      <div className="rounded-md border bg-background/90 p-2">
+      <div className="rounded-md border bg-background/90 p-2.5">
         <div className="flex items-center justify-between gap-2 mb-1.5">
           <div className="flex items-center gap-1.5 min-w-0">
-            <p className="text-[11px] font-semibold truncate">{getSectionLabel(section)}</p>
+            <p className="text-xs font-semibold truncate">{getSectionLabel(section)}</p>
             {metric && (
               <Badge variant="secondary" className="h-4 text-[9px] px-1.5 py-0 leading-4">
                 {metric}
@@ -584,7 +745,7 @@ export function CopyFromHistoryDrawer({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full sm:w-[56%] sm:max-w-none p-0">
+      <SheetContent side="right" className="w-screen max-w-[100vw] sm:w-[56%] sm:max-w-none p-0">
         <SheetHeader className="px-3 py-2.5 border-b bg-muted/30">
           <div>
             <SheetTitle className="text-sm font-semibold flex items-center gap-2">
@@ -614,8 +775,8 @@ export function CopyFromHistoryDrawer({
             </div>
           ) : (
             <div className="p-2">
-              <div className="rounded-md border overflow-hidden">
-                <table className="w-full text-xs">
+              <div className="rounded-md border overflow-x-auto">
+                <table className="w-full min-w-[760px] text-xs">
                   <thead className="bg-muted/40 border-b">
                     <tr className="text-[10px] uppercase tracking-wide text-muted-foreground">
                       <th className="text-left font-medium px-2 py-2 w-[120px]">Tanggal</th>
@@ -716,7 +877,7 @@ export function CopyFromHistoryDrawer({
                                       <span className="text-xs text-muted-foreground">Memuat rekam medis...</span>
                                     </div>
                                   ) : data ? (
-                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+                                    <div className="grid grid-cols-1 gap-2">
                                       {renderSectionCard("anamnesis", data.anamnesis, visit.id, renderAnamnesisPreview)}
                                       {renderSectionCard("physical-exam", data.physicalExam, visit.id, renderPhysicalExamPreview)}
                                       {renderSectionCard("diagnosis", data.diagnosis, visit.id, renderDiagnosisPreview)}

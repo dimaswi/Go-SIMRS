@@ -89,6 +89,7 @@ export function ProcedureForm({ visitId, readOnly = false }: ProcedureFormProps)
   const [addNotes, setAddNotes] = useState("");
   const [queueSearchQuery, setQueueSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "in_progress" | "completed" | "cancelled">("all");
+  const [activePanel, setActivePanel] = useState<"queue" | "catalog">("queue");
 
   // Dialogs
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -451,9 +452,28 @@ export function ProcedureForm({ visitId, readOnly = false }: ProcedureFormProps)
   return (
     <fieldset disabled={readOnly}>
     <div className="space-y-4">
-    <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
-      {/* Left Column - Available Procedures to Add */}
-      <div className="xl:col-span-2">
+      <div className="rounded-lg border bg-background p-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant={activePanel === "queue" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setActivePanel("queue")}
+          >
+            Antrian Tindakan ({queueCounts.all})
+          </Button>
+          <Button
+            type="button"
+            variant={activePanel === "catalog" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setActivePanel("catalog")}
+          >
+            Tambah Tindakan
+          </Button>
+        </div>
+      </div>
+
+      {activePanel === "catalog" && (
         <div className="rounded-lg border bg-background overflow-hidden">
           <div className="border-b p-3 space-y-2 bg-muted/20">
             <div className="flex items-center justify-between gap-2">
@@ -504,6 +524,15 @@ export function ProcedureForm({ visitId, readOnly = false }: ProcedureFormProps)
                     </>
                   )}
                 </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8"
+                  onClick={() => setActivePanel("queue")}
+                >
+                  Lihat Antrian
+                </Button>
               </div>
             </div>
           </div>
@@ -511,7 +540,7 @@ export function ProcedureForm({ visitId, readOnly = false }: ProcedureFormProps)
           {canCreate ? (
             filteredProcedures.length > 0 ? (
               <div className="max-h-[520px] overflow-auto">
-                <table className="w-full text-sm">
+                <table className="w-full min-w-[640px] text-sm">
                   <thead className="sticky top-0 bg-background z-10 border-b">
                     <tr>
                       <th className="py-2 px-3 w-10 text-left">✓</th>
@@ -574,28 +603,32 @@ export function ProcedureForm({ visitId, readOnly = false }: ProcedureFormProps)
           )}
 
         </div>
-      </div>
+      )}
 
-      {/* Right Column - Added Procedures with Collapsible Form */}
-      <div className="xl:col-span-3">
+      {activePanel === "queue" && (
         <div className="rounded-lg border bg-background overflow-hidden">
           <div className="border-b p-3 space-y-2 bg-muted/20">
-            <div className="flex flex-wrap items-center gap-2">
-              <Button type="button" variant={statusFilter === "all" ? "default" : "outline"} size="sm" onClick={() => setStatusFilter("all")}>
+            <div className="flex flex-wrap items-center gap-2 justify-between">
+              <div className="flex flex-wrap items-center gap-2">
+                <Button type="button" variant={statusFilter === "all" ? "default" : "outline"} size="sm" onClick={() => setStatusFilter("all")}>
                 Semua ({queueCounts.all})
-              </Button>
-              <Button type="button" variant={statusFilter === "pending" ? "default" : "outline"} size="sm" onClick={() => setStatusFilter("pending")}>
+                </Button>
+                <Button type="button" variant={statusFilter === "pending" ? "default" : "outline"} size="sm" onClick={() => setStatusFilter("pending")}>
                 Menunggu ({queueCounts.pending})
-              </Button>
-              <Button type="button" variant={statusFilter === "in_progress" ? "default" : "outline"} size="sm" onClick={() => setStatusFilter("in_progress")}>
+                </Button>
+                <Button type="button" variant={statusFilter === "in_progress" ? "default" : "outline"} size="sm" onClick={() => setStatusFilter("in_progress")}>
                 Proses ({queueCounts.in_progress})
-              </Button>
-              <Button type="button" variant={statusFilter === "completed" ? "default" : "outline"} size="sm" onClick={() => setStatusFilter("completed")}>
+                </Button>
+                <Button type="button" variant={statusFilter === "completed" ? "default" : "outline"} size="sm" onClick={() => setStatusFilter("completed")}>
                 Selesai ({queueCounts.completed})
-              </Button>
-              <Button type="button" variant={statusFilter === "cancelled" ? "default" : "outline"} size="sm" onClick={() => setStatusFilter("cancelled")}>
+                </Button>
+                <Button type="button" variant={statusFilter === "cancelled" ? "default" : "outline"} size="sm" onClick={() => setStatusFilter("cancelled")}>
                 Batal ({queueCounts.cancelled})
-              </Button>
+                </Button>
+              </div>
+              {canCreate && (
+                <Button type="button" variant="outline" size="sm" onClick={() => setActivePanel("catalog")}>Tambah Tindakan</Button>
+              )}
             </div>
             <Input
               value={queueSearchQuery}
@@ -740,7 +773,7 @@ export function ProcedureForm({ visitId, readOnly = false }: ProcedureFormProps)
                         <div className="border-t bg-muted/20 p-4 space-y-4">
                           {/* Info Section */}
                           <div className="bg-background rounded-lg p-3 border">
-                            <div className="grid grid-cols-2 gap-2 text-sm">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
                               <div>
                                 <span className="text-muted-foreground">Kode:</span>{" "}
                                 <span className="font-medium">{vp.procedure?.code}</span>
@@ -844,7 +877,7 @@ export function ProcedureForm({ visitId, readOnly = false }: ProcedureFormProps)
                           {/* Completed/Cancelled Status Display */}
                           {vp.status === "completed" && (
                             <div className="bg-green-50 dark:bg-green-950 border border-green-200 rounded-lg p-3">
-                              <div className="flex items-center justify-between">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
                                 <div>
                                   <p className="font-medium text-green-700 dark:text-green-300 flex items-center gap-2 text-sm">
                                     <CheckCircle className="h-4 w-4" />
@@ -862,7 +895,7 @@ export function ProcedureForm({ visitId, readOnly = false }: ProcedureFormProps)
 
                           {vp.status === "cancelled" && (
                             <div className="bg-red-50 dark:bg-red-950 border border-red-200 rounded-lg p-3">
-                              <div className="flex items-center justify-between">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
                                 <p className="font-medium text-red-700 dark:text-red-300 flex items-center gap-2 text-sm">
                                   <XCircle className="h-4 w-4" />
                                   Tindakan Dibatalkan
@@ -873,8 +906,8 @@ export function ProcedureForm({ visitId, readOnly = false }: ProcedureFormProps)
 
                           {/* Results Display (for completed) */}
                           {vp.status === "completed" && vp.results && vp.results.length > 0 && (
-                            <div className="border rounded-lg overflow-hidden">
-                              <table className="w-full text-sm">
+                            <div className="border rounded-lg overflow-x-auto">
+                              <table className="w-full min-w-[640px] text-sm">
                                 <thead className="bg-muted/50">
                                   <tr>
                                     <th className="py-2 px-3 text-left font-medium">Parameter</th>
@@ -921,7 +954,7 @@ export function ProcedureForm({ visitId, readOnly = false }: ProcedureFormProps)
             </div>
           )}
         </div>
-      </div>
+      )}
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
@@ -943,7 +976,6 @@ export function ProcedureForm({ visitId, readOnly = false }: ProcedureFormProps)
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
     </div>
     </fieldset>
   );

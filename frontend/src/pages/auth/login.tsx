@@ -4,10 +4,18 @@ import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { authApi, settingsApi } from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
+import {
+  getSavedAccounts,
+  removeSavedAccount,
+  touchSavedAccount,
+  upsertSavedAccount,
+  type SavedAuthAccount,
+} from '@/lib/saved-accounts';
 import { setPageTitle, getAppName } from '@/lib/page-title';
-import { Building2, Loader2 } from 'lucide-react';
+import { Building2, Loader2, LogIn, Trash2 } from 'lucide-react';
 
 const getBaseUrl = () => {
   const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
@@ -229,6 +237,8 @@ export default function LoginPage() {
   const { login } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberLogin, setRememberLogin] = useState(true);
+  const [savedAccounts, setSavedAccounts] = useState<SavedAuthAccount[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [appName, setAppName] = useState('StarterKits');
@@ -238,6 +248,11 @@ export default function LoginPage() {
   useEffect(() => {
     setPageTitle('Login');
     loadSettings();
+    setSavedAccounts(getSavedAccounts());
+  }, []);
+
+  const refreshSavedAccounts = useCallback(() => {
+    setSavedAccounts(getSavedAccounts());
   }, []);
 
   const updateFavicon = (faviconUrl: string) => {
@@ -286,12 +301,27 @@ export default function LoginPage() {
     try {
       const response = await authApi.login({ email, password });
       login(response.data.token, response.data.user);
+      if (rememberLogin) {
+        upsertSavedAccount(response.data.token, response.data.user);
+      }
       navigate('/dashboard');
     } catch (err: any) {
       setError(err.response?.data?.error || 'Login failed. Please try again.');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleQuickLogin = (account: SavedAuthAccount) => {
+    login(account.token, account.user);
+    touchSavedAccount(account.key);
+    navigate('/dashboard');
+  };
+
+  const handleRemoveSavedAccount = (e: React.MouseEvent, accountKey: string) => {
+    e.stopPropagation();
+    removeSavedAccount(accountKey);
+    refreshSavedAccounts();
   };
 
   const logoEl = (
@@ -424,6 +454,17 @@ export default function LoginPage() {
                 />
               </div>
 
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="remember-login"
+                  checked={rememberLogin}
+                  onCheckedChange={(checked) => setRememberLogin(checked === true)}
+                />
+                <Label htmlFor="remember-login" className="text-sm cursor-pointer">
+                  Simpan akun ini di perangkat
+                </Label>
+              </div>
+
               {error && (
                 <motion.div
                   initial={{ opacity: 0, y: -4 }}
@@ -448,6 +489,48 @@ export default function LoginPage() {
                   'Sign In'
                 )}
               </Button>
+
+              {savedAccounts.length > 0 && (
+                <div className="space-y-2 rounded-lg border border-border/60 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Akun Tersimpan
+                  </p>
+                  <div className="space-y-1.5">
+                    {savedAccounts.map((account) => (
+                      <div
+                        key={account.key}
+                        className="flex w-full items-center justify-between rounded-md border border-transparent px-2 py-1.5 hover:bg-muted"
+                      >
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm font-medium">{account.user.full_name}</span>
+                          <span className="block truncate text-xs text-muted-foreground">{account.user.email}</span>
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-7 px-2"
+                            onClick={() => handleQuickLogin(account)}
+                          >
+                            <LogIn className="mr-1 h-3.5 w-3.5" />
+                            Masuk
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={(e) => handleRemoveSavedAccount(e, account.key)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+                          </Button>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </form>
           </div>
 

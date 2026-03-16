@@ -245,12 +245,13 @@ func Migrate() error {
 	}
 
 	err := DB.AutoMigrate(
-		&models.Role{},           // First, roles
-		&models.Permission{},     // Then permissions
-		&models.RolePermission{}, // Junction table
-		&models.Employee{},       // Employees (before users, as users may reference employees)
-		&models.User{},           // Then users (depends on roles and employees)
-		&models.Setting{},        // Settings
+		&models.Role{},              // First, roles
+		&models.Permission{},        // Then permissions
+		&models.RolePermission{},    // Junction table
+		&models.Employee{},          // Employees (before users, as users may reference employees)
+		&models.User{},              // Then users (depends on roles and employees)
+		&models.UserTabPreference{}, // User tab preferences (per-user UI tab order)
+		&models.Setting{},           // Settings
 		// Region tables
 		&models.Province{}, // Provinces
 		&models.Regency{},  // Regencies/Cities
@@ -623,6 +624,7 @@ func createPartialUniqueIndexes() {
 func CleanMigrate() error {
 	// Drop tables in reverse order to handle foreign key constraints
 	DB.Exec("DROP TABLE IF EXISTS role_permissions CASCADE")
+	DB.Exec("DROP TABLE IF EXISTS user_tab_preferences CASCADE")
 	DB.Exec("DROP TABLE IF EXISTS users CASCADE")
 	DB.Exec("DROP TABLE IF EXISTS permissions CASCADE")
 	DB.Exec("DROP TABLE IF EXISTS roles CASCADE")
@@ -668,6 +670,8 @@ func SeedData() error {
 
 		// Regions Management
 		{Name: "regions.view", Module: "Region Management", Category: "Regions", Description: "View regions data (provinces, regencies, districts, villages)", Actions: `["read"]`},
+		{Name: "regions.create", Module: "Region Management", Category: "Regions", Description: "Create new regions data", Actions: `["create"]`},
+		{Name: "regions.update", Module: "Region Management", Category: "Regions", Description: "Update existing regions data", Actions: `["update"]`},
 		{Name: "regions.sync", Module: "Region Management", Category: "Regions", Description: "Sync regions data from external API", Actions: `["sync"]`},
 
 		// Master Data Management

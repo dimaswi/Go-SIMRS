@@ -28,6 +28,7 @@ export interface Triage {
   // Pain & Assessment
   pain_method?: string;
   pain_scale?: number;
+  pain_location?: string;
   triage_assessment?: string;
   immediate_actions?: string;
   // Tracking
@@ -133,6 +134,7 @@ export interface PhysicalExam {
   // Pain Assessment
   pain_method?: string;
   pain_scale?: number;
+  pain_location?: string;
   // Extra fields
   liver?: string;
   spleen?: string;

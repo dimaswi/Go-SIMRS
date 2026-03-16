@@ -147,7 +147,8 @@ type MedicineOrderItem struct {
 	SatusehatMedicationAdministrationID string `gorm:"size:100" json:"satusehat_medication_administration_id"` // FHIR MedicationAdministration ID
 
 	// Notes
-	Notes string `gorm:"type:text" json:"notes"`
+	Notes           string `gorm:"type:text" json:"notes"`
+	AddedByPharmacy bool   `gorm:"default:false" json:"added_by_pharmacy"`
 }
 
 // TableName sets the table name for MedicineOrderItem

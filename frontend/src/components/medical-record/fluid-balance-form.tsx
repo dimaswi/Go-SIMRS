@@ -150,13 +150,13 @@ function FluidBalanceCollapsibleRow({
         <CollapsibleContent>
           <div className="px-4 pb-4 pt-0 ml-8 mr-4">
             {/* Intake/Output Details */}
-            <div className="grid grid-cols-2 gap-3 text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
               <div className="bg-muted/50 border rounded-lg p-3">
                 <p className="font-medium mb-2 flex items-center gap-1">
                   <ArrowDownToLine className="h-4 w-4 text-muted-foreground" />
                   Intake: {balance.total_intake} ml
                 </p>
-                <div className="grid grid-cols-2 gap-1 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-xs">
                   {balance.oral_drink > 0 && <span>Minum: {balance.oral_drink} ml</span>}
                   {balance.iv_fluid > 0 && <span>Infus: {balance.iv_fluid} ml</span>}
                   {balance.oral_food > 0 && <span>Makanan: {balance.oral_food} ml</span>}
@@ -172,7 +172,7 @@ function FluidBalanceCollapsibleRow({
                   <ArrowUpFromLine className="h-4 w-4 text-muted-foreground" />
                   Output: {balance.total_output} ml
                 </p>
-                <div className="grid grid-cols-2 gap-1 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-xs">
                   {balance.urine_amount > 0 && <span>Urine: {balance.urine_amount} ml</span>}
                   {balance.feces_amount > 0 && <span>BAB: {balance.feces_amount} ml</span>}
                   {balance.vomit_amount > 0 && <span>Muntah: {balance.vomit_amount} ml</span>}
@@ -444,7 +444,7 @@ export function FluidBalanceForm({ visitId, readOnly = false }: FluidBalanceForm
         <div className="p-0">
           {/* Balance List */}
           {balances.length > 0 ? (
-            <div className="rounded-lg border overflow-hidden">
+            <div className="rounded-lg border overflow-x-auto">
               {/* Table Header */}
               <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-muted/50 text-xs font-medium text-muted-foreground border-b sticky top-0 rounded-t-lg">
                 <div className="col-span-1"></div>
@@ -512,7 +512,7 @@ export function FluidBalanceForm({ visitId, readOnly = false }: FluidBalanceForm
           <ScrollArea className="flex-1 px-6 py-4">
             <div className="grid gap-4 pb-4">
               {/* Date & Shift */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Tanggal</Label>
                   <Input
@@ -547,7 +547,7 @@ export function FluidBalanceForm({ visitId, readOnly = false }: FluidBalanceForm
                   <ArrowDownToLine className="h-4 w-4 text-muted-foreground" />
                   INTAKE (Masukan)
                 </Label>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
                   <div className="space-y-1">
                     <Label className="text-xs">Minum (ml)</Label>
                     <Input
@@ -624,7 +624,7 @@ export function FluidBalanceForm({ visitId, readOnly = false }: FluidBalanceForm
                   <ArrowUpFromLine className="h-4 w-4 text-muted-foreground" />
                   OUTPUT (Keluaran)
                 </Label>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
                   <div className="space-y-1">
                     <Label className="text-xs">Urine (ml)</Label>
                     <Input

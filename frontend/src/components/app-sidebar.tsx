@@ -39,10 +39,21 @@ import {
   BarChart3,
   ScrollText,
   CalendarCheck,
+  UserPlus,
+  UserCheck,
+  Trash2,
+  Loader2,
 } from 'lucide-react';
 import { useAuthStore } from '@/lib/store';
 import { usePermission } from '@/hooks/usePermission';
 import { getAppName, getAppSubtitle, getAppLogo } from '@/lib/page-title';
+import {
+  getSavedAccounts,
+  removeSavedAccount,
+  touchSavedAccount,
+  upsertSavedAccount,
+  type SavedAuthAccount,
+} from '@/lib/saved-accounts';
 import {
   Sidebar,
   SidebarContent,
@@ -59,6 +70,15 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
 import {
   Tooltip,
   TooltipContent,
@@ -86,7 +106,6 @@ const menuItems: MenuItem[] = [
       { path: '/queues', label: 'Antrean', icon: ClipboardList, permission: 'queues.view' },
       { path: '/checkin', label: 'Check-In Scanner', icon: QrCode, permission: 'registrations.checkin' },
       { path: '/registrations', label: 'Pendaftaran', icon: UserRound, permission: 'registrations.view' },
-      { path: '/admisi', label: 'Permintaan Rawat Inap', icon: BedDouble, permission: 'registrations.view' },
       { path: '/visits', label: 'Kunjungan', icon: Activity, permission: 'visits.view' },
       { path: '/billing', label: 'Kasir & Billing', icon: Receipt, permission: 'billing.view' },
     ]
@@ -119,7 +138,7 @@ const menuItems: MenuItem[] = [
       { path: '/medicines', label: 'Obat', icon: Pill, permission: 'medicines.view' },
       { path: '/procedures', label: 'Tindakan', icon: Syringe, permission: 'procedures.view' },
       { path: '/icd', label: 'Kode ICD', icon: BookMarked },
-      { path: '/regions', label: 'Wilayah', icon: MapPin },
+        { path: '/regions', label: 'Wilayah', icon: MapPin, permission: 'regions.view' },
       { path: '/master-data', label: 'Referensi Data', icon: Database },
     ]
   },
@@ -196,6 +215,38 @@ const menuItems: MenuItem[] = [
     ]
   },
 ];
+
+function matchesPath(pathname: string, menuPath: string, exact?: boolean): boolean {
+  const baseMenuPath = menuPath.split('?')[0];
+  if (exact) return pathname === baseMenuPath;
+  if (pathname === baseMenuPath) return true;
+  return pathname.startsWith(`${baseMenuPath}/`);
+}
+
+function getRequiredPermissionForPath(pathname: string): string | null {
+  const candidates: Array<{ path: string; permission: string; exact?: boolean }> = [];
+
+  menuItems.forEach((item) => {
+    if (item.permission) {
+      candidates.push({ path: item.path, permission: item.permission, exact: item.exact });
+    }
+    (item.submenu || []).forEach((sub) => {
+      if (sub.permission) {
+        candidates.push({ path: sub.path, permission: sub.permission, exact: sub.exact });
+      }
+    });
+  });
+
+  const matched = candidates
+    .filter((candidate) => matchesPath(pathname, candidate.path, candidate.exact))
+    .sort((a, b) => b.path.length - a.path.length);
+
+  return matched[0]?.permission || null;
+}
+
+function userHasPermission(user: SavedAuthAccount['user'], permission: string): boolean {
+  return !!user.role?.permissions?.some((p) => p.name === permission);
+}
 
 // Tree child item
 function TreeChild({
@@ -373,30 +424,96 @@ function TreeParent({
 
 export function AppSidebar() {
   const location = useLocation();
-  const { user, logout } = useAuthStore();
+  const { user, token, login, logout } = useAuthStore();
   const { state } = useSidebar();
   const { hasPermission } = usePermission();
+  const [savedAccounts, setSavedAccounts] = useState<SavedAuthAccount[]>([]);
+  const [showAccountSwitcher, setShowAccountSwitcher] = useState(false);
+  const [switchingAccountKey, setSwitchingAccountKey] = useState<string | null>(null);
+  const [savingCurrentAccount, setSavingCurrentAccount] = useState(false);
+  const [accountActionProgress, setAccountActionProgress] = useState(18);
   const [appName, setAppName] = useState(getAppName());
   const [appSubtitle, setAppSubtitle] = useState(getAppSubtitle());
   const [appLogo, setAppLogo] = useState(getAppLogo());
+
+  const isAccountActionLoading = savingCurrentAccount || !!switchingAccountKey;
+
+  const refreshSavedAccounts = () => {
+    setSavedAccounts(getSavedAccounts());
+  };
+
   useEffect(() => {
     const handleStorageChange = () => {
       setAppName(getAppName());
       setAppSubtitle(getAppSubtitle());
       setAppLogo(getAppLogo());
+      refreshSavedAccounts();
     };
     window.addEventListener('storage', handleStorageChange);
+    refreshSavedAccounts();
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
+
+  useEffect(() => {
+    if (!isAccountActionLoading) {
+      setAccountActionProgress(18);
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      setAccountActionProgress((prev) => {
+        const next = prev + Math.floor(Math.random() * 12) + 6;
+        return next >= 92 ? 24 : next;
+      });
+    }, 220);
+
+    return () => window.clearInterval(interval);
+  }, [isAccountActionLoading]);
 
   const handleLogout = () => {
     logout();
     window.location.href = '/login';
   };
 
+  const handleSaveCurrentAccount = async () => {
+    if (!token || !user) return;
+    setSavingCurrentAccount(true);
+    upsertSavedAccount(token, user);
+    refreshSavedAccounts();
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    setSavingCurrentAccount(false);
+  };
+
+  const handleQuickSwitch = async (account: SavedAuthAccount) => {
+    if (switchingAccountKey) return;
+
+    setSwitchingAccountKey(account.key);
+    const requiredPermission = getRequiredPermissionForPath(location.pathname);
+    const canStayOnCurrentPage = !requiredPermission || userHasPermission(account.user, requiredPermission);
+
+    login(account.token, account.user);
+    touchSavedAccount(account.key);
+    refreshSavedAccounts();
+    setShowAccountSwitcher(false);
+    await new Promise((resolve) => setTimeout(resolve, 80));
+
+    if (canStayOnCurrentPage) {
+      window.location.href = `${location.pathname}${location.search}${location.hash}`;
+      return;
+    }
+
+    window.location.href = '/dashboard';
+  };
+
+  const handleRemoveSavedAccount = (accountKey: string) => {
+    removeSavedAccount(accountKey);
+    refreshSavedAccounts();
+  };
+
   const isPathActive = (currentPath: string, menuPath: string) => {
-    if (currentPath === menuPath) return true;
-    return currentPath.startsWith(menuPath + '/');
+    const baseMenuPath = menuPath.split('?')[0];
+    if (currentPath === baseMenuPath) return true;
+    return currentPath.startsWith(baseMenuPath + '/');
   };
 
   const isCollapsed = state === 'collapsed';
@@ -418,7 +535,14 @@ export function AppSidebar() {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild className="data-[state=open]:bg-transparent hover:bg-transparent">
-              <a href="/" className="font-semibold">
+              <button
+                type="button"
+                onClick={() => {
+                  refreshSavedAccounts();
+                  setShowAccountSwitcher(true);
+                }}
+                className="font-semibold text-left"
+              >
                 <div className="flex aspect-square size-8 items-center justify-center rounded-xl bg-primary text-primary-foreground overflow-hidden shrink-0">
                   {appLogo ? (
                     <img
@@ -434,7 +558,7 @@ export function AppSidebar() {
                   <span className="font-bold text-sm tracking-tight truncate">{appName}</span>
                   <span className="text-[11px] text-muted-foreground truncate">{appSubtitle}</span>
                 </div>
-              </a>
+              </button>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
@@ -569,6 +693,81 @@ export function AppSidebar() {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
+
+      <Dialog open={showAccountSwitcher} onOpenChange={setShowAccountSwitcher}>
+        <DialogContent className="sm:max-w-lg overflow-hidden">
+          {isAccountActionLoading && (
+            <div className="absolute inset-x-0 top-0 z-10">
+              <Progress value={accountActionProgress} className="h-1 rounded-none bg-primary/15" />
+            </div>
+          )}
+          <DialogHeader>
+            <DialogTitle>Pilih Akun</DialogTitle>
+            <DialogDescription>
+              Klik akun tersimpan untuk langsung masuk tanpa login ulang.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full justify-start"
+              onClick={handleSaveCurrentAccount}
+              disabled={savingCurrentAccount || !!switchingAccountKey}
+            >
+              {savingCurrentAccount ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <UserPlus className="mr-2 h-4 w-4" />
+              )}
+              {savingCurrentAccount ? 'Menyimpan akun...' : 'Simpan akun aktif saat ini'}
+            </Button>
+
+            <div className="max-h-[50vh] space-y-2 overflow-y-auto pr-1">
+              {savedAccounts.length === 0 && (
+                <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+                  Belum ada akun tersimpan.
+                </div>
+              )}
+
+              {savedAccounts.map((account) => (
+                <div key={account.key} className="flex items-center justify-between rounded-md border p-2.5">
+                  <div className="min-w-0 pr-2">
+                    <p className="truncate text-sm font-medium">{account.user.full_name}</p>
+                    <p className="truncate text-xs text-muted-foreground">{account.user.email}</p>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => handleQuickSwitch(account)}
+                      disabled={!!switchingAccountKey}
+                    >
+                      {switchingAccountKey === account.key ? (
+                        <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <UserCheck className="mr-1 h-3.5 w-3.5" />
+                      )}
+                      {switchingAccountKey === account.key ? 'Memproses...' : 'Pilih'}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      disabled={!!switchingAccountKey}
+                      onClick={() => handleRemoveSavedAccount(account.key)}
+                    >
+                      <Trash2 className="h-4 w-4 text-muted-foreground" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Sidebar>
   );
 }

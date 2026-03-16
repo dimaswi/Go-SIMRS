@@ -5,7 +5,7 @@ import { api } from './client';
 // ========================================
 
 // Procedure Types
-export type ProcedureType = 'medical' | 'radiology' | 'laboratory';
+export type ProcedureType = 'medical' | 'consultation' | 'radiology' | 'laboratory';
 
 // Patient Class Types
 export type PatientClass = 
@@ -375,6 +375,7 @@ export const roomProceduresApi = {
 // Procedure types
 export const PROCEDURE_TYPES: Array<{ code: ProcedureType; label: string }> = [
   { code: 'medical', label: 'Tindakan Medis' },
+  { code: 'consultation', label: 'Konsultasi' },
   { code: 'radiology', label: 'Radiologi' },
   { code: 'laboratory', label: 'Laboratorium' },
 ];
@@ -563,13 +564,29 @@ export const getServiceTypeLabel = (type: string): string => {
 };
 
 // Get procedure type label
-export const getProcedureTypeLabel = (type: ProcedureType): string => {
+export const normalizeProcedureType = (type?: string): ProcedureType | undefined => {
+  if (!type) return undefined;
+
+  if (type === 'consultasi') return 'consultation';
+
+  if (type === 'medical' || type === 'consultation' || type === 'radiology' || type === 'laboratory') {
+    return type;
+  }
+
+  return undefined;
+};
+
+// Get procedure type label
+export const getProcedureTypeLabel = (type: string): string => {
+  const normalizedType = normalizeProcedureType(type);
+
   const labels: Record<ProcedureType, string> = {
     'medical': 'Tindakan Medis',
+    'consultation': 'Konsultasi',
     'radiology': 'Radiologi',
     'laboratory': 'Laboratorium',
   };
-  return labels[type] || type;
+  return normalizedType ? labels[normalizedType] : type;
 };
 
 // Get input type label

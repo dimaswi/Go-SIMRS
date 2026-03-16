@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import { setPageTitle } from "@/lib/page-title";
-import { proceduresApi, TARIFF_COMPONENTS, tariffsToRequest, PROCEDURE_TYPES } from "@/lib/api/procedures";
+import { proceduresApi, TARIFF_COMPONENTS, tariffsToRequest, PROCEDURE_TYPES, normalizeProcedureType } from "@/lib/api/procedures";
 import { masterDataApi, type MasterData } from "@/lib/api/master-data";
 import type { CreateProcedureRequest, Procedure, PatientClass, TariffRequest, ProcedureType } from "@/lib/api/procedures";
 import { Button } from "@/components/ui/button";
@@ -144,7 +144,7 @@ export default function ProcedureEdit() {
         code: data.code,
         name: data.name,
         description: data.description || "",
-        procedure_type: data.procedure_type || "medical",
+        procedure_type: normalizeProcedureType(data.procedure_type) || "medical",
         inacbg_code: data.inacbg_code || "",
         inacbg_name: data.inacbg_name || "",
         procedure_group: data.procedure_group || "",

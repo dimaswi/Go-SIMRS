@@ -201,7 +201,7 @@ function OrderCollapsible({ order, onCancel, canCancel }: { order: ProcedureOrde
           <div className="mt-3 ml-6 space-y-3">
             {/* Order Info Table */}
             <div className="bg-muted/30 rounded-lg p-3">
-              <table className="w-full text-sm">
+              <table className="w-full min-w-[640px] text-sm">
                 <tbody>
                   <tr>
                     <td className="py-1 text-muted-foreground w-1/3">No. RM</td>
@@ -247,7 +247,7 @@ function OrderCollapsible({ order, onCancel, canCancel }: { order: ProcedureOrde
             {order.status === "completed" ? (
               <div className="space-y-3">
                 {order.items?.filter(item => item.status !== "cancelled").map((item) => (
-                  <div key={item.id} className="border rounded-lg overflow-hidden">
+                  <div key={item.id} className="border rounded-lg overflow-x-auto">
                     <div className="bg-muted/50 px-3 py-2 font-medium flex items-center justify-between">
                       <span>{item.procedure?.name}</span>
                       <Badge variant="default">
@@ -298,8 +298,8 @@ function OrderCollapsible({ order, onCancel, canCancel }: { order: ProcedureOrde
                 )}
               </div>
             ) : (
-              <div className="border rounded-lg overflow-hidden">
-                <table className="w-full text-sm">
+              <div className="border rounded-lg overflow-x-auto">
+                <table className="w-full min-w-[640px] text-sm">
                   <thead className="bg-muted/50">
                     <tr>
                       <th className="py-2 px-3 text-left font-medium">Pemeriksaan</th>

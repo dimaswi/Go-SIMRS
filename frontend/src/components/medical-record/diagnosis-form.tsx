@@ -473,7 +473,7 @@ export function DiagnosisForm({ visitId, onSave, readOnly = false, isPatientDisc
             
             {/* Section 1: Diagnosis Primer */}
             <div className="space-y-4">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-3"><Badge variant={primaryDiagnoses.length > 0 ? "default" : "outline"}>
                       {primaryDiagnoses.length}
                     </Badge>
@@ -569,7 +569,7 @@ export function DiagnosisForm({ visitId, onSave, readOnly = false, isPatientDisc
 
             {/* Section 2: Diagnosis Sekunder */}
             <div className="space-y-4">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-3"><Badge variant={secondaryDiagnoses.length > 0 ? "default" : "outline"}>
                       {secondaryDiagnoses.length}
                     </Badge>

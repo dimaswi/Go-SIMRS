@@ -55,6 +55,15 @@ interface DispenseItem {
   remaining: number;
 }
 
+const formatRupiah = (value: number) => {
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(Number.isFinite(value) ? value : 0);
+};
+
 export function PharmacyDispense({ visitId, readOnly = false }: PharmacyDispenseProps) {
   const { toast } = useToast();
   const { hasPermission } = usePermission();
@@ -406,7 +415,7 @@ export function PharmacyDispense({ visitId, readOnly = false }: PharmacyDispense
               </div>
             </div>
             <div className="p-3">
-              <table className="w-full text-sm">
+              <table className="w-full min-w-[640px] text-sm">
                 <tbody>
                   <tr className="border-b">
                     <td className="py-2 text-muted-foreground w-1/4">Diagnosis</td>
@@ -496,6 +505,9 @@ export function PharmacyDispense({ visitId, readOnly = false }: PharmacyDispense
                 {dispenseItems.map((dispenseItem) => {
                   const { item, remaining, selected, dispensed_qty } = dispenseItem;
                   const isDelivered = remaining === 0;
+                  const unitPrice = Number((item as any).unit_price ?? (item as any).price ?? (item.medicine as any)?.selling_price ?? 0);
+                  const orderedSubtotal = unitPrice * Number(item.quantity || 0);
+                  const dispensedSubtotal = unitPrice * Number(item.dispensed_qty || 0);
 
                   return (
                     <div
@@ -544,6 +556,18 @@ export function PharmacyDispense({ visitId, readOnly = false }: PharmacyDispense
                             <div>
                               <span className="text-muted-foreground">Sudah diserahkan:</span>{" "}
                               <span className="font-medium">{item.dispensed_qty || 0} {item.unit}</span>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Harga Satuan:</span>{" "}
+                              <span className="font-medium">{formatRupiah(unitPrice)}</span>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Subtotal Dipesan:</span>{" "}
+                              <span className="font-medium">{formatRupiah(orderedSubtotal)}</span>
+                            </div>
+                            <div className="col-span-2">
+                              <span className="text-muted-foreground">Subtotal Terserah:</span>{" "}
+                              <span className="font-medium">{formatRupiah(dispensedSubtotal)}</span>
                             </div>
                           </div>
                           {remaining > 0 && canDispense && selected && (

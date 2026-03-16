@@ -101,7 +101,7 @@ export function EditDoctorDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="w-[calc(100vw-1rem)] max-w-[425px] p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle>Ganti Dokter</DialogTitle>
           <DialogDescription>
@@ -136,18 +136,20 @@ export function EditDoctorDialog({
           </div>
         </div>
 
-        <div className="flex justify-end gap-2">
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Button
             type="button"
             variant="outline"
             onClick={() => onOpenChange(false)}
             disabled={saving}
+            className="w-full sm:w-auto"
           >
             Batal
           </Button>
           <Button
             onClick={handleSave}
             disabled={saving || !selectedDoctorId || loading}
+            className="w-full sm:w-auto"
           >
             {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Simpan

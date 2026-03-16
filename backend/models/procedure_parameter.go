@@ -54,15 +54,17 @@ func (ProcedureParameter) TableName() string {
 // ========================================
 
 const (
-	ProcedureTypeMedical    = "medical"    // Tindakan medis umum
-	ProcedureTypeRadiology  = "radiology"  // Tindakan radiologi
-	ProcedureTypeLaboratory = "laboratory" // Tindakan laboratorium
+	ProcedureTypeMedical      = "medical"      // Tindakan medis umum
+	ProcedureTypeConsultation = "consultation" // Tindakan konsultasi
+	ProcedureTypeRadiology    = "radiology"    // Tindakan radiologi
+	ProcedureTypeLaboratory   = "laboratory"   // Tindakan laboratorium
 )
 
 // GetProcedureTypes returns all procedure types
 func GetProcedureTypes() []map[string]string {
 	return []map[string]string{
 		{"code": ProcedureTypeMedical, "name": "Tindakan Medis"},
+		{"code": ProcedureTypeConsultation, "name": "Konsultasi"},
 		{"code": ProcedureTypeRadiology, "name": "Radiologi"},
 		{"code": ProcedureTypeLaboratory, "name": "Laboratorium"},
 	}
