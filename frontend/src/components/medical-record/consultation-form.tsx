@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -66,11 +65,14 @@ export function ConsultationForm({ visitId, readOnly = false }: ConsultationForm
       if (activeOrder?.items?.length) {
         const mappedResults: Record<number, Record<number, string>> = {};
         activeOrder.items.forEach((item) => {
-          if (!item.id) return;
-          mappedResults[item.id] = {};
+          const itemId = item.id;
+          if (!itemId) return;
+          mappedResults[itemId] = {};
           item.procedure?.parameters?.forEach((param) => {
-            const existingResult = item.results?.find((r) => r.procedure_parameter_id === param.id);
-            mappedResults[item.id][param.id] = existingResult?.value || "";
+            const paramId = param.id;
+            if (!paramId) return;
+            const existingResult = item.results?.find((r) => r.procedure_parameter_id === paramId);
+            mappedResults[itemId][paramId] = existingResult?.value || "";
           });
         });
         setInlineResults(mappedResults);
