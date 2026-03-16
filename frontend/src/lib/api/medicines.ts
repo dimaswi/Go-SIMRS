@@ -68,6 +68,14 @@ export interface RoomMedicine {
   created_at: string;
   updated_at: string;
   room_id: number;
+  room?: {
+    id: number;
+    name: string;
+    code: string;
+    service_type: string;
+    room_type: string;
+    is_active: boolean;
+  };
   medicine_id: number;
   medicine?: Medicine;
   quantity: number;

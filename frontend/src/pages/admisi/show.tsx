@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -40,7 +41,9 @@ import {
   Calendar,
   FileText,
   ChevronLeft,
-  Wallet,
+  Pencil,
+  Search,
+  Trash2,
 } from "lucide-react";
 import {
   admissionRequestApi,
@@ -54,9 +57,10 @@ import {
 } from "@/lib/api/rooms";
 import { employeesApi } from "@/lib/api/employees";
 import { patientsApi, type Patient, api } from "@/lib/api";
-import { vclaimApi, type SEPLocal } from "@/lib/api/vclaim";
+import { vclaimApi, type SEPLocal, type VClaimSEP } from "@/lib/api/vclaim";
 import { SEPFormSheet } from "@/components/sep/sep-form-sheet";
 import { SPRIFormSheet } from "@/components/sep/spri-form-sheet";
+import { EditPaymentDialog } from "@/pages/registrations/edit-payment-dialog";
 import { formatPatientName } from "@/lib/print-utils";
 
 interface RoomWithBeds extends Room {
@@ -113,6 +117,17 @@ export default function AdmissionRequestShowPage() {
   const [patientDetail, setPatientDetail] = useState<Patient | null>(null);
   const [ _loadingPatient, setLoadingPatient] = useState(false);
   const [inpatientVisitId, setInpatientVisitId] = useState<number | null>(null);
+
+  // Edit Payment
+  const [editPaymentOpen, setEditPaymentOpen] = useState(false);
+
+  // Assign SEP
+  const [assignSepOpen, setAssignSepOpen] = useState(false);
+  const [sepInputNumber, setSepInputNumber] = useState("");
+  const [searchingSEP, setSearchingSEP] = useState(false);
+  const [savingSEP, setSavingSEP] = useState(false);
+  const [foundSEP, setFoundSEP] = useState<VClaimSEP | null>(null);
+  const [sepSearchError, setSepSearchError] = useState("");
 
   // SPRI (Surat Perintah Rawat Inap)
   const [spriSheetOpen, setSpriSheetOpen] = useState(false);
@@ -409,6 +424,88 @@ export default function AdmissionRequestShowPage() {
     handleProcess();
   };
 
+  const handleSearchSEP = async () => {
+    if (!sepInputNumber.trim()) return;
+    setSearchingSEP(true);
+    setSepSearchError("");
+    setFoundSEP(null);
+    try {
+      const response = await vclaimApi.getSEP(sepInputNumber.trim());
+      if (response.data.data) {
+        setFoundSEP(response.data.data);
+      } else {
+        setSepSearchError("SEP tidak ditemukan");
+      }
+    } catch (error: any) {
+      setSepSearchError(error.response?.data?.error || "Gagal mencari SEP");
+    } finally {
+      setSearchingSEP(false);
+    }
+  };
+
+  const handleAssignSEP = async () => {
+    if (!foundSEP || !request) return;
+    setSavingSEP(true);
+    try {
+      const patientId = patientDetail?.id || getPatient(request)?.id || 0;
+      await api.post("/bpjs/vclaim/sep/import", {
+        no_sep: foundSEP.noSep,
+        no_kartu: foundSEP.peserta?.noKartu || "",
+        nama_pasien: foundSEP.peserta?.nama || "",
+        nik: foundSEP.peserta?.nik || "",
+        tgl_lahir: foundSEP.peserta?.tglLahir || "",
+        jenis_kelamin: foundSEP.peserta?.jnsKelamin || "",
+        tgl_sep: foundSEP.tglSep || "",
+        jns_pelayanan: foundSEP.jnsPelayanan || "",
+        kls_rawat_hak: foundSEP.peserta?.klsRawat?.klsRawatHak || "",
+        no_mr: foundSEP.peserta?.noMr || "",
+        kode_poli: foundSEP.poli || "",
+        nama_poli: foundSEP.poli || "",
+        diag_awal: foundSEP.diagnosa || "",
+        nama_diagnosa: foundSEP.diagnosa || "",
+        catatan: foundSEP.catatan || "",
+        patient_id: patientId,
+        registration_id: request.registration_id,
+        visit_id: request.source_visit_id,
+      });
+
+      setSepNumber(foundSEP.noSep);
+      toast({
+        title: "Berhasil",
+        description: `SEP ${foundSEP.noSep} berhasil ditambahkan`,
+      });
+      setAssignSepOpen(false);
+      setFoundSEP(null);
+      setSepInputNumber("");
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Gagal",
+        description: error.response?.data?.error || "Gagal menambahkan SEP",
+      });
+    } finally {
+      setSavingSEP(false);
+    }
+  };
+
+  const handleRemoveSEP = async () => {
+    if (!sepNumber) return;
+    try {
+      await api.delete(`/bpjs/vclaim/sep/${encodeURIComponent(sepNumber)}/local`);
+      setSepNumber("");
+      toast({
+        title: "Berhasil",
+        description: "SEP berhasil dihapus dari kunjungan ini",
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Gagal",
+        description: error.response?.data?.error || "Gagal menghapus SEP",
+      });
+    }
+  };
+
   const handleProcess = async () => {
     if (!request || !selectedRoomId || !selectedBedId || !selectedDoctorId) {
       return;
@@ -593,9 +690,9 @@ export default function AdmissionRequestShowPage() {
     : patientDetail && (patientDetail.jenis_jaminan === "BPJS" || patientDetail.jenis_jaminan === "JKN");
 
   return (
-    <div className="flex flex-1 flex-col p-4">
+    <div className="flex flex-1 flex-col p-4 gap-4 overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between shrink-0">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" asChild>
             <Link to="/registrations?tab=admission_requests">
@@ -615,16 +712,16 @@ export default function AdmissionRequestShowPage() {
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-4 lg:grid-cols-3 flex-1 min-h-0">
         {/* Left Column - Detail Permintaan */}
-        <div className="rounded-lg border">
-          <div className="flex items-center gap-2 px-6 py-4">
+        <div className="rounded-lg border flex flex-col min-h-0 overflow-hidden">
+          <div className="flex items-center gap-2 px-6 py-4 shrink-0">
             <h3 className="text-sm font-medium flex items-center gap-2">
               <FileText className="h-4 w-4" />
               Detail Permintaan
             </h3>
           </div>
-          <div className="p-4 space-y-6">
+          <div className="flex-1 overflow-y-auto p-4 space-y-6">
             {/* Patient Info */}
             <div className="flex items-center gap-4">
               <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
@@ -694,15 +791,29 @@ export default function AdmissionRequestShowPage() {
                 </div>
               )}
 
-              {/* BPJS SPRI & SEP Stepper Section */}
-              {isBPJS && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Pembayaran</span>
-                  <Badge className="bg-green-100 text-green-700 border-green-300">
-                    BPJS
-                  </Badge>
+              {/* Payment Method Row */}
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">Pembayaran</span>
+                <div className="flex items-center gap-1.5">
+                  {isBPJS ? (
+                    <Badge className="bg-green-100 text-green-700 border-green-300">BPJS</Badge>
+                  ) : request.registration?.payment_method === "insurance" ? (
+                    <Badge variant="outline">Asuransi</Badge>
+                  ) : (
+                    <Badge variant="outline">Umum / Cash</Badge>
+                  )}
+                  {isPending && request.registration_id && (
+                    <button
+                      type="button"
+                      onClick={() => setEditPaymentOpen(true)}
+                      className="text-muted-foreground hover:text-primary transition-colors"
+                      title="Ubah metode pembayaran"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 </div>
-              )}
+              </div>
               {isBPJS && (
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">SPRI</span>
@@ -722,52 +833,48 @@ export default function AdmissionRequestShowPage() {
                 </div>
               )}
               {isBPJS && (
-                <div className="flex justify-between">
+                <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">SEP Ranap</span>
                   {sepNumber ? (
-                    <span className="font-medium font-mono text-green-600">{sepNumber}</span>
-                  ) : spriNumber ? (
-                    <button
-                      type="button"
-                      onClick={() => setSepSheetOpen(true)}
-                      className="text-blue-600 underline hover:text-blue-800 font-medium"
-                    >
-                      Buat SEP
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-medium font-mono text-green-600">{sepNumber}</span>
+                      {isPending && (
+                        <button
+                          type="button"
+                          onClick={handleRemoveSEP}
+                          className="text-muted-foreground hover:text-destructive transition-colors"
+                          title="Hapus SEP"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
                   ) : (
-                    <span className="text-muted-foreground text-xs">Buat SPRI dahulu</span>
+                    <div className="flex items-center gap-2">
+                      {spriNumber && (
+                        <button
+                          type="button"
+                          onClick={() => setSepSheetOpen(true)}
+                          className="text-blue-600 underline hover:text-blue-800 font-medium text-xs"
+                        >
+                          Buat SEP
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setAssignSepOpen(true)}
+                        className="text-blue-600 underline hover:text-blue-800 font-medium text-xs"
+                      >
+                        Tambahkan SEP
+                      </button>
+                      {!spriNumber && (
+                        <span className="text-muted-foreground text-xs">/ Buat SPRI dahulu</span>
+                      )}
+                    </div>
                   )}
                 </div>
               )}
             </div>
-
-            {/* SEP Created Info */}
-            {isBPJS && (spriNumber || sepNumber) && (
-              <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                <div className="flex items-center gap-2 text-green-700 mb-2">
-                  <CheckCircle className="h-4 w-4" />
-                  <span className="font-medium text-sm">Status BPJS</span>
-                </div>
-                <div className="text-sm space-y-1">
-                  {spriNumber && (
-                    <div className="flex justify-between">
-                      <span className="text-green-600">No. SPRI</span>
-                      <span className="font-mono font-medium text-green-800">{spriNumber}</span>
-                    </div>
-                  )}
-                  {sepNumber && (
-                    <div className="flex justify-between">
-                      <span className="text-green-600">No. SEP Ranap</span>
-                      <span className="font-mono font-medium text-green-800">{sepNumber}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between">
-                    <span className="text-green-600">No. Kartu BPJS</span>
-                    <span className="font-mono text-green-800">{patientDetail?.no_bpjs || "-"}</span>
-                  </div>
-                </div>
-              </div>
-            )}
 
             {/* Reason & Notes */}
             {(request.admission_reason ||
@@ -852,8 +959,8 @@ export default function AdmissionRequestShowPage() {
         </div>
 
         {/* Right Column - Proses Pemilihan */}
-        <div className="rounded-lg border lg:col-span-2">
-          <div className="flex items-center gap-2 px-6 py-4">
+        <div className="rounded-lg border lg:col-span-2 flex flex-col min-h-0 overflow-hidden">
+          <div className="flex items-center gap-2 px-6 py-4 shrink-0 border-b">
             <h3 className="text-sm font-medium flex items-center gap-2">
               {isPending ? (
                 <>
@@ -868,7 +975,7 @@ export default function AdmissionRequestShowPage() {
               )}
             </h3>
           </div>
-          <div className="p-4">
+          <div className="flex-1 overflow-y-auto p-4">
             {isPending ? (
               <div className="space-y-6">
                 {/* Room Selection */}
@@ -1151,103 +1258,11 @@ export default function AdmissionRequestShowPage() {
                   />
                 </div>
 
-                {/* Summary */}
-                {selectedRoomId && selectedBedId && selectedDoctorId && (
-                  <Alert className="bg-green-50 border-green-200">
-                    <CheckCircle className="h-4 w-4 text-green-600" />
-                    <AlertDescription className="text-green-700">
-                      Pasien akan ditempatkan di{" "}
-                      <strong>
-                        {inpatientRooms.find((r) => r.id === selectedRoomId)?.name}
-                      </strong>{" "}
-                      - Bed{" "}
-                      <strong>
-                        {
-                          availableBeds.find((b) => b.id === selectedBedId)
-                            ?.bed_number
-                        }
-                      </strong>{" "}
-                      dengan DPJP{" "}
-                      <strong>
-                        {
-                          doctors.find((d) => d.id === selectedDoctorId)
-                            ?.nama_lengkap
-                        }
-                      </strong>
-                      .
-                    </AlertDescription>
-                  </Alert>
-                )}
 
-                {/* SEP Created Info */}
-                {isBPJS && sepNumber && (
-                  <Alert className="border-green-200 bg-green-50">
-                    <CheckCircle className="h-4 w-4 text-green-600" />
-                    <AlertDescription className="text-green-800">
-                      <p className="font-medium">SPRI & SEP lengkap. Klik "Proses Admisi" untuk membuat kunjungan rawat inap.</p>
-                    </AlertDescription>
-                  </Alert>
-                )}
 
-                {/* Info: Pasien BPJS tanpa SPRI/SEP — bisa dilengkapi nanti */}
-                {isBPJS && !sepNumber && selectedRoomId && selectedBedId && selectedDoctorId && (
-                  <Alert className="border-amber-200 bg-amber-50">
-                    <AlertTriangle className="h-4 w-4 text-amber-600" />
-                    <AlertDescription className="text-amber-800">
-                      <p className="text-sm">
-                        SPRI/SEP belum lengkap. Pasien tetap didaftarkan sebagai <strong>BPJS</strong>. SPRI dan SEP bisa dilengkapi nanti.
-                      </p>
-                    </AlertDescription>
-                  </Alert>
-                )}
-
-                {/* Info: Pasien Non-BPJS */}
-                {!isBPJS && !sepNumber && selectedRoomId && selectedBedId && selectedDoctorId && (
-                  <Alert className="border-blue-200 bg-blue-50">
-                    <Wallet className="h-4 w-4 text-blue-600" />
-                    <AlertDescription className="text-blue-800">
-                      <p className="text-sm">
-                        Pasien akan didaftarkan sebagai pasien <strong>Umum</strong> (non-BPJS).
-                      </p>
-                    </AlertDescription>
-                  </Alert>
-                )}
-
-                {/* Action Buttons */}
-                <div className="flex justify-end gap-3 pt-4 border-t">
-                  {request.status === "pending" && (
-                    <>
-                      <Button
-                        variant="outline"
-                        onClick={() => setRejectDialogOpen(true)}
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                      >
-                        <XCircle className="h-4 w-4 mr-2" />
-                        Tolak
-                      </Button>
-
-                      <Button
-                        onClick={handleProcessClick}
-                        disabled={processing || !selectedRoomId || !selectedBedId || !selectedDoctorId}
-                      >
-                        {processing ? (
-                          <>
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            Memproses...
-                          </>
-                        ) : (
-                          <>
-                            <CheckCircle className="h-4 w-4 mr-2" />
-                            Proses Admisi
-                          </>
-                        )}
-                      </Button>
-                    </>
-                  )}
-                </div>
               </div>
             ) : (
-              <div className="text-center py-8">
+              <div className="text-center py-8 flex-1">
                 <div
                   className={cn(
                     "w-16 h-16 rounded-full mx-auto flex items-center justify-center mb-4",
@@ -1283,6 +1298,46 @@ export default function AdmissionRequestShowPage() {
               </div>
             )}
           </div>
+          {/* Sticky Action Footer */}
+          {isPending && (
+            <div className="shrink-0 border-t bg-background px-4 py-3 flex items-center justify-between gap-3">
+              <div className="text-sm text-muted-foreground">
+                {selectedRoomId && selectedBedId && selectedDoctorId ? (
+                  <span className="text-green-700 font-medium">
+                    {inpatientRooms.find((r) => r.id === selectedRoomId)?.name} · Bed {availableBeds.find((b) => b.id === selectedBedId)?.bed_number} · {doctors.find((d) => d.id === selectedDoctorId)?.nama_lengkap}
+                  </span>
+                ) : (
+                  <span>Pilih ruangan, bed, dan DPJP untuk melanjutkan</span>
+                )}
+              </div>
+              <div className="flex gap-2 shrink-0">
+                <Button
+                  variant="outline"
+                  onClick={() => setRejectDialogOpen(true)}
+                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                >
+                  <XCircle className="h-4 w-4 mr-2" />
+                  Tolak
+                </Button>
+                <Button
+                  onClick={handleProcessClick}
+                  disabled={processing || !selectedRoomId || !selectedBedId || !selectedDoctorId}
+                >
+                  {processing ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Memproses...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                      Proses Admisi
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1422,6 +1477,121 @@ export default function AdmissionRequestShowPage() {
           }}
         />
       )}
+
+      {/* Edit Payment Dialog */}
+      {request?.registration_id && (
+        <EditPaymentDialog
+          open={editPaymentOpen}
+          onOpenChange={setEditPaymentOpen}
+          registrationId={request.registration_id}
+          currentPaymentMethod={request.registration?.payment_method || "cash"}
+          currentBpjsNumber={request.registration?.bpjs_number}
+          patientBpjsNumber={patientDetail?.no_bpjs}
+          onSuccess={() => fetchRequest()}
+        />
+      )}
+
+      {/* Assign SEP Dialog */}
+      <Dialog open={assignSepOpen} onOpenChange={(open) => {
+        setAssignSepOpen(open);
+        if (!open) {
+          setFoundSEP(null);
+          setSepInputNumber("");
+          setSepSearchError("");
+        }
+      }}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle>Tambahkan SEP</DialogTitle>
+            <DialogDescription>
+              Masukkan nomor SEP yang sudah ada untuk ditambahkan ke kunjungan ini.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="flex gap-2">
+              <Input
+                placeholder="Masukkan nomor SEP"
+                value={sepInputNumber}
+                onChange={(e) => {
+                  setSepInputNumber(e.target.value);
+                  if (foundSEP) {
+                    setFoundSEP(null);
+                    setSepSearchError("");
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleSearchSEP();
+                  }
+                }}
+              />
+              <Button
+                variant="outline"
+                onClick={handleSearchSEP}
+                disabled={searchingSEP || !sepInputNumber.trim()}
+              >
+                {searchingSEP ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Search className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+
+            {sepSearchError && (
+              <p className="text-sm text-destructive">{sepSearchError}</p>
+            )}
+
+            {foundSEP && (
+              <div className="rounded-lg border p-3 space-y-2 bg-green-50 border-green-200">
+                <div className="flex items-center gap-2 text-green-700 font-medium text-sm">
+                  <CheckCircle className="h-4 w-4" />
+                  SEP Ditemukan
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div>
+                    <span className="text-muted-foreground">No. SEP</span>
+                    <p className="font-mono font-medium">{foundSEP.noSep}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Tgl SEP</span>
+                    <p className="font-medium">{foundSEP.tglSep}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Peserta</span>
+                    <p className="font-medium">{foundSEP.peserta?.nama}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">No. Kartu</span>
+                    <p className="font-mono">{foundSEP.peserta?.noKartu}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Jns Pelayanan</span>
+                    <p className="font-medium">{foundSEP.jnsPelayanan === "1" ? "Rawat Inap" : "Rawat Jalan"}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Diagnosis</span>
+                    <p className="font-medium">{foundSEP.diagnosa}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAssignSepOpen(false)}>Batal</Button>
+            <Button onClick={handleAssignSEP} disabled={!foundSEP || savingSEP}>
+              {savingSEP ? (
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Menyimpan...</>
+              ) : (
+                <><CheckCircle className="h-4 w-4 mr-2" /> Tambahkan SEP</>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* SPRI Form Sheet */}
       {patientDetail && existingOutpatientSEP && (

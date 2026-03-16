@@ -587,6 +587,7 @@ export interface SuratKontrolResponse {
 // Surat Kontrol Local (from database)
 export interface SuratKontrolLocal {
   id: number;
+  source_type?: "bpjs" | "simrs";
   no_surat_kontrol: string;
   no_sep: string;
   registration_id?: number;

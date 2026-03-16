@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,6 +36,8 @@ import {
   Printer,
   ChevronDown,
   ChevronRight,
+  Package,
+  BookmarkPlus,
 } from "lucide-react";
 import {
   Collapsible,
@@ -43,6 +45,10 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { roomsApi, medicineOrdersApi, getPharmacyRoomMedicines, printApi, medicalRecordsApi } from "@/lib/api";
+import {
+  medicineOrderTemplatesApi,
+  type DoctorMedicineTemplate,
+} from "@/lib/api/medicine-order-templates";
 import type { MedicineOrder, CreateMedicineOrderInput } from "@/lib/api";
 
 interface MedicineOrderFormProps {
@@ -118,7 +124,7 @@ function OrderCollapsible({ order }: { order: MedicineOrder }) {
       });
       return;
     }
-    
+
     setIsPrinting(true);
     try {
       const url = await printApi.queueTicket(queueId);
@@ -271,6 +277,17 @@ export function MedicineOrderForm({ visitId, readOnly = false }: MedicineOrderFo
   const [notes, setNotes] = useState("");
   const [priority, setPriority] = useState("normal");
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showTemplateDialog, setShowTemplateDialog] = useState(false);
+  const [showCreateTemplateDialog, setShowCreateTemplateDialog] = useState(false);
+  const [templateSearchTerm, setTemplateSearchTerm] = useState("");
+  const [templateName, setTemplateName] = useState("");
+  const [templateNotes, setTemplateNotes] = useState("");
+  const [bindTemplateToDPJP, setBindTemplateToDPJP] = useState(false);
+  const [templateSaving, setTemplateSaving] = useState(false);
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
+  const [doctorTemplates, setDoctorTemplates] = useState<DoctorMedicineTemplate[]>([]);
+  const [templateItems, setTemplateItems] = useState<OrderItem[]>([]);
+  const [templateMedicineSearch, setTemplateMedicineSearch] = useState("");
   const [itemErrors, setItemErrors] = useState<Record<number, string[]>>({});
 
   const formatRupiah = (value: number) =>
@@ -375,6 +392,18 @@ export function MedicineOrderForm({ visitId, readOnly = false }: MedicineOrderFo
       const pharmRooms = allRooms.filter(isPharmacyRoom);
       setPharmacyRooms(pharmRooms);
 
+      // Load private doctor templates (optionally scoped by DPJP of this visit)
+      try {
+        setLoadingTemplates(true);
+        const templatesRes = await medicineOrderTemplatesApi.getAll({ source_visit_id: visitId });
+        setDoctorTemplates(templatesRes.data?.data || []);
+      } catch (error) {
+        console.error("Error loading doctor templates:", error);
+        setDoctorTemplates([]);
+      } finally {
+        setLoadingTemplates(false);
+      }
+
       // Auto-select first pharmacy room
       if (pharmRooms.length > 0 && !selectedPharmacyRoom) {
         setSelectedPharmacyRoom(pharmRooms[0].id);
@@ -428,6 +457,27 @@ export function MedicineOrderForm({ visitId, readOnly = false }: MedicineOrderFo
     );
   });
 
+  const filteredTemplateMedicines = pharmacyMedicines.filter((pm) => {
+    const alreadyAdded = templateItems.some((item) => item.medicine_id === pm.medicine.id);
+    if (alreadyAdded) return false;
+
+    return (
+      pm.medicine.name.toLowerCase().includes(templateMedicineSearch.toLowerCase()) ||
+      pm.medicine.generic_name?.toLowerCase().includes(templateMedicineSearch.toLowerCase()) ||
+      pm.medicine.code.toLowerCase().includes(templateMedicineSearch.toLowerCase())
+    );
+  });
+
+  const filteredTemplates = useMemo(() => {
+    const keyword = templateSearchTerm.trim().toLowerCase();
+    if (!keyword) return doctorTemplates;
+    return doctorTemplates.filter((template) =>
+      [template.name, template.notes]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(keyword))
+    );
+  }, [doctorTemplates, templateSearchTerm]);
+
   const orderGrandTotal = orderItems.reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
 
   const handleAddItem = (medicine: PharmacyMedicine) => {
@@ -459,6 +509,207 @@ export function MedicineOrderForm({ visitId, readOnly = false }: MedicineOrderFo
     setItemErrors({});
     setSearchTerm("");
     setShowAddDialog(false);
+  };
+
+  const handleAddTemplateItem = (medicine: PharmacyMedicine) => {
+    const unitPrice =
+      medicine.medicine.selling_price ||
+      medicine.medicine.unit_price ||
+      medicine.medicine.price ||
+      medicine.unit_price ||
+      medicine.price ||
+      medicine.selling_price ||
+      0;
+
+    const item: OrderItem = {
+      medicine_id: medicine.medicine.id,
+      medicine_name: medicine.medicine.name,
+      medicine_code: medicine.medicine.code,
+      quantity: 1,
+      unit: medicine.medicine.unit,
+      dosage: medicine.medicine.strength || "",
+      frequency: "",
+      route: "oral",
+      duration: "",
+      instructions: "",
+      available_stock: medicine.quantity,
+      unit_price: unitPrice,
+    };
+
+    setTemplateItems((prev) => [...prev, item]);
+    setTemplateMedicineSearch("");
+  };
+
+  const handleUpdateTemplateItemField = (index: number, field: keyof OrderItem, value: string | number) => {
+    setTemplateItems((prev) => {
+      const next = [...prev];
+      (next[index] as any)[field] = value;
+      return next;
+    });
+  };
+
+  const handleUpdateTemplateItemQuantity = (index: number, quantity: number) => {
+    setTemplateItems((prev) => {
+      const next = [...prev];
+      const maxStock = next[index].available_stock;
+      next[index].quantity = Math.max(1, Math.min(quantity || 0, maxStock));
+      return next;
+    });
+  };
+
+  const handleRemoveTemplateItem = (index: number) => {
+    setTemplateItems((prev) => {
+      const next = [...prev];
+      next.splice(index, 1);
+      return next;
+    });
+  };
+
+  const handleApplyTemplate = (template: DoctorMedicineTemplate) => {
+    const templateItems = template.items || [];
+    if (templateItems.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "Template kosong",
+        description: "Template ini tidak memiliki item obat",
+      });
+      return;
+    }
+
+    const pharmacyMedicineById = new Map(pharmacyMedicines.map((pm) => [pm.medicine.id, pm]));
+    const unavailable: string[] = [];
+    let inserted = 0;
+    let merged = 0;
+
+    setOrderItems((prev) => {
+      const next = [...prev];
+      for (const item of templateItems) {
+        const pm = pharmacyMedicineById.get(item.medicine_id);
+        const label = item.medicine?.name || `Obat #${item.medicine_id}`;
+        if (!pm) {
+          unavailable.push(label);
+          continue;
+        }
+
+        const qty = Math.max(1, Number(item.quantity) || 1);
+        const existingIndex = next.findIndex((row) => row.medicine_id === item.medicine_id);
+        if (existingIndex >= 0) {
+          const current = next[existingIndex];
+          next[existingIndex] = {
+            ...current,
+            quantity: Math.min(current.available_stock, current.quantity + qty),
+            dosage: current.dosage || item.dosage || "",
+            frequency: current.frequency || item.frequency || "",
+            route: current.route || item.route || "oral",
+            duration: current.duration || item.duration || "",
+            instructions: current.instructions || item.instructions || "",
+          };
+          merged += 1;
+          continue;
+        }
+
+        const unitPrice =
+          pm.medicine.selling_price ||
+          pm.medicine.unit_price ||
+          pm.medicine.price ||
+          pm.unit_price ||
+          pm.price ||
+          pm.selling_price ||
+          0;
+
+        next.push({
+          medicine_id: pm.medicine.id,
+          medicine_name: pm.medicine.name,
+          medicine_code: pm.medicine.code,
+          quantity: Math.min(pm.quantity, qty),
+          unit: item.unit || pm.medicine.unit,
+          dosage: item.dosage || pm.medicine.strength || "",
+          frequency: item.frequency || "",
+          route: item.route || "oral",
+          duration: item.duration || "",
+          instructions: item.instructions || "",
+          available_stock: pm.quantity,
+          unit_price: unitPrice,
+        });
+        inserted += 1;
+      }
+      return next;
+    });
+
+    setShowTemplateDialog(false);
+    setTemplateSearchTerm("");
+
+    const summary = [`${inserted} ditambahkan`];
+    if (merged > 0) summary.push(`${merged} digabung`);
+    if (unavailable.length > 0) summary.push(`${unavailable.length} tidak tersedia`);
+
+    toast({
+      title: `Template "${template.name}" diterapkan`,
+      description: summary.join(", "),
+    });
+  };
+
+  const handleCreateTemplate = async () => {
+    const name = templateName.trim();
+    if (!name) {
+      toast({
+        variant: "destructive",
+        title: "Nama template wajib diisi",
+      });
+      return;
+    }
+    if (templateItems.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "Belum ada item obat",
+        description: "Tambahkan minimal satu obat ke daftar template sebelum menyimpan.",
+      });
+      return;
+    }
+
+    try {
+      setTemplateSaving(true);
+      await medicineOrderTemplatesApi.create({
+        name,
+        notes: templateNotes,
+        source_visit_id: visitId,
+        bind_to_dpjp: bindTemplateToDPJP,
+        items: templateItems.map((item, index) => ({
+          medicine_id: item.medicine_id,
+          quantity: item.quantity,
+          unit: item.unit,
+          dosage: item.dosage,
+          frequency: item.frequency,
+          route: item.route,
+          duration: item.duration,
+          instructions: item.instructions,
+          sort_order: index + 1,
+        })),
+      });
+
+      const templatesRes = await medicineOrderTemplatesApi.getAll({ source_visit_id: visitId });
+      setDoctorTemplates(templatesRes.data?.data || []);
+
+      setTemplateName("");
+      setTemplateNotes("");
+      setBindTemplateToDPJP(false);
+      setTemplateItems([]);
+      setTemplateMedicineSearch("");
+      setShowCreateTemplateDialog(false);
+
+      toast({
+        title: "Template resep disimpan",
+        description: "Template dapat digunakan kembali untuk order berikutnya.",
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Gagal menyimpan template",
+        description: error.response?.data?.error || "Terjadi kesalahan saat menyimpan template.",
+      });
+    } finally {
+      setTemplateSaving(false);
+    }
   };
 
   const handleRemoveItem = (index: number) => {
@@ -532,7 +783,7 @@ export function MedicineOrderForm({ visitId, readOnly = false }: MedicineOrderFo
       toast({
         variant: "destructive",
         title: "Validasi gagal",
-        description: "Masih ada field wajib obat yang kosong atau tidak valid.",
+        description: "Pastikan jumlah, dosis, frekuensi, rute, durasi, dan instruksi sudah diisi dengan benar.",
       });
       return;
     }
@@ -695,78 +946,346 @@ export function MedicineOrderForm({ visitId, readOnly = false }: MedicineOrderFo
           <div className="space-y-2 pt-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <Label className="text-base font-medium">Daftar Obat</Label>
-              <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-                <DialogTrigger asChild>
-                  <Button size="sm" disabled={!selectedPharmacyRoom || loadingMedicines || readOnly}>
-                    <Plus className="h-4 w-4 mr-1" />
-                    Tambah Obat
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
-                  <DialogHeader>
-                    <DialogTitle>Pilih Obat</DialogTitle>
-                    <DialogDescription>
-                      Pilih obat, lalu lengkapi semua detail resep langsung di tabel order
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Cari obat..."
-                      className="pl-9"
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                  </div>
-                  <ScrollArea className="flex-1 max-h-[400px] border rounded-md">
-                    <div className="divide-y">
-                      {loadingMedicines ? (
-                        <div className="flex items-center justify-center py-8">
-                          <Loader2 className="h-6 w-6 animate-spin" />
-                        </div>
-                      ) : filteredMedicines.length === 0 ? (
-                        <div className="text-center py-8 text-muted-foreground">
-                          {searchTerm ? "Tidak ada obat yang sesuai" : "Semua obat yang tersedia sudah dipilih"}
-                        </div>
-                      ) : (
-                        filteredMedicines.map((pm) => (
-                          <button
-                            key={pm.id}
-                            type="button"
-                            className="w-full p-3 hover:bg-muted/50 flex items-center justify-between gap-3 text-left"
-                            onClick={() => handleAddItem(pm)}
-                          >
-                            <div>
-                              <p className="font-medium text-sm">{pm.medicine.name}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {pm.medicine.code} • {pm.medicine.form} • {pm.medicine.strength}
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Badge variant={pm.quantity > pm.min_quantity ? "default" : "destructive"}>
-                                Stok: {pm.quantity}
-                              </Badge>
-                            </div>
-                          </button>
-                        ))
-                      )}
-                    </div>
-                  </ScrollArea>
-
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setShowAddDialog(false)}>
-                      Tutup
+              <div className="flex items-center gap-2">
+                <Dialog open={showTemplateDialog} onOpenChange={setShowTemplateDialog}>
+                  <DialogTrigger asChild>
+                    <Button size="sm" variant="outline" disabled={!selectedPharmacyRoom || loadingTemplates || readOnly}>
+                      <Package className="h-4 w-4 mr-1" />
+                      Tambah Template
                     </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
+                  </DialogTrigger>
+                  <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+                    <DialogHeader>
+                      <DialogTitle>Pilih Template Resep</DialogTitle>
+                      <DialogDescription>
+                        Template ini hanya milik akun dokter Anda. Pilih satu template untuk menambahkan obat otomatis.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Cari template..."
+                        className="pl-9"
+                        value={templateSearchTerm}
+                        onChange={(e) => setTemplateSearchTerm(e.target.value)}
+                      />
+                    </div>
+                    <ScrollArea className="flex-1 max-h-[400px] border rounded-md">
+                      <div className="divide-y">
+                        {loadingTemplates ? (
+                          <div className="flex items-center justify-center py-8">
+                            <Loader2 className="h-6 w-6 animate-spin" />
+                          </div>
+                        ) : filteredTemplates.length === 0 ? (
+                          <div className="text-center py-8 text-muted-foreground">
+                            {templateSearchTerm ? "Template tidak ditemukan" : "Belum ada template resep"}
+                          </div>
+                        ) : (
+                          filteredTemplates.map((template) => (
+                            <button
+                              key={template.id}
+                              type="button"
+                              className="w-full p-3 hover:bg-muted/50 flex items-center justify-between gap-3 text-left"
+                              onClick={() => handleApplyTemplate(template)}
+                            >
+                              <div>
+                                <p className="font-medium text-sm">{template.name}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {(template.items?.length || 0)} obat
+                                  {template.notes ? ` • ${template.notes}` : ""}
+                                  {template.dpjp_employee_id ? " • Scope: DPJP" : ""}
+                                </p>
+                              </div>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </ScrollArea>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setShowTemplateDialog(false)}>
+                        Tutup
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+
+                <Dialog open={showCreateTemplateDialog} onOpenChange={setShowCreateTemplateDialog}>
+                  <DialogTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={readOnly}
+                      onClick={() => {
+                        setTemplateItems(orderItems.map((item) => ({ ...item })));
+                        setTemplateMedicineSearch("");
+                      }}
+                    >
+                      <BookmarkPlus className="h-4 w-4 mr-1" />
+                      Buat Template
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-4xl max-h-[85vh] overflow-hidden flex flex-col">
+                    <DialogHeader>
+                      <DialogTitle>Simpan Template Resep</DialogTitle>
+                      <DialogDescription>
+                        Simpan template resep pribadi dokter. Anda bisa ambil dari order saat ini, lalu tambah/ubah item di modal ini.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-3 overflow-y-auto pr-1">
+                      <div className="space-y-1">
+                        <Label>Nama Template</Label>
+                        <Input
+                          value={templateName}
+                          onChange={(e) => setTemplateName(e.target.value)}
+                          placeholder="Contoh: Resep ISPA Dewasa"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Catatan (opsional)</Label>
+                        <Textarea
+                          value={templateNotes}
+                          onChange={(e) => setTemplateNotes(e.target.value)}
+                          placeholder="Keterangan tambahan"
+                        />
+                      </div>
+                      <label className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={bindTemplateToDPJP}
+                          onChange={(e) => setBindTemplateToDPJP(e.target.checked)}
+                        />
+                        Scope hanya untuk DPJP pasien ini
+                      </label>
+
+                      <div className="space-y-2 border rounded-md p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <Label className="text-sm font-medium">Isi Obat Template</Label>
+                          <Badge variant="outline">{templateItems.length} obat</Badge>
+                        </div>
+
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            placeholder="Cari obat untuk ditambahkan ke template..."
+                            className="pl-9"
+                            value={templateMedicineSearch}
+                            onChange={(e) => setTemplateMedicineSearch(e.target.value)}
+                          />
+                        </div>
+
+                        <ScrollArea className="h-44 border rounded-md">
+                          <div className="divide-y">
+                            {filteredTemplateMedicines.length === 0 ? (
+                              <div className="text-center py-6 text-sm text-muted-foreground">
+                                {templateMedicineSearch ? "Obat tidak ditemukan" : "Semua obat sudah masuk ke template"}
+                              </div>
+                            ) : (
+                              filteredTemplateMedicines.map((pm) => (
+                                <button
+                                  key={`template-${pm.id}`}
+                                  type="button"
+                                  className="w-full p-2.5 hover:bg-muted/50 flex items-center justify-between text-left"
+                                  onClick={() => handleAddTemplateItem(pm)}
+                                >
+                                  <div>
+                                    <p className="text-sm font-medium">{pm.medicine.name}</p>
+                                    <p className="text-xs text-muted-foreground">{pm.medicine.code} • Stok {pm.quantity}</p>
+                                  </div>
+                                  <Plus className="h-4 w-4 text-muted-foreground" />
+                                </button>
+                              ))
+                            )}
+                          </div>
+                        </ScrollArea>
+
+                        {templateItems.length > 0 ? (
+                          <div className="border rounded-md overflow-x-auto">
+                            <table className="w-full text-xs min-w-[900px]">
+                              <thead className="bg-muted/50 border-b">
+                                <tr>
+                                  <th className="py-2 px-2 text-left">Obat</th>
+                                  <th className="py-2 px-2 text-left w-[80px]">Qty</th>
+                                  <th className="py-2 px-2 text-left w-[120px]">Dosis</th>
+                                  <th className="py-2 px-2 text-left w-[130px]">Frekuensi</th>
+                                  <th className="py-2 px-2 text-left w-[140px]">Rute</th>
+                                  <th className="py-2 px-2 text-left w-[110px]">Durasi</th>
+                                  <th className="py-2 px-2 text-left">Instruksi</th>
+                                  <th className="py-2 px-2 text-left w-[52px]">Aksi</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {templateItems.map((item, index) => (
+                                  <tr key={`template-item-${item.medicine_id}-${index}`} className="border-t align-top">
+                                    <td className="py-2 px-2">
+                                      <p className="font-medium">{item.medicine_name}</p>
+                                      <p className="text-[11px] text-muted-foreground">{item.medicine_code}</p>
+                                    </td>
+                                    <td className="py-2 px-2">
+                                      <Input
+                                        type="number"
+                                        min={1}
+                                        max={item.available_stock}
+                                        value={item.quantity}
+                                        onChange={(e) => handleUpdateTemplateItemQuantity(index, Number(e.target.value))}
+                                        className="h-7"
+                                      />
+                                    </td>
+                                    <td className="py-2 px-2">
+                                      <Input
+                                        value={item.dosage}
+                                        onChange={(e) => handleUpdateTemplateItemField(index, "dosage", e.target.value)}
+                                        className="h-7"
+                                      />
+                                    </td>
+                                    <td className="py-2 px-2">
+                                      <Select
+                                        value={item.frequency}
+                                        onValueChange={(value) => handleUpdateTemplateItemField(index, "frequency", value)}
+                                      >
+                                        <SelectTrigger className="h-7"><SelectValue placeholder="Pilih" /></SelectTrigger>
+                                        <SelectContent>
+                                          {frequencyOptions.map((option) => (
+                                            <SelectItem key={`tmp-freq-${option}`} value={option}>{option}</SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    </td>
+                                    <td className="py-2 px-2">
+                                      <Select
+                                        value={item.route}
+                                        onValueChange={(value) => handleUpdateTemplateItemField(index, "route", value)}
+                                      >
+                                        <SelectTrigger className="h-7"><SelectValue placeholder="Pilih" /></SelectTrigger>
+                                        <SelectContent>
+                                          {routeOptions.map((option) => (
+                                            <SelectItem key={`tmp-route-${option.value}`} value={option.value}>{option.label}</SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    </td>
+                                    <td className="py-2 px-2">
+                                      <Input
+                                        value={item.duration}
+                                        onChange={(e) => handleUpdateTemplateItemField(index, "duration", e.target.value)}
+                                        className="h-7"
+                                      />
+                                    </td>
+                                    <td className="py-2 px-2">
+                                      <Combobox
+                                        options={instructionOptions}
+                                        value={item.instructions}
+                                        onValueChange={(value) => handleUpdateTemplateItemField(index, "instructions", value)}
+                                        placeholder="Pilih instruksi"
+                                        searchPlaceholder="Cari instruksi..."
+                                        emptyText="Instruksi tidak ditemukan"
+                                      />
+                                    </td>
+                                    <td className="py-2 px-2">
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-7 w-7 text-destructive"
+                                        onClick={() => handleRemoveTemplateItem(index)}
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-muted-foreground">Belum ada obat pada template. Tambahkan obat dari daftar di atas.</p>
+                        )}
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setShowCreateTemplateDialog(false)}>
+                        Batal
+                      </Button>
+                      <Button onClick={handleCreateTemplate} disabled={templateSaving || templateItems.length === 0}>
+                        {templateSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                        Simpan Template
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+
+                <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+                  <DialogTrigger asChild>
+                    <Button size="sm" disabled={!selectedPharmacyRoom || loadingMedicines || readOnly}>
+                      <Plus className="h-4 w-4 mr-1" />
+                      Tambah Obat
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+                    <DialogHeader>
+                      <DialogTitle>Pilih Obat</DialogTitle>
+                      <DialogDescription>
+                        Pilih obat, lalu lengkapi semua detail resep langsung di tabel order
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Cari obat..."
+                        className="pl-9"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                      />
+                    </div>
+                    <ScrollArea className="flex-1 max-h-[400px] border rounded-md">
+                      <div className="divide-y">
+                        {loadingMedicines ? (
+                          <div className="flex items-center justify-center py-8">
+                            <Loader2 className="h-6 w-6 animate-spin" />
+                          </div>
+                        ) : filteredMedicines.length === 0 ? (
+                          <div className="text-center py-8 text-muted-foreground">
+                            {searchTerm ? "Tidak ada obat yang sesuai" : "Semua obat yang tersedia sudah dipilih"}
+                          </div>
+                        ) : (
+                          filteredMedicines.map((pm) => (
+                            <button
+                              key={pm.id}
+                              type="button"
+                              className="w-full p-3 hover:bg-muted/50 flex items-center justify-between gap-3 text-left"
+                              onClick={() => handleAddItem(pm)}
+                            >
+                              <div>
+                                <p className="font-medium text-sm">{pm.medicine.name}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {pm.medicine.code} • {pm.medicine.form} • {pm.medicine.strength}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Badge variant={pm.quantity > pm.min_quantity ? "default" : "destructive"}>
+                                  Stok: {pm.quantity}
+                                </Badge>
+                              </div>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </ScrollArea>
+
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setShowAddDialog(false)}>
+                        Tutup
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </div>
             </div>
 
             {orderItems.length === 0 ? (
               <div className="border-2 border-dashed rounded-lg p-8 text-center text-muted-foreground">
                 <Pill className="h-8 w-8 mx-auto mb-2 opacity-50" />
                 <p>Belum ada obat ditambahkan</p>
-                <p className="text-sm">Klik "Tambah Obat" untuk memulai</p>
+                <p className="text-sm">Klik "Tambah Obat" atau "Tambah Template" untuk memulai</p>
               </div>
             ) : (
               <>

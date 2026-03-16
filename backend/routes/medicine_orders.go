@@ -11,6 +11,12 @@ import (
 func setupMedicineOrderRoutes(router *gin.RouterGroup) {
 	orders := router.Group("/medicine-orders")
 	{
+		// Doctor private templates
+		orders.GET("/templates", handlers.GetDoctorMedicineTemplates)
+		orders.POST("/templates", middleware.RequirePermission("medicine_orders.create"), handlers.CreateDoctorMedicineTemplate)
+		orders.PUT("/templates/:id", middleware.RequirePermission("medicine_orders.update"), handlers.UpdateDoctorMedicineTemplate)
+		orders.DELETE("/templates/:id", middleware.RequirePermission("medicine_orders.cancel"), handlers.DeleteDoctorMedicineTemplate)
+
 		// Get all medicine orders (with filters) - accessible by doctors and pharmacists
 		orders.GET("", handlers.GetMedicineOrders)
 

@@ -87,6 +87,24 @@ func GetVisits(c *gin.Context) {
 		return
 	}
 
+	for i := range visits {
+		sep, err := resolveAssignedSEP(&visits[i].RegistrationID, &visits[i].ID)
+		if err == nil {
+			visits[i].SEP = sep
+			if visits[i].Registration != nil {
+				visits[i].Registration.SEP = sep
+				visits[i].Registration.SEPNumber = sep.NoSEP
+			}
+			continue
+		}
+
+		visits[i].SEP = nil
+		if visits[i].Registration != nil {
+			visits[i].Registration.SEP = nil
+			visits[i].Registration.SEPNumber = ""
+		}
+	}
+
 	c.JSON(http.StatusOK, visits)
 }
 
@@ -101,6 +119,20 @@ func GetVisit(c *gin.Context) {
 		First(&visit, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Visit not found"})
 		return
+	}
+
+	if sep, err := resolveAssignedSEP(&visit.RegistrationID, &visit.ID); err == nil {
+		visit.SEP = sep
+		if visit.Registration != nil {
+			visit.Registration.SEP = sep
+			visit.Registration.SEPNumber = sep.NoSEP
+		}
+	} else {
+		visit.SEP = nil
+		if visit.Registration != nil {
+			visit.Registration.SEP = nil
+			visit.Registration.SEPNumber = ""
+		}
 	}
 
 	c.JSON(http.StatusOK, visit)

@@ -168,6 +168,8 @@ export const DOCUMENT_TYPES = {
   CONSULTATION_RESULT: 'consultation_result',
   INPATIENT_CERT: 'inpatient_cert',
   PHARMACY_HANDOVER: 'pharmacy_handover',
+  SPRI: 'spri',
+  SURAT_KONTROL: 'surat_kontrol',
   // RM Duplicate (E-Klaim)
   RM_DUP_LAB_RESULT: 'rm_dup_lab_result',
   RM_DUP_RADIOLOGY_RESULT: 'rm_dup_radiology_result',
@@ -213,6 +215,8 @@ export const DOCUMENT_TYPE_LABELS: Record<string, string> = {
   consultation_result: 'Hasil Konsultasi',
   inpatient_cert: 'Surat Keterangan Rawat Inap',
   pharmacy_handover: 'Serah Terima Obat',
+  spri: 'SPRI',
+  surat_kontrol: 'Surat Kontrol',
 };
 
 // ==================== API Functions ====================

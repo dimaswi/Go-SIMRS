@@ -185,19 +185,7 @@ export default function RegistrationShow() {
             setSepData(sepResponse.data.data);
           }
         } catch {
-          // Fallback: try by sep_number from registration
-          if (regData.sep_number) {
-            try {
-              const sepByNoResponse = await api.get(`/bpjs/vclaim/sep/list?no_sep=${regData.sep_number}`);
-              if (sepByNoResponse.data.data && sepByNoResponse.data.data.length > 0) {
-                setSepData(sepByNoResponse.data.data[0]);
-              }
-            } catch {
-              setSepData(null);
-            }
-          } else {
-            setSepData(null);
-          }
+          setSepData(null);
         }
 
         // Load SPRI data

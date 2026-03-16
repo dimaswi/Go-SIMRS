@@ -40,7 +40,9 @@ import { ProcedureEditOrder } from "@/components/medical-record/procedure-edit-o
 import { SuratForm } from "@/components/medical-record/surat-form";
 import { VisitHistoryDrawer } from "@/components/medical-record/visit-history-drawer";
 import { CopyFromHistoryDrawer } from "@/components/medical-record/copy-from-history-drawer";
+import { VisitMedicineSummary } from "@/components/medical-record/visit-medicine-summary";
 import { MEDICAL_RECORD_TAB_INDICATOR_EVENT, MEDICAL_RECORD_TAB_SAVED_EVENT, emitMedicalRecordTabIndicator, emitMedicalRecordTabSaved } from "@/components/medical-record/tab-indicator";
+import type { MedicalRecordSummary } from "@/lib/api/medical-records";
 
 const isMeaningfulAllergySummary = (value?: string) => {
   const normalized = (value || "").trim().toLowerCase().replace(/\s+/g, " ");
@@ -73,6 +75,7 @@ export default function VisitShow() {
   const [copyHistoryDrawerOpen, setCopyHistoryDrawerOpen] = useState(false);
   const [patientId, setPatientId] = useState<number | null>(null);
   const [patientName, setPatientName] = useState<string>("");
+  const [medicalRecordSummary, setMedicalRecordSummary] = useState<MedicalRecordSummary | null>(null);
   const { setOverride } = useBreadcrumb();
   const tabScrollPositionsRef = useRef<Record<string, number>>({});
   const scrollStorageKey = `mr-tab-scroll:${id || ""}`;
@@ -195,6 +198,7 @@ export default function VisitShow() {
       setTabIndicators({});
       setTabSavedStates({});
       setMountedTabs(new Set());
+      setMedicalRecordSummary(null);
 
       try {
         const savedRaw = sessionStorage.getItem(scrollStorageKey);
@@ -411,6 +415,7 @@ export default function VisitShow() {
     try {
       const res = await medicalRecordsApi.get(visitId);
       const summary = res.data;
+      setMedicalRecordSummary(summary);
 
       // Triage: count filled fields out of 22
       if (summary.triage) {
@@ -1335,6 +1340,9 @@ export default function VisitShow() {
       {/* Main Content Area with Tabs and Form */}
       <div className="px-3 sm:px-6 pb-4 sm:pb-6 pt-2">
         <div className="min-w-0">
+          <div className="mb-4">
+            <VisitMedicineSummary items={medicalRecordSummary?.visit_medicine_items} />
+          </div>
           {Array.from(mountedTabs).map(tab => (
             <div
               key={tab}

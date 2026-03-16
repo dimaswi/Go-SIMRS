@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Sheet,
   SheetContent,
@@ -12,14 +12,19 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Combobox } from "@/components/ui/combobox";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { roomsApi, registrationApi, api } from "@/lib/api";
+import { roomClinicalPackagesApi, type RoomClinicalPackage } from "@/lib/api/clinical-packages";
 import { formatPatientName } from "@/lib/print-utils";
 import { roomProceduresApi, type RoomProcedure } from "@/lib/api/procedures";
 import { roomMedicinesApi, type RoomMedicine } from "@/lib/api/medicines";
-import type { Patient, Room, RoomStaff } from "@/lib/api";
-import { Loader2, UserPlus, User, FileText, CheckCircle2, Plus, Minus, X, AlertCircle, ExternalLink } from "lucide-react";
+import { ClinicalPackageSelector } from "@/components/registration/clinical-package-selector";
+import type { Patient, Room, RoomStaff, Registration } from "@/lib/api";
+import { Loader2, UserPlus, User, FileText, CheckCircle2, AlertCircle, ExternalLink, AlertTriangle } from "lucide-react";
 import { SEPFormSheet } from "@/components/sep/sep-form-sheet";
+import { OrderRoomSelection } from "@/components/registration/order-room-selection";
+import { mapClinicalPackageToRegistrationSelections, mergeRoomMedicinesWithClinicalPackage, mergeRoomProceduresWithClinicalPackage } from "@/lib/clinical-package-utils";
 import { useNavigate } from "react-router-dom";
 
 interface RegistrationSheetProps {
@@ -60,9 +65,14 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
   // Room procedures and medicines for supporting services
   const [roomProcedures, setRoomProcedures] = useState<RoomProcedure[]>([]);
   const [roomMedicines, setRoomMedicines] = useState<RoomMedicine[]>([]);
-  const [selectedProcedures, setSelectedProcedures] = useState<{ procedure_id: number; notes: string }[]>([]);
+  const [roomClinicalPackages, setRoomClinicalPackages] = useState<RoomClinicalPackage[]>([]);
+  const [selectedClinicalPackageId, setSelectedClinicalPackageId] = useState<number | null>(null);
+  const [selectedProcedures, setSelectedProcedures] = useState<{ procedure_id: number; target_room_id?: number; notes: string }[]>([]);
+  const [orderRoomOptionsByProcedureId, setOrderRoomOptionsByProcedureId] = useState<Record<number, { value: string; label: string }[]>>({});
+  const [pharmacyRoomOptionsByMedicineId, setPharmacyRoomOptionsByMedicineId] = useState<Record<number, { value: string; label: string }[]>>({});
   const [selectedMedicines, setSelectedMedicines] = useState<{
     medicine_id: number;
+    pharmacy_room_id?: number;
     quantity: number;
     unit: string;
     dosage: string;
@@ -77,6 +87,8 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
   // Active registration state
   const [hasActiveRegistration, setHasActiveRegistration] = useState(false);
   const [activeRegistration, setActiveRegistration] = useState<any>(null);
+  const [scheduledFollowUps, setScheduledFollowUps] = useState<Registration[]>([]);
+  const doctorRequired = !["farmasi", "penunjang_medis"].includes(selectedServiceType);
 
   // Check active registration and load rooms when sheet opens
   useEffect(() => {
@@ -91,6 +103,29 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
       }
     }
   }, [open, patient]);
+
+  const formatScheduledDate = (date?: string) => {
+    if (!date) return "-";
+    const parsed = new Date(date);
+    if (Number.isNaN(parsed.getTime())) return date;
+    return parsed.toLocaleDateString("id-ID", {
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+    });
+  };
+
+  const isScheduledFollowUpActive = (registration: Registration) => {
+    return registration.is_follow_up && ["scheduled", "no_show"].includes(registration.status);
+  };
+
+  const isBlockingActiveRegistration = (registration: Registration) => {
+    if (isScheduledFollowUpActive(registration)) {
+      return false;
+    }
+
+    return !["completed", "discharged", "cancelled", "no_show"].includes(registration.status);
+  };
 
   // Reset form when closed
   useEffect(() => {
@@ -109,8 +144,11 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
       setRoomStaff([]);
       setRoomProcedures([]);
       setRoomMedicines([]);
+      setRoomClinicalPackages([]);
+      setSelectedClinicalPackageId(null);
       setSelectedProcedures([]);
       setSelectedMedicines([]);
+      setPharmacyRoomOptionsByMedicineId({});
       setHasActiveRegistration(false);
       setActiveRegistration(null);
     }
@@ -146,18 +184,18 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
     setCheckingRegistration(true);
     setHasActiveRegistration(false);
     setActiveRegistration(null);
+    setScheduledFollowUps([]);
     try {
       const response = await registrationApi.getAll({
         patient_id: patient.id,
-        limit: 10,
+        limit: 20,
       });
 
-      const registrations = response.data.data || [];
-      const activeReg = registrations.find((reg: any) => {
-        return reg.status !== "completed" &&
-          reg.status !== "discharged" &&
-          reg.status !== "cancelled";
-      });
+      const registrations = (response.data.data || []) as Registration[];
+      const activeFollowUps = registrations.filter(isScheduledFollowUpActive);
+      const activeReg = registrations.find(isBlockingActiveRegistration);
+
+      setScheduledFollowUps(activeFollowUps);
 
       if (activeReg) {
         setHasActiveRegistration(true);
@@ -197,6 +235,8 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
     setRoomStaff([]);
     setRoomProcedures([]);
     setRoomMedicines([]);
+    setRoomClinicalPackages([]);
+    setSelectedClinicalPackageId(null);
     setSelectedProcedures([]);
     setSelectedMedicines([]);
   };
@@ -208,6 +248,8 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
     setRoomStaff([]);
     setRoomProcedures([]);
     setRoomMedicines([]);
+    setRoomClinicalPackages([]);
+    setSelectedClinicalPackageId(null);
     setSelectedProcedures([]);
     setSelectedMedicines([]);
 
@@ -224,9 +266,9 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
         console.error("Failed to load room staff:", error);
       }
 
-      // Load room procedures for penunjang_medis (lab/radiologi)
+      // Load room procedures for direct order-capable rooms
       const selectedRoom = rooms.find(r => r.id === id);
-      if (selectedRoom && selectedRoom.service_type === "penunjang_medis") {
+      if (selectedRoom) {
         setLoadingRoomItems(true);
         try {
           const proceduresRes = await roomProceduresApi.getByRoom(id);
@@ -239,8 +281,8 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
         }
       }
 
-      // Load room medicines for farmasi
-      if (selectedRoom && selectedRoom.service_type === "farmasi") {
+      // Load room medicines for direct room-stock capable rooms
+      if (selectedRoom) {
         setLoadingRoomItems(true);
         try {
           const medicinesRes = await roomMedicinesApi.getByRoom(id, { limit: 1000 });
@@ -252,7 +294,30 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
           setLoadingRoomItems(false);
         }
       }
+
+      try {
+        const packagesRes = await roomClinicalPackagesApi.getByRoom(id, { is_active: true, package_active_only: true });
+        setRoomClinicalPackages(packagesRes.data.data || []);
+      } catch (error) {
+        console.error("Failed to load clinical packages:", error);
+        setRoomClinicalPackages([]);
+      }
     }
+  };
+
+  const handleClinicalPackageChange = (packageId: number | null) => {
+    setSelectedClinicalPackageId(packageId);
+
+    if (!packageId) {
+      setSelectedProcedures([]);
+      setSelectedMedicines([]);
+      return;
+    }
+
+    const pkg = roomClinicalPackages.find((assignment) => assignment.clinical_package_id === packageId)?.clinical_package;
+    const selections = mapClinicalPackageToRegistrationSelections(pkg);
+    setSelectedProcedures(selections.procedures);
+    setSelectedMedicines(selections.medicines);
   };
 
   // Toggle procedure selection
@@ -262,9 +327,19 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
       if (exists) {
         return prev.filter(p => p.procedure_id !== procedureId);
       } else {
-        return [...prev, { procedure_id: procedureId, notes: "" }];
+        return [...prev, { procedure_id: procedureId, target_room_id: undefined, notes: "" }];
       }
     });
+  };
+
+  const updateProcedureTargetRoom = (procedureId: number, targetRoomId: number | null) => {
+    setSelectedProcedures((prev) =>
+      prev.map((item) =>
+        item.procedure_id === procedureId
+          ? { ...item, target_room_id: targetRoomId ?? undefined }
+          : item
+      )
+    );
   };
 
   // Add medicine to selection
@@ -274,9 +349,10 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
     if (!exists) {
       setSelectedMedicines(prev => [...prev, {
         medicine_id: medicine.medicine_id,
+        pharmacy_room_id: undefined,
         quantity: 1,
         unit: medicine.medicine?.unit || "",
-        dosage: "",
+        dosage: medicine.medicine?.dosage || "",
         frequency: "",
         route: "",
         duration: "",
@@ -299,6 +375,132 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
     ));
   };
 
+  const updateMedicinePharmacyRoom = (medicineId: number, pharmacyRoomId: number | null) => {
+    setSelectedMedicines((prev) =>
+      prev.map((item) =>
+        item.medicine_id === medicineId
+          ? { ...item, pharmacy_room_id: pharmacyRoomId ?? undefined }
+          : item
+      )
+    );
+  };
+
+  const selectedClinicalPackage = useMemo(
+    () => roomClinicalPackages.find((assignment) => assignment.clinical_package_id === selectedClinicalPackageId)?.clinical_package,
+    [roomClinicalPackages, selectedClinicalPackageId]
+  );
+
+  const effectiveRoomProcedures = useMemo(
+    () => mergeRoomProceduresWithClinicalPackage(roomProcedures, selectedClinicalPackage),
+    [roomProcedures, selectedClinicalPackage]
+  );
+
+  const effectiveRoomMedicines = useMemo(
+    () => mergeRoomMedicinesWithClinicalPackage(roomMedicines, selectedClinicalPackage),
+    [roomMedicines, selectedClinicalPackage]
+  );
+
+  const availableRoomProcedures = effectiveRoomProcedures.filter(
+    (roomProcedure) =>
+      roomProcedure.is_available &&
+      roomProcedure.procedure
+  );
+
+  const availableRoomMedicines = effectiveRoomMedicines.filter(
+    (roomMedicine) => roomMedicine.medicine && roomMedicine.quantity > 0
+  );
+
+  const orderableProcedureIds = useMemo(
+    () => Array.from(new Set(selectedProcedures
+      .filter((item) => {
+        const procedureType = effectiveRoomProcedures.find((rp) => rp.procedure_id === item.procedure_id)?.procedure?.procedure_type;
+        return procedureType === "consultation" || procedureType === "radiology" || procedureType === "laboratory";
+      })
+      .map((item) => item.procedure_id))),
+    [selectedProcedures, effectiveRoomProcedures]
+  );
+
+  useEffect(() => {
+
+    if (orderableProcedureIds.length === 0) {
+      setOrderRoomOptionsByProcedureId({});
+      return;
+    }
+
+    let active = true;
+
+    Promise.all(
+      orderableProcedureIds.map(async (procedureId) => {
+        const res = await roomProceduresApi.getAvailableRooms(procedureId);
+        const options = (res.data.data || [])
+          .filter((rp) => rp.room)
+          .map((rp) => ({
+            value: String(rp.room_id),
+            label: `${rp.room?.code || `RM-${rp.room_id}`} - ${rp.room?.name || "Tanpa nama"}`,
+          }));
+        return [procedureId, options] as const;
+      })
+    )
+      .then((entries) => {
+        if (!active) return;
+        const next: Record<number, { value: string; label: string }[]> = {};
+        for (const [procedureId, options] of entries) {
+          next[procedureId] = options;
+        }
+        setOrderRoomOptionsByProcedureId(next);
+      })
+      .catch((error) => {
+        console.error("Failed to load available order rooms:", error);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [orderableProcedureIds]);
+
+  const selectedMedicineIds = useMemo(
+    () => Array.from(new Set(selectedMedicines.map((item) => item.medicine_id))),
+    [selectedMedicines]
+  );
+
+  useEffect(() => {
+    if (selectedMedicineIds.length === 0) {
+      setPharmacyRoomOptionsByMedicineId({});
+      return;
+    }
+
+    let active = true;
+
+    Promise.all(
+      selectedMedicineIds.map(async (medicineId) => {
+        const res = await roomMedicinesApi.getByMedicine(medicineId);
+        const medicineRooms = (res.data.data || []) as RoomMedicine[];
+        const options = medicineRooms
+          .filter((rm: RoomMedicine) => rm.room?.is_active && rm.room?.service_type === "farmasi")
+          .map((rm: RoomMedicine) => ({
+            value: String(rm.room_id),
+            label: `${rm.room?.code || `RM-${rm.room_id}`} - ${rm.room?.name || "Tanpa nama"} (Stok: ${rm.quantity})`,
+          }));
+        return [medicineId, options] as const;
+      })
+    )
+      .then((entries) => {
+        if (!active) return;
+        const next: Record<number, { value: string; label: string }[]> = {};
+        for (const [medicineId, options] of entries) {
+          next[medicineId] = options;
+        }
+        setPharmacyRoomOptionsByMedicineId(next);
+      })
+      .catch((error) => {
+        console.error("Failed to load available pharmacy rooms:", error);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [selectedMedicineIds]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -320,12 +522,11 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
       return;
     }
 
-    // Validate Doctor - REQUIRED for SatuSehat
-    if (!doctorId) {
+    if (doctorRequired && !doctorId) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Dokter harus dipilih (wajib untuk SatuSehat)",
+        description: "Dokter harus dipilih untuk layanan ini",
       });
       return;
     }
@@ -356,9 +557,9 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
       // Prepare registration data
       const registrationData: any = {
         patient_id: patient.id,
-        registration_type: selectedServiceType === "rawat_inap" ? "inpatient" : "outpatient",
+        registration_type: selectedServiceType === "rawat_inap" ? "inpatient" : selectedServiceType === "gawat_darurat" ? "emergency" : "outpatient",
         destination_room_id: destinationRoomId,
-        doctor_id: doctorId,
+        doctor_id: doctorId || undefined,
         payment_method: paymentMethod,
         bpjs_number: paymentMethod === "bpjs" ? bpjsNumber : undefined,
         insurance_name: paymentMethod === "insurance" ? insuranceName : undefined,
@@ -370,13 +571,82 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
         sep_number: paymentMethod === "bpjs" && sepNumber ? sepNumber : undefined,
       };
 
-      // Add procedure items for penunjang_medis (lab/radiologi)
-      if (selectedServiceType === "penunjang_medis" && selectedProcedures.length > 0) {
-        registrationData.procedure_items = selectedProcedures;
+      // Final guard: only send procedures that are still visible/available for this room context.
+      const allowedProcedureIds = new Set(
+        availableRoomProcedures.map((roomProcedure) => roomProcedure.procedure_id)
+      );
+      const validProcedures = selectedProcedures.filter((item) => allowedProcedureIds.has(item.procedure_id));
+      if (validProcedures.length !== selectedProcedures.length) {
+        const procedureNameById = new Map(
+          effectiveRoomProcedures.map((roomProcedure) => [
+            roomProcedure.procedure_id,
+            roomProcedure.procedure?.name || `ID ${roomProcedure.procedure_id}`,
+          ])
+        );
+        const skippedNames = selectedProcedures
+          .filter((item) => !allowedProcedureIds.has(item.procedure_id))
+          .map((item) => procedureNameById.get(item.procedure_id) || `ID ${item.procedure_id}`);
+
+        setSelectedProcedures(validProcedures);
+        toast({
+          variant: "destructive",
+          title: "Sebagian tindakan tidak dapat dikirim",
+          description: `Tindakan berikut tidak mendukung order langsung dari pendaftaran: ${skippedNames.join(", ")}`,
+        });
       }
 
-      // Add medicine items for farmasi
-      if (selectedServiceType === "farmasi" && selectedMedicines.length > 0) {
+      const procedureById = new Map(
+        effectiveRoomProcedures.map((roomProcedure) => [
+          roomProcedure.procedure_id,
+          roomProcedure.procedure,
+        ])
+      );
+      const missingTargetRoomProcedures = validProcedures.filter((item) => {
+        const procedureType = procedureById.get(item.procedure_id)?.procedure_type;
+        const requiresTargetRoom =
+          procedureType === "consultation" || procedureType === "radiology" || procedureType === "laboratory";
+        return requiresTargetRoom && !item.target_room_id;
+      });
+
+      if (missingTargetRoomProcedures.length > 0) {
+        const names = missingTargetRoomProcedures.map(
+          (item) => procedureById.get(item.procedure_id)?.name || `ID ${item.procedure_id}`
+        );
+        toast({
+          variant: "destructive",
+          title: "Ruangan tindak lanjut belum dipilih",
+          description: `Pilih ruangan tindak lanjut untuk: ${names.join(", ")}`,
+        });
+        setLoading(false);
+        return;
+      }
+
+      if (validProcedures.length > 0) {
+        registrationData.procedure_items = validProcedures;
+      }
+
+      const missingPharmacyRoomMedicines = selectedMedicines.filter((item) => !item.pharmacy_room_id);
+      if (missingPharmacyRoomMedicines.length > 0) {
+        const medicineNameById = new Map(
+          effectiveRoomMedicines.map((roomMedicine) => [
+            roomMedicine.medicine_id,
+            roomMedicine.medicine?.name || `ID ${roomMedicine.medicine_id}`,
+          ])
+        );
+        const names = missingPharmacyRoomMedicines.map(
+          (item) => medicineNameById.get(item.medicine_id) || `ID ${item.medicine_id}`
+        );
+        toast({
+          variant: "destructive",
+          title: "Farmasi tujuan belum dipilih",
+          description: `Pilih farmasi tujuan untuk: ${names.join(", ")}`,
+        });
+        setLoading(false);
+        return;
+      }
+
+      // Add room medicine items when selected
+      if (selectedMedicines.length > 0) {
         registrationData.medicine_items = selectedMedicines;
       }
 
@@ -602,7 +872,7 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent className="w-[50%] sm:max-w-[50%] overflow-y-auto">
+        <SheetContent className="flex h-full w-[50%] flex-col overflow-hidden sm:max-w-[50%]">
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2">
               <UserPlus className="h-5 w-5" />
@@ -613,44 +883,72 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
             </SheetDescription>
           </SheetHeader>
 
-          <form onSubmit={handleSubmit} className="space-y-4 mt-6">
-            {/* Patient Info Card */}
-            <div className="rounded-lg border bg-muted/30 p-4">
-              <div className="flex items-center gap-4">
-                <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
-                  {patient.foto ? (
-                    <img
-                      src={`/${patient.foto}`}
-                      alt={patient.nama_lengkap}
-                      className="h-12 w-12 rounded-full object-cover"
-                    />
-                  ) : (
-                    <User className="h-6 w-6 text-muted-foreground" />
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h4 className="font-semibold truncate">{formatPatientName(patient.nama_lengkap, patient.jenis_kelamin, patient.status_perkawinan, patient.tanggal_lahir)}</h4>
-                  <div className="grid grid-cols-3 gap-2 text-xs text-muted-foreground mt-1">
-                    <div>
-                      <span className="block">No. RM:</span>
-                      <span className="font-mono font-medium text-foreground">{patient.no_rm}</span>
+          <form onSubmit={handleSubmit} className="mt-6 flex min-h-0 flex-1 flex-col">
+            <div className="flex-1 space-y-4 overflow-y-auto pr-1">
+              {scheduledFollowUps.length > 0 && (
+                <Alert className="border-amber-200 bg-amber-50 text-amber-900">
+                  <AlertTriangle className="h-4 w-4 text-amber-700" />
+                  <AlertTitle className="text-amber-800">Pasien Memiliki Jadwal Kontrol Aktif</AlertTitle>
+                  <AlertDescription className="space-y-2 text-amber-800">
+                    <p>
+                      Pendaftaran baru tetap diperbolehkan. Jadwal kontrol tidak dibatalkan dan tetap bisa di-reschedule dari monitoring.
+                    </p>
+                    <div className="space-y-1">
+                      {scheduledFollowUps.slice(0, 3).map((registration) => (
+                        <div key={registration.id || registration.ID} className="text-xs">
+                          Jadwal {formatScheduledDate(registration.scheduled_date)}
+                          {registration.destination_room?.name ? ` di ${registration.destination_room.name}` : ""}
+                          {registration.doctor?.nama_lengkap ? `, DPJP ${registration.doctor.nama_lengkap}` : ""}
+                        </div>
+                      ))}
+                      {scheduledFollowUps.length > 3 && (
+                        <div className="text-xs">+{scheduledFollowUps.length - 3} jadwal kontrol aktif lainnya</div>
+                      )}
                     </div>
-                    <div>
-                      <span className="block">NIK:</span>
-                      <span className="font-medium text-foreground">{patient.nik || "-"}</span>
-                    </div>
-                    <div>
-                      <span className="block">Tgl Lahir:</span>
-                      <span className="font-medium text-foreground">{patient.tanggal_lahir || "-"}</span>
+                    {selectedServiceType === "gawat_darurat" && (
+                      <p className="text-xs font-medium">Mode UGD tetap diperbolehkan walaupun pasien masih punya jadwal kontrol mendatang.</p>
+                    )}
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {/* Patient Info Card */}
+              <div className="rounded-lg border bg-muted/30 p-4">
+                <div className="flex items-center gap-4">
+                  <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
+                    {patient.foto ? (
+                      <img
+                        src={`/${patient.foto}`}
+                        alt={patient.nama_lengkap}
+                        className="h-12 w-12 rounded-full object-cover"
+                      />
+                    ) : (
+                      <User className="h-6 w-6 text-muted-foreground" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-semibold truncate">{formatPatientName(patient.nama_lengkap, patient.jenis_kelamin, patient.status_perkawinan, patient.tanggal_lahir)}</h4>
+                    <div className="grid grid-cols-3 gap-2 text-xs text-muted-foreground mt-1">
+                      <div>
+                        <span className="block">No. RM:</span>
+                        <span className="font-mono font-medium text-foreground">{patient.no_rm}</span>
+                      </div>
+                      <div>
+                        <span className="block">NIK:</span>
+                        <span className="font-medium text-foreground">{patient.nik || "-"}</span>
+                      </div>
+                      <div>
+                        <span className="block">Tgl Lahir:</span>
+                        <span className="font-medium text-foreground">{patient.tanggal_lahir || "-"}</span>
+                      </div>
                     </div>
                   </div>
+                  <Badge variant="outline">{patient.status}</Badge>
                 </div>
-                <Badge variant="outline">{patient.status}</Badge>
               </div>
-            </div>
 
-            {/* Registration Form - Grid Layout */}
-            <div className="grid grid-cols-2 gap-4">
+              {/* Registration Form - Grid Layout */}
+              <div className="grid grid-cols-2 gap-4">
               {/* Tipe Layanan */}
               <div className="space-y-2">
                 <Label className="text-sm">Tipe Layanan *</Label>
@@ -717,7 +1015,7 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
               {/* Dokter */}
               {destinationRoomId && (
                 <div className="col-span-2 space-y-2">
-                  <Label className="text-sm">Dokter *</Label>
+                  <Label className="text-sm">Dokter {doctorRequired ? "*" : "(Opsional)"}</Label>
                   {roomStaff.length > 0 ? (
                     <Combobox
                       options={roomStaff.map(staff => ({
@@ -731,10 +1029,41 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
                   ) : (
                     <Input
                       disabled
-                      placeholder="Tidak ada dokter di ruangan ini"
+                      placeholder={doctorRequired ? "Tidak ada dokter di ruangan ini" : "Dokter tidak wajib untuk layanan ini"}
                       className="bg-muted text-sm"
                     />
                   )}
+                </div>
+              )}
+
+              {destinationRoomId && (
+                <div className="col-span-2">
+                  <ClinicalPackageSelector
+                    assignments={roomClinicalPackages}
+                    selectedPackageId={selectedClinicalPackageId}
+                    onValueChange={handleClinicalPackageChange}
+                    loading={loadingRoomItems}
+                  />
+                </div>
+              )}
+
+              {destinationRoomId && (loadingRoomItems || availableRoomProcedures.length > 0 || availableRoomMedicines.length > 0) && (
+                <div className="col-span-2">
+                  <OrderRoomSelection
+                    loading={loadingRoomItems}
+                    procedures={availableRoomProcedures}
+                    selectedProcedures={selectedProcedures}
+                    onToggleProcedure={toggleProcedure}
+                    onUpdateProcedureTargetRoom={updateProcedureTargetRoom}
+                    orderRoomOptionsByProcedureId={orderRoomOptionsByProcedureId}
+                    medicines={availableRoomMedicines}
+                    selectedMedicines={selectedMedicines}
+                    onUpdateMedicinePharmacyRoom={updateMedicinePharmacyRoom}
+                    pharmacyRoomOptionsByMedicineId={pharmacyRoomOptionsByMedicineId}
+                    onAddMedicine={addMedicine}
+                    onUpdateMedicineQuantity={updateMedicineQuantity}
+                    onRemoveMedicine={removeMedicine}
+                  />
                 </div>
               )}
 
@@ -844,141 +1173,11 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
                   className="text-sm"
                 />
               </div>
-
-              {/* Procedure Selection for Penunjang Medis */}
-              {selectedServiceType === "penunjang_medis" && destinationRoomId && (
-                <div className="col-span-2 space-y-3 border-t pt-4">
-                  <Label className="text-sm font-medium">Pilih Tindakan *</Label>
-                  {loadingRoomItems ? (
-                    <div className="flex items-center justify-center py-4">
-                      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                      <span className="ml-2 text-sm text-muted-foreground">Memuat tindakan...</span>
-                    </div>
-                  ) : roomProcedures.length > 0 ? (
-                    <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto border rounded-lg p-3">
-                      {roomProcedures.filter(rp => rp.is_available && rp.procedure).map((rp) => {
-                        const isSelected = selectedProcedures.some(p => p.procedure_id === rp.procedure_id);
-                        return (
-                          <div
-                            key={rp.id}
-                            className={`flex items-center gap-2 p-2 border rounded cursor-pointer transition-colors ${
-                              isSelected
-                                ? "bg-primary/10 border-primary"
-                                : "hover:bg-muted"
-                            }`}
-                            onClick={() => toggleProcedure(rp.procedure_id)}
-                          >
-                            <div className={`h-4 w-4 rounded-sm border flex items-center justify-center ${
-                              isSelected ? "bg-primary border-primary text-primary-foreground" : "border-input"
-                            }`}>
-                              {isSelected && (
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3">
-                                  <polyline points="20 6 9 17 4 12"></polyline>
-                                </svg>
-                              )}
-                            </div>
-                            <span className="text-xs truncate">{rp.procedure?.name}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground py-2">
-                      Tidak ada tindakan tersedia di ruangan ini.
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {/* Medicine Selection for Farmasi */}
-              {selectedServiceType === "farmasi" && destinationRoomId && (
-                <div className="col-span-2 space-y-3 border-t pt-4">
-                  <Label className="text-sm font-medium">Pilih Obat</Label>
-                  {loadingRoomItems ? (
-                    <div className="flex items-center justify-center py-4">
-                      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                      <span className="ml-2 text-sm text-muted-foreground">Memuat obat...</span>
-                    </div>
-                  ) : roomMedicines.length > 0 ? (
-                    <div className="space-y-3">
-                      {/* Medicine Search/Add */}
-                      <Combobox
-                        options={roomMedicines
-                          .filter(rm => rm.medicine && rm.quantity > 0)
-                          .map(rm => ({
-                            value: rm.id.toString(),
-                            label: `${rm.medicine?.name} (Stok: ${rm.quantity})`,
-                          }))}
-                        value=""
-                        onValueChange={(value) => {
-                          const rm = roomMedicines.find(m => m.id.toString() === value);
-                          if (rm) addMedicine(rm);
-                        }}
-                        placeholder="Cari dan pilih obat..."
-                      />
-
-                      {/* Selected Medicines */}
-                      {selectedMedicines.length > 0 && (
-                        <div className="space-y-2">
-                          {selectedMedicines.map((sm) => {
-                            const med = roomMedicines.find(m => m.medicine_id === sm.medicine_id)?.medicine;
-                            return med ? (
-                              <div key={sm.medicine_id} className="flex items-center justify-between p-2 border rounded text-sm">
-                                <span className="truncate flex-1">{med.name}</span>
-                                <div className="flex items-center gap-2">
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="icon"
-                                    className="h-6 w-6"
-                                    onClick={() => updateMedicineQuantity(sm.medicine_id, sm.quantity - 1)}
-                                  >
-                                    <Minus className="h-3 w-3" />
-                                  </Button>
-                                  <Input
-                                    type="number"
-                                    value={sm.quantity}
-                                    onChange={(e) => updateMedicineQuantity(sm.medicine_id, parseInt(e.target.value) || 1)}
-                                    className="w-14 h-6 text-center text-xs"
-                                    min={1}
-                                  />
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="icon"
-                                    className="h-6 w-6"
-                                    onClick={() => updateMedicineQuantity(sm.medicine_id, sm.quantity + 1)}
-                                  >
-                                    <Plus className="h-3 w-3" />
-                                  </Button>
-                                  <span className="text-xs text-muted-foreground w-12">{med.unit}</span>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-6 w-6 text-destructive"
-                                    onClick={() => removeMedicine(sm.medicine_id)}
-                                  >
-                                    <X className="h-3 w-3" />
-                                  </Button>
-                                </div>
-                              </div>
-                            ) : null;
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground py-2">
-                      Tidak ada obat tersedia di ruangan ini.
-                    </p>
-                  )}
-                </div>
-              )}
+            </div>
             </div>
 
             {/* Submit Button */}
-            <div className="flex justify-end gap-2 pt-4 border-t">
+            <div className="sticky bottom-0 mt-4 flex justify-end gap-2 border-t bg-background/95 pt-4 pb-1 backdrop-blur supports-[backdrop-filter]:bg-background/80">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Batal
               </Button>

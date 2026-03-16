@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -116,21 +117,23 @@ func GetRegistration(c *gin.Context) {
 
 // ProcedureItemInput represents a procedure item for direct registration to supporting services
 type ProcedureItemInput struct {
-	ProcedureID uint   `json:"procedure_id" binding:"required"`
-	Notes       string `json:"notes"`
+	ProcedureID  uint   `json:"procedure_id" binding:"required"`
+	TargetRoomID *uint  `json:"target_room_id"`
+	Notes        string `json:"notes"`
 }
 
 // MedicineItemInput represents a medicine item for direct registration to pharmacy
 type MedicineItemInput struct {
-	MedicineID   uint   `json:"medicine_id" binding:"required"`
-	Quantity     int    `json:"quantity" binding:"required"`
-	Unit         string `json:"unit"`
-	Dosage       string `json:"dosage"`
-	Frequency    string `json:"frequency"`
-	Route        string `json:"route"`
-	Duration     string `json:"duration"`
-	Instructions string `json:"instructions"`
-	Notes        string `json:"notes"`
+	MedicineID     uint   `json:"medicine_id" binding:"required"`
+	PharmacyRoomID *uint  `json:"pharmacy_room_id"`
+	Quantity       int    `json:"quantity" binding:"required"`
+	Unit           string `json:"unit"`
+	Dosage         string `json:"dosage"`
+	Frequency      string `json:"frequency"`
+	Route          string `json:"route"`
+	Duration       string `json:"duration"`
+	Instructions   string `json:"instructions"`
+	Notes          string `json:"notes"`
 }
 
 // CreateRegistrationInput represents input for creating a registration
@@ -139,7 +142,7 @@ type CreateRegistrationInput struct {
 	PatientID         uint   `json:"patient_id" binding:"required"`          // Patient is required
 	RegistrationType  string `json:"registration_type"`                      // outpatient, inpatient, emergency
 	DestinationRoomID uint   `json:"destination_room_id" binding:"required"` // Destination room
-	DoctorID          uint   `json:"doctor_id" binding:"required"`           // Doctor - REQUIRED for SatuSehat
+	DoctorID          *uint  `json:"doctor_id"`                              // Doctor - required only for doctor-led services
 	PaymentMethod     string `json:"payment_method" binding:"required"`      // cash, bpjs, insurance
 	BPJSNumber        string `json:"bpjs_number"`                            // BPJS number if applicable
 	SEPNumber         string `json:"sep_number"`                             // SEP number if BPJS
@@ -151,11 +154,446 @@ type CreateRegistrationInput struct {
 	CreateRoomQueue   bool   `json:"create_room_queue"`                      // Auto-create room queue
 	QueuePriority     string `json:"queue_priority"`                         // Queue priority (normal, urgent, emergency)
 
-	// For direct registration to supporting services (penunjang) - radiology/laboratory
-	ProcedureItems []ProcedureItemInput `json:"procedure_items"` // Procedures to order (for lab/radiology)
+	// For direct registration to order rooms - consultation/radiology/laboratory
+	ProcedureItems []ProcedureItemInput `json:"procedure_items"` // Procedures to order
 
-	// For direct registration to pharmacy
-	MedicineItems []MedicineItemInput `json:"medicine_items"` // Medicines to order (for pharmacy)
+	// For direct registration to pharmacy or direct room-stock medicines
+	MedicineItems []MedicineItemInput `json:"medicine_items"` // Medicines to assign/order
+}
+
+func isDoctorRequiredForRegistration(room *models.Room) bool {
+	switch room.ServiceType {
+	case "farmasi", "penunjang", "penunjang_medis":
+		return false
+	default:
+		return true
+	}
+}
+
+func procedureLabelByID(tx *gorm.DB, procedureID uint) string {
+	var procedure models.Procedure
+	if err := tx.Unscoped().Select("name").First(&procedure, procedureID).Error; err == nil {
+		name := strings.TrimSpace(procedure.Name)
+		if name != "" {
+			return name
+		}
+	}
+
+	return "tidak diketahui"
+}
+
+func medicineLabelByID(tx *gorm.DB, medicineID uint) string {
+	var medicine models.Medicine
+	if err := tx.Unscoped().Select("name").First(&medicine, medicineID).Error; err == nil {
+		name := strings.TrimSpace(medicine.Name)
+		if name != "" {
+			return name
+		}
+	}
+
+	return "tidak diketahui"
+}
+
+func splitDirectProcedureItems(tx *gorm.DB, roomID uint, items []ProcedureItemInput) ([]ProcedureItemInput, []ProcedureItemInput, error) {
+	if len(items) == 0 {
+		return nil, nil, nil
+	}
+
+	orderItems := make([]ProcedureItemInput, 0)
+	visitItems := make([]ProcedureItemInput, 0)
+	for _, item := range items {
+		var procedure models.Procedure
+		if err := tx.Where("id = ? AND is_active = ?", item.ProcedureID, true).First(&procedure).Error; err != nil {
+			procedureName := procedureLabelByID(tx, item.ProcedureID)
+			return nil, nil, fmt.Errorf("tindakan '%s' tidak ditemukan", procedureName)
+		}
+
+		procedureType := procedure.ProcedureType
+		switch procedureType {
+		case models.ProcedureOrderTypeConsultation, models.ProcedureOrderTypeRadiology, models.ProcedureOrderTypeLaboratory:
+			if item.TargetRoomID == nil || *item.TargetRoomID == 0 {
+				return nil, nil, fmt.Errorf("ruangan tindak lanjut wajib dipilih untuk tindakan '%s'", procedure.Name)
+			}
+
+			var targetRoomProcedure models.RoomProcedure
+			err := tx.Where("room_id = ? AND procedure_id = ? AND is_available = ?", *item.TargetRoomID, item.ProcedureID, true).
+				First(&targetRoomProcedure).Error
+			if err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return nil, nil, fmt.Errorf("tindakan '%s' belum tersedia atau tidak aktif di ruangan tindak lanjut yang dipilih", procedure.Name)
+				}
+				return nil, nil, err
+			}
+			orderItems = append(orderItems, item)
+		default:
+			var roomProcedure models.RoomProcedure
+			err := tx.Where("room_id = ? AND procedure_id = ? AND is_available = ?", roomID, item.ProcedureID, true).
+				First(&roomProcedure).Error
+			if err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return nil, nil, fmt.Errorf("tindakan '%s' belum ter-assign atau tidak aktif di ruangan tujuan", procedure.Name)
+				}
+				return nil, nil, err
+			}
+
+			visitItems = append(visitItems, item)
+		}
+	}
+
+	return orderItems, visitItems, nil
+}
+
+func createDirectVisitProcedureItems(tx *gorm.DB, visit *models.Visit, items []ProcedureItemInput, userID uint) error {
+	if visit == nil || len(items) == 0 {
+		return nil
+	}
+
+	for _, item := range items {
+		var procedure models.Procedure
+		if err := tx.Where("id = ? AND is_active = ?", item.ProcedureID, true).First(&procedure).Error; err != nil {
+			procedureName := procedureLabelByID(tx, item.ProcedureID)
+			return fmt.Errorf("tindakan '%s' tidak ditemukan", procedureName)
+		}
+
+		createdByID := userID
+		visitProcedure := models.VisitProcedure{
+			VisitID:     visit.ID,
+			ProcedureID: item.ProcedureID,
+			Status:      models.VisitProcedureStatusPending,
+			Notes:       item.Notes,
+			CreatedByID: &createdByID,
+		}
+
+		if err := tx.Create(&visitProcedure).Error; err != nil {
+			return fmt.Errorf("gagal menyimpan tindakan '%s'", procedure.Name)
+		}
+	}
+
+	return nil
+}
+
+func generateDirectProcedureOrderNumber(tx *gorm.DB, prefix string) string {
+	todayStr := time.Now().Format("20060102")
+	var lastOrder models.ProcedureOrder
+	var orderNum int
+	if err := tx.Where("order_number LIKE ?", prefix+todayStr+"%").
+		Order("order_number DESC").First(&lastOrder).Error; err != nil {
+		orderNum = 1
+	} else {
+		var lastNum int
+		fmt.Sscanf(lastOrder.OrderNumber, prefix+todayStr+"%d", &lastNum)
+		orderNum = lastNum + 1
+	}
+
+	return fmt.Sprintf("%s%s%04d", prefix, todayStr, orderNum)
+}
+
+func createProcedureOrderTargetVisit(tx *gorm.DB, sourceVisit *models.Visit, targetRoomID uint, orderType string, priority string) (*models.Visit, error) {
+	if sourceVisit == nil {
+		return nil, fmt.Errorf("visit sumber tidak ditemukan")
+	}
+
+	var targetRoom models.Room
+	if err := tx.First(&targetRoom, targetRoomID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("ruangan tujuan order tidak ditemukan")
+		}
+		return nil, err
+	}
+
+	visitType := models.VisitTypeOther
+	visitPurpose := "Pemeriksaan"
+	switch orderType {
+	case models.ProcedureOrderTypeRadiology:
+		visitType = models.VisitTypeRadiology
+		visitPurpose = "Pemeriksaan Radiologi"
+	case models.ProcedureOrderTypeLaboratory:
+		visitType = models.VisitTypeLab
+		visitPurpose = "Pemeriksaan Laboratorium"
+	case models.ProcedureOrderTypeConsultation:
+		visitType = models.VisitTypeConsultation
+		visitPurpose = "Konsultasi ke " + targetRoom.Name
+	case models.ProcedureOrderTypeSurgery:
+		visitType = models.VisitTypeSurgery
+		visitPurpose = "Operasi/Bedah di " + targetRoom.Name
+	}
+
+	visitNumber := fmt.Sprintf("VIS%s%06d", time.Now().Format("20060102"), time.Now().UnixNano()%1000000)
+	targetVisit := models.Visit{
+		VisitNumber:    visitNumber,
+		RegistrationID: sourceVisit.RegistrationID,
+		RoomID:         targetRoomID,
+		VisitType:      visitType,
+		VisitPurpose:   visitPurpose,
+		ReferralFrom:   &sourceVisit.ID,
+		Status:         models.VisitStatusWaiting,
+	}
+
+	if err := tx.Create(&targetVisit).Error; err != nil {
+		return nil, err
+	}
+
+	if orderType == models.ProcedureOrderTypeRadiology || orderType == models.ProcedureOrderTypeLaboratory || orderType == models.ProcedureOrderTypeSurgery {
+		queueDate := time.Now()
+		queueNumber, err := generateRoomQueueNumber(tx, targetRoomID, queueDate)
+		if err != nil {
+			return nil, err
+		}
+
+		queuePriority := strings.TrimSpace(priority)
+		if queuePriority == "" {
+			queuePriority = "normal"
+		}
+
+		queueCode := targetRoom.QueueCode
+		if queueCode == "" {
+			queueCode = "Q"
+		}
+
+		roomQueue := models.RoomQueue{
+			VisitID:     targetVisit.ID,
+			RoomID:      targetRoomID,
+			QueueNumber: queueNumber,
+			QueueCode:   queueCode,
+			QueueDate:   queueDate,
+			Priority:    queuePriority,
+			Status:      models.RoomQueueStatusWaiting,
+		}
+
+		if err := tx.Create(&roomQueue).Error; err != nil {
+			return nil, err
+		}
+	}
+
+	return &targetVisit, nil
+}
+
+func createMedicineOrderPharmacyVisit(tx *gorm.DB, sourceVisit *models.Visit, pharmacyRoomID uint, orderNumber string, notes string, priority string) (*models.Visit, error) {
+	if sourceVisit == nil {
+		return nil, fmt.Errorf("visit sumber tidak ditemukan")
+	}
+
+	var pharmacyRoom models.Room
+	if err := tx.First(&pharmacyRoom, pharmacyRoomID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("ruangan farmasi tujuan tidak ditemukan")
+		}
+		return nil, err
+	}
+
+	today := time.Now().Format("20060102")
+	var lastVisit models.Visit
+	var visitNum int
+	errVis := tx.Unscoped().Where("visit_number LIKE ?", "PH"+today+"%").
+		Order("visit_number DESC").First(&lastVisit).Error
+	if errVis != nil {
+		visitNum = 1
+	} else {
+		var lastVisNum int
+		fmt.Sscanf(lastVisit.VisitNumber, "PH"+today+"%d", &lastVisNum)
+		visitNum = lastVisNum + 1
+	}
+
+	visitNumber := fmt.Sprintf("PH%s%04d", today, visitNum)
+	now := time.Now()
+	pharmacyVisit := models.Visit{
+		VisitNumber:    visitNumber,
+		RegistrationID: sourceVisit.RegistrationID,
+		RoomID:         pharmacyRoomID,
+		VisitType:      models.VisitTypePharmacy,
+		VisitPurpose:   "Pengambilan Obat - " + orderNumber,
+		ReferralFrom:   &sourceVisit.ID,
+		Notes:          notes,
+		Status:         models.VisitStatusWaiting,
+		CheckInTime:    &now,
+	}
+
+	if err := tx.Create(&pharmacyVisit).Error; err != nil {
+		return nil, err
+	}
+
+	queueDate := time.Now()
+	queueNumber, err := generateRoomQueueNumber(tx, pharmacyRoomID, queueDate)
+	if err != nil {
+		return nil, err
+	}
+
+	queuePriority := strings.TrimSpace(priority)
+	if queuePriority == "" {
+		queuePriority = "normal"
+	}
+
+	queueCode := pharmacyRoom.QueueCode
+	if queueCode == "" {
+		queueCode = "F"
+	}
+
+	roomQueue := models.RoomQueue{
+		VisitID:     pharmacyVisit.ID,
+		RoomID:      pharmacyRoomID,
+		QueueNumber: queueNumber,
+		QueueCode:   queueCode,
+		QueueDate:   queueDate,
+		Priority:    queuePriority,
+		Status:      models.RoomQueueStatusWaiting,
+	}
+
+	if err := tx.Create(&roomQueue).Error; err != nil {
+		return nil, err
+	}
+
+	return &pharmacyVisit, nil
+}
+
+func resolveMedicineOrderPharmacyRoom(tx *gorm.DB, destinationRoom *models.Room, items []MedicineItemInput) (uint, error) {
+	if len(items) == 1 && items[0].PharmacyRoomID != nil && *items[0].PharmacyRoomID > 0 {
+		var selectedRoom models.Room
+		if err := tx.Where("id = ? AND is_active = ? AND service_type = ?", *items[0].PharmacyRoomID, true, "farmasi").First(&selectedRoom).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return 0, fmt.Errorf("ruangan farmasi yang dipilih tidak ditemukan atau tidak aktif")
+			}
+			return 0, err
+		}
+		return selectedRoom.ID, nil
+	}
+
+	if destinationRoom != nil && destinationRoom.ServiceType == "farmasi" {
+		return destinationRoom.ID, nil
+	}
+
+	medicineIDMap := make(map[uint]struct{})
+	for _, item := range items {
+		if item.MedicineID > 0 {
+			medicineIDMap[item.MedicineID] = struct{}{}
+		}
+	}
+
+	medicineIDs := make([]uint, 0, len(medicineIDMap))
+	for medicineID := range medicineIDMap {
+		medicineIDs = append(medicineIDs, medicineID)
+	}
+
+	if len(medicineIDs) > 0 {
+		type pharmacyRoomCoverage struct {
+			RoomID     uint
+			MatchCount int64
+		}
+
+		var candidates []pharmacyRoomCoverage
+		err := tx.Table("room_medicines AS rm").
+			Select("rm.room_id AS room_id, COUNT(DISTINCT rm.medicine_id) AS match_count").
+			Joins("JOIN rooms AS r ON r.id = rm.room_id").
+			Where("r.is_active = ?", true).
+			Where("r.service_type = ?", "farmasi").
+			Where("rm.medicine_id IN ?", medicineIDs).
+			Group("rm.room_id").
+			Order("match_count DESC, rm.room_id ASC").
+			Scan(&candidates).Error
+		if err != nil {
+			return 0, err
+		}
+
+		if len(candidates) > 0 {
+			return candidates[0].RoomID, nil
+		}
+	}
+
+	var pharmacyRoom models.Room
+	if err := tx.Where("is_active = ? AND service_type = ?", true, "farmasi").Order("id ASC").First(&pharmacyRoom).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, fmt.Errorf("ruangan farmasi aktif tidak ditemukan untuk menampung order obat")
+		}
+		return 0, err
+	}
+
+	return pharmacyRoom.ID, nil
+}
+
+func createDirectVisitMedicineItems(tx *gorm.DB, registration *models.Registration, visit *models.Visit, room *models.Room, items []MedicineItemInput, userID uint) error {
+	for _, item := range items {
+		var roomMedicine models.RoomMedicine
+		err := tx.Preload("Medicine").Where("room_id = ? AND medicine_id = ?", room.ID, item.MedicineID).First(&roomMedicine).Error
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				medicineName := medicineLabelByID(tx, item.MedicineID)
+				return fmt.Errorf("obat '%s' belum ter-assign ke ruangan tujuan", medicineName)
+			}
+			return err
+		}
+
+		if roomMedicine.Quantity < item.Quantity {
+			medicineName := medicineLabelByID(tx, item.MedicineID)
+			if roomMedicine.Medicine != nil && roomMedicine.Medicine.Name != "" {
+				medicineName = roomMedicine.Medicine.Name
+			}
+			return fmt.Errorf("stok obat '%s' di ruangan tidak mencukupi", medicineName)
+		}
+
+		var medicine models.Medicine
+		if roomMedicine.Medicine != nil {
+			medicine = *roomMedicine.Medicine
+		} else if err := tx.First(&medicine, item.MedicineID).Error; err != nil {
+			medicineName := medicineLabelByID(tx, item.MedicineID)
+			return fmt.Errorf("obat '%s' tidak ditemukan", medicineName)
+		}
+
+		unit := item.Unit
+		if unit == "" {
+			unit = medicine.Unit
+		}
+
+		dosage := item.Dosage
+		if dosage == "" {
+			dosage = medicine.Dosage
+		}
+
+		roomMedicineID := roomMedicine.ID
+		visitMedicineItem := models.VisitMedicineItem{
+			RegistrationID: registration.ID,
+			VisitID:        visit.ID,
+			RoomID:         room.ID,
+			RoomMedicineID: &roomMedicineID,
+			MedicineID:     item.MedicineID,
+			Quantity:       item.Quantity,
+			Unit:           unit,
+			Dosage:         dosage,
+			Frequency:      item.Frequency,
+			Route:          item.Route,
+			Duration:       item.Duration,
+			Instructions:   item.Instructions,
+			Notes:          item.Notes,
+			Status:         models.VisitMedicineStatusRecorded,
+		}
+
+		if err := tx.Create(&visitMedicineItem).Error; err != nil {
+			return err
+		}
+
+		newQty := roomMedicine.Quantity - item.Quantity
+		if err := tx.Model(&roomMedicine).Update("quantity", newQty).Error; err != nil {
+			return err
+		}
+
+		transaction := models.MedicineTransaction{
+			TransactionType: "dispensing",
+			MedicineID:      item.MedicineID,
+			Quantity:        item.Quantity,
+			PreviousStock:   roomMedicine.Quantity,
+			CurrentStock:    newQty,
+			FromRoomID:      &room.ID,
+			TransactionDate: time.Now(),
+			ReferenceNumber: registration.RegistrationNumber,
+			Reason:          "Pengeluaran obat langsung dari stok ruangan saat pendaftaran",
+			UserID:          userID,
+			Notes:           item.Notes,
+		}
+
+		if err := tx.Create(&transaction).Error; err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // CreateRegistration godoc
@@ -195,27 +633,32 @@ func CreateRegistration(c *gin.Context) {
 		return
 	}
 
-	// Validate doctor (now required)
 	var doctor models.Employee
-	if err := database.DB.First(&doctor, input.DoctorID).Error; err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Dokter tidak ditemukan"})
+	doctorRequired := isDoctorRequiredForRegistration(&room)
+	if doctorRequired && input.DoctorID == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Dokter harus dipilih untuk layanan ini"})
 		return
 	}
 
-	// Check if doctor is assigned to the selected room
-	var roomStaff models.RoomStaff
-	err := database.DB.Where("room_id = ? AND employee_id = ?", input.DestinationRoomID, input.DoctorID).
-		Where("end_date IS NULL OR end_date >= ?", time.Now()).
-		First(&roomStaff).Error
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Dokter tidak terdaftar di ruangan yang dipilih"})
-		return
-	}
+	if input.DoctorID != nil {
+		if err := database.DB.First(&doctor, *input.DoctorID).Error; err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Dokter tidak ditemukan"})
+			return
+		}
 
-	// Verify doctor is actually a doctor
-	if doctor.TipeKaryawan != "dokter" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Karyawan yang dipilih bukan dokter"})
-		return
+		var roomStaff models.RoomStaff
+		err := database.DB.Where("room_id = ? AND employee_id = ?", input.DestinationRoomID, *input.DoctorID).
+			Where("end_date IS NULL OR end_date >= ?", time.Now()).
+			First(&roomStaff).Error
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Dokter tidak terdaftar di ruangan yang dipilih"})
+			return
+		}
+
+		if doctor.TipeKaryawan != "dokter" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Karyawan yang dipilih bukan dokter"})
+			return
+		}
 	}
 
 	// Validate BPJS number if payment method is BPJS
@@ -237,13 +680,15 @@ func CreateRegistration(c *gin.Context) {
 	endOfDay := startOfDay.Add(24 * time.Hour)
 
 	var existingRegistration models.Registration
-	// Only block if there's an active registration (not completed, discharged, or cancelled)
+	// Only block truly active registrations; no_show should not prevent new registration.
+	// Scheduled follow-ups on the same room/day are still blocked here as duplicate same-day registrations.
 	finishedStatuses := []string{
 		models.RegistrationStatusCompleted,
 		models.RegistrationStatusDischarged,
 		models.RegistrationStatusCancelled,
+		models.RegistrationStatusNoShow,
 	}
-	err = database.DB.Where(
+	err := database.DB.Where(
 		"patient_id = ? AND destination_room_id = ? AND registration_date >= ? AND registration_date < ? AND status NOT IN ?",
 		input.PatientID, input.DestinationRoomID, startOfDay, endOfDay, finishedStatuses,
 	).First(&existingRegistration).Error
@@ -276,7 +721,7 @@ func CreateRegistration(c *gin.Context) {
 		PatientID:          input.PatientID,
 		QueueID:            input.QueueID,
 		DestinationRoomID:  input.DestinationRoomID,
-		DoctorID:           &input.DoctorID,
+		DoctorID:           input.DoctorID,
 		PaymentMethod:      input.PaymentMethod,
 		BPJSNumber:         input.BPJSNumber,
 		SEPNumber:          input.SEPNumber,
@@ -365,7 +810,7 @@ func CreateRegistration(c *gin.Context) {
 			VisitNumber:    visitNumber,
 			RegistrationID: registration.ID,
 			RoomID:         input.DestinationRoomID,
-			DoctorID:       &input.DoctorID,
+			DoctorID:       input.DoctorID,
 			VisitType:      visitType,
 			VisitPurpose:   "Pemeriksaan",
 			Status:         models.VisitStatusWaiting,
@@ -431,101 +876,157 @@ func CreateRegistration(c *gin.Context) {
 			tx.Save(visit)
 		}
 
-		// Create procedure order for direct registration to supporting services (lab/radiology)
-		if len(input.ProcedureItems) > 0 && (room.RoomType == "laboratorium" || room.RoomType == "radiologi") {
-			// Get user's employee for ordering
-			var user models.User
-			if err := tx.Preload("Employee").First(&user, userID).Error; err != nil {
+		// Split procedure items into orderable procedures and direct visit procedures.
+		if len(input.ProcedureItems) > 0 {
+			orderItems, visitItems, err := splitDirectProcedureItems(tx, input.DestinationRoomID, input.ProcedureItems)
+			if err != nil {
 				tx.Rollback()
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mendapatkan data user"})
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 				return
 			}
 
-			// Determine order type based on room type
-			orderType := models.ProcedureOrderTypeLaboratory
-			prefix := "LAB"
-			if room.RoomType == "radiologi" {
-				orderType = models.ProcedureOrderTypeRadiology
-				prefix = "RAD"
-			}
-
-			// Generate order number
-			todayStr := time.Now().Format("20060102")
-			var lastOrder models.ProcedureOrder
-			var orderNum int
-			if err := tx.Where("order_number LIKE ?", prefix+todayStr+"%").
-				Order("order_number DESC").First(&lastOrder).Error; err != nil {
-				orderNum = 1
-			} else {
-				var lastNum int
-				fmt.Sscanf(lastOrder.OrderNumber, prefix+todayStr+"%d", &lastNum)
-				orderNum = lastNum + 1
-			}
-			orderNumber := fmt.Sprintf("%s%s%04d", prefix, todayStr, orderNum)
-
-			// Get employee ID for ordering (use user's employee or default)
-			var orderedByID uint
-			if user.EmployeeID != nil {
-				orderedByID = *user.EmployeeID
-			} else {
-				// Use doctor if provided, or create without specific orderer
-				orderedByID = input.DoctorID
-			}
-
-			priority := input.QueuePriority
-			if priority == "" {
-				priority = "normal"
-			}
-
-			// Create procedure order - source visit is the same as target visit (direct registration)
-			procedureOrder := models.ProcedureOrder{
-				OrderNumber:    orderNumber,
-				OrderType:      orderType,
-				SourceVisitID:  visit.ID, // Self-referencing for direct registration
-				TargetVisitID:  &visit.ID,
-				SourceRoomID:   input.DestinationRoomID,
-				TargetRoomID:   input.DestinationRoomID,
-				RegistrationID: registration.ID,
-				OrderedByID:    orderedByID,
-				Priority:       priority,
-				ClinicalNotes:  input.Complaint,
-				Notes:          input.Notes,
-				Status:         models.ProcedureOrderStatusPending,
-			}
-
-			if err := tx.Create(&procedureOrder).Error; err != nil {
-				tx.Rollback()
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat order tindakan: " + err.Error()})
-				return
-			}
-
-			// Create order items
-			for _, item := range input.ProcedureItems {
-				// Validate procedure exists
-				var procedure models.Procedure
-				if err := tx.First(&procedure, item.ProcedureID).Error; err != nil {
+			if len(visitItems) > 0 {
+				if err := createDirectVisitProcedureItems(tx, visit, visitItems, userID.(uint)); err != nil {
 					tx.Rollback()
-					c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Tindakan ID %d tidak ditemukan", item.ProcedureID)})
+					c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+					return
+				}
+			}
+
+			if len(orderItems) > 0 {
+
+				// Get user's employee for ordering
+				var user models.User
+				if err := tx.Preload("Employee").First(&user, userID).Error; err != nil {
+					tx.Rollback()
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mendapatkan data user"})
 					return
 				}
 
-				orderItem := models.ProcedureOrderItem{
-					ProcedureOrderID: procedureOrder.ID,
-					ProcedureID:      item.ProcedureID,
-					Status:           models.ProcedureOrderStatusPending,
-					Notes:            item.Notes,
+				// Get employee ID for ordering (use user's employee or default)
+				var orderedByID uint
+				if user.EmployeeID != nil {
+					orderedByID = *user.EmployeeID
+				} else {
+					// Use doctor if provided, or create without specific orderer
+					if input.DoctorID != nil {
+						orderedByID = *input.DoctorID
+					}
 				}
 
-				if err := tx.Create(&orderItem).Error; err != nil {
-					tx.Rollback()
-					c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat item order tindakan"})
-					return
+				priority := input.QueuePriority
+				if priority == "" {
+					priority = "normal"
+				}
+
+				type orderGroupKey struct {
+					OrderType    string
+					TargetRoomID uint
+				}
+				groupedOrderItems := make(map[orderGroupKey][]ProcedureItemInput)
+				for _, item := range orderItems {
+					if item.TargetRoomID == nil {
+						tx.Rollback()
+						c.JSON(http.StatusBadRequest, gin.H{"error": "Ruangan tindak lanjut wajib dipilih untuk setiap tindakan order"})
+						return
+					}
+
+					var procedure models.Procedure
+					if err := tx.Select("id", "name", "procedure_type").Where("id = ? AND is_active = ?", item.ProcedureID, true).First(&procedure).Error; err != nil {
+						tx.Rollback()
+						procedureName := procedureLabelByID(tx, item.ProcedureID)
+						c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Tindakan '%s' tidak ditemukan", procedureName)})
+						return
+					}
+
+					switch procedure.ProcedureType {
+					case models.ProcedureOrderTypeConsultation, models.ProcedureOrderTypeRadiology, models.ProcedureOrderTypeLaboratory:
+						key := orderGroupKey{OrderType: procedure.ProcedureType, TargetRoomID: *item.TargetRoomID}
+						groupedOrderItems[key] = append(groupedOrderItems[key], item)
+					default:
+						tx.Rollback()
+						c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Tindakan '%s' tidak mendukung order langsung", procedure.Name)})
+						return
+					}
+				}
+
+				for groupKey, roomOrderItems := range groupedOrderItems {
+					prefix := "LAB"
+					switch groupKey.OrderType {
+					case models.ProcedureOrderTypeRadiology:
+						prefix = "RAD"
+					case models.ProcedureOrderTypeConsultation:
+						prefix = "CONS"
+					}
+
+					targetVisit, err := createProcedureOrderTargetVisit(tx, visit, groupKey.TargetRoomID, groupKey.OrderType, priority)
+					if err != nil {
+						tx.Rollback()
+						c.JSON(http.StatusBadRequest, gin.H{"error": "Gagal membuat kunjungan tujuan order: " + err.Error()})
+						return
+					}
+
+					orderNumber := generateDirectProcedureOrderNumber(tx, prefix)
+
+					// Create procedure order and link it to the newly created target visit.
+					procedureOrder := models.ProcedureOrder{
+						OrderNumber:    orderNumber,
+						OrderType:      groupKey.OrderType,
+						SourceVisitID:  visit.ID,
+						TargetVisitID:  &targetVisit.ID,
+						SourceRoomID:   input.DestinationRoomID,
+						TargetRoomID:   groupKey.TargetRoomID,
+						RegistrationID: registration.ID,
+						OrderedByID:    orderedByID,
+						Priority:       priority,
+						ClinicalNotes:  input.Complaint,
+						Notes:          input.Notes,
+						Status:         models.ProcedureOrderStatusPending,
+					}
+
+					if err := tx.Create(&procedureOrder).Error; err != nil {
+						tx.Rollback()
+						c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat order tindakan: " + err.Error()})
+						return
+					}
+
+					// Create order items
+					for _, item := range roomOrderItems {
+						// Validate procedure exists and remains active
+						var procedure models.Procedure
+						if err := tx.Where("id = ? AND is_active = ?", item.ProcedureID, true).First(&procedure).Error; err != nil {
+							tx.Rollback()
+							procedureName := procedureLabelByID(tx, item.ProcedureID)
+							c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Tindakan '%s' tidak ditemukan", procedureName)})
+							return
+						}
+
+						if procedure.ProcedureType != groupKey.OrderType {
+							tx.Rollback()
+							c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Tindakan '%s' tidak sesuai dengan jenis order %s", procedure.Name, groupKey.OrderType)})
+							return
+						}
+
+						orderItem := models.ProcedureOrderItem{
+							ProcedureOrderID: procedureOrder.ID,
+							ProcedureID:      item.ProcedureID,
+							Status:           models.ProcedureOrderStatusPending,
+							Notes:            item.Notes,
+						}
+
+						if err := tx.Create(&orderItem).Error; err != nil {
+							tx.Rollback()
+							c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat item order tindakan"})
+							return
+						}
+					}
 				}
 			}
 		}
 
-		// Create medicine order for direct registration to pharmacy
-		if len(input.MedicineItems) > 0 && room.ServiceType == "farmasi" {
+		// Create medicine order for all direct registrations.
+		// Stock validation/deduction is handled later during dispensing/performed step.
+		if len(input.MedicineItems) > 0 {
 			// Get user's employee for prescribing
 			var user models.User
 			if err := tx.Preload("Employee").First(&user, userID).Error; err != nil {
@@ -534,26 +1035,20 @@ func CreateRegistration(c *gin.Context) {
 				return
 			}
 
-			// Generate order number
-			todayStr := time.Now().Format("20060102")
-			var lastOrder models.MedicineOrder
-			var orderNum int
-			if err := tx.Where("order_number LIKE ?", "RX"+todayStr+"%").
-				Order("order_number DESC").First(&lastOrder).Error; err != nil {
-				orderNum = 1
-			} else {
-				var lastNum int
-				fmt.Sscanf(lastOrder.OrderNumber, "RX"+todayStr+"%d", &lastNum)
-				orderNum = lastNum + 1
-			}
-			orderNumber := fmt.Sprintf("RX%s%04d", todayStr, orderNum)
-
 			// Get employee ID for prescribing
 			var prescriberID uint
 			if user.EmployeeID != nil {
 				prescriberID = *user.EmployeeID
 			} else {
-				prescriberID = input.DoctorID
+				if input.DoctorID != nil {
+					prescriberID = *input.DoctorID
+				}
+			}
+
+			if prescriberID == 0 {
+				tx.Rollback()
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Prescriber tidak ditemukan. Pilih dokter atau pastikan user terhubung ke data karyawan."})
+				return
 			}
 
 			priority := input.QueuePriority
@@ -561,55 +1056,93 @@ func CreateRegistration(c *gin.Context) {
 				priority = "normal"
 			}
 
-			// Create medicine order - source visit is the same as pharmacy visit (direct registration)
-			medicineOrder := models.MedicineOrder{
-				OrderNumber:      orderNumber,
-				SourceVisitID:    visit.ID, // Self-referencing for direct registration
-				PharmacyVisitID:  &visit.ID,
-				SourceRoomID:     input.DestinationRoomID,
-				PharmacyRoomID:   input.DestinationRoomID,
-				RegistrationID:   registration.ID,
-				PrescriberID:     prescriberID,
-				PrescriptionType: "regular",
-				Priority:         priority,
-				Notes:            input.Notes,
-				Status:           models.OrderStatusPending,
-			}
-
-			if err := tx.Create(&medicineOrder).Error; err != nil {
-				tx.Rollback()
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat resep obat: " + err.Error()})
-				return
-			}
-
-			// Create order items
+			groupedMedicineItems := make(map[uint][]MedicineItemInput)
 			for _, item := range input.MedicineItems {
-				// Validate medicine exists
-				var medicine models.Medicine
-				if err := tx.First(&medicine, item.MedicineID).Error; err != nil {
+				pharmacyRoomID, err := resolveMedicineOrderPharmacyRoom(tx, &room, []MedicineItemInput{item})
+				if err != nil {
 					tx.Rollback()
-					c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Obat ID %d tidak ditemukan", item.MedicineID)})
+					c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+					return
+				}
+				groupedMedicineItems[pharmacyRoomID] = append(groupedMedicineItems[pharmacyRoomID], item)
+			}
+
+			for pharmacyRoomID, orderItems := range groupedMedicineItems {
+				// Generate order number per pharmacy room group
+				todayStr := time.Now().Format("20060102")
+				var lastOrder models.MedicineOrder
+				var orderNum int
+				if err := tx.Where("order_number LIKE ?", "RX"+todayStr+"%").
+					Order("order_number DESC").First(&lastOrder).Error; err != nil {
+					orderNum = 1
+				} else {
+					var lastNum int
+					fmt.Sscanf(lastOrder.OrderNumber, "RX"+todayStr+"%d", &lastNum)
+					orderNum = lastNum + 1
+				}
+				orderNumber := fmt.Sprintf("RX%s%04d", todayStr, orderNum)
+
+				pharmacyVisit, err := createMedicineOrderPharmacyVisit(tx, visit, pharmacyRoomID, orderNumber, input.Notes, priority)
+				if err != nil {
+					tx.Rollback()
+					c.JSON(http.StatusBadRequest, gin.H{"error": "Gagal membuat kunjungan farmasi: " + err.Error()})
 					return
 				}
 
-				orderItem := models.MedicineOrderItem{
-					MedicineOrderID: medicineOrder.ID,
-					MedicineID:      item.MedicineID,
-					Quantity:        item.Quantity,
-					Unit:            item.Unit,
-					Dosage:          item.Dosage,
-					Frequency:       item.Frequency,
-					Route:           item.Route,
-					Duration:        item.Duration,
-					Instructions:    item.Instructions,
-					Notes:           item.Notes,
-					Status:          models.ItemStatusOrdered,
+				medicineOrder := models.MedicineOrder{
+					OrderNumber:      orderNumber,
+					SourceVisitID:    visit.ID,
+					PharmacyVisitID:  &pharmacyVisit.ID,
+					SourceRoomID:     input.DestinationRoomID,
+					PharmacyRoomID:   pharmacyRoomID,
+					RegistrationID:   registration.ID,
+					PrescriberID:     prescriberID,
+					PrescriptionType: "regular",
+					Priority:         priority,
+					Notes:            input.Notes,
+					Status:           models.OrderStatusPending,
 				}
 
-				if err := tx.Create(&orderItem).Error; err != nil {
+				if err := tx.Create(&medicineOrder).Error; err != nil {
 					tx.Rollback()
-					c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat item resep obat"})
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat resep obat: " + err.Error()})
 					return
+				}
+
+				for _, item := range orderItems {
+					medicineName := medicineLabelByID(tx, item.MedicineID)
+
+					var medicine models.Medicine
+					if err := tx.First(&medicine, item.MedicineID).Error; err != nil {
+						tx.Rollback()
+						c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Obat '%s' tidak ditemukan", medicineName)})
+						return
+					}
+
+					orderItem := models.MedicineOrderItem{
+						MedicineOrderID: medicineOrder.ID,
+						MedicineID:      item.MedicineID,
+						Quantity:        item.Quantity,
+						Unit:            item.Unit,
+						Dosage: func() string {
+							if item.Dosage != "" {
+								return item.Dosage
+							}
+							return medicine.Dosage
+						}(),
+						Frequency:    item.Frequency,
+						Route:        item.Route,
+						Duration:     item.Duration,
+						Instructions: item.Instructions,
+						Notes:        item.Notes,
+						Status:       models.ItemStatusOrdered,
+					}
+
+					if err := tx.Create(&orderItem).Error; err != nil {
+						tx.Rollback()
+						c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat item resep obat"})
+						return
+					}
 				}
 			}
 		}
@@ -1307,11 +1840,13 @@ func CreateRegistrationFromQueue(c *gin.Context) {
 	endOfDay := startOfDay.Add(24 * time.Hour)
 
 	var existingRegistration models.Registration
-	// Only block if there's an active registration (not completed, discharged, or cancelled)
+	// Only block truly active registrations; no_show should not prevent new registration.
+	// Scheduled follow-ups on the same room/day are still blocked here as duplicate same-day registrations.
 	finishedStatuses := []string{
 		models.RegistrationStatusCompleted,
 		models.RegistrationStatusDischarged,
 		models.RegistrationStatusCancelled,
+		models.RegistrationStatusNoShow,
 	}
 	err := database.DB.Where(
 		"patient_id = ? AND destination_room_id = ? AND registration_date >= ? AND registration_date < ? AND status NOT IN ?",
@@ -1346,7 +1881,7 @@ func CreateRegistrationFromQueue(c *gin.Context) {
 		PatientID:          input.PatientID,
 		QueueID:            input.QueueID,
 		DestinationRoomID:  input.DestinationRoomID,
-		DoctorID:           &input.DoctorID,
+		DoctorID:           input.DoctorID,
 		PaymentMethod:      input.PaymentMethod,
 		BPJSNumber:         input.BPJSNumber,
 		SEPNumber:          input.SEPNumber,

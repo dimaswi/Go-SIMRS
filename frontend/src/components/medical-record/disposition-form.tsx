@@ -618,9 +618,15 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
       try {
         await medicalRecordsApi.cancelDisposition(visitId);
         canceledItems.push("Data Disposisi");
-      } catch (err) {
-        console.error("Failed to reset disposition:", err);
-        failedItems.push("Data Disposisi");
+      } catch (err: unknown) {
+        const error = err as { response?: { status?: number } };
+        // Idempotent behavior: if disposition already gone, consider as already cancelled
+        if (error.response?.status === 404) {
+          canceledItems.push("Data Disposisi (sudah dibatalkan)");
+        } else {
+          console.error("Failed to reset disposition:", err);
+          failedItems.push("Data Disposisi");
+        }
       }
 
       // Show result

@@ -10,6 +10,7 @@ import (
 	"starter/backend/database"
 	"starter/backend/models"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -282,6 +283,11 @@ func SignDocument(c *gin.Context) {
 		return
 	}
 
+	if err := ensureAllowedSuratDocumentSigner(req.DocumentType, req.DocumentID, signerEmployeeID, "TTD"); err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+		return
+	}
+
 	// Create signature log
 	signatureLog := models.SignatureLog{
 		UserID:           userID,
@@ -476,6 +482,9 @@ func CanSignDocument(c *gin.Context) {
 	}
 
 	err = ensureAllowedOrderDocumentSigner(docType, uint(docID), user.EmployeeID)
+	if err == nil {
+		err = ensureAllowedSuratDocumentSigner(docType, uint(docID), user.EmployeeID, "TTD")
+	}
 	allowed := err == nil
 
 	resp := gin.H{"allowed": allowed}
@@ -735,6 +744,11 @@ func RevokeDocumentSignature(c *gin.Context) {
 		return
 	}
 
+	if err := ensureAllowedSuratDocumentSigner(req.DocumentType, req.DocumentID, user.EmployeeID, "Batal TTD"); err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+		return
+	}
+
 	// Check if document is signed
 	var docSignature models.DocumentSignature
 	if err := database.DB.Where("document_type = ? AND document_id = ?", req.DocumentType, req.DocumentID).
@@ -848,6 +862,52 @@ func ensureNotOrdererRevokingOrderDoc(documentType string, documentID uint, empl
 	}
 
 	return nil
+}
+
+func ensureAllowedSuratDocumentSigner(documentType string, documentID uint, employeeID *uint, actionLabel string) error {
+	if documentType != models.DocTypeSPRI && documentType != models.DocTypeSuratKontrol {
+		return nil
+	}
+
+	if employeeID == nil {
+		return fmt.Errorf("%s dokumen surat hanya bisa dilakukan oleh dokter DPJP", actionLabel)
+	}
+
+	var kodeDokter string
+	switch documentType {
+	case models.DocTypeSPRI:
+		var spri models.SPRI
+		if err := database.DB.Select("id", "kode_dokter").First(&spri, documentID).Error; err != nil {
+			return fmt.Errorf("Data SPRI tidak ditemukan")
+		}
+		kodeDokter = spri.KodeDokter
+	case models.DocTypeSuratKontrol:
+		var surat models.SuratKontrol
+		if err := database.DB.Select("id", "kode_dokter").First(&surat, documentID).Error; err != nil {
+			return fmt.Errorf("Data Surat Kontrol tidak ditemukan")
+		}
+		kodeDokter = surat.KodeDokter
+	}
+
+	kodeDokter = strings.TrimSpace(kodeDokter)
+	if kodeDokter == "" {
+		return fmt.Errorf("Kode dokter DPJP pada dokumen surat tidak ditemukan")
+	}
+
+	var mappedCodes []string
+	if err := database.DB.Model(&models.BPJSDoctorMapping{}).
+		Where("employee_id = ? AND is_active = ?", *employeeID, true).
+		Pluck("kode_dokter_bpjs", &mappedCodes).Error; err != nil {
+		return fmt.Errorf("Gagal memverifikasi mapping dokter BPJS")
+	}
+
+	for _, mapped := range mappedCodes {
+		if strings.TrimSpace(mapped) == kodeDokter {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("%s dokumen surat hanya untuk dokter DPJP sesuai mapping BPJS", actionLabel)
 }
 
 // BatchDocumentStatusRequest for checking multiple document signatures at once

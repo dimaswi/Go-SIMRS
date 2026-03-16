@@ -69,6 +69,8 @@ import {
 } from "lucide-react";
 import { vclaimApi, type SuratKontrolLocal, type VClaimRefPoli, type VClaimRefDokter } from "@/lib/api/vclaim";
 import { printApi } from "@/lib/api/print";
+import { registrationApi } from "@/lib/api/queue";
+import procedureOrdersApi from "@/lib/api/procedure-orders";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -108,6 +110,7 @@ export default function SuratKontrolMonitoringPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<SuratKontrolLocal | null>(null);
   const [editForm, setEditForm] = useState({ tgl_rencana_kontrol: "", kode_poli: "", nama_poli: "", kode_dokter: "", nama_dokter: "" });
+  const isEditingSIMRS = editingItem?.source_type === "simrs";
   const [saving, setSaving] = useState(false);
   const [poliOptions, setPoliOptions] = useState<VClaimRefPoli[]>([]);
   const [dokterOptions, setDokterOptions] = useState<VClaimRefDokter[]>([]);
@@ -158,6 +161,14 @@ export default function SuratKontrolMonitoringPage() {
   };
 
   const handlePrint = (item: SuratKontrolLocal) => {
+    if (item.source_type === "simrs") {
+      if (!item.registration_id) {
+        toast({ variant: "destructive", title: "Error", description: "Data registrasi kontrol SIMRS tidak ditemukan" });
+        return;
+      }
+      printApi.suratKontrolSimrs(item.registration_id);
+      return;
+    }
     printApi.suratKontrol(item.id);
   };
 
@@ -176,11 +187,13 @@ export default function SuratKontrolMonitoringPage() {
       kode_dokter: item.kode_dokter || "",
       nama_dokter: item.nama_dokter || "",
     });
-    if (item.nama_poli) {
-      searchPoli(item.nama_poli.substring(0, 3));
-    }
-    if (item.kode_poli) {
-      searchDokter(item.kode_poli, item.tgl_rencana_kontrol);
+    if (item.source_type !== "simrs") {
+      if (item.nama_poli) {
+        searchPoli(item.nama_poli.substring(0, 3));
+      }
+      if (item.kode_poli) {
+        searchDokter(item.kode_poli, item.tgl_rencana_kontrol);
+      }
     }
     setEditOpen(true);
   };
@@ -241,20 +254,78 @@ export default function SuratKontrolMonitoringPage() {
 
   const handleSaveEdit = async () => {
     if (!editingItem) return;
-    if (!editForm.tgl_rencana_kontrol || !editForm.kode_poli || !editForm.kode_dokter) {
+    if (!editForm.tgl_rencana_kontrol) {
+      toast({ variant: "destructive", title: "Error", description: "Tanggal rencana kontrol wajib diisi" });
+      return;
+    }
+
+    if (!isEditingSIMRS && (!editForm.kode_poli || !editForm.kode_dokter)) {
       toast({ variant: "destructive", title: "Error", description: "Tanggal, Poli, dan Dokter wajib diisi" });
       return;
     }
+
+    if (isEditingSIMRS && !editingItem.registration_id) {
+      toast({ variant: "destructive", title: "Error", description: "Data registrasi kontrol SIMRS tidak ditemukan" });
+      return;
+    }
+
     setSaving(true);
     try {
-      await vclaimApi.updateSuratKontrol(editingItem.no_surat_kontrol, {
-        kode_dokter: editForm.kode_dokter,
-        nama_dokter: editForm.nama_dokter,
-        poli_kontrol: editForm.kode_poli,
-        nama_poli: editForm.nama_poli,
-        tgl_rencana_kontrol: editForm.tgl_rencana_kontrol,
-      });
-      toast({ title: "Berhasil", description: "Surat Kontrol berhasil diupdate" });
+      if (isEditingSIMRS && editingItem.registration_id) {
+        const regRes = await registrationApi.getById(editingItem.registration_id);
+        const registration = regRes.data?.data;
+        const roomId = registration?.destination_room_id;
+        const doctorId = registration?.doctor_id || registration?.doctor?.id || registration?.doctor?.ID;
+
+        if (roomId && doctorId) {
+          const availRes = await procedureOrdersApi.getAvailableDoctors(roomId, editForm.tgl_rencana_kontrol);
+          const availableDoctors = availRes.data?.data || [];
+          if (availRes.data?.room_closed) {
+            toast({
+              variant: "destructive",
+              title: "Jadwal Tidak Tersedia",
+              description: "Poli tujuan sedang tutup pada tanggal reschedule yang dipilih",
+            });
+            return;
+          }
+
+          const doctorAvailable = availableDoctors.some((d) => d.employee_id === Number(doctorId));
+          if (!doctorAvailable) {
+            toast({
+              variant: "destructive",
+              title: "Dokter Tidak Tersedia",
+              description: "Dokter DPJP tidak memiliki jadwal pada tanggal reschedule yang dipilih",
+            });
+            return;
+          }
+        }
+
+        await registrationApi.reschedule(editingItem.registration_id, {
+          new_date: editForm.tgl_rencana_kontrol,
+          reason: "Reschedule dari Monitoring Surat Kontrol",
+        });
+        toast({ title: "Berhasil", description: "Jadwal kontrol SIMRS berhasil di-reschedule" });
+      } else {
+        const dokterHariItu = await vclaimApi.searchDokterSuratKontrol(editForm.kode_poli, editForm.tgl_rencana_kontrol);
+        const tersedia = (dokterHariItu.data?.data || []).some((d) => d.kode === editForm.kode_dokter);
+        if (!tersedia) {
+          toast({
+            variant: "destructive",
+            title: "Dokter Tidak Tersedia",
+            description: "Dokter DPJP tidak memiliki jadwal pada tanggal rencana kontrol yang dipilih",
+          });
+          return;
+        }
+
+        await vclaimApi.updateSuratKontrol(editingItem.no_surat_kontrol, {
+          kode_dokter: editForm.kode_dokter,
+          nama_dokter: editForm.nama_dokter,
+          poli_kontrol: editForm.kode_poli,
+          nama_poli: editForm.nama_poli,
+          tgl_rencana_kontrol: editForm.tgl_rencana_kontrol,
+        });
+        toast({ title: "Berhasil", description: "Surat Kontrol berhasil diupdate" });
+      }
       setEditOpen(false);
       setEditingItem(null);
       loadData();
@@ -292,7 +363,7 @@ export default function SuratKontrolMonitoringPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-lg font-semibold">Monitoring Surat Kontrol</h1>
-          <p className="text-sm text-muted-foreground">Pantau Surat Kontrol / SKDP rawat jalan berdasarkan tanggal</p>
+          <p className="text-sm text-muted-foreground">Pantau Surat Kontrol BPJS dan kontrol umum SIMRS berdasarkan tanggal</p>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={loadData} disabled={loading}>
@@ -365,7 +436,7 @@ export default function SuratKontrolMonitoringPage() {
       {/* Result Summary */}
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          {loading ? "Memuat..." : `${list.length} Surat Kontrol ditemukan`}
+          {loading ? "Memuat..." : `${list.length} data kontrol ditemukan`}
         </p>
       </div>
 
@@ -407,7 +478,16 @@ export default function SuratKontrolMonitoringPage() {
               list.map((item, idx) => (
                 <TableRow key={item.id} className="hover:bg-muted/30">
                   <TableCell className="text-center text-muted-foreground text-sm">{idx + 1}</TableCell>
-                  <TableCell className="font-mono text-sm font-semibold text-purple-700">{item.no_surat_kontrol}</TableCell>
+                  <TableCell className="font-mono text-sm font-semibold text-purple-700">
+                    <div className="flex items-center gap-2">
+                      <span>{item.no_surat_kontrol}</span>
+                      {item.source_type === "simrs" && (
+                        <Badge variant="outline" className="text-[10px] bg-slate-50 text-slate-700 border-slate-300">
+                          SIMRS
+                        </Badge>
+                      )}
+                    </div>
+                  </TableCell>
                   <TableCell>
                     <p className="font-medium text-sm">{item.nama || "-"}</p>
                     <p className="text-xs text-muted-foreground font-mono">{item.no_kartu}</p>
@@ -459,7 +539,7 @@ export default function SuratKontrolMonitoringPage() {
                                 <Pencil className="h-3.5 w-3.5" />
                               </Button>
                             </TooltipTrigger>
-                            <TooltipContent>Edit Surat Kontrol</TooltipContent>
+                            <TooltipContent>{item.source_type === "simrs" ? "Reschedule Kontrol SIMRS" : "Edit Surat Kontrol"}</TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
                       )}
@@ -470,10 +550,10 @@ export default function SuratKontrolMonitoringPage() {
                               <Printer className="h-3.5 w-3.5" />
                             </Button>
                           </TooltipTrigger>
-                          <TooltipContent>Cetak Surat Kontrol</TooltipContent>
+                          <TooltipContent>{item.source_type === "simrs" ? "Cetak Kontrol SIMRS" : "Cetak Surat Kontrol"}</TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
-                      {item.status === "active" && (
+                      {item.status === "active" && item.source_type !== "simrs" && (
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger asChild>
@@ -519,10 +599,10 @@ export default function SuratKontrolMonitoringPage() {
                 <p className="text-xs font-medium text-muted-foreground uppercase">Data Peserta</p>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
                   <div><span className="text-muted-foreground text-xs">Nama</span><p className="font-medium">{selected.nama || "-"}</p></div>
-                  <div><span className="text-muted-foreground text-xs">No. Kartu</span><p className="font-mono">{selected.no_kartu}</p></div>
+                  <div><span className="text-muted-foreground text-xs">No. Kartu</span><p className="font-mono">{selected.no_kartu || "-"}</p></div>
                   <div><span className="text-muted-foreground text-xs">Kelamin</span><p>{selected.kelamin === "L" || selected.kelamin === "1" ? "Laki-laki" : "Perempuan"}</p></div>
                   <div><span className="text-muted-foreground text-xs">Tgl Lahir</span><p>{selected.tgl_lahir || "-"}</p></div>
-                  <div className="col-span-2"><span className="text-muted-foreground text-xs">No. SEP</span><p className="font-mono">{selected.no_sep}</p></div>
+                  <div className="col-span-2"><span className="text-muted-foreground text-xs">No. SEP</span><p className="font-mono">{selected.no_sep || "-"}</p></div>
                 </div>
               </div>
 
@@ -543,9 +623,21 @@ export default function SuratKontrolMonitoringPage() {
               <div className="flex gap-2 pt-2">
                 <Button className="flex-1" variant="outline" onClick={() => { handlePrint(selected); setDetailOpen(false); }}>
                   <Printer className="mr-2 h-4 w-4" />
-                  Cetak Surat Kontrol
+                  {selected.source_type === "simrs" ? "Cetak Kontrol SIMRS" : "Cetak Surat Kontrol"}
                 </Button>
                 {selected.status === "active" && (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setDetailOpen(false);
+                      handleOpenEdit(selected);
+                    }}
+                  >
+                    <Pencil className="mr-2 h-4 w-4" />
+                    {selected.source_type === "simrs" ? "Reschedule" : "Edit"}
+                  </Button>
+                )}
+                {selected.status === "active" && selected.source_type !== "simrs" && (
                   <Button variant="destructive" onClick={() => { setDetailOpen(false); handleConfirmDelete(selected); }}>
                     <Trash2 className="mr-2 h-4 w-4" />
                     Hapus
@@ -591,7 +683,7 @@ export default function SuratKontrolMonitoringPage() {
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2">
               <Pencil className="h-5 w-5 text-purple-600" />
-              Edit Surat Kontrol
+              {isEditingSIMRS ? "Reschedule Kontrol SIMRS" : "Edit Surat Kontrol"}
             </SheetTitle>
           </SheetHeader>
 
@@ -645,34 +737,38 @@ export default function SuratKontrolMonitoringPage() {
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label className="text-xs font-medium">Poli Tujuan *</Label>
-                  <Combobox
-                    options={poliOptions.map(p => ({ value: p.kode, label: `${p.kode} - ${p.nama}` }))}
-                    value={editForm.kode_poli}
-                    onValueChange={handlePoliChange}
-                    onSearchChange={handlePoliSearchChange}
-                    placeholder={loadingPoli ? "Mencari poli..." : "Ketik nama poli untuk mencari..."}
-                    className="h-9"
-                  />
-                  {editForm.nama_poli && (
-                    <p className="text-xs text-muted-foreground">Terpilih: {editForm.nama_poli}</p>
-                  )}
-                </div>
+                {!isEditingSIMRS && (
+                  <>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-medium">Poli Tujuan *</Label>
+                      <Combobox
+                        options={poliOptions.map(p => ({ value: p.kode, label: `${p.kode} - ${p.nama}` }))}
+                        value={editForm.kode_poli}
+                        onValueChange={handlePoliChange}
+                        onSearchChange={handlePoliSearchChange}
+                        placeholder={loadingPoli ? "Mencari poli..." : "Ketik nama poli untuk mencari..."}
+                        className="h-9"
+                      />
+                      {editForm.nama_poli && (
+                        <p className="text-xs text-muted-foreground">Terpilih: {editForm.nama_poli}</p>
+                      )}
+                    </div>
 
-                <div className="space-y-2">
-                  <Label className="text-xs font-medium">Dokter DPJP *</Label>
-                  <Combobox
-                    options={dokterOptions.map(d => ({ value: d.kode, label: `${d.kode} - ${d.nama}` }))}
-                    value={editForm.kode_dokter}
-                    onValueChange={handleDokterChange}
-                    placeholder={loadingDokter ? "Memuat dokter..." : editForm.kode_poli ? "Pilih dokter..." : "Pilih poli terlebih dahulu"}
-                    className="h-9"
-                  />
-                  {editForm.nama_dokter && (
-                    <p className="text-xs text-muted-foreground">Terpilih: {editForm.nama_dokter}</p>
-                  )}
-                </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-medium">Dokter DPJP *</Label>
+                      <Combobox
+                        options={dokterOptions.map(d => ({ value: d.kode, label: `${d.kode} - ${d.nama}` }))}
+                        value={editForm.kode_dokter}
+                        onValueChange={handleDokterChange}
+                        placeholder={loadingDokter ? "Memuat dokter..." : editForm.kode_poli ? "Pilih dokter..." : "Pilih poli terlebih dahulu"}
+                        className="h-9"
+                      />
+                      {editForm.nama_dokter && (
+                        <p className="text-xs text-muted-foreground">Terpilih: {editForm.nama_dokter}</p>
+                      )}
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           )}
@@ -683,7 +779,7 @@ export default function SuratKontrolMonitoringPage() {
             </Button>
             <Button className="flex-1" onClick={handleSaveEdit} disabled={saving}>
               {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-              Simpan ke BPJS
+              {isEditingSIMRS ? "Simpan Reschedule" : "Simpan ke BPJS"}
             </Button>
           </SheetFooter>
         </SheetContent>

@@ -279,6 +279,18 @@ export default function BillingShow() {
     return labels[type] || type;
   };
 
+  const itemTypeOrder: Record<string, number> = {
+    registration: 1,
+    consultation: 2,
+    laboratory: 3,
+    radiology: 4,
+    procedure: 5,
+    medicine: 6,
+    room_charge: 7,
+    room: 7,
+    other: 99,
+  };
+
   // Group items by source_visit_id, then by item_type within each visit
   const itemsByVisit = useMemo(() => {
     const visitMap = new Map<number | string, { visit: any; items: any[]; total: number }>();
@@ -879,6 +891,20 @@ export default function BillingShow() {
                   </div>
                 )}
 
+                {billingItems.length > 0 && (
+                  <Table className="table-fixed w-full">
+                    <TableHeader>
+                      <TableRow className="text-xs">
+                        <TableHead className="text-xs w-[45%]">Deskripsi</TableHead>
+                        <TableHead className="text-xs w-[25%]">Oleh</TableHead>
+                        <TableHead className="text-xs text-center w-16">Qty</TableHead>
+                        <TableHead className="text-xs text-right w-28">Harga</TableHead>
+                        <TableHead className="text-xs text-right w-28">Subtotal</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                  </Table>
+                )}
+
                 {/* Items grouped by visit */}
                 {itemsByVisit.map((visitGroup, vIdx) => {
                   const v = visitGroup.visit;
@@ -914,26 +940,27 @@ export default function BillingShow() {
                       )}
 
                       {/* Items by type within this visit */}
-                      {Array.from(typeGroups.entries()).map(([type, items]) => (
+                      {Array.from(typeGroups.entries())
+                        .sort(([typeA], [typeB]) => (itemTypeOrder[typeA] ?? 99) - (itemTypeOrder[typeB] ?? 99))
+                        .map(([type, items]) => (
                         <div key={`${vIdx}-${type}`}>
                           <div className="px-4 py-1.5 bg-muted/20 border-t">
                             <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{itemTypeLabel(type)}</span>
                           </div>
-                          <Table>
-                            <TableHeader>
-                              <TableRow className="text-xs">
-                                <TableHead className="text-xs">Deskripsi</TableHead>
-                                <TableHead className="text-xs">Oleh</TableHead>
-                                <TableHead className="text-xs text-center w-16">Qty</TableHead>
-                                <TableHead className="text-xs text-right w-28">Harga</TableHead>
-                                <TableHead className="text-xs text-right w-28">Subtotal</TableHead>
-                              </TableRow>
-                            </TableHeader>
+                          <Table className="table-fixed w-full">
                             <TableBody>
-                              {items.map((item: any) => (
+                              {items
+                                .slice()
+                                .sort((a: any, b: any) => {
+                                  const aTime = a?.created_at ? new Date(a.created_at).getTime() : 0;
+                                  const bTime = b?.created_at ? new Date(b.created_at).getTime() : 0;
+                                  if (aTime !== bTime) return aTime - bTime;
+                                  return (a?.id ?? 0) - (b?.id ?? 0);
+                                })
+                                .map((item: any) => (
                                 <TableRow key={item.id} className="text-xs">
-                                  <TableCell className="py-2">{item.description}</TableCell>
-                                  <TableCell className="py-2">
+                                  <TableCell className="py-2 w-[45%]">{item.description}</TableCell>
+                                  <TableCell className="py-2 w-[25%]">
                                     {item.performed_by_name ? (
                                       <span className="text-xs">{item.performed_by_name}</span>
                                     ) : (

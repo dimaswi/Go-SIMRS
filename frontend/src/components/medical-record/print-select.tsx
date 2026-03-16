@@ -28,6 +28,7 @@ import { cn } from "@/lib/utils";
 import { Loader2, Printer, ShieldCheck, ShieldX, FileText, FolderOpen, CheckCircle2 } from "lucide-react";
 import { authApi, visitsApi, medicalRecordsApi, medicineOrdersApi, procedureOrdersApi, printApi, signatureApi, DOCUMENT_TYPES } from "@/lib/api";
 import { unitTransferApi } from "@/lib/api/inpatient";
+import { vclaimApi, type SPRILocal, type SuratKontrolLocal } from "@/lib/api/vclaim";
 import { SignaturePINDialog } from "@/components/signature/signature-pin-dialog";
 import { RevokePINDialog } from "@/components/signature/revoke-pin-dialog";
 import { useAuthStore } from "@/lib/store";
@@ -56,6 +57,12 @@ const ORDER_DOC_TYPES = new Set<string>([
   DOCUMENT_TYPES.RADIOLOGY_RESULT,
   DOCUMENT_TYPES.OPERATIVE_REPORT,
   DOCUMENT_TYPES.CONSULTATION_RESULT,
+]);
+
+const ELIGIBILITY_DOC_TYPES = new Set<string>([
+  DOCUMENT_TYPES.CONSULTATION_RESULT,
+  DOCUMENT_TYPES.SPRI,
+  DOCUMENT_TYPES.SURAT_KONTROL,
 ]);
 
 // Format date to Indonesian short
@@ -92,6 +99,8 @@ export function MedicalRecordPrintSelect({
   const [mcuCertificates, setMcuCertificates] = useState<any[]>([]);
   const [deathCertificates, setDeathCertificates] = useState<any[]>([]);
   const [unitTransfers, setUnitTransfers] = useState<any[]>([]);
+  const [spriDoc, setSpriDoc] = useState<SPRILocal | null>(null);
+  const [suratKontrolDoc, setSuratKontrolDoc] = useState<SuratKontrolLocal | null>(null);
   
   // Signature state
   const [signatureStatuses, setSignatureStatuses] = useState<Record<string, { is_signed: boolean; signer_name?: string }>>({});
@@ -151,6 +160,7 @@ export function MedicalRecordPrintSelect({
     try {
       const visitRes = await visitsApi.getById(visitId);
       setVisit(visitRes.data);
+      const visitRegistrationId = visitRes.data?.registration_id;
 
       try {
         const mrRes = await medicalRecordsApi.get(visitId);
@@ -235,6 +245,52 @@ export function MedicalRecordPrintSelect({
       } catch {
         setUnitTransfers([]);
       }
+
+      try {
+        const res = await vclaimApi.getSPRIByVisit(visitId);
+        if (res.data?.data) {
+          setSpriDoc(res.data.data);
+        } else if (visitRegistrationId) {
+          const regRes = await vclaimApi.getSPRIByRegistration(visitRegistrationId);
+          setSpriDoc(regRes.data?.data || null);
+        } else {
+          setSpriDoc(null);
+        }
+      } catch {
+        if (visitRegistrationId) {
+          try {
+            const regRes = await vclaimApi.getSPRIByRegistration(visitRegistrationId);
+            setSpriDoc(regRes.data?.data || null);
+          } catch {
+            setSpriDoc(null);
+          }
+        } else {
+          setSpriDoc(null);
+        }
+      }
+
+      try {
+        const res = await vclaimApi.getSuratKontrolByVisit(visitId);
+        if (res.data?.data) {
+          setSuratKontrolDoc(res.data.data);
+        } else if (visitRegistrationId) {
+          const regRes = await vclaimApi.getSuratKontrolByRegistration(visitRegistrationId);
+          setSuratKontrolDoc(regRes.data?.data || null);
+        } else {
+          setSuratKontrolDoc(null);
+        }
+      } catch {
+        if (visitRegistrationId) {
+          try {
+            const regRes = await vclaimApi.getSuratKontrolByRegistration(visitRegistrationId);
+            setSuratKontrolDoc(regRes.data?.data || null);
+          } catch {
+            setSuratKontrolDoc(null);
+          }
+        } else {
+          setSuratKontrolDoc(null);
+        }
+      }
     } catch (error) {
       console.error("Error loading print data:", error);
     } finally {
@@ -314,21 +370,41 @@ export function MedicalRecordPrintSelect({
   useEffect(() => {
     let active = true;
 
-    const checkConsultationEligibility = async () => {
-      const consultationOrders = procedureOrders.filter((order) => {
-        if (order.order_type !== "consultation") return false;
-        const hasCompletedOrValidatedItems = order.items?.some((i: any) => i.status === "completed" || i.status === "validated") || false;
-        return order.status === "completed" || order.status === "validated" || hasCompletedOrValidatedItems;
-      });
+    const docsToCheck: Array<{ type: string; id: number }> = [];
 
+    const consultationOrders = procedureOrders.filter((order) => {
+      if (order.order_type !== "consultation") return false;
+      const hasCompletedOrValidatedItems = order.items?.some((i: any) => i.status === "completed" || i.status === "validated") || false;
+      return order.status === "completed" || order.status === "validated" || hasCompletedOrValidatedItems;
+    });
+
+    consultationOrders.forEach((order) => {
+      docsToCheck.push({ type: DOCUMENT_TYPES.CONSULTATION_RESULT, id: order.id });
+    });
+
+    if (spriDoc?.id) {
+      docsToCheck.push({ type: DOCUMENT_TYPES.SPRI, id: spriDoc.id });
+    }
+
+    if (suratKontrolDoc?.id) {
+      docsToCheck.push({ type: DOCUMENT_TYPES.SURAT_KONTROL, id: suratKontrolDoc.id });
+    }
+
+    if (docsToCheck.length === 0) {
+      return () => {
+        active = false;
+      };
+    }
+
+    const checkEligibility = async () => {
       await Promise.all(
-        consultationOrders.map(async (order) => {
+        docsToCheck.map(async (doc) => {
           try {
-            const res = await signatureApi.canSignDocument(DOCUMENT_TYPES.CONSULTATION_RESULT, order.id);
+            const res = await signatureApi.canSignDocument(doc.type, doc.id);
             if (!active) return;
             setSignEligibility((prev) => ({
               ...prev,
-              [`${DOCUMENT_TYPES.CONSULTATION_RESULT}-${order.id}`]: {
+              [`${doc.type}-${doc.id}`]: {
                 allowed: !!res.data?.allowed,
                 reason: res.data?.reason,
               },
@@ -337,21 +413,19 @@ export function MedicalRecordPrintSelect({
             if (!active) return;
             setSignEligibility((prev) => ({
               ...prev,
-              [`${DOCUMENT_TYPES.CONSULTATION_RESULT}-${order.id}`]: { allowed: false },
+              [`${doc.type}-${doc.id}`]: { allowed: false },
             }));
           }
         })
       );
     };
 
-    if (procedureOrders.length > 0) {
-      checkConsultationEligibility();
-    }
+    checkEligibility();
 
     return () => {
       active = false;
     };
-  }, [procedureOrders]);
+  }, [procedureOrders, spriDoc?.id, suratKontrolDoc?.id]);
 
   useEffect(() => {
     sickLetters.forEach((letter) => {
@@ -372,7 +446,13 @@ export function MedicalRecordPrintSelect({
     deathCertificates.forEach((cert) => {
       checkSignatureStatus(DOCUMENT_TYPES.DEATH_CERTIFICATE, cert.id);
     });
-  }, [sickLetters, healthCertificates, birthCertificates, leaveCertificates, mcuCertificates, deathCertificates]);
+    if (spriDoc?.id) {
+      checkSignatureStatus(DOCUMENT_TYPES.SPRI, spriDoc.id);
+    }
+    if (suratKontrolDoc?.id) {
+      checkSignatureStatus(DOCUMENT_TYPES.SURAT_KONTROL, suratKontrolDoc.id);
+    }
+  }, [sickLetters, healthCertificates, birthCertificates, leaveCertificates, mcuCertificates, deathCertificates, spriDoc, suratKontrolDoc]);
 
   const handleSignDocument = (docType: string, docId: number, title: string) => {
     setSignatureDoc({ type: docType, id: docId, title });
@@ -419,7 +499,17 @@ export function MedicalRecordPrintSelect({
       return true;
     }
 
+    if (ELIGIBILITY_DOC_TYPES.has(docType)) {
+      // For SPRI/Surat Kontrol and consultation (fallback), require explicit backend eligibility.
+      return eligibility?.allowed === true;
+    }
+
     return true;
+  };
+
+  const getSignReason = (docType?: string, docId?: number) => {
+    if (!docType || !docId) return undefined;
+    return signEligibility[`${docType}-${docId}`]?.reason;
   };
 
   const handlePrint = async (printFn: () => Promise<void>, description: string) => {
@@ -454,6 +544,7 @@ export function MedicalRecordPrintSelect({
   const hasAnyMedicalData = hasAnamnesis || hasDiagnosis;
   const hasTriage = medicalRecord?.triage?.id > 0;
   const hasReferral = medicalRecord?.disposition?.disposition_type === "rujuk";
+  const followUpRegistrationId = medicalRecord?.disposition?.follow_up_registration_id;
   
   // Completed orders - include orders with completed/validated items too
   const completedLabOrders = procedureOrders.filter(o => 
@@ -769,6 +860,38 @@ export function MedicalRecordPrintSelect({
         documentId: visitId,
       });
     }
+
+    if (suratKontrolDoc?.id) {
+      const skDate = formatDateShort(suratKontrolDoc.tgl_rencana_kontrol);
+      options.push({
+        value: `surat-kontrol-${suratKontrolDoc.id}`,
+        label: `Surat Kontrol ${skDate || ""}`.trim(),
+        category: "Surat",
+        handler: () => printApi.suratKontrol(suratKontrolDoc.id),
+        documentType: DOCUMENT_TYPES.SURAT_KONTROL,
+        documentId: suratKontrolDoc.id,
+      });
+    } else if (followUpRegistrationId) {
+      const simrsDate = formatDateShort(medicalRecord?.disposition?.follow_up_date);
+      options.push({
+        value: `surat-kontrol-simrs-${followUpRegistrationId}`,
+        label: `Surat Kontrol SIMRS ${simrsDate || ""}`.trim(),
+        category: "Surat",
+        handler: () => printApi.suratKontrolSimrs(followUpRegistrationId),
+      });
+    }
+
+    if (spriDoc?.id) {
+      const spriDate = formatDateShort(spriDoc.tgl_rencana_kontrol);
+      options.push({
+        value: `spri-${spriDoc.id}`,
+        label: `SPRI ${spriDate || ""}`.trim(),
+        category: "Surat",
+        handler: () => printApi.spri(spriDoc.id),
+        documentType: DOCUMENT_TYPES.SPRI,
+        documentId: spriDoc.id,
+      });
+    }
     
     if (isInpatientVisit) {
       options.push({
@@ -943,9 +1066,13 @@ export function MedicalRecordPrintSelect({
                           ? isDocumentSigned(option.documentType, option.documentId)
                           : false;
                         const canSign = canSignDocument(option.documentType, option.documentId);
+                        const signReason = getSignReason(option.documentType, option.documentId);
                         const isOrderDoc = option.documentType ? ORDER_DOC_TYPES.has(option.documentType) : false;
                         const isOrdererView = isOrderDoc && option.sourceVisitId === visitId;
-                        const canRevoke = option.documentType ? !isOrdererView : false;
+                        const isRestrictedDoc = option.documentType ? ELIGIBILITY_DOC_TYPES.has(option.documentType) : false;
+                        const canRevoke = option.documentType
+                          ? (!isOrdererView && (!isRestrictedDoc || canSign))
+                          : false;
 
                         return (
                           <TableRow key={option.value}>
@@ -994,8 +1121,8 @@ export function MedicalRecordPrintSelect({
                                     TTD
                                   </Button>
                                 )}
-                                {option.documentType === DOCUMENT_TYPES.CONSULTATION_RESULT && option.documentId && !isSigned && !canSign && (
-                                  <span className="text-[11px] text-muted-foreground">Hanya pengisi</span>
+                                {option.documentType && option.documentId && !isSigned && !canSign && (
+                                  <span className="text-[11px] text-muted-foreground">{signReason || "Tidak bisa TTD"}</span>
                                 )}
                                 {option.documentType && option.documentId && isSigned && canRevoke && (
                                   <Button

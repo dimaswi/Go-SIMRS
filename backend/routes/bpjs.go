@@ -117,6 +117,7 @@ func SetupBPJSRoutes(api *gin.RouterGroup) {
 			vclaim.GET("/sep/registration/:registrationId", handlers.GetSEPByRegistration)
 			vclaim.GET("/sep/list", handlers.GetSEPList)
 			vclaim.PATCH("/sep/:noSEP/visit", middleware.RequirePermission("registrations.update"), handlers.UpdateSEPVisitID)
+			vclaim.DELETE("/sep/:noSEP/local", middleware.RequirePermission("registrations.update"), handlers.DeleteSEPLocal)
 
 			// SPRI (Surat Perintah Rawat Inap)
 			vclaim.POST("/spri", middleware.RequirePermission("registrations.create"), handlers.VClaimCreateSPRI)

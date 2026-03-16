@@ -380,6 +380,40 @@ export interface MCUCertificate {
   updated_at?: string;
 }
 
+export interface VisitMedicineItemSummary {
+  id: number;
+  visit_id: number;
+  registration_id: number;
+  room_id: number;
+  room_medicine_id?: number;
+  medicine_id: number;
+  quantity: number;
+  unit?: string;
+  dosage?: string;
+  frequency?: string;
+  route?: string;
+  duration?: string;
+  instructions?: string;
+  notes?: string;
+  status?: string;
+  created_at?: string;
+  updated_at?: string;
+  medicine?: {
+    id: number;
+    code?: string;
+    name?: string;
+    generic_name?: string;
+    strength?: string;
+    unit?: string;
+    selling_price?: number;
+  };
+  room?: {
+    id: number;
+    code?: string;
+    name?: string;
+  };
+}
+
 export interface MedicalRecordSummary {
   triage?: Triage;
   anamnesis?: Anamnesis;
@@ -387,6 +421,7 @@ export interface MedicalRecordSummary {
   diagnosis?: Diagnosis;
   assessment_plan?: AssessmentPlan;
   disposition?: Disposition;
+  visit_medicine_items?: VisitMedicineItemSummary[];
 }
 
 // Legacy interface for backward compatibility

@@ -126,6 +126,14 @@ export interface RoomProcedure {
   created_at: string;
   updated_at: string;
   room_id: number;
+  room?: {
+    id: number;
+    name: string;
+    code: string;
+    service_type: string;
+    room_type: string;
+    is_active: boolean;
+  };
   procedure_id: number;
   procedure?: Procedure;
   is_available: boolean;
@@ -342,6 +350,11 @@ export const roomProceduresApi = {
   // Get procedures assigned to a room
   getByRoom: (roomId: number) => {
     return api.get<{ data: RoomProcedure[] }>(`/rooms/${roomId}/procedures`);
+  },
+
+  // Get active room options for a specific procedure
+  getAvailableRooms: (procedureId: number) => {
+    return api.get<{ data: RoomProcedure[] }>(`/procedures/${procedureId}/available-rooms`);
   },
 
   // Assign procedure to room

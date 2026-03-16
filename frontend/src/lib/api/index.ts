@@ -431,3 +431,13 @@ export {
   reportHrApi,
   reportKemenkesApi,
 } from './reports';
+
+// Clinical Packages
+export { clinicalPackagesApi, roomClinicalPackagesApi } from './clinical-packages';
+export type {
+  ClinicalPackage,
+  ClinicalPackageInput,
+  ClinicalPackageProcedureItem,
+  ClinicalPackageMedicineItem,
+  RoomClinicalPackage,
+} from './clinical-packages';

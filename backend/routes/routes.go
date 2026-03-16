@@ -75,6 +75,7 @@ func SetupRoutes(r *gin.Engine) {
 
 			// Nutrition/Gizi Management
 			setupNutritionRoutes(protected)
+			setupClinicalPackageRoutes(protected)
 		}
 
 		// Queue & Registration (mixed public/protected routes)

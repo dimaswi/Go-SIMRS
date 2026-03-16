@@ -7,7 +7,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { Toaster as SonnerToaster } from '@/components/ui/sonner';
 import { NotificationProvider } from '@/contexts/notification-context';
 import { Loader2 } from 'lucide-react';
-import { EmployeeRoutes, RegionRoutes, MasterDataRoutes, RoomRoutes, ProcedureRoutes, PatientRoutes, InventoryRoutes, MedicineRoutes, StockRequestRoutes, DistributionRoutes, PurchaseRoutes, StockOpnameRoutes, SupplierRoutes, RoomStockRoutes, QueueRoutes, RegistrationRoutes, IntegrationsRoutes, NutritionRoutes } from './routes';
+import { EmployeeRoutes, RegionRoutes, MasterDataRoutes, RoomRoutes, ProcedureRoutes, PatientRoutes, InventoryRoutes, MedicineRoutes, StockRequestRoutes, DistributionRoutes, PurchaseRoutes, StockOpnameRoutes, SupplierRoutes, RoomStockRoutes, QueueRoutes, RegistrationRoutes, IntegrationsRoutes, NutritionRoutes, ClinicalPackageRoutes } from './routes';
 import { KioskRoutes } from './routes/KioskRoutes';
 import { QueueDisplayRoutes } from './routes/QueueDisplayRoutes';
 import { CounterRoutes } from './routes/CounterRoutes';
@@ -289,6 +289,9 @@ function App() {
 
           {/* Nutrition / Gizi */}
           {NutritionRoutes(ProtectedRoute)}
+
+          {/* Clinical Packages */}
+          {ClinicalPackageRoutes(ProtectedRoute)}
 
           {/* Reports / Laporan */}
           <Route path="/reports/*" element={<ProtectedRoute><ReportRoutes /></ProtectedRoute>} />

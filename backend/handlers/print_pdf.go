@@ -12493,7 +12493,7 @@ func PrintSuratKontrol(c *gin.Context) {
 	} else if sk.NamaDokter != "" {
 		dpjpName = sk.NamaDokter
 	}
-	addBPJSDocSignature(pdf, hospitalInfo.City, dpjpName, "Dokter DPJP", sk.NoSuratKontrol, sk.CreatedAt)
+	addSignature(pdf, hospitalInfo.City, dpjpName, "Dokter DPJP", models.DocTypeSuratKontrol, sk.ID)
 
 	// Output PDF
 	var buf bytes.Buffer
@@ -12503,6 +12503,109 @@ func PrintSuratKontrol(c *gin.Context) {
 	}
 
 	filename := fmt.Sprintf("SuratKontrol_%s.pdf", sk.NoSuratKontrol)
+	c.Header("Content-Type", "application/pdf")
+	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
+	c.Data(http.StatusOK, "application/pdf", buf.Bytes())
+}
+
+// PrintSuratKontrolSIMRS generates PDF for general SIMRS follow-up control (non-BPJS)
+func PrintSuratKontrolSIMRS(c *gin.Context) {
+	registrationID := c.Param("registrationId")
+
+	var reg models.Registration
+	if err := database.DB.
+		Preload("Patient").
+		Preload("DestinationRoom").
+		Preload("Doctor").
+		Preload("SourceVisit").
+		First(&reg, registrationID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Jadwal kontrol SIMRS tidak ditemukan"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		}
+		return
+	}
+
+	if !reg.IsFollowUp {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Registrasi ini bukan jadwal kontrol"})
+		return
+	}
+
+	if reg.Patient == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Data pasien tidak ditemukan"})
+		return
+	}
+
+	hospitalInfo := getHospitalInfo()
+
+	pdf := gofpdf.New("P", "mm", "A4", "")
+	pdf.SetMargins(15, 15, 15)
+	pdf.SetAutoPageBreak(false, 0)
+	pdf.AddPage()
+
+	subtitle := "No: " + reg.RegistrationNumber
+	addHeader(pdf, hospitalInfo, "Surat Kontrol Umum (SIMRS)", subtitle)
+
+	pdf.SetY(pdf.GetY() + 5)
+	addTableHeader(pdf, "DATA PASIEN")
+
+	labelW := 50.0
+	addTableRow(pdf, "Nama Pasien", reg.Patient.NamaLengkap, labelW)
+	addTableRow(pdf, "No. RM", reg.Patient.NoRM, labelW)
+	addTableRow(pdf, "No. BPJS", reg.Patient.NoBPJS, labelW)
+
+	tglLahir := "-"
+	if reg.Patient.TanggalLahir != nil && !reg.Patient.TanggalLahir.IsZero() {
+		tglLahir = formatDateIndonesian(reg.Patient.TanggalLahir.Time)
+	}
+	addTableRow(pdf, "Tanggal Lahir", tglLahir, labelW)
+
+	kelamin := string(reg.Patient.JenisKelamin)
+	if kelamin == "L" || kelamin == "male" {
+		kelamin = "Laki-laki"
+	} else if kelamin == "P" || kelamin == "female" {
+		kelamin = "Perempuan"
+	}
+	addTableRow(pdf, "Jenis Kelamin", kelamin, labelW)
+	addTableEnd(pdf)
+
+	addTableHeader(pdf, "JADWAL KONTROL")
+	addTableRow(pdf, "No. Registrasi", reg.RegistrationNumber, labelW)
+
+	tglKontrol := "-"
+	if reg.ScheduledDate != nil && !reg.ScheduledDate.IsZero() {
+		tglKontrol = formatDateIndonesian(reg.ScheduledDate.UTC())
+	}
+	addTableRow(pdf, "Tanggal Kontrol", tglKontrol, labelW)
+
+	namaPoli := "-"
+	if reg.DestinationRoom != nil {
+		namaPoli = reg.DestinationRoom.Name
+	}
+	addTableRow(pdf, "Poli Tujuan", namaPoli, labelW)
+
+	namaDokter := "-"
+	if reg.Doctor != nil {
+		namaDokter = resolveAssignedUserNameFromEmployee(reg.Doctor, namaDokter)
+	}
+	addTableRow(pdf, "Dokter Tujuan", namaDokter, labelW)
+	addTableRow(pdf, "Keluhan", reg.Complaint, labelW)
+	addTableEnd(pdf)
+
+	pdf.SetY(pdf.GetY() + 5)
+	pdf.SetFont("Arial", "", 10)
+	pdf.MultiCell(0, 5, "Surat ini merupakan jadwal kontrol pasien yang dibuat di sistem SIMRS.", "", "L", false)
+
+	addSignature(pdf, hospitalInfo.City, namaDokter, "Dokter Pemeriksa", "", 0)
+
+	var buf bytes.Buffer
+	if err := pdf.Output(&buf); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal generate PDF"})
+		return
+	}
+
+	filename := fmt.Sprintf("Surat_Kontrol_SIMRS_%s.pdf", reg.RegistrationNumber)
 	c.Header("Content-Type", "application/pdf")
 	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
 	c.Data(http.StatusOK, "application/pdf", buf.Bytes())

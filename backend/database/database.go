@@ -270,11 +270,15 @@ func Migrate() error {
 		&models.DoctorSchedule{},    // Doctor Schedules (Jadwal Dokter)
 		&models.ScheduleException{}, // Schedule Exceptions (Libur/Perubahan Jadwal)
 		// Procedure Management
-		&models.ProcedureCategory{},  // Procedure Categories
-		&models.Procedure{},          // Procedures/Tindakan
-		&models.ProcedureTariff{},    // Procedure Tariffs (Tarif per Kelas Pasien)
-		&models.ProcedureParameter{}, // Procedure Parameters (Parameter Hasil Tindakan)
-		&models.RoomProcedure{},      // Room Procedures (Tindakan di Ruangan)
+		&models.ProcedureCategory{},            // Procedure Categories
+		&models.Procedure{},                    // Procedures/Tindakan
+		&models.ProcedureTariff{},              // Procedure Tariffs (Tarif per Kelas Pasien)
+		&models.ProcedureParameter{},           // Procedure Parameters (Parameter Hasil Tindakan)
+		&models.RoomProcedure{},                // Room Procedures (Tindakan di Ruangan)
+		&models.ClinicalPackage{},              // Clinical Packages (Paket Klinis)
+		&models.ClinicalPackageProcedureItem{}, // Clinical Package Procedure Items
+		&models.ClinicalPackageMedicineItem{},  // Clinical Package Medicine Items
+		&models.RoomClinicalPackage{},          // Clinical Package assignment to room
 		// Patient Management
 		&models.Patient{}, // Patients (Pasien)
 		// Inventory Management
@@ -314,10 +318,12 @@ func Migrate() error {
 		&models.Disposition{},         // Disposition/Discharge
 		&models.VitalSign{},           // Vital Signs History
 		// Medicine Orders (Resep Obat)
-		&models.MedicineOrder{},      // Medicine Orders (Resep)
-		&models.MedicineOrderItem{},  // Medicine Order Items
-		&models.PrescriptionReview{}, // Prescription Reviews (Telaah Resep)
-		&models.MedicineReturn{},     // Medicine Returns (Pengembalian Obat)
+		&models.MedicineOrder{},              // Medicine Orders (Resep)
+		&models.MedicineOrderItem{},          // Medicine Order Items
+		&models.DoctorMedicineTemplate{},     // Doctor medicine templates (private per account)
+		&models.DoctorMedicineTemplateItem{}, // Doctor medicine template items
+		&models.PrescriptionReview{},         // Prescription Reviews (Telaah Resep)
+		&models.MedicineReturn{},             // Medicine Returns (Pengembalian Obat)
 		// Procedure Orders (Radiologi & Laboratorium)
 		&models.ProcedureOrder{},       // Procedure Orders (Order Radiologi/Lab)
 		&models.ProcedureOrderItem{},   // Procedure Order Items
@@ -325,6 +331,7 @@ func Migrate() error {
 		// Visit Procedures (Tindakan yang dilakukan langsung di ruangan)
 		&models.VisitProcedure{},       // Visit Procedures (Tindakan di Ruangan)
 		&models.VisitProcedureResult{}, // Visit Procedure Results (Hasil Tindakan)
+		&models.VisitMedicineItem{},    // Visit Medicine Items (Obat langsung dari stok ruangan)
 		// Inpatient Records (Rawat Inap)
 		&models.CPPT{},             // CPPT - Catatan Perkembangan Pasien Terintegrasi
 		&models.FluidBalance{},     // Fluid Balance - Balance Cairan

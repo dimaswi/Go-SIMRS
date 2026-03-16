@@ -136,6 +136,10 @@ export interface Registration {
   payment_method: "cash" | "bpjs" | "insurance";
   bpjs_number?: string;
   sep_number?: string; // SEP Number for BPJS
+  is_follow_up?: boolean;
+  scheduled_date?: string;
+  checked_in_at?: string;
+  source_visit_id?: number;
   insurance_name?: string;
   insurance_number?: string;
   complaint?: string;
@@ -210,6 +214,23 @@ export interface CreateRegistrationInput {
   create_visit?: boolean;
   create_room_queue?: boolean;
   queue_priority?: "normal" | "urgent" | "emergency";
+  procedure_items?: Array<{
+    procedure_id: number;
+    target_room_id?: number;
+    notes?: string;
+  }>;
+  medicine_items?: Array<{
+    medicine_id: number;
+    pharmacy_room_id?: number;
+    quantity: number;
+    unit?: string;
+    dosage?: string;
+    frequency?: string;
+    route?: string;
+    duration?: string;
+    instructions?: string;
+    notes?: string;
+  }>;
 }
 
 export interface UpdateRegistrationInput {

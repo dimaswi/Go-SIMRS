@@ -300,8 +300,9 @@ export const createVisitColumns = ({
       if (registration?.payment_method !== "bpjs") {
         return <span className="text-muted-foreground text-xs">-</span>;
       }
-      // Prioritas: SEP dari visit (by visit_id) → SEP dari registration (legacy)
-      const sepNumber = row.original.sep?.no_sep || registration?.sep_number || registration?.sep?.no_sep;
+      // Tampilkan hanya SEP yang benar-benar resolved dari backend, bukan raw `sep_number`
+      // yang bisa tertinggal setelah SEP dibatalkan/dihapus.
+      const sepNumber = row.original.sep?.no_sep || registration?.sep?.no_sep;
       if (!sepNumber) {
         return <span className="text-muted-foreground text-xs italic">Belum ada</span>;
       }

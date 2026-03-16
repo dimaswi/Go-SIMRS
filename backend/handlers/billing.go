@@ -12,6 +12,24 @@ import (
 	"gorm.io/gorm"
 )
 
+func billingItemsOrderClause() string {
+	return `
+		COALESCE(source_visit_id, 0) ASC,
+		CASE item_type
+			WHEN 'registration' THEN 1
+			WHEN 'consultation' THEN 2
+			WHEN 'laboratory' THEN 3
+			WHEN 'radiology' THEN 4
+			WHEN 'procedure' THEN 5
+			WHEN 'medicine' THEN 6
+			WHEN 'room_charge' THEN 7
+			ELSE 99
+		END ASC,
+		created_at ASC,
+		id ASC
+	`
+}
+
 // GetBillings returns all billings with filters
 func GetBillings(c *gin.Context) {
 	var billings []models.Billing
@@ -96,7 +114,7 @@ func GetBilling(c *gin.Context) {
 		Preload("Registration").
 		Preload("Registration.Patient").
 		Preload("Items", func(db *gorm.DB) *gorm.DB {
-			return db.Order("source_visit_id ASC, item_type ASC")
+			return db.Order(billingItemsOrderClause())
 		}).
 		Preload("Items.SourceVisit").
 		Preload("Items.SourceVisit.Room").
@@ -132,7 +150,7 @@ func GetBillingByVisit(c *gin.Context) {
 		Preload("Registration").
 		Preload("Registration.Patient").
 		Preload("Items", func(db *gorm.DB) *gorm.DB {
-			return db.Order("source_visit_id ASC, item_type ASC")
+			return db.Order(billingItemsOrderClause())
 		}).
 		Preload("Items.SourceVisit").
 		Preload("Items.SourceVisit.Room").
@@ -293,7 +311,9 @@ func GenerateBilling(c *gin.Context) {
 		Preload("Visit.Room").
 		Preload("Registration").
 		Preload("Registration.Patient").
-		Preload("Items").
+		Preload("Items", func(db *gorm.DB) *gorm.DB {
+			return db.Order(billingItemsOrderClause())
+		}).
 		Preload("GeneratedBy").
 		First(&billing, billing.ID)
 
@@ -372,7 +392,9 @@ func regenerateBillingItemsFromRegistration(c *gin.Context, billing *models.Bill
 		Preload("Visit.Room").
 		Preload("Registration").
 		Preload("Registration.Patient").
-		Preload("Items").
+		Preload("Items", func(db *gorm.DB) *gorm.DB {
+			return db.Order(billingItemsOrderClause())
+		}).
 		Preload("GeneratedBy").
 		First(billing, billing.ID)
 
@@ -506,6 +528,11 @@ func generateBillingItemsFromRegistration(tx *gorm.DB, billing *models.Billing, 
 			return err
 		}
 
+		// Direct medicines from room stock for this visit
+		if err := generateVisitMedicineItems(tx, billing, visit); err != nil {
+			return err
+		}
+
 		// Room Charges - ONLY for inpatient visits
 		if visit.VisitType == models.VisitTypeInpatient {
 			if err := generateInpatientRoomCharges(tx, billing, visit); err != nil {
@@ -522,6 +549,11 @@ func generateBillingItemsFromRegistration(tx *gorm.DB, billing *models.Billing, 
 
 		// Only procedure items from orders
 		if err := generateVisitProcedureItems(tx, billing, visit); err != nil {
+			return err
+		}
+
+		// Direct registration to lab/radiology stores selected actions as self-referencing procedure orders.
+		if err := generateProcedureOrderItems(tx, billing, visit); err != nil {
 			return err
 		}
 	}
@@ -894,8 +926,16 @@ func generateProcedureOrderItems(tx *gorm.DB, billing *models.Billing, visit *mo
 		Preload("PerformedBy").              // Load performer (petugas yang mengerjakan)
 		Preload("ProcedureOrder").           // Load order
 		Preload("ProcedureOrder.OrderedBy"). // Load doctor who ordered
-		Where("procedure_orders.source_visit_id = ? AND procedure_order_items.status = ?",
-			visit.ID, models.ProcedureOrderStatusCompleted).
+		Where(`
+			procedure_orders.source_visit_id = ?
+			AND (
+				procedure_order_items.status = ?
+				OR (
+					procedure_orders.target_visit_id = procedure_orders.source_visit_id
+					AND procedure_order_items.status <> ?
+				)
+			)
+		`, visit.ID, models.ProcedureOrderStatusCompleted, models.ProcedureOrderStatusCancelled).
 		Find(&orderItems).Error
 
 	if err != nil {
@@ -1016,6 +1056,49 @@ func generateMedicineOrderItems(tx *gorm.DB, billing *models.Billing, visit *mod
 			billingItem.PerformedByID = item.MedicineOrder.DeliveredByID
 			billingItem.PerformedByName = item.MedicineOrder.DeliveredBy.NamaLengkap
 			billingItem.PerformedByRole = "apoteker"
+		}
+
+		if err := tx.Create(&billingItem).Error; err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// generateVisitMedicineItems adds direct room-stock medicine items to billing.
+func generateVisitMedicineItems(tx *gorm.DB, billing *models.Billing, visit *models.Visit) error {
+	var medicineItems []models.VisitMedicineItem
+
+	err := tx.
+		Preload("Medicine").
+		Where("visit_id = ? AND status != ?", visit.ID, models.VisitMedicineStatusCancelled).
+		Find(&medicineItems).Error
+	if err != nil {
+		return err
+	}
+
+	for _, item := range medicineItems {
+		if item.Medicine == nil || item.Quantity <= 0 {
+			continue
+		}
+
+		unitPrice := item.Medicine.SellingPrice
+		subtotal := unitPrice * float64(item.Quantity)
+
+		billingItem := models.BillingItem{
+			BillingID:     billing.ID,
+			SourceVisitID: &visit.ID,
+			ItemType:      models.BillingItemTypeMedicine,
+			ReferenceID:   item.ID,
+			ReferenceType: "visit_medicine_item",
+			ReferenceCode: item.Medicine.Code,
+			Description:   fmt.Sprintf("%s %s", item.Medicine.Name, item.Medicine.Strength),
+			Quantity:      item.Quantity,
+			Unit:          item.Unit,
+			UnitPrice:     unitPrice,
+			Subtotal:      subtotal,
+			Notes:         item.Notes,
 		}
 
 		if err := tx.Create(&billingItem).Error; err != nil {

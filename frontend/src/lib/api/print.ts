@@ -131,6 +131,14 @@ export const printApi = {
   },
 
   /**
+   * Print Surat Kontrol Umum (SIMRS follow-up)
+   * @param registrationId - Follow-up registration ID
+   */
+  suratKontrolSimrs: async (registrationId: number) => {
+    return fetchPdf(`${BASE_URL}/surat-kontrol-simrs/${registrationId}`);
+  },
+
+  /**
    * Print Formulir Permohonan DPJP
    * @param visitId - Visit ID
    */

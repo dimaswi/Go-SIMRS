@@ -1433,15 +1433,20 @@ func CancelDisposition(c *gin.Context) {
 	}
 
 	var disposition models.Disposition
+	dispositionFound := true
 	if err := database.DB.Where("visit_id = ?", visitID).First(&disposition).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Disposisi tidak ditemukan"})
-		return
+		if err == gorm.ErrRecordNotFound {
+			dispositionFound = false
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membaca disposisi: " + err.Error()})
+			return
+		}
 	}
 
 	now := time.Now()
 
 	// Cancel follow-up registration if exists (SIMRS jadwal kontrol)
-	if disposition.FollowUpRegistrationID != nil {
+	if dispositionFound && disposition.FollowUpRegistrationID != nil {
 		// Get the follow-up visit first
 		var followUpVisit models.Visit
 		if err := database.DB.Where("registration_id = ?", *disposition.FollowUpRegistrationID).First(&followUpVisit).Error; err == nil {
@@ -1456,7 +1461,7 @@ func CancelDisposition(c *gin.Context) {
 	}
 
 	// Cancel outpatient visit if exists (UGD → Rawat Jalan transfer)
-	if disposition.OutpatientVisitID != nil {
+	if dispositionFound && disposition.OutpatientVisitID != nil {
 		// Cancel room queue for the outpatient visit
 		database.DB.Where("visit_id = ?", *disposition.OutpatientVisitID).Delete(&models.RoomQueue{})
 		// Delete the outpatient visit
@@ -1465,9 +1470,11 @@ func CancelDisposition(c *gin.Context) {
 	}
 
 	// Reset disposition (soft delete)
-	if err := database.DB.Delete(&disposition).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menghapus disposisi: " + err.Error()})
-		return
+	if dispositionFound {
+		if err := database.DB.Delete(&disposition).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menghapus disposisi: " + err.Error()})
+			return
+		}
 	}
 
 	fmt.Printf("[CancelDisposition] Mencari SPRI dan Surat Kontrol untuk visit_id=%s\n", visitID)
@@ -1535,8 +1542,13 @@ func CancelDisposition(c *gin.Context) {
 	database.DB.Exec(`UPDATE room_queues SET status = ?, completed_at = NULL, updated_at = ? WHERE visit_id = ?`,
 		models.RoomQueueStatusServing, now, visitID)
 
+	message := "Disposisi berhasil dibatalkan"
+	if !dispositionFound {
+		message = "Disposisi sudah tidak ada, visit sudah direaktivasi"
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"message":        "Disposisi berhasil dibatalkan",
+		"message":        message,
 		"reactivated":    true,
 		"reactivated_at": now,
 	})
@@ -2120,6 +2132,13 @@ func GetMedicalRecordSummary(c *gin.Context) {
 	var disposition models.Disposition
 	database.DB.Where("visit_id = ?", visitID).Preload("DischargedBy").First(&disposition)
 
+	var visitMedicineItems []models.VisitMedicineItem
+	database.DB.Where("visit_id = ? AND status != ?", visitID, models.VisitMedicineStatusCancelled).
+		Preload("Medicine").
+		Preload("Room").
+		Order("created_at ASC").
+		Find(&visitMedicineItems)
+
 	// Rawat Inap data counts (for print availability)
 	var cpptCount int64
 	database.DB.Model(&models.CPPT{}).Where("visit_id = ?", visitID).Count(&cpptCount)
@@ -2161,18 +2180,19 @@ func GetMedicalRecordSummary(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"visit_id":            visit.ID,
-		"triage":              triage,
-		"anamnesis":           anamnesis,
-		"physical_exam":       physExam,
-		"diagnosis":           diagnosisResult,
-		"assessment_plan":     assessmentPlan,
-		"disposition":         disposition,
-		"cppt_count":          cpptCount,
-		"nursing_care_count":  nursingCareCount,
-		"fluid_balance_count": fluidBalanceCount,
-		"bed_transfer_count":  bedTransferCount,
-		"vital_sign_count":    vitalSignCount,
+		"visit_id":             visit.ID,
+		"triage":               triage,
+		"anamnesis":            anamnesis,
+		"physical_exam":        physExam,
+		"diagnosis":            diagnosisResult,
+		"assessment_plan":      assessmentPlan,
+		"disposition":          disposition,
+		"visit_medicine_items": visitMedicineItems,
+		"cppt_count":           cpptCount,
+		"nursing_care_count":   nursingCareCount,
+		"fluid_balance_count":  fluidBalanceCount,
+		"bed_transfer_count":   bedTransferCount,
+		"vital_sign_count":     vitalSignCount,
 	})
 }
 

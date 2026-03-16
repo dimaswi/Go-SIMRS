@@ -89,23 +89,46 @@ export function PharmacyReturn({ visitId, readOnly = false }: PharmacyReturnProp
   }, [visitId]);
 
   useEffect(() => {
+    const handleRefreshOrders = () => {
+      loadOrders({
+        silent: true,
+        preferredOrderId: selectedOrder?.id,
+      });
+    };
+
+    window.addEventListener("refresh-final-visit", handleRefreshOrders);
+    window.addEventListener("refresh-print-options", handleRefreshOrders);
+
+    return () => {
+      window.removeEventListener("refresh-final-visit", handleRefreshOrders);
+      window.removeEventListener("refresh-print-options", handleRefreshOrders);
+    };
+  }, [visitId, selectedOrder?.id]);
+
+  useEffect(() => {
     if (selectedOrder) {
       loadReturns(selectedOrder.id);
     }
   }, [selectedOrder]);
 
-  const loadOrders = async () => {
-    setLoading(true);
+  const loadOrders = async (options?: { silent?: boolean; preferredOrderId?: number }) => {
+    if (!options?.silent) {
+      setLoading(true);
+    }
+
     try {
       const res = await medicineOrdersApi.getAll({ pharmacy_visit_id: visitId });
       const data = res.data || [];
       setOrders(data);
       // Select first order that has delivered items
-      const eligibleOrder = data.find((o: MedicineOrder) => 
+      const preferredOrder = data.find((order) => order.id === options?.preferredOrderId);
+      const eligibleOrder = preferredOrder || data.find((o: MedicineOrder) => 
         o.items?.some((i: MedicineOrderItem) => (i.dispensed_qty || 0) > 0)
       ) || data[0];
       if (eligibleOrder) {
         setSelectedOrder(eligibleOrder);
+      } else {
+        setSelectedOrder(null);
       }
     } catch (error) {
       console.error("Error loading orders:", error);
@@ -115,7 +138,9 @@ export function PharmacyReturn({ visitId, readOnly = false }: PharmacyReturnProp
         description: "Gagal memuat data order",
       });
     } finally {
-      setLoading(false);
+      if (!options?.silent) {
+        setLoading(false);
+      }
     }
   };
 

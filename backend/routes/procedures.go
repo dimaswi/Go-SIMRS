@@ -12,6 +12,7 @@ func setupProcedureRoutes(rg *gin.RouterGroup) {
 	// Procedure routes
 	rg.GET("/procedures", middleware.RequirePermission("procedures.view"), handlers.GetProcedures)
 	rg.GET("/procedures/:id", middleware.RequirePermission("procedures.view"), handlers.GetProcedure)
+	rg.GET("/procedures/:id/available-rooms", middleware.RequirePermission("procedures.view"), handlers.GetProcedureAvailableRooms)
 	rg.POST("/procedures", middleware.RequirePermission("procedures.create"), handlers.CreateProcedure)
 	rg.PUT("/procedures/:id", middleware.RequirePermission("procedures.update"), handlers.UpdateProcedure)
 	rg.DELETE("/procedures/:id", middleware.RequirePermission("procedures.delete"), handlers.DeleteProcedure)

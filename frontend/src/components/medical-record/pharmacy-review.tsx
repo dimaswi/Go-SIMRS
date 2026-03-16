@@ -79,19 +79,43 @@ export function PharmacyReview({ visitId, readOnly = false }: PharmacyReviewProp
   }, [visitId]);
 
   useEffect(() => {
+    const handleRefreshOrders = () => {
+      loadOrders({
+        silent: true,
+        preferredOrderId: selectedOrder?.id,
+      });
+    };
+
+    window.addEventListener("refresh-final-visit", handleRefreshOrders);
+    window.addEventListener("refresh-print-options", handleRefreshOrders);
+
+    return () => {
+      window.removeEventListener("refresh-final-visit", handleRefreshOrders);
+      window.removeEventListener("refresh-print-options", handleRefreshOrders);
+    };
+  }, [visitId, selectedOrder?.id]);
+
+  useEffect(() => {
     if (selectedOrder) {
       loadReview(selectedOrder.id);
     }
   }, [selectedOrder]);
 
-  const loadOrders = async () => {
-    setLoading(true);
+  const loadOrders = async (options?: { silent?: boolean; preferredOrderId?: number }) => {
+    if (!options?.silent) {
+      setLoading(true);
+    }
+
     try {
       const res = await medicineOrdersApi.getAll({ pharmacy_visit_id: visitId });
       const data = res.data || [];
       setOrders(data);
       if (data.length > 0) {
-        setSelectedOrder(data[0]);
+        const nextSelectedOrder =
+          data.find((order) => order.id === options?.preferredOrderId) || data[0];
+        setSelectedOrder(nextSelectedOrder);
+      } else {
+        setSelectedOrder(null);
       }
     } catch (error) {
       console.error("Error loading orders:", error);
@@ -101,7 +125,9 @@ export function PharmacyReview({ visitId, readOnly = false }: PharmacyReviewProp
         description: "Gagal memuat data order",
       });
     } finally {
-      setLoading(false);
+      if (!options?.silent) {
+        setLoading(false);
+      }
     }
   };
 

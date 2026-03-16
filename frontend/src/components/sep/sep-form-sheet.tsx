@@ -628,7 +628,7 @@ export function SEPFormSheet({
                 {/* SKDP / Surat Kontrol - untuk rawat inap dan rawat jalan */}
                 {(jnsPelayanan === "1" || jnsPelayanan === "2") && (
                   <div className="space-y-1.5">
-                    <Label className="text-xs">No. Surat Kontrol (SKDP)</Label>
+                    <Label className="text-xs">Nomor Surat Kontrol / SPRI</Label>
                     <div className="flex gap-2">
                       <Input
                         value={noSuratKontrol}

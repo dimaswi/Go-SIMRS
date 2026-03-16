@@ -76,7 +76,7 @@ export function SPRIFormSheet({
   // Modal states (managed by PoliDokterSelector now)
 
   // Form fields
-  const [tglRencanaKontrol, setTglRencanaKontrol] = useState("");
+  const [tglRencanaKontrol, setTglRencanaKontrol] = useState(today);
   const [kodePoli, setKodePoli] = useState("");
   const [namaPoli, setNamaPoli] = useState("");
   const [kodeDokter, setKodeDokter] = useState("");
@@ -92,7 +92,7 @@ export function SPRIFormSheet({
       // Reset semua state
       setPeserta(null);
       setPesertaError(null);
-      setTglRencanaKontrol("");
+      setTglRencanaKontrol(today);
       setKodePoli("");
       setNamaPoli("");
       setKodeDokter("");

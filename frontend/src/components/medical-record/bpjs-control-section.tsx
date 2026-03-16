@@ -148,6 +148,10 @@ export function BPJSControlSection({
   onSuratKontrolCreated,
 }: BPJSControlSectionProps) {
   const { toast } = useToast();
+  const isRawatInap = dispositionType === "rawat_inap";
+  const defaultTanggalKontrol = isRawatInap
+    ? format(new Date(), "yyyy-MM-dd")
+    : format(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), "yyyy-MM-dd");
 
   // Common state
   const [loading, setLoading] = useState(false);
@@ -159,9 +163,7 @@ export function BPJSControlSection({
   const [wantsBPJSControl, setWantsBPJSControl] = useState(false);
 
   // Form state - untuk SPRI dan Surat Kontrol
-  const [tglRencanaKontrol, setTglRencanaKontrol] = useState(
-    format(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), "yyyy-MM-dd")
-  );
+  const [tglRencanaKontrol, setTglRencanaKontrol] = useState(defaultTanggalKontrol);
   const [kodePoli, setKodePoli] = useState("");
   const [namaPoli, setNamaPoli] = useState("");
   const [kodeDokter, setKodeDokter] = useState("");
@@ -178,10 +180,6 @@ export function BPJSControlSection({
   // Result state
   const [spriResult, setSPRIResult] = useState<VClaimSPRIResponse | null>(existingSPRI || null);
   const [suratKontrolResult, setSuratKontrolResult] = useState<SuratKontrolResponse | null>(existingSuratKontrol || null);
-
-  // Determine type: SPRI untuk rawat_inap, Surat Kontrol untuk pulang/aps
-  const controlType = dispositionType === "rawat_inap" ? "spri" : "surat_kontrol";
-  const isRawatInap = controlType === "spri";
 
   // Check peserta saat pertama kali toggle on
   // For SPRI, we can check peserta even without SEP
@@ -531,7 +529,7 @@ export function BPJSControlSection({
             <div className="space-y-2">
               <Label className="text-sm flex items-center gap-1">
                 <Calendar className="h-3.5 w-3.5" />
-                Tanggal {isRawatInap ? "Kontrol" : "Rencana Kontrol"}
+                Tanggal {isRawatInap ? "Rawat Inap" : "Rencana Kontrol"}
               </Label>
               <Input
                 type="date"

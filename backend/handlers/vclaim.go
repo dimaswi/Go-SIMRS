@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"starter/backend/database"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // ==================== PESERTA ====================
@@ -575,12 +577,35 @@ func VClaimImportSEP(c *gin.Context) {
 		return
 	}
 
-	// Cek apakah SEP sudah ada (bukan yang sudah dihapus)
+	// Cek apakah SEP sudah ada (termasuk yang sudah soft-deleted)
 	var existingSEP models.SEP
-	if err := database.DB.Where("no_sep = ? AND status != ?", input.NoSEP, "deleted").First(&existingSEP).Error; err == nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "SEP sudah ada di database",
-			"data":  existingSEP,
+	if err := database.DB.Unscoped().Where("no_sep = ?", input.NoSEP).First(&existingSEP).Error; err == nil {
+		// SEP sudah ada — update link registration/visit dan restore jika soft-deleted
+		updates := map[string]interface{}{
+			"status":     "active",
+			"deleted_at": nil,
+		}
+		if input.RegistrationID > 0 {
+			updates["registration_id"] = input.RegistrationID
+		}
+		if input.VisitID > 0 {
+			updates["visit_id"] = input.VisitID
+		}
+		if input.PatientID > 0 {
+			updates["patient_id"] = input.PatientID
+		}
+		database.DB.Unscoped().Model(&existingSEP).Updates(updates)
+
+		// Update registration sep_number jika registration_id ada
+		if input.RegistrationID > 0 {
+			database.DB.Model(&models.Registration{}).Where("id = ?", input.RegistrationID).
+				Update("sep_number", input.NoSEP)
+		}
+
+		database.DB.Unscoped().First(&existingSEP, existingSEP.ID)
+		c.JSON(http.StatusOK, gin.H{
+			"message": "SEP sudah ada, berhasil di-update",
+			"data":    existingSEP,
 		})
 		return
 	}
@@ -807,8 +832,20 @@ func VClaimDeleteSEP(c *gin.Context) {
 		return
 	}
 
-	// Update status di database
-	database.DB.Model(&models.SEP{}).Where("no_sep = ?", noSEP).Update("status", "deleted")
+	tx := database.DB.Begin()
+	if err := unlinkSEPAssignments(tx, noSEP); err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal melepas assignment SEP: " + err.Error()})
+		return
+	}
+
+	if err := tx.Model(&models.SEP{}).Where("no_sep = ?", noSEP).Update("status", "deleted").Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal update status SEP lokal: " + err.Error()})
+		return
+	}
+
+	tx.Commit()
 
 	c.JSON(http.StatusOK, gin.H{"message": "SEP berhasil dihapus"})
 }
@@ -1300,7 +1337,11 @@ func CancelSPRIByVisit(c *gin.Context) {
 	var spri models.SPRI
 	if err := database.DB.Where("visit_id = ? AND status = ?", visitID, "active").
 		First(&spri).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "SPRI tidak ditemukan"})
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusOK, gin.H{"message": "SPRI sudah tidak aktif / tidak ditemukan"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membaca data SPRI: " + err.Error()})
 		return
 	}
 
@@ -2057,6 +2098,52 @@ func GetSuratKontrolByRegistration(c *gin.Context) {
 
 // GetSuratKontrolList mendapatkan list surat kontrol
 func GetSuratKontrolList(c *gin.Context) {
+	type suratKontrolMonitorItem struct {
+		ID                uint      `json:"id"`
+		NoSuratKontrol    string    `json:"no_surat_kontrol"`
+		NoSEP             string    `json:"no_sep"`
+		RegistrationID    *uint     `json:"registration_id,omitempty"`
+		VisitID           *uint     `json:"visit_id,omitempty"`
+		PatientID         uint      `json:"patient_id"`
+		NoKartu           string    `json:"no_kartu"`
+		Nama              string    `json:"nama"`
+		Kelamin           string    `json:"kelamin"`
+		TglLahir          string    `json:"tgl_lahir"`
+		TglRencanaKontrol string    `json:"tgl_rencana_kontrol"`
+		KodePoli          string    `json:"kode_poli"`
+		NamaPoli          string    `json:"nama_poli"`
+		KodeDokter        string    `json:"kode_dokter"`
+		NamaDokter        string    `json:"nama_dokter"`
+		NamaDiagnosa      string    `json:"nama_diagnosa"`
+		IsPRB             bool      `json:"is_prb"`
+		KdStatusPRB       string    `json:"kd_status_prb"`
+		NamaStatusPRB     string    `json:"nama_status_prb"`
+		DataPRB           string    `json:"data_prb"`
+		UserBuat          string    `json:"user_buat"`
+		Status            string    `json:"status"`
+		CreatedAt         time.Time `json:"created_at"`
+		UpdatedAt         time.Time `json:"updated_at"`
+		SourceType        string    `json:"source_type"`
+	}
+
+	statusFilter := c.Query("status")
+	search := c.Query("search")
+	tglTerbitFrom := c.Query("tgl_terbit_from")
+	tglTerbitTo := c.Query("tgl_terbit_to")
+	tglKontrolFrom := c.Query("tgl_kontrol_from")
+	tglKontrolTo := c.Query("tgl_kontrol_to")
+
+	limit := 200
+	if l := c.Query("limit"); l != "" {
+		fmt.Sscanf(l, "%d", &limit)
+		if limit <= 0 {
+			limit = 200
+		}
+	}
+
+	var combined []suratKontrolMonitorItem
+
+	// ==================== BPJS SURAT KONTROL ====================
 	var suratKontrolList []models.SuratKontrol
 	query := database.DB.Preload("Patient").Preload("Visit").Preload("SEP")
 
@@ -2071,43 +2158,204 @@ func GetSuratKontrolList(c *gin.Context) {
 	}
 
 	// Filter by status
-	if status := c.Query("status"); status != "" && status != "all" {
-		query = query.Where("status = ?", status)
-	} else if c.Query("status") == "" {
+	if statusFilter != "" && statusFilter != "all" {
+		query = query.Where("status = ?", statusFilter)
+	} else if statusFilter == "" {
 		query = query.Where("status = ?", "active")
 	}
 
 	// Filter by tanggal terbit (created_at)
-	if from := c.Query("tgl_terbit_from"); from != "" {
-		query = query.Where("DATE(created_at) >= ?", from)
+	if tglTerbitFrom != "" {
+		query = query.Where("DATE(created_at) >= ?", tglTerbitFrom)
 	}
-	if to := c.Query("tgl_terbit_to"); to != "" {
-		query = query.Where("DATE(created_at) <= ?", to)
+	if tglTerbitTo != "" {
+		query = query.Where("DATE(created_at) <= ?", tglTerbitTo)
 	}
 
 	// Filter by tanggal rencana kontrol
-	if from := c.Query("tgl_kontrol_from"); from != "" {
-		query = query.Where("tgl_rencana_kontrol >= ?", from)
+	if tglKontrolFrom != "" {
+		query = query.Where("tgl_rencana_kontrol >= ?", tglKontrolFrom)
 	}
-	if to := c.Query("tgl_kontrol_to"); to != "" {
-		query = query.Where("tgl_rencana_kontrol <= ?", to)
+	if tglKontrolTo != "" {
+		query = query.Where("tgl_rencana_kontrol <= ?", tglKontrolTo)
 	}
 
 	// Filter by no_kartu or nama (search)
-	if search := c.Query("search"); search != "" {
+	if search != "" {
 		like := "%" + search + "%"
 		query = query.Where("no_kartu LIKE ? OR nama LIKE ?", like, like)
 	}
 
-	// Limit
-	limit := 200
-	if l := c.Query("limit"); l != "" {
-		fmt.Sscanf(l, "%d", &limit)
+	query.Order("created_at DESC").Limit(limit).Find(&suratKontrolList)
+	for _, item := range suratKontrolList {
+		combined = append(combined, suratKontrolMonitorItem{
+			ID:                item.ID,
+			NoSuratKontrol:    item.NoSuratKontrol,
+			NoSEP:             item.NoSEP,
+			RegistrationID:    item.RegistrationID,
+			VisitID:           item.VisitID,
+			PatientID:         item.PatientID,
+			NoKartu:           item.NoKartu,
+			Nama:              item.Nama,
+			Kelamin:           item.Kelamin,
+			TglLahir:          item.TglLahir,
+			TglRencanaKontrol: item.TglRencanaKontrol,
+			KodePoli:          item.KodePoli,
+			NamaPoli:          item.NamaPoli,
+			KodeDokter:        item.KodeDokter,
+			NamaDokter:        item.NamaDokter,
+			NamaDiagnosa:      item.NamaDiagnosa,
+			IsPRB:             item.IsPRB,
+			KdStatusPRB:       item.KdStatusPRB,
+			NamaStatusPRB:     item.NamaStatusPRB,
+			DataPRB:           item.DataPRB,
+			UserBuat:          item.UserBuat,
+			Status:            item.Status,
+			CreatedAt:         item.CreatedAt,
+			UpdatedAt:         item.UpdatedAt,
+			SourceType:        "bpjs",
+		})
 	}
 
-	query.Order("created_at DESC").Limit(limit).Find(&suratKontrolList)
+	// ==================== KONTROL UMUM (SIMRS) ====================
+	var followUps []models.Registration
+	regQuery := database.DB.
+		Preload("Patient").
+		Preload("DestinationRoom").
+		Preload("Doctor").
+		Where("is_follow_up = ?", true)
 
-	c.JSON(http.StatusOK, gin.H{"data": suratKontrolList})
+	if patientID := c.Query("patient_id"); patientID != "" {
+		regQuery = regQuery.Where("patient_id = ?", patientID)
+	}
+	if visitID := c.Query("visit_id"); visitID != "" {
+		regQuery = regQuery.Where("source_visit_id = ?", visitID)
+	}
+
+	if statusFilter != "" && statusFilter != "all" {
+		switch statusFilter {
+		case "active":
+			regQuery = regQuery.Where("status IN ?", []string{models.RegistrationStatusScheduled, models.RegistrationStatusRegistered})
+		case "used":
+			regQuery = regQuery.Where("status IN ?", []string{models.RegistrationStatusInQueue, models.RegistrationStatusInProgress, models.RegistrationStatusCompleted, models.RegistrationStatusDischarged})
+		case "cancelled":
+			regQuery = regQuery.Where("status IN ?", []string{models.RegistrationStatusCancelled, models.RegistrationStatusNoShow})
+		}
+	} else if statusFilter == "" {
+		regQuery = regQuery.Where("status IN ?", []string{models.RegistrationStatusScheduled, models.RegistrationStatusRegistered})
+	}
+
+	if tglTerbitFrom != "" {
+		regQuery = regQuery.Where("DATE(created_at) >= ?", tglTerbitFrom)
+	}
+	if tglTerbitTo != "" {
+		regQuery = regQuery.Where("DATE(created_at) <= ?", tglTerbitTo)
+	}
+	if tglKontrolFrom != "" {
+		regQuery = regQuery.Where("scheduled_date >= ?", tglKontrolFrom)
+	}
+	if tglKontrolTo != "" {
+		regQuery = regQuery.Where("scheduled_date <= ?", tglKontrolTo)
+	}
+	if search != "" {
+		like := "%" + search + "%"
+		regQuery = regQuery.Where("registration_number LIKE ?", like)
+	}
+
+	regQuery.Order("created_at DESC").Limit(limit).Find(&followUps)
+
+	for _, reg := range followUps {
+		// If specific search is set, also match by patient identity
+		if search != "" {
+			searchLower := strings.ToLower(search)
+			patientName := ""
+			patientNoBPJS := ""
+			if reg.Patient != nil {
+				patientName = strings.ToLower(reg.Patient.NamaLengkap)
+				patientNoBPJS = strings.ToLower(reg.Patient.NoBPJS)
+			}
+			regNo := strings.ToLower(reg.RegistrationNumber)
+			if !strings.Contains(patientName, searchLower) && !strings.Contains(patientNoBPJS, searchLower) && !strings.Contains(regNo, searchLower) {
+				continue
+			}
+		}
+
+		monitorStatus := "active"
+		switch reg.Status {
+		case models.RegistrationStatusInQueue, models.RegistrationStatusInProgress, models.RegistrationStatusCompleted, models.RegistrationStatusDischarged:
+			monitorStatus = "used"
+		case models.RegistrationStatusCancelled, models.RegistrationStatusNoShow:
+			monitorStatus = "cancelled"
+		}
+
+		tglKontrol := ""
+		if reg.ScheduledDate != nil && !reg.ScheduledDate.IsZero() {
+			tglKontrol = reg.ScheduledDate.Format("2006-01-02")
+		}
+		tglLahir := ""
+		if reg.Patient != nil && reg.Patient.TanggalLahir != nil && !reg.Patient.TanggalLahir.IsZero() {
+			tglLahir = reg.Patient.TanggalLahir.Time.Format("2006-01-02")
+		}
+		kodeDokter := ""
+		namaDokter := ""
+		if reg.Doctor != nil {
+			kodeDokter = reg.Doctor.NIP
+			namaDokter = reg.Doctor.NamaLengkap
+		}
+		kodePoli := ""
+		namaPoli := ""
+		if reg.DestinationRoom != nil {
+			kodePoli = reg.DestinationRoom.Code
+			namaPoli = reg.DestinationRoom.Name
+		}
+		noKartu := ""
+		namaPasien := ""
+		kelamin := ""
+		if reg.Patient != nil {
+			noKartu = reg.Patient.NoBPJS
+			namaPasien = reg.Patient.NamaLengkap
+			kelamin = string(reg.Patient.JenisKelamin)
+		}
+
+		combined = append(combined, suratKontrolMonitorItem{
+			ID:                1000000000 + reg.ID,
+			NoSuratKontrol:    "SIMRS-" + reg.RegistrationNumber,
+			NoSEP:             reg.SEPNumber,
+			RegistrationID:    &reg.ID,
+			VisitID:           reg.SourceVisitID,
+			PatientID:         reg.PatientID,
+			NoKartu:           noKartu,
+			Nama:              namaPasien,
+			Kelamin:           kelamin,
+			TglLahir:          tglLahir,
+			TglRencanaKontrol: tglKontrol,
+			KodePoli:          kodePoli,
+			NamaPoli:          namaPoli,
+			KodeDokter:        kodeDokter,
+			NamaDokter:        namaDokter,
+			NamaDiagnosa:      reg.Complaint,
+			IsPRB:             false,
+			UserBuat:          "SIMRS",
+			Status:            monitorStatus,
+			CreatedAt:         reg.CreatedAt,
+			UpdatedAt:         reg.UpdatedAt,
+			SourceType:        "simrs",
+		})
+	}
+
+	// Keep combined list ordered by created_at desc
+	for i := 0; i < len(combined)-1; i++ {
+		for j := i + 1; j < len(combined); j++ {
+			if combined[j].CreatedAt.After(combined[i].CreatedAt) {
+				combined[i], combined[j] = combined[j], combined[i]
+			}
+		}
+	}
+	if len(combined) > limit {
+		combined = combined[:limit]
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": combined})
 }
 
 // GetSuratKontrolLocal mendapatkan surat kontrol local berdasarkan noSuratKontrol
@@ -2467,13 +2715,82 @@ func VClaimGetSEPOptions(c *gin.Context) {
 
 // ==================== SEP LOCAL ====================
 
+func unlinkSEPAssignments(tx *gorm.DB, noSEP string) error {
+	cleanSEP := strings.TrimSpace(noSEP)
+	if cleanSEP == "" {
+		return nil
+	}
+
+	if err := tx.Model(&models.Registration{}).
+		Where("sep_number = ?", cleanSEP).
+		Update("sep_number", "").Error; err != nil {
+		return err
+	}
+
+	if err := tx.Model(&models.SEP{}).
+		Where("no_sep = ?", cleanSEP).
+		Updates(map[string]interface{}{
+			"registration_id": nil,
+			"visit_id":        nil,
+		}).Error; err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func resolveAssignedSEP(registrationID *uint, visitID *uint) (*models.SEP, error) {
+	if registrationID != nil && *registrationID > 0 {
+		var registration models.Registration
+		if err := database.DB.Select("id", "sep_number").First(&registration, *registrationID).Error; err == nil {
+			assignedSEPNumber := strings.TrimSpace(registration.SEPNumber)
+			if assignedSEPNumber != "" {
+				var sep models.SEP
+				if err := database.DB.
+					Where("no_sep = ? AND status = ?", assignedSEPNumber, "active").
+					Order("updated_at DESC, id DESC").
+					First(&sep).Error; err == nil {
+					return &sep, nil
+				}
+			}
+		}
+	}
+
+	if visitID != nil && *visitID > 0 {
+		var sep models.SEP
+		if err := database.DB.
+			Where("visit_id = ? AND status = ?", *visitID, "active").
+			Order("updated_at DESC, id DESC").
+			First(&sep).Error; err == nil {
+			return &sep, nil
+		}
+	}
+
+	if registrationID != nil && *registrationID > 0 {
+		var sep models.SEP
+		if err := database.DB.
+			Where("registration_id = ? AND status = ?", *registrationID, "active").
+			Order("updated_at DESC, id DESC").
+			First(&sep).Error; err == nil {
+			return &sep, nil
+		}
+	}
+
+	return nil, gorm.ErrRecordNotFound
+}
+
 // GetSEPByVisit mendapatkan SEP berdasarkan visit_id
 func GetSEPByVisit(c *gin.Context) {
 	visitID := c.Param("visitId")
 
-	var sep models.SEP
-	// Only get active SEP for this visit
-	if err := database.DB.Where("visit_id = ? AND status = ?", visitID, "active").First(&sep).Error; err != nil {
+	var visit models.Visit
+	if err := database.DB.Select("id", "registration_id").First(&visit, visitID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Visit tidak ditemukan"})
+		return
+	}
+
+	sep, err := resolveAssignedSEP(&visit.RegistrationID, &visit.ID)
+	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "SEP tidak ditemukan untuk visit ini"})
 		return
 	}
@@ -2485,9 +2802,14 @@ func GetSEPByVisit(c *gin.Context) {
 func GetSEPByRegistration(c *gin.Context) {
 	registrationID := c.Param("registrationId")
 
-	var sep models.SEP
-	// Only get active SEP for this registration
-	if err := database.DB.Where("registration_id = ? AND status = ?", registrationID, "active").First(&sep).Error; err != nil {
+	var registration models.Registration
+	if err := database.DB.Select("id").First(&registration, registrationID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Pendaftaran tidak ditemukan"})
+		return
+	}
+
+	sep, err := resolveAssignedSEP(&registration.ID, nil)
+	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "SEP tidak ditemukan"})
 		return
 	}
@@ -2508,6 +2830,11 @@ func GetSEPList(c *gin.Context) {
 	// Filter by registration_id
 	if registrationID := c.Query("registration_id"); registrationID != "" {
 		query = query.Where("registration_id = ?", registrationID)
+	}
+
+	// Filter by no_sep
+	if noSEP := c.Query("no_sep"); noSEP != "" {
+		query = query.Where("no_sep = ?", noSEP)
 	}
 
 	// Filter by tanggal
@@ -2534,6 +2861,38 @@ func GetSEPList(c *gin.Context) {
 	query.Order("created_at DESC").Limit(limit).Find(&seps)
 
 	c.JSON(http.StatusOK, gin.H{"data": seps})
+}
+
+// DeleteSEPLocal menghapus record SEP lokal (unlink dari kunjungan), tanpa menghapus dari BPJS
+func DeleteSEPLocal(c *gin.Context) {
+	noSEP := c.Param("noSEP")
+	if noSEP == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Nomor SEP wajib diisi"})
+		return
+	}
+
+	var sep models.SEP
+	if err := database.DB.Where("no_sep = ?", noSEP).First(&sep).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "SEP lokal tidak ditemukan"})
+		return
+	}
+
+	tx := database.DB.Begin()
+	if err := unlinkSEPAssignments(tx, noSEP); err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal melepas assignment SEP lokal: " + err.Error()})
+		return
+	}
+
+	if err := tx.Delete(&sep).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menghapus SEP lokal: " + err.Error()})
+		return
+	}
+
+	tx.Commit()
+
+	c.JSON(http.StatusOK, gin.H{"message": "SEP berhasil dihapus dari sistem lokal"})
 }
 
 // UpdateSEPVisitID mengupdate visit_id di SEP lokal (untuk link SEP ke visit rawat inap)

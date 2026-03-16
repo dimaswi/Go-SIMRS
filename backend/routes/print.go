@@ -118,5 +118,7 @@ func SetupPrintRoutes(api *gin.RouterGroup) {
 		print.GET("/spri/:spriId", handlers.PrintSPRI)
 		// Surat Kontrol / SKDP
 		print.GET("/surat-kontrol/:suratKontrolId", handlers.PrintSuratKontrol)
+		// Surat Kontrol Umum (SIMRS follow-up)
+		print.GET("/surat-kontrol-simrs/:registrationId", handlers.PrintSuratKontrolSIMRS)
 	}
 }

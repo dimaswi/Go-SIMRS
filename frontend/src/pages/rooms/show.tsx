@@ -9,6 +9,7 @@ import { roomProceduresApi } from "@/lib/api/procedures";
 import type { RoomProcedure } from "@/lib/api/procedures";
 import { roomInventoriesApi, type RoomInventory } from "@/lib/api/inventories";
 import { roomMedicinesApi, type RoomMedicine } from "@/lib/api/medicines";
+import { roomClinicalPackagesApi, type RoomClinicalPackage } from "@/lib/api/clinical-packages";
 import { usePermission } from "@/hooks/usePermission";
 import { useToast } from "@/hooks/use-toast";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -41,6 +42,7 @@ import { RoomInventoryFormDialog } from "./components/inventory/room-inventory-f
 import { InventoryAssignmentPanel } from "./components/inventory/inventory-assignment-panel";
 import { RoomMedicineFormDialog } from "./components/medicine/room-medicine-form-dialog";
 import { MedicineAssignmentPanel } from "./components/medicine/medicine-assignment-panel";
+import { ClinicalPackageAssignmentPanel } from "./components/clinical-package-assignment-panel";
 import { StaffAssignmentPanel } from "./components/staff/staff-assignment-panel";
 import { RoomTariffPanel } from "./components/tariff/room-tariff-panel";
 
@@ -101,6 +103,7 @@ export default function RoomShow() {
 
   // Room Medicines states
   const [roomMedicines, setRoomMedicines] = useState<RoomMedicine[]>([]);
+  const [roomClinicalPackages, setRoomClinicalPackages] = useState<RoomClinicalPackage[]>([]);
   const [roomMedicineDialogOpen, setRoomMedicineDialogOpen] = useState(false);
   const [deleteRoomMedicineDialogOpen, setDeleteRoomMedicineDialogOpen] = useState(false);
   const [roomMedicineToDelete, setRoomMedicineToDelete] = useState<number | null>(null);
@@ -154,6 +157,13 @@ export default function RoomShow() {
         setRoomMedicines(medicinesRes.data.data || []);
       } catch {
         setRoomMedicines([]);
+      }
+
+      try {
+        const packagesRes = await roomClinicalPackagesApi.getByRoom(parseInt(id));
+        setRoomClinicalPackages(packagesRes.data.data || []);
+      } catch {
+        setRoomClinicalPackages([]);
       }
       
       setMasterData(masterDataRes.data.data || {});
@@ -592,6 +602,9 @@ export default function RoomShow() {
                   <TabsTrigger value="procedures">
                     Tindakan
                   </TabsTrigger>
+                  <TabsTrigger value="clinical-packages">
+                    Paket
+                  </TabsTrigger>
                   <TabsTrigger value="inventories">
                     Inventaris
                   </TabsTrigger>
@@ -928,6 +941,15 @@ export default function RoomShow() {
                   <ProcedureAssignmentPanel
                     roomId={parseInt(id!)}
                     roomProcedures={roomProcedures}
+                    onRefresh={loadData}
+                    hasPermission={hasPermission('rooms.update')}
+                  />
+                </TabsContent>
+
+                <TabsContent value="clinical-packages" className="mt-0">
+                  <ClinicalPackageAssignmentPanel
+                    roomId={parseInt(id!)}
+                    assignments={roomClinicalPackages}
                     onRefresh={loadData}
                     hasPermission={hasPermission('rooms.update')}
                   />

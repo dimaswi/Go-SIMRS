@@ -360,6 +360,31 @@ func GetPatientClasses(c *gin.Context) {
 // ROOM PROCEDURE HANDLERS
 // ========================================
 
+// GetProcedureAvailableRooms returns active room assignments for a procedure.
+func GetProcedureAvailableRooms(c *gin.Context) {
+	procedureID := c.Param("id")
+
+	var procedure models.Procedure
+	if err := database.DB.First(&procedure, procedureID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Tindakan tidak ditemukan"})
+		return
+	}
+
+	var roomProcedures []models.RoomProcedure
+	if err := database.DB.
+		Joins("JOIN rooms ON rooms.id = room_procedures.room_id").
+		Where("room_procedures.procedure_id = ? AND room_procedures.is_available = ?", procedureID, true).
+		Where("rooms.is_active = ?", true).
+		Preload("Room").
+		Order("rooms.name ASC").
+		Find(&roomProcedures).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": roomProcedures})
+}
+
 // GetRoomProcedures returns all procedures assigned to a room
 func GetRoomProcedures(c *gin.Context) {
 	roomID := c.Param("id")

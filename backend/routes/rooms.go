@@ -68,6 +68,12 @@ func setupRoomRoutes(rg *gin.RouterGroup) {
 	rg.PUT("/rooms/:id/procedures/:rpId", middleware.RequirePermission("rooms.update"), handlers.UpdateRoomProcedure)
 	rg.DELETE("/rooms/:id/procedures/:rpId", middleware.RequirePermission("rooms.update"), handlers.DeleteRoomProcedure)
 
+	// Room Clinical Packages (Paket Klinis yang tersedia di ruangan)
+	rg.GET("/rooms/:id/clinical-packages", middleware.RequirePermission("rooms.view"), handlers.GetRoomClinicalPackages)
+	rg.POST("/rooms/:id/clinical-packages", middleware.RequirePermission("rooms.update"), handlers.AssignClinicalPackageToRoom)
+	rg.PUT("/rooms/:id/clinical-packages/:assignmentId", middleware.RequirePermission("rooms.update"), handlers.UpdateRoomClinicalPackage)
+	rg.DELETE("/rooms/:id/clinical-packages/:assignmentId", middleware.RequirePermission("rooms.update"), handlers.DeleteRoomClinicalPackage)
+
 	// Room Tariffs (Tarif per Kelas Pasien untuk Rawat Inap)
 	rg.GET("/rooms/:id/tariffs", middleware.RequirePermission("rooms.view"), handlers.GetRoomTariffs)
 	rg.POST("/rooms/:id/tariffs", middleware.RequirePermission("rooms.update"), handlers.CreateRoomTariff)
