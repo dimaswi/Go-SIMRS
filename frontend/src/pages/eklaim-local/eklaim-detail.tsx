@@ -51,6 +51,7 @@ import {
   ArrowLeft,
   FileText,
   Send,
+  Printer,
   Play,
   CheckCircle,
   XCircle,
@@ -60,6 +61,8 @@ import {
   RotateCcw,
   MoreVertical,
   UserPen,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { id as localeId } from 'date-fns/locale';
@@ -73,11 +76,14 @@ export default function EklaimDetailPage() {
   const [submitting, setSubmitting] = useState(false);
   const [detail, setDetail] = useState<EKlaimLocal | null>(null);
   const [originalRM, setOriginalRM] = useState<OriginalRM>({});
+  const hasSyncedClaimDataOnLoadRef = useRef(false);
+  const mainStickyHeaderRef = useRef<HTMLDivElement | null>(null);
+  const [mainStickyHeaderHeight, setMainStickyHeaderHeight] = useState(0);
 
   // Claim form payload builder (provided by ClaimDataTab)
   const claimPayloadBuilderRef = useRef<(() => Record<string, any>) | null>(null);
 
-  // Active tab state â€” persisted in localStorage per claim
+  // Active tab state - persisted in localStorage per claim
   const [activeTab, setActiveTabRaw] = useState(() => {
     try {
       return localStorage.getItem(`eklaim-tab-${id}`) || 'rm-duplicate';
@@ -95,6 +101,7 @@ export default function EklaimDetailPage() {
   const [cancelReason, setCancelReason] = useState('');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [updatePatientOpen, setUpdatePatientOpen] = useState(false);
+  const [showHeaderPanels, setShowHeaderPanels] = useState(false);
   const [updatePatientForm, setUpdatePatientForm] = useState({
     nomor_kartu: '',
     nomor_rm: '',
@@ -192,6 +199,30 @@ export default function EklaimDetailPage() {
     loadData();
   }, [loadData]);
 
+  useEffect(() => {
+    // Reset one-time sync flag when navigating to another SEP detail
+    hasSyncedClaimDataOnLoadRef.current = false;
+  }, [id]);
+
+  useEffect(() => {
+    const target = mainStickyHeaderRef.current;
+    if (!target) return;
+
+    const updateHeight = () => {
+      setMainStickyHeaderHeight(target.getBoundingClientRect().height);
+    };
+
+    updateHeight();
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(target);
+    window.addEventListener('resize', updateHeight);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', updateHeight);
+    };
+  }, [detail, showHeaderPanels, activeTab]);
+
   // Guard: if stored tab is no longer valid, fall back
   useEffect(() => {
     if (!detail) return;
@@ -202,6 +233,29 @@ export default function EklaimDetailPage() {
 
   // Refresh without loading spinner (for child tab callbacks)
   const refreshData = useCallback(() => loadData(false), [loadData]);
+
+  useEffect(() => {
+    // One-time auto sync from E-Klaim when page is first loaded.
+    // Requirement: check workflow button eligibility first, then sync once without loop.
+    const runAutoSync = async () => {
+      if (!id || !detail || hasSyncedClaimDataOnLoadRef.current) return;
+
+      const hasAnyWorkflowButton = Object.values(detail.buttons || {}).some(Boolean);
+      const shouldSyncFromEKlaim = hasAnyWorkflowButton || !!detail.claim_final_success || !!detail.claim_send_success;
+      hasSyncedClaimDataOnLoadRef.current = true;
+
+      if (!shouldSyncFromEKlaim) return;
+
+      try {
+        await eklaimLocalApi.syncClaimDataFromEKlaim(Number(id));
+        await loadData(false);
+      } catch {
+        // Silent fail to avoid interrupting page load UX.
+      }
+    };
+
+    runAutoSync();
+  }, [id, detail, loadData]);
 
   // ========= E-Klaim Actions =========
   const handleAction = async (action: string, actionData?: any) => {
@@ -262,6 +316,46 @@ export default function EklaimDetailPage() {
     }
   };
 
+  const handlePrintClaim = async () => {
+    if (!id || !detail) return;
+
+    setSubmitting(true);
+    try {
+      const res = await eklaimLocalApi.getClaimPrint(Number(id));
+      const rawData = res?.response?.data;
+      if (!rawData || typeof rawData !== 'string') {
+        throw new Error('Data PDF tidak ditemukan dari response claim_print.');
+      }
+
+      const cleanBase64 = rawData
+        .replace(/^data:application\/pdf;base64,/, '')
+        .replace(/\s+/g, '');
+
+      const binary = atob(cleanBase64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+
+      const blob = new Blob([bytes], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `klaim-${detail.no_sep || id}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast({ variant: 'success', title: 'Berhasil!', description: 'Berkas klaim berhasil diunduh.' });
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.error || err?.message || 'Gagal mengambil berkas klaim.';
+      toast({ variant: 'destructive', title: 'Error!', description: errMsg });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const formatDate = (dateString?: string) => {
     if (!dateString) return '-';
     try {
@@ -286,7 +380,7 @@ export default function EklaimDetailPage() {
 
   if (!detail) {
     return (
-      <div className="flex flex-1 flex-col p-4">
+      <div className="flex flex-1 flex-col px-4">
         <p className="text-muted-foreground">Data E-Klaim tidak ditemukan.</p>
         <Button variant="outline" onClick={() => window.history.back()}>
           <ArrowLeft className="mr-2 h-4 w-4" />
@@ -299,11 +393,28 @@ export default function EklaimDetailPage() {
   const status = detail.status as EKlaimLocalStatus;
 
   return (
-    <div className="flex flex-1 flex-col p-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Button variant="outline" size="icon" onClick={() => navigate('/eklaim/data-klaim')}>
+    <div className="flex flex-1 flex-col px-4">
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <div
+          ref={mainStickyHeaderRef}
+          className="sticky top-0 z-40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/85 space-y-2"
+        >
+          {/* Header */}
+          <div
+            className="flex items-center justify-between gap-3 pt-2 cursor-pointer"
+            onClick={() => setShowHeaderPanels((prev) => !prev)}
+            title="Klik header untuk sembunyikan/tampilkan ringkasan"
+          >
+          <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={(e) => {
+              e.stopPropagation();
+              navigate('/eklaim/data-klaim');
+            }}
+          >
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
@@ -312,11 +423,16 @@ export default function EklaimDetailPage() {
               Detail E-Klaim
             </h1>
             <p className="text-sm text-muted-foreground">
-              {detail.nama_pasien} â€” <span className="font-mono">{detail.no_sep}</span>
+              {detail.nama_pasien} - <span className="font-mono">{detail.no_sep}</span>
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+          {showHeaderPanels ? (
+            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+          ) : (
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          )}
           <Badge className={`text-sm px-3 py-1 ${eklaimLocalStatusColors[status] || ''}`}>
             {eklaimLocalStatusLabels[status] || status}
           </Badge>
@@ -345,6 +461,18 @@ export default function EklaimDetailPage() {
           {detail.buttons?.send_claim && (
             <Button
               size="sm"
+              variant="outline"
+              disabled={submitting || !detail.claim_final_success}
+              onClick={handlePrintClaim}
+            >
+              {submitting ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Printer className="mr-1 h-4 w-4" />}
+              Cetak Berkas Klaim
+            </Button>
+          )}
+          {detail.buttons?.send_claim && (
+            <Button
+              size="sm"
+              variant="outline"
               disabled={submitting}
               onClick={() => handleAction('claim_send')}
             >
@@ -424,7 +552,7 @@ export default function EklaimDetailPage() {
       </div>
 
       {/* Error Banner */}
-      {detail.last_error && (
+      {showHeaderPanels && detail.last_error && (
         <div className="flex items-start gap-2 p-3 rounded-md bg-destructive/10 border border-destructive/20">
           <AlertTriangle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
           <div>
@@ -437,7 +565,9 @@ export default function EklaimDetailPage() {
         </div>
       )}
 
-      {/* Progress Timeline â€” compact, DRY */}
+      {/* Progress Timeline - compact, DRY */}
+      {showHeaderPanels && (
+      <div className="py-1">
       {(() => {
         const ORDER: EKlaimLocalStatus[] = ['draft', 'new_claim', 'set_claim_data', 'idrg_coded', 'idrg_grouped', 'idrg_final', 'inacbg_imported', 'inacbg_coded', 'inacbg_grouped', 'inacbg_final', 'claim_final', 'claim_sent'];
         const currentIdx = ORDER.indexOf(status);
@@ -450,11 +580,11 @@ export default function EklaimDetailPage() {
         ];
         return (
           <div className="rounded-lg border p-3 space-y-2">
-            {/* Progress steps â€” single flow */}
+            {/* Progress steps - single flow */}
             <div className="flex flex-wrap items-center gap-1">
               {allSteps.map((s, i) => (
                 <div key={s} className="flex items-center gap-1">
-                  {i > 0 && <span className="text-muted-foreground text-[8px]">â†’</span>}
+                  {i > 0 && <span className="text-muted-foreground text-[8px]">-&gt;</span>}
                   <Badge variant={stepIsActive(s) ? 'default' : 'outline'} className={`text-[10px] px-1.5 py-0 h-5 ${stepIsActive(s) ? eklaimLocalStatusColors[s] : ''}`}>
                     {eklaimLocalStatusLabels[s]}
                   </Badge>
@@ -462,7 +592,7 @@ export default function EklaimDetailPage() {
               ))}
             </div>
 
-            {/* Result summaries â€” side-by-side cards */}
+            {/* Result summaries */}
             {(detail.idrg_code || detail.inacbg_cbg_code || (detail.cbg_code && !detail.idrg_code && !detail.inacbg_cbg_code)) && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                 {/* iDRG result */}
@@ -519,9 +649,9 @@ export default function EklaimDetailPage() {
           </div>
         );
       })()}
+      </div>
+      )}
 
-      {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="bg-transparent border-b rounded-none w-full justify-start h-auto p-0 gap-0">
           <TabsTrigger value="rm-duplicate" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5">Rekam Medis</TabsTrigger>
           <TabsTrigger value="cetakan" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5">Cetakan</TabsTrigger>
@@ -532,14 +662,16 @@ export default function EklaimDetailPage() {
           )}
           <TabsTrigger value="status" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5">Status</TabsTrigger>
         </TabsList>
+        </div>
 
         {/* Tab: RM Duplicate */}
-        <TabsContent value="rm-duplicate" className="space-y-6">
+        <TabsContent value="rm-duplicate" className="mt-0">
           <RMDuplicateTab
             eklaimId={Number(id)}
             rmDuplicate={detail.rm_duplicate}
             visit={detail.visit}
             onSaved={refreshData}
+            stickyTopOffset={mainStickyHeaderHeight}
           />
         </TabsContent>
 
@@ -578,7 +710,7 @@ export default function EklaimDetailPage() {
           <div className="space-y-3">
             <div>
               <h3 className="text-sm font-medium">Tracking Status Klaim</h3>
-              <p className="text-xs text-muted-foreground">Alur: New Claim â†’ Set Claim Data â†’ Coding iDRG â†’ Coding INACBG â†’ Claim Final â†’ Kirim Klaim</p>
+              <p className="text-xs text-muted-foreground">Alur: New Claim -&gt; Set Claim Data -&gt; Coding iDRG -&gt; Coding INACBG -&gt; Claim Final -&gt; Kirim Klaim</p>
             </div>
 
             {/* Step tracking items (read-only status) */}
@@ -660,6 +792,11 @@ export default function EklaimDetailPage() {
                         ? `Dikirim: ${formatDate(detail.claim_send_sent_at)}`
                         : 'Belum dikirim'}
                     </p>
+                    {detail.claim_data_last_sync_at && (
+                      <p className="text-xs text-muted-foreground">
+                        Sinkron E-Klaim: {formatDate(detail.claim_data_last_sync_at)}
+                      </p>
+                    )}
                   </div>
                 </div>
                 {detail.claim_send_success && <CheckCircle className="h-4 w-4 text-green-600" />}

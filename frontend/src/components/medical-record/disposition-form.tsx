@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
@@ -46,6 +47,8 @@ interface DispositionFormProps {
   onSave?: (data: Disposition) => void;
   isEmergency?: boolean;
   readOnly?: boolean;
+  externalData?: Partial<Disposition>;
+  useExternalData?: boolean;
 }
 
 // Icon mapping for disposition types
@@ -89,7 +92,15 @@ interface AvailableDoctor {
   consult_fee: number;
 }
 
-export function DispositionForm({ visitId, initialData, onSave, isEmergency: _isEmergency = false, readOnly = false }: DispositionFormProps) {
+export function DispositionForm({
+  visitId,
+  initialData,
+  onSave,
+  isEmergency: _isEmergency = false,
+  readOnly = false,
+  externalData,
+  useExternalData = false,
+}: DispositionFormProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -149,7 +160,9 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
   const [loadedDispositionData, setLoadedDispositionData] = useState<Disposition | null>(null);
 
   // Check if form is disabled (already saved) - check both initialData and loaded data
-  const isDisabled = !!(initialData?.disposition_type || loadedDispositionData?.disposition_type);
+  const isDisabled = useExternalData
+    ? false
+    : !!(initialData?.disposition_type || loadedDispositionData?.disposition_type);
 
   // Control and SPRI type selection
   const [kontrolType, setKontrolType] = useState<"none" | "simrs" | "bpjs">("none");
@@ -198,6 +211,19 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
     referral_therapy: initialData?.referral_therapy || "",
     referral_lab_result: initialData?.referral_lab_result || "",
     referral_notes: initialData?.referral_notes || "",
+    referral_mode: "manual",
+    referral_no_rujukan: "",
+    referral_no_sep: "",
+    referral_tgl_rujukan: "",
+    referral_tgl_rencana_kunjungan: "",
+    referral_ppk_code: "",
+    referral_jns_pelayanan: "2",
+    referral_tipe_rujukan: "0",
+    referral_poli_code: "",
+    referral_diag_code: "",
+    referral_khusus_id: "",
+    referral_khusus_diagnosa_codes: "",
+    referral_khusus_procedure_codes: "",
     admission_type: initialData?.admission_type || "",
     admission_reason: initialData?.admission_reason || "",
     admission_priority: "normal",
@@ -263,6 +289,53 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
 
   // Load existing data
   useEffect(() => {
+    if (useExternalData) {
+      const d = externalData || {};
+      setFormData((prev) => ({
+        ...prev,
+        disposition_type: d.disposition_type || "",
+        disposition_note: d.disposition_note || "",
+        discharge_status: d.discharge_status || "",
+        discharge_condition: d.discharge_condition || "",
+        referral_facility: d.referral_facility || "",
+        referral_address: d.referral_address || "",
+        referral_phone: d.referral_phone || "",
+        referral_specialist: d.referral_specialist || "",
+        referral_reason: d.referral_reason || "",
+        referral_urgency: d.referral_urgency || "",
+        referral_diagnosis: d.referral_diagnosis || "",
+        referral_therapy: d.referral_therapy || "",
+        referral_lab_result: d.referral_lab_result || "",
+        referral_notes: d.referral_notes || "",
+        referral_mode: (d as any).referral_mode || "manual",
+        referral_no_rujukan: (d as any).referral_no_rujukan || "",
+        referral_no_sep: (d as any).referral_no_sep || "",
+        referral_tgl_rujukan: (d as any).referral_tgl_rujukan || "",
+        referral_tgl_rencana_kunjungan: (d as any).referral_tgl_rencana_kunjungan || "",
+        referral_ppk_code: (d as any).referral_ppk_code || "",
+        referral_jns_pelayanan: (d as any).referral_jns_pelayanan || "2",
+        referral_tipe_rujukan: (d as any).referral_tipe_rujukan || "0",
+        referral_poli_code: (d as any).referral_poli_code || "",
+        referral_diag_code: (d as any).referral_diag_code || "",
+        referral_khusus_id: (d as any).referral_khusus_id || "",
+        referral_khusus_diagnosa_codes: (d as any).referral_khusus_diagnosa_codes || "",
+        referral_khusus_procedure_codes: (d as any).referral_khusus_procedure_codes || "",
+        admission_type: d.admission_type || "",
+        admission_reason: d.admission_reason || "",
+        death_time: d.death_time || "",
+        death_cause: d.death_cause || "",
+        follow_up_date: d.follow_up_date ? d.follow_up_date.split("T")[0] : "",
+        follow_up_instruction: d.follow_up_instruction || "",
+        follow_up_room_id: d.follow_up_room_id,
+        discharge_medication: d.discharge_medication || "",
+        discharge_instruction: d.discharge_instruction || "",
+        outpatient_room_id: d.outpatient_room_id,
+        transfer_reason: d.transfer_reason || "",
+      }));
+      setLoading(false);
+      return;
+    }
+
     const loadData = async () => {
       if (!visitId) return;
       setLoading(true);
@@ -287,6 +360,19 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
             referral_therapy: response.data.referral_therapy || "",
             referral_lab_result: response.data.referral_lab_result || "",
             referral_notes: response.data.referral_notes || "",
+            referral_mode: (response.data as any).referral_mode || "manual",
+            referral_no_rujukan: (response.data as any).referral_no_rujukan || "",
+            referral_no_sep: (response.data as any).referral_no_sep || "",
+            referral_tgl_rujukan: (response.data as any).referral_tgl_rujukan || "",
+            referral_tgl_rencana_kunjungan: (response.data as any).referral_tgl_rencana_kunjungan || "",
+            referral_ppk_code: (response.data as any).referral_ppk_code || "",
+            referral_jns_pelayanan: (response.data as any).referral_jns_pelayanan || "2",
+            referral_tipe_rujukan: (response.data as any).referral_tipe_rujukan || "0",
+            referral_poli_code: (response.data as any).referral_poli_code || "",
+            referral_diag_code: (response.data as any).referral_diag_code || "",
+            referral_khusus_id: (response.data as any).referral_khusus_id || "",
+            referral_khusus_diagnosa_codes: (response.data as any).referral_khusus_diagnosa_codes || "",
+            referral_khusus_procedure_codes: (response.data as any).referral_khusus_procedure_codes || "",
             admission_type: response.data.admission_type || "",
             admission_reason: response.data.admission_reason || "",
             admission_priority: "normal",
@@ -305,8 +391,10 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
             transfer_reason: response.data.transfer_reason || "",
           });
           
-          if (response.data.follow_up_date) {
+          if (response.data.disposition_type === "pulang" && response.data.follow_up_date) {
             setKontrolType("simrs");
+          } else if (response.data.disposition_type === "aps") {
+            setKontrolType("none");
           }
           
           // Load SPRI data if exists (for rawat_inap disposition)
@@ -370,7 +458,7 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
     
     loadData();
     loadRooms();
-  }, [visitId]);
+  }, [visitId, useExternalData, externalData]);
 
   // Load available doctors when room and date change (for both SIMRS and BPJS sync)
   useEffect(() => {
@@ -527,8 +615,9 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
   };
 
   useEffect(() => {
+    if (useExternalData) return;
     loadBPJSData();
-  }, [visitId]);
+  }, [visitId, useExternalData]);
 
   // Handle cancel disposition
   const handleCancelDisposition = async () => {
@@ -675,8 +764,19 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
 
     // Reset control types when opening new drawer
     if (["pulang", "aps"].includes(type)) {
-      // Default to "none" for discharge, user can select SIMRS or BPJS
+      // Default to "none" for discharge
       setKontrolType("none");
+
+    if (type === "aps") {
+      setSuratKontrolResult(null);
+      setFormData((prev) => ({
+        ...prev,
+        follow_up_date: "",
+        follow_up_instruction: "",
+        follow_up_room_id: undefined,
+        follow_up_doctor_id: undefined,
+      }));
+    }
     } else if (type === "rawat_inap") {
       // Default to "simrs" for admission, but allow user to select BPJS if available
       setSpriType(patientNoBpjs && activeSEP ? "simrs" : "simrs");
@@ -704,6 +804,16 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
   };
 
   const handleSubmit = async () => {
+    if (useExternalData) {
+      onSave?.(formData as any);
+      setDischargeDrawerOpen(false);
+      setAdmissionDrawerOpen(false);
+      setReferralDrawerOpen(false);
+      setDeathDrawerOpen(false);
+      setOutpatientTransferDrawerOpen(false);
+      return;
+    }
+
     // Block all discharge options when pending orders exist
     if (pendingOrdersInfo?.has_pending_orders) {
       toast({
@@ -718,7 +828,7 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
     const usingBPJSSuratKontrol = kontrolType === "bpjs" && !!suratKontrolResult;
     const usingBPJSSPRI = spriType === "bpjs" && !!spriResult;
 
-    if (["pulang", "aps"].includes(formData.disposition_type) && kontrolType === "simrs") {
+    if (formData.disposition_type === "pulang" && kontrolType === "simrs") {
       if (!formData.follow_up_date || !formData.follow_up_room_id || !formData.follow_up_doctor_id) {
         toast({
           title: "Data tidak lengkap",
@@ -739,7 +849,7 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
     }
 
     // Validate BPJS Surat Kontrol
-    if (["pulang", "aps"].includes(formData.disposition_type) && kontrolType === "bpjs" && !suratKontrolResult) {
+    if (formData.disposition_type === "pulang" && kontrolType === "bpjs" && !suratKontrolResult) {
       toast({
         title: "Data tidak lengkap",
         description: "Silakan buat Surat Kontrol BPJS terlebih dahulu.",
@@ -749,7 +859,7 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
     }
 
     // Validate BPJS Surat Kontrol MUST have SIMRS sync (wajib)
-    if (["pulang", "aps"].includes(formData.disposition_type) && kontrolType === "bpjs" && suratKontrolResult) {
+    if (formData.disposition_type === "pulang" && kontrolType === "bpjs" && suratKontrolResult) {
       if (!formData.follow_up_room_id || !formData.follow_up_doctor_id) {
         toast({
           title: "Sinkronisasi SIMRS Wajib",
@@ -795,6 +905,28 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
         toast({
           title: "Data tidak lengkap",
           description: "Pilih poli dan dokter untuk rawat jalan.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
+    // Validate BPJS referral must be created before saving rujuk disposition
+    if (formData.disposition_type === "rujuk") {
+      const bpjsMode = formData.referral_mode && formData.referral_mode !== "manual";
+      if (bpjsMode && !formData.referral_no_rujukan) {
+        toast({
+          title: "Rujukan BPJS belum dibuat",
+          description: "Silakan buat rujukan BPJS terlebih dahulu di drawer rujuk.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (formData.referral_mode === "bpjs_khusus" && !formData.referral_khusus_id) {
+        toast({
+          title: "Rujukan Khusus belum dibuat",
+          description: "Silakan buat rujukan khusus BPJS terlebih dahulu.",
           variant: "destructive",
         });
         return;
@@ -936,7 +1068,7 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
 
       // For other disposition types
       // Create follow-up for SIMRS or BPJS with SIMRS sync
-      const shouldCreateFollowUp = ["pulang", "aps"].includes(formData.disposition_type) &&
+      const shouldCreateFollowUp = formData.disposition_type === "pulang" &&
         (kontrolType === "simrs" || (kontrolType === "bpjs" && usingBPJSSuratKontrol)) &&
         !!formData.follow_up_date &&
         !!formData.follow_up_room_id &&
@@ -1030,9 +1162,27 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
   return (
     <>
       <div>
-        <div>
+        <div className="space-y-3">
+          <div className="rounded-lg border border-border/70 bg-muted/20 px-3 py-3 sm:px-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-foreground">Pasien Pulang</p>
+                <p className="text-xs text-muted-foreground">Pilih status pemulangan pasien dan lanjutkan proses disposisi.</p>
+              </div>
+              <Badge variant={isDisabled ? "secondary" : "outline"}>
+                {isDisabled ? "Sudah Disposisi" : "Belum Disposisi"}
+              </Badge>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-border/70 bg-background overflow-hidden">
+            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              Pengaturan Disposisi
+            </div>
+
+            <div className="p-4">
               {/* Pending Orders Warning */}
-              {pendingOrdersInfo?.has_pending_orders && (
+              {!useExternalData && pendingOrdersInfo?.has_pending_orders && (
                 <Alert variant="destructive" className="mb-4">
                   <AlertTriangle className="h-4 w-4" />
                   <AlertTitle>Perhatian: Ada Order yang Belum Selesai</AlertTitle>
@@ -1056,7 +1206,7 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
               )}
               
               {/* Alert when form is already saved */}
-              {isDisabled && (
+              {!useExternalData && isDisabled && (
                 <Alert className="mb-4 bg-green-50 border-green-200">
                   <CheckCircle2 className="h-4 w-4 text-green-600" />
                   <AlertTitle className="text-green-700">Pasien Sudah Dipulangkan</AlertTitle>
@@ -1115,7 +1265,8 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
                     </div>
                     
                     {/* Cancel Button - ALWAYS show, not dependent on readOnly */}
-                    <div className="mt-4 pt-3 border-t">
+                    {!useExternalData && (
+                      <div className="mt-4 pt-3 border-t">
                       <Button
                         variant="destructive"
                         size="sm"
@@ -1128,7 +1279,8 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
                       <p className="text-xs text-muted-foreground mt-2">
                         Membatalkan disposisi akan menghapus Surat Kontrol, SPRI, jadwal kontrol, dan mengaktifkan kembali kunjungan ini.
                       </p>
-                    </div>
+                      </div>
+                    )}
                   </AlertDescription>
                 </Alert>
               )}
@@ -1178,6 +1330,8 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
                   </div>
                 </div>
               )}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1236,6 +1390,10 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
         onSubmit={handleSubmit}
         saving={saving}
         isDisabled={isDisabled || readOnly}
+        visitId={visitId}
+        registrationId={registrationId || undefined}
+        activeSEP={activeSEP}
+        patientData={patientData}
       />
 
       {/* Death Drawer (Meninggal) */}
@@ -1264,6 +1422,7 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
       />
 
       {/* Cancel Disposition Dialog */}
+      {!useExternalData && (
       <Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
         <DialogContent>
           <DialogHeader>
@@ -1338,6 +1497,7 @@ export function DispositionForm({ visitId, initialData, onSave, isEmergency: _is
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      )}
     </>
   );
 }

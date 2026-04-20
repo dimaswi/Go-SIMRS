@@ -80,7 +80,7 @@ export default function ICDShowPage() {
 
   if (loading) {
     return (
-      <div className="flex flex-1 flex-col p-4">
+      <div className="flex flex-1 flex-col px-4">
         <div className="rounded-lg border p-6">
             <div className="flex items-center gap-4 mb-6">
               <Skeleton className="h-9 w-9" />
@@ -106,7 +106,7 @@ export default function ICDShowPage() {
   const icdData = data as ICD10;
 
   return (
-    <div className="flex flex-1 flex-col p-4">
+    <div className="flex flex-1 flex-col px-4">
       <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <Button variant="outline" size="icon" asChild className="h-9 w-9">

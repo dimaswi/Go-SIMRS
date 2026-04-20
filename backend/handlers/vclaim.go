@@ -127,6 +127,559 @@ func VClaimGetRujukanByPeserta(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": rujukan})
 }
 
+type VClaimRujukanV1Input struct {
+	NoSEP        string `json:"no_sep" binding:"required"`
+	VisitID      uint   `json:"visit_id"`
+	Registration uint   `json:"registration_id"`
+	PatientID    uint   `json:"patient_id"`
+	SEPID        uint   `json:"sep_id"`
+
+	TglRujukan   string `json:"tgl_rujukan" binding:"required"`
+	PPKDirujuk   string `json:"ppk_dirujuk" binding:"required"`
+	JnsPelayanan string `json:"jns_pelayanan" binding:"required"`
+	Catatan      string `json:"catatan"`
+	DiagRujukan  string `json:"diag_rujukan" binding:"required"`
+	TipeRujukan  string `json:"tipe_rujukan" binding:"required"`
+	PoliRujukan  string `json:"poli_rujukan"`
+}
+
+type VClaimRujukanV2Input struct {
+	NoSEP               string `json:"no_sep" binding:"required"`
+	VisitID             uint   `json:"visit_id"`
+	Registration        uint   `json:"registration_id"`
+	PatientID           uint   `json:"patient_id"`
+	SEPID               uint   `json:"sep_id"`
+	TglRujukan          string `json:"tgl_rujukan" binding:"required"`
+	TglRencanaKunjungan string `json:"tgl_rencana_kunjungan" binding:"required"`
+	PPKDirujuk          string `json:"ppk_dirujuk" binding:"required"`
+	JnsPelayanan        string `json:"jns_pelayanan" binding:"required"`
+	Catatan             string `json:"catatan"`
+	DiagRujukan         string `json:"diag_rujukan" binding:"required"`
+	TipeRujukan         string `json:"tipe_rujukan" binding:"required"`
+	PoliRujukan         string `json:"poli_rujukan"`
+}
+
+type VClaimRujukanKhususInput struct {
+	NoRujukan      string   `json:"no_rujukan" binding:"required"`
+	DiagnosaCodes  []string `json:"diagnosa_codes" binding:"required"`
+	ProcedureCodes []string `json:"procedure_codes"`
+}
+
+type VClaimDeleteRujukanKhususInput struct {
+	IDRujukan string `json:"id_rujukan" binding:"required"`
+	NoRujukan string `json:"no_rujukan" binding:"required"`
+}
+
+func upsertReferralLocal(inputNoSEP, noRujukan, version string, visitID, registrationID, patientID, sepID uint, userName string, source any, isKhusus bool) {
+	if noRujukan == "" {
+		return
+	}
+
+	var existing models.BPJSReferral
+	_ = database.DB.Where("no_rujukan = ?", noRujukan).First(&existing).Error
+
+	referral := existing
+	referral.NoRujukan = noRujukan
+	referral.NoSEP = inputNoSEP
+	referral.Version = version
+	referral.UserBuat = userName
+	referral.Status = "active"
+	referral.IsKhusus = referral.IsKhusus || isKhusus
+
+	if visitID > 0 {
+		referral.VisitID = &visitID
+	}
+	if registrationID > 0 {
+		referral.RegistrationID = &registrationID
+	}
+	if patientID > 0 {
+		referral.PatientID = &patientID
+	}
+	if sepID > 0 {
+		referral.SEPID = &sepID
+	}
+
+	var ppk models.PPKMaster
+	resolvePPKName := func(kode string) string {
+		if kode == "" {
+			return ""
+		}
+		if err := database.DB.Where("kode_bpjs = ?", kode).First(&ppk).Error; err == nil {
+			return ppk.Nama
+		}
+		return ""
+	}
+
+	switch r := source.(type) {
+	case *bpjs.RujukanCreateResponseData:
+		referral.TglRujukan = r.TglRujukan
+		referral.TglRencanaKunjungan = r.TglRencanaKunjungan
+		referral.DiagRujukan = r.Diagnosa.Kode
+		referral.DiagRujukanNama = r.Diagnosa.Nama
+		referral.PoliRujukan = r.PoliTujuan.Kode
+		referral.PoliRujukanNama = r.PoliTujuan.Nama
+		referral.NoKartu = r.Peserta.NoKartu
+		referral.NamaPeserta = r.Peserta.Nama
+		referral.PPKDirujuk = r.TujuanRujukan.Kode
+		referral.NamaPPKDirujuk = r.TujuanRujukan.Nama
+	case *VClaimRujukanV1Input:
+		referral.TglRujukan = r.TglRujukan
+		referral.PPKDirujuk = r.PPKDirujuk
+		referral.JnsPelayanan = r.JnsPelayanan
+		referral.Catatan = r.Catatan
+		referral.DiagRujukan = r.DiagRujukan
+		referral.TipeRujukan = r.TipeRujukan
+		referral.PoliRujukan = r.PoliRujukan
+		if referral.NamaPPKDirujuk == "" {
+			referral.NamaPPKDirujuk = resolvePPKName(r.PPKDirujuk)
+		}
+	case *VClaimRujukanV2Input:
+		referral.TglRujukan = r.TglRujukan
+		referral.TglRencanaKunjungan = r.TglRencanaKunjungan
+		referral.PPKDirujuk = r.PPKDirujuk
+		referral.JnsPelayanan = r.JnsPelayanan
+		referral.Catatan = r.Catatan
+		referral.DiagRujukan = r.DiagRujukan
+		referral.TipeRujukan = r.TipeRujukan
+		referral.PoliRujukan = r.PoliRujukan
+		if referral.NamaPPKDirujuk == "" {
+			referral.NamaPPKDirujuk = resolvePPKName(r.PPKDirujuk)
+		}
+	}
+
+	if existing.ID == 0 {
+		_ = database.DB.Create(&referral).Error
+		return
+	}
+	_ = database.DB.Save(&referral).Error
+}
+
+// VClaimCreateRujukanV1 creates BPJS referral using VClaim v1 endpoint.
+func VClaimCreateRujukanV1(c *gin.Context) {
+	var input VClaimRujukanV1Input
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if input.TipeRujukan != "2" && input.PoliRujukan == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Poli rujukan wajib diisi untuk tipe rujukan 0/1"})
+		return
+	}
+
+	userID, _ := c.Get("userID")
+	var user models.User
+	if err := database.DB.First(&user, userID).Error; err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User tidak ditemukan"})
+		return
+	}
+
+	client, err := bpjs.NewVClaimClient()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat VClaim client: " + err.Error()})
+		return
+	}
+
+	result, err := client.InsertRujukanV1(bpjs.RujukanCreateRequest{
+		NoSEP:        input.NoSEP,
+		TglRujukan:   input.TglRujukan,
+		PPKDirujuk:   input.PPKDirujuk,
+		JnsPelayanan: input.JnsPelayanan,
+		Catatan:      input.Catatan,
+		DiagRujukan:  input.DiagRujukan,
+		TipeRujukan:  input.TipeRujukan,
+		PoliRujukan:  input.PoliRujukan,
+		User:         user.Username,
+	})
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	upsertReferralLocal(input.NoSEP, result.NoRujukan, "v1", input.VisitID, input.Registration, input.PatientID, input.SEPID, user.Username, result, false)
+	if result.NoRujukan != "" {
+		upsertReferralLocal(input.NoSEP, result.NoRujukan, "v1", input.VisitID, input.Registration, input.PatientID, input.SEPID, user.Username, &input, false)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Rujukan BPJS V1 berhasil dibuat", "data": result})
+}
+
+// VClaimUpdateRujukanV1 updates BPJS referral using VClaim v1 endpoint.
+func VClaimUpdateRujukanV1(c *gin.Context) {
+	noRujukan := c.Param("noRujukan")
+	if noRujukan == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Nomor rujukan wajib diisi"})
+		return
+	}
+
+	var input VClaimRujukanV1Input
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if input.TipeRujukan != "2" && input.PoliRujukan == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Poli rujukan wajib diisi untuk tipe rujukan 0/1"})
+		return
+	}
+
+	userID, _ := c.Get("userID")
+	var user models.User
+	if err := database.DB.First(&user, userID).Error; err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User tidak ditemukan"})
+		return
+	}
+
+	client, err := bpjs.NewVClaimClient()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat VClaim client: " + err.Error()})
+		return
+	}
+
+	updatedNoRujukan, err := client.UpdateRujukanV1(bpjs.RujukanUpdateRequest{
+		NoRujukan:    noRujukan,
+		PPKDirujuk:   input.PPKDirujuk,
+		JnsPelayanan: input.JnsPelayanan,
+		Catatan:      input.Catatan,
+		DiagRujukan:  input.DiagRujukan,
+		TipeRujukan:  input.TipeRujukan,
+		PoliRujukan:  input.PoliRujukan,
+		User:         user.Username,
+	})
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	upsertReferralLocal(input.NoSEP, noRujukan, "v1", input.VisitID, input.Registration, input.PatientID, input.SEPID, user.Username, &input, false)
+
+	c.JSON(http.StatusOK, gin.H{"message": "Rujukan BPJS V1 berhasil diperbarui", "data": gin.H{"no_rujukan": updatedNoRujukan}})
+}
+
+// VClaimCreateRujukanV2 creates BPJS referral using VClaim v2 endpoint.
+func VClaimCreateRujukanV2(c *gin.Context) {
+	var input VClaimRujukanV2Input
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if input.TipeRujukan != "2" && input.PoliRujukan == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Poli rujukan wajib diisi untuk tipe rujukan 0/1"})
+		return
+	}
+
+	userID, _ := c.Get("userID")
+	var user models.User
+	if err := database.DB.First(&user, userID).Error; err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User tidak ditemukan"})
+		return
+	}
+
+	client, err := bpjs.NewVClaimClient()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat VClaim client: " + err.Error()})
+		return
+	}
+
+	result, err := client.InsertRujukanV2(bpjs.RujukanCreateRequest{
+		NoSEP:               input.NoSEP,
+		TglRujukan:          input.TglRujukan,
+		TglRencanaKunjungan: input.TglRencanaKunjungan,
+		PPKDirujuk:          input.PPKDirujuk,
+		JnsPelayanan:        input.JnsPelayanan,
+		Catatan:             input.Catatan,
+		DiagRujukan:         input.DiagRujukan,
+		TipeRujukan:         input.TipeRujukan,
+		PoliRujukan:         input.PoliRujukan,
+		User:                user.Username,
+	})
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	upsertReferralLocal(input.NoSEP, result.NoRujukan, "v2", input.VisitID, input.Registration, input.PatientID, input.SEPID, user.Username, result, false)
+	if result.NoRujukan != "" {
+		upsertReferralLocal(input.NoSEP, result.NoRujukan, "v2", input.VisitID, input.Registration, input.PatientID, input.SEPID, user.Username, &input, false)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Rujukan BPJS V2 berhasil dibuat", "data": result})
+}
+
+// VClaimUpdateRujukanV2 updates BPJS referral using VClaim v2 endpoint.
+func VClaimUpdateRujukanV2(c *gin.Context) {
+	noRujukan := c.Param("noRujukan")
+	if noRujukan == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Nomor rujukan wajib diisi"})
+		return
+	}
+
+	var input VClaimRujukanV2Input
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if input.TipeRujukan != "2" && input.PoliRujukan == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Poli rujukan wajib diisi untuk tipe rujukan 0/1"})
+		return
+	}
+
+	userID, _ := c.Get("userID")
+	var user models.User
+	if err := database.DB.First(&user, userID).Error; err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User tidak ditemukan"})
+		return
+	}
+
+	client, err := bpjs.NewVClaimClient()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat VClaim client: " + err.Error()})
+		return
+	}
+
+	updatedNoRujukan, err := client.UpdateRujukanV2(bpjs.RujukanUpdateRequest{
+		NoRujukan:           noRujukan,
+		TglRujukan:          input.TglRujukan,
+		TglRencanaKunjungan: input.TglRencanaKunjungan,
+		PPKDirujuk:          input.PPKDirujuk,
+		JnsPelayanan:        input.JnsPelayanan,
+		Catatan:             input.Catatan,
+		DiagRujukan:         input.DiagRujukan,
+		TipeRujukan:         input.TipeRujukan,
+		PoliRujukan:         input.PoliRujukan,
+		User:                user.Username,
+	})
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	upsertReferralLocal(input.NoSEP, noRujukan, "v2", input.VisitID, input.Registration, input.PatientID, input.SEPID, user.Username, &input, false)
+
+	c.JSON(http.StatusOK, gin.H{"message": "Rujukan BPJS V2 berhasil diperbarui", "data": gin.H{"no_rujukan": updatedNoRujukan}})
+}
+
+// VClaimDeleteRujukan deletes BPJS referral (v1/v2).
+func VClaimDeleteRujukan(c *gin.Context) {
+	noRujukan := c.Param("noRujukan")
+	if noRujukan == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Nomor rujukan wajib diisi"})
+		return
+	}
+
+	userID, _ := c.Get("userID")
+	var user models.User
+	if err := database.DB.First(&user, userID).Error; err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User tidak ditemukan"})
+		return
+	}
+
+	client, err := bpjs.NewVClaimClient()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat VClaim client: " + err.Error()})
+		return
+	}
+
+	deletedNoRujukan, err := client.DeleteRujukan(noRujukan, user.Username)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	database.DB.Model(&models.BPJSReferral{}).
+		Where("no_rujukan = ?", noRujukan).
+		Updates(map[string]interface{}{"status": "cancelled", "khusus_id_rujukan": "", "is_khusus": false})
+
+	c.JSON(http.StatusOK, gin.H{"message": "Rujukan BPJS berhasil dihapus", "data": gin.H{"no_rujukan": deletedNoRujukan}})
+}
+
+// VClaimInsertRujukanKhusus creates special BPJS referral based on a regular referral number.
+func VClaimInsertRujukanKhusus(c *gin.Context) {
+	var input VClaimRujukanKhususInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	userID, _ := c.Get("userID")
+	var user models.User
+	if err := database.DB.First(&user, userID).Error; err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User tidak ditemukan"})
+		return
+	}
+
+	client, err := bpjs.NewVClaimClient()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat VClaim client: " + err.Error()})
+		return
+	}
+
+	result, err := client.InsertRujukanKhusus(input.NoRujukan, input.DiagnosaCodes, input.ProcedureCodes, user.Username)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	database.DB.Model(&models.BPJSReferral{}).
+		Where("no_rujukan = ?", input.NoRujukan).
+		Updates(map[string]interface{}{
+			"is_khusus":              true,
+			"khusus_diagnosa_codes":  strings.Join(input.DiagnosaCodes, ","),
+			"khusus_procedure_codes": strings.Join(input.ProcedureCodes, ","),
+			"status":                 "active",
+		})
+
+	c.JSON(http.StatusOK, gin.H{"message": "Rujukan khusus BPJS berhasil dibuat", "data": result})
+}
+
+// VClaimDeleteRujukanKhusus deletes special BPJS referral.
+func VClaimDeleteRujukanKhusus(c *gin.Context) {
+	var input VClaimDeleteRujukanKhususInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	userID, _ := c.Get("userID")
+	var user models.User
+	if err := database.DB.First(&user, userID).Error; err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User tidak ditemukan"})
+		return
+	}
+
+	client, err := bpjs.NewVClaimClient()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat VClaim client: " + err.Error()})
+		return
+	}
+
+	deletedID, err := client.DeleteRujukanKhusus(input.IDRujukan, input.NoRujukan, user.Username)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	database.DB.Model(&models.BPJSReferral{}).
+		Where("no_rujukan = ?", input.NoRujukan).
+		Updates(map[string]interface{}{
+			"is_khusus":              false,
+			"khusus_id_rujukan":      "",
+			"khusus_diagnosa_codes":  "",
+			"khusus_procedure_codes": "",
+		})
+
+	c.JSON(http.StatusOK, gin.H{"message": "Rujukan khusus BPJS berhasil dihapus", "data": gin.H{"id_rujukan": deletedID}})
+}
+
+// VClaimGetRujukanByVisit returns latest active local BPJS referral linked to a visit.
+func VClaimGetRujukanByVisit(c *gin.Context) {
+	visitID := c.Param("visitId")
+	if visitID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Visit ID wajib diisi"})
+		return
+	}
+
+	var referral models.BPJSReferral
+	if err := database.DB.Where("visit_id = ?", visitID).Order("created_at DESC").First(&referral).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Rujukan BPJS tidak ditemukan"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": referral})
+}
+
+// VClaimGetRujukanSpesialistik returns referral specialist list (kode poli) by target PPK and referral date.
+func VClaimGetRujukanSpesialistik(c *gin.Context) {
+	ppkRujukan := c.Query("ppk_rujukan")
+	tglRujukan := c.Query("tgl_rujukan")
+	keyword := strings.ToLower(strings.TrimSpace(c.Query("keyword")))
+
+	if ppkRujukan == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "PPK rujukan wajib diisi"})
+		return
+	}
+	if tglRujukan == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Tanggal rujukan wajib diisi"})
+		return
+	}
+
+	client, err := bpjs.NewVClaimClient()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat VClaim client: " + err.Error()})
+		return
+	}
+
+	items, err := client.GetRujukanListSpesialistik(ppkRujukan, tglRujukan)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	result := make([]gin.H, 0, len(items))
+	for _, item := range items {
+		kode := strings.TrimSpace(item.KodeSpesialis)
+		nama := strings.TrimSpace(item.NamaSpesialis)
+		if keyword != "" {
+			haystack := strings.ToLower(kode + " " + nama)
+			if !strings.Contains(haystack, keyword) {
+				continue
+			}
+		}
+		result = append(result, gin.H{
+			"kode":           kode,
+			"nama":           nama,
+			"kapasitas":      strings.TrimSpace(item.Kapasitas),
+			"jumlah_rujukan": strings.TrimSpace(item.JumlahRujukan),
+			"persentase":     strings.TrimSpace(item.Persentase),
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": result})
+}
+
+// VClaimGetRujukanSarana returns referral supporting facility list by target PPK.
+func VClaimGetRujukanSarana(c *gin.Context) {
+	ppkRujukan := c.Query("ppk_rujukan")
+	keyword := strings.ToLower(strings.TrimSpace(c.Query("keyword")))
+
+	if ppkRujukan == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "PPK rujukan wajib diisi"})
+		return
+	}
+
+	client, err := bpjs.NewVClaimClient()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat VClaim client: " + err.Error()})
+		return
+	}
+
+	items, err := client.GetRujukanListSarana(ppkRujukan)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	result := make([]gin.H, 0, len(items))
+	for _, item := range items {
+		kode := strings.TrimSpace(item.KodeSarana)
+		nama := strings.TrimSpace(item.NamaSarana)
+		if keyword != "" {
+			haystack := strings.ToLower(kode + " " + nama)
+			if !strings.Contains(haystack, keyword) {
+				continue
+			}
+		}
+		result = append(result, gin.H{
+			"kode": kode,
+			"nama": nama,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": result})
+}
+
 // ==================== SEP ====================
 
 // SEPInput adalah input untuk membuat SEP

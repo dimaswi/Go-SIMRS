@@ -4,6 +4,8 @@ import { api } from './client';
 // CPPT INTERFACES
 // ===========================================================================
 
+export type CPPTFormat = 'soap' | 'sbar' | 'tbak';
+
 export interface CPPT {
   id: number;
   created_at: string;
@@ -11,6 +13,7 @@ export interface CPPT {
   visit_id: number;
   record_date: string;
   profession: string;
+  cppt_format?: CPPTFormat;
   subjective?: string;
   objective?: string;
   assessment?: string;
@@ -41,6 +44,7 @@ export interface CPPT {
 export interface CreateCPPTInput {
   record_date: string;
   profession: string;
+  cppt_format?: CPPTFormat;
   subjective?: string;
   objective?: string;
   assessment?: string;
@@ -101,6 +105,11 @@ export interface FluidBalance {
   notes?: string;
   created_by_id?: number;
   created_by?: {
+    id: number;
+    username: string;
+    full_name: string;
+  };
+  verified_by?: {
     id: number;
     username: string;
     full_name: string;
@@ -209,6 +218,12 @@ export const CPPT_PROFESSIONS = [
   { value: 'lainnya', label: 'Lainnya' },
 ];
 
+export const CPPT_FORMATS: { value: CPPTFormat; label: string }[] = [
+  { value: 'soap', label: 'SOAP' },
+  { value: 'sbar', label: 'SBAR' },
+  { value: 'tbak', label: 'TBAK' },
+];
+
 export const SHIFT_TYPES = [
   { value: 'pagi', label: 'Pagi (07:00 - 14:00)' },
   { value: 'siang', label: 'Siang (14:00 - 21:00)' },
@@ -218,6 +233,12 @@ export const SHIFT_TYPES = [
 export const getCPPTProfessionLabel = (profession: string): string => {
   const found = CPPT_PROFESSIONS.find(p => p.value === profession);
   return found?.label || profession;
+};
+
+export const getCPPTFormatLabel = (cpptFormat?: CPPTFormat): string => {
+  const format = cpptFormat || 'soap';
+  const found = CPPT_FORMATS.find(f => f.value === format);
+  return found?.label || format.toUpperCase();
 };
 
 export const getShiftTypeLabel = (shiftType: string): string => {

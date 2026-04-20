@@ -112,6 +112,10 @@ func SetupPrintRoutes(api *gin.RouterGroup) {
 		print.GET("/rm-duplicate/radiology-result/:rmOrderId", handlers.PrintRMDuplicateRadiologyResult)
 		// Surgery/Consultation result from RM Duplicate
 		print.GET("/rm-duplicate/procedure-result/:rmOrderId", handlers.PrintRMDuplicateProcedureResult)
+		// Prescription from RM Duplicate
+		print.GET("/rm-duplicate/prescription/:rmOrderId", handlers.PrintRMDuplicatePrescription)
+		// Billing from RM Duplicate
+		print.GET("/rm-duplicate/billing/:rmDuplicateId", handlers.PrintRMDuplicateBilling)
 
 		// K. BPJS - SPRI & Surat Kontrol
 		// SPRI (Surat Perintah Rawat Inap)
@@ -120,5 +124,9 @@ func SetupPrintRoutes(api *gin.RouterGroup) {
 		print.GET("/surat-kontrol/:suratKontrolId", handlers.PrintSuratKontrol)
 		// Surat Kontrol Umum (SIMRS follow-up)
 		print.GET("/surat-kontrol-simrs/:registrationId", handlers.PrintSuratKontrolSIMRS)
+
+		// L. Cache Management (Admin)
+		print.GET("/cache/stats", middleware.RequirePermission("settings.manage"), handlers.GetPDFCacheStats)
+		print.DELETE("/cache/cleanup", middleware.RequirePermission("settings.manage"), handlers.CleanupPDFCache)
 	}
 }

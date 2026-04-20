@@ -1,11 +1,9 @@
-import { useState, useEffect, useCallback, useRef, Fragment } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Separator } from "@/components/ui/separator";
-import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -24,6 +22,7 @@ import type {
   EKlaimRMMedicineItem,
   EKlaimRMCPPT,
   EKlaimRMFluidBalance,
+  EKlaimRMNursingCare,
 } from "@/lib/api/eklaim-local";
 import { proceduresApi, procedureParametersApi } from "@/lib/api/procedures";
 import type {
@@ -32,14 +31,11 @@ import type {
   ProcedureType,
 } from "@/lib/api/procedures";
 import { medicinesApi } from "@/lib/api/medicines";
-import type { Medicine } from "@/lib/api/medicines";
 import { employeesApi } from "@/lib/api/employees";
-import type { Employee } from "@/lib/api/employees";
 import { useToast } from "@/hooks/use-toast";
+import { useMultipleMasterData } from "@/hooks/useMasterData";
 import {
   Loader2,
-  Save,
-  Plus,
   X,
   Stethoscope,
   HeartPulse,
@@ -56,12 +52,14 @@ import {
   FileText,
   Droplets,
   Search,
-  Trash2,
   CheckCircle2,
-  ChevronRight,
-  ChevronDown,
   Calendar,
   AlertTriangle,
+  ChevronLeft,
+  ChevronRight,
+  Plus,
+  ArrowDownToLine,
+  ArrowUpFromLine,
 } from "lucide-react";
 import {
   Table,
@@ -74,21 +72,43 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { ICD10Combobox } from "@/components/ui/icd10-combobox";
 import { ICD9CMCombobox } from "@/components/ui/icd9cm-combobox";
-import { Combobox } from "@/components/ui/combobox";
-import { useMultipleMasterData } from "@/hooks/useMasterData";
 import { cn } from "@/lib/utils";
+import { AnamnesisForm } from "@/components/medical-record/anamnesis-form";
+import { PhysicalExamForm } from "@/components/medical-record/physical-exam-form";
+import { DiagnosisForm } from "@/components/medical-record/diagnosis-form";
+import { AssessmentPlanForm } from "@/components/medical-record/assessment-plan-form";
+import { DispositionForm } from "@/components/medical-record/disposition-form";
+import { TriageForm } from "@/components/medical-record/triage-form";
+import { medicalRecordsApi } from "@/lib/api";
+import type { CPPT, FluidBalance, NursingCare, PhysicalExam } from "@/lib/api";
+import { LaboratoryWorkstation } from "@/components/medical-record/laboratory-workstation";
+import { RadiologyWorkstation } from "@/components/medical-record/radiology-workstation";
+import { ConsultationForm } from "@/components/medical-record/consultation-form";
+import { SurgeryWorkstation } from "../../components/medical-record/surgery-workstation";
+import { PharmacyEditPrescription } from "@/components/medical-record/pharmacy-edit-prescription";
+import { CPPTForm } from "@/components/medical-record/cppt-form";
+import { FluidBalanceForm } from "@/components/medical-record/fluid-balance-form";
+import { NursingCareForm } from "@/components/medical-record/nursing-care-form";
+import type {
+  ProcedureOrder,
+  ProcedureOrderItem,
+  SubmitResultsInput,
+} from "@/lib/api/procedure-orders";
+import type { MedicineOrder, MedicineOrderItem } from "@/lib/api";
+import nursingMasterRaw from "@/master-data/nursing/sdki-slki-siki.master.json?raw";
 
 interface RMDuplicateTabProps {
   eklaimId: number;
   rmDuplicate: EKlaimRMDuplicate | null | undefined;
   visit?: any;
   onSaved: () => void;
+  stickyTopOffset?: number;
 }
 
 // ── Section definitions ──
@@ -108,25 +128,237 @@ const SECTIONS = [
   { id: "disposition", label: "Disposisi", icon: LogOut },
   { id: "cppt", label: "CPPT", icon: MessageSquare },
   { id: "fluid-balance", label: "Balance Cairan", icon: Droplets },
+  { id: "nursing-care", label: "Asuhan Keperawatan", icon: HeartPulse },
   { id: "billing", label: "Billing Duplikat", icon: DollarSign },
 ] as const;
 
 type SectionId = (typeof SECTIONS)[number]["id"];
+
+const pad2 = (value: number) => String(value).padStart(2, "0");
+
+const getCurrentDateValue = () => {
+  const now = new Date();
+  return `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
+};
+
+const getCurrentDateTimeValue = () => {
+  const now = new Date();
+  return `${getCurrentDateValue()}T${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
+};
+
+const createEmptyDuplicateCPPT = (sequence: number): EKlaimRMCPPT => ({
+  record_date: getCurrentDateTimeValue(),
+  profession: "dokter",
+  cppt_format: "soap",
+  staff_name: "",
+  subjective: "",
+  objective: "",
+  assessment: "",
+  plan: "",
+  instruction: "",
+  blood_pressure: "",
+  heart_rate: 0,
+  respiratory_rate: 0,
+  temperature: "",
+  oxygen_saturation: 0,
+  pain_scale: 0,
+  is_fake: true,
+  notes: "",
+  sequence,
+  created_by_name: "",
+  approved_by_name: "",
+});
+
+const createEmptyDuplicateFluidBalance = (sequence: number): EKlaimRMFluidBalance => ({
+  record_date: getCurrentDateValue(),
+  shift_type: "pagi",
+  staff_name: "",
+  oral_drink: 0,
+  oral_food: 0,
+  oral_medicine: 0,
+  iv_fluid: 0,
+  iv_medicine: 0,
+  blood_product: 0,
+  enteral_feed: 0,
+  other_intake: 0,
+  urine_amount: 0,
+  feces_amount: 0,
+  vomit_amount: 0,
+  drain_amount: 0,
+  blood_loss: 0,
+  iwl: 0,
+  other_output: 0,
+  total_intake: 0,
+  total_output: 0,
+  balance: 0,
+  is_fake: true,
+  notes: "",
+  sequence,
+  created_by_name: "",
+  approved_by_name: "",
+});
+
+const createEmptyDuplicateNursingCare = (sequence: number): EKlaimRMNursingCare => ({
+  record_date: getCurrentDateTimeValue(),
+  shift_type: "pagi",
+  staff_name: "",
+  chief_complaint: "",
+  pain_assessment: "",
+  pain_scale: 0,
+  consciousness_level: "",
+  functional_status: "",
+  fall_risk_assessment: "",
+  fall_risk_score: 0,
+  nutrition_assessment: "",
+  skin_assessment: "",
+  pressure_ulcer_risk: "",
+  blood_pressure: "",
+  heart_rate: 0,
+  respiratory_rate: 0,
+  temperature: "",
+  oxygen_saturation: 0,
+  nursing_diagnosis: "",
+  nursing_diagnosis_code: "",
+  problem_etiology: "",
+  signs_symptoms: "",
+  nursing_outcome: "",
+  nursing_outcome_code: "",
+  outcome_indicators: "",
+  outcome_target: "",
+  nursing_intervention: "",
+  nursing_intervention_code: "",
+  observation_actions: "",
+  therapeutic_actions: "",
+  education_actions: "",
+  collaboration_actions: "",
+  implementation: "",
+  implementation_time: "",
+  patient_response: "",
+  evaluation_subjective: "",
+  evaluation_objective: "",
+  evaluation_analysis: "",
+  evaluation_planning: "",
+  problem_status: "belum_teratasi",
+  is_fake: true,
+  notes: "",
+  sequence,
+  created_by_name: "",
+  approved_by_name: "",
+});
+
+const DUPLICATE_CPPT_PROFESSIONS = [
+  { value: "dokter", label: "Dokter" },
+  { value: "perawat", label: "Perawat" },
+  { value: "farmasi", label: "Farmasi" },
+  { value: "gizi", label: "Gizi" },
+  { value: "bidan", label: "Bidan" },
+  { value: "lainnya", label: "Lainnya" },
+];
+
+const DUPLICATE_SHIFT_TYPES = [
+  { value: "pagi", label: "Pagi" },
+  { value: "siang", label: "Siang" },
+  { value: "malam", label: "Malam" },
+];
+
+const DUPLICATE_OUTCOME_TARGETS = [
+  { value: "meningkat", label: "Meningkat" },
+  { value: "menurun", label: "Menurun" },
+  { value: "membaik", label: "Membaik" },
+  { value: "cukup", label: "Cukup" },
+  { value: "sedang", label: "Sedang" },
+];
+
+const DUPLICATE_PROBLEM_STATUS = [
+  { value: "teratasi", label: "Teratasi" },
+  { value: "teratasi_sebagian", label: "Teratasi Sebagian" },
+  { value: "belum_teratasi", label: "Belum Teratasi" },
+];
+
+// ── Nursing master data for SDKI auto-fill in duplicate nursing care dialog ──
+interface DuplicateNursingMasterItem {
+  sdki: {
+    code: string;
+    label: string;
+    definisi?: string;
+    fisiologis?: string[];
+    situasional?: string[];
+    gejala_tanda?: {
+      mayor?: { subjektif?: string[]; objektif?: string[] };
+      minor?: { subjektif?: string[]; objektif?: string[] };
+    };
+  };
+  slki?: { luaran_utama?: string[]; luaran_tambahan?: string[] };
+  siki?: { intervensi_utama?: string[]; intervensi_pendukung?: string[] };
+}
+const normalizeDuplicateSdkiCode = (code: string) => code.toUpperCase().replace(/[^A-Z0-9]/g, "");
+const buildDuplicateMultilineText = (title: string, values: string[] = []) =>
+  values.length === 0 ? "" : `${title}:\n${values.join("\n")}`;
+const parsedDuplicateNursingMasterItems: DuplicateNursingMasterItem[] = (() => {
+  try {
+    const parsed = JSON.parse(nursingMasterRaw) as { items?: DuplicateNursingMasterItem[] };
+    return Array.isArray(parsed.items) ? parsed.items : [];
+  } catch {
+    return [];
+  }
+})();
+
+/** Format a date-like string (ISO/fake_date) as DDMMYYYY */
+function fmtDateCode(d?: string): string {
+  if (!d || d.length < 10) return new Date().toLocaleDateString("en-GB").replace(/\//g, "");
+  return d.slice(8, 10) + d.slice(5, 7) + d.slice(0, 4);
+}
 
 export default function RMDuplicateTab({
   eklaimId,
   rmDuplicate,
   visit,
   onSaved,
+  stickyTopOffset,
 }: RMDuplicateTabProps) {
   const { toast } = useToast();
+  const activeVisitId = Number(visit?.id || rmDuplicate?.visit_id || 0);
   const [submitting, setSubmitting] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [activeSection, setActiveSection] = useState<SectionId>("anamnesis");
   const [showMappingModal, setShowMappingModal] = useState(false);
+  const [restoreDialogOpen, setRestoreDialogOpen] = useState(false);
+  const [visitPhysicalExam, setVisitPhysicalExam] = useState<Partial<PhysicalExam> | null>(null);
+
+  const originalPhysicalExam = useMemo(() => {
+    try {
+      const raw = rmDuplicate?.original_rm_json;
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      return parsed?.physical_exam || null;
+    } catch {
+      return null;
+    }
+  }, [rmDuplicate?.original_rm_json]);
+
+  useEffect(() => {
+    const visitId = Number(visit?.id || rmDuplicate?.visit_id || 0);
+    if (!visitId) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await medicalRecordsApi.getPhysicalExam(visitId);
+        if (!cancelled) setVisitPhysicalExam(res?.data || null);
+      } catch {
+        if (!cancelled) setVisitPhysicalExam(null);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [visit?.id, rmDuplicate?.visit_id]);
 
   // ── Anamnesis ──
+  const [anamnesisSource, setAnamnesisSource] = useState("autoanamnesis");
+  const [functionalStatus, setFunctionalStatus] = useState("");
   const [chiefComplaint, setChiefComplaint] = useState("");
   const [historyOfPresentIllness, setHistoryOfPresentIllness] = useState("");
   const [pastMedicalHistory, setPastMedicalHistory] = useState("");
@@ -151,14 +383,17 @@ export default function RMDuplicateTab({
   const [bmi, setBmi] = useState(0);
   const [waist, setWaist] = useState("");
   const [headCircum, setHeadCircum] = useState("");
+  const [painMethod, setPainMethod] = useState("nrs");
+  const [painScale, setPainScale] = useState(0);
+  const [painLocation, setPainLocation] = useState("");
 
   // ── Body Systems (legacy) ──
-  const [headNeck, setHeadNeck] = useState("");
+  const [, setHeadNeck] = useState("");
   const [eyes, setEyes] = useState("");
-  const [ent, setEnt] = useState("");
-  const [thorax, setThorax] = useState("");
-  const [cardiac, setCardiac] = useState("");
-  const [pulmonary, setPulmonary] = useState("");
+  const [, setEnt] = useState("");
+  const [, setThorax] = useState("");
+  const [, setCardiac] = useState("");
+  const [, setPulmonary] = useState("");
   const [abdomen, setAbdomen] = useState("");
   const [extremities, setExtremities] = useState("");
   const [neurological, setNeurological] = useState("");
@@ -173,8 +408,8 @@ export default function RMDuplicateTab({
   const [chest, setChest] = useState("");
   const [heartExam, setHeartExam] = useState("");
   const [lungs, setLungs] = useState("");
-  const [musculoskel, setMusculoskel] = useState("");
-  const [genitourinary, setGenitourinary] = useState("");
+  const [, setMusculoskel] = useState("");
+  const [, setGenitourinary] = useState("");
   const [otherFindings, setOtherFindings] = useState("");
 
   // ── ECG ──
@@ -234,151 +469,128 @@ export default function RMDuplicateTab({
   const [triageAssessment, setTriageAssessment] = useState("");
   const [triageImmediateAction, setTriageImmediateAction] = useState("");
 
-  // ── Triage master data ──
-  const { getOptions: getTriageOptions } = useMultipleMasterData([
-    'arrival_mode', 'triage_level', 'airway_status', 'breathing_status', 'circulation_status',
+  useMultipleMasterData([
+    "arrival_mode",
+    "triage_level",
+    "airway_status",
+    "breathing_status",
+    "circulation_status",
   ]);
-  const triageLevelColors: Record<string, string> = {
-    "0": "bg-black",
-    "1": "bg-red-500",
-    "2": "bg-orange-500",
-    "3": "bg-yellow-500",
-    "4": "bg-green-500",
-    "5": "bg-blue-500",
-  };
 
   const [diagnoses, setDiagnoses] = useState<EKlaimRMDiagnosis[]>([]);
-
-  // ── Procedures ──
   const [procedures, setProcedures] = useState<EKlaimRMProcedure[]>([]);
-
-  // ── Orders ──
   const [orders, setOrders] = useState<EKlaimRMOrder[]>([]);
-
-  // ── Medicine Items ──
-  const [medicineItems, setMedicineItems] = useState<EKlaimRMMedicineItem[]>(
-    [],
-  );
-
-  // ── CPPT Notes ──
+  const [medicineItems, setMedicineItems] = useState<EKlaimRMMedicineItem[]>([]);
+  // Incremented each time populateFromRM runs so workstation components (Lab, Radiology,
+  // Surgery, Consultation, Pharmacy) remount WITH the loaded adapter data instead of the
+  // empty-state adapter they captured on first mount.
+  const [rmDataVersion, setRmDataVersion] = useState(0);
   const [cpptNotes, setCpptNotes] = useState<EKlaimRMCPPT[]>([]);
-
-  // ── Fluid Balances ──
-  const [fluidBalances, setFluidBalances] = useState<EKlaimRMFluidBalance[]>(
-    [],
+  const [fluidBalances, setFluidBalances] = useState<EKlaimRMFluidBalance[]>([]);
+  const [nursingCares, setNursingCares] = useState<EKlaimRMNursingCare[]>([]);
+  const [cpptDialogOpen, setCpptDialogOpen] = useState(false);
+  const [fluidBalanceDialogOpen, setFluidBalanceDialogOpen] = useState(false);
+  const [nursingCareDialogOpen, setNursingCareDialogOpen] = useState(false);
+  const [newCppt, setNewCppt] = useState<EKlaimRMCPPT>(createEmptyDuplicateCPPT(1));
+  const [newFluidBalance, setNewFluidBalance] = useState<EKlaimRMFluidBalance>(
+    createEmptyDuplicateFluidBalance(1),
   );
+  const [newNursingCare, setNewNursingCare] = useState<EKlaimRMNursingCare>(
+    createEmptyDuplicateNursingCare(1),
+  );
+  const [duplicateNursingMasterCode, setDuplicateNursingMasterCode] = useState("");
 
-  // ── Tarif ──
-  const [tarifProsedurNonBedah, setTarifProsedurNonBedah] = useState(0);
-  const [tarifProsedurBedah, setTarifProsedurBedah] = useState(0);
-  const [tarifKonsultasi, setTarifKonsultasi] = useState(0);
-  const [tarifTenagaAhli, setTarifTenagaAhli] = useState(0);
-  const [tarifKeperawatan, setTarifKeperawatan] = useState(0);
-  const [tarifPenunjang, setTarifPenunjang] = useState(0);
-  const [tarifRadiologi, setTarifRadiologi] = useState(0);
-  const [tarifLaboratorium, setTarifLaboratorium] = useState(0);
-  const [tarifPelayananDarah, setTarifPelayananDarah] = useState(0);
-  const [tarifRehabilitasi, setTarifRehabilitasi] = useState(0);
-  const [tarifKamar, setTarifKamar] = useState(0);
-  const [tarifRawatIntensif, setTarifRawatIntensif] = useState(0);
-  const [tarifObat, setTarifObat] = useState(0);
-  const [tarifObatKronis, setTarifObatKronis] = useState(0);
-  const [tarifObatKemoterapi, setTarifObatKemoterapi] = useState(0);
-  const [tarifAlkes, setTarifAlkes] = useState(0);
-  const [tarifBMHP, setTarifBMHP] = useState(0);
-  const [tarifSewaAlat, setTarifSewaAlat] = useState(0);
+  const [, setTarifProsedurNonBedah] = useState(0);
+  const [, setTarifProsedurBedah] = useState(0);
+  const [, setTarifKonsultasi] = useState(0);
+  const [, setTarifTenagaAhli] = useState(0);
+  const [, setTarifKeperawatan] = useState(0);
+  const [, setTarifPenunjang] = useState(0);
+  const [, setTarifRadiologi] = useState(0);
+  const [, setTarifLaboratorium] = useState(0);
+  const [, setTarifPelayananDarah] = useState(0);
+  const [, setTarifRehabilitasi] = useState(0);
+  const [, setTarifKamar] = useState(0);
+  const [, setTarifRawatIntensif] = useState(0);
+  const [, setTarifObat] = useState(0);
+  const [, setTarifObatKronis] = useState(0);
+  const [, setTarifObatKemoterapi] = useState(0);
+  const [, setTarifAlkes] = useState(0);
+  const [, setTarifBMHP] = useState(0);
+  const [, setTarifSewaAlat] = useState(0);
 
-  // ── Inpatient-specific fields ──
   const [admissionDate, setAdmissionDate] = useState("");
   const [dischargeDate, setDischargeDate] = useState("");
   const [lengthOfStay, setLengthOfStay] = useState(0);
-  const [accommodationTariffPerDay, setAccommodationTariffPerDay] = useState(0);
+  const [, setAccommodationTariffPerDay] = useState(0);
 
-  // ── Procedure Search ──
-  const [addingItemToOrder, setAddingItemToOrder] = useState<number | null>(
-    null,
-  );
   const [procSearchTerm, setProcSearchTerm] = useState("");
   const [procSearchResults, setProcSearchResults] = useState<Procedure[]>([]);
   const [searchingProcs, setSearchingProcs] = useState(false);
   const [loadingParams, setLoadingParams] = useState(false);
-  const procSearchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [quickAddOrderType, setQuickAddOrderType] = useState<
+    EKlaimRMOrder["order_type"] | null
+  >(null);
+  const [quickAddFakeDate, setQuickAddFakeDate] = useState<string | null>(null);
+  const [quickAddAddedNames, setQuickAddAddedNames] = useState<string[]>([]);
 
-  // ── Medicine Search ──
-  const [medSearchTerm, setMedSearchTerm] = useState("");
-  const [medSearchResults, setMedSearchResults] = useState<Medicine[]>([]);
-  const [searchingMeds, setSearchingMeds] = useState(false);
-  const medSearchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const closeQuickAddDialog = () => {
+    setQuickAddOrderType(null);
+    setQuickAddFakeDate(null);
+    setQuickAddAddedNames([]);
+    setProcSearchTerm("");
+    setProcSearchResults([]);
+  };
 
-  // ── Employee Search (for staff_name in CPPT & Fluid Balance) ──
-  const [empSearchKey, setEmpSearchKey] = useState<string | null>(null); // e.g. 'cppt-0' or 'fb-2'
-  const [empSearchTerm, setEmpSearchTerm] = useState("");
-  const [empSearchResults, setEmpSearchResults] = useState<Employee[]>([]);
-  const [searchingEmps, setSearchingEmps] = useState(false);
-  const empSearchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [duplicateDoctorOptions, setDuplicateDoctorOptions] = useState<
+    { id: number; name: string }[]
+  >([]);
 
-  const handleEmpSearch = (term: string) => {
-    setEmpSearchTerm(term);
-    if (empSearchTimeout.current) clearTimeout(empSearchTimeout.current);
-    if (!term || term.length < 2) {
-      setEmpSearchResults([]);
-      return;
-    }
-    empSearchTimeout.current = setTimeout(async () => {
-      setSearchingEmps(true);
+  useEffect(() => {
+    let active = true;
+    const loadDoctors = async () => {
       try {
-        const res = await employeesApi.getAll({
-          search: term,
-          is_active: "true",
-          limit: 10,
-        });
-        setEmpSearchResults(res.data?.data || res.data || []);
+        const res = await employeesApi.getAll({ is_active: "true", limit: 300 });
+        const rows = res.data?.data || [];
+        const filtered = rows
+          .filter((emp) => {
+            const hay = `${emp.tipe_karyawan || ""} ${emp.jabatan || ""} ${emp.spesialisasi || ""}`.toLowerCase();
+            return hay.includes("dokter") || hay.includes("dr");
+          })
+          .map((emp) => ({ id: emp.id, name: emp.nama_lengkap }))
+          .sort((a, b) => a.name.localeCompare(b.name));
+
+        const unique = filtered.filter(
+          (item, idx, arr) => arr.findIndex((x) => x.name === item.name) === idx,
+        );
+        if (active) setDuplicateDoctorOptions(unique);
       } catch {
-        setEmpSearchResults([]);
-      } finally {
-        setSearchingEmps(false);
+        if (active) setDuplicateDoctorOptions([]);
       }
-    }, 300);
-  };
+    };
 
-  const selectEmployee = (emp: Employee) => {
-    if (!empSearchKey) return;
-    const [type, idxStr] = empSearchKey.split("-");
-    const idx = parseInt(idxStr);
-    if (type === "cppt") {
-      updateCPPT(idx, "staff_name", emp.nama_lengkap);
-    } else if (type === "fb") {
-      updateFluidBalance(idx, "staff_name", emp.nama_lengkap);
-    }
-    setEmpSearchKey(null);
-    setEmpSearchTerm("");
-    setEmpSearchResults([]);
-  };
-
-  // ── Expanded order items (for collapsible parameter rows) ──
-  const [expandedOrderItems, setExpandedOrderItems] = useState<
-    Record<string, boolean>
-  >({});
-  const toggleOrderItem = (globalIdx: number, itemIdx: number) => {
-    const key = `${globalIdx}-${itemIdx}`;
-    setExpandedOrderItems((prev) => ({ ...prev, [key]: !prev[key] }));
-  };
-
-  // ── Expanded CPPT / Fluid Balance / Medicine rows ──
-  const [expandedCPPT, setExpandedCPPT] = useState<Record<number, boolean>>({});
-  const toggleCPPT = (idx: number) =>
-    setExpandedCPPT((prev) => ({ ...prev, [idx]: !prev[idx] }));
-  const [expandedFB, setExpandedFB] = useState<Record<number, boolean>>({});
-  const toggleFB = (idx: number) =>
-    setExpandedFB((prev) => ({ ...prev, [idx]: !prev[idx] }));
-  const [expandedMed, setExpandedMed] = useState<Record<number, boolean>>({});
-  const toggleMed = (idx: number) =>
-    setExpandedMed((prev) => ({ ...prev, [idx]: !prev[idx] }));
+    loadDoctors();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // ══════════════════════════════════════════════
   // Data population
   // ══════════════════════════════════════════════
   const populateFromRM = useCallback((rm: EKlaimRMDuplicate) => {
+    let originalPE: any = null;
+    try {
+      if (rm.original_rm_json) {
+        const parsed = JSON.parse(rm.original_rm_json);
+        originalPE = parsed?.physical_exam || null;
+      }
+    } catch {
+      originalPE = null;
+    }
+
+    setAnamnesisSource(rm.anamnesis_source || "autoanamnesis");
+    setFunctionalStatus(rm.functional_status || "");
     setChiefComplaint(rm.chief_complaint || "");
     setHistoryOfPresentIllness(rm.history_of_present_illness || "");
     setPastMedicalHistory(rm.past_medical_history || "");
@@ -387,41 +599,44 @@ export default function RMDuplicateTab({
     setAllergies(rm.allergies || "");
     setCurrentMedications(rm.current_medications || "");
     setReviewOfSystems(rm.review_of_systems || "");
-    setGeneralCondition(rm.general_condition || "");
-    setConsciousness(rm.consciousness || "");
-    setBloodPressure(rm.blood_pressure || "");
-    setSystolic(rm.systolic || 0);
-    setDiastolic(rm.diastolic || 0);
-    setHeartRate(rm.heart_rate || "");
-    setRespiratoryRate(rm.respiratory_rate || "");
-    setTemperature(rm.temperature || "");
-    setOxygenSaturation(rm.oxygen_saturation || "");
-    setWeight(rm.weight || "");
-    setHeight(rm.height || "");
-    setBmi(rm.bmi || 0);
-    setWaist(rm.waist || "");
-    setHeadCircum(rm.head_circum || "");
-    setHeadNeck(rm.head_neck || "");
-    setEyes(rm.eyes || "");
-    setEnt(rm.ent || "");
-    setThorax(rm.thorax || "");
-    setCardiac(rm.cardiac || "");
-    setPulmonary(rm.pulmonary || "");
-    setAbdomen(rm.abdomen || "");
-    setExtremities(rm.extremities || "");
-    setNeurological(rm.neurological || "");
-    setSkin(rm.skin || "");
-    setHead(rm.head || "");
-    setEars(rm.ears || "");
-    setNose(rm.nose || "");
-    setThroat(rm.throat || "");
-    setNeck(rm.neck || "");
-    setChest(rm.chest || "");
-    setHeartExam(rm.heart || "");
-    setLungs(rm.lungs || "");
-    setMusculoskel(rm.musculoskel || "");
-    setGenitourinary(rm.genitourinary || "");
-    setOtherFindings(rm.other_findings || "");
+    setGeneralCondition(rm.general_condition || originalPE?.general_condition || "");
+    setConsciousness(rm.consciousness || originalPE?.consciousness || "");
+    setBloodPressure(rm.blood_pressure || originalPE?.blood_pressure || "");
+    setSystolic(rm.systolic || originalPE?.systolic || originalPE?.blood_pressure_systolic || 0);
+    setDiastolic(rm.diastolic || originalPE?.diastolic || originalPE?.blood_pressure_diastolic || 0);
+    setHeartRate(rm.heart_rate || originalPE?.heart_rate || "");
+    setRespiratoryRate(rm.respiratory_rate || originalPE?.respiratory_rate || "");
+    setTemperature(rm.temperature || originalPE?.temperature || "");
+    setOxygenSaturation(rm.oxygen_saturation || originalPE?.oxygen_saturation || "");
+    setWeight(rm.weight || originalPE?.weight || "");
+    setHeight(rm.height || originalPE?.height || "");
+    setBmi(rm.bmi || originalPE?.bmi || 0);
+    setWaist(rm.waist || originalPE?.waist || "");
+    setHeadCircum(rm.head_circum || originalPE?.head_circum || "");
+    setPainMethod(rm.pain_method || originalPE?.pain_method || "nrs");
+    setPainScale(rm.pain_scale ?? originalPE?.pain_scale ?? 0);
+    setPainLocation(rm.pain_location || originalPE?.pain_location || "");
+    setHeadNeck(rm.head_neck || originalPE?.head_neck || "");
+    setEyes(rm.eyes || originalPE?.eyes || "");
+    setEnt(rm.ent || originalPE?.ent || "");
+    setThorax(rm.thorax || originalPE?.thorax || "");
+    setCardiac(rm.cardiac || originalPE?.cardiac || "");
+    setPulmonary(rm.pulmonary || originalPE?.pulmonary || "");
+    setAbdomen(rm.abdomen || originalPE?.abdomen || "");
+    setExtremities(rm.extremities || originalPE?.extremities || "");
+    setNeurological(rm.neurological || originalPE?.neurological || "");
+    setSkin(rm.skin || originalPE?.skin || "");
+    setHead(rm.head || originalPE?.head || rm.head_neck || originalPE?.head_neck || "");
+    setEars(rm.ears || originalPE?.ears || rm.ent || originalPE?.ent || "");
+    setNose(rm.nose || originalPE?.nose || rm.ent || originalPE?.ent || "");
+    setThroat(rm.throat || originalPE?.throat || rm.ent || originalPE?.ent || "");
+    setNeck(rm.neck || originalPE?.neck || rm.head_neck || originalPE?.head_neck || "");
+    setChest(rm.chest || rm.thorax || originalPE?.chest || originalPE?.thorax || "");
+    setHeartExam(rm.heart || rm.cardiac || originalPE?.heart || originalPE?.cardiac || "");
+    setLungs(rm.lungs || rm.pulmonary || originalPE?.lungs || originalPE?.pulmonary || "");
+    setMusculoskel(rm.musculoskel || originalPE?.musculoskel || "");
+    setGenitourinary(rm.genitourinary || originalPE?.genitourinary || "");
+    setOtherFindings(rm.other_findings || originalPE?.other_findings || "");
     setEcgPerformed(rm.ecg_performed || false);
     setEcgResult(rm.ecg_result || "");
     setEcgInterpretation(rm.ecg_interpretation || "");
@@ -451,6 +666,7 @@ export default function RMDuplicateTab({
     setReferralNotes(rm.referral_notes || "");
     setDeathTime(rm.death_time || "");
     setDeathCause(rm.death_cause || "");
+
     // Triage UGD
     setTriageArrivalMode(rm.triage_arrival_mode || "");
     setTriageComplaint(rm.triage_complaint || "");
@@ -472,6 +688,7 @@ export default function RMDuplicateTab({
     setTriageGCSM(rm.triage_gcs_m ?? 6);
     setTriageAssessment(rm.triage_assessment || "");
     setTriageImmediateAction(rm.triage_immediate_actions || "");
+
     setDiagnoses(rm.diagnoses || []);
     setProcedures(rm.procedures || []);
     setOrders(
@@ -482,9 +699,20 @@ export default function RMDuplicateTab({
           : undefined,
       })),
     );
-    setMedicineItems(rm.medicine_items || []);
+    setMedicineItems(
+      (rm.medicine_items || []).map((item: EKlaimRMMedicineItem) => ({
+        ...item,
+        // Strip timezone suffix so fake_date matches the same normalisation
+        // applied to orders above (e.g. "2026-03-29T03:10:29Z" → "2026-03-29T03:10:29").
+        fake_date: item.fake_date
+          ? item.fake_date.replace("Z", "").replace(/\+.*$/, "").slice(0, 19)
+          : undefined,
+      })),
+    );
     setCpptNotes(rm.cppt_notes || []);
     setFluidBalances(rm.fluid_balances || []);
+    setNursingCares(rm.nursing_cares || []);
+
     setTarifProsedurNonBedah(rm.tarif_prosedur_non_bedah || 0);
     setTarifProsedurBedah(rm.tarif_prosedur_bedah || 0);
     setTarifKonsultasi(rm.tarif_konsultasi || 0);
@@ -514,8 +742,54 @@ export default function RMDuplicateTab({
   }, []);
 
   useEffect(() => {
-    if (rmDuplicate) populateFromRM(rmDuplicate);
+    if (rmDuplicate) {
+      populateFromRM(rmDuplicate);
+      // Increment version so workstation components remount with populated adapters.
+      // All setX() calls inside populateFromRM and this setRmDataVersion are batched
+      // into one render by React 18, ensuring the new key arrives with loaded state.
+      setRmDataVersion((v) => v + 1);
+    }
   }, [rmDuplicate, populateFromRM]);
+
+  useEffect(() => {
+    if (medicineItems.length === 0) return;
+
+    const existingPharmacyOrders = orders.filter(
+      (order) => order.order_type === "pharmacy",
+    );
+    if (existingPharmacyOrders.length > 0) return;
+
+    const groupedFakeDates = Array.from(
+      new Set(medicineItems.map((item) => item.fake_date).filter(Boolean)),
+    ) as string[];
+
+    const fallbackFakeDates =
+      groupedFakeDates.length > 0
+        ? groupedFakeDates
+        : [new Date().toISOString().slice(0, 19)];
+
+    setOrders((prev) => {
+      if (prev.some((order) => order.order_type === "pharmacy")) return prev;
+
+      const baseSequence = prev.length;
+      const fallbackOrders = fallbackFakeDates.map((fakeDate, index) => ({
+        ...createEmptyOrder("pharmacy", true, baseSequence + index + 1),
+        order_number: `RX${fmtDateCode(fakeDate)}${index + 1}`,
+        fake_date: fakeDate,
+      }));
+
+      return [...prev, ...fallbackOrders];
+    });
+
+    setMedicineItems((prev) => {
+      if (groupedFakeDates.length > 0) return prev;
+      const fallbackFakeDate = fallbackFakeDates[0];
+      return prev.map((item) => ({
+        ...item,
+        fake_date: item.fake_date || fallbackFakeDate,
+      }));
+    });
+  }, [medicineItems, orders]);
 
   // Populate inpatient data from visit if RM Duplicate fields are empty
   useEffect(() => {
@@ -550,6 +824,168 @@ export default function RMDuplicateTab({
   }, [systolic, diastolic]);
 
   const markDirty = () => setDirty(true);
+
+  const handleOpenAddCPPT = () => {
+    setNewCppt(createEmptyDuplicateCPPT(cpptNotes.length + 1));
+    setCpptDialogOpen(true);
+  };
+
+  const handleSaveAddCPPT = () => {
+    setCpptNotes((prev) => [...prev, { ...newCppt, sequence: prev.length + 1 }]);
+    setCpptDialogOpen(false);
+    markDirty();
+  };
+
+  const handleCpptSetCreatedBy = (cpptId: number, name: string) => {
+    setCpptNotes((prev) =>
+      prev.map((note, idx) => {
+        const mappedId = note.id ?? -(idx + 1);
+        return mappedId === cpptId ? { ...note, created_by_name: name } : note;
+      }),
+    );
+    markDirty();
+  };
+
+  const handleCpptSetApprovedBy = (cpptId: number, name: string) => {
+    setCpptNotes((prev) =>
+      prev.map((note, idx) => {
+        const mappedId = note.id ?? -(idx + 1);
+        return mappedId === cpptId ? { ...note, approved_by_name: name } : note;
+      }),
+    );
+    markDirty();
+  };
+
+  const handleFluidBalanceSetCreatedBy = (id: number, name: string) => {
+    setFluidBalances((prev) =>
+      prev.map((item, idx) => {
+        const mappedId = item.id ?? -(idx + 1);
+        return mappedId === id ? { ...item, created_by_name: name } : item;
+      }),
+    );
+    markDirty();
+  };
+
+  const handleFluidBalanceSetApprovedBy = (id: number, name: string) => {
+    setFluidBalances((prev) =>
+      prev.map((item, idx) => {
+        const mappedId = item.id ?? -(idx + 1);
+        return mappedId === id ? { ...item, approved_by_name: name } : item;
+      }),
+    );
+    markDirty();
+  };
+
+  const handleNursingCareSetCreatedBy = (id: number, name: string) => {
+    setNursingCares((prev) =>
+      prev.map((item, idx) => {
+        const mappedId = item.id ?? -(idx + 1);
+        return mappedId === id ? { ...item, created_by_name: name } : item;
+      }),
+    );
+    markDirty();
+  };
+
+  const handleNursingCareSetApprovedBy = (id: number, name: string) => {
+    setNursingCares((prev) =>
+      prev.map((item, idx) => {
+        const mappedId = item.id ?? -(idx + 1);
+        return mappedId === id ? { ...item, approved_by_name: name } : item;
+      }),
+    );
+    markDirty();
+  };
+
+  const handleOpenAddFluidBalance = () => {
+    setNewFluidBalance(createEmptyDuplicateFluidBalance(fluidBalances.length + 1));
+    setFluidBalanceDialogOpen(true);
+  };
+
+  const handleSaveAddFluidBalance = () => {
+    const totalIntake =
+      (newFluidBalance.oral_drink || 0) +
+      (newFluidBalance.oral_food || 0) +
+      (newFluidBalance.oral_medicine || 0) +
+      (newFluidBalance.iv_fluid || 0) +
+      (newFluidBalance.iv_medicine || 0) +
+      (newFluidBalance.blood_product || 0) +
+      (newFluidBalance.enteral_feed || 0) +
+      (newFluidBalance.other_intake || 0);
+    const totalOutput =
+      (newFluidBalance.urine_amount || 0) +
+      (newFluidBalance.feces_amount || 0) +
+      (newFluidBalance.vomit_amount || 0) +
+      (newFluidBalance.drain_amount || 0) +
+      (newFluidBalance.blood_loss || 0) +
+      (newFluidBalance.iwl || 0) +
+      (newFluidBalance.other_output || 0);
+    setFluidBalances((prev) => [
+      ...prev,
+      {
+        ...newFluidBalance,
+        total_intake: totalIntake,
+        total_output: totalOutput,
+        balance: totalIntake - totalOutput,
+        sequence: prev.length + 1,
+      },
+    ]);
+    setFluidBalanceDialogOpen(false);
+    markDirty();
+  };
+
+  const handleOpenAddNursingCare = () => {
+    setNewNursingCare(createEmptyDuplicateNursingCare(nursingCares.length + 1));
+    setDuplicateNursingMasterCode("");
+    setNursingCareDialogOpen(true);
+  };
+
+  const handleSaveAddNursingCare = () => {
+    setNursingCares((prev) => [
+      ...prev,
+      { ...newNursingCare, sequence: prev.length + 1 },
+    ]);
+    setNursingCareDialogOpen(false);
+    markDirty();
+  };
+
+  const handleDuplicateApplyMasterSdki = (selectedCode: string) => {
+    const selectedItem = parsedDuplicateNursingMasterItems.find(
+      (item) => normalizeDuplicateSdkiCode(item.sdki.code) === normalizeDuplicateSdkiCode(selectedCode),
+    );
+    if (!selectedItem) return;
+    setDuplicateNursingMasterCode(selectedCode);
+    const mayorSubjektif = selectedItem.sdki.gejala_tanda?.mayor?.subjektif ?? [];
+    const mayorObjektif = selectedItem.sdki.gejala_tanda?.mayor?.objektif ?? [];
+    const minorSubjektif = selectedItem.sdki.gejala_tanda?.minor?.subjektif ?? [];
+    const minorObjektif = selectedItem.sdki.gejala_tanda?.minor?.objektif ?? [];
+    const signsSymptomsText = [
+      buildDuplicateMultilineText("Mayor Subjektif", mayorSubjektif),
+      buildDuplicateMultilineText("Mayor Objektif", mayorObjektif),
+      buildDuplicateMultilineText("Minor Subjektif", minorSubjektif),
+      buildDuplicateMultilineText("Minor Objektif", minorObjektif),
+    ].filter(Boolean).join("\n\n");
+    const etiologyText = [
+      buildDuplicateMultilineText("Fisiologis", selectedItem.sdki.fisiologis ?? []),
+      buildDuplicateMultilineText("Situasional", selectedItem.sdki.situasional ?? []),
+    ].filter(Boolean).join("\n\n");
+    const outcomeText = [
+      buildDuplicateMultilineText("Luaran Utama", selectedItem.slki?.luaran_utama ?? []),
+      buildDuplicateMultilineText("Luaran Tambahan", selectedItem.slki?.luaran_tambahan ?? []),
+    ].filter(Boolean).join("\n\n");
+    const interventionText = [
+      buildDuplicateMultilineText("Intervensi Utama", selectedItem.siki?.intervensi_utama ?? []),
+      buildDuplicateMultilineText("Intervensi Pendukung", selectedItem.siki?.intervensi_pendukung ?? []),
+    ].filter(Boolean).join("\n\n");
+    setNewNursingCare((prev) => ({
+      ...prev,
+      nursing_diagnosis_code: selectedItem.sdki.code,
+      nursing_diagnosis: selectedItem.sdki.label,
+      problem_etiology: etiologyText || prev.problem_etiology,
+      signs_symptoms: signsSymptomsText || prev.signs_symptoms,
+      nursing_outcome: outcomeText || prev.nursing_outcome,
+      nursing_intervention: interventionText || prev.nursing_intervention,
+    }));
+  };
 
   // ══════════════════════════════════════════════
   // Section completion checks
@@ -588,8 +1024,8 @@ export default function RMDuplicateTab({
         };
       case "medicines":
         return {
-          filled: medicineItems.length > 0,
-          count: medicineItems.length,
+          filled: pharmacyOrders.length > 0 || medicineItems.length > 0,
+          count: pharmacyOrders.length,
         };
       case "assessment":
         return {
@@ -613,6 +1049,8 @@ export default function RMDuplicateTab({
           filled: fluidBalances.length > 0,
           count: fluidBalances.length,
         };
+      case "nursing-care":
+        return { filled: nursingCares.length > 0, count: nursingCares.length };
       case "billing":
         return {
           filled: !!(
@@ -634,29 +1072,6 @@ export default function RMDuplicateTab({
   // ══════════════════════════════════════════════
   // CRUD helpers
   // ══════════════════════════════════════════════
-  const addDiagnosis = () => {
-    setDiagnoses([
-      ...diagnoses,
-      {
-        icd10_code: "",
-        icd10_name: "",
-        type: "secondary",
-        sequence: diagnoses.length + 1,
-      },
-    ]);
-    markDirty();
-  };
-  const removeDiagnosis = (i: number) => {
-    setDiagnoses(diagnoses.filter((_, idx) => idx !== i));
-    markDirty();
-  };
-  const updateDiagnosis = (i: number, updates: Partial<EKlaimRMDiagnosis>) => {
-    setDiagnoses((prev) =>
-      prev.map((d, idx) => (idx === i ? { ...d, ...updates } : d)),
-    );
-    markDirty();
-  };
-
   const addProcedure = () => {
     setProcedures([
       ...procedures,
@@ -683,66 +1098,720 @@ export default function RMDuplicateTab({
 
   const ordersByType = (type: string) =>
     orders.filter((o) => o.order_type === type);
-  const labOrders = ordersByType("laboratory");
-  const radiologyOrders = ordersByType("radiology");
+  const labOrdersCount = ordersByType("laboratory").length;
+  const radiologyOrdersCount = ordersByType("radiology").length;
   const surgeryOrders = ordersByType("surgery");
-  const consultationOrders = ordersByType("consultation");
+  const pharmacyOrders = ordersByType("pharmacy");
 
-  const updateOrder = (
-    orderId: number | undefined,
-    orderIndex: number,
-    updates: Partial<EKlaimRMOrder>,
+  const getTypeIndexByGlobalIndex = (
+    list: EKlaimRMOrder[],
+    orderType: EKlaimRMOrder["order_type"],
+    globalIdx: number,
+  ) => {
+    let typeIdx = -1;
+    for (let i = 0; i <= globalIdx && i < list.length; i += 1) {
+      if (list[i].order_type === orderType) typeIdx += 1;
+    }
+    return Math.max(typeIdx, 0);
+  };
+
+  const getRuntimeOrderId = (order: EKlaimRMOrder, typeIdx: number) =>
+    order.id ?? -(typeIdx + 1);
+
+  const getRuntimeItemId = (runtimeOrderId: number, item: EKlaimRMOrderItem, itemIdx: number) =>
+    item.id ?? -(Math.abs(runtimeOrderId) * 1000 + itemIdx + 1);
+
+  const findGlobalOrderIndexByRuntimeId = (
+    list: EKlaimRMOrder[],
+    orderType: EKlaimRMOrder["order_type"],
+    runtimeOrderId: number,
+  ) => {
+    let typeIdx = 0;
+    for (let i = 0; i < list.length; i += 1) {
+      const order = list[i];
+      if (order.order_type !== orderType) continue;
+      const currentRuntimeId = getRuntimeOrderId(order, typeIdx);
+      if (currentRuntimeId === runtimeOrderId) return i;
+      typeIdx += 1;
+    }
+    return -1;
+  };
+
+  const mapDuplicateOrderToProcedureOrder = (
+    order: EKlaimRMOrder,
+    runtimeOrderId: number,
+    typeIdx: number,
+  ): ProcedureOrder => {
+    const registrationPatient = visit?.registration?.patient;
+    const mappedItems: ProcedureOrderItem[] = (order.items || []).map((item, itemIdx) => {
+      const runtimeItemId = getRuntimeItemId(runtimeOrderId, item, itemIdx);
+      const parameterFromProcedure = item.procedure?.parameters || [];
+      const parameterFromResults = (item.results || [])
+        .filter((r) => Boolean(r.procedure_parameter))
+        .map((r) => r.procedure_parameter!)
+        .filter(
+          (param, idx, arr) =>
+            arr.findIndex((p) => p.id === param.id) === idx,
+        );
+      const resolvedParameters =
+        parameterFromProcedure.length > 0
+          ? parameterFromProcedure
+          : parameterFromResults;
+
+      return {
+        id: runtimeItemId,
+        procedure_order_id: runtimeOrderId,
+        procedure_id: item.procedure_id,
+        procedure: item.procedure
+          ? {
+              id: item.procedure.id,
+              code: item.procedure.code || "",
+              name: item.procedure.name,
+              procedure_type:
+                order.order_type === "laboratory"
+                  ? "laboratory"
+                  : order.order_type === "radiology"
+                    ? "radiology"
+                    : "medical",
+              is_active: true,
+              parameters: resolvedParameters.map((p) => ({
+                id: p.id,
+                procedure_id: item.procedure_id,
+                code: p.code || "",
+                name: p.name,
+                input_type: p.input_type || "text",
+                options: p.options,
+                unit: p.unit,
+                normal_min: p.normal_min,
+                normal_max: p.normal_max,
+                normal_text: p.normal_text,
+                critical_min: p.critical_min,
+                critical_max: p.critical_max,
+                decimal_places: p.decimal_places,
+                is_required: Boolean(p.is_required),
+                sort_order: p.sort_order || 0,
+                is_active: true,
+              })),
+            }
+          : undefined,
+        status: "in_progress",
+        notes: item.notes,
+        results: (item.results || []).map((r) => ({
+          id: r.id,
+          procedure_order_item_id: runtimeItemId,
+          procedure_parameter_id: r.procedure_parameter_id,
+          procedure_parameter: r.procedure_parameter
+            ? {
+                id: r.procedure_parameter.id,
+                procedure_id: item.procedure_id,
+                code: r.procedure_parameter.code || "",
+                name: r.procedure_parameter.name,
+                input_type: r.procedure_parameter.input_type || "text",
+                options: r.procedure_parameter.options,
+                unit: r.procedure_parameter.unit,
+                normal_min: r.procedure_parameter.normal_min,
+                normal_max: r.procedure_parameter.normal_max,
+                normal_text: r.procedure_parameter.normal_text,
+                critical_min: r.procedure_parameter.critical_min,
+                critical_max: r.procedure_parameter.critical_max,
+                decimal_places: r.procedure_parameter.decimal_places,
+                is_required: Boolean(r.procedure_parameter.is_required),
+                sort_order: r.procedure_parameter.sort_order || 0,
+                is_active: true,
+              }
+            : undefined,
+          value: r.value || "",
+          numeric_value: r.numeric_value,
+          is_normal: r.is_normal,
+          is_low: r.is_low,
+          is_high: r.is_high,
+          is_critical: r.is_critical,
+          notes: r.notes,
+        })),
+      };
+    });
+
+    const mappedOrderType: ProcedureOrder["order_type"] =
+      order.order_type === "laboratory" ||
+      order.order_type === "radiology" ||
+      order.order_type === "consultation" ||
+      order.order_type === "surgery"
+        ? order.order_type
+        : "consultation";
+
+    const orderDateTime = order.fake_date
+      ? (() => {
+          const normalized = order.fake_date.replace(" ", "T");
+          return normalized.length === 16 ? `${normalized}:00` : normalized;
+        })()
+      : new Date().toISOString();
+
+    return {
+      id: runtimeOrderId,
+      order_number: order.order_number || `${order.order_type === "laboratory" ? "LAB" : order.order_type === "radiology" ? "RAD" : order.order_type === "surgery" ? "OPR" : "KON"}${fmtDateCode(order.fake_date)}${typeIdx + 1}`,
+      order_type: mappedOrderType,
+      source_visit_id: activeVisitId,
+      source_room_id: 0,
+      target_room_id: 0,
+      registration_id: 0,
+      ordered_by_id: 0,
+      ordered_by: (order.order_type === "surgery" ? order.surgeon_name : order.consultant_name)
+        ? {
+            id: 0,
+            nama_lengkap:
+              order.order_type === "surgery"
+                ? order.surgeon_name
+                : order.consultant_name,
+          }
+        : undefined,
+      priority: order.priority || "normal",
+      clinical_notes: order.clinical_notes,
+      diagnosis: order.diagnosis,
+      notes: order.notes,
+      status: "in_progress",
+      result_summary: order.result_summary,
+      conclusion: order.conclusion,
+      suggestion: order.suggestion,
+      is_critical: order.is_critical,
+      critical_notes: order.critical_notes,
+      items: mappedItems,
+      created_at: orderDateTime,
+      updated_at: orderDateTime,
+      registration: registrationPatient
+        ? {
+            patient: {
+              id: registrationPatient.id,
+              no_rm: registrationPatient.no_rm || "",
+              nama_lengkap: registrationPatient.nama_lengkap || "",
+              jenis_kelamin: registrationPatient.jenis_kelamin,
+              tanggal_lahir: registrationPatient.tanggal_lahir,
+            },
+          }
+        : undefined,
+    };
+  };
+
+  const createDuplicateProcedureAdapter = useCallback(
+    (orderType: EKlaimRMOrder["order_type"]) => ({
+      getAll: async () => {
+        const typeOrders = orders.filter((o) => o.order_type === orderType);
+        const mapped = typeOrders.map((order, typeIdx) =>
+          mapDuplicateOrderToProcedureOrder(
+            order,
+            getRuntimeOrderId(order, typeIdx),
+            typeIdx,
+          ),
+        );
+        return { data: mapped };
+      },
+      start: async (runtimeOrderId: number) => {
+        const list = orders;
+        const globalIdx = findGlobalOrderIndexByRuntimeId(list, orderType, runtimeOrderId);
+        if (globalIdx < 0) return { data: null };
+        const typeIdx = getTypeIndexByGlobalIndex(list, orderType, globalIdx);
+        return {
+          data: mapDuplicateOrderToProcedureOrder(
+            list[globalIdx],
+            runtimeOrderId,
+            typeIdx,
+          ),
+        };
+      },
+      saveResults: async (runtimeOrderId: number, payload: SubmitResultsInput) => {
+        let updatedOrder: EKlaimRMOrder | null = null;
+        let updatedTypeIdx = 0;
+        setOrders((prev) => {
+          const globalIdx = findGlobalOrderIndexByRuntimeId(
+            prev,
+            orderType,
+            runtimeOrderId,
+          );
+          if (globalIdx < 0) return prev;
+
+          updatedTypeIdx = getTypeIndexByGlobalIndex(prev, orderType, globalIdx);
+          const next = [...prev];
+          const current = next[globalIdx];
+          const nextItems = (current.items || []).map((item, itemIdx) => {
+            const runtimeItemId = getRuntimeItemId(runtimeOrderId, item, itemIdx);
+            const itemPayload = payload.items.find((pi) => pi.item_id === runtimeItemId);
+            if (!itemPayload) return item;
+            const nextResults = (item.results || []).map((result) => {
+              const resultPayload = itemPayload.results.find(
+                (r) => r.parameter_id === result.procedure_parameter_id,
+              );
+              if (!resultPayload) return result;
+              const numericFromValue = Number(resultPayload.value);
+              return {
+                ...result,
+                value: resultPayload.value,
+                numeric_value:
+                  resultPayload.numeric_value ??
+                  (Number.isNaN(numericFromValue) ? result.numeric_value : numericFromValue),
+                notes: resultPayload.notes ?? result.notes,
+              };
+            });
+            return {
+              ...item,
+              notes: itemPayload.notes ?? item.notes,
+              results: nextResults,
+            };
+          });
+
+          updatedOrder = {
+            ...current,
+            result_summary: payload.result_summary ?? current.result_summary,
+            conclusion: payload.conclusion ?? current.conclusion,
+            suggestion: payload.suggestion ?? current.suggestion,
+            is_critical: payload.is_critical ?? current.is_critical,
+            critical_notes: payload.critical_notes ?? current.critical_notes,
+            items: nextItems,
+          };
+          next[globalIdx] = updatedOrder;
+          return next;
+        });
+        markDirty();
+
+        if (!updatedOrder) {
+          return { data: null };
+        }
+        return {
+          data: mapDuplicateOrderToProcedureOrder(
+            updatedOrder,
+            runtimeOrderId,
+            updatedTypeIdx,
+          ),
+        };
+      },
+      complete: async (runtimeOrderId: number) => {
+        const list = orders;
+        const globalIdx = findGlobalOrderIndexByRuntimeId(list, orderType, runtimeOrderId);
+        if (globalIdx < 0) return { data: null };
+        const typeIdx = getTypeIndexByGlobalIndex(list, orderType, globalIdx);
+        return {
+          data: mapDuplicateOrderToProcedureOrder(
+            list[globalIdx],
+            runtimeOrderId,
+            typeIdx,
+          ),
+        };
+      },
+    }),
+    [orders, activeVisitId, visit],
+  );
+
+  const labWorkstationAdapter = createDuplicateProcedureAdapter("laboratory");
+  const radiologyWorkstationAdapter = createDuplicateProcedureAdapter("radiology");
+  const surgeryWorkstationAdapter = createDuplicateProcedureAdapter("surgery");
+  const consultationWorkstationAdapter = createDuplicateProcedureAdapter("consultation");
+
+  const getRuntimeMedicineItemId = (
+    runtimeOrderId: number,
+    item: EKlaimRMMedicineItem,
+    itemIdx: number,
+  ) => item.id ?? -(Math.abs(runtimeOrderId) * 1000 + itemIdx + 1);
+
+  const mapDuplicatePharmacyOrderToMedicineOrder = (
+    order: EKlaimRMOrder,
+    runtimeOrderId: number,
+    typeIdx: number,
+  ): MedicineOrder => {
+    const registrationPatient = visit?.registration?.patient;
+    const linkedItems = medicineItems.filter((item) => {
+      if (order.fake_date) {
+        return item.fake_date === order.fake_date;
+      }
+      return pharmacyOrders.length === 1 ? !item.fake_date : false;
+    });
+
+    const orderDateTime = order.fake_date
+      ? (() => {
+          const normalized = order.fake_date.replace(" ", "T");
+          return normalized.length === 16 ? `${normalized}:00` : normalized;
+        })()
+      : "";
+
+    const mappedItems: MedicineOrderItem[] = linkedItems.map((item, itemIdx) => ({
+      id: getRuntimeMedicineItemId(runtimeOrderId, item, itemIdx),
+      medicine_order_id: runtimeOrderId,
+      medicine_id: item.medicine_id || 0,
+      medicine: item.medicine
+        ? {
+            id: item.medicine.id,
+            name: item.medicine.name,
+            generic_name: item.medicine_name || item.medicine.name,
+            code: item.medicine.code,
+            unit: item.medicine.unit,
+            category: "generic",
+            selling_price: Number(item.medicine.selling_price ?? item.unit_price ?? 0),
+            unit_price: Number(item.unit_price ?? item.medicine.selling_price ?? 0),
+          }
+        : item.medicine_id
+          ? {
+              id: item.medicine_id,
+              name: item.medicine_name,
+              generic_name: item.medicine_name,
+              code: "",
+              unit: item.unit,
+              category: "generic",
+              selling_price: Number(item.unit_price || 0),
+              unit_price: Number(item.unit_price || 0),
+            }
+          : undefined,
+      quantity: Number(item.quantity) || 0,
+      unit: item.unit || "",
+      dosage: item.dosage || "",
+      frequency: item.frequency || "",
+      route: item.route || "oral",
+      duration: item.duration || "",
+      instructions: item.instructions || "",
+      status: "ordered",
+      dispensed_qty: 0,
+      returned_qty: 0,
+      return_notes: "",
+      is_substituted: false,
+      substituted_medicine: "",
+      substitution_reason: "",
+      unit_price: Number(item.unit_price || item.medicine?.selling_price || 0),
+      price: Number(item.unit_price || item.medicine?.selling_price || 0),
+      sub_total:
+        Number(item.sub_total)
+        || (Number(item.quantity) || 0) * Number(item.unit_price || item.medicine?.selling_price || 0),
+      notes: item.notes || "",
+      added_by_pharmacy: false,
+      medicine_batch_id: undefined,
+      medicine_batch: undefined,
+      dispensed_at: undefined,
+      returned_at: undefined,
+    }));
+
+    return {
+      id: runtimeOrderId,
+      created_at: orderDateTime,
+      updated_at: orderDateTime,
+      order_number: order.order_number || `RX${fmtDateCode(order.fake_date)}${typeIdx + 1}`,
+      source_visit_id: activeVisitId,
+      source_visit: {
+        id: activeVisitId,
+        visit_number: visit?.visit_number || "",
+        registration: registrationPatient
+          ? {
+              id: visit?.registration?.id || 0,
+              registration_number: visit?.registration?.registration_number || "",
+              patient: {
+                id: registrationPatient.id,
+                nama_lengkap: registrationPatient.nama_lengkap || "",
+                no_rm: registrationPatient.no_rm || "",
+              },
+            }
+          : undefined,
+      },
+      pharmacy_visit_id: visit?.id,
+      source_room_id: visit?.room_id || 0,
+      pharmacy_room_id: 0,
+      registration_id: visit?.registration?.id || 0,
+      registration: registrationPatient
+        ? {
+            id: visit?.registration?.id || 0,
+            registration_number: visit?.registration?.registration_number || "",
+            patient: {
+              id: registrationPatient.id,
+              nama_lengkap: registrationPatient.nama_lengkap || "",
+              no_rm: registrationPatient.no_rm || "",
+            },
+          }
+        : undefined,
+      prescriber_id: 0,
+      prescriber: order.consultant_name
+        ? {
+            id: 0,
+            nama_lengkap: order.consultant_name,
+            tipe_karyawan: "dokter",
+          }
+        : undefined,
+      prescription_type: "non_racikan",
+      priority: order.priority || "normal",
+      diagnosis: order.diagnosis || "",
+      notes: order.notes || "",
+      status: "pending",
+      review_notes: "",
+      items: mappedItems,
+    };
+  };
+
+  const createDuplicatePharmacyAdapter = useCallback(() => ({
+    getAll: async () => {
+      const pharmacyOnly = orders.filter((order) => order.order_type === "pharmacy");
+      return {
+        data: pharmacyOnly.map((order, typeIdx) =>
+          mapDuplicatePharmacyOrderToMedicineOrder(
+            order,
+            getRuntimeOrderId(order, typeIdx),
+            typeIdx,
+          ),
+        ),
+      };
+    },
+    create: async () => {
+      const existingCount = orders.filter((order) => order.order_type === "pharmacy").length;
+      const fakeDate = new Date().toISOString().slice(0, 19);
+      const newOrder: EKlaimRMOrder = {
+        ...createEmptyOrder("pharmacy", true, orders.length + 1),
+        order_number: `RX${fmtDateCode(fakeDate)}${existingCount + 1}`,
+        fake_date: fakeDate,
+      };
+      setOrders((prev) => [...prev, newOrder]);
+      markDirty();
+      return {
+        data: mapDuplicatePharmacyOrderToMedicineOrder(
+          newOrder,
+          getRuntimeOrderId(newOrder, existingCount),
+          existingCount,
+        ),
+      };
+    },
+    addItem: async (runtimeOrderId: number, data: {
+      medicine_id: number;
+      quantity: number;
+      unit?: string;
+      dosage?: string;
+      frequency?: string;
+      route?: string;
+      duration?: string;
+      instructions?: string;
+      notes?: string;
+    }) => {
+      const globalIdx = findGlobalOrderIndexByRuntimeId(orders, "pharmacy", runtimeOrderId);
+      if (globalIdx < 0) throw new Error("Order resep tidak ditemukan");
+      const targetOrder = orders[globalIdx];
+      const medicineRes = await medicinesApi.getById(data.medicine_id);
+      const medicine = medicineRes.data?.data || medicineRes.data;
+      const linkedItems = medicineItems.filter((item) => item.fake_date === targetOrder.fake_date);
+      const newItem: EKlaimRMMedicineItem = {
+        medicine_id: medicine.id,
+        medicine: {
+          id: medicine.id,
+          code: medicine.code || "",
+          name: medicine.name,
+          unit: medicine.unit || data.unit || "",
+          selling_price: medicine.selling_price || 0,
+        },
+        medicine_name: medicine.name,
+        dosage: data.dosage || medicine.strength || medicine.dosage || "",
+        frequency: data.frequency || "",
+        route: data.route || "oral",
+        quantity: Number(data.quantity) || 1,
+        unit: data.unit || medicine.unit || "",
+        duration: data.duration || "",
+        instructions: data.instructions || "",
+        unit_price: medicine.selling_price || 0,
+        sub_total: (Number(data.quantity) || 1) * (medicine.selling_price || 0),
+        is_fake: true,
+        fake_date: targetOrder.fake_date,
+        notes: data.notes || "",
+        sequence: linkedItems.length + 1,
+      };
+
+      setMedicineItems((prev) => [
+        ...prev,
+        newItem,
+      ]);
+      markDirty();
+      return {
+        data: {
+          id: getRuntimeMedicineItemId(runtimeOrderId, newItem, linkedItems.length),
+          medicine_order_id: runtimeOrderId,
+          medicine_id: newItem.medicine_id || 0,
+          medicine: {
+            id: newItem.medicine?.id || newItem.medicine_id || 0,
+            name: newItem.medicine?.name || newItem.medicine_name,
+            generic_name: newItem.medicine_name,
+            code: newItem.medicine?.code || "",
+            unit: newItem.medicine?.unit || newItem.unit,
+            category: "generic",
+            selling_price: Number(newItem.medicine?.selling_price ?? newItem.unit_price ?? 0),
+            unit_price: Number(newItem.unit_price || 0),
+          },
+          quantity: Number(newItem.quantity) || 0,
+          unit: newItem.unit || "",
+          dosage: newItem.dosage || "",
+          frequency: newItem.frequency || "",
+          route: newItem.route || "oral",
+          duration: newItem.duration || "",
+          instructions: newItem.instructions || "",
+          status: "ordered",
+          dispensed_qty: 0,
+          returned_qty: 0,
+          return_notes: "",
+          is_substituted: false,
+          substituted_medicine: "",
+          substitution_reason: "",
+          unit_price: Number(newItem.unit_price || 0),
+          price: Number(newItem.unit_price || 0),
+          sub_total: Number(newItem.sub_total || 0),
+          notes: newItem.notes || "",
+          added_by_pharmacy: false,
+        } as MedicineOrderItem,
+      };
+    },
+    updateItem: async (runtimeOrderId: number, itemId: number, data: {
+      quantity?: number;
+      unit?: string;
+      dosage?: string;
+      frequency?: string;
+      route?: string;
+      duration?: string;
+      instructions?: string;
+      notes?: string;
+    }) => {
+      let updatedItemResult: MedicineOrderItem | null = null;
+      setMedicineItems((prev) =>
+        prev.map((item) => {
+          const globalIdx = findGlobalOrderIndexByRuntimeId(orders, "pharmacy", runtimeOrderId);
+          if (globalIdx < 0) return item;
+          const order = orders[globalIdx];
+          const linkedItems = prev.filter((candidate) => candidate.fake_date === order.fake_date);
+          const candidateIdx = linkedItems.findIndex((candidate, idx) => {
+            const runtimeItemId = getRuntimeMedicineItemId(runtimeOrderId, candidate, idx);
+            return runtimeItemId === itemId;
+          });
+          if (candidateIdx < 0 || item.fake_date !== order.fake_date) return item;
+          const updated = { ...item, ...data };
+          const quantity = Number(updated.quantity) || 0;
+          const unitPrice = Number(updated.unit_price) || 0;
+          updated.sub_total = quantity * unitPrice;
+          updatedItemResult = {
+            id: getRuntimeMedicineItemId(runtimeOrderId, updated, candidateIdx),
+            medicine_order_id: runtimeOrderId,
+            medicine_id: updated.medicine_id || 0,
+            medicine: updated.medicine
+              ? {
+                  id: updated.medicine.id,
+                  name: updated.medicine.name,
+                  generic_name: updated.medicine_name || updated.medicine.name,
+                  code: updated.medicine.code,
+                  unit: updated.medicine.unit,
+                  category: "generic",
+                  selling_price: Number(updated.medicine.selling_price ?? updated.unit_price ?? 0),
+                  unit_price: Number(updated.unit_price || 0),
+                }
+              : undefined,
+            quantity,
+            unit: updated.unit || "",
+            dosage: updated.dosage || "",
+            frequency: updated.frequency || "",
+            route: updated.route || "oral",
+            duration: updated.duration || "",
+            instructions: updated.instructions || "",
+            status: "ordered",
+            dispensed_qty: 0,
+            returned_qty: 0,
+            return_notes: "",
+            is_substituted: false,
+            substituted_medicine: "",
+            substitution_reason: "",
+            unit_price: unitPrice,
+            price: unitPrice,
+            sub_total: Number(updated.sub_total || 0),
+            notes: updated.notes || "",
+            added_by_pharmacy: false,
+          } as MedicineOrderItem;
+          return updated;
+        }),
+      );
+      markDirty();
+      if (!updatedItemResult) {
+        throw new Error("Item obat tidak ditemukan");
+      }
+      return { data: updatedItemResult };
+    },
+    deleteItem: async (runtimeOrderId: number, itemId: number) => {
+      setMedicineItems((prev) => {
+        const globalIdx = findGlobalOrderIndexByRuntimeId(orders, "pharmacy", runtimeOrderId);
+        if (globalIdx < 0) return prev;
+        const order = orders[globalIdx];
+        let linkedIdx = 0;
+        return prev.filter((item) => {
+          if (item.fake_date !== order.fake_date) return true;
+          const runtimeItemId = getRuntimeMedicineItemId(runtimeOrderId, item, linkedIdx);
+          linkedIdx += 1;
+          return runtimeItemId !== itemId;
+        });
+      });
+      markDirty();
+      return { data: { message: "deleted" } };
+    },
+    cancel: async (runtimeOrderId: number) => {
+      const globalIdx = findGlobalOrderIndexByRuntimeId(orders, "pharmacy", runtimeOrderId);
+      if (globalIdx < 0) return { data: { message: "not-found" } };
+      const targetOrder = orders[globalIdx];
+      setOrders((prev) => prev.filter((_, idx) => idx !== globalIdx));
+      setMedicineItems((prev) => prev.filter((item) => item.fake_date !== targetOrder.fake_date));
+      markDirty();
+      return { data: { message: "deleted" } };
+    },
+  }), [orders, medicineItems, visit, activeVisitId]);
+
+  const pharmacyPrescriptionAdapter = createDuplicatePharmacyAdapter();
+
+  const updateDuplicateOrderMetaByRuntimeId = (
+    orderType: EKlaimRMOrder["order_type"],
+    runtimeOrderId: number,
+    updates: { fake_date?: string; doctor_name?: string },
   ) => {
     setOrders((prev) => {
-      const idx = orderId
-        ? prev.findIndex((o) => o.id === orderId)
-        : orderIndex;
-      if (idx === -1) return prev;
-      return prev.map((o, i) => (i === idx ? { ...o, ...updates } : o));
+      const globalIdx = findGlobalOrderIndexByRuntimeId(prev, orderType, runtimeOrderId);
+      if (globalIdx < 0) return prev;
+      const next = [...prev];
+      const current = next[globalIdx];
+      next[globalIdx] = {
+        ...current,
+        fake_date:
+          updates.fake_date !== undefined ? updates.fake_date : current.fake_date,
+        consultant_name:
+          orderType !== "surgery" && updates.doctor_name !== undefined
+            ? updates.doctor_name
+            : current.consultant_name,
+        surgeon_name:
+          orderType === "surgery" && updates.doctor_name !== undefined
+            ? updates.doctor_name
+            : current.surgeon_name,
+      };
+      return next;
     });
     markDirty();
   };
 
-  const removeOrder = (orderType: string, typeIndex: number) => {
-    const typeOrders = orders.filter((o) => o.order_type === orderType);
-    const target = typeOrders[typeIndex];
-    if (!target) return;
-    const globalIdx = orders.indexOf(target);
-    setOrders((prev) => prev.filter((_, i) => i !== globalIdx));
-    markDirty();
-  };
-
-  const addOrder = (orderType: string, isFake = false) => {
-    const newOrder: EKlaimRMOrder = {
-      order_type: orderType as EKlaimRMOrder["order_type"],
-      order_number: "",
-      priority: "normal",
-      clinical_notes: "",
-      diagnosis: "",
-      notes: "",
-      result_summary: "",
-      conclusion: "",
-      suggestion: "",
-      is_critical: false,
-      critical_notes: "",
-      consultant_name: "",
-      specialty: "",
-      subjective: "",
-      objective: "",
-      assessment: "",
-      plan: "",
-      recommendation: "",
-      consultation_fee: 0,
-      surgeon_name: "",
-      anesthesia_type: "",
-      is_fake: isFake,
-      fake_date: isFake ? new Date().toISOString().slice(0, 19) : undefined,
-      items: [],
-      sequence: orders.length + 1,
-    };
-    setOrders((prev) => [...prev, newOrder]);
-    markDirty();
-  };
+  const createEmptyOrder = (
+    orderType: EKlaimRMOrder["order_type"],
+    isFake = false,
+    sequenceBase = orders.length + 1,
+  ): EKlaimRMOrder => ({
+    order_type: orderType,
+    order_number: "",
+    priority: "normal",
+    clinical_notes: "",
+    diagnosis: "",
+    notes: "",
+    result_summary: "",
+    conclusion: "",
+    suggestion: "",
+    is_critical: false,
+    critical_notes: "",
+    consultant_name: "",
+    specialty: "",
+    subjective: "",
+    objective: "",
+    assessment: "",
+    plan: "",
+    recommendation: "",
+    consultation_fee: 0,
+    surgeon_name: "",
+    anesthesia_type: "",
+    is_fake: isFake,
+    fake_date: isFake ? new Date().toISOString().slice(0, 19) : undefined,
+    items: [],
+    sequence: sequenceBase,
+  });
 
   // Reserved for future use
   // @ts-expect-error - Reserved for future feature
@@ -766,80 +1835,49 @@ export default function RMDuplicateTab({
     markDirty();
   };
 
-  const updateOrderItemResult = (
-    orderGlobalIdx: number,
-    itemIdx: number,
-    resultIdx: number,
-    updates: Partial<EKlaimRMOrderResult>,
-  ) => {
-    setOrders((prev) =>
-      prev.map((o, oi) =>
-        oi === orderGlobalIdx
-          ? {
-              ...o,
-              items: (o.items || []).map((item, ii) =>
-                ii === itemIdx
-                  ? {
-                      ...item,
-                      results: (item.results || []).map((r, ri) =>
-                        ri === resultIdx ? { ...r, ...updates } : r,
-                      ),
-                    }
-                  : item,
-              ),
-            }
-          : o,
-      ),
-    );
-    markDirty();
-  };
-
-  const removeOrderItem = (globalOrderIdx: number, itemIdx: number) => {
-    setOrders((prev) =>
-      prev.map((o, i) =>
-        i === globalOrderIdx
-          ? { ...o, items: (o.items || []).filter((_, ii) => ii !== itemIdx) }
-          : o,
-      ),
-    );
-    markDirty();
-  };
-
   // ── Procedure Search ──
   const orderTypeToProc = (orderType: string): ProcedureType | undefined => {
     if (orderType === "laboratory") return "laboratory";
     if (orderType === "radiology") return "radiology";
-    return "medical";
+    if (orderType === "consultation") return "consultation";
+    if (orderType === "surgery") return "medical";
+    return undefined;
   };
 
   const handleProcSearch = (term: string, orderType: string) => {
     setProcSearchTerm(term);
-    if (procSearchTimeout.current) clearTimeout(procSearchTimeout.current);
     if (!term || term.length < 2) {
       setProcSearchResults([]);
       return;
     }
-    procSearchTimeout.current = setTimeout(async () => {
-      setSearchingProcs(true);
-      try {
-        const procType = orderTypeToProc(orderType);
-        const res = await proceduresApi.getAll({
-          search: term,
-          procedure_type: procType,
-          is_active: true,
-          ...(orderType === "surgery" ? { is_surgical: true } : {}),
-        });
+
+    const procedureType = orderTypeToProc(orderType);
+    if (!procedureType) {
+      setProcSearchResults([]);
+      return;
+    }
+
+    setSearchingProcs(true);
+    proceduresApi
+      .getAll({
+        search: term,
+        procedure_type: procedureType,
+        is_active: true,
+        is_surgical: orderType === "surgery" ? true : undefined,
+      })
+      .then((res) => {
         setProcSearchResults(res.data?.data || []);
-      } catch {
+      })
+      .catch(() => {
         setProcSearchResults([]);
-      } finally {
+      })
+      .finally(() => {
         setSearchingProcs(false);
-      }
-    }, 300);
+      });
   };
 
-  const handleSelectProcedure = async (
-    globalOrderIdx: number,
+  const handleQuickAddProcedureToType = async (
+    orderType: EKlaimRMOrder["order_type"],
     procedure: Procedure,
   ) => {
     setLoadingParams(true);
@@ -877,337 +1915,459 @@ export default function RMDuplicateTab({
           notes: "",
           sequence: idx + 1,
         }));
-      const newItem: EKlaimRMOrderItem = {
-        procedure_id: procedure.id,
-        procedure_name: procedure.name,
-        procedure: {
-          id: procedure.id,
-          name: procedure.name,
-          code: procedure.code,
-        },
-        notes: "",
-        results,
-        sequence: (orders[globalOrderIdx]?.items?.length || 0) + 1,
-      };
-      setOrders((prev) =>
-        prev.map((o, i) =>
-          i === globalOrderIdx
-            ? { ...o, items: [...(o.items || []), newItem] }
-            : o,
-        ),
-      );
-      markDirty();
-    } catch {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Gagal memuat parameter tindakan.",
-      });
-    } finally {
-      setLoadingParams(false);
-      setAddingItemToOrder(null);
-      setProcSearchTerm("");
-      setProcSearchResults([]);
-    }
-  };
 
-  // ── Medicine Search ──
-  const handleMedSearch = (term: string) => {
-    setMedSearchTerm(term);
-    if (medSearchTimeout.current) clearTimeout(medSearchTimeout.current);
-    if (!term || term.length < 2) {
-      setMedSearchResults([]);
-      return;
-    }
-    medSearchTimeout.current = setTimeout(async () => {
-      setSearchingMeds(true);
-      try {
-        const res = await medicinesApi.getAll({
-          search: term,
-          is_active: true,
+        // Resolve target fake order using session-scoped fake_date key.
+        // If quickAddFakeDate is null OR no matching order exists yet → generate new key.
+        let resolvedFakeDate = quickAddFakeDate;
+        if (
+          resolvedFakeDate === null ||
+          !orders.some(
+            (o) =>
+              o.order_type === orderType &&
+              o.is_fake &&
+              o.fake_date === resolvedFakeDate,
+          )
+        ) {
+          resolvedFakeDate = new Date().toISOString().slice(0, 19);
+        }
+        const finalFakeDate = resolvedFakeDate;
+
+        setOrders((prev) => {
+          const next = [...prev];
+
+          // Find existing fake order for this session (matched by fake_date)
+          let globalIdx = -1;
+          for (let i = 0; i < next.length; i++) {
+            if (
+              next[i].order_type === orderType &&
+              next[i].is_fake &&
+              next[i].fake_date === finalFakeDate
+            ) {
+              globalIdx = i;
+              break;
+            }
+          }
+
+          if (globalIdx < 0) {
+            // Create a brand-new fake order with this session's fake_date key
+            const created: EKlaimRMOrder = {
+              ...createEmptyOrder(orderType, true, next.length + 1),
+              fake_date: finalFakeDate,
+            };
+            next.push(created);
+            globalIdx = next.length - 1;
+          }
+
+          const target = next[globalIdx];
+          const newItem: EKlaimRMOrderItem = {
+            procedure_id: procedure.id,
+            procedure_name: procedure.name,
+            procedure: {
+              id: procedure.id,
+              name: procedure.name,
+              code: procedure.code,
+              parameters: params
+                .filter((p) => p.is_active)
+                .sort((a, b) => a.sort_order - b.sort_order)
+                .map((param) => ({
+                  id: param.id,
+                  name: param.name,
+                  code: param.code,
+                  input_type: param.input_type,
+                  unit: param.unit,
+                  options: param.options,
+                  normal_min: param.normal_min,
+                  normal_max: param.normal_max,
+                  normal_text: param.normal_text,
+                  critical_min: param.critical_min,
+                  critical_max: param.critical_max,
+                  decimal_places: param.decimal_places,
+                  is_required: param.is_required,
+                  sort_order: param.sort_order,
+                })),
+            },
+            notes: "",
+            results,
+            sequence: (target.items || []).length + 1,
+          };
+
+          next[globalIdx] = {
+            ...target,
+            items: [...(target.items || []), newItem],
+          };
+          return next;
         });
-        setMedSearchResults(res.data?.data || res.data || []);
+
+        // Update session state — track which fake order & what's been added
+        setQuickAddFakeDate(finalFakeDate);
+        setQuickAddAddedNames((prev) => [...prev, procedure.name]);
+        markDirty();
+        setProcSearchTerm("");
+        setProcSearchResults([]);
+        // Dialog intentionally stays open so user can add more tindakan
       } catch {
-        setMedSearchResults([]);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Gagal menambahkan tindakan ke order RM duplikat.",
+        });
       } finally {
-        setSearchingMeds(false);
+        setLoadingParams(false);
       }
-    }, 300);
-  };
-
-  const handleSelectMedicine = (medicine: Medicine) => {
-    const newItem: EKlaimRMMedicineItem = {
-      medicine_id: medicine.id,
-      medicine_name: medicine.name,
-      dosage: medicine.dosage || "",
-      frequency: "",
-      route: "oral",
-      quantity: 1,
-      unit: medicine.unit || "tablet",
-      duration: "",
-      instructions: "",
-      unit_price: medicine.selling_price || 0,
-      sub_total: medicine.selling_price || 0,
-      is_fake: true,
-      notes: "",
-      sequence: medicineItems.length + 1,
     };
-    setMedicineItems((prev) => [...prev, newItem]);
-    markDirty();
-    setMedSearchTerm("");
-    setMedSearchResults([]);
-  };
 
-  // ── Medicine CRUD ──
-  const removeMedicineItem = (i: number) => {
-    setMedicineItems(medicineItems.filter((_, idx) => idx !== i));
-    markDirty();
-  };
-  const updateMedicineItem = (
-    i: number,
-    field: keyof EKlaimRMMedicineItem,
-    value: any,
-  ) => {
-    setMedicineItems((prev) =>
-      prev.map((m, idx) => (idx === i ? { ...m, [field]: value } : m)),
-    );
-    markDirty();
-  };
-
-  // ── CPPT CRUD ──
-  const addCPPT = (isFake = false) => {
-    setCpptNotes([
-      ...cpptNotes,
-      {
-        record_date: "",
-        profession: "dokter",
-        staff_name: "",
-        subjective: "",
-        objective: "",
-        assessment: "",
-        plan: "",
-        instruction: "",
-        is_fake: isFake,
-        notes: "",
-        sequence: cpptNotes.length + 1,
-      },
-    ]);
-    markDirty();
-  };
-  const removeCPPT = (i: number) => {
-    setCpptNotes(cpptNotes.filter((_, idx) => idx !== i));
-    markDirty();
-  };
-  const updateCPPT = (i: number, field: keyof EKlaimRMCPPT, value: any) => {
-    setCpptNotes((prev) =>
-      prev.map((c, idx) => (idx === i ? { ...c, [field]: value } : c)),
-    );
-    markDirty();
-  };
-
-  // ── Fluid Balance CRUD ──
-  const addFluidBalance = (isFake = false) => {
-    setFluidBalances([
-      ...fluidBalances,
-      {
-        record_date: "",
-        shift_type: "pagi",
-        staff_name: "",
-        oral_drink: 0,
-        oral_food: 0,
-        oral_medicine: 0,
-        iv_fluid: 0,
-        iv_medicine: 0,
-        blood_product: 0,
-        enteral_feed: 0,
-        other_intake: 0,
-        urine_amount: 0,
-        feces_amount: 0,
-        vomit_amount: 0,
-        drain_amount: 0,
-        blood_loss: 0,
-        iwl: 0,
-        other_output: 0,
-        total_intake: 0,
-        total_output: 0,
-        balance: 0,
-        is_fake: isFake,
-        notes: "",
-        sequence: fluidBalances.length + 1,
-      },
-    ]);
-    markDirty();
-  };
-  const removeFluidBalance = (i: number) => {
-    setFluidBalances(fluidBalances.filter((_, idx) => idx !== i));
-    markDirty();
-  };
-  const updateFluidBalance = (
-    i: number,
-    field: keyof EKlaimRMFluidBalance,
-    value: any,
-  ) => {
-    setFluidBalances((prev) =>
-      prev.map((f, idx) => (idx === i ? { ...f, [field]: value } : f)),
-    );
-    markDirty();
-  };
-
-  // ── Save ──
-  const handleSave = async () => {
+  const handleSaveAnamnesisSection = async (data: any) => {
     setSubmitting(true);
     try {
-      await eklaimLocalApi.updateRMDuplicate(eklaimId, {
-        chief_complaint: chiefComplaint,
-        history_of_present_illness: historyOfPresentIllness,
-        past_medical_history: pastMedicalHistory,
-        family_history: familyHistory,
-        social_history: socialHistory,
-        allergies,
-        current_medications: currentMedications,
-        review_of_systems: reviewOfSystems,
-        general_condition: generalCondition,
-        consciousness,
-        blood_pressure: bloodPressure,
-        systolic,
-        diastolic,
-        heart_rate: heartRate,
-        respiratory_rate: respiratoryRate,
-        temperature,
-        oxygen_saturation: oxygenSaturation,
-        weight,
-        height,
-        bmi,
-        waist,
-        head_circum: headCircum,
-        head_neck: headNeck,
-        eyes,
-        ent,
-        thorax,
-        cardiac,
-        pulmonary,
-        abdomen,
-        extremities,
-        neurological,
-        skin,
-        head,
-        ears,
-        nose,
-        throat,
-        neck,
-        chest,
-        heart: heartExam,
-        lungs,
-        musculoskel,
-        genitourinary,
-        other_findings: otherFindings,
-        ecg_performed: ecgPerformed,
-        ecg_result: ecgResult,
-        ecg_interpretation: ecgInterpretation,
-        ecg_notes: ecgNotes,
-        clinical_assessment: clinicalAssessment,
-        prognosis,
-        treatment_plan: treatmentPlan,
-        medication_plan: medicationPlan,
-        diet_plan: dietPlan,
-        activity_plan: activityPlan,
-        education_plan: educationPlan,
-        monitoring_plan: monitoringPlan,
-        procedure_plan: procedurePlan,
-        consultation_plan: consultationPlan,
-        disposition_type: dispositionType,
-        disposition_note: dispositionNote,
-        rm_discharge_status: rmDischargeStatus,
-        discharge_condition: dischargeCondition,
-        discharge_instruction: dischargeInstruction,
-        discharge_medication: dischargeMedication,
-        follow_up_instruction: followUpInstruction,
-        follow_up_date: followUpDate,
-        referral_facility: referralFacility,
-        referral_reason: referralReason,
-        referral_diagnosis: referralDiagnosis,
-        referral_therapy: referralTherapy,
-        referral_notes: referralNotes,
-        death_time: deathTime,
-        death_cause: deathCause,
-        diagnoses,
-        procedures,
-        orders: orders.map((o) => {
-          let fakeDate: string | undefined = undefined;
-          if (o.fake_date) {
-            const d = new Date(o.fake_date);
-            fakeDate = isNaN(d.getTime()) ? undefined : d.toISOString();
-          }
-          let scheduledDate: string | undefined = undefined;
-          if (o.scheduled_date) {
-            const d = new Date(o.scheduled_date as string);
-            scheduledDate = isNaN(d.getTime()) ? undefined : d.toISOString();
-          }
-          return { ...o, fake_date: fakeDate, scheduled_date: scheduledDate };
-        }),
-        medicine_items: medicineItems,
-        cppt_notes: cpptNotes,
-        fluid_balances: fluidBalances,
-        tarif_prosedur_non_bedah: tarifProsedurNonBedah,
-        tarif_prosedur_bedah: tarifProsedurBedah,
-        tarif_konsultasi: tarifKonsultasi,
-        tarif_tenaga_ahli: tarifTenagaAhli,
-        tarif_keperawatan: tarifKeperawatan,
-        tarif_penunjang: tarifPenunjang,
-        tarif_radiologi: tarifRadiologi,
-        tarif_laboratorium: tarifLaboratorium,
-        tarif_pelayanan_darah: tarifPelayananDarah,
-        tarif_rehabilitasi: tarifRehabilitasi,
-        tarif_kamar: tarifKamar,
-        tarif_rawat_intensif: tarifRawatIntensif,
-        tarif_obat: tarifObat,
-        tarif_obat_kronis: tarifObatKronis,
-        tarif_obat_kemoterapi: tarifObatKemoterapi,
-        tarif_alkes: tarifAlkes,
-        tarif_bmhp: tarifBMHP,
-        tarif_sewa_alat: tarifSewaAlat,
-
-        // Inpatient-specific fields
-        admission_date: admissionDate,
-        discharge_date: dischargeDate,
-        length_of_stay: lengthOfStay,
-        accommodation_tariff_per_day: accommodationTariffPerDay,
-
-        // Triage UGD
-        has_triage: !!(rmDuplicate?.has_triage),
-        triage_arrival_mode: triageArrivalMode,
-        triage_complaint: triageComplaint,
-        triage_level: triageLevel,
-        triage_airway: triageAirway,
-        triage_airway_note: triageAirwayNote,
-        triage_breathing: triageBreathing,
-        triage_breathing_note: triageBreathingNote,
-        triage_circulation: triageCirculation,
-        triage_circulation_note: triageCirculationNote,
-        triage_blood_pressure: triageBloodPressure,
-        triage_heart_rate: triageHeartRate,
-        triage_respiratory_rate: triageRespiratoryRate,
-        triage_temperature: triageTemperature,
-        triage_oxygen_saturation: triageOxygenSat,
-        triage_pain_scale: triagePainScale,
-        triage_gcs_e: triageGCSE,
-        triage_gcs_v: triageGCSV,
-        triage_gcs_m: triageGCSM,
-        triage_assessment: triageAssessment,
-        triage_immediate_actions: triageImmediateAction,
+      await eklaimLocalApi.updateRMDuplicateAnamnesis(eklaimId, {
+        anamnesis_source: data.anamnesis_source || "autoanamnesis",
+        functional_status: data.functional_status || "",
+        chief_complaint: data.chief_complaint || "",
+        history_of_present_illness: data.history_of_present_illness || "",
+        past_medical_history: data.past_medical_history || "",
+        family_history: data.family_history || "",
+        social_history: data.social_history || "",
+        allergies: data.allergies || "",
+        current_medications: data.current_medications || "",
+        review_of_systems: data.review_of_systems || "",
       });
+
+      setAnamnesisSource(data.anamnesis_source || "autoanamnesis");
+      setFunctionalStatus(data.functional_status || "");
+      setChiefComplaint(data.chief_complaint || "");
+      setHistoryOfPresentIllness(data.history_of_present_illness || "");
+      setPastMedicalHistory(data.past_medical_history || "");
+      setFamilyHistory(data.family_history || "");
+      setSocialHistory(data.social_history || "");
+      setAllergies(data.allergies || "");
+      setCurrentMedications(data.current_medications || "");
+      setReviewOfSystems(data.review_of_systems || "");
       setDirty(false);
+
       toast({
         variant: "success",
         title: "Berhasil!",
-        description: "Data RM duplikat berhasil disimpan.",
+        description: "Anamnesis RM duplikat berhasil disimpan.",
       });
       onSaved();
     } catch (err: any) {
       toast({
         variant: "destructive",
         title: "Error!",
-        description: err?.response?.data?.error || "Gagal menyimpan data RM.",
+        description: err?.response?.data?.error || "Gagal menyimpan anamnesis RM duplikat.",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSavePhysicalExamSection = async (data: any) => {
+    setSubmitting(true);
+    try {
+      await eklaimLocalApi.updateRMDuplicate(eklaimId, {
+        ...buildAllScalarPayload(),
+        // Override physical-exam section with new data
+        general_condition: data.general_condition || "",
+        consciousness: data.consciousness || "",
+        blood_pressure: `${Number(data.blood_pressure_systolic) || 0}/${Number(data.blood_pressure_diastolic) || 0}`,
+        systolic: Number(data.blood_pressure_systolic) || 0,
+        diastolic: Number(data.blood_pressure_diastolic) || 0,
+        heart_rate: String(data.heart_rate || ""),
+        respiratory_rate: String(data.respiratory_rate || ""),
+        temperature: String(data.temperature || ""),
+        oxygen_saturation: String(data.oxygen_saturation || ""),
+        weight: String(data.weight || ""),
+        height: String(data.height || ""),
+        bmi: Number(data.bmi) || 0,
+        waist: String(data.waist || ""),
+        head_circum: String(data.head_circum || ""),
+        pain_method: String(data.pain_method || "nrs"),
+        pain_scale: Number(data.pain_scale) || 0,
+        pain_location: String(data.pain_location || ""),
+        head: data.head || "",
+        eyes: data.eyes || "",
+        ears: data.ears || "",
+        nose: data.nose || "",
+        throat: data.throat || "",
+        neck: data.neck || "",
+        chest: data.chest || "",
+        heart: data.heart || "",
+        lungs: data.lungs || "",
+        abdomen: data.abdomen || "",
+        extremities: data.extremities || "",
+        neurological: data.neurological || "",
+        skin: data.skin || "",
+        other_findings: data.other_findings || "",
+        ecg_performed: !!data.ecg_performed,
+        ecg_result: data.ecg_result || "",
+        ecg_interpretation: data.ecg_interpretation || "",
+        ecg_notes: data.ecg_notes || "",
+      });
+
+      setGeneralCondition(data.general_condition || "");
+      setConsciousness(data.consciousness || "");
+      setSystolic(Number(data.blood_pressure_systolic) || 0);
+      setDiastolic(Number(data.blood_pressure_diastolic) || 0);
+      setBloodPressure(`${Number(data.blood_pressure_systolic) || 0}/${Number(data.blood_pressure_diastolic) || 0}`);
+      setHeartRate(String(data.heart_rate || ""));
+      setRespiratoryRate(String(data.respiratory_rate || ""));
+      setTemperature(String(data.temperature || ""));
+      setOxygenSaturation(String(data.oxygen_saturation || ""));
+      setWeight(String(data.weight || ""));
+      setHeight(String(data.height || ""));
+      setBmi(Number(data.bmi) || 0);
+      setWaist(String(data.waist || ""));
+      setHeadCircum(String(data.head_circum || ""));
+      setPainMethod(String(data.pain_method || "nrs"));
+      setPainScale(Number(data.pain_scale) || 0);
+      setPainLocation(String(data.pain_location || ""));
+      setHead(data.head || "");
+      setEyes(data.eyes || "");
+      setEars(data.ears || "");
+      setNose(data.nose || "");
+      setThroat(data.throat || "");
+      setNeck(data.neck || "");
+      setChest(data.chest || "");
+      setHeartExam(data.heart || "");
+      setLungs(data.lungs || "");
+      setAbdomen(data.abdomen || "");
+      setExtremities(data.extremities || "");
+      setNeurological(data.neurological || "");
+      setSkin(data.skin || "");
+      setOtherFindings(data.other_findings || "");
+      setEcgPerformed(!!data.ecg_performed);
+      setEcgResult(data.ecg_result || "");
+      setEcgInterpretation(data.ecg_interpretation || "");
+      setEcgNotes(data.ecg_notes || "");
+
+      setDirty(false);
+      toast({
+        variant: "success",
+        title: "Berhasil!",
+        description: "Pemeriksaan fisik RM duplikat berhasil disimpan.",
+      });
+      onSaved();
+    } catch (err: any) {
+      toast({
+        variant: "destructive",
+        title: "Error!",
+        description: err?.response?.data?.error || "Gagal menyimpan pemeriksaan fisik RM duplikat.",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSaveDiagnosisSection = async (data: any) => {
+    setSubmitting(true);
+    try {
+      const diagnosisItems = Array.isArray(data?.items) ? data.items : [];
+      const mappedDiagnoses: EKlaimRMDiagnosis[] = diagnosisItems.map(
+        (item: any, index: number) => ({
+          icd10_code: item.icd10_code || "",
+          icd10_name: item.icd10_name || "",
+          type:
+            item.diagnosis_type === "primary"
+              ? "primary"
+              : item.diagnosis_type === "secondary"
+                ? "secondary"
+                : "complication",
+          sequence: index + 1,
+        }),
+      );
+
+      await eklaimLocalApi.updateRMDuplicate(eklaimId, {
+        ...buildAllScalarPayload(),
+        diagnoses: mappedDiagnoses,
+      });
+
+      setDiagnoses(mappedDiagnoses);
+      setDirty(false);
+      toast({
+        variant: "success",
+        title: "Berhasil!",
+        description: "Diagnosa RM duplikat berhasil disimpan.",
+      });
+      onSaved();
+    } catch (err: any) {
+      toast({
+        variant: "destructive",
+        title: "Error!",
+        description: err?.response?.data?.error || "Gagal menyimpan diagnosa RM duplikat.",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSaveAssessmentSection = async (data: any) => {
+    setSubmitting(true);
+    try {
+      await eklaimLocalApi.updateRMDuplicate(eklaimId, {
+        ...buildAllScalarPayload(),
+        // Override assessment section with new data
+        clinical_assessment: data.clinical_assessment || "",
+        prognosis: data.prognosis || "",
+        treatment_plan: data.treatment_plan || "",
+        medication_plan: data.medication_plan || "",
+        diet_plan: data.diet_plan || "",
+        activity_plan: data.activity_plan || "",
+        education_plan: data.education_plan || "",
+        monitoring_plan: data.monitoring_plan || "",
+        procedure_plan: data.procedure_plan || "",
+        consultation_plan: data.consultation_plan || "",
+      });
+
+      setClinicalAssessment(data.clinical_assessment || "");
+      setPrognosis(data.prognosis || "");
+      setTreatmentPlan(data.treatment_plan || "");
+      setMedicationPlan(data.medication_plan || "");
+      setDietPlan(data.diet_plan || "");
+      setActivityPlan(data.activity_plan || "");
+      setEducationPlan(data.education_plan || "");
+      setMonitoringPlan(data.monitoring_plan || "");
+      setProcedurePlan(data.procedure_plan || "");
+      setConsultationPlan(data.consultation_plan || "");
+
+      setDirty(false);
+      toast({
+        variant: "success",
+        title: "Berhasil!",
+        description: "Assessment & plan RM duplikat berhasil disimpan.",
+      });
+      onSaved();
+    } catch (err: any) {
+      toast({
+        variant: "destructive",
+        title: "Error!",
+        description:
+          err?.response?.data?.error ||
+          "Gagal menyimpan assessment & plan RM duplikat.",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSaveDispositionSection = async (data: any) => {
+    setSubmitting(true);
+    try {
+      await eklaimLocalApi.updateRMDuplicate(eklaimId, {
+        ...buildAllScalarPayload(),
+        // Override disposition section with new data
+        disposition_type: data.disposition_type || "",
+        disposition_note: data.disposition_note || "",
+        rm_discharge_status: data.discharge_status || "",
+        discharge_condition: data.discharge_condition || "",
+        discharge_instruction: data.discharge_instruction || "",
+        discharge_medication: data.discharge_medication || "",
+        follow_up_instruction: data.follow_up_instruction || "",
+        follow_up_date: data.follow_up_date || "",
+        referral_facility: data.referral_facility || "",
+        referral_reason: data.referral_reason || "",
+        referral_diagnosis: data.referral_diagnosis || "",
+        referral_therapy: data.referral_therapy || "",
+        referral_notes: data.referral_notes || "",
+        death_time: data.death_time || "",
+        death_cause: data.death_cause || "",
+      });
+
+      setDispositionType(data.disposition_type || "");
+      setDispositionNote(data.disposition_note || "");
+      setRmDischargeStatus(data.discharge_status || "");
+      setDischargeCondition(data.discharge_condition || "");
+      setDischargeInstruction(data.discharge_instruction || "");
+      setDischargeMedication(data.discharge_medication || "");
+      setFollowUpInstruction(data.follow_up_instruction || "");
+      setFollowUpDate(data.follow_up_date || "");
+      setReferralFacility(data.referral_facility || "");
+      setReferralReason(data.referral_reason || "");
+      setReferralDiagnosis(data.referral_diagnosis || "");
+      setReferralTherapy(data.referral_therapy || "");
+      setReferralNotes(data.referral_notes || "");
+      setDeathTime(data.death_time || "");
+      setDeathCause(data.death_cause || "");
+
+      setDirty(false);
+      toast({
+        variant: "success",
+        title: "Berhasil!",
+        description: "Disposition RM duplikat berhasil disimpan.",
+      });
+      onSaved();
+    } catch (err: any) {
+      toast({
+        variant: "destructive",
+        title: "Error!",
+        description: err?.response?.data?.error || "Gagal menyimpan disposition RM duplikat.",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSaveTriageSection = async (data: any) => {
+    setSubmitting(true);
+    try {
+      await eklaimLocalApi.updateRMDuplicate(eklaimId, {
+        ...buildAllScalarPayload(),
+        // Override triage section with new data
+        has_triage: true,
+        triage_arrival_mode: data.arrival_mode || "",
+        triage_complaint: data.triage_complaint || "",
+        triage_level: data.triage_level || "",
+        triage_airway: data.airway || "",
+        triage_airway_note: data.airway_note || "",
+        triage_breathing: data.breathing || "",
+        triage_breathing_note: data.breathing_note || "",
+        triage_circulation: data.circulation || "",
+        triage_circulation_note: data.circulation_note || "",
+        triage_blood_pressure: data.blood_pressure || "",
+        triage_heart_rate: String(data.heart_rate || ""),
+        triage_respiratory_rate: String(data.respiratory_rate || ""),
+        triage_temperature: String(data.temperature || ""),
+        triage_oxygen_saturation: String(data.oxygen_saturation || ""),
+        triage_pain_scale: Number(data.pain_scale) || 0,
+        triage_gcs_e: Number(data.gcs_e) || 4,
+        triage_gcs_v: Number(data.gcs_v) || 5,
+        triage_gcs_m: Number(data.gcs_m) || 6,
+        triage_assessment: data.triage_assessment || "",
+        triage_immediate_actions: data.immediate_actions || "",
+      });
+
+      setTriageArrivalMode(data.arrival_mode || "");
+      setTriageComplaint(data.triage_complaint || "");
+      setTriageLevel(data.triage_level || "");
+      setTriageAirway(data.airway || "");
+      setTriageAirwayNote(data.airway_note || "");
+      setTriageBreathing(data.breathing || "");
+      setTriageBreathingNote(data.breathing_note || "");
+      setTriageCirculation(data.circulation || "");
+      setTriageCirculationNote(data.circulation_note || "");
+      setTriageBloodPressure(data.blood_pressure || "");
+      setTriageHeartRate(String(data.heart_rate || ""));
+      setTriageRespiratoryRate(String(data.respiratory_rate || ""));
+      setTriageTemperature(String(data.temperature || ""));
+      setTriageOxygenSat(String(data.oxygen_saturation || ""));
+      setTriagePainScale(Number(data.pain_scale) || 0);
+      setTriageGCSE(Number(data.gcs_e) || 4);
+      setTriageGCSV(Number(data.gcs_v) || 5);
+      setTriageGCSM(Number(data.gcs_m) || 6);
+      setTriageAssessment(data.triage_assessment || "");
+      setTriageImmediateAction(data.immediate_actions || "");
+
+      setDirty(false);
+      toast({
+        variant: "success",
+        title: "Berhasil!",
+        description: "Triage RM duplikat berhasil disimpan.",
+      });
+      onSaved();
+    } catch (err: any) {
+      toast({
+        variant: "destructive",
+        title: "Error!",
+        description: err?.response?.data?.error || "Gagal menyimpan triage RM duplikat.",
       });
     } finally {
       setSubmitting(false);
@@ -1341,6 +2501,15 @@ export default function RMDuplicateTab({
     }
   };
 
+  const handleRestoreFromOriginal = async () => {
+    setRestoreDialogOpen(true);
+  };
+
+  const confirmRestoreFromOriginal = async () => {
+    setRestoreDialogOpen(false);
+    await handleSyncFromVisit();
+  };
+
   const handleRecalculateBilling = async () => {
     if (!rmDuplicate?.id) return;
     setSyncing(true);
@@ -1371,527 +2540,277 @@ export default function RMDuplicateTab({
     }
   };
 
-  // ══════════════════════════════════════════════
-  // Render helpers
-  // ══════════════════════════════════════════════
+  // Appends "Z" to a bare ISO datetime string that lacks timezone info.
+  // Needed because internal state stores "2026-03-29T03:10:29" (no tz) for
+  // display/grouping, but Go's time.Time JSON parser requires RFC3339.
+  const toRFC3339 = (s: string | undefined): string | undefined => {
+    if (!s) return s;
+    if (/[Z+]/.test(s.slice(10))) return s; // already has tz info
+    return s.length === 16 ? s + ":00Z" : s + "Z";
+  };
 
-  const renderParamInput = (
-    result: EKlaimRMOrderResult,
-    onChange: (updates: Partial<EKlaimRMOrderResult>) => void,
-  ) => {
-    const param = result.procedure_parameter;
-    const inputType = param?.input_type || "text";
-    switch (inputType) {
-      case "number":
-        return (
-          <Input
-            type="number"
-            className="h-8 text-xs"
-            value={result.value}
-            step={
-              param?.decimal_places ? Math.pow(10, -param.decimal_places) : 1
-            }
-            onChange={(e) => {
-              const val = e.target.value;
-              const numVal = parseFloat(val) || 0;
-              const updates: Partial<EKlaimRMOrderResult> = {
-                value: val,
-                numeric_value: numVal,
-              };
-              // Reset all flags first
-              updates.is_low = false;
-              updates.is_high = false;
-              updates.is_normal = false;
-              updates.is_critical = false;
-              if (!val || val.trim() === "") {
-                // Empty value — no status
-                onChange(updates);
-                return;
-              }
-              const hasNormalRange =
-                param?.normal_min != null &&
-                param?.normal_max != null &&
-                (param.normal_min !== 0 || param.normal_max !== 0);
-              if (hasNormalRange) {
-                updates.is_low = numVal < param!.normal_min!;
-                updates.is_high = numVal > param!.normal_max!;
-                updates.is_normal =
-                  numVal >= param!.normal_min! && numVal <= param!.normal_max!;
-              }
-              const hasCriticalMin =
-                param?.critical_min != null && param.critical_min !== 0;
-              const hasCriticalMax =
-                param?.critical_max != null && param.critical_max !== 0;
-              if (hasCriticalMin && numVal < param!.critical_min!)
-                updates.is_critical = true;
-              else if (hasCriticalMax && numVal > param!.critical_max!)
-                updates.is_critical = true;
-              onChange(updates);
-            }}
-            placeholder="Nilai"
-          />
-        );
-      case "textarea":
-        return (
-          <Textarea
-            className="text-xs min-h-[56px]"
-            value={result.value}
-            onChange={(e) => onChange({ value: e.target.value })}
-            placeholder="Isi hasil..."
-            rows={2}
-          />
-        );
-      case "select": {
-        const options = (param?.options || "")
-          .split(",")
-          .map((o) => o.trim())
-          .filter(Boolean);
-        return (
-          <Select
-            value={result.value}
-            onValueChange={(v) => onChange({ value: v })}
-          >
-            <SelectTrigger className="h-8 text-xs">
-              <SelectValue placeholder="Pilih..." />
-            </SelectTrigger>
-            <SelectContent>
-              {options.map((opt) => (
-                <SelectItem key={opt} value={opt}>
-                  {opt}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        );
-      }
-      case "checkbox":
-        return (
-          <div className="flex items-center gap-2">
-            <Switch
-              checked={
-                result.value === "true" ||
-                result.value === "1" ||
-                result.value === "ya" ||
-                result.value === "positif"
-              }
-              onCheckedChange={(checked) =>
-                onChange({ value: checked ? "positif" : "negatif" })
-              }
-            />
-            <span className="text-xs text-muted-foreground">
-              {result.value || "-"}
-            </span>
-          </div>
-        );
-      case "date":
-        return (
-          <Input
-            type="date"
-            className="h-8 text-xs"
-            value={result.value}
-            onChange={(e) => onChange({ value: e.target.value })}
-          />
-        );
-      case "datetime":
-        return (
-          <Input
-            type="datetime-local"
-            className="h-8 text-xs"
-            value={result.value}
-            onChange={(e) => onChange({ value: e.target.value })}
-          />
-        );
-      default:
-        return (
-          <Input
-            className="h-8 text-xs"
-            value={result.value}
-            onChange={(e) => onChange({ value: e.target.value })}
-            placeholder="Nilai"
-          />
-        );
+  const normalizeOrdersForSave = (input: EKlaimRMOrder[]): EKlaimRMOrder[] =>
+    input.map((order, orderIdx) => ({
+      ...order,
+      fake_date: toRFC3339(order.fake_date),
+      scheduled_date: toRFC3339(order.scheduled_date as string | undefined),
+      sequence: orderIdx + 1,
+      items: (order.items || []).map((item, itemIdx) => ({
+        ...item,
+        sequence: itemIdx + 1,
+        results: (item.results || []).map((result, resultIdx) => ({
+          ...result,
+          sequence: resultIdx + 1,
+          value: result.value || "",
+          numeric_value: Number(result.numeric_value || result.value || 0) || 0,
+        })),
+      })),
+    }));
+
+  const normalizeMedicineItemsForSave = (
+    input: EKlaimRMMedicineItem[],
+  ): EKlaimRMMedicineItem[] =>
+    input.map((item, idx) => {
+      const quantity = Number(item.quantity) || 0;
+      const unitPrice = Number(item.unit_price) || 0;
+      return {
+        ...item,
+        quantity,
+        unit_price: unitPrice,
+        sub_total: quantity * unitPrice,
+        sequence: idx + 1,
+        medicine_name: item.medicine_name || item.medicine?.name || "",
+        fake_date: toRFC3339(item.fake_date),
+      };
+    });
+
+  // Returns all current scalar state so that per-section saves don't accidentally zero out
+  // unrelated fields when calling the full updateRMDuplicate endpoint.
+  const buildAllScalarPayload = () => ({
+    anamnesis_source: anamnesisSource,
+    functional_status: functionalStatus,
+    chief_complaint: chiefComplaint,
+    history_of_present_illness: historyOfPresentIllness,
+    past_medical_history: pastMedicalHistory,
+    family_history: familyHistory,
+    social_history: socialHistory,
+    allergies,
+    current_medications: currentMedications,
+    review_of_systems: reviewOfSystems,
+    general_condition: generalCondition,
+    consciousness,
+    blood_pressure: bloodPressure,
+    systolic,
+    diastolic,
+    heart_rate: heartRate,
+    respiratory_rate: respiratoryRate,
+    temperature,
+    oxygen_saturation: oxygenSaturation,
+    weight,
+    height,
+    bmi,
+    waist,
+    head_circum: headCircum,
+    pain_method: painMethod,
+    pain_scale: painScale,
+    pain_location: painLocation,
+    head,
+    eyes,
+    ears,
+    nose,
+    throat,
+    neck,
+    chest,
+    heart: heartExam,
+    lungs,
+    abdomen,
+    extremities,
+    neurological,
+    skin,
+    other_findings: otherFindings,
+    ecg_performed: ecgPerformed,
+    ecg_result: ecgResult,
+    ecg_interpretation: ecgInterpretation,
+    ecg_notes: ecgNotes,
+    clinical_assessment: clinicalAssessment,
+    prognosis,
+    treatment_plan: treatmentPlan,
+    medication_plan: medicationPlan,
+    diet_plan: dietPlan,
+    activity_plan: activityPlan,
+    education_plan: educationPlan,
+    monitoring_plan: monitoringPlan,
+    procedure_plan: procedurePlan,
+    consultation_plan: consultationPlan,
+    disposition_type: dispositionType,
+    disposition_note: dispositionNote,
+    rm_discharge_status: rmDischargeStatus,
+    discharge_condition: dischargeCondition,
+    discharge_instruction: dischargeInstruction,
+    discharge_medication: dischargeMedication,
+    follow_up_instruction: followUpInstruction,
+    follow_up_date: followUpDate,
+    referral_facility: referralFacility,
+    referral_reason: referralReason,
+    referral_diagnosis: referralDiagnosis,
+    referral_therapy: referralTherapy,
+    referral_notes: referralNotes,
+    death_time: deathTime,
+    death_cause: deathCause,
+    has_triage: !!rmDuplicate?.has_triage,
+    triage_arrival_mode: triageArrivalMode,
+    triage_complaint: triageComplaint,
+    triage_level: triageLevel,
+    triage_airway: triageAirway,
+    triage_airway_note: triageAirwayNote,
+    triage_breathing: triageBreathing,
+    triage_breathing_note: triageBreathingNote,
+    triage_circulation: triageCirculation,
+    triage_circulation_note: triageCirculationNote,
+    triage_blood_pressure: triageBloodPressure,
+    triage_heart_rate: triageHeartRate,
+    triage_respiratory_rate: triageRespiratoryRate,
+    triage_temperature: triageTemperature,
+    triage_oxygen_saturation: triageOxygenSat,
+    triage_pain_scale: triagePainScale,
+    triage_gcs_e: triageGCSE,
+    triage_gcs_v: triageGCSV,
+    triage_gcs_m: triageGCSM,
+    triage_assessment: triageAssessment,
+    triage_immediate_actions: triageImmediateAction,
+    admission_date: admissionDate,
+    discharge_date: dischargeDate,
+    length_of_stay: lengthOfStay,
+  });
+
+  const handleSaveRMDuplicate = async () => {
+    setSubmitting(true);
+    try {
+      await eklaimLocalApi.updateRMDuplicate(eklaimId, {
+        anamnesis_source: anamnesisSource,
+        functional_status: functionalStatus,
+        chief_complaint: chiefComplaint,
+        history_of_present_illness: historyOfPresentIllness,
+        past_medical_history: pastMedicalHistory,
+        family_history: familyHistory,
+        social_history: socialHistory,
+        allergies,
+        current_medications: currentMedications,
+        review_of_systems: reviewOfSystems,
+        general_condition: generalCondition,
+        consciousness,
+        blood_pressure: bloodPressure,
+        systolic,
+        diastolic,
+        heart_rate: heartRate,
+        respiratory_rate: respiratoryRate,
+        temperature,
+        oxygen_saturation: oxygenSaturation,
+        weight,
+        height,
+        bmi,
+        waist,
+        head_circum: headCircum,
+        pain_method: painMethod,
+        pain_scale: painScale,
+        pain_location: painLocation,
+        head,
+        eyes,
+        ears,
+        nose,
+        throat,
+        neck,
+        chest,
+        heart: heartExam,
+        lungs,
+        musculoskel: "",
+        genitourinary: "",
+        other_findings: otherFindings,
+        ecg_performed: ecgPerformed,
+        ecg_result: ecgResult,
+        ecg_interpretation: ecgInterpretation,
+        ecg_notes: ecgNotes,
+        clinical_assessment: clinicalAssessment,
+        prognosis,
+        treatment_plan: treatmentPlan,
+        medication_plan: medicationPlan,
+        diet_plan: dietPlan,
+        activity_plan: activityPlan,
+        education_plan: educationPlan,
+        monitoring_plan: monitoringPlan,
+        procedure_plan: procedurePlan,
+        consultation_plan: consultationPlan,
+        disposition_type: dispositionType,
+        disposition_note: dispositionNote,
+        rm_discharge_status: rmDischargeStatus,
+        discharge_condition: dischargeCondition,
+        discharge_instruction: dischargeInstruction,
+        discharge_medication: dischargeMedication,
+        follow_up_instruction: followUpInstruction,
+        follow_up_date: followUpDate,
+        referral_facility: referralFacility,
+        referral_reason: referralReason,
+        referral_diagnosis: referralDiagnosis,
+        referral_therapy: referralTherapy,
+        referral_notes: referralNotes,
+        death_time: deathTime,
+        death_cause: deathCause,
+        has_triage: !!rmDuplicate?.has_triage,
+        triage_arrival_mode: triageArrivalMode,
+        triage_complaint: triageComplaint,
+        triage_level: triageLevel,
+        triage_airway: triageAirway,
+        triage_airway_note: triageAirwayNote,
+        triage_breathing: triageBreathing,
+        triage_breathing_note: triageBreathingNote,
+        triage_circulation: triageCirculation,
+        triage_circulation_note: triageCirculationNote,
+        triage_blood_pressure: triageBloodPressure,
+        triage_heart_rate: triageHeartRate,
+        triage_respiratory_rate: triageRespiratoryRate,
+        triage_temperature: triageTemperature,
+        triage_oxygen_saturation: triageOxygenSat,
+        triage_pain_scale: triagePainScale,
+        triage_gcs_e: triageGCSE,
+        triage_gcs_v: triageGCSV,
+        triage_gcs_m: triageGCSM,
+        triage_assessment: triageAssessment,
+        triage_immediate_actions: triageImmediateAction,
+        diagnoses,
+        procedures,
+        orders: normalizeOrdersForSave(orders),
+        medicine_items: normalizeMedicineItemsForSave(medicineItems),
+        cppt_notes: cpptNotes,
+        fluid_balances: fluidBalances,
+        nursing_cares: nursingCares,
+        admission_date: admissionDate,
+        discharge_date: dischargeDate,
+        length_of_stay: lengthOfStay,
+      });
+
+      setDirty(false);
+      toast({
+        variant: "success",
+        title: "Berhasil!",
+        description: "Perubahan RM duplikat berhasil disimpan.",
+      });
+      onSaved();
+    } catch (err: any) {
+      toast({
+        variant: "destructive",
+        title: "Error!",
+        description:
+          err?.response?.data?.error ||
+          "Gagal menyimpan perubahan RM duplikat.",
+      });
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const renderProcedureSearch = (globalOrderIdx: number, orderType: string) => {
-    const hasItems = (orders[globalOrderIdx]?.items || []).length > 0;
-    return (
-      <div className="p-3 border rounded-lg bg-muted/20 space-y-2">
-        {!hasItems && (
-          <p className="text-xs text-muted-foreground">
-            Pilih tindakan — parameter akan otomatis dimuat dari master tindakan
-          </p>
-        )}
-        <div className="flex items-center gap-2">
-          <Search className="h-4 w-4 text-muted-foreground shrink-0" />
-          <Input
-            className="h-8 text-xs flex-1"
-            placeholder="Cari tindakan / prosedur..."
-            value={addingItemToOrder === globalOrderIdx ? procSearchTerm : ""}
-            onChange={(e) => {
-              setAddingItemToOrder(globalOrderIdx);
-              handleProcSearch(e.target.value, orderType);
-            }}
-            autoFocus={addingItemToOrder === globalOrderIdx}
-          />
-          {hasItems && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 shrink-0"
-              onClick={() => {
-                setAddingItemToOrder(null);
-                setProcSearchTerm("");
-                setProcSearchResults([]);
-              }}
-            >
-              <X className="h-3 w-3" />
-            </Button>
-          )}
-        </div>
-        {addingItemToOrder === globalOrderIdx && loadingParams && (
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Loader2 className="h-3 w-3 animate-spin" /> Memuat parameter...
-          </div>
-        )}
-        {addingItemToOrder === globalOrderIdx && searchingProcs && (
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Loader2 className="h-3 w-3 animate-spin" /> Mencari...
-          </div>
-        )}
-        {addingItemToOrder === globalOrderIdx &&
-          !searchingProcs &&
-          procSearchResults.length > 0 && (
-            <div className="max-h-48 overflow-y-auto border rounded bg-white divide-y">
-              {procSearchResults.map((proc) => (
-                <button
-                  key={proc.id}
-                  className="w-full text-left px-3 py-2 hover:bg-muted/50 transition-colors"
-                  onClick={() => handleSelectProcedure(globalOrderIdx, proc)}
-                  disabled={loadingParams}
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-medium">{proc.name}</p>
-                      <p className="text-[11px] text-muted-foreground">
-                        {proc.code}
-                      </p>
-                    </div>
-                    <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-                      {proc.procedure_type}
-                    </span>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        {addingItemToOrder === globalOrderIdx &&
-          !searchingProcs &&
-          procSearchTerm.length >= 2 &&
-          procSearchResults.length === 0 && (
-            <p className="text-xs text-muted-foreground italic">
-              Tidak ada tindakan ditemukan.
-            </p>
-          )}
-      </div>
-    );
-  };
-
-  const renderOrderItems = (
-    order: EKlaimRMOrder,
-    globalIdx: number,
-  ): React.ReactNode[] => {
-    if (!order.items || order.items.length === 0) return [];
-    const rows: React.ReactNode[] = [];
-    order.items.forEach((item, itemIdx) => {
-      const key = `${globalIdx}-${itemIdx}`;
-      const isExpanded = expandedOrderItems[key] ?? false;
-      const paramCount = (item.results || []).length;
-      const filledCount = (item.results || []).filter(
-        (r) => r.value && r.value.trim() !== "",
-      ).length;
-      // Item summary row
-      rows.push(
-        <TableRow
-          key={`item-${key}`}
-          className="cursor-pointer hover:bg-muted/50 text-xs"
-          onClick={() => toggleOrderItem(globalIdx, itemIdx)}
-        >
-          <TableCell className="px-3" />
-          <TableCell className="px-3 font-medium w-10">{itemIdx + 1}</TableCell>
-          <TableCell className="px-3">
-            <div className="flex items-center gap-1.5">
-              {isExpanded ? (
-                <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />
-              ) : (
-                <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
-              )}
-              <span className="font-medium">
-                {item.procedure_name || `Tindakan #${itemIdx + 1}`}
-              </span>
-            </div>
-          </TableCell>
-          <TableCell className="px-3 text-center text-muted-foreground">
-            {paramCount > 0 ? `${filledCount}/${paramCount}` : "-"}
-          </TableCell>
-          <TableCell className="px-3 text-center">
-            {paramCount > 0 && filledCount === paramCount ? (
-              <CheckCircle2 className="h-3.5 w-3.5 text-green-600 mx-auto" />
-            ) : paramCount > 0 && filledCount > 0 ? (
-              <span className="text-[10px] text-amber-600 font-medium">
-                Partial
-              </span>
-            ) : null}
-          </TableCell>
-          <TableCell className="px-3 text-center">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6"
-              onClick={(e) => {
-                e.stopPropagation();
-                removeOrderItem(globalIdx, itemIdx);
-              }}
-            >
-              <Trash2 className="h-3 w-3 text-destructive" />
-            </Button>
-          </TableCell>
-        </TableRow>,
-      );
-      // Expanded parameter rows
-      if (isExpanded && paramCount > 0) {
-        // Parameter sub-header
-        rows.push(
-          <TableRow key={`paramhdr-${key}`} className="text-[11px] bg-muted/30">
-            <TableCell className="px-3" />
-            <TableCell className="px-3" />
-            <TableCell className="px-3 font-medium text-muted-foreground">
-              Parameter
-            </TableCell>
-            <TableCell className="px-3 font-medium text-muted-foreground text-center">
-              Nilai
-            </TableCell>
-            <TableCell className="px-3 font-medium text-muted-foreground text-center">
-              Nilai Normal
-            </TableCell>
-            <TableCell className="px-3 font-medium text-muted-foreground text-center">
-              Status
-            </TableCell>
-          </TableRow>,
-        );
-        (item.results || []).forEach((result, resIdx) => {
-          const param = result.procedure_parameter;
-          const unit = param?.unit || "";
-          const normalRange =
-            param?.normal_text ||
-            (param?.normal_min != null && param?.normal_max != null
-              ? `${param.normal_min} - ${param.normal_max}`
-              : "");
-          const isWide = (param?.input_type || "text") === "textarea";
-          if (isWide) {
-            rows.push(
-              <TableRow key={`param-${key}-${resIdx}`} className="text-xs">
-                <TableCell className="px-3" />
-                <TableCell className="px-3" />
-                <TableCell colSpan={4} className="px-3 py-1.5 space-y-1">
-                  <div className="flex items-center gap-1">
-                    <span className="text-muted-foreground font-medium">
-                      {result.parameter_name}
-                    </span>
-                    {param?.is_required && (
-                      <span className="text-red-500 text-[10px]">*</span>
-                    )}
-                  </div>
-                  {renderParamInput(result, (updates) =>
-                    updateOrderItemResult(globalIdx, itemIdx, resIdx, updates),
-                  )}
-                </TableCell>
-              </TableRow>,
-            );
-          } else {
-            rows.push(
-              <TableRow key={`param-${key}-${resIdx}`} className="text-xs">
-                <TableCell className="px-3" />
-                <TableCell className="px-3" />
-                <TableCell
-                  className="px-3 py-1.5 text-muted-foreground truncate"
-                  title={result.parameter_name}
-                >
-                  {result.parameter_name}
-                  {unit ? ` (${unit})` : ""}
-                  {param?.is_required && (
-                    <span className="text-red-500 ml-0.5">*</span>
-                  )}
-                </TableCell>
-                <TableCell className="px-3 py-1.5">
-                  {renderParamInput(result, (updates) =>
-                    updateOrderItemResult(globalIdx, itemIdx, resIdx, updates),
-                  )}
-                </TableCell>
-                <TableCell className="px-3 py-1.5 text-muted-foreground text-center text-[11px]">
-                  {normalRange}
-                </TableCell>
-                <TableCell className="px-3 py-1.5 text-center">
-                  {result.value && result.value.trim() !== "" && (
-                    <>
-                      {result.is_low && (
-                        <span className="text-blue-600 text-[10px] font-medium">
-                          ↓ Rendah
-                        </span>
-                      )}
-                      {result.is_high && (
-                        <span className="text-red-600 text-[10px] font-medium">
-                          ↑ Tinggi
-                        </span>
-                      )}
-                      {result.is_critical && (
-                        <span className="text-red-700 text-[10px] font-bold">
-                          Kritis
-                        </span>
-                      )}
-                      {result.is_normal &&
-                        !result.is_low &&
-                        !result.is_high &&
-                        !result.is_critical && (
-                          <span className="text-green-600 text-[10px]">
-                            Normal
-                          </span>
-                        )}
-                    </>
-                  )}
-                </TableCell>
-              </TableRow>,
-            );
-          }
-        });
-      }
-    });
-    return rows;
-  };
-
-  // ── Generic order section renderer ──
-  const renderOrderSection = (
-    orderType: string,
-    typeOrders: EKlaimRMOrder[],
-    _accentBorder: string,
-    _accentBg: string,
-    _accentText: string,
-    emptyText: string,
-    extraFields?: (order: EKlaimRMOrder, globalIdx: number) => React.ReactNode,
-  ) => (
-    <div className="space-y-3">
-      {typeOrders.length === 0 ? (
-        <div className="text-center py-8 text-muted-foreground">
-          <p className="text-sm">{emptyText}</p>
-        </div>
-      ) : (
-        <Table>
-          <TableHeader>
-            <TableRow className="text-xs">
-              <TableHead className="px-3 w-[60px]">Order</TableHead>
-              <TableHead className="px-3 w-10">No</TableHead>
-              <TableHead className="px-3">Nama Tindakan</TableHead>
-              <TableHead className="px-3 w-[120px] text-center">
-                Parameter
-              </TableHead>
-              <TableHead className="px-3 w-[120px] text-center">
-                Status
-              </TableHead>
-              <TableHead className="px-3 w-[60px] text-center">Aksi</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {typeOrders.map((order, typeIdx) => {
-              const globalIdx = orders.indexOf(order);
-              const itemRows = renderOrderItems(order, globalIdx);
-              return (
-                <Fragment key={typeIdx}>
-                  {/* Order header row */}
-                  <TableRow className="bg-muted/20 text-xs border-t-2">
-                    <TableCell
-                      className="px-3 font-semibold"
-                      rowSpan={extraFields ? 2 : 1}
-                    >
-                      #{typeIdx + 1}
-                    </TableCell>
-                    <TableCell colSpan={4} className="px-3">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-xs font-medium">
-                          {order.order_number || `Order #${typeIdx + 1}`}
-                        </span>
-                        {order.is_fake && (
-                          <>
-                            <Label className="text-xs text-muted-foreground">
-                              Tanggal:
-                            </Label>
-                            <Input
-                              type="datetime-local"
-                              className="h-7 text-xs w-52"
-                              value={(order.fake_date || "").slice(0, 16)}
-                              onChange={(e) =>
-                                updateOrder(order.id, globalIdx, {
-                                  fake_date: e.target.value,
-                                })
-                              }
-                            />
-                          </>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="px-3 text-center">
-                      {order.is_fake && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={() => removeOrder(orderType, typeIdx)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                        </Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                  {/* Extra fields row (surgery/consultation metadata) */}
-                  {extraFields && (
-                    <TableRow className="text-xs">
-                      <TableCell colSpan={5} className="px-3 py-2">
-                        {extraFields(order, globalIdx)}
-                      </TableCell>
-                    </TableRow>
-                  )}
-                  {/* Item rows (flat, no nesting) */}
-                  {itemRows}
-                  {/* Add procedure row */}
-                  <TableRow className="text-xs">
-                    <TableCell className="px-3" />
-                    <TableCell colSpan={5} className="px-3 py-2">
-                      {addingItemToOrder === globalIdx ||
-                      (order.items || []).length === 0 ? (
-                        renderProcedureSearch(globalIdx, orderType)
-                      ) : (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-muted-foreground hover:bg-muted/50"
-                          onClick={() => {
-                            setAddingItemToOrder(globalIdx);
-                            setProcSearchTerm("");
-                            setProcSearchResults([]);
-                          }}
-                        >
-                          <Plus className="mr-1 h-3 w-3" /> Tambah Tindakan
-                        </Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                </Fragment>
-              );
-            })}
-          </TableBody>
-        </Table>
-      )}
-    </div>
-  );
+  // ══════════════════════════════════════════════
+  // Render helpers
+  // ══════════════════════════════════════════════
 
   // ══════════════════════════════════════════════
   // Empty state
@@ -1909,13 +2828,6 @@ export default function RMDuplicateTab({
       </div>
     );
   }
-
-  const isEmpty =
-    !rmDuplicate.chief_complaint &&
-    !rmDuplicate.history_of_present_illness &&
-    !rmDuplicate.clinical_assessment &&
-    diagnoses.length === 0 &&
-    procedures.length === 0;
 
   // ══════════════════════════════════════════════
   // Section content renderers
@@ -1980,707 +2892,154 @@ export default function RMDuplicateTab({
       // ─── ANAMNESIS ───
       case "anamnesis":
         return (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label>Keluhan Utama</Label>
-              <Textarea
-                value={chiefComplaint}
-                onChange={(e) => {
-                  setChiefComplaint(e.target.value);
-                  markDirty();
-                }}
-                placeholder="Keluhan utama pasien..."
-                rows={3}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Riwayat Penyakit Sekarang</Label>
-              <Textarea
-                value={historyOfPresentIllness}
-                onChange={(e) => {
-                  setHistoryOfPresentIllness(e.target.value);
-                  markDirty();
-                }}
-                placeholder="Riwayat penyakit sekarang..."
-                rows={3}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Riwayat Penyakit Dahulu</Label>
-              <Textarea
-                value={pastMedicalHistory}
-                onChange={(e) => {
-                  setPastMedicalHistory(e.target.value);
-                  markDirty();
-                }}
-                placeholder="Riwayat penyakit dahulu..."
-                rows={2}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Riwayat Keluarga</Label>
-              <Textarea
-                value={familyHistory}
-                onChange={(e) => {
-                  setFamilyHistory(e.target.value);
-                  markDirty();
-                }}
-                placeholder="Riwayat penyakit keluarga..."
-                rows={2}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Riwayat Sosial</Label>
-              <Textarea
-                value={socialHistory}
-                onChange={(e) => {
-                  setSocialHistory(e.target.value);
-                  markDirty();
-                }}
-                placeholder="Riwayat sosial pasien (merokok, alkohol, dll)..."
-                rows={2}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Alergi</Label>
-              <Textarea
-                value={allergies}
-                onChange={(e) => {
-                  setAllergies(e.target.value);
-                  markDirty();
-                }}
-                placeholder="Alergi obat/makanan/lainnya..."
-                rows={2}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Obat yang Sedang Dikonsumsi</Label>
-              <Textarea
-                value={currentMedications}
-                onChange={(e) => {
-                  setCurrentMedications(e.target.value);
-                  markDirty();
-                }}
-                placeholder="Daftar obat yang sedang dikonsumsi..."
-                rows={2}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Review of Systems (ROS)</Label>
-              <Textarea
-                value={reviewOfSystems}
-                onChange={(e) => {
-                  setReviewOfSystems(e.target.value);
-                  markDirty();
-                }}
-                placeholder="Review of Systems..."
-                rows={2}
-              />
-            </div>
-          </div>
+          <AnamnesisForm
+            visitId={Number(visit?.id || rmDuplicate?.visit_id || 0)}
+            useExternalData
+            externalData={{
+              anamnesis_source: anamnesisSource,
+              functional_status: functionalStatus,
+              chief_complaint: chiefComplaint,
+              history_of_present_illness: historyOfPresentIllness,
+              past_medical_history: pastMedicalHistory,
+              family_history: familyHistory,
+              social_history: socialHistory,
+              allergies,
+              current_medications: currentMedications,
+              review_of_systems: reviewOfSystems,
+            }}
+            onSave={handleSaveAnamnesisSection}
+          />
         );
 
       // ─── PHYSICAL EXAM ───
       case "physical-exam":
         return (
-          <div className="space-y-6">
-            <div>
-              <h4 className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wider">
-                Tanda Vital
-              </h4>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Sistolik (mmHg)</Label>
-                  <Input
-                    type="number"
-                    value={systolic || ""}
-                    onChange={(e) => {
-                      setSystolic(Number(e.target.value));
-                      markDirty();
-                    }}
-                    placeholder="120"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Diastolik (mmHg)</Label>
-                  <Input
-                    type="number"
-                    value={diastolic || ""}
-                    onChange={(e) => {
-                      setDiastolic(Number(e.target.value));
-                      markDirty();
-                    }}
-                    placeholder="80"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Nadi (x/mnt)</Label>
-                  <Input
-                    value={heartRate}
-                    onChange={(e) => {
-                      setHeartRate(e.target.value);
-                      markDirty();
-                    }}
-                    placeholder="80"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">RR (x/mnt)</Label>
-                  <Input
-                    value={respiratoryRate}
-                    onChange={(e) => {
-                      setRespiratoryRate(e.target.value);
-                      markDirty();
-                    }}
-                    placeholder="20"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Suhu (°C)</Label>
-                  <Input
-                    value={temperature}
-                    onChange={(e) => {
-                      setTemperature(e.target.value);
-                      markDirty();
-                    }}
-                    placeholder="36.5"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">SpO2 (%)</Label>
-                  <Input
-                    value={oxygenSaturation}
-                    onChange={(e) => {
-                      setOxygenSaturation(e.target.value);
-                      markDirty();
-                    }}
-                    placeholder="98"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">BB (kg)</Label>
-                  <Input
-                    value={weight}
-                    onChange={(e) => {
-                      setWeight(e.target.value);
-                      markDirty();
-                    }}
-                    placeholder="60"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">TB (cm)</Label>
-                  <Input
-                    value={height}
-                    onChange={(e) => {
-                      setHeight(e.target.value);
-                      markDirty();
-                    }}
-                    placeholder="165"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Lingkar Pinggang (cm)</Label>
-                  <Input
-                    value={waist}
-                    onChange={(e) => {
-                      setWaist(e.target.value);
-                      markDirty();
-                    }}
-                    placeholder="80"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Lingkar Kepala (cm)</Label>
-                  <Input
-                    value={headCircum}
-                    onChange={(e) => {
-                      setHeadCircum(e.target.value);
-                      markDirty();
-                    }}
-                    placeholder="Pediatrik"
-                  />
-                </div>
-              </div>
-              <div className="mt-3 flex items-center gap-6 p-2 rounded bg-muted/30 text-xs">
-                <span>
-                  TD:{" "}
-                  <span className="font-mono font-semibold">
-                    {bloodPressure || "-"}
-                  </span>{" "}
-                  mmHg
-                </span>
-                <span>
-                  BMI:{" "}
-                  <span className="font-mono font-semibold">{bmi || "-"}</span>
-                </span>
-              </div>
-            </div>
-            <Separator />
-            <div>
-              <h4 className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wider">
-                Keadaan Umum
-              </h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Keadaan Umum</Label>
-                  <Input
-                    value={generalCondition}
-                    onChange={(e) => {
-                      setGeneralCondition(e.target.value);
-                      markDirty();
-                    }}
-                    placeholder="Baik / Sedang / Buruk"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Kesadaran</Label>
-                  <Select
-                    value={consciousness}
-                    onValueChange={(v) => {
-                      setConsciousness(v);
-                      markDirty();
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Pilih kesadaran" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Compos Mentis">
-                        Compos Mentis
-                      </SelectItem>
-                      <SelectItem value="Apatis">Apatis</SelectItem>
-                      <SelectItem value="Delirium">Delirium</SelectItem>
-                      <SelectItem value="Somnolen">Somnolen</SelectItem>
-                      <SelectItem value="Stupor">Stupor</SelectItem>
-                      <SelectItem value="Semi Coma">Semi Coma</SelectItem>
-                      <SelectItem value="Coma">Coma</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </div>
-            <Separator />
-            <div>
-              <h4 className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wider">
-                Pemeriksaan Sistem Organ
-              </h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Kepala</Label>
-                  <Textarea
-                    value={head}
-                    onChange={(e) => {
-                      setHead(e.target.value);
-                      markDirty();
-                    }}
-                    placeholder="Normosefali, rambut hitam, distribusi merata"
-                    rows={2}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Mata</Label>
-                  <Textarea
-                    value={eyes}
-                    onChange={(e) => {
-                      setEyes(e.target.value);
-                      markDirty();
-                    }}
-                    placeholder="Konjungtiva anemis -/-, Sklera ikterik -/-"
-                    rows={2}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Telinga</Label>
-                  <Textarea
-                    value={ears}
-                    onChange={(e) => {
-                      setEars(e.target.value);
-                      markDirty();
-                    }}
-                    placeholder="Dalam batas normal"
-                    rows={2}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Hidung</Label>
-                  <Textarea
-                    value={nose}
-                    onChange={(e) => {
-                      setNose(e.target.value);
-                      markDirty();
-                    }}
-                    placeholder="Napas cuping hidung (-), sekret (-)"
-                    rows={2}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Tenggorokan</Label>
-                  <Textarea
-                    value={throat}
-                    onChange={(e) => {
-                      setThroat(e.target.value);
-                      markDirty();
-                    }}
-                    placeholder="Faring hiperemis (-), tonsil T1/T1"
-                    rows={2}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Leher</Label>
-                  <Textarea
-                    value={neck}
-                    onChange={(e) => {
-                      setNeck(e.target.value);
-                      markDirty();
-                    }}
-                    placeholder="JVP tidak meningkat, KGB tidak teraba"
-                    rows={2}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Dada</Label>
-                  <Textarea
-                    value={chest}
-                    onChange={(e) => {
-                      setChest(e.target.value);
-                      markDirty();
-                    }}
-                    placeholder="Simetris, gerak napas simetris"
-                    rows={2}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Jantung</Label>
-                  <Textarea
-                    value={heartExam}
-                    onChange={(e) => {
-                      setHeartExam(e.target.value);
-                      markDirty();
-                    }}
-                    placeholder="BJ I/II reguler, murmur (-), gallop (-)"
-                    rows={2}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Paru</Label>
-                  <Textarea
-                    value={lungs}
-                    onChange={(e) => {
-                      setLungs(e.target.value);
-                      markDirty();
-                    }}
-                    placeholder="Vesikuler +/+, ronkhi -/-, wheezing -/-"
-                    rows={2}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Abdomen</Label>
-                  <Textarea
-                    value={abdomen}
-                    onChange={(e) => {
-                      setAbdomen(e.target.value);
-                      markDirty();
-                    }}
-                    placeholder="Supel, BU (+) normal, nyeri tekan (-)"
-                    rows={2}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Ekstremitas</Label>
-                  <Textarea
-                    value={extremities}
-                    onChange={(e) => {
-                      setExtremities(e.target.value);
-                      markDirty();
-                    }}
-                    placeholder="Akral hangat, edema -/-, CRT < 2 detik"
-                    rows={2}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Neurologis</Label>
-                  <Textarea
-                    value={neurological}
-                    onChange={(e) => {
-                      setNeurological(e.target.value);
-                      markDirty();
-                    }}
-                    placeholder="Refleks fisiologis +/+, refleks patologis -/-"
-                    rows={2}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Muskuloskeletal</Label>
-                  <Textarea
-                    value={musculoskel}
-                    onChange={(e) => {
-                      setMusculoskel(e.target.value);
-                      markDirty();
-                    }}
-                    placeholder="ROM dalam batas normal, deformitas (-)"
-                    rows={2}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Genitourinari</Label>
-                  <Textarea
-                    value={genitourinary}
-                    onChange={(e) => {
-                      setGenitourinary(e.target.value);
-                      markDirty();
-                    }}
-                    placeholder="Dalam batas normal"
-                    rows={2}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Kulit</Label>
-                  <Textarea
-                    value={skin}
-                    onChange={(e) => {
-                      setSkin(e.target.value);
-                      markDirty();
-                    }}
-                    placeholder="Warna sawo matang, turgor baik, lesi (-)"
-                    rows={2}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Temuan Lain</Label>
-                  <Textarea
-                    value={otherFindings}
-                    onChange={(e) => {
-                      setOtherFindings(e.target.value);
-                      markDirty();
-                    }}
-                    placeholder="Temuan pemeriksaan fisik lainnya..."
-                    rows={2}
-                  />
-                </div>
-              </div>
-            </div>
-            <Separator />
-            <div>
-              <h4 className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wider">
-                Pemeriksaan Penunjang - EKG
-              </h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="flex items-center gap-3 md:col-span-2">
-                  <Switch
-                    checked={ecgPerformed}
-                    onCheckedChange={(v) => {
-                      setEcgPerformed(v);
-                      markDirty();
-                    }}
-                  />
-                  <Label className="text-xs">EKG Dilakukan</Label>
-                </div>
-                {ecgPerformed && (
-                  <>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Interpretasi</Label>
-                      <Select
-                        value={ecgInterpretation}
-                        onValueChange={(v) => {
-                          setEcgInterpretation(v);
-                          markDirty();
-                        }}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Pilih interpretasi" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Normal">Normal</SelectItem>
-                          <SelectItem value="Abnormal">Abnormal</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Hasil EKG</Label>
-                      <Textarea
-                        value={ecgResult}
-                        onChange={(e) => {
-                          setEcgResult(e.target.value);
-                          markDirty();
-                        }}
-                        placeholder="Deskripsi hasil EKG..."
-                        rows={2}
-                      />
-                    </div>
-                    <div className="space-y-1.5 md:col-span-2">
-                      <Label className="text-xs">Catatan EKG</Label>
-                      <Textarea
-                        value={ecgNotes}
-                        onChange={(e) => {
-                          setEcgNotes(e.target.value);
-                          markDirty();
-                        }}
-                        placeholder="Catatan detail EKG..."
-                        rows={2}
-                      />
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-            <Separator />
-            <div>
-              <h4 className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wider">
-                Legacy Fields (Kepala & Leher, THT, Thorax, dll)
-              </h4>
-              <p className="text-xs text-muted-foreground mb-3">
-                Field gabungan lama. Isi jika diperlukan untuk kompatibilitas.
-              </p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Kepala & Leher</Label>
-                  <Textarea
-                    value={headNeck}
-                    onChange={(e) => {
-                      setHeadNeck(e.target.value);
-                      markDirty();
-                    }}
-                    placeholder="Dalam batas normal"
-                    rows={2}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">THT</Label>
-                  <Textarea
-                    value={ent}
-                    onChange={(e) => {
-                      setEnt(e.target.value);
-                      markDirty();
-                    }}
-                    placeholder="Dalam batas normal"
-                    rows={2}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Thorax</Label>
-                  <Textarea
-                    value={thorax}
-                    onChange={(e) => {
-                      setThorax(e.target.value);
-                      markDirty();
-                    }}
-                    placeholder="Simetris, gerak napas simetris"
-                    rows={2}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Jantung (legacy)</Label>
-                  <Textarea
-                    value={cardiac}
-                    onChange={(e) => {
-                      setCardiac(e.target.value);
-                      markDirty();
-                    }}
-                    placeholder="BJ I/II reguler"
-                    rows={2}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Paru (legacy)</Label>
-                  <Textarea
-                    value={pulmonary}
-                    onChange={(e) => {
-                      setPulmonary(e.target.value);
-                      markDirty();
-                    }}
-                    placeholder="Vesikuler +/+"
-                    rows={2}
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
+          <PhysicalExamForm
+            visitId={Number(visit?.id || rmDuplicate?.visit_id || 0)}
+            useExternalData
+            externalData={{
+              general_condition: generalCondition || originalPhysicalExam?.general_condition,
+              consciousness: consciousness || originalPhysicalExam?.consciousness,
+              systolic: systolic || originalPhysicalExam?.systolic || originalPhysicalExam?.blood_pressure_systolic,
+              diastolic: diastolic || originalPhysicalExam?.diastolic || originalPhysicalExam?.blood_pressure_diastolic,
+              blood_pressure: bloodPressure || originalPhysicalExam?.blood_pressure,
+              heart_rate: heartRate || originalPhysicalExam?.heart_rate,
+              respiratory_rate: respiratoryRate || originalPhysicalExam?.respiratory_rate,
+              temperature: temperature || originalPhysicalExam?.temperature,
+              oxygen_saturation: oxygenSaturation || originalPhysicalExam?.oxygen_saturation,
+              weight: weight || originalPhysicalExam?.weight,
+              height: height || originalPhysicalExam?.height,
+              bmi: bmi || originalPhysicalExam?.bmi,
+              pain_method:
+                painMethod ||
+                originalPhysicalExam?.pain_method ||
+                visitPhysicalExam?.pain_method ||
+                "nrs",
+              pain_scale:
+                painScale || originalPhysicalExam?.pain_scale || visitPhysicalExam?.pain_scale || 0,
+              pain_location:
+                painLocation ||
+                originalPhysicalExam?.pain_location ||
+                visitPhysicalExam?.pain_location ||
+                "",
+              waist: waist || originalPhysicalExam?.waist,
+              head_circum: headCircum || originalPhysicalExam?.head_circum,
+              head:
+                head ||
+                originalPhysicalExam?.head ||
+                rmDuplicate?.head_neck ||
+                originalPhysicalExam?.head_neck ||
+                visitPhysicalExam?.head ||
+                visitPhysicalExam?.head_neck,
+              eyes: eyes || originalPhysicalExam?.eyes || visitPhysicalExam?.eyes,
+              ears:
+                ears ||
+                originalPhysicalExam?.ears ||
+                rmDuplicate?.ent ||
+                originalPhysicalExam?.ent ||
+                visitPhysicalExam?.ears ||
+                visitPhysicalExam?.ent,
+              nose:
+                nose ||
+                originalPhysicalExam?.nose ||
+                rmDuplicate?.ent ||
+                originalPhysicalExam?.ent ||
+                visitPhysicalExam?.nose ||
+                visitPhysicalExam?.ent,
+              throat:
+                throat ||
+                originalPhysicalExam?.throat ||
+                rmDuplicate?.ent ||
+                originalPhysicalExam?.ent ||
+                visitPhysicalExam?.throat ||
+                visitPhysicalExam?.ent,
+              neck:
+                neck ||
+                originalPhysicalExam?.neck ||
+                rmDuplicate?.head_neck ||
+                originalPhysicalExam?.head_neck ||
+                visitPhysicalExam?.neck ||
+                visitPhysicalExam?.head_neck,
+              chest:
+                chest ||
+                originalPhysicalExam?.chest ||
+                originalPhysicalExam?.thorax ||
+                visitPhysicalExam?.chest ||
+                visitPhysicalExam?.thorax,
+              heart:
+                heartExam ||
+                originalPhysicalExam?.heart ||
+                originalPhysicalExam?.cardiac ||
+                visitPhysicalExam?.heart ||
+                visitPhysicalExam?.cardiac,
+              lungs:
+                lungs ||
+                originalPhysicalExam?.lungs ||
+                originalPhysicalExam?.pulmonary ||
+                visitPhysicalExam?.lungs ||
+                visitPhysicalExam?.pulmonary,
+              abdomen: abdomen || originalPhysicalExam?.abdomen || visitPhysicalExam?.abdomen,
+              extremities: extremities || originalPhysicalExam?.extremities || visitPhysicalExam?.extremities,
+              neurological: neurological || originalPhysicalExam?.neurological || visitPhysicalExam?.neurological,
+              skin: skin || originalPhysicalExam?.skin || visitPhysicalExam?.skin,
+              other_findings:
+                otherFindings ||
+                originalPhysicalExam?.other_findings ||
+                visitPhysicalExam?.other_findings,
+              ecg_performed: ecgPerformed || originalPhysicalExam?.ecg_performed,
+              ecg_result: ecgResult || originalPhysicalExam?.ecg_result,
+              ecg_interpretation: ecgInterpretation || originalPhysicalExam?.ecg_interpretation,
+              ecg_notes: ecgNotes || originalPhysicalExam?.ecg_notes,
+            }}
+            onSave={handleSavePhysicalExamSection}
+          />
         );
 
       // ─── DIAGNOSES ───
       case "diagnoses":
         return (
-          <div className="space-y-3">
-            {diagnoses.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <p className="text-sm">
-                  Belum ada diagnosa. Klik tombol di atas untuk menambahkan.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {diagnoses.map((d, i) => (
-                  <div
-                    key={i}
-                    className="flex items-start gap-3 p-3 border rounded-lg bg-muted/20"
-                  >
-                    <div className="flex items-center justify-center h-8 w-8 rounded-full bg-muted text-muted-foreground text-xs font-semibold shrink-0 mt-0.5">
-                      {i + 1}
-                    </div>
-                    <div className="flex-1 space-y-2">
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1">
-                          <Label className="text-xs text-muted-foreground mb-1 block">
-                            Diagnosa (ICD-10)
-                          </Label>
-                          <ICD10Combobox
-                            value={d.icd10_code}
-                            onChange={(code, display) =>
-                              updateDiagnosis(i, {
-                                icd10_code: code,
-                                icd10_name: display,
-                              })
-                            }
-                            placeholder="Cari diagnosa ICD-10..."
-                          />
-                        </div>
-                        <div className="w-[160px]">
-                          <Label className="text-xs text-muted-foreground mb-1 block">
-                            Tipe
-                          </Label>
-                          <Select
-                            value={d.type}
-                            onValueChange={(v) =>
-                              updateDiagnosis(i, {
-                                type: v as EKlaimRMDiagnosis["type"],
-                              })
-                            }
-                          >
-                            <SelectTrigger className="h-9">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="primary">Primer</SelectItem>
-                              <SelectItem value="secondary">
-                                Sekunder
-                              </SelectItem>
-                              <SelectItem value="complication">
-                                Komplikasi
-                              </SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 mt-5 shrink-0"
-                          onClick={() => removeDiagnosis(i)}
-                        >
-                          <X className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </div>
-                      {d.icd10_name && (
-                        <p className="text-xs text-muted-foreground pl-1">
-                          {d.icd10_name}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          <DiagnosisForm
+            visitId={Number(visit?.id || rmDuplicate?.visit_id || 0)}
+            useExternalData
+            externalData={{
+              clinical_impression: clinicalAssessment,
+              differential_diagnosis: "",
+              items: diagnoses.map((item) => ({
+                id: item.id,
+                icd10_code: item.icd10_code,
+                icd10_name: item.icd10_name,
+                diagnosis_type:
+                  item.type === "primary"
+                    ? "primary"
+                    : item.type === "secondary"
+                      ? "secondary"
+                      : "differential",
+                clinical_status: "active",
+                verification_status: "confirmed",
+              })),
+            }}
+            onSave={handleSaveDiagnosisSection}
+          />
         );
 
       // ─── PROCEDURES ───
@@ -2742,1915 +3101,216 @@ export default function RMDuplicateTab({
 
       // ─── LAB ORDERS ───
       case "lab-orders":
-        return renderOrderSection(
-          "laboratory",
-          labOrders,
-          "border-border",
-          "",
-          "",
-          "Belum ada order laboratorium.",
+        return (
+          <div className="space-y-3">
+            <LaboratoryWorkstation
+              key={rmDataVersion}
+              visitId={activeVisitId}
+              rmDuplicateMode
+              apiAdapter={labWorkstationAdapter as any}
+              duplicateDoctorOptions={duplicateDoctorOptions}
+              onUpdateDuplicateOrderMeta={(runtimeOrderId, updates) =>
+                updateDuplicateOrderMetaByRuntimeId("laboratory", runtimeOrderId, updates)
+              }
+            />
+          </div>
         );
 
       // ─── RADIOLOGY ORDERS ───
       case "radiology-orders":
-        return renderOrderSection(
-          "radiology",
-          radiologyOrders,
-          "border-border",
-          "",
-          "",
-          "Belum ada order radiologi.",
+        return (
+          <div className="space-y-3">
+            <RadiologyWorkstation
+              key={rmDataVersion}
+              visitId={activeVisitId}
+              rmDuplicateMode
+              apiAdapter={radiologyWorkstationAdapter as any}
+              duplicateDoctorOptions={duplicateDoctorOptions}
+              onUpdateDuplicateOrderMeta={(runtimeOrderId, updates) =>
+                updateDuplicateOrderMetaByRuntimeId("radiology", runtimeOrderId, updates)
+              }
+            />
+          </div>
         );
 
       // ─── SURGERY ORDERS ───
       case "surgery-orders":
-        return renderOrderSection(
-          "surgery",
-          surgeryOrders,
-          "border-border",
-          "",
-          "",
-          "Belum ada catatan operasi.",
-          (order, globalIdx) => (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pb-3 border-b">
-              <div className="space-y-1">
-                <Label className="text-xs">Operator</Label>
-                <Input
-                  className="h-8 text-xs"
-                  value={order.surgeon_name}
-                  onChange={(e) =>
-                    updateOrder(order.id, globalIdx, {
-                      surgeon_name: e.target.value,
-                    })
-                  }
-                  placeholder="dr. ..."
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Jenis Anestesi</Label>
-                <Select
-                  value={order.anesthesia_type}
-                  onValueChange={(v) =>
-                    updateOrder(order.id, globalIdx, { anesthesia_type: v })
-                  }
-                >
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue placeholder="Pilih" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="general">General Anesthesia</SelectItem>
-                    <SelectItem value="regional">
-                      Regional Anesthesia
-                    </SelectItem>
-                    <SelectItem value="spinal">Spinal Anesthesia</SelectItem>
-                    <SelectItem value="local">Local Anesthesia</SelectItem>
-                    <SelectItem value="sedation">Sedasi</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Tanggal Jadwal</Label>
-                <Input
-                  type="datetime-local"
-                  className="h-8 text-xs"
-                  value={(order.scheduled_date || "").slice(0, 16)}
-                  onChange={(e) =>
-                    updateOrder(order.id, globalIdx, {
-                      scheduled_date: e.target.value,
-                    })
-                  }
-                />
-              </div>
-            </div>
-          ),
+        return (
+          <div className="space-y-3">
+            <SurgeryWorkstation
+              key={rmDataVersion}
+              visitId={activeVisitId}
+              rmDuplicateMode
+              apiAdapter={surgeryWorkstationAdapter as any}
+              duplicateDoctorOptions={duplicateDoctorOptions}
+              onUpdateDuplicateOrderMeta={(
+                runtimeOrderId: number,
+                updates: { fake_date?: string; doctor_name?: string },
+              ) =>
+                updateDuplicateOrderMetaByRuntimeId("surgery", runtimeOrderId, updates)
+              }
+            />
+          </div>
         );
 
       // ─── CONSULTATION ORDERS ───
       case "consultation-orders":
-        return renderOrderSection(
-          "consultation",
-          consultationOrders,
-          "border-border",
-          "",
-          "",
-          "Belum ada konsultasi.",
-          (order, globalIdx) => (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pb-3 border-b">
-              <div className="space-y-1">
-                <Label className="text-xs">Nama Konsultan</Label>
-                <Input
-                  className="h-8 text-xs"
-                  value={order.consultant_name}
-                  onChange={(e) =>
-                    updateOrder(order.id, globalIdx, {
-                      consultant_name: e.target.value,
-                    })
-                  }
-                  placeholder="dr. Spesialis..."
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Spesialisasi</Label>
-                <Input
-                  className="h-8 text-xs"
-                  value={order.specialty}
-                  onChange={(e) =>
-                    updateOrder(order.id, globalIdx, {
-                      specialty: e.target.value,
-                    })
-                  }
-                  placeholder="Sp. Penyakit Dalam"
-                />
-              </div>
-            </div>
-          ),
+        return (
+          <div className="space-y-3">
+            <ConsultationForm
+              key={rmDataVersion}
+              visitId={activeVisitId}
+              rmDuplicateMode
+              apiAdapter={consultationWorkstationAdapter as any}
+              duplicateDoctorOptions={duplicateDoctorOptions}
+              onUpdateDuplicateOrderMeta={(runtimeOrderId, updates) =>
+                updateDuplicateOrderMetaByRuntimeId("consultation", runtimeOrderId, updates)
+              }
+            />
+          </div>
         );
 
       // ─── MEDICINES ───
       case "medicines":
         return (
           <div className="space-y-3">
-            <div className="relative max-w-md">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  className="h-9 pl-9 pr-10"
-                  placeholder="Cari obat untuk ditambahkan..."
-                  value={medSearchTerm}
-                  onChange={(e) => handleMedSearch(e.target.value)}
-                />
-                {medSearchTerm && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
-                    onClick={() => {
-                      setMedSearchTerm("");
-                      setMedSearchResults([]);
-                    }}
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </Button>
-                )}
-              </div>
-              {(searchingMeds || medSearchResults.length > 0) && (
-                <div className="absolute z-50 w-full mt-1 border rounded-md bg-background shadow-lg">
-                  {searchingMeds && (
-                    <div className="flex items-center gap-2 px-3 py-3 text-sm text-muted-foreground">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <span>Mencari obat...</span>
-                    </div>
-                  )}
-                  {!searchingMeds && medSearchResults.length > 0 && (
-                    <div className="max-h-64 overflow-y-auto">
-                      {medSearchResults.map((med) => (
-                        <button
-                          key={med.id}
-                          className="w-full text-left px-3 py-2.5 hover:bg-muted transition-colors border-b last:border-b-0"
-                          onClick={() => handleSelectMedicine(med)}
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium truncate">
-                                {med.name}
-                              </p>
-                              <p className="text-xs text-muted-foreground mt-0.5">
-                                {med.dosage}
-                              </p>
-                            </div>
-                            <span className="text-sm font-semibold text-nowrap">
-                              {formatCurrency(med.selling_price || 0)}
-                            </span>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  {!searchingMeds &&
-                    medSearchTerm.length >= 2 &&
-                    medSearchResults.length === 0 && (
-                      <div className="px-3 py-3 text-sm text-muted-foreground text-center">
-                        Tidak ditemukan obat dengan kata kunci "{medSearchTerm}"
-                      </div>
-                    )}
-                </div>
-              )}
-            </div>
-            {medicineItems.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <p className="text-sm">Belum ada data obat.</p>
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow className="text-xs">
-                    <TableHead className="px-3 w-10">No</TableHead>
-                    <TableHead className="px-3">Nama Obat</TableHead>
-                    <TableHead className="px-3">Dosis</TableHead>
-                    <TableHead className="px-3">Frekuensi</TableHead>
-                    <TableHead className="px-3 text-center">Jumlah</TableHead>
-                    <TableHead className="px-3 text-right">Subtotal</TableHead>
-                    <TableHead className="px-3 w-12 text-center">
-                      Aksi
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {medicineItems.map((med, i) => {
-                    const isOpen = expandedMed[i] ?? false;
-                    return (
-                      <Fragment key={i}>
-                        <TableRow
-                          className="cursor-pointer hover:bg-muted/50 text-xs"
-                          onClick={() => toggleMed(i)}
-                        >
-                          <TableCell className="px-3 font-medium">
-                            {i + 1}
-                          </TableCell>
-                          <TableCell className="px-3">
-                            <div className="flex items-center gap-1.5">
-                              {isOpen ? (
-                                <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />
-                              ) : (
-                                <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
-                              )}
-                              <span className="font-medium">
-                                {med.medicine_name || "-"}
-                              </span>
-                            </div>
-                          </TableCell>
-                          <TableCell className="px-3 text-muted-foreground">
-                            {med.dosage || "-"}
-                          </TableCell>
-                          <TableCell className="px-3 text-muted-foreground">
-                            {med.frequency || "-"}
-                          </TableCell>
-                          <TableCell className="px-3 text-center font-mono">
-                            {med.quantity} {med.unit}
-                          </TableCell>
-                          <TableCell className="px-3 text-right font-mono font-semibold">
-                            {formatCurrency(med.sub_total || 0)}
-                          </TableCell>
-                          <TableCell className="px-3 text-center">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                removeMedicineItem(i);
-                              }}
-                            >
-                              <Trash2 className="h-3 w-3 text-destructive" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                        {isOpen && (
-                          <TableRow>
-                            <TableCell className="px-3" />
-                            <TableCell colSpan={6} className="px-3 py-3">
-                              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                <div className="space-y-1">
-                                  <Label className="text-xs">Nama Obat</Label>
-                                  <Input
-                                    className="h-8 text-xs"
-                                    value={med.medicine_name}
-                                    onChange={(e) =>
-                                      updateMedicineItem(
-                                        i,
-                                        "medicine_name",
-                                        e.target.value,
-                                      )
-                                    }
-                                    placeholder="Nama obat..."
-                                  />
-                                </div>
-                                <div className="space-y-1">
-                                  <Label className="text-xs">Dosis</Label>
-                                  <Input
-                                    className="h-8 text-xs"
-                                    value={med.dosage}
-                                    onChange={(e) =>
-                                      updateMedicineItem(
-                                        i,
-                                        "dosage",
-                                        e.target.value,
-                                      )
-                                    }
-                                    placeholder="500mg"
-                                  />
-                                </div>
-                                <div className="space-y-1">
-                                  <Label className="text-xs">Frekuensi</Label>
-                                  <Input
-                                    className="h-8 text-xs"
-                                    value={med.frequency}
-                                    onChange={(e) =>
-                                      updateMedicineItem(
-                                        i,
-                                        "frequency",
-                                        e.target.value,
-                                      )
-                                    }
-                                    placeholder="3x1"
-                                  />
-                                </div>
-                                <div className="space-y-1">
-                                  <Label className="text-xs">Rute</Label>
-                                  <Select
-                                    value={med.route}
-                                    onValueChange={(v) =>
-                                      updateMedicineItem(i, "route", v)
-                                    }
-                                  >
-                                    <SelectTrigger className="h-8 text-xs">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="oral">Oral</SelectItem>
-                                      <SelectItem value="iv">IV</SelectItem>
-                                      <SelectItem value="im">IM</SelectItem>
-                                      <SelectItem value="sc">SC</SelectItem>
-                                      <SelectItem value="topical">
-                                        Topikal
-                                      </SelectItem>
-                                      <SelectItem value="inhaler">
-                                        Inhaler
-                                      </SelectItem>
-                                      <SelectItem value="rectal">
-                                        Rektal
-                                      </SelectItem>
-                                      <SelectItem value="sublingual">
-                                        Sublingual
-                                      </SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                                <div className="space-y-1">
-                                  <Label className="text-xs">Jumlah</Label>
-                                  <Input
-                                    type="number"
-                                    className="h-8 text-xs"
-                                    value={med.quantity}
-                                    onChange={(e) => {
-                                      const q = Number(e.target.value);
-                                      updateMedicineItem(i, "quantity", q);
-                                      updateMedicineItem(
-                                        i,
-                                        "sub_total",
-                                        q * med.unit_price,
-                                      );
-                                    }}
-                                  />
-                                </div>
-                                <div className="space-y-1">
-                                  <Label className="text-xs">Satuan</Label>
-                                  <Input
-                                    className="h-8 text-xs"
-                                    value={med.unit}
-                                    onChange={(e) =>
-                                      updateMedicineItem(
-                                        i,
-                                        "unit",
-                                        e.target.value,
-                                      )
-                                    }
-                                    placeholder="tablet"
-                                  />
-                                </div>
-                                <div className="space-y-1">
-                                  <Label className="text-xs">Durasi</Label>
-                                  <Input
-                                    className="h-8 text-xs"
-                                    value={med.duration}
-                                    onChange={(e) =>
-                                      updateMedicineItem(
-                                        i,
-                                        "duration",
-                                        e.target.value,
-                                      )
-                                    }
-                                    placeholder="7 hari"
-                                  />
-                                </div>
-                                <div className="space-y-1">
-                                  <Label className="text-xs">
-                                    Harga Satuan
-                                  </Label>
-                                  <Input
-                                    type="number"
-                                    className="h-8 text-xs"
-                                    value={med.unit_price}
-                                    onChange={(e) => {
-                                      const p = Number(e.target.value);
-                                      updateMedicineItem(i, "unit_price", p);
-                                      updateMedicineItem(
-                                        i,
-                                        "sub_total",
-                                        med.quantity * p,
-                                      );
-                                    }}
-                                  />
-                                </div>
-                                <div className="space-y-1 md:col-span-2">
-                                  <Label className="text-xs">Instruksi</Label>
-                                  <Input
-                                    className="h-8 text-xs"
-                                    value={med.instructions}
-                                    onChange={(e) =>
-                                      updateMedicineItem(
-                                        i,
-                                        "instructions",
-                                        e.target.value,
-                                      )
-                                    }
-                                    placeholder="Setelah makan, dll..."
-                                  />
-                                </div>
-                                <div className="space-y-1">
-                                  <Label className="text-xs">Subtotal</Label>
-                                  <Input
-                                    className="h-8 text-xs bg-muted font-mono font-semibold"
-                                    value={formatCurrency(med.sub_total || 0)}
-                                    readOnly
-                                  />
-                                </div>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </Fragment>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            )}
+            <PharmacyEditPrescription
+              key={rmDataVersion}
+              visitId={activeVisitId}
+              rmDuplicateMode
+              apiAdapter={pharmacyPrescriptionAdapter as any}
+              duplicateDoctorOptions={duplicateDoctorOptions}
+              onUpdateDuplicateOrderMeta={(
+                runtimeOrderId: number,
+                updates: { fake_date?: string; doctor_name?: string },
+              ) => updateDuplicateOrderMetaByRuntimeId("pharmacy", runtimeOrderId, updates)}
+            />
           </div>
         );
 
       // ─── ASSESSMENT & PLAN ───
       case "assessment":
         return (
-          <div className="space-y-6">
-            <div>
-              <h4 className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wider">
-                Penilaian & Prognosis
-              </h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label>Penilaian Klinis</Label>
-                  <Textarea
-                    value={clinicalAssessment}
-                    onChange={(e) => {
-                      setClinicalAssessment(e.target.value);
-                      markDirty();
-                    }}
-                    placeholder="Penilaian klinis terhadap kondisi pasien..."
-                    rows={3}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Prognosis</Label>
-                  <Select
-                    value={prognosis}
-                    onValueChange={(v) => {
-                      setPrognosis(v);
-                      markDirty();
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Pilih prognosis" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Bonam">Bonam (Baik)</SelectItem>
-                      <SelectItem value="Dubia ad Bonam">
-                        Dubia ad Bonam
-                      </SelectItem>
-                      <SelectItem value="Dubia ad Malam">
-                        Dubia ad Malam
-                      </SelectItem>
-                      <SelectItem value="Malam">Malam (Buruk)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </div>
-            <Separator />
-            <div>
-              <h4 className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wider">
-                Rencana (Plan)
-              </h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label>Rencana Terapi</Label>
-                  <Textarea
-                    value={treatmentPlan}
-                    onChange={(e) => {
-                      setTreatmentPlan(e.target.value);
-                      markDirty();
-                    }}
-                    placeholder="Rencana terapi dan tindakan..."
-                    rows={3}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Rencana Obat</Label>
-                  <Textarea
-                    value={medicationPlan}
-                    onChange={(e) => {
-                      setMedicationPlan(e.target.value);
-                      markDirty();
-                    }}
-                    placeholder="Rencana pemberian obat..."
-                    rows={3}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Rencana Diet</Label>
-                  <Textarea
-                    value={dietPlan}
-                    onChange={(e) => {
-                      setDietPlan(e.target.value);
-                      markDirty();
-                    }}
-                    placeholder="Diet biasa / lunak / cair / rendah garam..."
-                    rows={2}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Rencana Aktivitas</Label>
-                  <Textarea
-                    value={activityPlan}
-                    onChange={(e) => {
-                      setActivityPlan(e.target.value);
-                      markDirty();
-                    }}
-                    placeholder="Bedrest / mobilisasi bertahap..."
-                    rows={2}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Rencana Edukasi</Label>
-                  <Textarea
-                    value={educationPlan}
-                    onChange={(e) => {
-                      setEducationPlan(e.target.value);
-                      markDirty();
-                    }}
-                    placeholder="Edukasi pasien & keluarga..."
-                    rows={2}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Rencana Monitoring</Label>
-                  <Textarea
-                    value={monitoringPlan}
-                    onChange={(e) => {
-                      setMonitoringPlan(e.target.value);
-                      markDirty();
-                    }}
-                    placeholder="Monitoring TTV / lab / klinis..."
-                    rows={2}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Rencana Tindakan / Prosedur</Label>
-                  <Textarea
-                    value={procedurePlan}
-                    onChange={(e) => {
-                      setProcedurePlan(e.target.value);
-                      markDirty();
-                    }}
-                    placeholder="Rencana tindakan / operasi..."
-                    rows={2}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Rencana Konsultasi</Label>
-                  <Textarea
-                    value={consultationPlan}
-                    onChange={(e) => {
-                      setConsultationPlan(e.target.value);
-                      markDirty();
-                    }}
-                    placeholder="Konsul ke spesialis / departemen lain..."
-                    rows={2}
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
+          <AssessmentPlanForm
+            visitId={Number(visit?.id || rmDuplicate?.visit_id || 0)}
+            useExternalData
+            externalData={{
+              clinical_assessment: clinicalAssessment,
+              prognosis,
+              treatment_plan: treatmentPlan,
+              medication_plan: medicationPlan,
+              diet_plan: dietPlan,
+              activity_plan: activityPlan,
+              education_plan: educationPlan,
+              monitoring_plan: monitoringPlan,
+              procedure_plan: procedurePlan,
+              consultation_plan: consultationPlan,
+            }}
+            onSave={handleSaveAssessmentSection}
+          />
         );
 
       // ─── TRIAGE UGD ───
       case "triage":
         return (
-          <div className="space-y-6">
-            <div>
-              <h4 className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wider">
-                Informasi Kedatangan
-              </h4>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="space-y-1.5">
-                  <Label>Cara Datang</Label>
-                  <Combobox
-                    options={getTriageOptions('arrival_mode')}
-                    value={triageArrivalMode}
-                    onValueChange={(v) => { setTriageArrivalMode(v); markDirty(); }}
-                    placeholder="Pilih moda kedatangan"
-                    searchPlaceholder="Cari moda kedatangan..."
-                    emptyText="Tidak ditemukan"
-                  />
-                </div>
-                <div className="space-y-1.5 md:col-span-2">
-                  <Label>Keluhan Triage</Label>
-                  <Input
-                    value={triageComplaint}
-                    onChange={(e) => { setTriageComplaint(e.target.value); markDirty(); }}
-                    placeholder="Keluhan utama triage..."
-                  />
-                </div>
-              </div>
-              <div className="mt-4 space-y-1.5">
-                <Label>Level Triage</Label>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
-                  {getTriageOptions('triage_level').map((level) => (
-                    <button
-                      key={level.value}
-                      type="button"
-                      onClick={() => { setTriageLevel(level.value); markDirty(); }}
-                      className={`p-3 rounded-lg border-2 text-white font-medium text-sm transition-all ${
-                        triageLevel === level.value
-                          ? `${triageLevelColors[level.value] || "bg-gray-500"} border-white scale-105`
-                          : `${triageLevelColors[level.value] || "bg-gray-500"} opacity-60 border-transparent hover:opacity-80`
-                      }`}
-                    >
-                      {level.label}
-                    </button>
-                  ))}
-                </div>
-                {triageLevel && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Dipilih: <span className="font-medium">{getTriageOptions('triage_level').find(l => l.value === triageLevel)?.label || triageLevel}</span>
-                  </p>
-                )}
-              </div>
-            </div>
-
-            <div>
-              <h4 className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wider">
-                Penilaian ABC
-              </h4>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="space-y-1.5">
-                  <Label>Airway</Label>
-                  <Combobox
-                    options={getTriageOptions('airway_status')}
-                    value={triageAirway}
-                    onValueChange={(v) => { setTriageAirway(v); markDirty(); }}
-                    placeholder="Pilih status airway"
-                    searchPlaceholder="Cari..."
-                    emptyText="Tidak ditemukan"
-                  />
-                </div>
-                <div className="space-y-1.5 md:col-span-2">
-                  <Label>Catatan Airway</Label>
-                  <Input
-                    value={triageAirwayNote}
-                    onChange={(e) => { setTriageAirwayNote(e.target.value); markDirty(); }}
-                    placeholder="Catatan airway..."
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Breathing</Label>
-                  <Combobox
-                    options={getTriageOptions('breathing_status')}
-                    value={triageBreathing}
-                    onValueChange={(v) => { setTriageBreathing(v); markDirty(); }}
-                    placeholder="Pilih status breathing"
-                    searchPlaceholder="Cari..."
-                    emptyText="Tidak ditemukan"
-                  />
-                </div>
-                <div className="space-y-1.5 md:col-span-2">
-                  <Label>Catatan Breathing</Label>
-                  <Input
-                    value={triageBreathingNote}
-                    onChange={(e) => { setTriageBreathingNote(e.target.value); markDirty(); }}
-                    placeholder="Catatan breathing..."
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Circulation</Label>
-                  <Combobox
-                    options={getTriageOptions('circulation_status')}
-                    value={triageCirculation}
-                    onValueChange={(v) => { setTriageCirculation(v); markDirty(); }}
-                    placeholder="Pilih status circulation"
-                    searchPlaceholder="Cari..."
-                    emptyText="Tidak ditemukan"
-                  />
-                </div>
-                <div className="space-y-1.5 md:col-span-2">
-                  <Label>Catatan Circulation</Label>
-                  <Input
-                    value={triageCirculationNote}
-                    onChange={(e) => { setTriageCirculationNote(e.target.value); markDirty(); }}
-                    placeholder="Catatan circulation..."
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <h4 className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wider">
-                Tanda Vital
-              </h4>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="space-y-1.5">
-                  <Label>Tekanan Darah</Label>
-                  <Input
-                    value={triageBloodPressure}
-                    onChange={(e) => { setTriageBloodPressure(e.target.value); markDirty(); }}
-                    placeholder="120/80"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Nadi (x/mnt)</Label>
-                  <Input
-                    value={triageHeartRate}
-                    onChange={(e) => { setTriageHeartRate(e.target.value); markDirty(); }}
-                    placeholder="80"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>RR (x/mnt)</Label>
-                  <Input
-                    value={triageRespiratoryRate}
-                    onChange={(e) => { setTriageRespiratoryRate(e.target.value); markDirty(); }}
-                    placeholder="20"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Suhu (°C)</Label>
-                  <Input
-                    value={triageTemperature}
-                    onChange={(e) => { setTriageTemperature(e.target.value); markDirty(); }}
-                    placeholder="36.5"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>SpO2 (%)</Label>
-                  <Input
-                    value={triageOxygenSat}
-                    onChange={(e) => { setTriageOxygenSat(e.target.value); markDirty(); }}
-                    placeholder="98"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Skala Nyeri (0-10)</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    max={10}
-                    value={triagePainScale}
-                    onChange={(e) => { setTriagePainScale(parseInt(e.target.value) || 0); markDirty(); }}
-                    placeholder="0"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <h4 className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wider">
-                GCS
-              </h4>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-1.5">
-                  <Label>GCS Eye (E)</Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    max={4}
-                    value={triageGCSE}
-                    onChange={(e) => { setTriageGCSE(parseInt(e.target.value) || 4); markDirty(); }}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>GCS Verbal (V)</Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    max={5}
-                    value={triageGCSV}
-                    onChange={(e) => { setTriageGCSV(parseInt(e.target.value) || 5); markDirty(); }}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>GCS Motor (M)</Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    max={6}
-                    value={triageGCSM}
-                    onChange={(e) => { setTriageGCSM(parseInt(e.target.value) || 6); markDirty(); }}
-                  />
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Total GCS: {triageGCSE + triageGCSV + triageGCSM}
-              </p>
-            </div>
-
-            <div>
-              <h4 className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wider">
-                Assesment & Tindakan
-              </h4>
-              <div className="space-y-4">
-                <div className="space-y-1.5">
-                  <Label>Penilaian Triage</Label>
-                  <Textarea
-                    value={triageAssessment}
-                    onChange={(e) => { setTriageAssessment(e.target.value); markDirty(); }}
-                    placeholder="Penilaian klinis triage..."
-                    rows={3}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Tindakan Segera</Label>
-                  <Textarea
-                    value={triageImmediateAction}
-                    onChange={(e) => { setTriageImmediateAction(e.target.value); markDirty(); }}
-                    placeholder="Tindakan yang sudah dilakukan..."
-                    rows={3}
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
+          <TriageForm
+            visitId={Number(visit?.id || rmDuplicate?.visit_id || 0)}
+            useExternalData
+            externalData={{
+              arrival_mode: triageArrivalMode,
+              triage_complaint: triageComplaint,
+              triage_level: triageLevel,
+              airway: triageAirway,
+              airway_note: triageAirwayNote,
+              breathing: triageBreathing,
+              breathing_note: triageBreathingNote,
+              circulation: triageCirculation,
+              circulation_note: triageCirculationNote,
+              blood_pressure: triageBloodPressure,
+              heart_rate: Number(triageHeartRate) || 0,
+              respiratory_rate: Number(triageRespiratoryRate) || 0,
+              temperature: Number(triageTemperature) || 0,
+              oxygen_saturation: Number(triageOxygenSat) || 0,
+              pain_scale: triagePainScale,
+              pain_method: "nrs",
+              pain_location: "",
+              gcs_e: triageGCSE,
+              gcs_v: triageGCSV,
+              gcs_m: triageGCSM,
+              triage_assessment: triageAssessment,
+              immediate_actions: triageImmediateAction,
+            }}
+            onSave={handleSaveTriageSection}
+          />
         );
 
       // ─── DISPOSITION ───
       case "disposition":
         return (
-          <div className="space-y-6">
-            <div>
-              <h4 className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wider">
-                Status Disposisi
-              </h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label>Tipe Disposisi</Label>
-                  <Select
-                    value={dispositionType}
-                    onValueChange={(v) => {
-                      setDispositionType(v);
-                      markDirty();
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Pilih disposisi" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="pulang">Dipulangkan</SelectItem>
-                      <SelectItem value="rujuk">Dirujuk / Transfer</SelectItem>
-                      <SelectItem value="rawat_inap">Rawat Inap</SelectItem>
-                      <SelectItem value="aps">Pulang Paksa (APS)</SelectItem>
-                      <SelectItem value="meninggal">Meninggal</SelectItem>
-                      <SelectItem value="dod">
-                        Pulang Atas Permintaan Sendiri (DOD)
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Status Pulang</Label>
-                  <Select
-                    value={rmDischargeStatus}
-                    onValueChange={(v) => {
-                      setRmDischargeStatus(v);
-                      markDirty();
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Pilih status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="sembuh">Sembuh</SelectItem>
-                      <SelectItem value="membaik">Membaik</SelectItem>
-                      <SelectItem value="belum_sembuh">Belum Sembuh</SelectItem>
-                      <SelectItem value="meninggal">Meninggal</SelectItem>
-                      <SelectItem value="pulang_paksa">Pulang Paksa</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Kondisi Saat Pulang</Label>
-                  <Textarea
-                    value={dischargeCondition}
-                    onChange={(e) => {
-                      setDischargeCondition(e.target.value);
-                      markDirty();
-                    }}
-                    placeholder="Kondisi pasien saat dipulangkan..."
-                    rows={2}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Catatan Disposisi</Label>
-                  <Textarea
-                    value={dispositionNote}
-                    onChange={(e) => {
-                      setDispositionNote(e.target.value);
-                      markDirty();
-                    }}
-                    placeholder="Catatan tambahan disposisi..."
-                    rows={2}
-                  />
-                </div>
-              </div>
-            </div>
-            <Separator />
-            <div>
-              <h4 className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wider">
-                Instruksi Pulang & Follow-up
-              </h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label>Instruksi Pulang</Label>
-                  <Textarea
-                    value={dischargeInstruction}
-                    onChange={(e) => {
-                      setDischargeInstruction(e.target.value);
-                      markDirty();
-                    }}
-                    placeholder="Instruksi untuk pasien setelah pulang..."
-                    rows={2}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Instruksi Follow-up</Label>
-                  <Textarea
-                    value={followUpInstruction}
-                    onChange={(e) => {
-                      setFollowUpInstruction(e.target.value);
-                      markDirty();
-                    }}
-                    placeholder="Jadwal kontrol / rencana tindak lanjut..."
-                    rows={2}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Tanggal Follow-up</Label>
-                  <Input
-                    type="date"
-                    value={followUpDate}
-                    onChange={(e) => {
-                      setFollowUpDate(e.target.value);
-                      markDirty();
-                    }}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Obat Pulang</Label>
-                  <Textarea
-                    value={dischargeMedication}
-                    onChange={(e) => {
-                      setDischargeMedication(e.target.value);
-                      markDirty();
-                    }}
-                    placeholder="Daftar obat yang dibawa pulang..."
-                    rows={2}
-                  />
-                </div>
-              </div>
-            </div>
-            {dispositionType === "rujuk" && (
-              <>
-                <Separator />
-                <div>
-                  <h4 className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wider">
-                    Informasi Rujukan
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <Label>Fasilitas Rujukan</Label>
-                      <Input
-                        value={referralFacility}
-                        onChange={(e) => {
-                          setReferralFacility(e.target.value);
-                          markDirty();
-                        }}
-                        placeholder="Nama RS / faskes tujuan"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label>Alasan Rujukan</Label>
-                      <Input
-                        value={referralReason}
-                        onChange={(e) => {
-                          setReferralReason(e.target.value);
-                          markDirty();
-                        }}
-                        placeholder="Alasan dirujuk"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label>Diagnosis Rujukan</Label>
-                      <Textarea
-                        value={referralDiagnosis}
-                        onChange={(e) => {
-                          setReferralDiagnosis(e.target.value);
-                          markDirty();
-                        }}
-                        placeholder="Diagnosis saat dirujuk..."
-                        rows={2}
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label>Terapi yang Sudah Diberikan</Label>
-                      <Textarea
-                        value={referralTherapy}
-                        onChange={(e) => {
-                          setReferralTherapy(e.target.value);
-                          markDirty();
-                        }}
-                        placeholder="Terapi di faskes pengirim..."
-                        rows={2}
-                      />
-                    </div>
-                    <div className="space-y-1.5 md:col-span-2">
-                      <Label>Catatan Rujukan</Label>
-                      <Textarea
-                        value={referralNotes}
-                        onChange={(e) => {
-                          setReferralNotes(e.target.value);
-                          markDirty();
-                        }}
-                        placeholder="Catatan tambahan untuk faskes tujuan..."
-                        rows={2}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </>
-            )}
-            {(dispositionType === "meninggal" || dispositionType === "dod") && (
-              <>
-                <Separator />
-                <div>
-                  <h4 className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wider">
-                    Informasi Kematian
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <Label>Waktu Meninggal</Label>
-                      <Input
-                        type="datetime-local"
-                        value={deathTime}
-                        onChange={(e) => {
-                          setDeathTime(e.target.value);
-                          markDirty();
-                        }}
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label>Penyebab Kematian</Label>
-                      <Textarea
-                        value={deathCause}
-                        onChange={(e) => {
-                          setDeathCause(e.target.value);
-                          markDirty();
-                        }}
-                        placeholder="Penyebab kematian..."
-                        rows={2}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
+          <DispositionForm
+            visitId={Number(visit?.id || rmDuplicate?.visit_id || 0)}
+            useExternalData
+            externalData={{
+              disposition_type: dispositionType,
+              disposition_note: dispositionNote,
+              discharge_status: rmDischargeStatus,
+              discharge_condition: dischargeCondition,
+              discharge_instruction: dischargeInstruction,
+              discharge_medication: dischargeMedication,
+              follow_up_instruction: followUpInstruction,
+              follow_up_date: followUpDate,
+              referral_facility: referralFacility,
+              referral_reason: referralReason,
+              referral_diagnosis: referralDiagnosis,
+              referral_therapy: referralTherapy,
+              referral_notes: referralNotes,
+              death_time: deathTime,
+              death_cause: deathCause,
+            }}
+            onSave={handleSaveDispositionSection}
+          />
         );
 
       // ─── CPPT ───
       case "cppt":
         return (
-          <div className="space-y-3">
-            {cpptNotes.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <p className="text-sm">Belum ada catatan CPPT.</p>
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow className="text-xs">
-                    <TableHead className="px-3 w-10">No</TableHead>
-                    <TableHead className="px-3">Tanggal</TableHead>
-                    <TableHead className="px-3">Profesi</TableHead>
-                    <TableHead className="px-3">Petugas</TableHead>
-                    <TableHead className="px-3">Ringkasan</TableHead>
-                    <TableHead className="px-3 w-12 text-center">
-                      Aksi
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {cpptNotes.map((cppt, i) => {
-                    const isOpen = expandedCPPT[i] ?? false;
-                    const summary = [
-                      cppt.subjective,
-                      cppt.objective,
-                      cppt.assessment,
-                      cppt.plan,
-                    ]
-                      .filter(Boolean)
-                      .join(" | ");
-                    return (
-                      <Fragment key={i}>
-                        <TableRow
-                          className="cursor-pointer hover:bg-muted/50 text-xs"
-                          onClick={() => toggleCPPT(i)}
-                        >
-                          <TableCell className="px-3 font-medium">
-                            {i + 1}
-                          </TableCell>
-                          <TableCell className="px-3 text-muted-foreground">
-                            {cppt.record_date
-                              ? new Date(cppt.record_date).toLocaleString(
-                                  "id-ID",
-                                  {
-                                    day: "2-digit",
-                                    month: "2-digit",
-                                    year: "numeric",
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                  },
-                                )
-                              : "-"}
-                          </TableCell>
-                          <TableCell className="px-3 capitalize">
-                            {cppt.profession || "-"}
-                          </TableCell>
-                          <TableCell className="px-3">
-                            {cppt.staff_name || "-"}
-                          </TableCell>
-                          <TableCell className="px-3">
-                            <div className="flex items-center gap-1.5">
-                              {isOpen ? (
-                                <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />
-                              ) : (
-                                <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
-                              )}
-                              <span className="text-muted-foreground truncate max-w-[400px]">
-                                {summary || "Belum diisi"}
-                              </span>
-                            </div>
-                          </TableCell>
-                          <TableCell className="px-3 text-center">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                removeCPPT(i);
-                              }}
-                            >
-                              <Trash2 className="h-3 w-3 text-destructive" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                        {isOpen && (
-                          <TableRow>
-                            <TableCell className="px-3" />
-                            <TableCell colSpan={5} className="px-3 py-3">
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                <div className="space-y-1">
-                                  <Label className="text-xs">Tanggal</Label>
-                                  <Input
-                                    type="datetime-local"
-                                    className="h-8 text-xs"
-                                    value={cppt.record_date}
-                                    onChange={(e) =>
-                                      updateCPPT(
-                                        i,
-                                        "record_date",
-                                        e.target.value,
-                                      )
-                                    }
-                                  />
-                                </div>
-                                <div className="space-y-1">
-                                  <Label className="text-xs">Profesi</Label>
-                                  <Select
-                                    value={cppt.profession}
-                                    onValueChange={(v) =>
-                                      updateCPPT(i, "profession", v)
-                                    }
-                                  >
-                                    <SelectTrigger className="h-8 text-xs">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="dokter">
-                                        Dokter
-                                      </SelectItem>
-                                      <SelectItem value="perawat">
-                                        Perawat
-                                      </SelectItem>
-                                      <SelectItem value="farmasi">
-                                        Farmasi
-                                      </SelectItem>
-                                      <SelectItem value="gizi">Gizi</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                                <div className="space-y-1 md:col-span-2 relative">
-                                  <Label className="text-xs">
-                                    Nama Petugas
-                                  </Label>
-                                  <div className="flex gap-2">
-                                    <Input
-                                      className="h-8 text-xs flex-1"
-                                      value={cppt.staff_name}
-                                      onChange={(e) =>
-                                        updateCPPT(
-                                          i,
-                                          "staff_name",
-                                          e.target.value,
-                                        )
-                                      }
-                                      placeholder="Nama petugas..."
-                                    />
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      size="icon"
-                                      className="h-8 w-8 shrink-0"
-                                      onClick={() => {
-                                        setEmpSearchKey(
-                                          empSearchKey === `cppt-${i}`
-                                            ? null
-                                            : `cppt-${i}`,
-                                        );
-                                        setEmpSearchTerm("");
-                                        setEmpSearchResults([]);
-                                      }}
-                                    >
-                                      <Search className="h-3.5 w-3.5" />
-                                    </Button>
-                                  </div>
-                                  {empSearchKey === `cppt-${i}` && (
-                                    <div className="absolute z-50 top-full left-0 right-0 mt-1 border rounded-md bg-background shadow-lg p-2 space-y-1">
-                                      <Input
-                                        className="h-7 text-xs"
-                                        autoFocus
-                                        placeholder="Cari karyawan..."
-                                        value={empSearchTerm}
-                                        onChange={(e) =>
-                                          handleEmpSearch(e.target.value)
-                                        }
-                                      />
-                                      {searchingEmps && (
-                                        <p className="text-xs text-muted-foreground py-1 px-2">
-                                          Mencari...
-                                        </p>
-                                      )}
-                                      {empSearchResults.length > 0 && (
-                                        <div className="max-h-40 overflow-y-auto">
-                                          {empSearchResults.map((emp) => (
-                                            <button
-                                              key={emp.id}
-                                              type="button"
-                                              className="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted flex justify-between"
-                                              onClick={() =>
-                                                selectEmployee(emp)
-                                              }
-                                            >
-                                              <span className="font-medium">
-                                                {emp.nama_lengkap}
-                                              </span>
-                                              <span className="text-muted-foreground">
-                                                {emp.jabatan ||
-                                                  emp.tipe_karyawan}
-                                              </span>
-                                            </button>
-                                          ))}
-                                        </div>
-                                      )}
-                                      {empSearchTerm.length >= 2 &&
-                                        !searchingEmps &&
-                                        empSearchResults.length === 0 && (
-                                          <p className="text-xs text-muted-foreground py-1 px-2">
-                                            Tidak ditemukan
-                                          </p>
-                                        )}
-                                    </div>
-                                  )}
-                                </div>
-                                <div className="space-y-1">
-                                  <Label className="text-xs">Subjective</Label>
-                                  <Textarea
-                                    className="text-xs"
-                                    value={cppt.subjective}
-                                    onChange={(e) =>
-                                      updateCPPT(
-                                        i,
-                                        "subjective",
-                                        e.target.value,
-                                      )
-                                    }
-                                    rows={2}
-                                    placeholder="Keluhan pasien..."
-                                  />
-                                </div>
-                                <div className="space-y-1">
-                                  <Label className="text-xs">Objective</Label>
-                                  <Textarea
-                                    className="text-xs"
-                                    value={cppt.objective}
-                                    onChange={(e) =>
-                                      updateCPPT(i, "objective", e.target.value)
-                                    }
-                                    rows={2}
-                                    placeholder="Temuan pemeriksaan..."
-                                  />
-                                </div>
-                                <div className="space-y-1">
-                                  <Label className="text-xs">Assessment</Label>
-                                  <Textarea
-                                    className="text-xs"
-                                    value={cppt.assessment}
-                                    onChange={(e) =>
-                                      updateCPPT(
-                                        i,
-                                        "assessment",
-                                        e.target.value,
-                                      )
-                                    }
-                                    rows={2}
-                                    placeholder="Penilaian..."
-                                  />
-                                </div>
-                                <div className="space-y-1">
-                                  <Label className="text-xs">Plan</Label>
-                                  <Textarea
-                                    className="text-xs"
-                                    value={cppt.plan}
-                                    onChange={(e) =>
-                                      updateCPPT(i, "plan", e.target.value)
-                                    }
-                                    rows={2}
-                                    placeholder="Rencana..."
-                                  />
-                                </div>
-                                <div className="space-y-1 md:col-span-2">
-                                  <Label className="text-xs">Instruksi</Label>
-                                  <Textarea
-                                    className="text-xs"
-                                    value={cppt.instruction}
-                                    onChange={(e) =>
-                                      updateCPPT(
-                                        i,
-                                        "instruction",
-                                        e.target.value,
-                                      )
-                                    }
-                                    rows={2}
-                                    placeholder="Instruksi keperawatan..."
-                                  />
-                                </div>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </Fragment>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            )}
-          </div>
+          <CPPTForm
+            visitId={activeVisitId}
+            readOnly
+            useExternalData
+            externalData={duplicateCpptData}
+            staffOptions={duplicateDoctorOptions}
+            onSetCreatedBy={handleCpptSetCreatedBy}
+            onSetApprovedBy={handleCpptSetApprovedBy}
+          />
         );
 
       // ─── FLUID BALANCE ───
       case "fluid-balance":
         return (
-          <div className="space-y-3">
-            {fluidBalances.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <p className="text-sm">Belum ada data balance cairan.</p>
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow className="text-xs">
-                    <TableHead className="px-3 w-10">No</TableHead>
-                    <TableHead className="px-3">Tanggal</TableHead>
-                    <TableHead className="px-3">Shift</TableHead>
-                    <TableHead className="px-3">Petugas</TableHead>
-                    <TableHead className="px-3 text-center">Intake</TableHead>
-                    <TableHead className="px-3 text-center">Output</TableHead>
-                    <TableHead className="px-3 text-center">Balance</TableHead>
-                    <TableHead className="px-3 w-12 text-center">
-                      Aksi
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {fluidBalances.map((fb, i) => {
-                    const isOpen = expandedFB[i] ?? false;
-                    const intake =
-                      (fb.oral_drink || 0) +
-                      (fb.oral_food || 0) +
-                      (fb.oral_medicine || 0) +
-                      (fb.iv_fluid || 0) +
-                      (fb.iv_medicine || 0) +
-                      (fb.blood_product || 0) +
-                      (fb.enteral_feed || 0) +
-                      (fb.other_intake || 0);
-                    const output =
-                      (fb.urine_amount || 0) +
-                      (fb.feces_amount || 0) +
-                      (fb.vomit_amount || 0) +
-                      (fb.drain_amount || 0) +
-                      (fb.blood_loss || 0) +
-                      (fb.iwl || 0) +
-                      (fb.other_output || 0);
-                    const balance = intake - output;
-                    return (
-                      <Fragment key={i}>
-                        <TableRow
-                          className="cursor-pointer hover:bg-muted/50 text-xs"
-                          onClick={() => toggleFB(i)}
-                        >
-                          <TableCell className="px-3 font-medium">
-                            {i + 1}
-                          </TableCell>
-                          <TableCell className="px-3 text-muted-foreground">
-                            {fb.record_date
-                              ? new Date(fb.record_date).toLocaleString(
-                                  "id-ID",
-                                  {
-                                    day: "2-digit",
-                                    month: "2-digit",
-                                    year: "numeric",
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                  },
-                                )
-                              : "-"}
-                          </TableCell>
-                          <TableCell className="px-3 capitalize">
-                            {fb.shift_type || "-"}
-                          </TableCell>
-                          <TableCell className="px-3">
-                            {fb.staff_name || "-"}
-                          </TableCell>
-                          <TableCell className="px-3 text-center font-mono font-semibold text-green-700">
-                            {intake} ml
-                          </TableCell>
-                          <TableCell className="px-3 text-center font-mono font-semibold text-red-700">
-                            {output} ml
-                          </TableCell>
-                          <TableCell
-                            className={cn(
-                              "px-3 text-center font-mono font-semibold",
-                              balance >= 0 ? "text-green-700" : "text-red-700",
-                            )}
-                          >
-                            <div className="flex items-center justify-center gap-1.5">
-                              {isOpen ? (
-                                <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />
-                              ) : (
-                                <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
-                              )}
-                              {balance > 0 ? "+" : ""}
-                              {balance} ml
-                            </div>
-                          </TableCell>
-                          <TableCell className="px-3 text-center">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                removeFluidBalance(i);
-                              }}
-                            >
-                              <Trash2 className="h-3 w-3 text-destructive" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                        {isOpen && (
-                          <TableRow>
-                            <TableCell className="px-3" />
-                            <TableCell colSpan={7} className="px-3 py-3">
-                              <div className="space-y-4">
-                                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                                  <div className="space-y-1">
-                                    <Label className="text-xs">Tanggal</Label>
-                                    <Input
-                                      type="datetime-local"
-                                      className="h-8 text-xs"
-                                      value={fb.record_date}
-                                      onChange={(e) =>
-                                        updateFluidBalance(
-                                          i,
-                                          "record_date",
-                                          e.target.value,
-                                        )
-                                      }
-                                    />
-                                  </div>
-                                  <div className="space-y-1">
-                                    <Label className="text-xs">Shift</Label>
-                                    <Select
-                                      value={fb.shift_type}
-                                      onValueChange={(v) =>
-                                        updateFluidBalance(i, "shift_type", v)
-                                      }
-                                    >
-                                      <SelectTrigger className="h-8 text-xs">
-                                        <SelectValue />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        <SelectItem value="pagi">
-                                          Pagi
-                                        </SelectItem>
-                                        <SelectItem value="siang">
-                                          Siang
-                                        </SelectItem>
-                                        <SelectItem value="malam">
-                                          Malam
-                                        </SelectItem>
-                                      </SelectContent>
-                                    </Select>
-                                  </div>
-                                  <div className="space-y-1 relative">
-                                    <Label className="text-xs">
-                                      Nama Petugas
-                                    </Label>
-                                    <div className="flex gap-2">
-                                      <Input
-                                        className="h-8 text-xs flex-1"
-                                        value={fb.staff_name}
-                                        onChange={(e) =>
-                                          updateFluidBalance(
-                                            i,
-                                            "staff_name",
-                                            e.target.value,
-                                          )
-                                        }
-                                        placeholder="Nama petugas..."
-                                      />
-                                      <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="icon"
-                                        className="h-8 w-8 shrink-0"
-                                        onClick={() => {
-                                          setEmpSearchKey(
-                                            empSearchKey === `fb-${i}`
-                                              ? null
-                                              : `fb-${i}`,
-                                          );
-                                          setEmpSearchTerm("");
-                                          setEmpSearchResults([]);
-                                        }}
-                                      >
-                                        <Search className="h-3.5 w-3.5" />
-                                      </Button>
-                                    </div>
-                                    {empSearchKey === `fb-${i}` && (
-                                      <div className="absolute z-50 top-full left-0 right-0 mt-1 border rounded-md bg-background shadow-lg p-2 space-y-1">
-                                        <Input
-                                          className="h-7 text-xs"
-                                          autoFocus
-                                          placeholder="Cari karyawan..."
-                                          value={empSearchTerm}
-                                          onChange={(e) =>
-                                            handleEmpSearch(e.target.value)
-                                          }
-                                        />
-                                        {searchingEmps && (
-                                          <p className="text-xs text-muted-foreground py-1 px-2">
-                                            Mencari...
-                                          </p>
-                                        )}
-                                        {empSearchResults.length > 0 && (
-                                          <div className="max-h-40 overflow-y-auto">
-                                            {empSearchResults.map((emp) => (
-                                              <button
-                                                key={emp.id}
-                                                type="button"
-                                                className="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted flex justify-between"
-                                                onClick={() =>
-                                                  selectEmployee(emp)
-                                                }
-                                              >
-                                                <span className="font-medium">
-                                                  {emp.nama_lengkap}
-                                                </span>
-                                                <span className="text-muted-foreground">
-                                                  {emp.jabatan ||
-                                                    emp.tipe_karyawan}
-                                                </span>
-                                              </button>
-                                            ))}
-                                          </div>
-                                        )}
-                                        {empSearchTerm.length >= 2 &&
-                                          !searchingEmps &&
-                                          empSearchResults.length === 0 && (
-                                            <p className="text-xs text-muted-foreground py-1 px-2">
-                                              Tidak ditemukan
-                                            </p>
-                                          )}
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                                <div>
-                                  <h5 className="text-xs font-semibold mb-2">
-                                    Intake (ml)
-                                  </h5>
-                                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                                    <div className="space-y-1">
-                                      <Label className="text-[11px]">
-                                        Minum
-                                      </Label>
-                                      <Input
-                                        type="number"
-                                        className="h-7 text-xs"
-                                        value={fb.oral_drink || ""}
-                                        onChange={(e) =>
-                                          updateFluidBalance(
-                                            i,
-                                            "oral_drink",
-                                            Number(e.target.value),
-                                          )
-                                        }
-                                      />
-                                    </div>
-                                    <div className="space-y-1">
-                                      <Label className="text-[11px]">
-                                        Makan
-                                      </Label>
-                                      <Input
-                                        type="number"
-                                        className="h-7 text-xs"
-                                        value={fb.oral_food || ""}
-                                        onChange={(e) =>
-                                          updateFluidBalance(
-                                            i,
-                                            "oral_food",
-                                            Number(e.target.value),
-                                          )
-                                        }
-                                      />
-                                    </div>
-                                    <div className="space-y-1">
-                                      <Label className="text-[11px]">
-                                        Obat Oral
-                                      </Label>
-                                      <Input
-                                        type="number"
-                                        className="h-7 text-xs"
-                                        value={fb.oral_medicine || ""}
-                                        onChange={(e) =>
-                                          updateFluidBalance(
-                                            i,
-                                            "oral_medicine",
-                                            Number(e.target.value),
-                                          )
-                                        }
-                                      />
-                                    </div>
-                                    <div className="space-y-1">
-                                      <Label className="text-[11px]">
-                                        Infus
-                                      </Label>
-                                      <Input
-                                        type="number"
-                                        className="h-7 text-xs"
-                                        value={fb.iv_fluid || ""}
-                                        onChange={(e) =>
-                                          updateFluidBalance(
-                                            i,
-                                            "iv_fluid",
-                                            Number(e.target.value),
-                                          )
-                                        }
-                                      />
-                                    </div>
-                                    <div className="space-y-1">
-                                      <Label className="text-[11px]">
-                                        Obat IV
-                                      </Label>
-                                      <Input
-                                        type="number"
-                                        className="h-7 text-xs"
-                                        value={fb.iv_medicine || ""}
-                                        onChange={(e) =>
-                                          updateFluidBalance(
-                                            i,
-                                            "iv_medicine",
-                                            Number(e.target.value),
-                                          )
-                                        }
-                                      />
-                                    </div>
-                                    <div className="space-y-1">
-                                      <Label className="text-[11px]">
-                                        Darah
-                                      </Label>
-                                      <Input
-                                        type="number"
-                                        className="h-7 text-xs"
-                                        value={fb.blood_product || ""}
-                                        onChange={(e) =>
-                                          updateFluidBalance(
-                                            i,
-                                            "blood_product",
-                                            Number(e.target.value),
-                                          )
-                                        }
-                                      />
-                                    </div>
-                                    <div className="space-y-1">
-                                      <Label className="text-[11px]">
-                                        Enteral
-                                      </Label>
-                                      <Input
-                                        type="number"
-                                        className="h-7 text-xs"
-                                        value={fb.enteral_feed || ""}
-                                        onChange={(e) =>
-                                          updateFluidBalance(
-                                            i,
-                                            "enteral_feed",
-                                            Number(e.target.value),
-                                          )
-                                        }
-                                      />
-                                    </div>
-                                    <div className="space-y-1">
-                                      <Label className="text-[11px]">
-                                        Lain-lain
-                                      </Label>
-                                      <Input
-                                        type="number"
-                                        className="h-7 text-xs"
-                                        value={fb.other_intake || ""}
-                                        onChange={(e) =>
-                                          updateFluidBalance(
-                                            i,
-                                            "other_intake",
-                                            Number(e.target.value),
-                                          )
-                                        }
-                                      />
-                                    </div>
-                                  </div>
-                                </div>
-                                <div>
-                                  <h5 className="text-xs font-semibold mb-2">
-                                    Output (ml)
-                                  </h5>
-                                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                                    <div className="space-y-1">
-                                      <Label className="text-[11px]">
-                                        Urine
-                                      </Label>
-                                      <Input
-                                        type="number"
-                                        className="h-7 text-xs"
-                                        value={fb.urine_amount || ""}
-                                        onChange={(e) =>
-                                          updateFluidBalance(
-                                            i,
-                                            "urine_amount",
-                                            Number(e.target.value),
-                                          )
-                                        }
-                                      />
-                                    </div>
-                                    <div className="space-y-1">
-                                      <Label className="text-[11px]">
-                                        Feses
-                                      </Label>
-                                      <Input
-                                        type="number"
-                                        className="h-7 text-xs"
-                                        value={fb.feces_amount || ""}
-                                        onChange={(e) =>
-                                          updateFluidBalance(
-                                            i,
-                                            "feces_amount",
-                                            Number(e.target.value),
-                                          )
-                                        }
-                                      />
-                                    </div>
-                                    <div className="space-y-1">
-                                      <Label className="text-[11px]">
-                                        Muntah
-                                      </Label>
-                                      <Input
-                                        type="number"
-                                        className="h-7 text-xs"
-                                        value={fb.vomit_amount || ""}
-                                        onChange={(e) =>
-                                          updateFluidBalance(
-                                            i,
-                                            "vomit_amount",
-                                            Number(e.target.value),
-                                          )
-                                        }
-                                      />
-                                    </div>
-                                    <div className="space-y-1">
-                                      <Label className="text-[11px]">
-                                        Drain
-                                      </Label>
-                                      <Input
-                                        type="number"
-                                        className="h-7 text-xs"
-                                        value={fb.drain_amount || ""}
-                                        onChange={(e) =>
-                                          updateFluidBalance(
-                                            i,
-                                            "drain_amount",
-                                            Number(e.target.value),
-                                          )
-                                        }
-                                      />
-                                    </div>
-                                    <div className="space-y-1">
-                                      <Label className="text-[11px]">
-                                        Perdarahan
-                                      </Label>
-                                      <Input
-                                        type="number"
-                                        className="h-7 text-xs"
-                                        value={fb.blood_loss || ""}
-                                        onChange={(e) =>
-                                          updateFluidBalance(
-                                            i,
-                                            "blood_loss",
-                                            Number(e.target.value),
-                                          )
-                                        }
-                                      />
-                                    </div>
-                                    <div className="space-y-1">
-                                      <Label className="text-[11px]">IWL</Label>
-                                      <Input
-                                        type="number"
-                                        className="h-7 text-xs"
-                                        value={fb.iwl || ""}
-                                        onChange={(e) =>
-                                          updateFluidBalance(
-                                            i,
-                                            "iwl",
-                                            Number(e.target.value),
-                                          )
-                                        }
-                                      />
-                                    </div>
-                                    <div className="space-y-1">
-                                      <Label className="text-[11px]">
-                                        Lain-lain
-                                      </Label>
-                                      <Input
-                                        type="number"
-                                        className="h-7 text-xs"
-                                        value={fb.other_output || ""}
-                                        onChange={(e) =>
-                                          updateFluidBalance(
-                                            i,
-                                            "other_output",
-                                            Number(e.target.value),
-                                          )
-                                        }
-                                      />
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </Fragment>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            )}
-          </div>
+          <FluidBalanceForm
+            visitId={activeVisitId}
+            readOnly
+            useExternalData
+            externalData={duplicateFluidBalanceData}
+            staffOptions={duplicateDoctorOptions}
+            onSetCreatedBy={handleFluidBalanceSetCreatedBy}
+            onSetApprovedBy={handleFluidBalanceSetApprovedBy}
+          />
+        );
+
+      // ─── NURSING CARE ───
+      case "nursing-care":
+        return (
+          <NursingCareForm
+            visitId={activeVisitId}
+            readOnly
+            useExternalData
+            externalData={duplicateNursingCareData}
+            staffOptions={duplicateDoctorOptions}
+            onSetCreatedBy={handleNursingCareSetCreatedBy}
+            onSetApprovedBy={handleNursingCareSetApprovedBy}
+          />
         );
 
       // ─── BILLING ───
@@ -4802,18 +3462,7 @@ export default function RMDuplicateTab({
                   </p>
                 </div>
 
-                {/* Preview Mapping Button */}
-                <div className="flex justify-center">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowMappingModal(true)}
-                    className="gap-2"
-                  >
-                    <FileText className="h-4 w-4" />
-                    Preview Mapping ke Tarif E-Klaim
-                  </Button>
-                </div>
+
               </>
             )}
           </div>
@@ -4827,173 +3476,589 @@ export default function RMDuplicateTab({
   // ══════════════════════════════════════════════
   // Main render
   // ══════════════════════════════════════════════
-  const activeSectionDef = SECTIONS.find((s) => s.id === activeSection)!;
+  const integratedSectionIds: SectionId[] = [
+    "visit-data",
+    "anamnesis",
+    "physical-exam",
+    "triage",
+    "diagnoses",
+    "procedures",
+    "lab-orders",
+    "radiology-orders",
+    "surgery-orders",
+    "consultation-orders",
+    "medicines",
+    "assessment",
+    "disposition",
+    "cppt",
+    "fluid-balance",
+    "nursing-care",
+    "billing",
+  ];
+  const visibleSections = SECTIONS.filter((section) => {
+    if (!integratedSectionIds.includes(section.id)) return false;
+    if (section.id === "triage") return !!rmDuplicate?.has_triage;
+    return true;
+  });
+
+  useEffect(() => {
+    if (!visibleSections.some((s) => s.id === activeSection) && visibleSections[0]) {
+      setActiveSection(visibleSections[0].id);
+    }
+  }, [activeSection, visibleSections]);
+
+  const activeSectionDef =
+    visibleSections.find((s) => s.id === activeSection) || visibleSections[0];
+  const sectionTabsTop = Math.max(stickyTopOffset || 64, 64);
+  const sectionHeaderTop = sectionTabsTop + 42;
+
+  const duplicateCpptData = useMemo<CPPT[]>(() => {
+    return cpptNotes.map((item, index) => ({
+      id: item.id ?? -(index + 1),
+      created_at: item.record_date || new Date(0).toISOString(),
+      updated_at: item.record_date || new Date(0).toISOString(),
+      visit_id: activeVisitId,
+      record_date: item.record_date,
+      profession: item.profession,
+      cppt_format: item.cppt_format || "soap",
+      subjective: item.subjective || "",
+      objective: item.objective || "",
+      assessment: item.assessment || "",
+      plan: item.plan || "",
+      instruction: item.instruction || "",
+      blood_pressure: item.blood_pressure || "",
+      heart_rate: item.heart_rate || 0,
+      respiratory_rate: item.respiratory_rate || 0,
+      temperature: item.temperature || "",
+      oxygen_saturation: item.oxygen_saturation || 0,
+      pain_scale: item.pain_scale || 0,
+      is_verified: !!(item.created_by_name && item.approved_by_name),
+      created_by: item.created_by_name ? { id: 0, username: "", full_name: item.created_by_name } : undefined,
+      verified_by: item.approved_by_name ? { id: 0, username: "", full_name: item.approved_by_name } : undefined,
+    }));
+  }, [activeVisitId, cpptNotes]);
+
+  const duplicateFluidBalanceData = useMemo<FluidBalance[]>(() => {
+    return fluidBalances.map((item, index) => ({
+      id: item.id ?? -(index + 1),
+      created_at: item.record_date || new Date(0).toISOString(),
+      updated_at: item.record_date || new Date(0).toISOString(),
+      visit_id: activeVisitId,
+      record_date: item.record_date,
+      shift_type: item.shift_type,
+      oral_drink: item.oral_drink || 0,
+      oral_food: item.oral_food || 0,
+      oral_medicine: item.oral_medicine || 0,
+      iv_fluid: item.iv_fluid || 0,
+      iv_medicine: item.iv_medicine || 0,
+      blood_product: item.blood_product || 0,
+      enteral_feed: item.enteral_feed || 0,
+      other_intake: item.other_intake || 0,
+      urine_amount: item.urine_amount || 0,
+      urine_catheter: false,
+      feces_amount: item.feces_amount || 0,
+      feces_freq: 0,
+      vomit_amount: item.vomit_amount || 0,
+      vomit_freq: 0,
+      drain_amount: item.drain_amount || 0,
+      blood_loss: item.blood_loss || 0,
+      iwl: item.iwl || 0,
+      other_output: item.other_output || 0,
+      total_intake: item.total_intake || 0,
+      total_output: item.total_output || 0,
+      balance: item.balance || 0,
+      notes: item.notes || "",
+      is_verified: !!(item.created_by_name && item.approved_by_name),
+      created_by: item.created_by_name
+        ? { id: 0, username: "", full_name: item.created_by_name }
+        : undefined,
+      verified_by: item.approved_by_name
+        ? { id: 0, username: "", full_name: item.approved_by_name }
+        : undefined,
+    }));
+  }, [activeVisitId, fluidBalances]);
+
+  const duplicateNursingCareData = useMemo<NursingCare[]>(() => {
+    return nursingCares.map((item, index) => ({
+      id: item.id ?? -(index + 1),
+      created_at: item.record_date || new Date(0).toISOString(),
+      updated_at: item.record_date || new Date(0).toISOString(),
+      visit_id: activeVisitId,
+      record_date: item.record_date,
+      shift_type: item.shift_type || "",
+      chief_complaint: item.chief_complaint || "",
+      pain_assessment: item.pain_assessment || "",
+      pain_scale: item.pain_scale || 0,
+      consciousness_level: item.consciousness_level || "",
+      functional_status: item.functional_status || "",
+      fall_risk_assessment: item.fall_risk_assessment || "",
+      fall_risk_score: item.fall_risk_score || 0,
+      nutrition_assessment: item.nutrition_assessment || "",
+      skin_assessment: item.skin_assessment || "",
+      pressure_ulcer_risk: item.pressure_ulcer_risk || "",
+      blood_pressure: item.blood_pressure || "",
+      heart_rate: item.heart_rate || 0,
+      respiratory_rate: item.respiratory_rate || 0,
+      temperature: item.temperature || "",
+      oxygen_saturation: item.oxygen_saturation || 0,
+      nursing_diagnosis: item.nursing_diagnosis || "",
+      nursing_diagnosis_code: item.nursing_diagnosis_code || "",
+      problem_etiology: item.problem_etiology || "",
+      signs_symptoms: item.signs_symptoms || "",
+      nursing_outcome: item.nursing_outcome || "",
+      nursing_outcome_code: item.nursing_outcome_code || "",
+      outcome_indicators: item.outcome_indicators || "",
+      outcome_target: item.outcome_target || "",
+      nursing_intervention: item.nursing_intervention || "",
+      nursing_intervention_code: item.nursing_intervention_code || "",
+      observation_actions: item.observation_actions || "",
+      therapeutic_actions: item.therapeutic_actions || "",
+      education_actions: item.education_actions || "",
+      collaboration_actions: item.collaboration_actions || "",
+      implementation: item.implementation || "",
+      implementation_time: item.implementation_time || "",
+      patient_response: item.patient_response || "",
+      evaluation_subjective: item.evaluation_subjective || "",
+      evaluation_objective: item.evaluation_objective || "",
+      evaluation_analysis: item.evaluation_analysis || "",
+      evaluation_planning: item.evaluation_planning || "",
+      problem_status: item.problem_status || "",
+      notes: item.notes || "",
+      is_verified: !!(item.created_by_name && item.approved_by_name),
+      created_by: item.created_by_name
+        ? { id: 0, username: "", full_name: item.created_by_name }
+        : undefined,
+      verified_by: item.approved_by_name
+        ? { id: 0, username: "", full_name: item.approved_by_name }
+        : undefined,
+    }));
+  }, [activeVisitId, nursingCares]);
+
+  const tabsScrollRef = useRef<HTMLDivElement>(null);
+  const tabsDragState = useRef({ isDown: false, startX: 0, scrollLeft: 0 });
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const updateTabsScrollState = useCallback(() => {
+    const el = tabsScrollRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 2);
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 2);
+  }, []);
+
+  useEffect(() => {
+    const el = tabsScrollRef.current;
+    if (!el) return;
+    const handler = (e: WheelEvent) => {
+      if (Math.abs(e.deltaX) > 0) return;
+      e.preventDefault();
+      el.scrollLeft += e.deltaY;
+      updateTabsScrollState();
+    };
+    el.addEventListener("wheel", handler, { passive: false });
+    return () => el.removeEventListener("wheel", handler);
+  }, [updateTabsScrollState]);
+
+  useEffect(() => { updateTabsScrollState(); }, [visibleSections, updateTabsScrollState]);
+
+  const scrollTabsBy = (delta: number) => {
+    const el = tabsScrollRef.current;
+    if (!el) return;
+    el.scrollBy({ left: delta, behavior: "smooth" });
+  };
+
+  const scrollTabToCenter = useCallback((sectionId: string) => {
+    requestAnimationFrame(() => {
+      const el = tabsScrollRef.current;
+      if (!el) return;
+      const btn = el.querySelector(`[data-section-id="${sectionId}"]`) as HTMLElement;
+      if (!btn) return;
+      const target = btn.offsetLeft + btn.offsetWidth / 2 - el.clientWidth / 2;
+      el.scrollTo({ left: Math.max(0, target), behavior: "smooth" });
+    });
+  }, []);
+
+  useEffect(() => { scrollTabToCenter(activeSection); }, [activeSection, scrollTabToCenter]);
+
+  const handleTabsMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    const el = tabsScrollRef.current;
+    if (!el) return;
+    tabsDragState.current = { isDown: true, startX: e.pageX - el.offsetLeft, scrollLeft: el.scrollLeft };
+    el.style.cursor = "grabbing";
+    el.style.userSelect = "none";
+  };
+  const handleTabsMouseLeaveOrUp = () => {
+    const el = tabsScrollRef.current;
+    if (!el) return;
+    tabsDragState.current.isDown = false;
+    el.style.cursor = "";
+    el.style.userSelect = "";
+  };
+  const handleTabsMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!tabsDragState.current.isDown) return;
+    e.preventDefault();
+    const el = tabsScrollRef.current;
+    if (!el) return;
+    const x = e.pageX - el.offsetLeft;
+    const walk = x - tabsDragState.current.startX;
+    el.scrollLeft = tabsDragState.current.scrollLeft - walk;
+    updateTabsScrollState();
+  };
 
   return (
-    <div className="space-y-3">
-      {/* Sync bar */}
-      <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
-        <div className="space-y-0.5">
-          <p className="text-sm font-medium">
-            {isEmpty ? "RM Duplikat masih kosong" : "Sinkronisasi Data"}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            {isEmpty
-              ? "Tarik data dari kunjungan untuk mengisi RM Duplikat."
-              : "Tarik ulang data dari kunjungan. Data yang sudah diedit akan ditimpa."}
-          </p>
+    <div className="space-y-0">
+      <div
+        className="sticky z-30 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/85 py-1 -mt-px"
+        style={{ top: `${sectionTabsTop}px` }}
+      >
+        <div className="flex items-center gap-0.5 px-1">
+          <button
+            onClick={() => scrollTabsBy(-200)}
+            className={cn(
+              "h-8 w-6 flex items-center justify-center rounded shrink-0 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors",
+              !canScrollLeft && "invisible pointer-events-none",
+            )}
+            aria-label="Geser kiri"
+          >
+            <ChevronLeft className="h-3.5 w-3.5" />
+          </button>
+          <div
+            ref={tabsScrollRef}
+            className="flex-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden cursor-grab"
+            onScroll={updateTabsScrollState}
+            onMouseDown={handleTabsMouseDown}
+            onMouseLeave={handleTabsMouseLeaveOrUp}
+            onMouseUp={handleTabsMouseLeaveOrUp}
+            onMouseMove={handleTabsMouseMove}
+          >
+            <div className="inline-flex items-center gap-1 min-w-max">
+              {visibleSections.map((section) => {
+                const Icon = section.icon;
+                const isActive = activeSection === section.id;
+                const status = sectionStatus(section.id);
+                return (
+                  <button
+                    key={section.id}
+                    data-section-id={section.id}
+                    onClick={() => setActiveSection(section.id)}
+                    className={cn(
+                      "h-8 px-3 rounded-md text-xs inline-flex items-center gap-1.5 transition-colors",
+                      isActive
+                        ? "bg-primary/10 text-primary"
+                        : "text-muted-foreground hover:text-foreground hover:bg-accent",
+                    )}
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                    <span>{section.label}</span>
+                    {status.count != null && status.count > 0 && (
+                      <Badge variant="secondary" className="h-4 text-[10px] px-1">
+                        {status.count}
+                      </Badge>
+                    )}
+                    {status.count == null && status.filled && (
+                      <CheckCircle2 className="h-3 w-3 text-green-600" />
+                    )}
+                    {dirty && isActive && (
+                      <span
+                        className="h-1.5 w-1.5 rounded-full bg-amber-500"
+                        title="Perubahan belum disimpan"
+                      />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <button
+            onClick={() => scrollTabsBy(200)}
+            className={cn(
+              "h-8 w-6 flex items-center justify-center rounded shrink-0 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors",
+              !canScrollRight && "invisible pointer-events-none",
+            )}
+            aria-label="Geser kanan"
+          >
+            <ChevronRight className="h-3.5 w-3.5" />
+          </button>
         </div>
-        <Button
-          variant={isEmpty ? "default" : "outline"}
-          size="sm"
-          onClick={handleSyncFromVisit}
-          disabled={syncing}
-        >
-          {syncing ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <RefreshCw className="mr-2 h-4 w-4" />
-          )}
-          Sync dari Kunjungan
-        </Button>
       </div>
 
-      {/* Main layout: sidebar + content */}
-      <div className="flex gap-4 min-h-[500px]">
-        {/* Sidebar navigation */}
-        <div className="w-52 shrink-0 space-y-0.5 border-r pr-3">
-          {SECTIONS.filter((section) => {
-            // Only show triage if has_triage flag is set
-            if (section.id === "triage") {
-              return !!(rmDuplicate?.has_triage);
-            }
-            return true;
-          }).map((section) => {
-            const Icon = section.icon;
-            const isActive = activeSection === section.id;
-            const status = sectionStatus(section.id);
-            return (
-              <button
-                key={section.id}
-                onClick={() => setActiveSection(section.id)}
-                className={cn(
-                  "w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-left text-sm transition-colors",
-                  isActive
-                    ? "bg-primary/10 text-primary font-medium"
-                    : "hover:bg-muted/50 text-muted-foreground hover:text-foreground",
-                )}
-              >
-                <Icon
-                  className={cn(
-                    "h-4 w-4 shrink-0",
-                    isActive ? "text-primary" : "text-muted-foreground",
-                  )}
-                />
-                <span className="flex-1 truncate text-xs">{section.label}</span>
-                {status.count != null && status.count > 0 && (
-                  <Badge
-                    variant="secondary"
-                    className="h-5 min-w-5 justify-center text-[10px] px-1"
-                  >
-                    {status.count}
-                  </Badge>
-                )}
-                {status.count == null && status.filled && (
-                  <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />
-                )}
-                {isActive && (
-                  <ChevronRight className="h-3 w-3 shrink-0 text-primary" />
-                )}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Content area */}
+      {/* Content area */}
+      <div className="min-h-[500px]">
         <div className="flex-1 min-w-0">
           {/* Section header */}
-          <div className="flex items-center justify-between mb-4 pb-3 border-b">
+          <div
+            className="sticky z-20 -mx-1 px-1 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/85"
+            style={{ top: `${sectionHeaderTop}px` }}
+          >
+            <div className="flex items-center justify-between py-2">
             <div className="flex items-center gap-2">
               <activeSectionDef.icon className="h-5 w-5 text-foreground" />
-              <h3 className="text-base font-semibold">
-                {activeSectionDef.label}
-              </h3>
+              <h3 className="text-base font-semibold">{activeSectionDef.label}</h3>
             </div>
-            <div className="flex items-center gap-2">
-              {activeSection === "diagnoses" && (
-                <Button variant="outline" size="sm" onClick={addDiagnosis}>
-                  <Plus className="mr-1 h-3.5 w-3.5" /> Tambah
-                </Button>
-              )}
+            <div className="flex items-center gap-1.5">
               {activeSection === "procedures" && (
-                <Button variant="outline" size="sm" onClick={addProcedure}>
-                  <Plus className="mr-1 h-3.5 w-3.5" /> Tambah
-                </Button>
-              )}
-              {activeSection === "lab-orders" && (
                 <Button
                   variant="outline"
-                  size="sm"
-                  onClick={() => addOrder("laboratory", true)}
+                  size="icon"
+                  className="h-8 w-8"
+                  title="Tambah prosedur ICD-9"
+                  aria-label="Tambah prosedur ICD-9"
+                  onClick={addProcedure}
                 >
-                  <Plus className="mr-1 h-3.5 w-3.5" /> Tambah Order
-                </Button>
-              )}
-              {activeSection === "radiology-orders" && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => addOrder("radiology", true)}
-                >
-                  <Plus className="mr-1 h-3.5 w-3.5" /> Tambah Order
-                </Button>
-              )}
-              {activeSection === "surgery-orders" && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => addOrder("surgery", true)}
-                >
-                  <Plus className="mr-1 h-3.5 w-3.5" /> Tambah Order
-                </Button>
-              )}
-              {activeSection === "consultation-orders" && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => addOrder("consultation", true)}
-                >
-                  <Plus className="mr-1 h-3.5 w-3.5" /> Tambah Order
+                  <Activity className="h-3.5 w-3.5" />
                 </Button>
               )}
               {activeSection === "cppt" && (
                 <Button
                   variant="outline"
-                  size="sm"
-                  onClick={() => addCPPT(true)}
+                  size="icon"
+                  className="h-8 w-8"
+                  title="Tambah CPPT duplikat"
+                  aria-label="Tambah CPPT duplikat"
+                  onClick={handleOpenAddCPPT}
                 >
-                  <Plus className="mr-1 h-3.5 w-3.5" /> Tambah
+                  <Plus className="h-3.5 w-3.5" />
                 </Button>
               )}
               {activeSection === "fluid-balance" && (
                 <Button
                   variant="outline"
-                  size="sm"
-                  onClick={() => addFluidBalance(true)}
+                  size="icon"
+                  className="h-8 w-8"
+                  title="Tambah balance cairan duplikat"
+                  aria-label="Tambah balance cairan duplikat"
+                  onClick={handleOpenAddFluidBalance}
                 >
-                  <Plus className="mr-1 h-3.5 w-3.5" /> Tambah
+                  <Plus className="h-3.5 w-3.5" />
                 </Button>
               )}
-              {activeSection === "billing" && (
+              {activeSection === "nursing-care" && (
                 <Button
                   variant="outline"
-                  size="sm"
-                  onClick={handleRecalculateBilling}
-                  disabled={syncing}
+                  size="icon"
+                  className="h-8 w-8"
+                  title="Tambah asuhan keperawatan duplikat"
+                  aria-label="Tambah asuhan keperawatan duplikat"
+                  onClick={handleOpenAddNursingCare}
                 >
-                  <RefreshCw className="mr-1 h-3.5 w-3.5" /> Hitung Ulang
+                  <Plus className="h-3.5 w-3.5" />
                 </Button>
               )}
+              {activeSection === "lab-orders" && (
+                <>
+                  {labOrdersCount > 1 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 px-2"
+                      title="Pilih order laboratorium"
+                      aria-label="Pilih order laboratorium"
+                      onClick={() => {
+                        window.dispatchEvent(
+                          new CustomEvent("rm-duplicate-open-lab-order-picker"),
+                        );
+                      }}
+                    >
+                      <span className="inline-flex h-4 min-w-4 items-center justify-center rounded text-[14px] font-bold">
+                        {labOrdersCount}
+                      </span>
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8"
+                    title="Tambah order + tindakan laboratorium"
+                    aria-label="Tambah order + tindakan laboratorium"
+                    onClick={() => {
+                      setQuickAddOrderType("laboratory");
+                      setProcSearchTerm("");
+                      setProcSearchResults([]);
+                    }}
+                  >
+                    <FlaskConical className="h-3.5 w-3.5" />
+                  </Button>
+                </>
+              )}
+              {activeSection === "radiology-orders" && (
+                <>
+                  {radiologyOrdersCount > 1 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 px-2"
+                      title="Pilih order radiologi"
+                      aria-label="Pilih order radiologi"
+                      onClick={() => {
+                        window.dispatchEvent(
+                          new CustomEvent("rm-duplicate-open-radiology-order-picker"),
+                        );
+                      }}
+                    >
+                      <span className="inline-flex h-4 min-w-4 items-center justify-center rounded text-[14px] font-bold">
+                        {radiologyOrdersCount}
+                      </span>
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8"
+                    title="Tambah order + tindakan radiologi"
+                    aria-label="Tambah order + tindakan radiologi"
+                    onClick={() => {
+                      setQuickAddOrderType("radiology");
+                      setProcSearchTerm("");
+                      setProcSearchResults([]);
+                    }}
+                  >
+                    <ScanLine className="h-3.5 w-3.5" />
+                  </Button>
+                </>
+              )}
+              {activeSection === "surgery-orders" && (
+                <>
+                  {surgeryOrders.length > 1 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 px-2"
+                      title="Pilih order operasi"
+                      aria-label="Pilih order operasi"
+                      onClick={() => {
+                        window.dispatchEvent(
+                          new CustomEvent("rm-duplicate-open-surgery-order-picker"),
+                        );
+                      }}
+                    >
+                      <span className="inline-flex h-4 min-w-4 items-center justify-center rounded text-[14px] font-bold">
+                        {surgeryOrders.length}
+                      </span>
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8"
+                    title="Tambah order + tindakan operasi"
+                    aria-label="Tambah order + tindakan operasi"
+                    onClick={() => {
+                      setQuickAddOrderType("surgery");
+                      setProcSearchTerm("");
+                      setProcSearchResults([]);
+                    }}
+                  >
+                    <Scissors className="h-3.5 w-3.5" />
+                  </Button>
+                </>
+              )}
+              {activeSection === "consultation-orders" && (
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  title="Tambah order + tindakan konsultasi"
+                  aria-label="Tambah order + tindakan konsultasi"
+                  onClick={() => {
+                    setQuickAddOrderType("consultation");
+                    setProcSearchTerm("");
+                    setProcSearchResults([]);
+                  }}
+                >
+                  <MessageSquare className="h-3.5 w-3.5" />
+                </Button>
+              )}
+              {activeSection === "medicines" && (
+                <>
+                  {pharmacyOrders.length > 1 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 px-2"
+                      title="Pilih resep"
+                      aria-label="Pilih resep"
+                      onClick={() => {
+                        window.dispatchEvent(
+                          new CustomEvent("rm-duplicate-open-pharmacy-order-picker"),
+                        );
+                      }}
+                    >
+                      <span className="inline-flex h-4 min-w-4 items-center justify-center rounded text-[14px] font-bold">
+                        {pharmacyOrders.length}
+                      </span>
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8"
+                    title="Tambah resep"
+                    aria-label="Tambah resep"
+                    onClick={() => {
+                      window.dispatchEvent(
+                        new CustomEvent("rm-duplicate-create-pharmacy-order"),
+                      );
+                    }}
+                  >
+                    <Pill className="h-3.5 w-3.5" />
+                  </Button>
+                </>
+              )}
+              {activeSection === "billing" && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 gap-1.5 text-xs"
+                    title="Preview mapping ke tarif E-Klaim"
+                    onClick={() => setShowMappingModal(true)}
+                  >
+                    <FileText className="h-3.5 w-3.5" />
+                    Preview Mapping
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8"
+                    title="Hitung ulang billing"
+                    aria-label="Hitung ulang billing"
+                    onClick={handleRecalculateBilling}
+                    disabled={syncing || submitting}
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" />
+                  </Button>
+                </>
+              )}
+
+              <div className="h-5 w-px bg-border mx-0.5" />
+
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                title="Simpan RM Duplikat"
+                aria-label="Simpan RM Duplikat"
+                onClick={handleSaveRMDuplicate}
+                disabled={submitting || syncing || !dirty}
+              >
+                {submitting ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                )}
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                title="Kembalikan dari RM Asli"
+                aria-label="Kembalikan dari RM Asli"
+                onClick={handleRestoreFromOriginal}
+                disabled={syncing || submitting}
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+              </Button>
+            </div>
             </div>
           </div>
 
@@ -5002,22 +4067,753 @@ export default function RMDuplicateTab({
         </div>
       </div>
 
-      {/* Save bar */}
-      <div className="flex items-center justify-between pt-3 border-t">
-        <p className="text-xs text-muted-foreground">
-          {dirty
-            ? "Ada perubahan yang belum disimpan"
-            : "Semua perubahan tersimpan"}
-        </p>
-        <Button onClick={handleSave} disabled={!dirty || submitting} size="lg">
-          {submitting ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <Save className="mr-2 h-4 w-4" />
-          )}
-          Simpan
-        </Button>
-      </div>
+          <Dialog open={cpptDialogOpen} onOpenChange={setCpptDialogOpen}>
+            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Tambah CPPT Duplikat</DialogTitle>
+                <DialogDescription>
+                  Data akan ditambahkan ke RM duplikat dan disimpan saat Anda menekan tombol simpan RM duplikat.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Tanggal & Waktu</Label>
+                    <Input
+                      type="datetime-local"
+                      value={newCppt.record_date}
+                      onChange={(e) => setNewCppt((prev) => ({ ...prev, record_date: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Profesi</Label>
+                    <Select
+                      value={newCppt.profession}
+                      onValueChange={(value) => setNewCppt((prev) => ({ ...prev, profession: value }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih profesi" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {DUPLICATE_CPPT_PROFESSIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Pembuat</Label>
+                    <Select
+                      value={newCppt.created_by_name || ""}
+                      onValueChange={(val) => setNewCppt((prev) => ({ ...prev, created_by_name: val }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih pembuat" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {duplicateDoctorOptions.map((opt) => (
+                          <SelectItem key={opt.id} value={opt.name}>{opt.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Approval</Label>
+                    <Select
+                      value={newCppt.approved_by_name || ""}
+                      onValueChange={(val) => setNewCppt((prev) => ({ ...prev, approved_by_name: val }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih approval" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {duplicateDoctorOptions.map((opt) => (
+                          <SelectItem key={opt.id} value={opt.name}>{opt.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Subjective</Label>
+                    <Textarea
+                      rows={3}
+                      value={newCppt.subjective}
+                      onChange={(e) => setNewCppt((prev) => ({ ...prev, subjective: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Objective</Label>
+                    <Textarea
+                      rows={3}
+                      value={newCppt.objective}
+                      onChange={(e) => setNewCppt((prev) => ({ ...prev, objective: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Assessment</Label>
+                    <Textarea
+                      rows={3}
+                      value={newCppt.assessment}
+                      onChange={(e) => setNewCppt((prev) => ({ ...prev, assessment: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Plan</Label>
+                    <Textarea
+                      rows={3}
+                      value={newCppt.plan}
+                      onChange={(e) => setNewCppt((prev) => ({ ...prev, plan: e.target.value }))}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Instruksi</Label>
+                  <Textarea
+                    rows={2}
+                    value={newCppt.instruction}
+                    onChange={(e) => setNewCppt((prev) => ({ ...prev, instruction: e.target.value }))}
+                  />
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+                  <div className="space-y-2">
+                    <Label>TD</Label>
+                    <Input
+                      placeholder="120/80"
+                      value={newCppt.blood_pressure || ""}
+                      onChange={(e) => setNewCppt((prev) => ({ ...prev, blood_pressure: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>HR</Label>
+                    <Input
+                      type="number"
+                      value={newCppt.heart_rate || 0}
+                      onChange={(e) => setNewCppt((prev) => ({ ...prev, heart_rate: Number(e.target.value) || 0 }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>RR</Label>
+                    <Input
+                      type="number"
+                      value={newCppt.respiratory_rate || 0}
+                      onChange={(e) => setNewCppt((prev) => ({ ...prev, respiratory_rate: Number(e.target.value) || 0 }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Suhu</Label>
+                    <Input
+                      value={newCppt.temperature || ""}
+                      onChange={(e) => setNewCppt((prev) => ({ ...prev, temperature: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>SpO2</Label>
+                    <Input
+                      type="number"
+                      value={newCppt.oxygen_saturation || 0}
+                      onChange={(e) => setNewCppt((prev) => ({ ...prev, oxygen_saturation: Number(e.target.value) || 0 }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Nyeri</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      max="10"
+                      value={newCppt.pain_scale || 0}
+                      onChange={(e) => setNewCppt((prev) => ({ ...prev, pain_scale: Number(e.target.value) || 0 }))}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Catatan</Label>
+                  <Textarea
+                    rows={2}
+                    value={newCppt.notes}
+                    onChange={(e) => setNewCppt((prev) => ({ ...prev, notes: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setCpptDialogOpen(false)}>Batal</Button>
+                <Button onClick={handleSaveAddCPPT}>Tambahkan</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={fluidBalanceDialogOpen} onOpenChange={setFluidBalanceDialogOpen}>
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Tambah Balance Cairan Duplikat</DialogTitle>
+                <DialogDescription>
+                  Data akan ditambahkan ke RM duplikat dan dihitung otomatis saat disimpan.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Tanggal</Label>
+                    <Input
+                      type="date"
+                      value={newFluidBalance.record_date}
+                      onChange={(e) => setNewFluidBalance((prev) => ({ ...prev, record_date: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Shift</Label>
+                    <Select
+                      value={newFluidBalance.shift_type}
+                      onValueChange={(value) => setNewFluidBalance((prev) => ({ ...prev, shift_type: value }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih shift" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {DUPLICATE_SHIFT_TYPES.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="border rounded-lg p-4 bg-muted/50">
+                  <Label className="font-semibold flex items-center gap-2 mb-3">
+                    <ArrowDownToLine className="h-4 w-4 text-muted-foreground" /> INTAKE (Masukan)
+                  </Label>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="space-y-1"><Label className="text-xs">Minum (ml)</Label><Input type="number" value={newFluidBalance.oral_drink || ""} onChange={(e) => setNewFluidBalance((prev) => ({ ...prev, oral_drink: parseFloat(e.target.value) || 0 }))} /></div>
+                    <div className="space-y-1"><Label className="text-xs">Air Makanan (ml)</Label><Input type="number" value={newFluidBalance.oral_food || ""} onChange={(e) => setNewFluidBalance((prev) => ({ ...prev, oral_food: parseFloat(e.target.value) || 0 }))} /></div>
+                    <div className="space-y-1"><Label className="text-xs">Obat Oral (ml)</Label><Input type="number" value={newFluidBalance.oral_medicine || ""} onChange={(e) => setNewFluidBalance((prev) => ({ ...prev, oral_medicine: parseFloat(e.target.value) || 0 }))} /></div>
+                    <div className="space-y-1"><Label className="text-xs">Cairan Infus (ml)</Label><Input type="number" value={newFluidBalance.iv_fluid || ""} onChange={(e) => setNewFluidBalance((prev) => ({ ...prev, iv_fluid: parseFloat(e.target.value) || 0 }))} /></div>
+                    <div className="space-y-1"><Label className="text-xs">Obat IV (ml)</Label><Input type="number" value={newFluidBalance.iv_medicine || ""} onChange={(e) => setNewFluidBalance((prev) => ({ ...prev, iv_medicine: parseFloat(e.target.value) || 0 }))} /></div>
+                    <div className="space-y-1"><Label className="text-xs">Produk Darah (ml)</Label><Input type="number" value={newFluidBalance.blood_product || ""} onChange={(e) => setNewFluidBalance((prev) => ({ ...prev, blood_product: parseFloat(e.target.value) || 0 }))} /></div>
+                    <div className="space-y-1"><Label className="text-xs">NGT/OGT Feed (ml)</Label><Input type="number" value={newFluidBalance.enteral_feed || ""} onChange={(e) => setNewFluidBalance((prev) => ({ ...prev, enteral_feed: parseFloat(e.target.value) || 0 }))} /></div>
+                    <div className="space-y-1"><Label className="text-xs">Intake Lain (ml)</Label><Input type="number" value={newFluidBalance.other_intake || ""} onChange={(e) => setNewFluidBalance((prev) => ({ ...prev, other_intake: parseFloat(e.target.value) || 0 }))} /></div>
+                  </div>
+                  <div className="mt-2 text-right text-sm font-semibold text-green-700">
+                    Total Intake: {(newFluidBalance.oral_drink||0)+(newFluidBalance.oral_food||0)+(newFluidBalance.oral_medicine||0)+(newFluidBalance.iv_fluid||0)+(newFluidBalance.iv_medicine||0)+(newFluidBalance.blood_product||0)+(newFluidBalance.enteral_feed||0)+(newFluidBalance.other_intake||0)} ml
+                  </div>
+                </div>
+                <div className="border rounded-lg p-4 bg-muted/50">
+                  <Label className="font-semibold flex items-center gap-2 mb-3">
+                    <ArrowUpFromLine className="h-4 w-4 text-muted-foreground" /> OUTPUT (Keluaran)
+                  </Label>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="space-y-1"><Label className="text-xs">Urine (ml)</Label><Input type="number" value={newFluidBalance.urine_amount || ""} onChange={(e) => setNewFluidBalance((prev) => ({ ...prev, urine_amount: parseFloat(e.target.value) || 0 }))} /></div>
+                    <div className="space-y-1"><Label className="text-xs">BAB (ml)</Label><Input type="number" value={newFluidBalance.feces_amount || ""} onChange={(e) => setNewFluidBalance((prev) => ({ ...prev, feces_amount: parseFloat(e.target.value) || 0 }))} /></div>
+                    <div className="space-y-1"><Label className="text-xs">Muntah (ml)</Label><Input type="number" value={newFluidBalance.vomit_amount || ""} onChange={(e) => setNewFluidBalance((prev) => ({ ...prev, vomit_amount: parseFloat(e.target.value) || 0 }))} /></div>
+                    <div className="space-y-1"><Label className="text-xs">Drain (ml)</Label><Input type="number" value={newFluidBalance.drain_amount || ""} onChange={(e) => setNewFluidBalance((prev) => ({ ...prev, drain_amount: parseFloat(e.target.value) || 0 }))} /></div>
+                    <div className="space-y-1"><Label className="text-xs">Perdarahan (ml)</Label><Input type="number" value={newFluidBalance.blood_loss || ""} onChange={(e) => setNewFluidBalance((prev) => ({ ...prev, blood_loss: parseFloat(e.target.value) || 0 }))} /></div>
+                    <div className="space-y-1"><Label className="text-xs">IWL (ml)</Label><Input type="number" value={newFluidBalance.iwl || ""} onChange={(e) => setNewFluidBalance((prev) => ({ ...prev, iwl: parseFloat(e.target.value) || 0 }))} /></div>
+                    <div className="space-y-1"><Label className="text-xs">Output Lain (ml)</Label><Input type="number" value={newFluidBalance.other_output || ""} onChange={(e) => setNewFluidBalance((prev) => ({ ...prev, other_output: parseFloat(e.target.value) || 0 }))} /></div>
+                  </div>
+                  <div className="mt-2 text-right text-sm font-semibold text-red-700">
+                    Total Output: {(newFluidBalance.urine_amount||0)+(newFluidBalance.feces_amount||0)+(newFluidBalance.vomit_amount||0)+(newFluidBalance.drain_amount||0)+(newFluidBalance.blood_loss||0)+(newFluidBalance.iwl||0)+(newFluidBalance.other_output||0)} ml
+                  </div>
+                </div>
+                {(() => {
+                  const intake = (newFluidBalance.oral_drink||0)+(newFluidBalance.oral_food||0)+(newFluidBalance.oral_medicine||0)+(newFluidBalance.iv_fluid||0)+(newFluidBalance.iv_medicine||0)+(newFluidBalance.blood_product||0)+(newFluidBalance.enteral_feed||0)+(newFluidBalance.other_intake||0);
+                  const output = (newFluidBalance.urine_amount||0)+(newFluidBalance.feces_amount||0)+(newFluidBalance.vomit_amount||0)+(newFluidBalance.drain_amount||0)+(newFluidBalance.blood_loss||0)+(newFluidBalance.iwl||0)+(newFluidBalance.other_output||0);
+                  const bal = intake - output;
+                  return (
+                    <div className={`border rounded-lg p-4 text-center ${bal > 0 ? "bg-green-100" : bal < 0 ? "bg-red-100" : "bg-gray-100"}`}>
+                      <p className="text-sm font-medium">BALANCE</p>
+                      <p className={`text-2xl font-bold ${bal > 0 ? "text-green-700" : bal < 0 ? "text-red-700" : "text-gray-700"}`}>
+                        {bal > 0 ? "+" : ""}{bal} ml
+                      </p>
+                    </div>
+                  );
+                })()}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Pembuat</Label>
+                    <Select
+                      value={newFluidBalance.created_by_name || ""}
+                      onValueChange={(val) => setNewFluidBalance((prev) => ({ ...prev, created_by_name: val }))}
+                    >
+                      <SelectTrigger><SelectValue placeholder="Pilih pembuat" /></SelectTrigger>
+                      <SelectContent>
+                        {duplicateDoctorOptions.map((opt) => (
+                          <SelectItem key={opt.id} value={opt.name}>{opt.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Approval</Label>
+                    <Select
+                      value={newFluidBalance.approved_by_name || ""}
+                      onValueChange={(val) => setNewFluidBalance((prev) => ({ ...prev, approved_by_name: val }))}
+                    >
+                      <SelectTrigger><SelectValue placeholder="Pilih approval" /></SelectTrigger>
+                      <SelectContent>
+                        {duplicateDoctorOptions.map((opt) => (
+                          <SelectItem key={opt.id} value={opt.name}>{opt.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Catatan</Label>
+                  <Textarea
+                    rows={2}
+                    value={newFluidBalance.notes}
+                    onChange={(e) => setNewFluidBalance((prev) => ({ ...prev, notes: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setFluidBalanceDialogOpen(false)}>Batal</Button>
+                <Button onClick={handleSaveAddFluidBalance}>Tambahkan</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={nursingCareDialogOpen} onOpenChange={setNursingCareDialogOpen}>
+            <DialogContent className="max-w-full w-full h-screen max-h-screen flex flex-col p-0 gap-0 rounded-none">
+              <DialogHeader className="px-6 py-4 border-b bg-muted/50 shrink-0">
+                <DialogTitle className="flex items-center gap-2">
+                  <HeartPulse className="h-5 w-5" />
+                  Tambah Asuhan Keperawatan Duplikat
+                </DialogTitle>
+                <DialogDescription>
+                  Data akan ditambahkan ke RM duplikat dan disimpan saat Anda menekan tombol simpan RM duplikat.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="px-6 pt-4 shrink-0">
+                <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+                  <Label>Pilih SDKI dari Master (Auto Isi)</Label>
+                  <Select value={duplicateNursingMasterCode} onValueChange={handleDuplicateApplyMasterSdki}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Pilih diagnosis SDKI untuk isi otomatis" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {parsedDuplicateNursingMasterItems.length === 0 ? (
+                        <SelectItem value="__empty" disabled>Master data SDKI belum terbaca.</SelectItem>
+                      ) : (
+                        parsedDuplicateNursingMasterItems.map((item) => (
+                          <SelectItem key={item.sdki.code} value={item.sdki.code}>
+                            {item.sdki.code} - {item.sdki.label}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Pilihan ini mengisi otomatis Diagnosis, Etiologi, Tanda-Gejala, Luaran, dan Intervensi.
+                  </p>
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto px-6 pb-4">
+                <div className="space-y-4 py-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label>Tanggal & Waktu</Label>
+                      <Input
+                        type="datetime-local"
+                        value={newNursingCare.record_date}
+                        onChange={(e) => setNewNursingCare((prev) => ({ ...prev, record_date: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Shift</Label>
+                      <Select
+                        value={newNursingCare.shift_type}
+                        onValueChange={(value) => setNewNursingCare((prev) => ({ ...prev, shift_type: value }))}
+                      >
+                        <SelectTrigger><SelectValue placeholder="Pilih shift" /></SelectTrigger>
+                        <SelectContent>
+                          {DUPLICATE_SHIFT_TYPES.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Status Masalah</Label>
+                      <Select
+                        value={newNursingCare.problem_status || "belum_teratasi"}
+                        onValueChange={(value) => setNewNursingCare((prev) => ({ ...prev, problem_status: value }))}
+                      >
+                        <SelectTrigger><SelectValue placeholder="Pilih status masalah" /></SelectTrigger>
+                        <SelectContent>
+                          {DUPLICATE_PROBLEM_STATUS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  {/* SDKI */}
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div className="col-span-2 space-y-2">
+                        <Label>Diagnosis Keperawatan</Label>
+                        <Textarea
+                          value={newNursingCare.nursing_diagnosis}
+                          onChange={(e) => setNewNursingCare((prev) => ({ ...prev, nursing_diagnosis: e.target.value }))}
+                          placeholder="Contoh: Nyeri akut berhubungan dengan agen pencedera fisik"
+                          rows={2}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Kode SDKI</Label>
+                        <Input
+                          value={newNursingCare.nursing_diagnosis_code}
+                          onChange={(e) => setNewNursingCare((prev) => ({ ...prev, nursing_diagnosis_code: e.target.value }))}
+                          placeholder="D.0077"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Etiologi (Penyebab/Berhubungan dengan)</Label>
+                        <Textarea
+                          value={newNursingCare.problem_etiology}
+                          onChange={(e) => setNewNursingCare((prev) => ({ ...prev, problem_etiology: e.target.value }))}
+                          placeholder="Faktor yang berhubungan dengan masalah..."
+                          rows={2}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Tanda & Gejala (Ditandai dengan)</Label>
+                        <Textarea
+                          value={newNursingCare.signs_symptoms}
+                          onChange={(e) => setNewNursingCare((prev) => ({ ...prev, signs_symptoms: e.target.value }))}
+                          placeholder="Batasan karakteristik yang ditemukan..."
+                          rows={2}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  {/* SLKI */}
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div className="col-span-3 space-y-2">
+                        <Label>Luaran Keperawatan</Label>
+                        <Textarea
+                          value={newNursingCare.nursing_outcome}
+                          onChange={(e) => setNewNursingCare((prev) => ({ ...prev, nursing_outcome: e.target.value }))}
+                          placeholder="Contoh: Tingkat nyeri menurun"
+                          rows={2}
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Indikator Luaran</Label>
+                        <Textarea
+                          value={newNursingCare.outcome_indicators}
+                          onChange={(e) => setNewNursingCare((prev) => ({ ...prev, outcome_indicators: e.target.value }))}
+                          placeholder="Indikator yang diukur..."
+                          rows={2}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Target Pencapaian</Label>
+                        <Select
+                          value={newNursingCare.outcome_target || ""}
+                          onValueChange={(value) => setNewNursingCare((prev) => ({ ...prev, outcome_target: value }))}
+                        >
+                          <SelectTrigger><SelectValue placeholder="Pilih target" /></SelectTrigger>
+                          <SelectContent>
+                            {DUPLICATE_OUTCOME_TARGETS.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </div>
+                  {/* SIKI */}
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div className="col-span-3 space-y-2">
+                        <Label>Intervensi Keperawatan</Label>
+                        <Textarea
+                          value={newNursingCare.nursing_intervention}
+                          onChange={(e) => setNewNursingCare((prev) => ({ ...prev, nursing_intervention: e.target.value }))}
+                          placeholder="Intervensi utama dan pendukung sesuai SIKI"
+                          rows={3}
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Tindakan Observasi</Label>
+                        <Textarea
+                          value={newNursingCare.observation_actions}
+                          onChange={(e) => setNewNursingCare((prev) => ({ ...prev, observation_actions: e.target.value }))}
+                          placeholder="Ringkas tindakan observasi"
+                          rows={3}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Tindakan Terapeutik</Label>
+                        <Textarea
+                          value={newNursingCare.therapeutic_actions}
+                          onChange={(e) => setNewNursingCare((prev) => ({ ...prev, therapeutic_actions: e.target.value }))}
+                          placeholder="Ringkas tindakan terapeutik"
+                          rows={3}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Tindakan Edukasi</Label>
+                        <Textarea
+                          value={newNursingCare.education_actions}
+                          onChange={(e) => setNewNursingCare((prev) => ({ ...prev, education_actions: e.target.value }))}
+                          placeholder="Ringkas tindakan edukasi"
+                          rows={3}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Tindakan Kolaborasi</Label>
+                        <Textarea
+                          value={newNursingCare.collaboration_actions}
+                          onChange={(e) => setNewNursingCare((prev) => ({ ...prev, collaboration_actions: e.target.value }))}
+                          placeholder="Ringkas tindakan kolaborasi"
+                          rows={3}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  {/* Pembuat / Approval */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Pembuat</Label>
+                      <Select
+                        value={newNursingCare.created_by_name || ""}
+                        onValueChange={(val) => setNewNursingCare((prev) => ({ ...prev, created_by_name: val }))}
+                      >
+                        <SelectTrigger><SelectValue placeholder="Pilih pembuat" /></SelectTrigger>
+                        <SelectContent>
+                          {duplicateDoctorOptions.map((opt) => (
+                            <SelectItem key={opt.id} value={opt.name}>{opt.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Approval</Label>
+                      <Select
+                        value={newNursingCare.approved_by_name || ""}
+                        onValueChange={(val) => setNewNursingCare((prev) => ({ ...prev, approved_by_name: val }))}
+                      >
+                        <SelectTrigger><SelectValue placeholder="Pilih approval" /></SelectTrigger>
+                        <SelectContent>
+                          {duplicateDoctorOptions.map((opt) => (
+                            <SelectItem key={opt.id} value={opt.name}>{opt.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  {/* Catatan */}
+                  <div className="space-y-2">
+                    <Label>Catatan Tambahan</Label>
+                    <Textarea
+                      rows={2}
+                      value={newNursingCare.notes}
+                      onChange={(e) => setNewNursingCare((prev) => ({ ...prev, notes: e.target.value }))}
+                      placeholder="Catatan ringkas asuhan keperawatan"
+                    />
+                  </div>
+                </div>
+              </div>
+              <DialogFooter className="px-6 py-4 border-t bg-muted/30 shrink-0">
+                <Button variant="outline" onClick={() => setNursingCareDialogOpen(false)}>Batal</Button>
+                <Button onClick={handleSaveAddNursingCare}>Tambahkan</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+      <Dialog
+        open={
+          quickAddOrderType === "laboratory" ||
+          quickAddOrderType === "radiology" ||
+          quickAddOrderType === "consultation" ||
+          quickAddOrderType === "surgery"
+        }
+        onOpenChange={(open) => {
+          if (!open) closeQuickAddDialog();
+        }}
+      >
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>
+              {quickAddOrderType === "laboratory"
+                ? "Tambah Order + Tindakan Laboratorium"
+                : quickAddOrderType === "radiology"
+                ? "Tambah Order + Tindakan Radiologi"
+                : quickAddOrderType === "surgery"
+                ? "Tambah Order + Tindakan Operasi"
+                : "Tambah Order + Tindakan Konsultasi"}
+            </DialogTitle>
+            <DialogDescription>
+              Pilih satu atau lebih tindakan. Setiap tindakan yang dipilih akan masuk ke order yang sama. Klik <strong>Order Baru</strong> untuk mulai order berbeda.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            {(() => {
+              const existingFakeOrders = quickAddOrderType
+                ? orders.filter((o) => o.order_type === quickAddOrderType && o.is_fake)
+                : [];
+              return (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-muted-foreground shrink-0">Tambah ke:</span>
+                  {existingFakeOrders.map((o, idx) => {
+                    const label = o.order_number ? o.order_number : `Order Baru ${idx + 1}`;
+                    const isActive = quickAddFakeDate !== null && o.fake_date === quickAddFakeDate;
+                    return (
+                      <button
+                        key={o.fake_date || idx}
+                        type="button"
+                        onClick={() => {
+                          setQuickAddFakeDate(o.fake_date || null);
+                          setQuickAddAddedNames([]);
+                        }}
+                        className={cn(
+                          "text-xs px-2.5 py-1 rounded-full border transition-colors",
+                          isActive
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-muted hover:bg-muted/80 border-border",
+                        )}
+                      >
+                        {label} ({(o.items || []).length} tindakan)
+                      </button>
+                    );
+                  })}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuickAddFakeDate(null);
+                      setQuickAddAddedNames([]);
+                    }}
+                    className={cn(
+                      "text-xs px-2.5 py-1 rounded-full border transition-colors",
+                      quickAddFakeDate === null
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-muted hover:bg-muted/80 border-border",
+                    )}
+                  >
+                    + Order Baru
+                  </button>
+                </div>
+              );
+            })()}
+
+            <div className="flex items-center gap-2">
+              <Search className="h-4 w-4 text-muted-foreground" />
+              <Input
+                className="h-9 text-sm"
+                placeholder={
+                  quickAddOrderType === "laboratory"
+                    ? "Cari tindakan laboratorium..."
+                    : quickAddOrderType === "radiology"
+                    ? "Cari tindakan radiologi..."
+                    : quickAddOrderType === "surgery"
+                    ? "Cari tindakan operasi..."
+                    : "Cari tindakan konsultasi..."
+                }
+                value={procSearchTerm}
+                onChange={(e) =>
+                  quickAddOrderType && handleProcSearch(e.target.value, quickAddOrderType)
+                }
+              />
+            </div>
+
+            {searchingProcs && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Loader2 className="h-3 w-3 animate-spin" /> Mencari tindakan...
+              </div>
+            )}
+
+            {!searchingProcs && procSearchTerm.length >= 2 && procSearchResults.length === 0 && (
+              <p className="text-xs text-muted-foreground">Tindakan tidak ditemukan.</p>
+            )}
+
+            {!searchingProcs && procSearchResults.length > 0 && (
+              <div className="max-h-52 overflow-y-auto border rounded divide-y bg-white">
+                {procSearchResults.map((proc) => (
+                  <button
+                    key={proc.id}
+                    type="button"
+                    disabled={loadingParams}
+                    className="w-full text-left px-3 py-2 hover:bg-muted/50 disabled:opacity-50"
+                    onClick={() =>
+                      quickAddOrderType &&
+                      handleQuickAddProcedureToType(quickAddOrderType, proc)
+                    }
+                  >
+                    {loadingParams ? (
+                      <Loader2 className="h-3 w-3 animate-spin inline mr-1" />
+                    ) : null}
+                    <p className="text-sm font-medium inline">{proc.name}</p>
+                    <p className="text-xs text-muted-foreground">{proc.code || "-"}</p>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {quickAddAddedNames.length > 0 && (
+              <div className="border rounded p-2 bg-green-50 space-y-1">
+                <p className="text-xs font-medium text-green-700">
+                  Tindakan ditambahkan ({quickAddAddedNames.length}):
+                </p>
+                {quickAddAddedNames.map((name, i) => (
+                  <div key={i} className="flex items-center gap-1 text-xs text-green-800">
+                    <CheckCircle2 className="h-3 w-3 shrink-0" />
+                    <span>{name}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex justify-end pt-1">
+              <Button size="sm" onClick={closeQuickAddDialog}>
+                Selesai
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={restoreDialogOpen} onOpenChange={setRestoreDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Kembalikan dari RM Asli?</DialogTitle>
+            <DialogDescription>
+              Perubahan edit pada RM Duplikat akan ditimpa oleh data RM Asli dari kunjungan.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setRestoreDialogOpen(false)}
+              disabled={syncing || submitting}
+            >
+              Batal
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmRestoreFromOriginal}
+              disabled={syncing || submitting}
+            >
+              Lanjutkan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Mapping Preview Modal */}
       <Dialog open={showMappingModal} onOpenChange={setShowMappingModal}>

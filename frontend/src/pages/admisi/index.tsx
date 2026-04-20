@@ -241,7 +241,7 @@ export default function AdmissionRequestsIndexPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col p-4">
+    <div className="flex flex-1 flex-col px-4">
       <Collapsible open={filterOpen} onOpenChange={setFilterOpen}>
       <div className="flex items-center justify-between">
         <div>

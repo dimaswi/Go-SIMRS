@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -5,6 +6,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Sheet,
   SheetContent,
@@ -27,12 +35,24 @@ import {
   ExternalLink,
   Send,
   QrCode,
+  Plus,
+  Search,
 } from "lucide-react";
 import { Combobox } from "@/components/ui/combobox";
+import { SearchModal } from "@/components/sep/search-modal";
 import { cn } from "@/lib/utils";
 import { CheckInQRCode } from "@/components/qrcode/checkin-qrcode";
 import { BPJSControlSection } from "@/components/medical-record/bpjs-control-section";
-import { type SEPLocal, type VClaimSPRIResponse, type SuratKontrolResponse } from "@/lib/api/vclaim";
+import { useToast } from "@/hooks/use-toast";
+import { icd10Api } from "@/lib/api/icd";
+import { ppkApi } from "@/lib/api/ppk";
+import {
+  vclaimApi,
+  type SEPLocal,
+  type VClaimReferralLocal,
+  type VClaimSPRIResponse,
+  type SuratKontrolResponse,
+} from "@/lib/api/vclaim";
 import { type Room } from "@/lib/api/rooms";
 
 // Type for available doctor from schedule
@@ -62,6 +82,19 @@ export interface DispositionFormData {
   referral_therapy: string;
   referral_lab_result: string;
   referral_notes: string;
+  referral_mode?: "manual" | "bpjs_v1" | "bpjs_v2" | "bpjs_khusus";
+  referral_no_rujukan?: string;
+  referral_no_sep?: string;
+  referral_tgl_rujukan?: string;
+  referral_tgl_rencana_kunjungan?: string;
+  referral_ppk_code?: string;
+  referral_jns_pelayanan?: string;
+  referral_tipe_rujukan?: string;
+  referral_poli_code?: string;
+  referral_diag_code?: string;
+  referral_khusus_id?: string;
+  referral_khusus_diagnosa_codes?: string;
+  referral_khusus_procedure_codes?: string;
   // Admission fields
   admission_type: string;
   admission_reason: string;
@@ -157,12 +190,13 @@ export function DischargeDrawer({
   kontrolType,
   setKontrolType,
 }: DischargeDrawerProps) {
-  const showFollowUpFields = kontrolType === "simrs";
-  const showBPJSKontrol = kontrolType === "bpjs";
-  const showDischargeCondition = kontrolType === "none";
+  const isAPS = formData.disposition_type === "aps";
+  const showFollowUpFields = !isAPS && kontrolType === "simrs";
+  const showBPJSKontrol = !isAPS && kontrolType === "bpjs";
+  const showDischargeCondition = isAPS || kontrolType === "none";
   
   // Show SIMRS follow-up form after BPJS Surat Kontrol is created
-  const showBPJSFollowUpSync = kontrolType === "bpjs" && !!suratKontrolResult;
+  const showBPJSFollowUpSync = !isAPS && kontrolType === "bpjs" && !!suratKontrolResult;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -189,8 +223,8 @@ export function DischargeDrawer({
 
         <ScrollArea className="flex-1 px-6 py-4">
           <div className="space-y-6">
-            {/* Pilihan Jenis Surat Kontrol */}
-            <div className="space-y-3">
+            {!isAPS && (
+              <div className="space-y-3">
                 <Label className="text-sm font-semibold">Jenis Surat Kontrol</Label>
                 <RadioGroup
                   value={kontrolType}
@@ -268,6 +302,17 @@ export function DischargeDrawer({
                   </label>
                 </RadioGroup>
               </div>
+            )}
+
+            {isAPS && (
+              <Alert>
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>APS tanpa kontrol</AlertTitle>
+                <AlertDescription>
+                  Untuk APS, form hanya memerlukan kondisi keluar pasien tanpa pembuatan kontrol atau follow-up.
+                </AlertDescription>
+              </Alert>
+            )}
 
             {/* BPJS Control Section - Surat Kontrol */}
             {showBPJSKontrol && (
@@ -1010,6 +1055,18 @@ interface ReferralDrawerProps {
   onSubmit: () => void;
   saving: boolean;
   isDisabled: boolean;
+  visitId: number;
+  registrationId?: number;
+  activeSEP: SEPLocal | null;
+  patientData: {
+    id: number;
+    no_rm: string;
+    nama_lengkap: string;
+    nik?: string;
+    no_bpjs?: string;
+    tanggal_lahir?: string;
+    jenis_kelamin?: string;
+  } | null;
 }
 
 export function ReferralDrawer({
@@ -1020,8 +1077,346 @@ export function ReferralDrawer({
   onSubmit,
   saving,
   isDisabled,
+  visitId,
+  registrationId,
+  activeSEP,
+  patientData,
 }: ReferralDrawerProps) {
+  const { toast } = useToast();
+  const referralMode = formData.referral_mode || "manual";
+  const [ppkOptions, setPpkOptions] = useState<Array<{ value: string; label: string }>>([]);
+  const [loadingPPK, setLoadingPPK] = useState(false);
+  const [bpjsSubmitting, setBpjsSubmitting] = useState(false);
+  const [bpjsReferral, setBpjsReferral] = useState<VClaimReferralLocal | null>(null);
+  const [ppkDialogOpen, setPpkDialogOpen] = useState(false);
+  const [ppkSaving, setPpkSaving] = useState(false);
+  const [diagnosaModalOpen, setDiagnosaModalOpen] = useState(false);
+  const [poliModalOpen, setPoliModalOpen] = useState(false);
+  const [selectedDiagnosaNama, setSelectedDiagnosaNama] = useState("");
+  const [selectedPoliNama, setSelectedPoliNama] = useState("");
+  const [ppkForm, setPpkForm] = useState({ kode_bpjs: "", nama: "", alamat: "", telepon: "" });
+
+  const selectedPPKName = useMemo(() => {
+    return ppkOptions.find((p) => p.value === (formData.referral_ppk_code || ""))?.label || "";
+  }, [ppkOptions, formData.referral_ppk_code]);
+
+  const loadPPK = async () => {
+    setLoadingPPK(true);
+    try {
+      const res = await ppkApi.getAll({ active: true, limit: 1000 });
+      const items = res.data.data || [];
+      setPpkOptions(items.map((item) => ({ value: item.kode_bpjs, label: `${item.kode_bpjs} - ${item.nama}` })));
+    } catch {
+      toast({ variant: "destructive", title: "Gagal", description: "Gagal memuat master PPK." });
+    } finally {
+      setLoadingPPK(false);
+    }
+  };
+
+  const loadExistingReferral = async () => {
+    if (!visitId) return;
+    try {
+      const res = await vclaimApi.getRujukanByVisit(visitId);
+      const local = res.data.data;
+      setBpjsReferral(local);
+      onFormChange("referral_no_rujukan", local.no_rujukan || "");
+      onFormChange("referral_no_sep", local.no_sep || "");
+      onFormChange("referral_tgl_rujukan", local.tgl_rujukan || "");
+      onFormChange("referral_tgl_rencana_kunjungan", local.tgl_rencana_kunjungan || "");
+      onFormChange("referral_ppk_code", local.ppk_dirujuk || "");
+      onFormChange("referral_jns_pelayanan", local.jns_pelayanan || "2");
+      onFormChange("referral_tipe_rujukan", local.tipe_rujukan || "0");
+      onFormChange("referral_poli_code", local.poli_rujukan || "");
+      onFormChange("referral_diag_code", local.diag_rujukan || "");
+      setSelectedPoliNama(local.poli_rujukan_nama || "");
+      setSelectedDiagnosaNama(local.diag_rujukan_nama || "");
+      onFormChange("referral_khusus_id", local.khusus_id_rujukan || "");
+      onFormChange("referral_khusus_diagnosa_codes", local.khusus_diagnosa_codes || "");
+      onFormChange("referral_khusus_procedure_codes", local.khusus_procedure_codes || "");
+      if (!formData.referral_mode && (local.version === "v1" || local.version === "v2")) {
+        onFormChange("referral_mode", local.version === "v1" ? "bpjs_v1" : "bpjs_v2");
+      }
+    } catch {
+      setBpjsReferral(null);
+      setSelectedPoliNama("");
+      setSelectedDiagnosaNama("");
+    }
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    if (!formData.referral_mode) {
+      onFormChange("referral_mode", activeSEP?.no_sep ? "bpjs_v2" : "manual");
+    }
+    if (!formData.referral_no_sep && activeSEP?.no_sep) {
+      onFormChange("referral_no_sep", activeSEP.no_sep);
+    }
+    if (!formData.referral_tgl_rujukan) {
+      onFormChange("referral_tgl_rujukan", new Date().toISOString().split("T")[0]);
+    }
+    loadPPK();
+    loadExistingReferral();
+  }, [open, visitId]);
+
+  const searchReferralDiagnosa = async (keyword: string) => {
+    try {
+      const res = await icd10Api.search({
+        search: keyword,
+        limit: 50,
+        valid_only: true,
+      });
+      return (res || []).map((item) => ({ kode: item.code, nama: item.display }));
+    } catch {
+      return [];
+    }
+  };
+
+  const searchReferralPoliSpesialistik = async (keyword: string) => {
+    if (!formData.referral_ppk_code) {
+      toast({
+        variant: "destructive",
+        title: "PPK belum dipilih",
+        description: "Pilih PPK dirujuk terlebih dahulu sebelum mencari kode poli.",
+      });
+      return [];
+    }
+
+    if (!formData.referral_tgl_rujukan) {
+      toast({
+        variant: "destructive",
+        title: "Tanggal rujukan belum diisi",
+        description: "Isi tanggal rujukan untuk mengambil list spesialistik BPJS.",
+      });
+      return [];
+    }
+
+    try {
+      const res = await vclaimApi.getRujukanSpesialistik(
+        formData.referral_ppk_code,
+        formData.referral_tgl_rujukan,
+        keyword || undefined,
+      );
+      return res.data.data || [];
+    } catch {
+      return [];
+    }
+  };
+
+  const savePPK = async () => {
+    if (!ppkForm.kode_bpjs.trim() || !ppkForm.nama.trim()) {
+      toast({ variant: "destructive", title: "Validasi", description: "Kode BPJS dan nama PPK wajib diisi." });
+      return;
+    }
+
+    setPpkSaving(true);
+    try {
+      const res = await ppkApi.create({
+        kode_bpjs: ppkForm.kode_bpjs.trim(),
+        nama: ppkForm.nama.trim(),
+        alamat: ppkForm.alamat.trim(),
+        telepon: ppkForm.telepon.trim(),
+        is_active: true,
+      });
+      const created = res.data.data;
+      setPpkDialogOpen(false);
+      setPpkForm({ kode_bpjs: "", nama: "", alamat: "", telepon: "" });
+      await loadPPK();
+      onFormChange("referral_ppk_code", created.kode_bpjs);
+      onFormChange("referral_facility", created.nama);
+      toast({ title: "Berhasil", description: "PPK baru berhasil ditambahkan." });
+    } catch (err: any) {
+      toast({
+        variant: "destructive",
+        title: "Gagal",
+        description: err?.response?.data?.error || "Gagal menambah PPK.",
+      });
+    } finally {
+      setPpkSaving(false);
+    }
+  };
+
+  const createOrUpdateBPJSReferral = async () => {
+    if (!activeSEP?.no_sep && !formData.referral_no_sep) {
+      toast({ variant: "destructive", title: "Data tidak lengkap", description: "SEP aktif tidak ditemukan." });
+      return;
+    }
+    if (!formData.referral_ppk_code) {
+      toast({ variant: "destructive", title: "Data tidak lengkap", description: "PPK tujuan wajib dipilih." });
+      return;
+    }
+    if (!formData.referral_diag_code) {
+      toast({ variant: "destructive", title: "Data tidak lengkap", description: "Kode diagnosis rujukan wajib diisi." });
+      return;
+    }
+    if (!formData.referral_tgl_rujukan) {
+      toast({ variant: "destructive", title: "Data tidak lengkap", description: "Tanggal rujukan wajib diisi." });
+      return;
+    }
+    if (formData.referral_tipe_rujukan !== "2" && !formData.referral_poli_code) {
+      toast({ variant: "destructive", title: "Data tidak lengkap", description: "Poli rujukan wajib diisi untuk tipe 0/1." });
+      return;
+    }
+    if (referralMode === "bpjs_v2" && !formData.referral_tgl_rencana_kunjungan) {
+      toast({ variant: "destructive", title: "Data tidak lengkap", description: "Tanggal rencana kunjungan wajib diisi untuk V2." });
+      return;
+    }
+
+    setBpjsSubmitting(true);
+    try {
+      const basePayload = {
+        no_sep: formData.referral_no_sep || activeSEP?.no_sep || "",
+        visit_id: visitId,
+        registration_id: registrationId || activeSEP?.registration_id,
+        patient_id: patientData?.id,
+        sep_id: activeSEP?.id,
+        tgl_rujukan: formData.referral_tgl_rujukan,
+        ppk_dirujuk: formData.referral_ppk_code,
+        jns_pelayanan: formData.referral_jns_pelayanan || "2",
+        catatan: formData.referral_reason || "",
+        diag_rujukan: formData.referral_diag_code,
+        tipe_rujukan: formData.referral_tipe_rujukan || "0",
+        poli_rujukan: formData.referral_tipe_rujukan === "2" ? "" : (formData.referral_poli_code || ""),
+      };
+
+      let noRujukan = formData.referral_no_rujukan || "";
+      if (referralMode === "bpjs_v1") {
+        if (noRujukan) {
+          await vclaimApi.updateRujukanV1(noRujukan, basePayload);
+        } else {
+          const res = await vclaimApi.createRujukanV1(basePayload);
+          noRujukan = res.data.data?.noRujukan || "";
+        }
+      }
+
+      if (referralMode === "bpjs_v2") {
+        const payload = {
+          ...basePayload,
+          tgl_rencana_kunjungan: formData.referral_tgl_rencana_kunjungan || "",
+        };
+        if (noRujukan) {
+          await vclaimApi.updateRujukanV2(noRujukan, payload);
+        } else {
+          const res = await vclaimApi.createRujukanV2(payload);
+          noRujukan = res.data.data?.noRujukan || "";
+        }
+      }
+
+      if (noRujukan) {
+        onFormChange("referral_no_rujukan", noRujukan);
+      }
+      onFormChange("referral_facility", selectedPPKName || formData.referral_facility || "");
+      onFormChange("referral_reason", formData.referral_reason || "");
+      onFormChange(
+        "referral_diagnosis",
+        selectedDiagnosaNama
+          ? `${formData.referral_diag_code || ""} - ${selectedDiagnosaNama}`
+          : (formData.referral_diag_code || ""),
+      );
+      onFormChange("referral_specialist", selectedPoliNama || formData.referral_specialist || "");
+      await loadExistingReferral();
+
+      toast({ title: "Berhasil", description: "Rujukan BPJS berhasil disimpan." });
+    } catch (err: any) {
+      toast({
+        variant: "destructive",
+        title: "Gagal",
+        description: err?.response?.data?.error || "Gagal menyimpan rujukan BPJS.",
+      });
+    } finally {
+      setBpjsSubmitting(false);
+    }
+  };
+
+  const createRujukanKhusus = async () => {
+    if (!formData.referral_no_rujukan) {
+      toast({ variant: "destructive", title: "Data tidak lengkap", description: "Nomor rujukan wajib diisi untuk rujukan khusus." });
+      return;
+    }
+
+    const diagnosaCodes = (formData.referral_khusus_diagnosa_codes || "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const procedureCodes = (formData.referral_khusus_procedure_codes || "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    if (!diagnosaCodes.length) {
+      toast({ variant: "destructive", title: "Data tidak lengkap", description: "Minimal satu kode diagnosis khusus wajib diisi." });
+      return;
+    }
+
+    setBpjsSubmitting(true);
+    try {
+      await vclaimApi.createRujukanKhusus({
+        no_rujukan: formData.referral_no_rujukan,
+        diagnosa_codes: diagnosaCodes,
+        procedure_codes: procedureCodes,
+      });
+      await loadExistingReferral();
+      toast({ title: "Berhasil", description: "Rujukan khusus BPJS berhasil dibuat." });
+    } catch (err: any) {
+      toast({
+        variant: "destructive",
+        title: "Gagal",
+        description: err?.response?.data?.error || "Gagal membuat rujukan khusus.",
+      });
+    } finally {
+      setBpjsSubmitting(false);
+    }
+  };
+
+  const deleteReferral = async () => {
+    if (!formData.referral_no_rujukan) {
+      toast({ variant: "destructive", title: "Data tidak lengkap", description: "Nomor rujukan belum tersedia." });
+      return;
+    }
+    setBpjsSubmitting(true);
+    try {
+      await vclaimApi.deleteRujukan(formData.referral_no_rujukan);
+      onFormChange("referral_no_rujukan", "");
+      onFormChange("referral_khusus_id", "");
+      setBpjsReferral(null);
+      toast({ title: "Berhasil", description: "Rujukan BPJS berhasil dihapus." });
+    } catch (err: any) {
+      toast({
+        variant: "destructive",
+        title: "Gagal",
+        description: err?.response?.data?.error || "Gagal menghapus rujukan.",
+      });
+    } finally {
+      setBpjsSubmitting(false);
+    }
+  };
+
+  const deleteRujukanKhusus = async () => {
+    if (!formData.referral_khusus_id || !formData.referral_no_rujukan) {
+      toast({ variant: "destructive", title: "Data tidak lengkap", description: "ID khusus atau nomor rujukan belum tersedia." });
+      return;
+    }
+    setBpjsSubmitting(true);
+    try {
+      await vclaimApi.deleteRujukanKhusus({
+        id_rujukan: formData.referral_khusus_id,
+        no_rujukan: formData.referral_no_rujukan,
+      });
+      onFormChange("referral_khusus_id", "");
+      await loadExistingReferral();
+      toast({ title: "Berhasil", description: "Rujukan khusus BPJS berhasil dihapus." });
+    } catch (err: any) {
+      toast({
+        variant: "destructive",
+        title: "Gagal",
+        description: err?.response?.data?.error || "Gagal menghapus rujukan khusus.",
+      });
+    } finally {
+      setBpjsSubmitting(false);
+    }
+  };
+
   return (
+    <>
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="w-full sm:w-1/2 sm:max-w-none p-0 flex flex-col">
         <SheetHeader className="border-b px-6 py-4">
@@ -1035,8 +1430,101 @@ export function ReferralDrawer({
         </SheetHeader>
 
         <ScrollArea className="flex-1 px-6 py-4">
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-6">
+            <div className="space-y-3">
+              <Label className="text-sm font-semibold">Mode Rujukan</Label>
+              <RadioGroup
+                value={referralMode}
+                onValueChange={(value) => onFormChange("referral_mode", value)}
+                disabled={isDisabled}
+                className="space-y-2"
+              >
+                <label
+                  htmlFor="mode-manual"
+                  className={cn(
+                    "flex items-start space-x-3 p-4 rounded-lg border-2 transition-all cursor-pointer",
+                    referralMode === "manual"
+                      ? "border-amber-500 bg-amber-50"
+                      : "border-muted hover:border-amber-300",
+                    isDisabled && "opacity-50 cursor-not-allowed"
+                  )}
+                >
+                  <RadioGroupItem value="manual" id="mode-manual" className="mt-0.5" />
+                  <div className="space-y-1">
+                    <span className="text-sm font-medium">Manual SIMRS</span>
+                    <p className="text-xs text-muted-foreground">Rujukan internal SIMRS tanpa bridging BPJS.</p>
+                  </div>
+                </label>
+
+                <label
+                  htmlFor="mode-v1"
+                  className={cn(
+                    "flex items-start space-x-3 p-4 rounded-lg border-2 transition-all cursor-pointer",
+                    referralMode === "bpjs_v1"
+                      ? "border-blue-500 bg-blue-50"
+                      : "border-muted hover:border-blue-300",
+                    isDisabled && "opacity-50 cursor-not-allowed"
+                  )}
+                >
+                  <RadioGroupItem value="bpjs_v1" id="mode-v1" className="mt-0.5" />
+                  <div className="space-y-1">
+                    <span className="text-sm font-medium">BPJS V1</span>
+                    <p className="text-xs text-muted-foreground">Rujukan VClaim versi 1 untuk alur BPJS.</p>
+                  </div>
+                </label>
+
+                <label
+                  htmlFor="mode-v2"
+                  className={cn(
+                    "flex items-start space-x-3 p-4 rounded-lg border-2 transition-all cursor-pointer",
+                    referralMode === "bpjs_v2"
+                      ? "border-green-500 bg-green-50"
+                      : "border-muted hover:border-green-300",
+                    isDisabled && "opacity-50 cursor-not-allowed"
+                  )}
+                >
+                  <RadioGroupItem value="bpjs_v2" id="mode-v2" className="mt-0.5" />
+                  <div className="space-y-1">
+                    <span className="text-sm font-medium">BPJS V2</span>
+                    <p className="text-xs text-muted-foreground">Rujukan VClaim versi 2 dengan rencana kunjungan.</p>
+                  </div>
+                </label>
+
+                <label
+                  htmlFor="mode-khusus"
+                  className={cn(
+                    "flex items-start space-x-3 p-4 rounded-lg border-2 transition-all cursor-pointer",
+                    referralMode === "bpjs_khusus"
+                      ? "border-purple-500 bg-purple-50"
+                      : "border-muted hover:border-purple-300",
+                    isDisabled && "opacity-50 cursor-not-allowed"
+                  )}
+                >
+                  <RadioGroupItem value="bpjs_khusus" id="mode-khusus" className="mt-0.5" />
+                  <div className="space-y-1">
+                    <span className="text-sm font-medium">BPJS Khusus</span>
+                    <p className="text-xs text-muted-foreground">Rujukan khusus untuk kasus/prosedur tertentu BPJS.</p>
+                  </div>
+                </label>
+              </RadioGroup>
+            </div>
+
+            {(referralMode === "bpjs_v1" || referralMode === "bpjs_v2" || referralMode === "bpjs_khusus") && (
+              <Alert className="bg-blue-50 border-blue-200">
+                <AlertTitle className="text-blue-700">Rujukan BPJS VClaim</AlertTitle>
+                <AlertDescription className="text-blue-700">
+                  Pisahkan rujukan sesuai mode. Gunakan tombol simpan rujukan BPJS sebelum menyimpan disposisi pulang.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {referralMode === "manual" && (
+            <div className="rounded-lg border bg-amber-50/40 dark:bg-amber-950/20 p-4 space-y-4">
+              <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300">
+                <Ambulance className="h-4 w-4" />
+                <span className="font-semibold text-sm">Rujukan Manual SIMRS</span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="text-sm">
                   Fasilitas Tujuan Rujukan <span className="text-destructive">*</span>
@@ -1144,6 +1632,268 @@ export function ReferralDrawer({
                 />
               </div>
             </div>
+            </div>
+            )}
+
+            {(referralMode === "bpjs_v1" || referralMode === "bpjs_v2") && (
+              <div className="rounded-lg border-2 border-blue-500 bg-blue-50/50 dark:bg-blue-950/20 p-4 space-y-4">
+                <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300">
+                  <Send className="h-4 w-4" />
+                  <span className="font-semibold text-sm">Rujukan BPJS {referralMode === "bpjs_v1" ? "V1" : "V2"}</span>
+                  <span className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded">WAJIB BPJS</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-sm">Nomor SEP</Label>
+                    <Input
+                      value={formData.referral_no_sep || activeSEP?.no_sep || ""}
+                      onChange={(e) => onFormChange("referral_no_sep", e.target.value)}
+                      disabled={isDisabled}
+                      placeholder="Nomor SEP"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm">Nomor Rujukan</Label>
+                    <Input value={formData.referral_no_rujukan || ""} onChange={(e) => onFormChange("referral_no_rujukan", e.target.value)} disabled={isDisabled} placeholder="Terisi setelah create" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm">Tanggal Rujukan</Label>
+                    <Input
+                      type="date"
+                      value={formData.referral_tgl_rujukan || ""}
+                      onChange={(e) => onFormChange("referral_tgl_rujukan", e.target.value)}
+                      disabled={isDisabled}
+                    />
+                  </div>
+                  {referralMode === "bpjs_v2" && (
+                    <div className="space-y-2">
+                      <Label className="text-sm">Tgl Rencana Kunjungan</Label>
+                      <Input
+                        type="date"
+                        value={formData.referral_tgl_rencana_kunjungan || ""}
+                        onChange={(e) => onFormChange("referral_tgl_rencana_kunjungan", e.target.value)}
+                        disabled={isDisabled}
+                      />
+                    </div>
+                  )}
+
+                  <div className="space-y-2 md:col-span-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <Label className="text-sm">PPK Dirujuk</Label>
+                      <Button type="button" variant="outline" size="sm" onClick={() => setPpkDialogOpen(true)} disabled={isDisabled}>
+                        <Plus className="h-4 w-4 mr-1" /> Tambah PPK
+                      </Button>
+                    </div>
+                    <Combobox
+                      options={ppkOptions}
+                      value={formData.referral_ppk_code || ""}
+                      onValueChange={(value) => {
+                        onFormChange("referral_ppk_code", value);
+                        const label = ppkOptions.find((p) => p.value === value)?.label || "";
+                        onFormChange("referral_facility", label);
+                      }}
+                      placeholder={loadingPPK ? "Memuat PPK..." : "Pilih PPK tujuan..."}
+                      searchPlaceholder="Cari PPK..."
+                      emptyText="PPK tidak ditemukan"
+                      disabled={isDisabled}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-sm">Jenis Pelayanan</Label>
+                    <Combobox
+                      options={[{ value: "1", label: "Rawat Inap" }, { value: "2", label: "Rawat Jalan" }]}
+                      value={formData.referral_jns_pelayanan || "2"}
+                      onValueChange={(value) => onFormChange("referral_jns_pelayanan", value)}
+                      placeholder="Pilih jenis pelayanan"
+                      searchPlaceholder="Cari..."
+                      emptyText="Tidak ada opsi"
+                      disabled={isDisabled}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm">Tipe Rujukan</Label>
+                    <Combobox
+                      options={[{ value: "0", label: "Penuh" }, { value: "1", label: "Partial" }, { value: "2", label: "Rujuk Balik" }]}
+                      value={formData.referral_tipe_rujukan || "0"}
+                      onValueChange={(value) => onFormChange("referral_tipe_rujukan", value)}
+                      placeholder="Pilih tipe"
+                      searchPlaceholder="Cari..."
+                      emptyText="Tidak ada opsi"
+                      disabled={isDisabled}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-sm">Kode Diagnosa Rujukan</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        value={selectedDiagnosaNama
+                          ? `${formData.referral_diag_code || ""} - ${selectedDiagnosaNama}`
+                          : (formData.referral_diag_code || "")}
+                        readOnly
+                        disabled={isDisabled}
+                        placeholder="Pilih kode diagnosa dari master SIMRS"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setDiagnosaModalOpen(true)}
+                        disabled={isDisabled}
+                      >
+                        <Search className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Sumber data: master ICD-10 SIMRS.</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm">Kode Poli Rujukan</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        value={selectedPoliNama
+                          ? `${formData.referral_poli_code || ""} - ${selectedPoliNama}`
+                          : (formData.referral_poli_code || "")}
+                        readOnly
+                        disabled={isDisabled || formData.referral_tipe_rujukan === "2"}
+                        placeholder={formData.referral_tipe_rujukan === "2" ? "Kosong untuk tipe 2" : "Pilih dari list spesialistik BPJS"}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setPoliModalOpen(true)}
+                        disabled={isDisabled || formData.referral_tipe_rujukan === "2"}
+                      >
+                        <Search className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Sumber data: list spesialistik rujukan BPJS (berdasarkan PPK dan tanggal rujukan).</p>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm">Catatan Rujukan</Label>
+                  <Textarea
+                    value={formData.referral_reason}
+                    onChange={(e) => onFormChange("referral_reason", e.target.value)}
+                    className="min-h-[70px]"
+                    placeholder="Catatan klinis rujukan"
+                    disabled={isDisabled}
+                  />
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button type="button" onClick={createOrUpdateBPJSReferral} disabled={isDisabled || bpjsSubmitting}>
+                    {bpjsSubmitting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                    {formData.referral_no_rujukan ? "Update Rujukan BPJS" : "Buat Rujukan BPJS"}
+                  </Button>
+                  <Button type="button" variant="destructive" onClick={deleteReferral} disabled={isDisabled || bpjsSubmitting || !formData.referral_no_rujukan}>
+                    Hapus Rujukan BPJS
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {referralMode === "bpjs_khusus" && (
+              <div className="rounded-lg border-2 border-purple-500 bg-purple-50/50 dark:bg-purple-950/20 p-4 space-y-4">
+                <div className="flex items-center gap-2 text-purple-700 dark:text-purple-300">
+                  <Send className="h-4 w-4" />
+                  <span className="font-semibold text-sm">Rujukan Khusus BPJS</span>
+                  <span className="text-xs bg-purple-600 text-white px-2 py-0.5 rounded">KHUSUS</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2 md:col-span-2">
+                    <Label className="text-sm">Nomor Rujukan Dasar</Label>
+                    <Input
+                      value={formData.referral_no_rujukan || ""}
+                      onChange={(e) => onFormChange("referral_no_rujukan", e.target.value)}
+                      disabled={isDisabled}
+                      placeholder="No rujukan dari V1/V2"
+                    />
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label className="text-sm">Kode Diagnosis Khusus</Label>
+                    <Input
+                      value={formData.referral_khusus_diagnosa_codes || ""}
+                      onChange={(e) => onFormChange("referral_khusus_diagnosa_codes", e.target.value)}
+                      disabled={isDisabled}
+                      placeholder="Pisahkan dengan koma, contoh: primer;Z49.1,sekunder;I10"
+                    />
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label className="text-sm">Kode Prosedur Khusus</Label>
+                    <Input
+                      value={formData.referral_khusus_procedure_codes || ""}
+                      onChange={(e) => onFormChange("referral_khusus_procedure_codes", e.target.value)}
+                      disabled={isDisabled}
+                      placeholder="Pisahkan dengan koma, contoh: 95.04,89.12"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm">ID Rujukan Khusus</Label>
+                    <Input
+                      value={formData.referral_khusus_id || bpjsReferral?.khusus_id_rujukan || ""}
+                      onChange={(e) => onFormChange("referral_khusus_id", e.target.value)}
+                      disabled={isDisabled}
+                      placeholder="Terisi setelah create jika tersedia"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button type="button" onClick={createRujukanKhusus} disabled={isDisabled || bpjsSubmitting}>
+                    {bpjsSubmitting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                    Buat Rujukan Khusus
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    onClick={deleteRujukanKhusus}
+                    disabled={isDisabled || bpjsSubmitting || !formData.referral_khusus_id || !formData.referral_no_rujukan}
+                  >
+                    Hapus Rujukan Khusus
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {(referralMode !== "manual") && (
+              <div className="rounded-lg border bg-muted/20 p-4 space-y-4">
+                <div className="flex items-center gap-2">
+                  <ClipboardList className="h-4 w-4 text-primary" />
+                  <Label className="text-sm font-semibold">Ringkasan Klinis Rujukan</Label>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm">Ringkasan Klinis</Label>
+                  <Textarea
+                    placeholder="Diagnosis dan ringkasan kondisi klinis pasien..."
+                    value={formData.referral_diagnosis}
+                    onChange={(e) => onFormChange("referral_diagnosis", e.target.value)}
+                    className="min-h-[80px] resize-none"
+                    disabled={isDisabled}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm">Terapi yang Sudah Diberikan</Label>
+                  <Textarea
+                    placeholder="Terapi dan tindakan yang sudah dilakukan..."
+                    value={formData.referral_therapy}
+                    onChange={(e) => onFormChange("referral_therapy", e.target.value)}
+                    className="min-h-[60px] resize-none"
+                    disabled={isDisabled}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm">Hasil Pemeriksaan Penunjang</Label>
+                  <Textarea
+                    placeholder="Hasil lab, radiologi, atau pemeriksaan penunjang lainnya..."
+                    value={formData.referral_lab_result}
+                    onChange={(e) => onFormChange("referral_lab_result", e.target.value)}
+                    className="min-h-[60px] resize-none"
+                    disabled={isDisabled}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </ScrollArea>
 
@@ -1158,6 +1908,78 @@ export function ReferralDrawer({
         </SheetFooter>
       </SheetContent>
     </Sheet>
+
+    <SearchModal
+      open={diagnosaModalOpen}
+      onOpenChange={setDiagnosaModalOpen}
+      title="Cari Diagnosa Rujukan (SIMRS ICD-10)"
+      placeholder="Ketik kode atau nama diagnosa..."
+      columns={[
+        { key: "kode", label: "Kode", width: "120px" },
+        { key: "nama", label: "Nama Diagnosa" },
+      ]}
+      onSearch={searchReferralDiagnosa}
+      onSelect={(item) => {
+        setSelectedDiagnosaNama(item.nama || "");
+        onFormChange("referral_diag_code", item.kode || "");
+        onFormChange("referral_diagnosis", item.kode && item.nama ? `${item.kode} - ${item.nama}` : (item.kode || ""));
+      }}
+    />
+
+    <SearchModal
+      open={poliModalOpen}
+      onOpenChange={setPoliModalOpen}
+      title="Cari Kode Poli Rujukan (List Spesialistik BPJS)"
+      placeholder="Ketik kode/nama spesialistik (opsional)..."
+      columns={[
+        { key: "kode", label: "Kode", width: "120px" },
+        { key: "nama", label: "Nama Spesialistik" },
+        { key: "kapasitas", label: "Kapasitas", width: "120px" },
+        { key: "jumlah_rujukan", label: "Jml Rujukan", width: "140px" },
+        { key: "persentase", label: "Persentase", width: "120px" },
+      ]}
+      minSearchLength={0}
+      onSearch={searchReferralPoliSpesialistik}
+      onSelect={(item) => {
+        setSelectedPoliNama(item.nama || "");
+        onFormChange("referral_poli_code", item.kode || "");
+        onFormChange("referral_specialist", item.nama || "");
+      }}
+    />
+
+    <Dialog open={ppkDialogOpen} onOpenChange={setPpkDialogOpen}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Tambah PPK Baru</DialogTitle>
+        </DialogHeader>
+        <div className="grid grid-cols-1 gap-3 py-2">
+          <div className="space-y-2">
+            <Label>Kode BPJS</Label>
+            <Input value={ppkForm.kode_bpjs} onChange={(e) => setPpkForm((prev) => ({ ...prev, kode_bpjs: e.target.value }))} />
+          </div>
+          <div className="space-y-2">
+            <Label>Nama PPK</Label>
+            <Input value={ppkForm.nama} onChange={(e) => setPpkForm((prev) => ({ ...prev, nama: e.target.value }))} />
+          </div>
+          <div className="space-y-2">
+            <Label>Alamat</Label>
+            <Input value={ppkForm.alamat} onChange={(e) => setPpkForm((prev) => ({ ...prev, alamat: e.target.value }))} />
+          </div>
+          <div className="space-y-2">
+            <Label>Telepon</Label>
+            <Input value={ppkForm.telepon} onChange={(e) => setPpkForm((prev) => ({ ...prev, telepon: e.target.value }))} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setPpkDialogOpen(false)} disabled={ppkSaving}>Batal</Button>
+          <Button onClick={savePPK} disabled={ppkSaving}>
+            {ppkSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+            Simpan PPK
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
 

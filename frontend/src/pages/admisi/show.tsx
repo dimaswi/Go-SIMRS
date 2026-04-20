@@ -690,7 +690,7 @@ export default function AdmissionRequestShowPage() {
     : patientDetail && (patientDetail.jenis_jaminan === "BPJS" || patientDetail.jenis_jaminan === "JKN");
 
   return (
-    <div className="flex flex-1 flex-col p-4 gap-4 overflow-hidden">
+    <div className="flex flex-1 flex-col px-4 gap-4 overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between shrink-0">
         <div className="flex items-center gap-4">

@@ -66,6 +66,8 @@ import {
   Stethoscope,
   ChevronDown,
   ChevronRight,
+  Search,
+  UserCheck,
 } from "lucide-react";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
@@ -74,6 +76,11 @@ import nursingMasterRaw from "@/master-data/nursing/sdki-slki-siki.master.json?r
 interface NursingCareFormProps {
   visitId: number;
   readOnly?: boolean;
+  externalData?: NursingCare[];
+  useExternalData?: boolean;
+  staffOptions?: { id: number; name: string }[];
+  onSetCreatedBy?: (id: number, name: string) => void;
+  onSetApprovedBy?: (id: number, name: string) => void;
 }
 
 interface NursingMasterItem {
@@ -129,6 +136,9 @@ function NursingCareCollapsibleRow({
   onVerify,
   onEdit,
   onDelete,
+  staffOptions,
+  onSetCreatedBy,
+  onSetApprovedBy,
 }: {
   record: NursingCare;
   canVerify: boolean;
@@ -137,8 +147,30 @@ function NursingCareCollapsibleRow({
   onVerify: (id: number) => void;
   onEdit: (record: NursingCare) => void;
   onDelete: (id: number) => void;
+  staffOptions?: { id: number; name: string }[];
+  onSetCreatedBy?: (id: number, name: string) => void;
+  onSetApprovedBy?: (id: number, name: string) => void;
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [staffModalOpen, setStaffModalOpen] = useState(false);
+  const [staffModalMode, setStaffModalMode] = useState<"pembuat" | "approval">("pembuat");
+  const [staffSearch, setStaffSearch] = useState("");
+
+  const openStaffModal = (mode: "pembuat" | "approval") => {
+    setStaffModalMode(mode);
+    setStaffSearch("");
+    setStaffModalOpen(true);
+  };
+
+  const handlePickStaff = (name: string) => {
+    if (staffModalMode === "pembuat") onSetCreatedBy?.(record.id, name);
+    else onSetApprovedBy?.(record.id, name);
+    setStaffModalOpen(false);
+  };
+
+  const filteredStaff = (staffOptions || []).filter((s) =>
+    s.name.toLowerCase().includes(staffSearch.toLowerCase()),
+  );
 
   // Get summary of nursing diagnosis
   const getDiagnosisSummary = () => {
@@ -242,8 +274,57 @@ function NursingCareCollapsibleRow({
                 <Trash2 className="h-4 w-4" />
               </Button>
             )}
+            {onSetCreatedBy && staffOptions && staffOptions.length > 0 && (
+              <Button variant="ghost" size="icon" className="h-7 w-7" title="Set Pembuat" onClick={() => openStaffModal("pembuat")}>
+                <User className="h-4 w-4" />
+              </Button>
+            )}
+            {onSetApprovedBy && staffOptions && staffOptions.length > 0 && (
+              <Button variant="ghost" size="icon" className="h-7 w-7" title="Set Approval" onClick={() => openStaffModal("approval")}>
+                <UserCheck className="h-4 w-4" />
+              </Button>
+            )}
           </div>
         </div>
+
+        {/* Staff Picker Modal */}
+        <Dialog open={staffModalOpen} onOpenChange={setStaffModalOpen}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>
+                {staffModalMode === "pembuat" ? "Pilih Pembuat" : "Pilih Approval"}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                className="pl-8"
+                placeholder="Cari nama..."
+                value={staffSearch}
+                onChange={(e) => setStaffSearch(e.target.value)}
+                autoFocus
+              />
+            </div>
+            <div className="max-h-64 overflow-y-auto divide-y rounded-md border">
+              {filteredStaff.length === 0 ? (
+                <p className="py-6 text-center text-sm text-muted-foreground">Tidak ada hasil</p>
+              ) : (
+                filteredStaff.map((s) => (
+                  <button
+                    key={s.id}
+                    className="w-full px-3 py-2.5 text-left text-sm hover:bg-muted/50 transition-colors"
+                    onClick={() => handlePickStaff(s.name)}
+                  >
+                    {s.name}
+                  </button>
+                ))
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setStaffModalOpen(false)}>Batal</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Expanded Content */}
         <CollapsibleContent>
@@ -467,7 +548,15 @@ const defaultFormData: CreateNursingCareInput = {
   notes: "",
 };
 
-export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormProps) {
+export function NursingCareForm({
+  visitId,
+  readOnly = false,
+  externalData,
+  useExternalData = false,
+  staffOptions,
+  onSetCreatedBy,
+  onSetApprovedBy,
+}: NursingCareFormProps) {
   const { toast } = useToast();
   const { hasPermission } = usePermission();
 
@@ -497,6 +586,11 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
   // Load data
   const loadData = useCallback(async () => {
     setLoading(true);
+    if (useExternalData) {
+      setRecords(externalData || []);
+      setLoading(false);
+      return;
+    }
     try {
       const res = await nursingCareApi.getAll(visitId);
       setRecords(res.data.data || []);
@@ -509,7 +603,7 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
     } finally {
       setLoading(false);
     }
-  }, [visitId, toast]);
+  }, [externalData, useExternalData, visitId, toast]);
 
   useEffect(() => {
     loadData();
@@ -752,10 +846,29 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
 
   return (
     <>
-        <div>
-          <div className="p-0">
+      <div>
+        <div className="space-y-3">
+          <div className="rounded-lg border border-border/70 bg-muted/20 px-3 py-3 sm:px-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-foreground">Asuhan Keperawatan</p>
+                <p className="text-xs text-muted-foreground">Total catatan: {records.length}</p>
+              </div>
+              {canCreate && !readOnly && (
+                <Button onClick={handleOpenCreate} size="sm">
+                  <Plus className="h-4 w-4 mr-1" />
+                  Tambah Asuhan
+                </Button>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-border/70 bg-background overflow-hidden">
+            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              Daftar Asuhan Keperawatan
+            </div>
             {records.length > 0 ? (
-              <div className="rounded-lg border overflow-x-auto">
+              <div className="overflow-x-auto">
                 {/* Table Header */}
                 <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-muted/50 text-xs font-medium text-muted-foreground border-b sticky top-0">
                   <div className="col-span-1"></div>
@@ -779,33 +892,25 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
                         setRecordToDelete(id);
                         setDeleteDialogOpen(true);
                       }}
+                      staffOptions={staffOptions}
+                      onSetCreatedBy={onSetCreatedBy}
+                      onSetApprovedBy={onSetApprovedBy}
                     />
                   ))}
                 </div>
               </div>
             ) : (
-              <div className="py-12 text-center text-muted-foreground border rounded-lg">
+              <div className="py-12 text-center text-muted-foreground">
                 <HeartPulse className="h-12 w-12 mx-auto mb-4 opacity-50" />
                 <p className="font-medium">Belum ada catatan asuhan keperawatan</p>
-                <p className="text-sm mt-1">Klik "Tambah Asuhan" untuk menambahkan catatan.</p>
-                {canCreate && !readOnly && (
-                  <div className="mt-4 flex justify-center">
-                    <Button onClick={handleOpenCreate} size="sm">
-                      <Plus className="h-4 w-4 mr-1" />
-                      Tambah Asuhan
-                    </Button>
-                  </div>
-                )}
+                <p className="text-sm mt-1">
+                  {readOnly
+                    ? "Belum ada catatan asuhan keperawatan pada RM duplikat."
+                    : 'Klik "Tambah Asuhan" untuk menambahkan asuhan baru.'}
+                </p>
               </div>
             )}
-            {canCreate && !readOnly && records.length > 0 && (
-              <div className="mt-4 flex justify-center">
-                <Button onClick={handleOpenCreate} size="sm">
-                  <Plus className="h-4 w-4 mr-1" />
-                  Tambah Asuhan
-                </Button>
-              </div>
-            )}
+          </div>
           </div>
         </div>
 
@@ -925,7 +1030,7 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
                   </div>
                 </div>
 
-                <div className="space-y-4"><div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+                <div className="space-y-4 rounded-lg border border-border/70 p-4"><p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">SDKI</p><div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
                       <div className="col-span-2 space-y-2">
                         <Label>Diagnosis Keperawatan</Label>
                         <Textarea
@@ -968,7 +1073,7 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
                 </div>
 
                 {/* Luaran */}
-                <div className="space-y-4"><div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+                <div className="space-y-4 rounded-lg border border-border/70 p-4"><p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">SLKI</p><div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
                       <div className="col-span-3 space-y-2">
                         <Label>Luaran Keperawatan</Label>
                         <Textarea
@@ -1011,7 +1116,7 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
                     </div>
                 </div>
 
-                <div className="space-y-4"><div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+                <div className="space-y-4 rounded-lg border border-border/70 p-4"><p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">SIKI</p><div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
                       <div className="col-span-3 space-y-2">
                         <Label>Intervensi Keperawatan</Label>
                         <Textarea
@@ -1063,7 +1168,8 @@ export function NursingCareForm({ visitId, readOnly = false }: NursingCareFormPr
                     </div>
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-2 rounded-lg border border-border/70 p-4">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Catatan</p>
                   <Label>Catatan Tambahan</Label>
                   <Textarea
                     value={formData.notes}

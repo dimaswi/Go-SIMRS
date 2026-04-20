@@ -186,53 +186,55 @@ export function BedTransferForm({
 
   return (
     <div>
-      <div className="p-0">
-        {/* Inline Tabs with Underline */}
-        <div className="border-b">
-          <div className="flex">
-            <button
-              onClick={() => setActiveTab("form")}
-              className={cn(
-                "px-4 py-2.5 text-sm font-medium transition-colors relative",
-                activeTab === "form"
-                  ? "text-primary"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              <span className="flex items-center gap-2">
-                <ArrowRightLeft className="h-4 w-4" />
+      <div className="space-y-3">
+        <div className="rounded-lg border border-border/70 bg-muted/20 px-3 py-3 sm:px-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-foreground">Mutasi Pasien</p>
+              <p className="text-xs text-muted-foreground">Kelola perpindahan kamar/bed dan pantau riwayat mutasi pasien.</p>
+            </div>
+            <div className="inline-flex items-center gap-1 rounded-md border border-border/70 bg-background p-1">
+              <button
+                type="button"
+                onClick={() => setActiveTab("form")}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-medium transition-colors",
+                  activeTab === "form"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <ArrowRightLeft className="h-3.5 w-3.5" />
                 Form Mutasi
-              </span>
-              {activeTab === "form" && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
-              )}
-            </button>
-            <button
-              onClick={() => setActiveTab("history")}
-              className={cn(
-                "px-4 py-2.5 text-sm font-medium transition-colors relative",
-                activeTab === "history"
-                  ? "text-primary"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              <span className="flex items-center gap-2">
-                <History className="h-4 w-4" />
-                Riwayat Mutasi
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("history")}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-medium transition-colors",
+                  activeTab === "history"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <History className="h-3.5 w-3.5" />
+                Riwayat
                 {transfers.length > 0 && (
-                  <Badge variant="secondary" className="ml-1 h-5 px-1.5">
+                  <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
                     {transfers.length}
                   </Badge>
                 )}
-              </span>
-              {activeTab === "history" && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
-              )}
-            </button>
+              </button>
+            </div>
           </div>
         </div>
 
-        <div className="p-4 space-y-6">
+        <div className="rounded-lg border border-border/70 bg-background overflow-hidden">
+          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            {activeTab === "form" ? "Form Mutasi Pasien" : "Riwayat Mutasi Pasien"}
+          </div>
+
+          <div className="p-4 space-y-6">
             {/* Form Tab */}
             {activeTab === "form" && !readOnly && (
               <fieldset disabled={saving}>
@@ -641,6 +643,7 @@ export function BedTransferForm({
                 )}
               </div>
             )}
+          </div>
         </div>
       </div>
     </div>

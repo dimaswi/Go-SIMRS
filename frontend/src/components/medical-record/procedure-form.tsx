@@ -51,6 +51,7 @@ import {
   User,
   AlertTriangle,
   AlertCircle,
+  Search,
   ChevronDown,
   ChevronRight,
   XCircle,
@@ -81,15 +82,11 @@ export function ProcedureForm({ visitId, readOnly = false }: ProcedureFormProps)
   const [visitProcedures, setVisitProcedures] = useState<VisitProcedure[]>([]);
   const [expandedProcedure, setExpandedProcedure] = useState<number | null>(null);
   const [resultValues, setResultValues] = useState<Record<number, { value: string; num_value: number; is_abnormal: boolean; is_critical: boolean }>>({});
-  const [editingNotes, setEditingNotes] = useState<string>("");
 
   // New procedure form
-  const [selectedProcedureIds, setSelectedProcedureIds] = useState<number[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [addNotes, setAddNotes] = useState("");
   const [queueSearchQuery, setQueueSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "in_progress" | "completed" | "cancelled">("all");
-  const [activePanel, setActivePanel] = useState<"queue" | "catalog">("queue");
 
   // Dialogs
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -101,15 +98,35 @@ export function ProcedureForm({ visitId, readOnly = false }: ProcedureFormProps)
   const canDelete = hasPermission("medical_records.procedure");
 
   // Load data
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (focusProcedureId?: number) => {
     setLoading(true);
     try {
       const [roomProcRes, visitProcRes] = await Promise.all([
         visitProceduresApi.getRoomProcedures(visitId),
         visitProceduresApi.getAll(visitId),
       ]);
-      setRoomProcedures(roomProcRes.data.data || []);
-      setVisitProcedures(visitProcRes.data.data || []);
+      const roomProcedureData = roomProcRes.data.data || [];
+      const visitProcedureData = visitProcRes.data.data || [];
+      setRoomProcedures(roomProcedureData);
+      setVisitProcedures(visitProcedureData);
+
+      if (focusProcedureId) {
+        const focused = visitProcedureData.find((item) => item.id === focusProcedureId);
+        if (focused) {
+          const values: Record<number, { value: string; num_value: number; is_abnormal: boolean; is_critical: boolean }> = {};
+          focused.procedure?.parameters?.forEach((param) => {
+            const existingResult = focused.results?.find((r) => r.parameter_id === param.id);
+            values[param.id] = {
+              value: existingResult?.value || "",
+              num_value: existingResult?.num_value || 0,
+              is_abnormal: existingResult?.is_abnormal || false,
+              is_critical: existingResult?.is_critical || false,
+            };
+          });
+          setResultValues(values);
+          setExpandedProcedure(focused.id);
+        }
+      }
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -145,40 +162,23 @@ export function ProcedureForm({ visitId, readOnly = false }: ProcedureFormProps)
         };
       });
       setResultValues(values);
-      setEditingNotes(procedure.notes || "");
     }
 
     setExpandedProcedure(procedureId);
   };
 
-  // Add procedures (bulk)
-  const handleAddProcedure = async () => {
-    if (selectedProcedureIds.length === 0) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Pilih minimal satu tindakan terlebih dahulu",
-      });
-      return;
-    }
-
+  const handleQuickAddProcedure = async (procedureId: number) => {
     setSaving(true);
     try {
-      await Promise.all(
-        selectedProcedureIds.map((procedureId) =>
-          visitProceduresApi.create(visitId, {
-            procedure_id: procedureId,
-            notes: addNotes,
-          })
-        )
-      );
+      const res = await visitProceduresApi.create(visitId, {
+        procedure_id: procedureId,
+      });
+      const createdId = res.data?.data?.id;
       toast({
         title: "Berhasil",
-        description: `${selectedProcedureIds.length} tindakan berhasil ditambahkan`,
+        description: "Tindakan berhasil ditambahkan",
       });
-      setSelectedProcedureIds([]);
-      setAddNotes("");
-      loadData();
+      loadData(createdId);
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -232,7 +232,6 @@ export function ProcedureForm({ visitId, readOnly = false }: ProcedureFormProps)
 
       const data: SaveVisitProcedureResultsInput = {
         status: status || procedure.status,
-        notes: editingNotes,
         results,
       };
 
@@ -393,14 +392,6 @@ export function ProcedureForm({ visitId, readOnly = false }: ProcedureFormProps)
     return acc;
   }, {} as Record<number, number>);
 
-  const toggleProcedureSelection = (procedureId: number) => {
-    setSelectedProcedureIds((prev) =>
-      prev.includes(procedureId)
-        ? prev.filter((id) => id !== procedureId)
-        : [...prev, procedureId]
-    );
-  };
-
   const queueCounts = useMemo(() => {
     return {
       all: visitProcedures.length,
@@ -451,122 +442,46 @@ export function ProcedureForm({ visitId, readOnly = false }: ProcedureFormProps)
 
   return (
     <fieldset disabled={readOnly}>
-    <div className="space-y-4">
-      <div className="rounded-lg border bg-background p-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            type="button"
-            variant={activePanel === "queue" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setActivePanel("queue")}
-          >
-            Antrian Tindakan ({queueCounts.all})
-          </Button>
-          <Button
-            type="button"
-            variant={activePanel === "catalog" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setActivePanel("catalog")}
-          >
-            Tambah Tindakan
-          </Button>
-        </div>
-      </div>
-
-      {activePanel === "catalog" && (
-        <div className="rounded-lg border bg-background overflow-hidden">
-          <div className="border-b p-3 space-y-2 bg-muted/20">
+    <div className="space-y-6">
+      <div className="grid gap-4 xl:grid-cols-2 items-start">
+        <div className="rounded-lg border border-border/70 bg-background">
+          <div className="border-b border-border/70 bg-muted/25 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            Kolom 1 - Assign Tindakan
+          </div>
+          <div className="border-b p-3 space-y-2 bg-muted/10">
             <div className="flex items-center justify-between gap-2">
               <p className="text-sm font-semibold">Katalog Tindakan</p>
               <Badge variant="secondary" className="text-xs">{filteredProcedures.length} item</Badge>
             </div>
-            <Input
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Cari tindakan (nama/kode)..."
-            />
-            <Textarea
-              value={addNotes}
-              onChange={(e) => setAddNotes(e.target.value)}
-              placeholder="Catatan untuk tindakan terpilih (opsional)..."
-              rows={2}
-            />
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-xs text-muted-foreground">{selectedProcedureIds.length} terpilih</span>
-              <div className="flex items-center gap-2">
-                {selectedProcedureIds.length > 0 && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-8"
-                    onClick={() => setSelectedProcedureIds([])}
-                  >
-                    Reset
-                  </Button>
-                )}
-                <Button
-                  type="button"
-                  size="sm"
-                  className="h-8"
-                  disabled={saving || selectedProcedureIds.length === 0}
-                  onClick={handleAddProcedure}
-                >
-                  {saving ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Menambahkan...
-                    </>
-                  ) : (
-                    <>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Assign {selectedProcedureIds.length > 0 ? selectedProcedureIds.length : ""}
-                    </>
-                  )}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-8"
-                  onClick={() => setActivePanel("queue")}
-                >
-                  Lihat Antrian
-                </Button>
-              </div>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Cari tindakan (nama/kode)..."
+                className="pl-9"
+              />
             </div>
+            <p className="text-xs text-muted-foreground">Klik tombol plus pada tindakan untuk assign cepat.</p>
           </div>
 
           {canCreate ? (
             filteredProcedures.length > 0 ? (
-              <div className="max-h-[520px] overflow-auto">
-                <table className="w-full min-w-[640px] text-sm">
+              <div>
+                <table className="w-full text-sm">
                   <thead className="sticky top-0 bg-background z-10 border-b">
                     <tr>
-                      <th className="py-2 px-3 w-10 text-left">✓</th>
                       <th className="py-2 px-3 text-left">Tindakan</th>
                       <th className="py-2 px-3 w-24 text-left">Kode</th>
                       <th className="py-2 px-3 w-24 text-left">Status</th>
+                      <th className="py-2 px-3 w-16 text-left">Aksi</th>
                     </tr>
                   </thead>
                   <tbody>
                   {filteredProcedures.map((proc) => {
-                    const isSelected = selectedProcedureIds.includes(proc.id);
                     const addedCount = procedureCounts[proc.id] || 0;
                     return (
-                      <tr
-                        key={proc.id}
-                        className={`cursor-pointer border-b hover:bg-muted/40 transition-colors ${
-                          isSelected ? "bg-primary/10" : ""
-                        }`}
-                        onClick={() => toggleProcedureSelection(proc.id)}
-                      >
-                        <td className="py-2 px-3" onClick={(e) => e.stopPropagation()}>
-                          <Checkbox
-                            checked={isSelected}
-                            onCheckedChange={() => toggleProcedureSelection(proc.id)}
-                          />
-                        </td>
+                      <tr key={proc.id} className="border-b hover:bg-muted/40 transition-colors">
                         <td className="py-2 px-3">
                           <p className="font-medium text-sm truncate">{proc.name}</p>
                           <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
@@ -581,6 +496,19 @@ export function ProcedureForm({ visitId, readOnly = false }: ProcedureFormProps)
                           ) : (
                             <span className="text-xs text-muted-foreground">baru</span>
                           )}
+                        </td>
+                        <td className="py-2 px-3" onClick={(e) => e.stopPropagation()}>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8"
+                            disabled={saving}
+                            onClick={() => handleQuickAddProcedure(proc.id)}
+                            title="Tambah cepat"
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
                         </td>
                       </tr>
                     );
@@ -603,11 +531,12 @@ export function ProcedureForm({ visitId, readOnly = false }: ProcedureFormProps)
           )}
 
         </div>
-      )}
 
-      {activePanel === "queue" && (
-        <div className="rounded-lg border bg-background overflow-hidden">
-          <div className="border-b p-3 space-y-2 bg-muted/20">
+        <div className="rounded-lg border border-border/70 bg-background">
+          <div className="border-b border-border/70 bg-muted/25 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            Kolom 2 - Verifikasi dan Isi Hasil
+          </div>
+          <div className="border-b p-3 space-y-2 bg-muted/10">
             <div className="flex flex-wrap items-center gap-2 justify-between">
               <div className="flex flex-wrap items-center gap-2">
                 <Button type="button" variant={statusFilter === "all" ? "default" : "outline"} size="sm" onClick={() => setStatusFilter("all")}>
@@ -626,15 +555,16 @@ export function ProcedureForm({ visitId, readOnly = false }: ProcedureFormProps)
                 Batal ({queueCounts.cancelled})
                 </Button>
               </div>
-              {canCreate && (
-                <Button type="button" variant="outline" size="sm" onClick={() => setActivePanel("catalog")}>Tambah Tindakan</Button>
-              )}
             </div>
-            <Input
-              value={queueSearchQuery}
-              onChange={(e) => setQueueSearchQuery(e.target.value)}
-              placeholder="Cari di antrian tindakan..."
-            />
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={queueSearchQuery}
+                onChange={(e) => setQueueSearchQuery(e.target.value)}
+                placeholder="Cari di antrian tindakan..."
+                className="pl-9"
+              />
+            </div>
           </div>
 
           {filteredVisitProcedures.length > 0 ? (
@@ -815,18 +745,6 @@ export function ProcedureForm({ visitId, readOnly = false }: ProcedureFormProps)
                             </div>
                           )}
 
-                          {/* Notes */}
-                          <div className="space-y-1">
-                            <Label className="text-sm">Catatan</Label>
-                            <Textarea
-                              value={editingNotes}
-                              onChange={(e) => setEditingNotes(e.target.value)}
-                              placeholder="Catatan tambahan..."
-                              disabled={isDisabled}
-                              rows={2}
-                            />
-                          </div>
-
                           {/* Action Buttons */}
                           {canEdit && !isDisabled && (
                             <div className="flex flex-wrap justify-end gap-2 pt-2">
@@ -906,8 +824,8 @@ export function ProcedureForm({ visitId, readOnly = false }: ProcedureFormProps)
 
                           {/* Results Display (for completed) */}
                           {vp.status === "completed" && vp.results && vp.results.length > 0 && (
-                            <div className="border rounded-lg overflow-x-auto">
-                              <table className="w-full min-w-[640px] text-sm">
+                            <div className="border rounded-lg">
+                              <table className="w-full text-sm">
                                 <thead className="bg-muted/50">
                                   <tr>
                                     <th className="py-2 px-3 text-left font-medium">Parameter</th>
@@ -954,7 +872,7 @@ export function ProcedureForm({ visitId, readOnly = false }: ProcedureFormProps)
             </div>
           )}
         </div>
-      )}
+      </div>
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

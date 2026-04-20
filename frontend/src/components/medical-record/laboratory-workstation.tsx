@@ -18,12 +18,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import {
   Loader2,
   TestTube,
   Play,
-  Save,
   Clock,
   User,
   ArrowUp,
@@ -34,10 +39,11 @@ import {
 } from "lucide-react";
 import {
   procedureOrdersApi,
-  PROCEDURE_ORDER_STATUS,
+  visitProceduresApi,
   printApi,
   signatureApi,
   DOCUMENT_TYPES,
+  PROCEDURE_ORDER_STATUS,
 } from "@/lib/api";
 import { SignaturePINDialog } from "@/components/signature/signature-pin-dialog";
 import type {
@@ -45,20 +51,38 @@ import type {
   ProcedureOrderItem,
   ProcedureParameter,
 } from "@/lib/api/procedure-orders";
+import type { VisitProcedure } from "@/lib/api/visit-procedures";
 import { formatPatientName } from "@/lib/print-utils";
 import {
   usePINVerification,
   PINVerificationDialog,
 } from "./edit-mode-controller";
+import { cn } from "@/lib/utils";
+
+const FOOTER_ACTION_EVENT = "medical-record-footer-action";
 
 interface LaboratoryWorkstationProps {
   visitId: number;
   readOnly?: boolean;
+  rmDuplicateMode?: boolean;
+  apiAdapter?: Pick<
+    typeof procedureOrdersApi,
+    "getAll" | "start" | "saveResults"
+  >;
+  duplicateDoctorOptions?: { id: number; name: string }[];
+  onUpdateDuplicateOrderMeta?: (
+    runtimeOrderId: number,
+    updates: { fake_date?: string; doctor_name?: string },
+  ) => void;
 }
 
 export function LaboratoryWorkstation({
   visitId,
   readOnly: _readOnly = false,
+  rmDuplicateMode = false,
+  apiAdapter,
+  duplicateDoctorOptions = [],
+  onUpdateDuplicateOrderMeta,
 }: LaboratoryWorkstationProps) {
   const { toast } = useToast();
   const { hasPermission } = usePermission();
@@ -79,6 +103,7 @@ export function LaboratoryWorkstation({
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [orders, setOrders] = useState<ProcedureOrder[]>([]);
+  const [directProcedures, setDirectProcedures] = useState<VisitProcedure[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<ProcedureOrder | null>(
     null,
   );
@@ -101,26 +126,75 @@ export function LaboratoryWorkstation({
     signed_at?: string;
     signer_name?: string;
   } | null>(null);
+  const [doctorModalOpen, setDoctorModalOpen] = useState(false);
+  const [dateModalOpen, setDateModalOpen] = useState(false);
+  const [doctorSearch, setDoctorSearch] = useState("");
+  const [pendingDoctorName, setPendingDoctorName] = useState("");
+  const [pendingOrderDate, setPendingOrderDate] = useState("");
+  const [orderPickerOpen, setOrderPickerOpen] = useState(false);
 
   const canPerform = hasPermission("procedure_orders.perform");
+  const orderApi = apiAdapter || procedureOrdersApi;
+
+  useEffect(() => {
+    const handleFooterAction = (event: Event) => {
+      const customEvent = event as CustomEvent<{
+        tabId: string;
+        action: "save" | "final";
+        handled: boolean;
+      }>;
+      if (customEvent.detail?.tabId !== "laboratory-workstation") return;
+      customEvent.detail.handled = true;
+
+      if (submitting) return;
+      if (!selectedOrder || selectedOrder.status !== "in_progress" || !canPerform || rmDuplicateMode) {
+        toast({
+          title: "Info",
+          description: "Tidak ada data hasil yang dapat disimpan pada order aktif.",
+        });
+        return;
+      }
+
+      handleSaveAllResults();
+    };
+
+    window.addEventListener(FOOTER_ACTION_EVENT, handleFooterAction as EventListener);
+    return () => {
+      window.removeEventListener(FOOTER_ACTION_EVENT, handleFooterAction as EventListener);
+    };
+  }, [submitting, selectedOrder, canPerform, rmDuplicateMode]);
 
   useEffect(() => {
     loadOrders();
-  }, [visitId]);
+  }, [visitId, apiAdapter]);
 
   useEffect(() => {
     const handleRefreshOrders = () => {
       loadOrders();
     };
 
+    const handleOpenOrderPicker = () => {
+      if (!rmDuplicateMode) return;
+      if (orders.length <= 1) return;
+      setOrderPickerOpen(true);
+    };
+
     window.addEventListener("refresh-final-visit", handleRefreshOrders);
     window.addEventListener("refresh-print-options", handleRefreshOrders);
+    window.addEventListener(
+      "rm-duplicate-open-lab-order-picker",
+      handleOpenOrderPicker,
+    );
 
     return () => {
       window.removeEventListener("refresh-final-visit", handleRefreshOrders);
       window.removeEventListener("refresh-print-options", handleRefreshOrders);
+      window.removeEventListener(
+        "rm-duplicate-open-lab-order-picker",
+        handleOpenOrderPicker,
+      );
     };
-  }, [visitId]);
+  }, [visitId, rmDuplicateMode, orders.length]);
 
   useEffect(() => {
     if (selectedOrder) {
@@ -144,8 +218,63 @@ export function LaboratoryWorkstation({
 
       // Check signature status
       checkSignatureStatus(selectedOrder.id);
+      setPendingDoctorName(selectedOrder.ordered_by?.nama_lengkap || "");
+      setPendingOrderDate(
+        (selectedOrder.created_at || "").replace(" ", "T").slice(0, 16),
+      );
+      setDoctorSearch("");
     }
   }, [selectedOrder]);
+
+  useEffect(() => {
+    if (orders.length > 0 && !selectedOrder) {
+      const activeOrder = orders.find(
+        (order) => order.status === "pending" || order.status === "in_progress",
+      );
+      setSelectedOrder(activeOrder || orders[0]);
+    }
+  }, [orders, selectedOrder]);
+
+  const applyDuplicateDoctor = (doctorName: string) => {
+    if (!selectedOrder) return;
+    const nextDoctor = doctorName.trim();
+    setSelectedOrder((prev) =>
+      prev
+        ? {
+            ...prev,
+            ordered_by: nextDoctor
+              ? { id: 0, nama_lengkap: nextDoctor }
+              : undefined,
+          }
+        : prev,
+    );
+    onUpdateDuplicateOrderMeta?.(selectedOrder.id, {
+      doctor_name: nextDoctor,
+    });
+    setDoctorModalOpen(false);
+  };
+
+  const applyDuplicateDate = () => {
+    if (!selectedOrder) return;
+    const nextDate = pendingOrderDate ? `${pendingOrderDate}:00` : "";
+    if (!nextDate) {
+      setDateModalOpen(false);
+      return;
+    }
+    setSelectedOrder((prev) =>
+      prev
+        ? {
+            ...prev,
+            created_at: nextDate,
+            updated_at: nextDate,
+          }
+        : prev,
+    );
+    onUpdateDuplicateOrderMeta?.(selectedOrder.id, {
+      fake_date: nextDate,
+    });
+    setDateModalOpen(false);
+  };
 
   const checkSignatureStatus = async (orderId: number) => {
     try {
@@ -173,12 +302,17 @@ export function LaboratoryWorkstation({
   const loadOrders = async () => {
     setLoading(true);
     try {
-      const res = await procedureOrdersApi.getAll({
+      const res = await orderApi.getAll({
         target_visit_id: visitId,
         order_type: "laboratory",
       });
       const data = res.data || [];
       setOrders(data);
+      setDirectProcedures([]);
+
+      const directRes = await visitProceduresApi.getAll(visitId).catch(() => ({ data: { data: [] as VisitProcedure[] } }));
+      const directData = directRes.data?.data || [];
+      setDirectProcedures(directData.filter((item: VisitProcedure) => item.procedure?.procedure_type === "laboratory"));
 
       // Keep previously selected order when still available to avoid
       // signature/status panel appearing to "disappear" after cross-view refresh.
@@ -205,10 +339,15 @@ export function LaboratoryWorkstation({
       }
     } catch (error) {
       console.error("Error loading orders:", error);
+      const directRes = await visitProceduresApi.getAll(visitId).catch(() => ({ data: { data: [] as VisitProcedure[] } }));
+      const directData = directRes.data?.data || [];
+      setDirectProcedures(directData.filter((item: VisitProcedure) => item.procedure?.procedure_type === "laboratory"));
+      setOrders([]);
+      setSelectedOrder(null);
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Gagal memuat data order",
+        description: "Gagal memuat data order, menampilkan tindakan langsung jika tersedia",
       });
     } finally {
       setLoading(false);
@@ -219,7 +358,7 @@ export function LaboratoryWorkstation({
     if (!selectedOrder) return;
     setSubmitting(true);
     try {
-      const res = await procedureOrdersApi.start(selectedOrder.id);
+      const res = await orderApi.start(selectedOrder.id);
       setSelectedOrder(res.data);
       toast({ title: "Berhasil", description: "Pemeriksaan dimulai" });
       loadOrders();
@@ -264,7 +403,7 @@ export function LaboratoryWorkstation({
           ),
         })) || [];
 
-      const res = await procedureOrdersApi.saveResults(selectedOrder.id, {
+      const res = await orderApi.saveResults(selectedOrder.id, {
         result_summary: resultSummary,
         conclusion: conclusion,
         is_critical: isCritical,
@@ -384,11 +523,41 @@ export function LaboratoryWorkstation({
     );
   };
 
-  const getStatusBadge = (status: string) => {
-    const config = PROCEDURE_ORDER_STATUS[
-      status as keyof typeof PROCEDURE_ORDER_STATUS
-    ] || { label: status, variant: "secondary" as const };
-    return <Badge variant={config.variant}>{config.label}</Badge>;
+  const getStatusDotClass = (status?: string) => {
+    switch (status) {
+      case "completed":
+        return "bg-emerald-500";
+      case "in_progress":
+        return "bg-blue-500";
+      case "pending":
+        return "bg-amber-500";
+      case "cancelled":
+        return "bg-rose-500";
+      default:
+        return "bg-zinc-400";
+    }
+  };
+
+  const getStatusBadge = (status?: string) => {
+    const config = status
+      ? PROCEDURE_ORDER_STATUS[
+          status as keyof typeof PROCEDURE_ORDER_STATUS
+        ] || { label: status, variant: "secondary" as const }
+      : { label: "Unknown", variant: "secondary" as const };
+    return (
+      <Badge variant={config.variant} className="text-[10px] px-1.5 py-0 h-5">
+        {config.label}
+      </Badge>
+    );
+  };
+
+  const getOrderStatusLabel = (status?: string) => {
+    const config = status
+      ? PROCEDURE_ORDER_STATUS[
+          status as keyof typeof PROCEDURE_ORDER_STATUS
+        ] || { label: status }
+      : { label: "Unknown" };
+    return config.label;
   };
 
   const getItemStatusBadge = (status: string) => {
@@ -417,7 +586,7 @@ export function LaboratoryWorkstation({
     );
   }
 
-  if (orders.length === 0) {
+  if (orders.length === 0 && directProcedures.length === 0) {
     return (
       <div>
         <div className="py-8">
@@ -430,34 +599,49 @@ export function LaboratoryWorkstation({
     );
   }
 
-  return (
-    <div className="space-y-3">
-      {/* Order Selection */}
-      {orders.length > 1 && (
-        <div className="shadow-sm">
-          <div className="py-3">
-            <Select
-              value={selectedOrder?.id.toString()}
-              onValueChange={(val) => {
-                const order = orders.find((o) => o.id === Number(val));
-                if (order) setSelectedOrder(order);
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Pilih order" />
-              </SelectTrigger>
-              <SelectContent>
-                {orders.map((order) => (
-                  <SelectItem key={order.id} value={order.id.toString()}>
-                    {order.order_number} - {getStatusBadge(order.status)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+  if (orders.length === 0 && directProcedures.length > 0) {
+    return (
+      <div className="space-y-4">
+        <div className="rounded-lg border bg-muted/50 p-4 text-sm">
+          <p className="font-semibold">Tindakan Laboratorium Langsung</p>
+          <p className="text-muted-foreground text-xs">
+            Pasien terdaftar langsung ke laboratorium, berikut tindakan yang tercatat pada kunjungan ini.
+          </p>
+        </div>
+        <div className="rounded-lg border bg-background p-4">
+          <div className="mb-3 text-xs font-medium text-muted-foreground">
+            Daftar tindakan
+          </div>
+          <div className="space-y-2">
+            {directProcedures.map((procedure) => (
+              <div key={procedure.id} className="flex items-center justify-between gap-3 rounded-md border p-3">
+                <div>
+                  <div className="text-sm font-medium">
+                    {procedure.procedure?.name || "Tindakan"}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Status: {procedure.status || "pending"}
+                  </div>
+                </div>
+                <Badge variant="outline" className="text-[10px] px-2 py-1">
+                  {procedure.status === "pending"
+                    ? "Menunggu"
+                    : procedure.status === "in_progress"
+                    ? "Dikerjakan"
+                    : procedure.status === "completed"
+                    ? "Selesai"
+                    : procedure.status}
+                </Badge>
+              </div>
+            ))}
           </div>
         </div>
-      )}
+      </div>
+    );
+  }
 
+  return (
+    <div className="space-y-3">
       {/* Selected Order */}
       {selectedOrder && (
         <div className="shadow-sm">
@@ -479,13 +663,12 @@ export function LaboratoryWorkstation({
                     Mulai Pemeriksaan
                   </Button>
                 )}
-                {getStatusBadge(selectedOrder.status)}
               </div>
             </div>
           </div>
           <div className="space-y-3">
             {/* Patient Info */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 text-xs p-2 bg-muted/50 rounded">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 text-[11px] p-1.5 bg-muted/50 rounded items-center">
               <div className="flex items-center gap-1">
                 <User className="h-3 w-3 text-muted-foreground" />
                 <span className="font-medium truncate">
@@ -503,21 +686,74 @@ export function LaboratoryWorkstation({
                   ) || "-"}
                 </span>
               </div>
-              <div>
-                <span className="text-muted-foreground">RM:</span>{" "}
-                {selectedOrder.source_visit?.registration?.patient?.no_rm ||
-                  selectedOrder.registration?.patient?.no_rm ||
-                  "-"}
+              <div className="flex items-center gap-1">
+                <span className="text-muted-foreground shrink-0">RM:</span>
+                <span className="font-medium">
+                  {selectedOrder.source_visit?.registration?.patient?.no_rm ||
+                    selectedOrder.registration?.patient?.no_rm ||
+                    "-"}
+                </span>
               </div>
-              <div>
-                <span className="text-muted-foreground">Dokter:</span>{" "}
-                {selectedOrder.ordered_by?.nama_lengkap || "-"}
+              <div className="flex items-center gap-1">
+                <span className="text-muted-foreground shrink-0">Dokter:</span>
+                {rmDuplicateMode ? (
+                  <span className="inline-flex items-center gap-1">
+                    <span className="font-medium">
+                      {selectedOrder.ordered_by?.nama_lengkap || "-"}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-5 w-5"
+                      title="Pilih dokter"
+                      onClick={() => {
+                        setPendingDoctorName(
+                          selectedOrder.ordered_by?.nama_lengkap || "",
+                        );
+                        setDoctorSearch("");
+                        setDoctorModalOpen(true);
+                      }}
+                    >
+                      <User className="h-3 w-3" />
+                    </Button>
+                  </span>
+                ) : (
+                  selectedOrder.ordered_by?.nama_lengkap || "-"
+                )}
               </div>
               <div className="flex items-center gap-1">
                 <Clock className="h-3 w-3 text-muted-foreground" />
-                <span>
-                  {new Date(selectedOrder.created_at).toLocaleString("id-ID")}
-                </span>
+                {rmDuplicateMode ? (
+                  <span className="inline-flex items-center gap-1">
+                    <span className="font-medium">
+                      {selectedOrder.created_at
+                        ? new Date(selectedOrder.created_at).toLocaleString("id-ID")
+                        : "-"}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-5 w-5"
+                      title="Set tanggal order"
+                      onClick={() => {
+                        setPendingOrderDate(
+                          (selectedOrder.created_at || "")
+                            .replace(" ", "T")
+                            .slice(0, 16),
+                        );
+                        setDateModalOpen(true);
+                      }}
+                    >
+                      <Clock className="h-3 w-3" />
+                    </Button>
+                  </span>
+                ) : (
+                  <span>
+                    {new Date(selectedOrder.created_at).toLocaleString("id-ID")}
+                  </span>
+                )}
                 {selectedOrder.priority !== "normal" && (
                   <Badge variant="destructive" className="text-xs ml-1">
                     {selectedOrder.priority.toUpperCase()}
@@ -549,10 +785,13 @@ export function LaboratoryWorkstation({
                 </p>
               </div>
               <div className="p-2 rounded border bg-muted/30">
-                <span className="text-muted-foreground">Status TTD</span>
-                <p className="font-medium mt-0.5">
-                  {signatureStatus?.is_signed ? "Sudah TTD" : "Belum TTD"}
-                </p>
+                <span className="text-muted-foreground">Status Order</span>
+                <div className="mt-1">
+                  <div className="flex items-center gap-1.5 font-medium">
+                    <span className={cn("h-1.5 w-1.5 rounded-full", getStatusDotClass(selectedOrder.status))} />
+                    <span>{getOrderStatusLabel(selectedOrder.status)}</span>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -671,20 +910,10 @@ export function LaboratoryWorkstation({
               </Table>
             </div>
 
-            {/* Save Button - Only when in progress */}
-            {selectedOrder.status === "in_progress" && canPerform && (
-              <Button
-                onClick={handleSaveAllResults}
-                disabled={submitting}
-                className="w-full"
-                size="sm"
-              >
-                {submitting && (
-                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                )}
-                <Save className="h-4 w-4 mr-1" />
-                Simpan Semua Hasil
-              </Button>
+            {selectedOrder.status === "in_progress" && canPerform && !rmDuplicateMode && (
+              <div className="rounded border border-dashed px-3 py-2 text-sm text-muted-foreground">
+                Gunakan tombol Simpan di footer untuk menyimpan hasil laboratorium.
+              </div>
             )}
 
             {/* Signature Status is shown whenever the document is already signed.
@@ -727,6 +956,136 @@ export function LaboratoryWorkstation({
             )}
           </div>
         </div>
+      )}
+
+      {rmDuplicateMode && selectedOrder && (
+        <Dialog open={orderPickerOpen} onOpenChange={setOrderPickerOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Pilih Order Laboratorium</DialogTitle>
+            </DialogHeader>
+            <div className="max-h-64 overflow-y-auto space-y-1">
+              {orders.map((order) => {
+                const isSelected = selectedOrder?.id === order.id;
+                return (
+                  <button
+                    key={order.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedOrder(order);
+                      setOrderPickerOpen(false);
+                    }}
+                    className={cn(
+                      "w-full rounded-md border px-3 py-2 text-left text-sm transition-colors",
+                      isSelected
+                        ? "border-primary bg-primary/10"
+                        : "border-border hover:bg-accent",
+                    )}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="inline-flex items-center gap-2 font-medium">
+                        <span className={cn("h-1.5 w-1.5 rounded-full", getStatusDotClass(order.status))} />
+                        {order.order_number}
+                      </span>
+                      {getStatusBadge(order.status)}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {rmDuplicateMode && selectedOrder && (
+        <Dialog open={doctorModalOpen} onOpenChange={setDoctorModalOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Pilih Dokter Order</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3">
+              <Input
+                value={pendingDoctorName}
+                onChange={(e) => setPendingDoctorName(e.target.value)}
+                placeholder="Nama dokter"
+              />
+              <Input
+                value={doctorSearch}
+                onChange={(e) => setDoctorSearch(e.target.value)}
+                placeholder="Cari dari daftar dokter..."
+              />
+              <div className="max-h-52 overflow-y-auto rounded border divide-y">
+                <button
+                  type="button"
+                  className="w-full px-3 py-2 text-left text-sm hover:bg-muted"
+                  onClick={() => setPendingDoctorName("")}
+                >
+                  -
+                </button>
+                {duplicateDoctorOptions
+                  .filter((doc) =>
+                    doc.name
+                      .toLowerCase()
+                      .includes(doctorSearch.toLowerCase()),
+                  )
+                  .map((doc) => (
+                    <button
+                      key={doc.id}
+                      type="button"
+                      className="w-full px-3 py-2 text-left text-sm hover:bg-muted"
+                      onClick={() => setPendingDoctorName(doc.name)}
+                    >
+                      {doc.name}
+                    </button>
+                  ))}
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setDoctorModalOpen(false)}
+                >
+                  Batal
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => applyDuplicateDoctor(pendingDoctorName)}
+                >
+                  Simpan
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {rmDuplicateMode && selectedOrder && (
+        <Dialog open={dateModalOpen} onOpenChange={setDateModalOpen}>
+          <DialogContent className="sm:max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Set Tanggal Order</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3">
+              <Input
+                type="datetime-local"
+                value={pendingOrderDate}
+                onChange={(e) => setPendingOrderDate(e.target.value)}
+              />
+              <div className="flex justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setDateModalOpen(false)}
+                >
+                  Batal
+                </Button>
+                <Button type="button" onClick={applyDuplicateDate}>
+                  Simpan
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* PIN Verification Dialog */}

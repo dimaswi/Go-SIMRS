@@ -3,7 +3,7 @@
  * SEP di paling atas, lalu dikelompokkan per kategori
  * Bisa dipilih (checkbox), diurutkan (drag up/down), dan di-merge jadi 1 PDF
  */
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -79,6 +79,9 @@ function buildCetakanNodes(detail: EKlaimLocal, originalRM: OriginalRM): Cetakan
   const patientId = detail.sep?.patient_id;
   const rmDuplicateId = detail.rm_duplicate?.id;
 
+  // Unique prefix per RM Duplikat — prevents ID collision when same visit has multiple RM Duplikat
+  const p = `rmd${rmDuplicateId || 0}`;
+
   // Visit type detection
   const visitType = (detail.visit as any)?.visit_type ?? '';
   const roomType = (detail.visit as any)?.room?.type ?? '';
@@ -100,7 +103,7 @@ function buildCetakanNodes(detail: EKlaimLocal, originalRM: OriginalRM): Cetakan
   const hasCPPT = (originalRM.cppt_count ?? 0) > 0 || (detail.rm_duplicate?.cppt_notes?.length ?? 0) > 0;
   const hasFluidBalance = (originalRM.fluid_balance_count ?? 0) > 0 || (detail.rm_duplicate?.fluid_balances?.length ?? 0) > 0;
   const hasAnamnesis = !!(originalRM.anamnesis?.id) || !!(detail.rm_duplicate?.chief_complaint);
-  const hasNursingCare = (originalRM.nursing_care_count ?? 0) > 0;
+  const hasNursingCare = (originalRM.nursing_care_count ?? 0) > 0 || (detail.rm_duplicate?.nursing_cares?.length ?? 0) > 0;
   const hasVitalSigns = (originalRM.cppt_with_vitals_count ?? 0) > 0 || hasCPPT;
   const hasBedTransfer = (originalRM.bed_transfer_count ?? 0) > 0;
 
@@ -109,7 +112,7 @@ function buildCetakanNodes(detail: EKlaimLocal, originalRM: OriginalRM): Cetakan
   // === SEP (paling atas) ===
   if (sepId) {
     nodes.push({
-      id: `sep-${sepId}`,
+      id: `${p}-sep-${sepId}`,
       label: 'Surat Eligibilitas Peserta (SEP)',
       icon: <CreditCard className="h-4 w-4" />,
       category: 'SEP',
@@ -124,7 +127,7 @@ function buildCetakanNodes(detail: EKlaimLocal, originalRM: OriginalRM): Cetakan
   // === A. Umum ===
   if (registrationId) {
     nodes.push({
-      id: `admission-discharge-${registrationId}`,
+      id: `${p}-admission-discharge-${registrationId}`,
       label: 'Ringkasan Masuk & Keluar Pasien',
       icon: <FileText className="h-4 w-4" />,
       category: 'A. Umum',
@@ -135,7 +138,7 @@ function buildCetakanNodes(detail: EKlaimLocal, originalRM: OriginalRM): Cetakan
       signerHint: 'DPJP',
     });
     nodes.push({
-      id: `registration-receipt-${registrationId}`,
+      id: `${p}-registration-receipt-${registrationId}`,
       label: 'Bukti Registrasi',
       icon: <FileText className="h-4 w-4" />,
       category: 'A. Umum',
@@ -149,7 +152,7 @@ function buildCetakanNodes(detail: EKlaimLocal, originalRM: OriginalRM): Cetakan
 
   if (patientId) {
     nodes.push({
-      id: `informed-consent-${patientId}`,
+      id: `${p}-informed-consent-${patientId}`,
       label: 'Informed Consent / General Consent',
       icon: <FileCheck className="h-4 w-4" />,
       category: 'A. Umum',
@@ -164,7 +167,7 @@ function buildCetakanNodes(detail: EKlaimLocal, originalRM: OriginalRM): Cetakan
   // === B. Rawat Jalan / Resume ===
   if (visitId) {
     nodes.push({
-      id: `resume-${visitId}`,
+      id: `${p}-resume-${visitId}`,
       label: 'Resume Medis (Rawat Jalan / Rawat Inap)',
       icon: <Stethoscope className="h-4 w-4" />,
       category: 'B. Resume Medis',
@@ -176,7 +179,7 @@ function buildCetakanNodes(detail: EKlaimLocal, originalRM: OriginalRM): Cetakan
     });
 
     nodes.push({
-      id: `inpatient-resume-${visitId}`,
+      id: `${p}-inpatient-resume-${visitId}`,
       label: 'Resume Medis Rawat Inap',
       icon: <Stethoscope className="h-4 w-4" />,
       category: 'B. Resume Medis',
@@ -188,7 +191,7 @@ function buildCetakanNodes(detail: EKlaimLocal, originalRM: OriginalRM): Cetakan
     });
 
     nodes.push({
-      id: `referral-letter-${visitId}`,
+      id: `${p}-referral-letter-${visitId}`,
       label: 'Surat Rujukan',
       icon: <Send className="h-4 w-4" />,
       category: 'B. Resume Medis',
@@ -203,7 +206,7 @@ function buildCetakanNodes(detail: EKlaimLocal, originalRM: OriginalRM): Cetakan
     });
 
     nodes.push({
-      id: `inpatient-certificate-${visitId}`,
+      id: `${p}-inpatient-certificate-${visitId}`,
       label: 'Surat Keterangan Rawat Inap',
       icon: <FileCheck className="h-4 w-4" />,
       category: 'B. Resume Medis',
@@ -218,7 +221,7 @@ function buildCetakanNodes(detail: EKlaimLocal, originalRM: OriginalRM): Cetakan
   // === C. UGD ===
   if (visitId) {
     nodes.push({
-      id: `triage-${visitId}`,
+      id: `${p}-triage-${visitId}`,
       label: 'Formulir Triage UGD',
       icon: <AlertTriangle className="h-4 w-4" />,
       category: 'C. Gawat Darurat',
@@ -229,7 +232,7 @@ function buildCetakanNodes(detail: EKlaimLocal, originalRM: OriginalRM): Cetakan
       signerHint: 'Dokter UGD',
     });
     nodes.push({
-      id: `emergency-summary-${visitId}`,
+      id: `${p}-emergency-summary-${visitId}`,
       label: 'Ringkasan Pelayanan UGD',
       icon: <ClipboardList className="h-4 w-4" />,
       category: 'C. Gawat Darurat',
@@ -244,7 +247,7 @@ function buildCetakanNodes(detail: EKlaimLocal, originalRM: OriginalRM): Cetakan
   // === D. Rawat Inap ===
   if (visitId) {
     nodes.push({
-      id: `cppt-${visitId}`,
+      id: `${p}-cppt-${visitId}`,
       label: 'CPPT (Catatan Perkembangan Pasien)',
       icon: <ClipboardList className="h-4 w-4" />,
       category: 'D. Rawat Inap',
@@ -255,7 +258,7 @@ function buildCetakanNodes(detail: EKlaimLocal, originalRM: OriginalRM): Cetakan
       signerHint: 'DPJP / Perawat',
     });
     nodes.push({
-      id: `nursing-care-${visitId}`,
+      id: `${p}-nursing-care-${visitId}`,
       label: 'Asuhan Keperawatan',
       icon: <Activity className="h-4 w-4" />,
       category: 'D. Rawat Inap',
@@ -266,7 +269,7 @@ function buildCetakanNodes(detail: EKlaimLocal, originalRM: OriginalRM): Cetakan
       signerHint: 'Perawat',
     });
     nodes.push({
-      id: `fluid-balance-${visitId}`,
+      id: `${p}-fluid-balance-${visitId}`,
       label: 'Balance Cairan',
       icon: <Droplets className="h-4 w-4" />,
       category: 'D. Rawat Inap',
@@ -277,7 +280,7 @@ function buildCetakanNodes(detail: EKlaimLocal, originalRM: OriginalRM): Cetakan
       signerHint: 'Perawat',
     });
     nodes.push({
-      id: `bed-transfer-${visitId}`,
+      id: `${p}-bed-transfer-${visitId}`,
       label: 'Lembar Mutasi Pasien',
       icon: <BedDouble className="h-4 w-4" />,
       category: 'D. Rawat Inap',
@@ -288,7 +291,7 @@ function buildCetakanNodes(detail: EKlaimLocal, originalRM: OriginalRM): Cetakan
       signerHint: 'Perawat',
     });
     nodes.push({
-      id: `vital-sign-chart-${visitId}`,
+      id: `${p}-vital-sign-chart-${visitId}`,
       label: 'Grafik Tanda Vital',
       icon: <HeartPulse className="h-4 w-4" />,
       category: 'D. Rawat Inap',
@@ -311,7 +314,7 @@ function buildCetakanNodes(detail: EKlaimLocal, originalRM: OriginalRM): Cetakan
     const oid = order.id!;
     const label = order.order_number || `Lab #${oid}`;
     nodes.push({
-      id: `lab-result-${oid}`,
+      id: `${p}-lab-result-${oid}`,
       label: `Hasil Lab - ${label}`,
       icon: <FlaskConical className="h-4 w-4" />,
       category: 'E. Penunjang',
@@ -327,7 +330,7 @@ function buildCetakanNodes(detail: EKlaimLocal, originalRM: OriginalRM): Cetakan
     const oid = order.id!;
     const label = order.order_number || `Radiologi #${oid}`;
     nodes.push({
-      id: `radiology-result-${oid}`,
+      id: `${p}-radiology-result-${oid}`,
       label: `Hasil Radiologi - ${label}`,
       icon: <FileText className="h-4 w-4" />,
       category: 'E. Penunjang',
@@ -343,7 +346,7 @@ function buildCetakanNodes(detail: EKlaimLocal, originalRM: OriginalRM): Cetakan
     const oid = order.id!;
     const label = order.order_number || `Operasi #${oid}`;
     nodes.push({
-      id: `surgery-note-${oid}`,
+      id: `${p}-surgery-note-${oid}`,
       label: `Catatan Operasi - ${label}`,
       icon: <Scissors className="h-4 w-4" />,
       category: 'E. Penunjang',
@@ -360,7 +363,7 @@ function buildCetakanNodes(detail: EKlaimLocal, originalRM: OriginalRM): Cetakan
     const oid = order.id!;
     const label = order.order_number || `Konsultasi #${oid}`;
     nodes.push({
-      id: `consultation-${oid}`,
+      id: `${p}-consultation-${oid}`,
       label: `Konsultasi - ${label}`,
       icon: <FileText className="h-4 w-4" />,
       category: 'F. Konsultasi',
@@ -378,11 +381,11 @@ function buildCetakanNodes(detail: EKlaimLocal, originalRM: OriginalRM): Cetakan
   if (originalRM.medicine_orders && originalRM.medicine_orders.length > 0) {
     for (const order of originalRM.medicine_orders) {
       nodes.push({
-        id: `prescription-${order.id}`,
+        id: `${p}-prescription-${order.id}`,
         label: `Resep Obat - ${order.order_number}`,
         icon: <Pill className="h-4 w-4" />,
         category: 'G. Farmasi',
-        fetchBlob: () => printApi.blob.prescription(order.id),
+        fetchBlob: () => printApi.blob.prescription(order.id, rmDuplicateId),
         available: true,
         documentType: DOCUMENT_TYPES.RM_DUP_PRESCRIPTION,
         documentId: order.id,
@@ -392,19 +395,34 @@ function buildCetakanNodes(detail: EKlaimLocal, originalRM: OriginalRM): Cetakan
   } else {
     for (const order of medicineOrders) {
       const oid = order.id!;
-      const srcId = order.source_order_id;
       nodes.push({
-        id: `prescription-${oid}`,
+        id: `${p}-prescription-${oid}`,
         label: `Resep Obat - ${order.order_number}`,
         icon: <Pill className="h-4 w-4" />,
         category: 'G. Farmasi',
-        fetchBlob: () => printApi.blob.prescription(srcId!),
-        available: !!srcId,
+        fetchBlob: () => printApi.blob.rmDuplicatePrescription(oid),
+        available: true,
         documentType: DOCUMENT_TYPES.RM_DUP_PRESCRIPTION,
         documentId: oid,
         signerHint: 'DPJP / Apoteker',
       });
     }
+  }
+
+  // === H. Billing / Rincian Biaya ===
+  const rmBilling = detail.rm_duplicate?.billing;
+  if (rmDuplicateId && rmBilling) {
+    nodes.push({
+      id: `${p}-billing-${rmBilling.id}`,
+      label: 'Rincian Biaya Pelayanan',
+      icon: <CreditCard className="h-4 w-4" />,
+      category: 'H. Billing',
+      fetchBlob: () => printApi.blob.rmDuplicateBilling(rmDuplicateId),
+      available: (rmBilling.items?.length ?? 0) > 0,
+      documentType: DOCUMENT_TYPES.RM_DUP_BILLING,
+      documentId: rmDuplicateId,
+      signerHint: 'Petugas Billing',
+    });
   }
 
   return nodes;
@@ -593,6 +611,9 @@ export default function CetakanTab({ detail, originalRM }: CetakanTabProps) {
   const [signDialogOpen, setSignDialogOpen] = useState(false);
   const [signTarget, setSignTarget] = useState<CetakanNode | null>(null);
 
+  // Track currently previewed node for auto-refresh after signing
+  const previewNodeRef = useRef<CetakanNode | null>(null);
+
   const allNodes = useMemo(() => buildCetakanNodes(detail, originalRM), [detail, originalRM]);
 
   // Batch load signature statuses
@@ -625,9 +646,41 @@ export default function CetakanTab({ detail, originalRM }: CetakanTabProps) {
     setSignDialogOpen(true);
   }, []);
 
+  // Helper: show blob in preview area
+  const showPreview = useCallback((blob: Blob, label: string) => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    const url = URL.createObjectURL(blob);
+    setPreviewUrl(url);
+    setPreviewLabel(label);
+    setPreviewBlob(blob);
+  }, [previewUrl]);
+
+  const closePreview = useCallback(() => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setPreviewUrl(null);
+    setPreviewLabel('');
+    setPreviewBlob(null);
+    previewNodeRef.current = null;
+  }, [previewUrl]);
+
   const handleSignSuccess = useCallback(() => {
     loadSignatureStatuses();
-  }, [loadSignatureStatuses]);
+    // Auto-refresh preview if the signed document is currently being previewed
+    if (signTarget && previewNodeRef.current && signTarget.id === previewNodeRef.current.id) {
+      const node = previewNodeRef.current;
+      // Re-fetch the PDF after a short delay to get the newly cached (signed) version
+      setTimeout(async () => {
+        try {
+          const blob = await node.fetchBlob();
+          if (previewNodeRef.current?.id === node.id) {
+            showPreview(blob, node.label);
+          }
+        } catch {
+          // silent — user can manually re-click preview
+        }
+      }, 300);
+    }
+  }, [loadSignatureStatuses, signTarget, showPreview]);
 
   // Group by category preserving order
   const categories = useMemo(() => {
@@ -723,24 +776,9 @@ export default function CetakanTab({ detail, originalRM }: CetakanTabProps) {
     setOrderedIds((prev) => prev.filter((x) => x !== id));
   }, []);
 
-  // Helper: show blob in preview area
-  const showPreview = useCallback((blob: Blob, label: string) => {
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    const url = URL.createObjectURL(blob);
-    setPreviewUrl(url);
-    setPreviewLabel(label);
-    setPreviewBlob(blob);
-  }, [previewUrl]);
-
-  const closePreview = useCallback(() => {
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    setPreviewUrl(null);
-    setPreviewLabel('');
-    setPreviewBlob(null);
-  }, [previewUrl]);
-
   // Preview single PDF (used by both tree Eye button and right panel)
   const handlePreview = useCallback(async (node: CetakanNode) => {
+    previewNodeRef.current = node;
     setNodePreviewLoading(node.id);
     setLoadingPreview(true);
     closePreview();

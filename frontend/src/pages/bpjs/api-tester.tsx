@@ -275,7 +275,7 @@ export default function BPJSAPITesterPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col p-4">
+    <div className="flex flex-1 flex-col px-4">
       {/* Header */}
       <div className="rounded-lg border">
         <div className="flex items-center p-4">

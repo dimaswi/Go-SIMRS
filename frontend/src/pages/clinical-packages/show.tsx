@@ -54,7 +54,7 @@ export default function ClinicalPackagesShow() {
   const totalMedicineQuantity = (pkg.medicine_items || []).reduce((total, item) => total + (item.quantity || 0), 0);
 
   return (
-    <div className="flex flex-1 flex-col p-4 space-y-4">
+    <div className="flex flex-1 flex-col px-4 space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => window.history.back()}>

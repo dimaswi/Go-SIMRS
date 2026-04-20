@@ -99,6 +99,16 @@ func SetupBPJSRoutes(api *gin.RouterGroup) {
 			// Rujukan
 			vclaim.GET("/rujukan/nomor/:noRujukan", handlers.VClaimGetRujukanByNomor)
 			vclaim.GET("/rujukan/peserta/:noKartu", handlers.VClaimGetRujukanByPeserta)
+			vclaim.GET("/rujukan/visit/:visitId", handlers.VClaimGetRujukanByVisit)
+			vclaim.POST("/rujukan/v1", middleware.RequirePermission("registrations.create"), handlers.VClaimCreateRujukanV1)
+			vclaim.PUT("/rujukan/v1/:noRujukan", middleware.RequirePermission("registrations.update"), handlers.VClaimUpdateRujukanV1)
+			vclaim.POST("/rujukan/v2", middleware.RequirePermission("registrations.create"), handlers.VClaimCreateRujukanV2)
+			vclaim.PUT("/rujukan/v2/:noRujukan", middleware.RequirePermission("registrations.update"), handlers.VClaimUpdateRujukanV2)
+			vclaim.DELETE("/rujukan/:noRujukan", middleware.RequirePermission("registrations.delete"), handlers.VClaimDeleteRujukan)
+			vclaim.POST("/rujukan/khusus", middleware.RequirePermission("registrations.update"), handlers.VClaimInsertRujukanKhusus)
+			vclaim.DELETE("/rujukan/khusus", middleware.RequirePermission("registrations.delete"), handlers.VClaimDeleteRujukanKhusus)
+			vclaim.GET("/rujukan/spesialistik", handlers.VClaimGetRujukanSpesialistik)
+			vclaim.GET("/rujukan/sarana", handlers.VClaimGetRujukanSarana)
 
 			// SEP
 			vclaim.POST("/sep", middleware.RequirePermission("registrations.create"), handlers.VClaimCreateSEP)

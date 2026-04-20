@@ -70,6 +70,7 @@ func RegisterEKlaimRoutes(r *gin.RouterGroup) {
 		// RM Duplicate editing
 		eklaimLocal.POST("/:id/init-rm-duplicate", middleware.RequirePermission("eklaim.create"), handlers.InitRMDuplicate)
 		eklaimLocal.PUT("/:id/rm-duplicate", middleware.RequirePermission("eklaim.edit"), handlers.UpdateRMDuplicate)
+		eklaimLocal.PUT("/:id/rm-duplicate/anamnesis", middleware.RequirePermission("eklaim.edit"), handlers.UpdateRMDuplicateAnamnesis)
 		eklaimLocal.POST("/:id/rm-duplicate/:rm_id/recalculate-billing", middleware.RequirePermission("eklaim.edit"), handlers.RecalculateRMDuplicateBilling)
 		eklaimLocal.POST("/:id/sync-rm-from-visit", middleware.RequirePermission("eklaim.edit"), handlers.SyncRMFromVisit)
 		eklaimLocal.POST("/:id/sync-billing-tarif", middleware.RequirePermission("eklaim.edit"), handlers.SyncBillingTarif)
@@ -87,6 +88,7 @@ func RegisterEKlaimRoutes(r *gin.RouterGroup) {
 		// Read-only from E-Klaim server
 		eklaimLocal.GET("/:id/claim-data", middleware.RequirePermission("eklaim.view"), handlers.GetClaimData)
 		eklaimLocal.GET("/:id/claim-print", middleware.RequirePermission("eklaim.view"), handlers.GetClaimPrint)
+		eklaimLocal.POST("/:id/sync-claim-data", middleware.RequirePermission("eklaim.edit"), handlers.SyncClaimDataFromEKlaim)
 
 		// Search APIs — HARUS sebelum /:id routes untuk menghindari Gin route collision
 		eklaimLocal.GET("/search/idrg-diagnosa", middleware.RequirePermission("eklaim.view"), handlers.SearchIDRGDiagnosa)

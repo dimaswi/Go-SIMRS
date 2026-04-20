@@ -318,12 +318,13 @@ func Migrate() error {
 		&models.Disposition{},         // Disposition/Discharge
 		&models.VitalSign{},           // Vital Signs History
 		// Medicine Orders (Resep Obat)
-		&models.MedicineOrder{},              // Medicine Orders (Resep)
-		&models.MedicineOrderItem{},          // Medicine Order Items
-		&models.DoctorMedicineTemplate{},     // Doctor medicine templates (private per account)
-		&models.DoctorMedicineTemplateItem{}, // Doctor medicine template items
-		&models.PrescriptionReview{},         // Prescription Reviews (Telaah Resep)
-		&models.MedicineReturn{},             // Medicine Returns (Pengembalian Obat)
+		&models.MedicineOrder{},                   // Medicine Orders (Resep)
+		&models.MedicineOrderItem{},               // Medicine Order Items
+		&models.MedicineAdministrationTimesheet{}, // In-room medication timesheet per hour
+		&models.DoctorMedicineTemplate{},          // Doctor medicine templates (private per account)
+		&models.DoctorMedicineTemplateItem{},      // Doctor medicine template items
+		&models.PrescriptionReview{},              // Prescription Reviews (Telaah Resep)
+		&models.MedicineReturn{},                  // Medicine Returns (Pengembalian Obat)
 		// Procedure Orders (Radiologi & Laboratorium)
 		&models.ProcedureOrder{},       // Procedure Orders (Order Radiologi/Lab)
 		&models.ProcedureOrderItem{},   // Procedure Order Items
@@ -380,6 +381,8 @@ func Migrate() error {
 		&models.SEP{},          // SEP (Surat Eligibilitas Peserta)
 		&models.SPRI{},         // SPRI (Surat Perintah Rawat Inap)
 		&models.SuratKontrol{}, // Surat Kontrol (SKDP Rawat Jalan)
+		&models.BPJSReferral{}, // Rujukan BPJS VClaim (v1/v2/khusus)
+		&models.PPKMaster{},    // Master PPK tujuan rujukan
 		// KFA (Kode Farmasi Indonesia) for SatuSehat
 		&models.KFAMaster{},          // KFA Master Data (Katalog Obat SatuSehat)
 		&models.MedicineKFAMapping{}, // Medicine to KFA Code Mapping
@@ -410,6 +413,7 @@ func Migrate() error {
 		&models.EKlaimRMOrderResult{},  // E-Klaim RM Order Result (parameter-based)
 		&models.EKlaimRMMedicineItem{}, // E-Klaim RM Medicine Items
 		&models.EKlaimRMCPPT{},         // E-Klaim RM CPPT
+		&models.EKlaimRMNursingCare{},  // E-Klaim RM Nursing Care
 		&models.EKlaimRMFluidBalance{}, // E-Klaim RM Fluid Balance
 		&models.EKlaimRMBilling{},      // E-Klaim RM Billing (duplicate)
 		&models.EKlaimRMBillingItem{},  // E-Klaim RM Billing Items
@@ -417,6 +421,7 @@ func Migrate() error {
 		// Digital Signatures & Audit Trail
 		&models.SignatureLog{},      // Signature Activity Logs
 		&models.DocumentSignature{}, // Document Signature Status
+		&models.DocumentPDFCache{},  // Cached PDF blobs for cetakan
 		// Nutrition/Gizi Management
 		&models.NutritionMenu{},        // Master Menu Makanan
 		&models.NutritionPackage{},     // Master Paket Makanan
@@ -1093,6 +1098,7 @@ func MigrateEKlaimLocal() error {
 		&models.EKlaimRMOrderResult{},
 		&models.EKlaimRMMedicineItem{},
 		&models.EKlaimRMCPPT{},
+		&models.EKlaimRMNursingCare{},
 		&models.EKlaimRMFluidBalance{},
 		&models.EKlaimRMBilling{},
 		&models.EKlaimRMBillingItem{},

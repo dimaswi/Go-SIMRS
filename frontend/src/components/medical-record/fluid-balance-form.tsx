@@ -58,6 +58,8 @@ import {
   ArrowUpFromLine,
   ChevronDown,
   ChevronRight,
+  Search,
+  UserCheck,
 } from "lucide-react";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
@@ -65,6 +67,11 @@ import { id as idLocale } from "date-fns/locale";
 interface FluidBalanceFormProps {
   visitId: number;
   readOnly?: boolean;
+  externalData?: FluidBalance[];
+  useExternalData?: boolean;
+  staffOptions?: { id: number; name: string }[];
+  onSetCreatedBy?: (id: number, name: string) => void;
+  onSetApprovedBy?: (id: number, name: string) => void;
 }
 
 // Collapsible Row Component for Fluid Balance
@@ -76,6 +83,9 @@ function FluidBalanceCollapsibleRow({
   onDelete,
   getShiftColor,
   getBalanceStatus,
+  staffOptions,
+  onSetCreatedBy,
+  onSetApprovedBy,
 }: {
   balance: FluidBalance;
   canEdit: boolean;
@@ -84,8 +94,30 @@ function FluidBalanceCollapsibleRow({
   onDelete: (id: number) => void;
   getShiftColor: (shift: string) => string;
   getBalanceStatus: (balance: number) => { icon: any; color: string; label: string };
+  staffOptions?: { id: number; name: string }[];
+  onSetCreatedBy?: (id: number, name: string) => void;
+  onSetApprovedBy?: (id: number, name: string) => void;
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [staffModalOpen, setStaffModalOpen] = useState(false);
+  const [staffModalMode, setStaffModalMode] = useState<"pembuat" | "approval">("pembuat");
+  const [staffSearch, setStaffSearch] = useState("");
+
+  const openStaffModal = (mode: "pembuat" | "approval") => {
+    setStaffModalMode(mode);
+    setStaffSearch("");
+    setStaffModalOpen(true);
+  };
+
+  const handlePickStaff = (name: string) => {
+    if (staffModalMode === "pembuat") onSetCreatedBy?.(balance.id, name);
+    else onSetApprovedBy?.(balance.id, name);
+    setStaffModalOpen(false);
+  };
+
+  const filteredStaff = (staffOptions || []).filter((s) =>
+    s.name.toLowerCase().includes(staffSearch.toLowerCase()),
+  );
   const status = getBalanceStatus(balance.balance);
   const StatusIcon = status.icon;
 
@@ -125,10 +157,17 @@ function FluidBalanceCollapsibleRow({
                 <StatusIcon className="h-4 w-4" />
                 {balance.balance > 0 ? "+" : ""}{balance.balance} ml
               </span>
-              {balance.created_by && (
-                <span className="text-[10px] text-muted-foreground truncate">
-                  {balance.created_by.full_name}
-                </span>
+              {(onSetCreatedBy || onSetApprovedBy) ? (
+                <div className="text-[10px] text-muted-foreground truncate">
+                  {balance.created_by?.full_name && <span>Pembuat: {balance.created_by.full_name}</span>}
+                  {balance.verified_by?.full_name && <span className="ml-1">• Approval: {balance.verified_by.full_name}</span>}
+                </div>
+              ) : (
+                balance.created_by && (
+                  <span className="text-[10px] text-muted-foreground truncate">
+                    {balance.created_by.full_name}
+                  </span>
+                )
               )}
             </div>
           </div>
@@ -143,8 +182,57 @@ function FluidBalanceCollapsibleRow({
                 <Trash2 className="h-4 w-4" />
               </Button>
             )}
+            {onSetCreatedBy && staffOptions && staffOptions.length > 0 && (
+              <Button variant="ghost" size="icon" className="h-7 w-7" title="Set Pembuat" onClick={() => openStaffModal("pembuat")}>
+                <User className="h-4 w-4" />
+              </Button>
+            )}
+            {onSetApprovedBy && staffOptions && staffOptions.length > 0 && (
+              <Button variant="ghost" size="icon" className="h-7 w-7" title="Set Approval" onClick={() => openStaffModal("approval")}>
+                <UserCheck className="h-4 w-4" />
+              </Button>
+            )}
           </div>
         </div>
+
+        {/* Staff Picker Modal */}
+        <Dialog open={staffModalOpen} onOpenChange={setStaffModalOpen}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>
+                {staffModalMode === "pembuat" ? "Pilih Pembuat" : "Pilih Approval"}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                className="pl-8"
+                placeholder="Cari nama..."
+                value={staffSearch}
+                onChange={(e) => setStaffSearch(e.target.value)}
+                autoFocus
+              />
+            </div>
+            <div className="max-h-64 overflow-y-auto divide-y rounded-md border">
+              {filteredStaff.length === 0 ? (
+                <p className="py-6 text-center text-sm text-muted-foreground">Tidak ada hasil</p>
+              ) : (
+                filteredStaff.map((s) => (
+                  <button
+                    key={s.id}
+                    className="w-full px-3 py-2.5 text-left text-sm hover:bg-muted/50 transition-colors"
+                    onClick={() => handlePickStaff(s.name)}
+                  >
+                    {s.name}
+                  </button>
+                ))
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setStaffModalOpen(false)}>Batal</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Expanded Content */}
         <CollapsibleContent>
@@ -237,7 +325,15 @@ const defaultFormData: CreateFluidBalanceInput = {
   notes: "",
 };
 
-export function FluidBalanceForm({ visitId, readOnly = false }: FluidBalanceFormProps) {
+export function FluidBalanceForm({
+  visitId,
+  readOnly = false,
+  externalData,
+  useExternalData = false,
+  staffOptions,
+  onSetCreatedBy,
+  onSetApprovedBy,
+}: FluidBalanceFormProps) {
   const { toast } = useToast();
   const { hasPermission } = usePermission();
 
@@ -264,6 +360,11 @@ export function FluidBalanceForm({ visitId, readOnly = false }: FluidBalanceForm
   // Load data
   const loadData = useCallback(async () => {
     setLoading(true);
+    if (useExternalData) {
+      setBalances(externalData || []);
+      setLoading(false);
+      return;
+    }
     try {
       const balanceRes = await fluidBalanceApi.getAll(visitId);
       setBalances(balanceRes.data.data || []);
@@ -276,7 +377,7 @@ export function FluidBalanceForm({ visitId, readOnly = false }: FluidBalanceForm
     } finally {
       setLoading(false);
     }
-  }, [visitId, toast]);
+  }, [externalData, useExternalData, visitId, toast]);
 
   useEffect(() => {
     loadData();
@@ -441,61 +542,71 @@ export function FluidBalanceForm({ visitId, readOnly = false }: FluidBalanceForm
   return (
     <>
       <div>
-        <div className="p-0">
-          {/* Balance List */}
-          {balances.length > 0 ? (
-            <div className="rounded-lg border overflow-x-auto">
-              {/* Table Header */}
-              <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-muted/50 text-xs font-medium text-muted-foreground border-b sticky top-0 rounded-t-lg">
-                <div className="col-span-1"></div>
-                <div className="col-span-2">Tanggal</div>
-                <div className="col-span-2">Shift</div>
-                <div className="col-span-2">Intake</div>
-                <div className="col-span-2">Output</div>
-                <div className="col-span-2">Balance</div>
-                <div className="col-span-1">Aksi</div>
+        <div className="space-y-3">
+          <div className="rounded-lg border border-border/70 bg-muted/20 px-3 py-3 sm:px-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-foreground">Balance Cairan</p>
+                <p className="text-xs text-muted-foreground">Total catatan: {balances.length}</p>
               </div>
-              <div className="divide-y">
-                {balances.map((balance) => (
-                  <FluidBalanceCollapsibleRow
-                    key={balance.id}
-                    balance={balance}
-                    canEdit={canEdit}
-                    canDelete={canDelete}
-                    onEdit={handleOpenEdit}
-                    onDelete={(id) => {
-                      setBalanceToDelete(id);
-                      setDeleteDialogOpen(true);
-                    }}
-                    getShiftColor={getShiftColor}
-                    getBalanceStatus={getBalanceStatus}
-                  />
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="py-12 text-center text-muted-foreground border rounded-lg">
-              <Droplets className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p className="font-medium">Belum ada catatan balance cairan</p>
-              <p className="text-sm mt-1">Klik "Tambah Balance" untuk menambahkan catatan.</p>
               {canCreate && !readOnly && (
-                <div className="mt-4 flex justify-center">
-                  <Button onClick={handleOpenCreate} size="sm">
-                    <Plus className="h-4 w-4 mr-1" />
-                    Tambah Balance
-                  </Button>
-                </div>
+                <Button onClick={handleOpenCreate} size="sm">
+                  <Plus className="h-4 w-4 mr-1" />
+                  Tambah Balance
+                </Button>
               )}
             </div>
-          )}
-          {canCreate && !readOnly && balances.length > 0 && (
-            <div className="mt-4 flex justify-center">
-              <Button onClick={handleOpenCreate} size="sm">
-                <Plus className="h-4 w-4 mr-1" />
-                Tambah Balance
-              </Button>
+          </div>
+
+          <div className="rounded-lg border border-border/70 bg-background overflow-hidden">
+            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              Daftar Balance Cairan
             </div>
-          )}
+            {balances.length > 0 ? (
+              <div className="overflow-x-auto">
+                {/* Table Header */}
+                <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-muted/50 text-xs font-medium text-muted-foreground border-b sticky top-0 rounded-t-lg">
+                  <div className="col-span-1"></div>
+                  <div className="col-span-2">Tanggal</div>
+                  <div className="col-span-2">Shift</div>
+                  <div className="col-span-2">Intake</div>
+                  <div className="col-span-2">Output</div>
+                  <div className="col-span-2">Balance</div>
+                  <div className="col-span-1">Aksi</div>
+                </div>
+                <div className="divide-y">
+                  {balances.map((balance) => (
+                    <FluidBalanceCollapsibleRow
+                      key={balance.id}
+                      balance={balance}
+                      canEdit={canEdit}
+                      canDelete={canDelete}
+                      onEdit={handleOpenEdit}
+                      onDelete={(id) => {
+                        setBalanceToDelete(id);
+                        setDeleteDialogOpen(true);
+                      }}
+                      getShiftColor={getShiftColor}
+                      getBalanceStatus={getBalanceStatus}
+                      staffOptions={staffOptions}
+                      onSetCreatedBy={onSetCreatedBy}
+                      onSetApprovedBy={onSetApprovedBy}
+                    />
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="py-12 text-center text-muted-foreground">
+                <Droplets className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p className="font-medium">Belum ada catatan balance cairan</p>
+                <p className="text-sm mt-1">
+                  {readOnly
+                    ? "Belum ada catatan balance cairan pada RM duplikat."
+                    : 'Klik "Tambah Balance" untuk menambahkan catatan.'}
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

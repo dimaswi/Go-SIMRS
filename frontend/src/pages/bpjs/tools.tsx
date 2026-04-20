@@ -444,7 +444,7 @@ export default function BPJSToolsPage() {
   };
 
   return (
-    <div className="flex flex-1 flex-col p-4">
+    <div className="flex flex-1 flex-col px-4">
       {/* Page Header */}
       <div>
         <h1 className="text-lg font-semibold">BPJS Tools</h1>

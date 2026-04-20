@@ -28,6 +28,12 @@ const (
 	ItemStatusCancelled = "cancelled" // Dibatalkan
 )
 
+// Fulfillment Type Constants
+const (
+	FulfillmentTypeInRoom   = "in_room"   // Obat digunakan langsung di ruangan
+	FulfillmentTypeTakeHome = "take_home" // Obat dibawa pulang
+)
+
 // MedicineOrder represents a prescription/medicine order from doctor to pharmacy
 type MedicineOrder struct {
 	ID        uint           `gorm:"primarykey" json:"id"`
@@ -63,10 +69,11 @@ type MedicineOrder struct {
 	Prescriber   *Employee `gorm:"foreignKey:PrescriberID" json:"prescriber,omitempty"`
 
 	// Order Details
-	PrescriptionType string `gorm:"size:50;default:'regular'" json:"prescription_type"` // regular, racikan, prn
-	Priority         string `gorm:"size:20;default:'normal'" json:"priority"`           // urgent, normal
-	Diagnosis        string `gorm:"type:text" json:"diagnosis"`                         // Diagnosis terkait
-	Notes            string `gorm:"type:text" json:"notes"`                             // Catatan dokter
+	PrescriptionType string `gorm:"size:50;default:'regular'" json:"prescription_type"`  // regular, racikan, prn
+	FulfillmentType  string `gorm:"size:20;default:'take_home'" json:"fulfillment_type"` // in_room, take_home
+	Priority         string `gorm:"size:20;default:'normal'" json:"priority"`            // urgent, normal
+	Diagnosis        string `gorm:"type:text" json:"diagnosis"`                          // Diagnosis terkait
+	Notes            string `gorm:"type:text" json:"notes"`                              // Catatan dokter
 
 	// Status
 	Status string `gorm:"size:20;default:'pending'" json:"status"`

@@ -32,6 +32,8 @@ interface AnamnesisFormProps {
   onSave?: (data: any) => void;
   readOnly?: boolean;
   isPatientDischarged?: boolean;
+  externalData?: Partial<Anamnesis>;
+  useExternalData?: boolean;
 }
 
 interface NewAllergyInput {
@@ -74,7 +76,15 @@ const isMeaningfulAllergySummary = (value?: string) => {
   return !/^(none|no known allergies|nkda|nka|nihil|\-|tidak ada|tidak ada alergi)$/.test(normalized);
 };
 
-export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false, isPatientDischarged = false }: AnamnesisFormProps) {
+export function AnamnesisForm({
+  visitId,
+  patientId,
+  onSave,
+  readOnly = false,
+  isPatientDischarged = false,
+  externalData,
+  useExternalData = false,
+}: AnamnesisFormProps) {
   const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState(defaultFormData);
   const [anamnesisId, setAnamnesisId] = useState<number | undefined>();
@@ -127,6 +137,23 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false, is
 
   // Load existing anamnesis data
   useEffect(() => {
+    if (useExternalData) {
+      const d = externalData || {};
+      setFormData({
+        anamnesis_source: d.anamnesis_source || "autoanamnesis",
+        functional_status: d.functional_status || "",
+        chief_complaint: d.chief_complaint || "",
+        history_of_present_illness: d.history_of_present_illness || "",
+        past_medical_history: d.past_medical_history || "",
+        family_history: d.family_history || "",
+        social_history: d.social_history || "",
+        allergies: d.allergies || "",
+        current_medications: d.current_medications || "",
+      });
+      setLoading(false);
+      return;
+    }
+
     const loadAnamnesis = async () => {
       try {
         setLoading(true);
@@ -178,11 +205,11 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false, is
     };
 
     loadAnamnesis();
-  }, [visitId]);
+  }, [visitId, useExternalData, externalData]);
 
   // Load patient allergies
   const loadAllergies = useCallback(async () => {
-    if (!patientId) return;
+    if (useExternalData || !patientId) return;
     try {
       setLoadingAllergies(true);
       const response = await patientAllergyApi.getByPatient(patientId);
@@ -192,7 +219,7 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false, is
     } finally {
       setLoadingAllergies(false);
     }
-  }, [patientId]);
+  }, [patientId, useExternalData]);
 
   useEffect(() => {
     loadAllergies();
@@ -421,11 +448,15 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false, is
             recordTypeLabel="Anamnesis"
           />
           
-        <form onSubmit={handleSubmit}>
-          <fieldset disabled={isFormDisabled} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <fieldset disabled={isFormDisabled} className="space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11">
           
           {/* Section 0: Sumber Anamnesis & Status Fungsional */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="border border-border/70">
+            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              Sumber dan Status Fungsional
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-3 sm:p-4">
             <div className="space-y-2">
               <Label htmlFor="anamnesis_source" className="text-sm font-semibold">
                 Sumber Anamnesis
@@ -469,10 +500,15 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false, is
                 </SelectContent>
               </Select>
             </div>
+            </div>
           </div>
 
           {/* Section 1: Keluhan Utama & Riwayat Penyakit Sekarang */}
-          <div className="space-y-4"><div className="space-y-2">
+          <div className="border border-border/70">
+            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              Keluhan dan Riwayat Penyakit Sekarang
+            </div>
+            <div className="space-y-4 p-3 sm:p-4"><div className="space-y-2">
                 <Label htmlFor="chief_complaint" className="text-sm font-semibold">
                   Keluhan Utama <span className="text-destructive">*</span>
                 </Label>
@@ -503,10 +539,15 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false, is
                   Detail onset, lokasi, durasi, karakteristik, faktor yang memperberat/meringankan
                 </p>
               </div>
+            </div>
           </div>
 
           {/* Section 2: Riwayat Medis */}
-          <div className="space-y-4">{/* Riwayat Penyakit Dahulu */}
+          <div className="border border-border/70">{/* Riwayat Penyakit Dahulu */}
+            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              Riwayat Medis
+            </div>
+            <div className="space-y-4 p-3 sm:p-4">
               <div className="space-y-2">
                 <Label htmlFor="past_medical_history" className="text-sm font-semibold">
                   Riwayat Penyakit Dahulu
@@ -547,10 +588,15 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false, is
                   className="min-h-[80px] resize-none"
                 />
               </div>
+            </div>
           </div>
 
           {/* Section 3: Alergi & Obat */}
-          <div className="space-y-4">{/* Existing Allergies List */}
+            <div className="border border-border/70">{/* Existing Allergies List */}
+              <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                Alergi dan Obat Aktif
+              </div>
+              <div className="space-y-6 p-3 sm:p-4">
               <div className="space-y-2">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <Label className="text-sm font-semibold flex items-center gap-2">
@@ -585,9 +631,9 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false, is
                 ) : (
                   <div className="space-y-2">
                     {patientAllergies.map((allergy) => (
-                      <div 
+                      <div
                         key={allergy.id}
-                        className={`p-3 rounded-lg border ${ALLERGY_CRITICALITY_COLORS[allergy.criticality]}`}
+                        className={`p-3 border-l-4 ${ALLERGY_CRITICALITY_COLORS[allergy.criticality]}`}
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
@@ -819,17 +865,9 @@ export function AnamnesisForm({ visitId, patientId, onSave, readOnly = false, is
                   Termasuk dosis dan frekuensi untuk menghindari interaksi obat
                 </p>
               </div>
+              </div>
           </div>
 
-          {/* Submit Button */}
-          {!isFormDisabled && (
-            <div className="flex justify-end gap-3 pt-4 border-t">
-              <Button type="submit" className="gap-2">
-                <Save className="h-4 w-4" />
-                Simpan Anamnesis
-              </Button>
-            </div>
-          )}
           </fieldset>
         </form>
       </div>

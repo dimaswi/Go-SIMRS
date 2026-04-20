@@ -4,6 +4,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Save, 
   Loader2, 
@@ -33,9 +34,19 @@ interface AssessmentPlanFormProps {
   onSave?: (data: AssessmentPlan) => void;
   readOnly?: boolean;
   isPatientDischarged?: boolean;
+  externalData?: Partial<AssessmentPlan>;
+  useExternalData?: boolean;
 }
 
-export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = false, isPatientDischarged = false }: AssessmentPlanFormProps) {
+export function AssessmentPlanForm({
+  visitId,
+  initialData,
+  onSave,
+  readOnly = false,
+  isPatientDischarged = false,
+  externalData,
+  useExternalData = false,
+}: AssessmentPlanFormProps) {
   const INFORMED_CONSENT_EDU_OPTION = "Informed consent";
 
   const DEFAULT_PROGNOSIS_OPTIONS = [
@@ -130,7 +141,7 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
   });
 
   // Determine if form should be disabled
-  const isFormDisabled = readOnly || (isPatientDischarged && !isEditing);
+  const isFormDisabled = readOnly || (!useExternalData && isPatientDischarged && !isEditing);
   const [formData, setFormData] = useState({
     clinical_assessment: initialData?.clinical_assessment || "",
     prognosis: initialData?.prognosis || "",
@@ -147,6 +158,31 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
 
   // Load existing data
   useEffect(() => {
+    if (useExternalData) {
+      const d = externalData || {};
+      addPrognosisOption((d as any).prognosis || "");
+      setSelectedDietItems(extractSelectedItems((d as any).diet_plan, DIET_CHECKLIST_OPTIONS));
+      setSelectedEducationItems(buildEducationSelections((d as any).education_plan, (d as any).informed_consent));
+      setSelectedActivityItems(extractSelectedItems((d as any).activity_plan, BASE_ACTIVITY_OPTIONS));
+      setSelectedMonitoringItems(extractSelectedItems((d as any).monitoring_plan, MONITORING_CHECKLIST_OPTIONS));
+      setFormData((prev) => ({
+        ...prev,
+        clinical_assessment: (d as any).clinical_assessment || "",
+        prognosis: (d as any).prognosis || "",
+        treatment_plan: (d as any).treatment_plan || "",
+        medication_plan: (d as any).medication_plan || "",
+        diet_plan: (d as any).diet_plan || "",
+        activity_plan: (d as any).activity_plan || "",
+        education_plan: (d as any).education_plan || "",
+        monitoring_plan: (d as any).monitoring_plan || "",
+        procedure_plan: (d as any).procedure_plan || "",
+        consultation_plan: (d as any).consultation_plan || "",
+        informed_consent: (d as any).informed_consent || "",
+      }));
+      setLoading(false);
+      return;
+    }
+
     const loadData = async () => {
       if (!visitId) return;
       setLoading(true);
@@ -223,7 +259,7 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
       }
     };
     loadData();
-  }, [visitId]);
+  }, [visitId, useExternalData, externalData]);
 
   const handleChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -732,6 +768,11 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
   };
 
   const doSave = async () => {
+    if (useExternalData) {
+      onSave?.(formData as AssessmentPlan);
+      return;
+    }
+
     setSaving(true);
     
     // Log edit if patient is discharged
@@ -776,7 +817,7 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
     e.preventDefault();
     
     // If patient is discharged, verify PIN before saving
-    if (isPatientDischarged) {
+    if (!useExternalData && isPatientDischarged) {
       requestPINVerification(doSave);
       return;
     }
@@ -814,12 +855,14 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
 
   // Auto-save draft to localStorage on every form change
   useEffect(() => {
+    if (useExternalData) return;
     if (loading) return;
     saveFormDraft(`mr-draft-assessment-plan-${visitId}`, formData);
-  }, [formData, loading, visitId]);
+  }, [formData, loading, visitId, useExternalData]);
 
   // Clear draft when save is confirmed by server
   useEffect(() => {
+    if (useExternalData) return;
     const handler = (e: Event) => {
       const ev = e as CustomEvent<{ tabId: string; saved: boolean }>;
       if (ev.detail?.tabId === "assessment-plan" && ev.detail.saved === true) {
@@ -828,10 +871,11 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
     };
     window.addEventListener(MEDICAL_RECORD_TAB_SAVED_EVENT, handler as EventListener);
     return () => window.removeEventListener(MEDICAL_RECORD_TAB_SAVED_EVENT, handler as EventListener);
-  }, [visitId]);
+  }, [visitId, useExternalData]);
 
   // Listen for copy-from-history events
   useEffect(() => {
+    if (useExternalData) return;
     const handler = (e: Event) => {
       const ev = e as CustomEvent<{ section: string; data: any }>;
       if (ev.detail?.section !== "assessment-plan" || !ev.detail.data) return;
@@ -858,7 +902,7 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
     };
     window.addEventListener(COPY_FROM_HISTORY_EVENT, handler as EventListener);
     return () => window.removeEventListener(COPY_FROM_HISTORY_EVENT, handler as EventListener);
-  }, []);
+  }, [useExternalData]);
 
   if (loading) {
     return (
@@ -873,49 +917,58 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
   return (
     <div>
       <div>
-            <EditModeBanner
-              isPatientDischarged={isPatientDischarged}
-              isEditing={isEditing}
-              onRequestEdit={handleRequestEdit}
-              recordTypeLabel="Assessment & Plan"
-            />
-        <form onSubmit={handleSubmit}>
-          <fieldset disabled={isFormDisabled} className="space-y-4 sm:space-y-6">
+            {!useExternalData && (
+              <EditModeBanner
+                isPatientDischarged={isPatientDischarged}
+                isEditing={isEditing}
+                onRequestEdit={handleRequestEdit}
+                recordTypeLabel="Assessment & Plan"
+              />
+            )}
+        <TooltipProvider delayDuration={120}>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <fieldset disabled={isFormDisabled} className="space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11">
           
           {/* Section 1: Asesmen Klinis */}
-          <div className="space-y-4">{/* Clinical Assessment / Clinical Impression */}
+          <div className="border border-border/70">{/* Clinical Assessment / Clinical Impression */}
+            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              Asesmen Klinis
+            </div>
+            <div className="space-y-4 p-3 sm:p-4">
               <div className="space-y-2">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div className="flex items-center justify-between gap-2">
                   <Label htmlFor="clinical_assessment" className="text-sm font-semibold">
                     Kesan Klinis (Clinical Impression) <span className="text-destructive">*</span>
                   </Label>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-8 w-full sm:w-auto"
-                    onClick={handleAutoGenerateClinicalAssessment}
-                    disabled={isFormDisabled || generatingClinicalAssessment}
-                  >
-                    {generatingClinicalAssessment ? (
-                      <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <WandSparkles className="mr-1 h-3.5 w-3.5" />
-                    )}
-                    Ambil dari Anamnesis, Pemeriksaan, dan Diagnosis
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={handleAutoGenerateClinicalAssessment}
+                        disabled={isFormDisabled || generatingClinicalAssessment}
+                        aria-label="Auto generate kesan klinis"
+                      >
+                        {generatingClinicalAssessment ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <WandSparkles className="h-3.5 w-3.5" />
+                        )}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">Ambil dari Anamnesis, Pemeriksaan, dan Diagnosis</TooltipContent>
+                  </Tooltip>
                 </div>
                 <Textarea
                   id="clinical_assessment"
-                  placeholder="Ringkasan kesan klinis berdasarkan anamnesis dan pemeriksaan fisik. Contoh: Pasien dengan gejala dispepsia fungsional, tidak ditemukan tanda bahaya (red flags)..."
+                  placeholder="Tulis ringkasan kesan klinis pasien..."
                   value={formData.clinical_assessment}
                   onChange={(e) => handleChange("clinical_assessment", e.target.value)}
                   className="min-h-[150px] resize-none"
                   required
                 />
-                <p className="text-xs text-muted-foreground">
-                  Ringkasan kondisi klinis pasien berdasarkan anamnesis, pemeriksaan fisik, dan diagnosis kerja. Gunakan tombol Auto Generate untuk membuat draft otomatis.
-                </p>
               </div>
 
               {/* Prognosis */}
@@ -925,7 +978,7 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
                 </Label>
                 <Textarea
                   id="prognosis"
-                  placeholder="Perkiraan luaran pasien berdasarkan kondisi klinis saat ini..."
+                  placeholder="Tulis prognosis pasien..."
                   value={formData.prognosis}
                   onChange={(e) => handleChange("prognosis", e.target.value)}
                   onBlur={(e) => addPrognosisOption(e.target.value)}
@@ -953,22 +1006,23 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
                     );
                   })}
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Klik pilihan cepat atau isi manual. Jika isi manual baru, nilainya otomatis ditambahkan ke daftar pilihan.
-                </p>
               </div>
+            </div>
           </div>
 
           {/* Section 2: Monitoring */}
-          <div className="space-y-4">
+          <div className="border border-border/70">
+            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              Monitoring
+            </div>
+            <div className="space-y-4 p-3 sm:p-4">
               {/* Monitoring Plan */}
-              <div className="space-y-2 rounded-md border p-3">
+              <div className="space-y-2">
                 <Label htmlFor="monitoring_plan" className="text-sm font-semibold flex items-center gap-2">
                   <Eye className="h-4 w-4 text-muted-foreground" />
                   Rencana Monitoring
                 </Label>
-                <p className="text-xs text-muted-foreground">Checklist monitoring (otomatis terisi ke rencana)</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2 gap-2">
                   {MONITORING_CHECKLIST_OPTIONS.map((item) => (
                     <label key={item} className="flex items-start gap-2 text-sm">
                       <Checkbox
@@ -980,47 +1034,51 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
                     </label>
                   ))}
                 </div>
-                <div className="rounded-md border bg-muted/30 p-2 text-sm whitespace-pre-wrap min-h-[72px]">
+                <div className="text-sm whitespace-pre-wrap min-h-[72px]">
                   {formData.monitoring_plan || "Belum ada pilihan monitoring"}
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Tentukan apa yang dipantau, frekuensi monitoring, serta target/peringatan klinisnya.
-                </p>
               </div>
+            </div>
           </div>
 
           {/* Section 3: Rencana Detail */}
-          <div className="space-y-4">
+          <div className="border border-border/70">
+            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              Rencana Detail
+            </div>
+            <div className="space-y-4 p-3 sm:p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <Badge variant={filledDetailFields > 0 ? "default" : "outline"}>
                 {filledDetailFields}/6
               </Badge>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Gunakan tombol per bagian untuk mengambil data order sesuai kebutuhan, tanpa menimpa semua rencana sekaligus.
-            </p>
-              <div className="space-y-4">
-                <div className="space-y-2 rounded-md border p-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div className="space-y-5">
+                <div className="space-y-2 rounded-md border border-border/60 p-3">
+                  <div className="flex items-center justify-between gap-2">
                     <Label htmlFor="medication_plan" className="text-sm flex items-center gap-2">
                       <Heart className="h-4 w-4 text-muted-foreground" />
                       Rencana Obat
                     </Label>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-8 w-full sm:w-auto"
-                      onClick={handleSyncMedicationPlanFromOrders}
-                      disabled={isFormDisabled || syncingMedicationPlan}
-                    >
-                      {syncingMedicationPlan ? (
-                        <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <WandSparkles className="mr-1 h-3.5 w-3.5" />
-                      )}
-                      Ambil dari Order Obat
-                    </Button>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={handleSyncMedicationPlanFromOrders}
+                          disabled={isFormDisabled || syncingMedicationPlan}
+                          aria-label="Ambil dari order obat"
+                        >
+                          {syncingMedicationPlan ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <WandSparkles className="h-3.5 w-3.5" />
+                          )}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">Ambil dari Order Obat</TooltipContent>
+                    </Tooltip>
                   </div>
                   <Textarea
                     id="medication_plan"
@@ -1030,13 +1088,12 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
                     className="min-h-[80px] resize-none"
                   />
                 </div>
-                <div className="space-y-2 rounded-md border p-3">
+                <div className="space-y-2 rounded-md border border-border/60 p-3">
                   <Label htmlFor="diet_plan" className="text-sm flex items-center gap-2">
                     <Utensils className="h-4 w-4 text-muted-foreground" />
                     Rencana Diet
                   </Label>
                   <div className="space-y-2">
-                    <p className="text-xs text-muted-foreground">Checklist diet (otomatis terisi ke rencana)</p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       {DIET_CHECKLIST_OPTIONS.map((item) => (
                         <label key={item} className="flex items-start gap-2 text-sm">
@@ -1050,33 +1107,37 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
                       ))}
                     </div>
                   </div>
-                  <div className="rounded-md border bg-muted/30 p-2 text-sm whitespace-pre-wrap min-h-[72px]">
+                  <div className="text-sm whitespace-pre-wrap min-h-[72px]">
                     {formData.diet_plan || "Belum ada pilihan diet"}
                   </div>
                 </div>
-                <div className="space-y-2 rounded-md border p-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div className="space-y-2 rounded-md border border-border/60 p-3">
+                  <div className="flex items-center justify-between gap-2">
                     <Label htmlFor="activity_plan" className="text-sm flex items-center gap-2">
                       <Activity className="h-4 w-4 text-muted-foreground" />
                       Rencana Aktivitas
                     </Label>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-8 w-full sm:w-auto"
-                      onClick={handleSyncActivityFromSupportOrders}
-                      disabled={isFormDisabled || syncingActivityFromSupportOrders}
-                    >
-                      {syncingActivityFromSupportOrders ? (
-                        <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <WandSparkles className="mr-1 h-3.5 w-3.5" />
-                      )}
-                      Ambil Saran dari Order Penunjang
-                    </Button>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={handleSyncActivityFromSupportOrders}
+                          disabled={isFormDisabled || syncingActivityFromSupportOrders}
+                          aria-label="Ambil saran aktivitas dari order penunjang"
+                        >
+                          {syncingActivityFromSupportOrders ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <WandSparkles className="h-3.5 w-3.5" />
+                          )}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">Ambil Saran dari Order Penunjang</TooltipContent>
+                    </Tooltip>
                   </div>
-                  <p className="text-xs text-muted-foreground">Checklist aktivitas. Saran radiologi/lab akan ditambahkan otomatis saat tombol ditekan.</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {Array.from(new Set([...BASE_ACTIVITY_OPTIONS, ...activityOrderSuggestions])).map((item) => (
                       <label key={item} className="flex items-start gap-2 text-sm">
@@ -1097,14 +1158,13 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
                     className="min-h-[80px] resize-none"
                   />
                 </div>
-                <div className="space-y-2 rounded-md border p-3">
+                <div className="space-y-2 rounded-md border border-border/60 p-3">
                   <Label htmlFor="education_plan" className="text-sm flex items-center gap-2">
                     <GraduationCap className="h-4 w-4 text-muted-foreground" />
                     Rencana Edukasi
                     <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">Opsional</Badge>
                   </Label>
                   <div className="space-y-2">
-                    <p className="text-xs text-muted-foreground">Checklist edukasi (otomatis terisi ke rencana)</p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       {EDUCATION_CHECKLIST_OPTIONS.map((item) => (
                         <label key={item} className="flex items-start gap-2 text-sm">
@@ -1118,31 +1178,36 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
                       ))}
                     </div>
                   </div>
-                  <div className="rounded-md border bg-muted/30 p-2 text-sm whitespace-pre-wrap min-h-[72px]">
+                  <div className="text-sm whitespace-pre-wrap min-h-[72px]">
                     {formData.education_plan || "Belum ada pilihan edukasi"}
                   </div>
                 </div>
-                <div className="space-y-2 rounded-md border p-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div className="space-y-2 rounded-md border border-border/60 p-3">
+                  <div className="flex items-center justify-between gap-2">
                     <Label htmlFor="procedure_plan" className="text-sm flex items-center gap-2">
                       <Stethoscope className="h-4 w-4 text-muted-foreground" />
                       Rencana Tindakan
                     </Label>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-8 w-full sm:w-auto"
-                      onClick={handleSyncProcedurePlanFromOrders}
-                      disabled={isFormDisabled || syncingProcedurePlan}
-                    >
-                      {syncingProcedurePlan ? (
-                        <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <WandSparkles className="mr-1 h-3.5 w-3.5" />
-                      )}
-                      Ambil dari Tindakan
-                    </Button>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={handleSyncProcedurePlanFromOrders}
+                          disabled={isFormDisabled || syncingProcedurePlan}
+                          aria-label="Ambil dari tindakan"
+                        >
+                          {syncingProcedurePlan ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <WandSparkles className="h-3.5 w-3.5" />
+                          )}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">Ambil dari Tindakan</TooltipContent>
+                    </Tooltip>
                   </div>
                   <Textarea
                     id="procedure_plan"
@@ -1152,27 +1217,32 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
                     className="min-h-[80px] resize-none"
                   />
                 </div>
-                <div className="space-y-2 rounded-md border p-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div className="space-y-2 rounded-md border border-border/60 p-3">
+                  <div className="flex items-center justify-between gap-2">
                     <Label htmlFor="consultation_plan" className="text-sm flex items-center gap-2">
                       <Users className="h-4 w-4 text-muted-foreground" />
                       Rencana Konsultasi
                     </Label>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-8 w-full sm:w-auto"
-                      onClick={handleSyncConsultationPlanFromOrders}
-                      disabled={isFormDisabled || syncingConsultationPlan}
-                    >
-                      {syncingConsultationPlan ? (
-                        <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <WandSparkles className="mr-1 h-3.5 w-3.5" />
-                      )}
-                      Ambil dari Order Konsultasi
-                    </Button>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={handleSyncConsultationPlanFromOrders}
+                          disabled={isFormDisabled || syncingConsultationPlan}
+                          aria-label="Ambil dari order konsultasi"
+                        >
+                          {syncingConsultationPlan ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <WandSparkles className="h-3.5 w-3.5" />
+                          )}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">Ambil dari Order Konsultasi</TooltipContent>
+                    </Tooltip>
                   </div>
                   <Textarea
                     id="consultation_plan"
@@ -1183,73 +1253,72 @@ export function AssessmentPlanForm({ visitId, initialData, onSave, readOnly = fa
                   />
                 </div>
               </div>
+            </div>
           </div>
 
           {/* Section 4: Rencana Penatalaksanaan */}
-          <div className="space-y-2">
+          <div className="border border-border/70">
+            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              Ringkasan Penatalaksanaan
+            </div>
+            <div className="space-y-2 p-3 sm:p-4">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
               <Label htmlFor="treatment_plan" className="text-sm font-semibold">
                 Rencana Penatalaksanaan <span className="text-destructive">*</span>
               </Label>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-8 w-full sm:w-auto"
-                onClick={handleGenerateTreatmentPlanFromDetails}
-                disabled={isFormDisabled}
-              >
-                <WandSparkles className="mr-1 h-3.5 w-3.5" />
-                Ambil dari 6 Rencana
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={handleGenerateTreatmentPlanFromDetails}
+                    disabled={isFormDisabled}
+                    aria-label="Generate ringkasan dari 6 rencana"
+                  >
+                    <WandSparkles className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">Ambil dari 6 Rencana</TooltipContent>
+              </Tooltip>
             </div>
             <Textarea
               id="treatment_plan"
-              placeholder="Rencana penatalaksanaan yang akan dilakukan:
-• Farmakologi: Obat-obatan yang akan diberikan
-• Non-farmakologi: Diet, edukasi, modifikasi gaya hidup
-• Pemeriksaan penunjang: Lab, radiologi yang diperlukan
-• Konsultasi: Rujukan ke spesialis jika diperlukan
-• Monitoring: Parameter yang perlu dipantau"
+              placeholder="Tulis ringkasan rencana penatalaksanaan..."
               value={formData.treatment_plan}
               onChange={(e) => handleChange("treatment_plan", e.target.value)}
               className="min-h-[180px] resize-none"
               required
             />
-            <p className="text-xs text-muted-foreground">
-              Letaknya dipindah ke paling bawah agar tidak terlewat. Gunakan tombol "Ambil dari 6 Rencana" untuk membuat ringkasan otomatis.
-            </p>
+            </div>
           </div>
 
-          {/* Submit Button */}
-          {!isFormDisabled && (
-          <div className="flex justify-end gap-3 pt-4 border-t">
-            <Button type="submit" className="gap-2" disabled={saving}>
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              Simpan Assessment & Plan
-            </Button>
-          </div>
-          )}
           </fieldset>
         </form>
+        </TooltipProvider>
       </div>
-      <EditConfirmDialog
-        open={showEditDialog}
-        onOpenChange={setShowEditDialog}
-        editReason={editReason}
-        onEditReasonChange={setEditReason}
-        onConfirm={handleConfirmEdit}
-      />
-      <PINVerificationDialog
-        open={showPINDialog}
-        onOpenChange={setShowPINDialog}
-        pin={pin}
-        verifying={verifyingPIN}
-        pinInputRefs={pinInputRefs}
-        onPINChange={handlePINChange}
-        onPINKeyDown={handlePINKeyDown}
-        onVerify={handleVerifyPIN}
-      />
+      {!useExternalData && (
+        <>
+          <EditConfirmDialog
+            open={showEditDialog}
+            onOpenChange={setShowEditDialog}
+            editReason={editReason}
+            onEditReasonChange={setEditReason}
+            onConfirm={handleConfirmEdit}
+          />
+          <PINVerificationDialog
+            open={showPINDialog}
+            onOpenChange={setShowPINDialog}
+            pin={pin}
+            verifying={verifyingPIN}
+            pinInputRefs={pinInputRefs}
+            onPINChange={handlePINChange}
+            onPINKeyDown={handlePINKeyDown}
+            onVerify={handleVerifyPIN}
+          />
+        </>
+      )}
     </div>
   );
 }

@@ -3,10 +3,12 @@ import { usePermission } from "@/hooks/usePermission";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import {
   AlertDialog,
@@ -18,6 +20,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -47,6 +55,8 @@ import {
   CheckCircle2,
   Trash2,
   Clock,
+  Search,
+  Plus,
   ChevronDown,
   ChevronRight,
   ArrowUp,
@@ -180,22 +190,32 @@ function OrderCollapsible({ order, onCancel, canCancel }: { order: ProcedureOrde
               </p>
             </div>
           </CollapsibleTrigger>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={handlePrintQueue} disabled={isPrinting}>
-              {isPrinting ? (
-                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-              ) : (
-                <Printer className="h-4 w-4 mr-1" />
+          <TooltipProvider delayDuration={120}>
+            <div className="flex items-center gap-2">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="outline" size="icon" className="h-8 w-8" onClick={handlePrintQueue} disabled={isPrinting} aria-label="Cetak antrian">
+                    {isPrinting ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Printer className="h-4 w-4" />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">Cetak Antrian</TooltipContent>
+              </Tooltip>
+              {order.status === "pending" && canCancel && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="outline" size="icon" className="h-8 w-8 text-destructive" onClick={() => onCancel(order.id)} aria-label="Batalkan order">
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">Batalkan</TooltipContent>
+                </Tooltip>
               )}
-              Cetak Antrian
-            </Button>
-            {order.status === "pending" && canCancel && (
-              <Button variant="outline" size="sm" className="text-destructive" onClick={() => onCancel(order.id)}>
-                <Trash2 className="h-4 w-4 mr-1" />
-                Batalkan
-              </Button>
-            )}
-          </div>
+            </div>
+          </TooltipProvider>
         </div>
         <CollapsibleContent>
           <div className="mt-3 ml-6 space-y-3">
@@ -342,6 +362,8 @@ export function LaboratoryOrderForm({ visitId, readOnly = false }: LaboratoryOrd
   const [procedures, setProcedures] = useState<ProcedureType[]>([]);
   const [loadingProcedures, setLoadingProcedures] = useState(false);
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
   const [diagnosis, setDiagnosis] = useState("");
   const [clinicalNotes, setClinicalNotes] = useState("");
   const [priority, setPriority] = useState("normal");
@@ -539,6 +561,12 @@ export function LaboratoryOrderForm({ visitId, readOnly = false }: LaboratoryOrd
     }
   };
 
+  const filteredProcedures = procedures.filter((proc) => {
+    const keyword = searchTerm.trim().toLowerCase();
+    if (!keyword) return true;
+    return `${proc.name} ${proc.code} ${proc.description || ""}`.toLowerCase().includes(keyword);
+  });
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-48">
@@ -599,7 +627,12 @@ export function LaboratoryOrderForm({ visitId, readOnly = false }: LaboratoryOrd
             {/* Order Form Tab */}
             {activeTab === "form" && canOrder && (
               <div className="space-y-4">
-                <fieldset disabled={readOnly}>
+                <fieldset disabled={readOnly} className="space-y-4 [&_input]:h-10 [&_[role=combobox]]:h-10">
+            <div className="border border-border/70">
+              <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                Konfigurasi Order
+              </div>
+              <div className="space-y-4 p-3 sm:p-4">
             {/* Room & Priority Selection */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -654,56 +687,38 @@ export function LaboratoryOrderForm({ visitId, readOnly = false }: LaboratoryOrd
                 rows={2}
               />
             </div>
+              </div>
+            </div>
 
-            <Separator />
+            <div className="border border-border/70">
+              <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                Pemeriksaan
+              </div>
+              <div className="space-y-4 p-3 sm:p-4">
 
             {/* Procedure Selection */}
             <div className="space-y-2">
-              <Label className="text-base font-medium">Pilih Pemeriksaan</Label>
-              
-              {loadingProcedures ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin" />
-                </div>
-              ) : procedures.length === 0 ? (
-                <div className="border-2 border-dashed rounded-lg p-8 text-center text-muted-foreground">
-                  <TestTube className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p>Tidak ada pemeriksaan tersedia</p>
-                  <p className="text-sm">Pilih unit laboratorium terlebih dahulu</p>
-                </div>
-              ) : (
-                <ScrollArea className="h-[250px] border rounded-lg">
-                  <div className="divide-y">
-                    {procedures.map((proc) => {
-                      const isSelected = orderItems.some((item) => item.procedure_id === proc.id);
-                      return (
-                        <div
-                          key={proc.id}
-                          className={`p-3 flex items-center gap-3 cursor-pointer hover:bg-muted/50 ${
-                            isSelected ? "bg-primary/5 border-l-2 border-l-primary" : ""
-                          }`}
-                          onClick={() => handleToggleProcedure(proc)}
-                        >
-                          <Checkbox checked={isSelected} />
-                          <div className="flex-1">
-                            <p className="font-medium text-sm">{proc.name}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {proc.code}
-                              {proc.parameters && proc.parameters.length > 0 && ` • ${proc.parameters.length} parameter`}
-                            </p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </ScrollArea>
-              )}
+              <div className="flex items-center justify-between gap-2">
+                <Label className="text-base font-medium">Pilih Pemeriksaan</Label>
+                <Button
+                  type="button"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setShowAddDialog(true)}
+                  disabled={!selectedRoom || readOnly}
+                  aria-label="Tambah pemeriksaan"
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
 
-            {/* Selected Items Summary */}
-            {orderItems.length > 0 && (
+            {orderItems.length > 0 ? (
               <div className="space-y-2">
-                <Label className="text-base font-medium">Pemeriksaan Dipilih ({orderItems.length})</Label>
+                <div className="flex items-center justify-between gap-2">
+                  <Label className="text-base font-medium">Pemeriksaan Dipilih</Label>
+                  <Badge variant="secondary">{orderItems.length} item</Badge>
+                </div>
                 <div className="border rounded-lg divide-y">
                   {orderItems.map((item) => (
                     <div key={item.procedure_id} className="p-3 flex items-center justify-between gap-3">
@@ -723,12 +738,77 @@ export function LaboratoryOrderForm({ visitId, readOnly = false }: LaboratoryOrd
                   ))}
                 </div>
               </div>
+            ) : (
+              <div className="border-2 border-dashed rounded-lg p-8 text-center text-muted-foreground">
+                <TestTube className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <p>Belum ada pemeriksaan dipilih</p>
+                <p className="text-sm">Gunakan tombol + untuk menambah pemeriksaan.</p>
+              </div>
             )}
 
+            <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+              <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+                <DialogHeader>
+                  <DialogTitle>Pilih Pemeriksaan Laboratorium</DialogTitle>
+                </DialogHeader>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Cari pemeriksaan..."
+                    className="pl-9"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
+                <ScrollArea className="flex-1 max-h-[420px] border rounded-md">
+                  {!selectedRoom ? (
+                    <div className="text-center py-8 text-muted-foreground text-sm">Pilih unit laboratorium terlebih dahulu.</div>
+                  ) : loadingProcedures ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin" />
+                    </div>
+                  ) : filteredProcedures.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground text-sm">
+                      {searchTerm ? "Pemeriksaan tidak ditemukan" : "Tidak ada pemeriksaan tersedia"}
+                    </div>
+                  ) : (
+                    <div className="divide-y">
+                      {filteredProcedures.map((proc) => {
+                        const isSelected = orderItems.some((item) => item.procedure_id === proc.id);
+                        return (
+                          <button
+                            key={proc.id}
+                            type="button"
+                            className={cn(
+                              "w-full p-3 text-left flex items-center gap-3 hover:bg-muted/50",
+                              isSelected && "bg-primary/5"
+                            )}
+                            onClick={() => handleToggleProcedure(proc)}
+                          >
+                            <Checkbox checked={isSelected} />
+                            <div className="flex-1">
+                              <p className="font-medium text-sm">{proc.name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {proc.code}
+                                {proc.parameters && proc.parameters.length > 0 && ` • ${proc.parameters.length} parameter`}
+                              </p>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </ScrollArea>
+              </DialogContent>
+            </Dialog>
+              </div>
+            </div>
+
             {/* Submit Button */}
-            <div className="flex justify-end pt-4">
+            <div className="flex justify-stretch sm:justify-end pt-2">
               <Button
                 size="lg"
+                className="w-full sm:w-auto"
                 disabled={submitting || orderItems.length === 0 || readOnly}
                 onClick={handleSubmitOrder}
               >

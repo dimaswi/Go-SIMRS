@@ -22,9 +22,13 @@ import { medicineOrdersApi, signatureApi, DOCUMENT_TYPES } from "@/lib/api";
 import type { MedicineOrder, MedicineOrderItem } from "@/lib/api";
 import { SignaturePINDialog } from "@/components/signature/signature-pin-dialog";
 
+const FOOTER_ACTION_EVENT = "medical-record-footer-action";
+
 interface PharmacyDispenseProps {
   visitId: number;
   readOnly?: boolean;
+  rmDuplicateMode?: boolean;
+  apiAdapter?: Pick<typeof medicineOrdersApi, "getAll" | "dispense">;
 }
 
 const ORDER_STATUS_LABELS: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
@@ -64,10 +68,16 @@ const formatRupiah = (value: number) => {
   }).format(Number.isFinite(value) ? value : 0);
 };
 
-export function PharmacyDispense({ visitId, readOnly = false }: PharmacyDispenseProps) {
+export function PharmacyDispense({
+  visitId,
+  readOnly = false,
+  rmDuplicateMode = false,
+  apiAdapter,
+}: PharmacyDispenseProps) {
   const { toast } = useToast();
   const { hasPermission } = usePermission();
   const { user } = useAuthStore();
+  const orderApi = apiAdapter || medicineOrdersApi;
   const {
     showPINDialog,
     setShowPINDialog,
@@ -136,7 +146,7 @@ export function PharmacyDispense({ visitId, readOnly = false }: PharmacyDispense
     }
 
     try {
-      const res = await medicineOrdersApi.getAll({ pharmacy_visit_id: visitId });
+      const res = await orderApi.getAll({ pharmacy_visit_id: visitId });
       const data = res.data || [];
       setOrders(data);
       // Select first order that is reviewed/preparing/partial
@@ -222,7 +232,7 @@ export function PharmacyDispense({ visitId, readOnly = false }: PharmacyDispense
 
     setSubmitting(true);
     try {
-      await medicineOrdersApi.dispense(selectedOrder.id, {
+      await orderApi.dispense(selectedOrder.id, {
         items: selectedItems.map((item) => ({
           item_id: item.item_id,
           dispensed_qty: item.dispensed_qty,
@@ -246,6 +256,39 @@ export function PharmacyDispense({ visitId, readOnly = false }: PharmacyDispense
       setSubmitting(false);
     }
   };
+
+  const hasDispensePermission = hasPermission("pharmacy.dispense");
+  const isOrderDelivered = selectedOrder?.status === "delivered" || selectedOrder?.status === "ready";
+  const canDispense = hasDispensePermission && selectedOrder && ["reviewed", "preparing", "partial"].includes(selectedOrder.status);
+  const allDelivered = dispenseItems.every((item) => item.remaining === 0) || isOrderDelivered;
+
+  useEffect(() => {
+    const handleFooterAction = (event: Event) => {
+      const customEvent = event as CustomEvent<{
+        tabId: string;
+        action: "save" | "final";
+        handled: boolean;
+      }>;
+      if (customEvent.detail?.tabId !== "medicine-dispense") return;
+      customEvent.detail.handled = true;
+
+      if (submitting || readOnly) return;
+      if (!canDispense || allDelivered) {
+        toast({
+          title: "Info",
+          description: "Tidak ada obat yang perlu diserahkan.",
+        });
+        return;
+      }
+
+      void requestPINVerification(handleSubmitDispense);
+    };
+
+    window.addEventListener(FOOTER_ACTION_EVENT, handleFooterAction as EventListener);
+    return () => {
+      window.removeEventListener(FOOTER_ACTION_EVENT, handleFooterAction as EventListener);
+    };
+  }, [submitting, readOnly, canDispense, allDelivered, requestPINVerification]);
 
   if (loading) {
     return (
@@ -274,10 +317,6 @@ export function PharmacyDispense({ visitId, readOnly = false }: PharmacyDispense
   }
 
   const patient = selectedOrder?.source_visit?.registration?.patient || selectedOrder?.registration?.patient;
-  const hasDispensePermission = hasPermission("pharmacy.dispense");
-  const isOrderDelivered = selectedOrder?.status === "delivered" || selectedOrder?.status === "ready";
-  const canDispense = hasDispensePermission && selectedOrder && ["reviewed", "preparing", "partial"].includes(selectedOrder.status);
-  const allDelivered = dispenseItems.every((item) => item.remaining === 0) || isOrderDelivered;
 
   const handlePrintDeliveredMedicines = () => {
     if (!selectedOrder) return;
@@ -434,9 +473,12 @@ export function PharmacyDispense({ visitId, readOnly = false }: PharmacyDispense
                     No. RM: {patient?.no_rm} | Order: {selectedOrder.order_number}
                   </p>
                 </div>
-                <Badge variant={ORDER_STATUS_LABELS[selectedOrder.status]?.variant || "secondary"}>
-                  {ORDER_STATUS_LABELS[selectedOrder.status]?.label || selectedOrder.status}
-                </Badge>
+                <div className="flex items-center gap-2">
+                  {rmDuplicateMode && <Badge variant="outline">Mode RM Duplikat</Badge>}
+                  <Badge variant={ORDER_STATUS_LABELS[selectedOrder.status]?.variant || "secondary"}>
+                    {ORDER_STATUS_LABELS[selectedOrder.status]?.label || selectedOrder.status}
+                  </Badge>
+                </div>
               </div>
             </div>
             <div className="p-3">
@@ -640,17 +682,10 @@ export function PharmacyDispense({ visitId, readOnly = false }: PharmacyDispense
                   </Button>
                 )}
                 
-                {/* Dispense button - only show if can dispense and not all delivered */}
                 {canDispense && !allDelivered && (
-                  <Button
-                    className="flex-1"
-                    onClick={() => requestPINVerification(handleSubmitDispense)}
-                    disabled={submitting || dispenseItems.filter((i) => i.selected).length === 0 || readOnly}
-                  >
-                    {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                    <Package className="h-4 w-4 mr-2" />
-                    Serahkan Obat Terpilih
-                  </Button>
+                  <div className="flex-1 rounded border border-dashed px-3 py-2 text-sm text-muted-foreground">
+                    Gunakan tombol Simpan di footer untuk menyerahkan obat terpilih.
+                  </div>
                 )}
 
                 {/* Signature button - show when all delivered */}

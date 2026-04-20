@@ -260,7 +260,7 @@ export default function PurchaseReceive() {
 
   if (loading) {
     return (
-      <div className="flex flex-1 flex-col p-4">
+      <div className="flex flex-1 flex-col px-4">
         <div className="flex items-center gap-4">
           <Skeleton className="h-10 w-10" />
           <Skeleton className="h-8 w-64" />
@@ -276,7 +276,7 @@ export default function PurchaseReceive() {
   }
 
   return (
-    <div className="flex flex-1 flex-col p-4">
+    <div className="flex flex-1 flex-col px-4">
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           <div className="flex items-center justify-between">

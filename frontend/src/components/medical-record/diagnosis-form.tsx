@@ -5,20 +5,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Combobox } from "@/components/ui/combobox";
-import { Save, Plus, X, Loader2, ChevronDown, ChevronUp, Stethoscope, AlertCircle, Search } from "lucide-react";
+import { Plus, X, Loader2, ChevronDown, ChevronUp, AlertCircle, Search, Copy } from "lucide-react";
 import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useMultipleMasterData } from "@/hooks/useMasterData";
 import { medicalRecordsApi } from "@/lib/api";
 import { medicalRecordEditLogApi } from "@/lib/api/visits";
@@ -26,9 +20,10 @@ import { useEditMode, EditModeBanner, EditConfirmDialog, PINVerificationDialog }
 import { emitMedicalRecordTabIndicator, emitMedicalRecordTabSaved, MEDICAL_RECORD_TAB_SAVED_EVENT } from "./tab-indicator";
 import { COPY_FROM_HISTORY_EVENT } from "./copy-from-history-drawer";
 import { saveFormDraft, loadFormDraft, clearFormDraft, loadPendingCopy, clearPendingCopy } from "@/lib/form-persistence";
-import { icd10Api, type ICD10 } from "@/lib/api/icd";
+import { icd10Api, icd9cmApi, type ICD10, type ICD9CM } from "@/lib/api/icd";
 import { useDebounce } from "@/hooks/use-debounce";
 import type { Diagnosis as DiagnosisData, DiagnosisItem } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
 
 interface DiagnosisFormItem {
   id?: number;
@@ -40,6 +35,7 @@ interface DiagnosisFormItem {
   severity?: string;
   body_site?: string;
   onset_date?: string;
+  differential_diagnosis?: string;
   note?: string;
 }
 
@@ -48,9 +44,27 @@ interface DiagnosisFormProps {
   onSave?: (data: any) => void;
   readOnly?: boolean;
   isPatientDischarged?: boolean;
+  externalData?: Partial<DiagnosisData>;
+  useExternalData?: boolean;
 }
 
-export function DiagnosisForm({ visitId, onSave, readOnly = false, isPatientDischarged = false }: DiagnosisFormProps) {
+type UnifiedICDResult = {
+  id: string;
+  code: string;
+  display: string;
+  source: "icd10" | "icd9cm";
+  asterisk?: boolean;
+};
+
+export function DiagnosisForm({
+  visitId,
+  onSave,
+  readOnly = false,
+  isPatientDischarged = false,
+  externalData,
+  useExternalData = false,
+}: DiagnosisFormProps) {
+	const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [clinicalImpression, setClinicalImpression] = useState("");
   const [differentialDiagnosis, setDifferentialDiagnosis] = useState("");
@@ -67,14 +81,12 @@ export function DiagnosisForm({ visitId, onSave, readOnly = false, isPatientDisc
   const severityOptions = getOptions('severity_level');
 
   const [diagnoses, setDiagnoses] = useState<DiagnosisFormItem[]>([]);
-  const [searchOpen, setSearchOpen] = useState(false);
+  const [selectorOpen, setSelectorOpen] = useState(false);
   const [searchValue, setSearchValue] = useState("");
-  const [addingType, setAddingType] = useState<"primary" | "secondary" | "differential">("primary");
   const [expandedDiagnosis, setExpandedDiagnosis] = useState<number | null>(null);
   
-  // ICD-10 search state
-  const [icdResults, setIcdResults] = useState<ICD10[]>([]);
-  const [icdLoading, setIcdLoading] = useState(false);
+  const [searchResults, setSearchResults] = useState<UnifiedICDResult[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
   const debouncedSearch = useDebounce(searchValue, 300);
   const [diagnosisId, setDiagnosisId] = useState<number | undefined>();
 
@@ -104,31 +116,76 @@ export function DiagnosisForm({ visitId, onSave, readOnly = false, isPatientDisc
   });
 
   // Determine if form should be disabled
-  const isFormDisabled = readOnly || (isPatientDischarged && !isEditing);
+  const isFormDisabled = readOnly || (!useExternalData && isPatientDischarged && !isEditing);
   
-  // Search ICD-10 when debounced search changes
   useEffect(() => {
     if (debouncedSearch.length >= 2) {
-      setIcdLoading(true);
-      icd10Api
-        .search({ search: debouncedSearch, limit: 30, valid_only: true })
-        .then((data) => {
-          setIcdResults(data);
+      setSearchLoading(true);
+      Promise.allSettled([
+        icd10Api.search({ search: debouncedSearch, limit: 20, valid_only: true }),
+        icd9cmApi.search({ search: debouncedSearch, limit: 20, valid_only: true }),
+      ])
+        .then(([icd10Response, icd9Response]) => {
+          const icd10Results = icd10Response.status === "fulfilled" ? icd10Response.value : [];
+          const icd9cmResults = icd9Response.status === "fulfilled" ? icd9Response.value : [];
+
+          const mergedResults: UnifiedICDResult[] = [
+            ...icd10Results.map((item: ICD10) => ({
+              id: `icd10-${item.id}`,
+              code: item.code,
+              display: item.display,
+              source: "icd10" as const,
+              asterisk: item.asterisk,
+            })),
+            ...icd9cmResults.map((item: ICD9CM) => ({
+              id: `icd9cm-${item.id}`,
+              code: item.code,
+              display: item.display,
+              source: "icd9cm" as const,
+              asterisk: item.asterisk,
+            })),
+          ];
+
+          setSearchResults(mergedResults);
         })
         .catch((error) => {
-          console.error("Failed to search ICD-10:", error);
-          setIcdResults([]);
+          console.error("Failed to search ICD:", error);
+          setSearchResults([]);
         })
         .finally(() => {
-          setIcdLoading(false);
+          setSearchLoading(false);
         });
     } else {
-      setIcdResults([]);
+      setSearchResults([]);
     }
   }, [debouncedSearch]);
 
   // Load existing data on mount
   useEffect(() => {
+    if (useExternalData) {
+      const d = externalData || {};
+      setClinicalImpression((d as any).clinical_impression || "");
+      setDifferentialDiagnosis((d as any).differential_diagnosis || "");
+      const items = Array.isArray((d as any).items) ? (d as any).items : [];
+      setDiagnoses(
+        items.map((item: any) => ({
+          id: item.id,
+          icd10_code: item.icd10_code || "",
+          icd10_name: item.icd10_name || "",
+          diagnosis_type: item.diagnosis_type || "secondary",
+          clinical_status: item.clinical_status || "active",
+          verification_status: item.verification_status || "confirmed",
+          severity: item.severity || "",
+          body_site: item.body_site || "",
+          onset_date: item.onset_date || "",
+          differential_diagnosis: item.differential_diagnosis || "",
+          note: item.note || "",
+        })),
+      );
+      setLoading(false);
+      return;
+    }
+
     const loadDiagnosis = async () => {
       let serverDataLoaded = false;
       try {
@@ -149,6 +206,7 @@ export function DiagnosisForm({ visitId, onSave, readOnly = false, isPatientDisc
               severity: item.severity || "",
               body_site: item.body_site || "",
               onset_date: item.onset_date || "",
+              differential_diagnosis: item.differential_diagnosis || "",
               note: item.note || "",
             })));
             // If there are diagnoses, use the first one's ID for edit log tracking
@@ -191,6 +249,7 @@ export function DiagnosisForm({ visitId, onSave, readOnly = false, isPatientDisc
               severity: item.severity || "",
               body_site: item.body_site || "",
               onset_date: item.onset_date || "",
+              differential_diagnosis: item.differential_diagnosis || "",
               note: item.note || "",
             })));
           }
@@ -202,25 +261,82 @@ export function DiagnosisForm({ visitId, onSave, readOnly = false, isPatientDisc
     };
 
     loadDiagnosis();
-  }, [visitId]);
+  }, [visitId, useExternalData, externalData]);
 
-  const handleAddDiagnosis = (code: string, name: string) => {
+  const handleAddDiagnosis = (code: string, name: string, diagnosisType: "primary" | "secondary") => {
+    if (diagnosisType === "primary" && diagnoses.some((item) => item.diagnosis_type === "primary")) {
+      toast({
+        variant: "destructive",
+        title: "Diagnosis primer sudah ada",
+        description: "Ubah diagnosis primer yang ada atau tambahkan sebagai diagnosis sekunder.",
+      });
+      return;
+    }
+
     const newDiagnosis: DiagnosisFormItem = {
       icd10_code: code,
       icd10_name: name,
-      diagnosis_type: addingType,
+      diagnosis_type: diagnosisType,
       clinical_status: "active",
       verification_status: "confirmed",
       severity: "",
       body_site: "",
       onset_date: "",
+      differential_diagnosis: "",
       note: "",
     };
     setDiagnoses([...diagnoses, newDiagnosis]);
-    setSearchOpen(false);
+    setSelectorOpen(false);
     setSearchValue("");
     emitMedicalRecordTabSaved("diagnosis", false);
   };
+
+  const openSelector = () => {
+    setSelectorOpen(true);
+    setSearchValue("");
+    setSearchResults([]);
+  };
+
+  const handleCopyICD9Code = async (item: ICD9CM) => {
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(item.code);
+      }
+      toast({
+        title: "ICD-9-CM disalin",
+        description: `${item.code} disalin. Gunakan sebagai referensi prosedur/tindakan.`,
+      });
+    } catch {
+      toast({
+        variant: "destructive",
+        title: "Gagal menyalin kode",
+        description: "Silakan salin kode ICD-9-CM secara manual.",
+      });
+    }
+  };
+
+  const renderAddDiagnosisCard = () => (
+    <button
+      type="button"
+      onClick={openSelector}
+      className="w-full border-y border-dashed border-muted-foreground/50 py-4 text-left transition-colors hover:border-primary/70"
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <div className="rounded-md bg-primary/10 p-2 text-primary">
+            <Plus className="h-4 w-4" />
+          </div>
+          <div className="space-y-1">
+            <p className="text-sm font-semibold">Tambah Diagnosis ICD</p>
+            <p className="text-xs text-muted-foreground">
+              Cari ICD-10 dan ICD-9-CM dalam satu daftar. Primer atau sekunder dipilih saat Anda memilih item.
+            </p>
+          </div>
+        </div>
+        <Badge variant="outline" className="shrink-0">ICD</Badge>
+      </div>
+    </button>
+  );
 
   const handleRemoveDiagnosis = (index: number) => {
     setDiagnoses(diagnoses.filter((_, i) => i !== index));
@@ -236,6 +352,15 @@ export function DiagnosisForm({ visitId, onSave, readOnly = false, isPatientDisc
   };
 
   const doSave = async () => {
+    if (useExternalData) {
+      onSave?.({
+        clinical_impression: clinicalImpression,
+        differential_diagnosis: differentialDiagnosis,
+        items: diagnoses,
+      });
+      return;
+    }
+
     // Log edit if patient is discharged
     if (isPatientDischarged && diagnosisId) {
       try {
@@ -262,7 +387,7 @@ export function DiagnosisForm({ visitId, onSave, readOnly = false, isPatientDisc
     e.preventDefault();
     
     // If patient is discharged, verify PIN before saving
-    if (isPatientDischarged) {
+    if (!useExternalData && isPatientDischarged) {
       requestPINVerification(doSave);
       return;
     }
@@ -272,9 +397,10 @@ export function DiagnosisForm({ visitId, onSave, readOnly = false, isPatientDisc
 
   const primaryDiagnoses = diagnoses.filter((d) => d.diagnosis_type === "primary");
   const secondaryDiagnoses = diagnoses.filter((d) => d.diagnosis_type === "secondary");
+  const hasPrimaryDiagnosis = primaryDiagnoses.length > 0;
   const filledDiagnosisFields =
     diagnoses.length +
-    (clinicalImpression.trim() ? 1 : 0) +
+    diagnoses.filter((item) => item.differential_diagnosis?.trim()).length +
     (differentialDiagnosis.trim() ? 1 : 0);
 
   useEffect(() => {
@@ -284,12 +410,14 @@ export function DiagnosisForm({ visitId, onSave, readOnly = false, isPatientDisc
 
   // Auto-save draft to localStorage on every state change
   useEffect(() => {
+    if (useExternalData) return;
     if (loading) return;
     saveFormDraft(`mr-draft-diagnosis-${visitId}`, { diagnoses, clinicalImpression, differentialDiagnosis });
-  }, [diagnoses, clinicalImpression, differentialDiagnosis, loading, visitId]);
+  }, [diagnoses, clinicalImpression, differentialDiagnosis, loading, visitId, useExternalData]);
 
   // Clear draft when save is confirmed by server
   useEffect(() => {
+    if (useExternalData) return;
     const handler = (e: Event) => {
       const ev = e as CustomEvent<{ tabId: string; saved: boolean }>;
       if (ev.detail?.tabId === "diagnosis" && ev.detail.saved === true) {
@@ -298,10 +426,11 @@ export function DiagnosisForm({ visitId, onSave, readOnly = false, isPatientDisc
     };
     window.addEventListener(MEDICAL_RECORD_TAB_SAVED_EVENT, handler as EventListener);
     return () => window.removeEventListener(MEDICAL_RECORD_TAB_SAVED_EVENT, handler as EventListener);
-  }, [visitId]);
+  }, [visitId, useExternalData]);
 
   // Listen for copy-from-history events
   useEffect(() => {
+    if (useExternalData) return;
     const handler = (e: Event) => {
       const ev = e as CustomEvent<{ section: string; data: any }>;
       if (ev.detail?.section !== "diagnosis" || !ev.detail.data) return;
@@ -317,6 +446,7 @@ export function DiagnosisForm({ visitId, onSave, readOnly = false, isPatientDisc
           severity: item.severity || "",
           body_site: item.body_site || "",
           onset_date: item.onset_date || "",
+          differential_diagnosis: item.differential_diagnosis || "",
           note: item.note || "",
         })));
       }
@@ -326,7 +456,7 @@ export function DiagnosisForm({ visitId, onSave, readOnly = false, isPatientDisc
     };
     window.addEventListener(COPY_FROM_HISTORY_EVENT, handler as EventListener);
     return () => window.removeEventListener(COPY_FROM_HISTORY_EVENT, handler as EventListener);
-  }, []);
+  }, [useExternalData]);
 
   if (loading || masterDataLoading) {
     return (
@@ -345,7 +475,7 @@ export function DiagnosisForm({ visitId, onSave, readOnly = false, isPatientDisc
   const renderDiagnosisCard = (diagnosis: DiagnosisFormItem, actualIndex: number, isPrimary: boolean = false) => (
     <div
       key={actualIndex}
-      className={`p-3 border rounded-lg ${isPrimary ? "bg-primary/5" : ""}`}
+      className={`px-3 py-3 border-l-4 ${isPrimary ? "border-primary/60 bg-primary/5" : "border-border"}`}
     >
       <div className="flex items-start gap-3">
         <div className="flex-1">
@@ -453,6 +583,18 @@ export function DiagnosisForm({ visitId, onSave, readOnly = false, isPatientDisc
               className="min-h-[60px] resize-none"
             />
           </div>
+          <div className="space-y-2">
+            <Label className="text-xs flex items-center gap-2">
+              <AlertCircle className="h-3.5 w-3.5 text-muted-foreground" />
+              Diagnosa Banding
+            </Label>
+            <Textarea
+              placeholder="Diagnosis banding untuk ICD ini..."
+              value={diagnosis.differential_diagnosis || ""}
+              onChange={(e) => handleUpdateDiagnosis(actualIndex, "differential_diagnosis", e.target.value)}
+              className="min-h-[60px] resize-none"
+            />
+          </div>
         </div>
       )}
     </div>
@@ -461,271 +603,176 @@ export function DiagnosisForm({ visitId, onSave, readOnly = false, isPatientDisc
   return (
     <div>
       <div>
-            <EditModeBanner
-              isPatientDischarged={isPatientDischarged}
-              isEditing={isEditing}
-              onRequestEdit={handleRequestEdit}
-              recordTypeLabel="Diagnosis"
-            />
+            {!useExternalData && (
+              <EditModeBanner
+                isPatientDischarged={isPatientDischarged}
+                isEditing={isEditing}
+                onRequestEdit={handleRequestEdit}
+                recordTypeLabel="Diagnosis"
+              />
+            )}
         <fieldset disabled={isFormDisabled}>
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit} className="space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11">
             <div className="space-y-6">
             
-            {/* Section 1: Diagnosis Primer */}
-            <div className="space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-3"><Badge variant={primaryDiagnoses.length > 0 ? "default" : "outline"}>
-                      {primaryDiagnoses.length}
-                    </Badge>
+            <div className="border border-border/70">
+              <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                Penetapan Diagnosis
+              </div>
+              <div className="space-y-6 p-3 sm:p-4">
+              {renderAddDiagnosisCard()}
+              <div className="flex flex-wrap gap-2">
+                <Badge variant={primaryDiagnoses.length > 0 ? "default" : "outline"}>Primer: {primaryDiagnoses.length}</Badge>
+                <Badge variant={secondaryDiagnoses.length > 0 ? "default" : "outline"}>Sekunder: {secondaryDiagnoses.length}</Badge>
+                <Badge variant="outline">Total: {diagnoses.length}</Badge>
+              </div>
+              <div className="space-y-7">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline">Diagnosis Primer</Badge>
                   </div>
-                  <Popover open={searchOpen && addingType === "primary"} onOpenChange={(open) => {
-                    setSearchOpen(open);
-                    if (open) {
-                      setAddingType("primary");
-                      setSearchValue("");
-                      setIcdResults([]);
-                    }
-                  }}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="gap-2"
-                      >
-                        <Plus className="h-4 w-4" />
-                        Tambah
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-[550px] p-0" align="end">
-                      <Command shouldFilter={false}>
-                        <CommandInput
-                          placeholder="Ketik minimal 2 karakter untuk mencari ICD-10..."
-                          value={searchValue}
-                          onValueChange={setSearchValue}
-                        />
-                        <CommandList>
-                          {icdLoading && (
-                            <div className="flex items-center justify-center py-6">
-                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                              <span className="text-sm text-muted-foreground">Mencari...</span>
-                            </div>
-                          )}
-                          {!icdLoading && searchValue.length < 2 && (
-                            <div className="py-6 text-center text-sm text-muted-foreground">
-                              <Search className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                              Ketik minimal 2 karakter untuk mencari
-                            </div>
-                          )}
-                          {!icdLoading && searchValue.length >= 2 && icdResults.length === 0 && (
-                            <CommandEmpty>Tidak ditemukan kode ICD-10</CommandEmpty>
-                          )}
-                          {!icdLoading && icdResults.length > 0 && (
-                            <CommandGroup heading={`${icdResults.length} hasil ditemukan`}>
-                              {icdResults.map((item) => (
-                                <CommandItem
-                                  key={item.id}
-                                  value={item.code}
-                                  onSelect={() => handleAddDiagnosis(item.code, item.display)}
-                                  className="flex items-start gap-2 py-2"
-                                >
-                                  <div className="flex flex-col gap-0.5 min-w-0">
-                                    <div className="flex items-center gap-2">
-                                      <Badge variant="outline" className="font-mono text-xs shrink-0">
-                                        {item.code}
-                                      </Badge>
-                                      {item.asterisk && (
-                                        <Badge variant="secondary" className="text-xs">*</Badge>
-                                      )}
-                                    </div>
-                                    <span className="text-sm text-muted-foreground">
-                                      {item.display}
-                                    </span>
-                                  </div>
-                                </CommandItem>
-                              ))}
-                            </CommandGroup>
-                          )}
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
-                </div>
-                {primaryDiagnoses.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground border-2 border-dashed rounded-lg">
-                    <Stethoscope className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                    <p className="text-sm">Belum ada diagnosis primer</p>
-                    <p className="text-xs mt-1">Klik "Tambah" untuk menambahkan diagnosis utama</p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {primaryDiagnoses.map((diagnosis) => {
-                      const actualIndex = diagnoses.findIndex(d => d === diagnosis);
-                      return renderDiagnosisCard(diagnosis, actualIndex, true);
-                    })}
-                  </div>
-                )}
-            </div>
-
-            {/* Section 2: Diagnosis Sekunder */}
-            <div className="space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-3"><Badge variant={secondaryDiagnoses.length > 0 ? "default" : "outline"}>
-                      {secondaryDiagnoses.length}
-                    </Badge>
-                  </div>
-                  <Popover open={searchOpen && addingType === "secondary"} onOpenChange={(open) => {
-                    setSearchOpen(open);
-                    if (open) {
-                      setAddingType("secondary");
-                      setSearchValue("");
-                      setIcdResults([]);
-                    }
-                  }}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="gap-2"
-                      >
-                        <Plus className="h-4 w-4" />
-                        Tambah
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-[400px] p-0" align="end" sideOffset={5}>
-                      <Command shouldFilter={false}>
-                        <CommandInput
-                          placeholder="Cari kode/nama penyakit..."
-                          value={searchValue}
-                          onValueChange={setSearchValue}
-                        />
-                        <CommandList className="max-h-[300px]">
-                          {icdLoading && (
-                            <div className="flex items-center justify-center py-4">
-                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                              <span className="text-sm text-muted-foreground">Mencari...</span>
-                            </div>
-                          )}
-                          {!icdLoading && searchValue.length < 2 && (
-                            <div className="py-4 text-center text-sm text-muted-foreground">
-                              Ketik minimal 2 karakter
-                            </div>
-                          )}
-                          {!icdLoading && searchValue.length >= 2 && icdResults.length === 0 && (
-                            <CommandEmpty>Tidak ditemukan</CommandEmpty>
-                          )}
-                          {!icdLoading && icdResults.length > 0 && (
-                            <CommandGroup heading={`${icdResults.length} hasil`}>
-                              {icdResults.map((item) => (
-                                <CommandItem
-                                  key={item.id}
-                                  value={item.code}
-                                  onSelect={() => handleAddDiagnosis(item.code, item.display)}
-                                  className="cursor-pointer"
-                                >
-                                  <div className="flex flex-col gap-0.5">
-                                    <div className="flex items-center gap-2">
-                                      <Badge variant="outline" className="font-mono text-xs">
-                                        {item.code}
-                                      </Badge>
-                                    </div>
-                                    <span className="text-xs text-muted-foreground line-clamp-2">
-                                      {item.display}
-                                    </span>
-                                  </div>
-                                </CommandItem>
-                              ))}
-                            </CommandGroup>
-                          )}
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
-                </div>
-                {secondaryDiagnoses.length === 0 ? (
-                  <div className="text-center py-6 text-muted-foreground border-2 border-dashed rounded-lg">
-                    <p className="text-sm">Tidak ada diagnosis sekunder</p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {secondaryDiagnoses.map((diagnosis) => {
-                      const actualIndex = diagnoses.findIndex(d => d === diagnosis);
-                      return renderDiagnosisCard(diagnosis, actualIndex, false);
-                    })}
-                  </div>
-                )}
-            </div>
-
-            {/* Section 3: Kesan Klinis & Diagnosis Banding */}
-            <div className="space-y-4">
-                
-                {/* Clinical Impression */}
-                <div className="space-y-2">
-                  <Label htmlFor="clinical_impression" className="text-sm font-semibold">
-                    Kesan Klinis
-                  </Label>
-                  <Textarea
-                    id="clinical_impression"
-                    placeholder="Kesan klinis berdasarkan anamnesis, pemeriksaan fisik, dan penunjang..."
-                    value={clinicalImpression}
-                    onChange={(e) => { setClinicalImpression(e.target.value); emitMedicalRecordTabSaved("diagnosis", false); }}
-                    className="min-h-[80px] resize-none"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Ringkasan interpretasi klinis dari semua temuan pemeriksaan
-                  </p>
+                  {primaryDiagnoses.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Belum ada diagnosis primer.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {primaryDiagnoses.map((diagnosis) => {
+                        const actualIndex = diagnoses.findIndex(d => d === diagnosis);
+                        return renderDiagnosisCard(diagnosis, actualIndex, true);
+                      })}
+                    </div>
+                  )}
                 </div>
 
-                {/* Differential Diagnosis */}
-                <div className="space-y-2">
-                  <Label htmlFor="differential_diagnosis" className="text-sm font-semibold flex items-center gap-2">
-                    <AlertCircle className="h-4 w-4 text-muted-foreground" />
-                    Diagnosis Banding
-                  </Label>
-                  <Textarea
-                    id="differential_diagnosis"
-                    placeholder="Diagnosis banding yang dipertimbangkan dan perlu disingkirkan..."
-                    value={differentialDiagnosis}
-                    onChange={(e) => { setDifferentialDiagnosis(e.target.value); emitMedicalRecordTabSaved("diagnosis", false); }}
-                    className="min-h-[80px] resize-none"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Daftar diagnosis alternatif yang perlu dipertimbangkan
-                  </p>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline">Diagnosis Sekunder</Badge>
+                  </div>
+                  {secondaryDiagnoses.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Belum ada diagnosis sekunder.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {secondaryDiagnoses.map((diagnosis) => {
+                        const actualIndex = diagnoses.findIndex(d => d === diagnosis);
+                        return renderDiagnosisCard(diagnosis, actualIndex, false);
+                      })}
+                    </div>
+                  )}
                 </div>
+              </div>
+              </div>
             </div>
 
-            {/* Submit Button */}
-            {!isFormDisabled && (
-            <div className="flex justify-end gap-3 pt-4 border-t">
-              <Button type="submit" className="gap-2" disabled={primaryDiagnoses.length === 0}>
-                <Save className="h-4 w-4" />
-                Simpan Diagnosis
-              </Button>
-            </div>
-            )}
             </div>
           </form>
         </fieldset>
       </div>
-      <EditConfirmDialog
-        open={showEditDialog}
-        onOpenChange={setShowEditDialog}
-        editReason={editReason}
-        onEditReasonChange={setEditReason}
-        onConfirm={handleConfirmEdit}
-      />
-      <PINVerificationDialog
-        open={showPINDialog}
-        onOpenChange={setShowPINDialog}
-        pin={pin}
-        verifying={verifyingPIN}
-        pinInputRefs={pinInputRefs}
-        onPINChange={handlePINChange}
-        onPINKeyDown={handlePINKeyDown}
-        onVerify={handleVerifyPIN}
-      />
+          <Dialog open={selectorOpen} onOpenChange={setSelectorOpen}>
+          <DialogContent className="max-w-4xl">
+            <DialogHeader>
+            <DialogTitle>Pilih Diagnosis ICD</DialogTitle>
+            <DialogDescription>
+              Hasil ICD-10 dan ICD-9-CM ditampilkan dalam satu daftar. Untuk ICD-10, pilih primer atau sekunder langsung dari item yang dipilih.
+            </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+              <Label htmlFor="diagnosis-selector-search">Cari ICD</Label>
+              <Input id="diagnosis-selector-search" placeholder="Ketik minimal 2 karakter untuk mencari ICD-10 atau ICD-9-CM..." value={searchValue} onChange={(e) => setSearchValue(e.target.value)} />
+              </div>
+              <div className="max-h-[480px] space-y-3 overflow-y-auto pr-1">
+              {searchLoading && (
+                <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Mencari ICD...
+                </div>
+              )}
+              {!searchLoading && searchValue.length < 2 && (
+                <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
+                <Search className="mx-auto mb-3 h-8 w-8 opacity-50" />
+                Ketik minimal 2 karakter untuk mulai mencari ICD.
+                </div>
+              )}
+              {!searchLoading && searchValue.length >= 2 && searchResults.length === 0 && (
+                <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
+                Tidak ditemukan kode ICD.
+                </div>
+              )}
+              {searchResults.map((item) => (
+                <div key={item.id} className="space-y-3 border-b pb-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex min-w-0 items-start gap-3">
+                        <Badge variant="outline" className="font-mono text-xs shrink-0">{item.code}</Badge>
+                        <div className="min-w-0 space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="text-sm font-medium">{item.display}</p>
+                            <Badge variant={item.source === "icd10" ? "default" : "secondary"} className="text-[10px] uppercase">
+                              {item.source === "icd10" ? "ICD-10" : "ICD-9-CM"}
+                            </Badge>
+                            {item.asterisk && <Badge variant="secondary" className="text-[10px]">*</Badge>}
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {item.source === "icd10"
+                              ? "Pilih tipe diagnosis dari item ini."
+                              : "ICD-9-CM dipakai sebagai referensi tindakan atau prosedur."}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {item.source === "icd10" ? (
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() => handleAddDiagnosis(item.code, item.display, "primary")}
+                          disabled={hasPrimaryDiagnosis}
+                        >
+                          Pilih Sebagai Primer
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleAddDiagnosis(item.code, item.display, "secondary")}
+                        >
+                          Pilih Sebagai Sekunder
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        <Button type="button" size="sm" variant="outline" onClick={() => handleCopyICD9Code({ id: Number(item.id.replace("icd9cm-", "")), code: item.code, code2: "", display: item.display, valid_code: true, acc_pdx: false, asterisk: !!item.asterisk, im: false, is_active: true })}>
+                          <Copy className="mr-2 h-4 w-4" />
+                          Salin Kode ICD-9-CM
+                        </Button>
+                      </div>
+                    )}
+                </div>
+              ))}
+              </div>
+            </div>
+          </DialogContent>
+          </Dialog>
+      {!useExternalData && (
+        <>
+          <EditConfirmDialog
+            open={showEditDialog}
+            onOpenChange={setShowEditDialog}
+            editReason={editReason}
+            onEditReasonChange={setEditReason}
+            onConfirm={handleConfirmEdit}
+          />
+          <PINVerificationDialog
+            open={showPINDialog}
+            onOpenChange={setShowPINDialog}
+            pin={pin}
+            verifying={verifyingPIN}
+            pinInputRefs={pinInputRefs}
+            onPINChange={handlePINChange}
+            onPINKeyDown={handlePINKeyDown}
+            onVerify={handleVerifyPIN}
+          />
+        </>
+      )}
     </div>
   );
 }

@@ -191,6 +191,7 @@ export const DOCUMENT_TYPES = {
   RM_DUP_BED_TRANSFER: 'rm_dup_bed_transfer',
   RM_DUP_VITAL_SIGN: 'rm_dup_vital_sign',
   RM_DUP_INPATIENT_CERT: 'rm_dup_inpatient_cert',
+  RM_DUP_BILLING: 'rm_dup_billing',
 } as const;
 
 export const DOCUMENT_TYPE_LABELS: Record<string, string> = {

@@ -1,13 +1,13 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { usePermission } from "@/hooks/usePermission";
-import { usePINVerification, PINVerificationDialog } from "@/components/medical-record/edit-mode-controller";
+import {
+  usePINVerification,
+  PINVerificationDialog,
+} from "@/components/medical-record/edit-mode-controller";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Separator } from "@/components/ui/separator";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -23,55 +23,58 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
 import { useToast } from "@/hooks/use-toast";
 import {
   Loader2,
   Scissors,
   Play,
   CheckCircle2,
-  Save,
-  AlertCircle,
   Clock,
   User,
-  ChevronDown,
-  ChevronRight,
   ShieldCheck,
 } from "lucide-react";
-import { procedureOrdersApi, PROCEDURE_ORDER_STATUS, signatureApi, DOCUMENT_TYPES } from "@/lib/api";
-import type { ProcedureOrder, ProcedureOrderItem, ProcedureParameter } from "@/lib/api/procedure-orders";
+import {
+  procedureOrdersApi,
+  PROCEDURE_ORDER_STATUS,
+  signatureApi,
+  DOCUMENT_TYPES,
+} from "@/lib/api";
+import type {
+  ProcedureOrder,
+  ProcedureOrderItem,
+  ProcedureParameter,
+} from "@/lib/api/procedure-orders";
 import { SignaturePINDialog } from "@/components/signature/signature-pin-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
+
+const FOOTER_ACTION_EVENT = "medical-record-footer-action";
 
 interface SurgeryWorkstationProps {
   visitId: number;
   readOnly?: boolean;
+  rmDuplicateMode?: boolean;
+  apiAdapter?: Pick<typeof procedureOrdersApi, "getAll" | "start" | "saveResults">;
+  duplicateDoctorOptions?: { id: number; name: string }[];
+  onUpdateDuplicateOrderMeta?: (
+    runtimeOrderId: number,
+    updates: { fake_date?: string; doctor_name?: string },
+  ) => void;
 }
 
-const ANESTHESIA_TYPES = [
-  { value: "", label: "Pilih jenis anestesi..." },
-  { value: "general", label: "General Anesthesia (GA)" },
-  { value: "regional_spinal", label: "Regional - Spinal" },
-  { value: "regional_epidural", label: "Regional - Epidural" },
-  { value: "regional_cse", label: "Regional - CSE (Combined)" },
-  { value: "regional_block", label: "Regional - Nerve Block" },
-  { value: "local", label: "Local Anesthesia" },
-  { value: "sedation", label: "Sedasi" },
-  { value: "none", label: "Tanpa Anestesi" },
-];
-
-const WOUND_CLASSES = [
-  { value: "", label: "Pilih klasifikasi..." },
-  { value: "clean", label: "Bersih (Clean)" },
-  { value: "clean_contaminated", label: "Bersih Terkontaminasi" },
-  { value: "contaminated", label: "Terkontaminasi" },
-  { value: "dirty", label: "Kotor/Infeksi" },
-];
-
-export function SurgeryWorkstation({ visitId, readOnly: _readOnly = false }: SurgeryWorkstationProps) {
+export function SurgeryWorkstation({
+  visitId,
+  readOnly: _readOnly = false,
+  rmDuplicateMode = false,
+  apiAdapter,
+  duplicateDoctorOptions = [],
+  onUpdateDuplicateOrderMeta,
+}: SurgeryWorkstationProps) {
   const { toast } = useToast();
   const { hasPermission } = usePermission();
   const {
@@ -85,79 +88,206 @@ export function SurgeryWorkstation({ visitId, readOnly: _readOnly = false }: Sur
     handleVerifyPIN,
     requestPINVerification,
   } = usePINVerification({ isRequired: true });
+
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [orders, setOrders] = useState<ProcedureOrder[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<ProcedureOrder | null>(null);
-
-  // Surgery Report Fields
-  const [diagnosisPreOp, setDiagnosisPreOp] = useState("");
-  const [diagnosisPostOp, setDiagnosisPostOp] = useState("");
-  const [anesthesiaType, setAnesthesiaType] = useState("");
-  const [surgicalFindings, setSurgicalFindings] = useState("");
-  const [surgicalProcedure, setSurgicalProcedure] = useState("");
-  const [complications, setComplications] = useState("");
-  const [hasComplications, setHasComplications] = useState(false);
-  const [bloodLoss, setBloodLoss] = useState("");
-  const [woundClassification, setWoundClassification] = useState("");
-  const [specimen, setSpecimen] = useState("");
-  const [hasSpecimen, setHasSpecimen] = useState(false);
-  const [postOpInstructions, setPostOpInstructions] = useState("");
-
-  // Inline parameter results
-  const [itemResults, setItemResults] = useState<Record<number, Record<number, string>>>({});
-
-  // Section collapse
-  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
-    report: true,
-    parameters: false,
-  });
-
-  // Signature state
+  const [inlineResults, setInlineResults] = useState<
+    Record<number, Record<number, string>>
+  >({});
   const [showSignatureDialog, setShowSignatureDialog] = useState(false);
   const [signatureStatus, setSignatureStatus] = useState<{
     is_signed: boolean;
     signed_at?: string;
     signer_name?: string;
   } | null>(null);
+  const [doctorModalOpen, setDoctorModalOpen] = useState(false);
+  const [dateModalOpen, setDateModalOpen] = useState(false);
+  const [doctorSearch, setDoctorSearch] = useState("");
+  const [pendingDoctorName, setPendingDoctorName] = useState("");
+  const [pendingOrderDate, setPendingOrderDate] = useState("");
+  const [orderPickerOpen, setOrderPickerOpen] = useState(false);
 
   const canPerform = hasPermission("procedure_orders.perform");
+  const orderApi = apiAdapter || procedureOrdersApi;
+
+  useEffect(() => {
+    const handleFooterAction = (event: Event) => {
+      const customEvent = event as CustomEvent<{
+        tabId: string;
+        action: "save" | "final";
+        handled: boolean;
+      }>;
+      if (customEvent.detail?.tabId !== "surgery-workstation") return;
+      customEvent.detail.handled = true;
+
+      if (submitting) return;
+      if (!selectedOrder || selectedOrder.status !== "in_progress" || !canPerform || rmDuplicateMode) {
+        toast({
+          title: "Info",
+          description: "Tidak ada data hasil yang dapat disimpan pada order aktif.",
+        });
+        return;
+      }
+
+      void requestPINVerification(handleSaveAllResults);
+    };
+
+    window.addEventListener(FOOTER_ACTION_EVENT, handleFooterAction as EventListener);
+    return () => {
+      window.removeEventListener(FOOTER_ACTION_EVENT, handleFooterAction as EventListener);
+    };
+  }, [submitting, selectedOrder, canPerform, rmDuplicateMode, requestPINVerification]);
 
   useEffect(() => {
     loadOrders();
-  }, [visitId]);
+  }, [visitId, apiAdapter]);
+
+  useEffect(() => {
+    const handleRefreshOrders = () => {
+      loadOrders();
+    };
+
+    const handleOpenOrderPicker = () => {
+      if (!rmDuplicateMode) return;
+      if (orders.length <= 1) return;
+      setOrderPickerOpen(true);
+    };
+
+    window.addEventListener("refresh-final-visit", handleRefreshOrders);
+    window.addEventListener("refresh-print-options", handleRefreshOrders);
+    window.addEventListener(
+      "rm-duplicate-open-surgery-order-picker",
+      handleOpenOrderPicker,
+    );
+
+    return () => {
+      window.removeEventListener("refresh-final-visit", handleRefreshOrders);
+      window.removeEventListener("refresh-print-options", handleRefreshOrders);
+      window.removeEventListener(
+        "rm-duplicate-open-surgery-order-picker",
+        handleOpenOrderPicker,
+      );
+    };
+  }, [visitId, rmDuplicateMode, orders.length]);
+
+  const initializeInlineResults = (order: ProcedureOrder) => {
+    const results: Record<number, Record<number, string>> = {};
+    order.items?.forEach((item) => {
+      const itemId = item.id;
+      if (!itemId) return;
+      results[itemId] = {};
+      item.procedure?.parameters?.forEach((param) => {
+        if (!param.id) return;
+        const existing = item.results?.find(
+          (result) => result.procedure_parameter_id === param.id,
+        );
+        results[itemId][param.id] = existing?.value || "";
+      });
+    });
+    setInlineResults(results);
+  };
+
+  const selectOrder = (order: ProcedureOrder) => {
+    setSelectedOrder(order);
+    initializeInlineResults(order);
+    checkSignatureStatus(order.id);
+    setPendingDoctorName(order.ordered_by?.nama_lengkap || "");
+    setPendingOrderDate((order.created_at || "").replace(" ", "T").slice(0, 16));
+    setDoctorSearch("");
+  };
 
   const loadOrders = async () => {
     setLoading(true);
     try {
-      const res = await procedureOrdersApi.getAll({
+      const res = await orderApi.getAll({
         target_visit_id: visitId,
         order_type: "surgery",
       });
-      setOrders(res.data || []);
-      const activeOrder = (res.data || []).find(
-        (o: ProcedureOrder) => o.status === "pending" || o.status === "in_progress"
+      const data = res.data || [];
+      setOrders(data);
+
+      const currentSelectedOrder = selectedOrder
+        ? data.find((order: ProcedureOrder) => order.id === selectedOrder.id)
+        : null;
+
+      if (currentSelectedOrder) {
+        selectOrder(currentSelectedOrder);
+        return;
+      }
+
+      const activeOrder = data.find(
+        (order: ProcedureOrder) =>
+          order.status === "pending" || order.status === "in_progress",
       );
-      const orderToSelect = activeOrder || (res.data?.length > 0 ? res.data[0] : null);
-      if (orderToSelect) selectOrder(orderToSelect);
+      if (activeOrder) {
+        selectOrder(activeOrder);
+      } else if (data.length > 0) {
+        selectOrder(data[0]);
+      } else {
+        setSelectedOrder(null);
+        setSignatureStatus(null);
+      }
     } catch (error) {
-      console.error("Error loading orders:", error);
-      toast({ variant: "destructive", title: "Error", description: "Gagal memuat data order operasi" });
+      console.error("Error loading surgery orders:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Gagal memuat data order operasi",
+      });
     } finally {
       setLoading(false);
     }
   };
 
-  const selectOrder = (order: ProcedureOrder) => {
-    setSelectedOrder(order);
-    parseResultFields(order);
-    initializeParameterResults(order);
-    checkSignatureStatus(order.id);
+  const applyDuplicateDoctor = (doctorName: string) => {
+    if (!selectedOrder) return;
+    const nextDoctor = doctorName.trim();
+    setSelectedOrder((prev) =>
+      prev
+        ? {
+            ...prev,
+            ordered_by: nextDoctor
+              ? { id: 0, nama_lengkap: nextDoctor }
+              : undefined,
+          }
+        : prev,
+    );
+    onUpdateDuplicateOrderMeta?.(selectedOrder.id, {
+      doctor_name: nextDoctor,
+    });
+    setDoctorModalOpen(false);
+  };
+
+  const applyDuplicateDate = () => {
+    if (!selectedOrder) return;
+    const nextDate = pendingOrderDate ? `${pendingOrderDate}:00` : "";
+    if (!nextDate) {
+      setDateModalOpen(false);
+      return;
+    }
+    setSelectedOrder((prev) =>
+      prev
+        ? {
+            ...prev,
+            created_at: nextDate,
+            updated_at: nextDate,
+          }
+        : prev,
+    );
+    onUpdateDuplicateOrderMeta?.(selectedOrder.id, {
+      fake_date: nextDate,
+    });
+    setDateModalOpen(false);
   };
 
   const checkSignatureStatus = async (orderId: number) => {
     try {
-      const res = await signatureApi.getDocumentSignature(DOCUMENT_TYPES.OPERATIVE_REPORT, orderId);
+      const res = await signatureApi.getDocumentSignature(
+        DOCUMENT_TYPES.OPERATIVE_REPORT,
+        orderId,
+      );
       setSignatureStatus(res.data);
     } catch {
       setSignatureStatus(null);
@@ -168,133 +298,39 @@ export function SurgeryWorkstation({ visitId, readOnly: _readOnly = false }: Sur
     if (selectedOrder) {
       checkSignatureStatus(selectedOrder.id);
     }
-    toast({ variant: "success", title: "Berhasil", description: "Laporan operasi berhasil ditandatangani" });
-  };
-
-  const parseResultFields = (order: ProcedureOrder) => {
-    const summary = order.result_summary || "";
-    if (summary.startsWith("{{STRUCTURED}}")) {
-      try {
-        const data = JSON.parse(summary.replace("{{STRUCTURED}}", ""));
-        setDiagnosisPreOp(data.diagnosis_pre_op || order.diagnosis || "");
-        setDiagnosisPostOp(data.diagnosis_post_op || "");
-        setAnesthesiaType(data.anesthesia_type || "");
-        setSurgicalFindings(data.surgical_findings || "");
-        setSurgicalProcedure(data.surgical_procedure || "");
-        setComplications(data.complications || "");
-        setHasComplications(!!data.complications);
-        setBloodLoss(data.blood_loss || "");
-        setWoundClassification(data.wound_classification || "");
-        setSpecimen(data.specimen || "");
-        setHasSpecimen(!!data.specimen);
-        setPostOpInstructions(order.suggestion || "");
-        return;
-      } catch { /* fallback */ }
-    }
-    setDiagnosisPreOp(order.diagnosis || "");
-    setDiagnosisPostOp(order.conclusion || "");
-    setSurgicalFindings(summary);
-    setSurgicalProcedure("");
-    setAnesthesiaType("");
-    setComplications("");
-    setHasComplications(false);
-    setBloodLoss("");
-    setWoundClassification("");
-    setSpecimen("");
-    setHasSpecimen(false);
-    setPostOpInstructions(order.suggestion || "");
-  };
-
-  const buildResultSummary = (): string => {
-    const data = {
-      diagnosis_pre_op: diagnosisPreOp,
-      diagnosis_post_op: diagnosisPostOp,
-      anesthesia_type: anesthesiaType,
-      surgical_findings: surgicalFindings,
-      surgical_procedure: surgicalProcedure,
-      complications: hasComplications ? complications : "",
-      blood_loss: bloodLoss,
-      wound_classification: woundClassification,
-      specimen: hasSpecimen ? specimen : "",
-    };
-    return "{{STRUCTURED}}" + JSON.stringify(data);
-  };
-
-  const initializeParameterResults = (order: ProcedureOrder) => {
-    const results: Record<number, Record<number, string>> = {};
-    order.items?.forEach((item) => {
-      if (!item.id) return;
-      results[item.id] = {};
-      item.procedure?.parameters?.forEach((param) => {
-        const existing = item.results?.find((r) => r.procedure_parameter_id === param.id);
-        results[item.id!][param.id] = existing?.value || "";
-      });
+    toast({
+      variant: "success",
+      title: "Berhasil",
+      description: "Hasil operasi berhasil ditandatangani",
     });
-    setItemResults(results);
   };
 
-  const updateItemResult = (itemId: number, paramId: number, value: string) => {
-    setItemResults((prev) => ({
+  const updateInlineResult = (itemId: number, paramId: number, value: string) => {
+    setInlineResults((prev) => ({
       ...prev,
-      [itemId]: { ...prev[itemId], [paramId]: value },
+      [itemId]: {
+        ...(prev[itemId] || {}),
+        [paramId]: value,
+      },
     }));
   };
 
-  const handleStartOrder = async () => {
-    if (!selectedOrder) return;
-    setSubmitting(true);
+  const parseSelectOptions = (param: ProcedureParameter): string[] => {
+    if (!param.options) return [];
     try {
-      const res = await procedureOrdersApi.start(selectedOrder.id);
-      selectOrder(res.data);
-      toast({ title: "Berhasil", description: "Operasi dimulai" });
-      loadOrders();
-      // Trigger refresh print options dan final visit
-      window.dispatchEvent(new CustomEvent("refresh-print-options"));
-      window.dispatchEvent(new CustomEvent("refresh-final-visit"));
-    } catch (error: any) {
-      toast({ variant: "destructive", title: "Error", description: error.response?.data?.error || "Gagal memulai operasi" });
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleSaveAllResults = async () => {
-    if (!selectedOrder) return;
-    setSubmitting(true);
-    try {
-      const items = selectedOrder.items?.map((item) => ({
-        item_id: item.id!,
-        notes: "",
-        results: Object.entries(itemResults[item.id!] || {})
-          .filter(([, v]) => v !== "")
-          .map(([paramId, value]) => ({
-            parameter_id: Number(paramId),
-            value,
-          })),
-      })) || [];
-
-      const res = await procedureOrdersApi.saveResults(selectedOrder.id, {
-        result_summary: buildResultSummary(),
-        conclusion: diagnosisPostOp,
-        suggestion: postOpInstructions,
-        items,
-      });
-
-      selectOrder(res.data);
-      toast({ title: "Berhasil", description: "Laporan operasi berhasil disimpan" });
-      loadOrders();
-      // Trigger refresh on print options dropdown and final visit
-      window.dispatchEvent(new CustomEvent("refresh-print-options"));
-      window.dispatchEvent(new CustomEvent("refresh-final-visit"));
-    } catch (error: any) {
-      toast({ variant: "destructive", title: "Error", description: error.response?.data?.error || "Gagal menyimpan laporan" });
-    } finally {
-      setSubmitting(false);
+      const parsed = JSON.parse(param.options);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return param.options
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
     }
   };
 
   const renderInlineInput = (item: ProcedureOrderItem, param: ProcedureParameter) => {
-    const value = itemResults[item.id!]?.[param.id] || "";
+    const itemId = item.id || 0;
+    const value = inlineResults[itemId]?.[param.id] || "";
     const isEditable = selectedOrder?.status === "in_progress" && canPerform;
 
     if (!isEditable) {
@@ -305,58 +341,204 @@ export function SurgeryWorkstation({ visitId, readOnly: _readOnly = false }: Sur
       return (
         <Textarea
           value={value}
-          onChange={(e) => updateItemResult(item.id!, param.id, e.target.value)}
-          placeholder={param.description || "..."}
-          rows={2}
-          className="min-w-[150px] text-sm"
+          onChange={(e) => updateInlineResult(itemId, param.id, e.target.value)}
+          className="min-h-[56px] text-xs"
+          placeholder="Isi hasil..."
         />
       );
     }
-    if (param.input_type === "select" && param.options) {
-      let options: string[] = [];
-      try { options = JSON.parse(param.options); } catch { options = param.options.split(",").map((o) => o.trim()); }
+
+    if (param.input_type === "number") {
       return (
-        <Select value={value} onValueChange={(v) => updateItemResult(item.id!, param.id, v)}>
-          <SelectTrigger className="min-w-[120px] h-7 text-xs">
-            <SelectValue placeholder="Pilih..." />
+        <Input
+          type="number"
+          value={value}
+          onChange={(e) => updateInlineResult(itemId, param.id, e.target.value)}
+          className="h-7 text-xs"
+          placeholder="0"
+        />
+      );
+    }
+
+    if (param.input_type === "select") {
+      const options = parseSelectOptions(param);
+      return (
+        <Select
+          value={value}
+          onValueChange={(selected) => updateInlineResult(itemId, param.id, selected)}
+        >
+          <SelectTrigger className="h-7 min-w-[120px] text-xs">
+            <SelectValue placeholder="Pilih" />
           </SelectTrigger>
           <SelectContent>
-            {options.map((opt) => (
-              <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+            {options.map((option) => (
+              <SelectItem key={option} value={option}>
+                {option}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
       );
     }
+
+    if (param.input_type === "checkbox") {
+      return (
+        <Select
+          value={value || "false"}
+          onValueChange={(selected) => updateInlineResult(itemId, param.id, selected)}
+        >
+          <SelectTrigger className="h-7 min-w-[92px] text-xs">
+            <SelectValue placeholder="Pilih" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="true">Ya</SelectItem>
+            <SelectItem value="false">Tidak</SelectItem>
+          </SelectContent>
+        </Select>
+      );
+    }
+
     return (
       <Input
-        type={param.input_type === "number" ? "number" : "text"}
         value={value}
-        onChange={(e) => updateItemResult(item.id!, param.id, e.target.value)}
-        placeholder={param.description || "..."}
-        className="min-w-[100px] h-7 text-xs"
-        step={param.input_type === "number" ? "any" : undefined}
+        onChange={(e) => updateInlineResult(itemId, param.id, e.target.value)}
+        className="h-7 text-xs"
+        placeholder="Isi hasil..."
       />
     );
   };
 
-  const toggleSection = (section: string) => {
-    setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }));
+  const handleStartOrder = async () => {
+    if (!selectedOrder) return;
+    setSubmitting(true);
+    try {
+      const res = await orderApi.start(selectedOrder.id);
+      setSelectedOrder(res.data);
+      toast({ title: "Berhasil", description: "Pengerjaan operasi dimulai" });
+      loadOrders();
+      window.dispatchEvent(new CustomEvent("refresh-print-options"));
+      window.dispatchEvent(new CustomEvent("refresh-final-visit"));
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.response?.data?.error || "Gagal memulai operasi",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSaveAllResults = async () => {
+    if (!selectedOrder) return;
+    setSubmitting(true);
+    try {
+      const items = (selectedOrder.items || [])
+        .filter((item) => item.id && item.status !== "cancelled")
+        .map((item) => ({
+          item_id: item.id as number,
+          notes: item.notes || "",
+          results: (item.procedure?.parameters || [])
+            .map((param) => {
+              if (!param.id) return null;
+              const rawValue = inlineResults[item.id as number]?.[param.id] ?? "";
+              const value = String(rawValue).trim();
+              if (value === "") return null;
+
+              const payload: {
+                parameter_id: number;
+                value: string;
+                numeric_value?: number;
+                notes?: string;
+              } = {
+                parameter_id: param.id,
+                value,
+              };
+
+              if (param.input_type === "number") {
+                const numeric = Number(value);
+                if (!Number.isNaN(numeric)) {
+                  payload.numeric_value = numeric;
+                }
+              }
+
+              return payload;
+            })
+            .filter((result): result is NonNullable<typeof result> => Boolean(result)),
+        }));
+
+      const res = await orderApi.saveResults(selectedOrder.id, {
+        result_summary: "",
+        conclusion: "",
+        suggestion: "",
+        items,
+      });
+
+      setSelectedOrder(res.data);
+      toast({ title: "Berhasil", description: "Hasil operasi berhasil disimpan" });
+      loadOrders();
+      window.dispatchEvent(new CustomEvent("refresh-print-options"));
+      window.dispatchEvent(new CustomEvent("refresh-final-visit"));
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.response?.data?.error || "Gagal menyimpan hasil operasi",
+      });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const getStatusBadge = (status: string) => {
-    const config = PROCEDURE_ORDER_STATUS[status as keyof typeof PROCEDURE_ORDER_STATUS] || { label: status, variant: "secondary" as const };
+    const config =
+      PROCEDURE_ORDER_STATUS[status as keyof typeof PROCEDURE_ORDER_STATUS] || {
+        label: status,
+        variant: "secondary" as const,
+      };
     return <Badge variant={config.variant}>{config.label}</Badge>;
   };
 
-  const getItemStatusBadge = (status: string) => {
-    if (status === "completed") return <Badge className="bg-green-100 text-green-800 text-xs">Selesai</Badge>;
-    if (status === "in_progress") return <Badge variant="outline" className="text-xs">Dikerjakan</Badge>;
-    return <Badge variant="secondary" className="text-xs">Menunggu</Badge>;
+  const getStatusDotClass = (status?: string) => {
+    switch (status) {
+      case "completed":
+        return "bg-emerald-500";
+      case "in_progress":
+        return "bg-blue-500";
+      case "pending":
+        return "bg-amber-500";
+      case "cancelled":
+        return "bg-rose-500";
+      default:
+        return "bg-zinc-400";
+    }
   };
 
-  const hasParameters = (items?: ProcedureOrderItem[]) => {
-    return items?.some((item) => item.procedure?.parameters && item.procedure.parameters.length > 0);
+  const getOrderStatusLabel = (status?: string) => {
+    const config = status
+      ? PROCEDURE_ORDER_STATUS[
+          status as keyof typeof PROCEDURE_ORDER_STATUS
+        ] || { label: status }
+      : { label: "Unknown" };
+    return config.label;
+  };
+
+  const getItemStatusBadge = (status: string) => {
+    if (status === "completed") {
+      return <Badge className="bg-green-100 text-green-800 text-xs">Selesai</Badge>;
+    }
+    if (status === "in_progress") {
+      return (
+        <Badge variant="outline" className="text-xs">
+          Dikerjakan
+        </Badge>
+      );
+    }
+    return (
+      <Badge variant="secondary" className="text-xs">
+        Menunggu
+      </Badge>
+    );
   };
 
   if (loading) {
@@ -369,29 +551,28 @@ export function SurgeryWorkstation({ visitId, readOnly: _readOnly = false }: Sur
 
   if (orders.length === 0) {
     return (
-      <div>
-        <div className="py-8">
-          <div className="text-center text-muted-foreground">
-            <Scissors className="h-10 w-10 mx-auto mb-3 opacity-50" />
-            <p>Tidak ada order operasi untuk dikerjakan</p>
-          </div>
+      <div className="py-8">
+        <div className="text-center text-muted-foreground">
+          <Scissors className="h-10 w-10 mx-auto mb-3 opacity-50" />
+          <p>Tidak ada order operasi untuk dikerjakan</p>
         </div>
       </div>
     );
   }
 
-  const isEditable = selectedOrder?.status === "in_progress" && canPerform;
+  const canShowSignatureArea = Boolean(
+    selectedOrder && (selectedOrder.status === "completed" || signatureStatus?.is_signed),
+  );
 
   return (
     <div className="space-y-3">
-      {/* Order Selection */}
-      {orders.length > 1 && (
+      {!rmDuplicateMode && orders.length > 1 && (
         <div className="shadow-sm">
           <div className="py-3">
             <Select
               value={selectedOrder?.id.toString()}
-              onValueChange={(val) => {
-                const order = orders.find((o) => o.id === Number(val));
+              onValueChange={(value) => {
+                const order = orders.find((item) => item.id === Number(value));
                 if (order) selectOrder(order);
               }}
             >
@@ -410,292 +591,258 @@ export function SurgeryWorkstation({ visitId, readOnly: _readOnly = false }: Sur
         </div>
       )}
 
-      {/* Selected Order */}
       {selectedOrder && (
         <div className="shadow-sm">
           <div className="pb-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                </div>
-              {getStatusBadge(selectedOrder.status)}
-            </div>
-          </div>
-          <div className="space-y-3">
-                {/* Patient Info */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 text-xs p-2 bg-muted/50 rounded">
-                  <div className="flex items-center gap-1">
-                    <User className="h-3 w-3 text-muted-foreground" />
-                    <span className="font-medium truncate">
-                      {selectedOrder.source_visit?.registration?.patient?.nama_lengkap ||
-                        selectedOrder.registration?.patient?.nama_lengkap || "-"}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">RM:</span>{" "}
-                    {selectedOrder.source_visit?.registration?.patient?.no_rm ||
-                      selectedOrder.registration?.patient?.no_rm || "-"}
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Dokter:</span>{" "}
-                    {selectedOrder.ordered_by?.nama_lengkap || "-"}
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Clock className="h-3 w-3 text-muted-foreground" />
-                    <span>{new Date(selectedOrder.created_at).toLocaleString("id-ID")}</span>
-                    {selectedOrder.priority !== "normal" && (
-                      <Badge variant="destructive" className="text-xs ml-1">{selectedOrder.priority.toUpperCase()}</Badge>
-                    )}
-                  </div>
-                </div>
-
-                {/* Clinical Notes */}
-                {selectedOrder.clinical_notes && (
-                  <div className="p-2 bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 rounded text-xs">
-                    <span className="font-medium text-yellow-800 dark:text-yellow-200">Catatan Klinis:</span>
-                    <span className="ml-1">{selectedOrder.clinical_notes}</span>
-                  </div>
-                )}
-
-                {/* Start Button */}
+              <div />
+              <div className="flex items-center gap-2">
                 {canPerform && selectedOrder.status === "pending" && (
                   <Button onClick={handleStartOrder} disabled={submitting} size="sm">
-                    {submitting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Play className="h-4 w-4 mr-1" />}
+                    {submitting ? (
+                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                    ) : (
+                      <Play className="h-4 w-4 mr-1" />
+                    )}
                     Mulai Operasi
                   </Button>
                 )}
+              </div>
+            </div>
+          </div>
 
-                {/* Procedures Table */}
-                <div className="border rounded overflow-hidden">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-muted/50">
-                        <TableHead className="w-10 text-xs">No</TableHead>
-                        <TableHead className="text-xs">Tindakan Operasi</TableHead>
-                        <TableHead className="w-20 text-xs">Status</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {selectedOrder.items?.map((item, idx) => (
-                        <TableRow key={item.id}>
-                          <TableCell className="text-xs font-medium">{idx + 1}</TableCell>
-                          <TableCell>
-                            <div className="text-sm font-medium">{item.procedure?.name}</div>
-                            <div className="text-xs text-muted-foreground font-mono">{item.procedure?.code}</div>
-                          </TableCell>
-                          <TableCell>{getItemStatusBadge(item.status)}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-
-                {/* Surgery Report Section */}
-                {(selectedOrder.status === "in_progress" || selectedOrder.status === "completed") && (
-                  <Collapsible open={expandedSections.report} onOpenChange={() => toggleSection("report")}>
-                    <div className="border rounded">
-                      <CollapsibleTrigger asChild>
-                        <div className="flex items-center justify-between p-3 bg-muted/50 cursor-pointer hover:bg-muted/70">
-                          <h4 className="font-semibold text-sm flex items-center gap-2">
-                            <CheckCircle2 className="h-4 w-4 text-primary" />
-                            Laporan Operasi
-                          </h4>
-                          {expandedSections.report ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                        </div>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                        <div className="p-3 space-y-3">
-                          {isEditable ? (
-                            <>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <div className="space-y-1">
-                                  <Label className="text-xs">Diagnosis Pre-Op</Label>
-                                  <Textarea value={diagnosisPreOp} onChange={(e) => setDiagnosisPreOp(e.target.value)} rows={2} className="text-sm" />
-                                </div>
-                                <div className="space-y-1">
-                                  <Label className="text-xs">Diagnosis Post-Op</Label>
-                                  <Textarea value={diagnosisPostOp} onChange={(e) => setDiagnosisPostOp(e.target.value)} rows={2} className="text-sm" />
-                                </div>
-                              </div>
-
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <div className="space-y-1">
-                                  <Label className="text-xs">Jenis Anestesi</Label>
-                                  <Select value={anesthesiaType} onValueChange={setAnesthesiaType}>
-                                    <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Pilih..." /></SelectTrigger>
-                                    <SelectContent>
-                                      {ANESTHESIA_TYPES.filter((t) => t.value).map((t) => (
-                                        <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                                <div className="space-y-1">
-                                  <Label className="text-xs">Klasifikasi Luka</Label>
-                                  <Select value={woundClassification} onValueChange={setWoundClassification}>
-                                    <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Pilih..." /></SelectTrigger>
-                                    <SelectContent>
-                                      {WOUND_CLASSES.filter((t) => t.value).map((t) => (
-                                        <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                              </div>
-
-                              <div className="space-y-1">
-                                <Label className="text-xs">Temuan Operasi</Label>
-                                <Textarea value={surgicalFindings} onChange={(e) => setSurgicalFindings(e.target.value)} rows={2} className="text-sm" />
-                              </div>
-
-                              <div className="space-y-1">
-                                <Label className="text-xs">Tindakan yang Dilakukan</Label>
-                                <Textarea value={surgicalProcedure} onChange={(e) => setSurgicalProcedure(e.target.value)} rows={2} className="text-sm" />
-                              </div>
-
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <div className="space-y-1">
-                                  <Label className="text-xs">Perkiraan Perdarahan (ml)</Label>
-                                  <Input type="number" value={bloodLoss} onChange={(e) => setBloodLoss(e.target.value)} className="h-8 text-sm" />
-                                </div>
-                                <div className="space-y-2">
-                                  <div className="flex items-center gap-2">
-                                    <Checkbox id="has-specimen" checked={hasSpecimen} onCheckedChange={(c) => setHasSpecimen(c === true)} />
-                                    <label htmlFor="has-specimen" className="text-xs cursor-pointer">Ada Spesimen PA</label>
-                                  </div>
-                                  {hasSpecimen && (
-                                    <Input value={specimen} onChange={(e) => setSpecimen(e.target.value)} placeholder="Jenis spesimen..." className="h-8 text-sm" />
-                                  )}
-                                </div>
-                              </div>
-
-                              <div className="flex items-center gap-2">
-                                <Checkbox id="has-complication" checked={hasComplications} onCheckedChange={(c) => setHasComplications(c === true)} />
-                                <label htmlFor="has-complication" className="text-xs font-medium text-red-600 cursor-pointer flex items-center gap-1">
-                                  <AlertCircle className="h-3 w-3" /> Ada Komplikasi
-                                </label>
-                              </div>
-                              {hasComplications && (
-                                <div className="space-y-1 bg-red-50 dark:bg-red-950/30 border border-red-200 rounded p-2">
-                                  <Label className="text-xs text-red-700">Komplikasi</Label>
-                                  <Textarea value={complications} onChange={(e) => setComplications(e.target.value)} rows={2} className="text-sm border-red-200" />
-                                </div>
-                              )}
-
-                              <Separator />
-
-                              <div className="space-y-1">
-                                <Label className="text-xs">Instruksi Post-Op</Label>
-                                <Textarea value={postOpInstructions} onChange={(e) => setPostOpInstructions(e.target.value)} rows={2} className="text-sm" />
-                              </div>
-                            </>
-                          ) : (
-                            <div className="space-y-2 text-sm">
-                              {diagnosisPreOp && <div><span className="font-medium">Diagnosis Pre-Op:</span> {diagnosisPreOp}</div>}
-                              {diagnosisPostOp && <div><span className="font-medium">Diagnosis Post-Op:</span> {diagnosisPostOp}</div>}
-                              {anesthesiaType && <div><span className="font-medium">Anestesi:</span> {ANESTHESIA_TYPES.find((t) => t.value === anesthesiaType)?.label}</div>}
-                              {surgicalFindings && <div><span className="font-medium">Temuan:</span> {surgicalFindings}</div>}
-                              {surgicalProcedure && <div><span className="font-medium">Tindakan:</span> {surgicalProcedure}</div>}
-                              {bloodLoss && <div><span className="font-medium">Perdarahan:</span> {bloodLoss} ml</div>}
-                              {woundClassification && <div><span className="font-medium">Klasifikasi Luka:</span> {WOUND_CLASSES.find((t) => t.value === woundClassification)?.label}</div>}
-                              {specimen && <div><span className="font-medium">Spesimen:</span> {specimen}</div>}
-                              {complications && (
-                                <div className="p-2 bg-red-100 dark:bg-red-900 rounded">
-                                  <span className="text-red-700 dark:text-red-300 font-bold text-xs flex items-center gap-1">
-                                    <AlertCircle className="h-4 w-4" /> KOMPLIKASI
-                                  </span>
-                                  <p className="text-xs mt-1">{complications}</p>
-                                </div>
-                              )}
-                              {postOpInstructions && <div><span className="font-medium">Instruksi Post-Op:</span> {postOpInstructions}</div>}
-                            </div>
-                          )}
-                        </div>
-                      </CollapsibleContent>
-                    </div>
-                  </Collapsible>
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 text-[11px] p-1.5 bg-muted/50 rounded items-center">
+              <div className="flex items-center gap-1">
+                <User className="h-3 w-3 text-muted-foreground" />
+                <span className="font-medium truncate">
+                  {selectedOrder.source_visit?.registration?.patient?.nama_lengkap ||
+                    selectedOrder.registration?.patient?.nama_lengkap ||
+                    "-"}
+                </span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-muted-foreground shrink-0">RM:</span>
+                <span className="font-medium">
+                  {selectedOrder.source_visit?.registration?.patient?.no_rm ||
+                    selectedOrder.registration?.patient?.no_rm ||
+                    "-"}
+                </span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-muted-foreground shrink-0">Dokter:</span>
+                {rmDuplicateMode ? (
+                  <span className="inline-flex items-center gap-1">
+                    <span className="font-medium">
+                      {selectedOrder.ordered_by?.nama_lengkap || "-"}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-5 w-5"
+                      title="Pilih dokter"
+                      onClick={() => {
+                        setPendingDoctorName(selectedOrder.ordered_by?.nama_lengkap || "");
+                        setDoctorSearch("");
+                        setDoctorModalOpen(true);
+                      }}
+                    >
+                      <User className="h-3 w-3" />
+                    </Button>
+                  </span>
+                ) : (
+                  selectedOrder.ordered_by?.nama_lengkap || "-"
                 )}
-
-                {/* Extra Parameters Table */}
-                {hasParameters(selectedOrder.items) && (selectedOrder.status === "in_progress" || selectedOrder.status === "completed") && (
-                  <Collapsible open={expandedSections.parameters} onOpenChange={() => toggleSection("parameters")}>
-                    <div className="border rounded">
-                      <CollapsibleTrigger asChild>
-                        <div className="flex items-center justify-between p-3 bg-muted/50 cursor-pointer hover:bg-muted/70">
-                          <h4 className="font-semibold text-sm">Parameter Tambahan</h4>
-                          {expandedSections.parameters ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                        </div>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                        <div className="p-3">
-                          <Table>
-                            <TableHeader>
-                              <TableRow className="bg-muted/30">
-                                <TableHead className="text-xs">Tindakan</TableHead>
-                                <TableHead className="text-xs">Parameter</TableHead>
-                                <TableHead className="text-xs">Nilai</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {selectedOrder.items?.map((item) => {
-                                const params = item.procedure?.parameters || [];
-                                if (params.length === 0) return null;
-                                return params.map((param, idx) => (
-                                  <TableRow key={`${item.id}-${param.id}`}>
-                                    {idx === 0 && (
-                                      <TableCell rowSpan={params.length} className="align-top border-r text-xs font-medium">
-                                        {item.procedure?.name}
-                                      </TableCell>
-                                    )}
-                                    <TableCell className="text-xs py-1">{param.name}</TableCell>
-                                    <TableCell className="py-1">{renderInlineInput(item, param)}</TableCell>
-                                  </TableRow>
-                                ));
-                              })}
-                            </TableBody>
-                          </Table>
-                        </div>
-                      </CollapsibleContent>
-                    </div>
-                  </Collapsible>
+              </div>
+              <div className="flex items-center gap-1">
+                <Clock className="h-3 w-3 text-muted-foreground" />
+                {rmDuplicateMode ? (
+                  <span className="inline-flex items-center gap-1">
+                    <span className="font-medium">
+                      {selectedOrder.created_at
+                        ? new Date(selectedOrder.created_at).toLocaleString("id-ID")
+                        : "-"}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-5 w-5"
+                      title="Set tanggal order"
+                      onClick={() => {
+                        setPendingOrderDate(
+                          (selectedOrder.created_at || "").replace(" ", "T").slice(0, 16),
+                        );
+                        setDateModalOpen(true);
+                      }}
+                    >
+                      <Clock className="h-3 w-3" />
+                    </Button>
+                  </span>
+                ) : (
+                  <span>
+                    {selectedOrder.created_at
+                      ? new Date(selectedOrder.created_at).toLocaleString("id-ID")
+                      : "-"}
+                  </span>
                 )}
-
-                {/* Save Button */}
-                {isEditable && (
-                  <Button onClick={() => requestPINVerification(handleSaveAllResults)} disabled={submitting} className="w-full" size="sm">
-                    {submitting && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-                    <Save className="h-4 w-4 mr-1" />
-                    Simpan Laporan Operasi
-                  </Button>
+                {selectedOrder.priority !== "normal" && (
+                  <Badge variant="destructive" className="text-xs ml-1">
+                    {selectedOrder.priority.toUpperCase()}
+                  </Badge>
                 )}
+              </div>
+            </div>
 
-                {/* Signature Status & Button - Only when completed */}
-                {selectedOrder.status === "completed" && (
-                  <div className="border-t pt-3 mt-3 space-y-2">
-                    {signatureStatus?.is_signed ? (
-                      <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 dark:bg-green-950 p-3 rounded">
-                        <CheckCircle2 className="h-4 w-4" />
-                        <div>
-                          <span className="font-medium">Ditandatangani oleh {signatureStatus.signer_name}</span>
-                          {signatureStatus.signed_at && (
-                            <span className="text-xs text-muted-foreground ml-2">
-                              {new Date(signatureStatus.signed_at).toLocaleString("id-ID")}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    ) : (
-                      <Button 
-                        onClick={() => setShowSignatureDialog(true)} 
-                        variant="outline" 
-                        className="w-full" 
-                        size="sm"
-                      >
-                        <ShieldCheck className="h-4 w-4 mr-1" />
-                        Tanda Tangani Laporan Operasi
-                      </Button>
-                    )}
+            {selectedOrder.clinical_notes && (
+              <div className="p-2 bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 rounded text-xs">
+                <span className="font-medium text-yellow-800 dark:text-yellow-200">
+                  Catatan Klinis:
+                </span>
+                <span className="ml-1">{selectedOrder.clinical_notes}</span>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+              <div className="p-2 rounded border bg-muted/30">
+                <span className="text-muted-foreground">No. Order</span>
+                <p className="font-medium mt-0.5">{selectedOrder.order_number || "-"}</p>
+              </div>
+              <div className="p-2 rounded border bg-muted/30">
+                <span className="text-muted-foreground">Item Selesai</span>
+                <p className="font-medium mt-0.5">
+                  {(selectedOrder.items || []).filter((item) => item.status === "completed").length}/
+                  {(selectedOrder.items || []).length}
+                </p>
+              </div>
+              <div className="p-2 rounded border bg-muted/30">
+                <span className="text-muted-foreground">Status Order</span>
+                <div className="mt-1">
+                  <div className="flex items-center gap-1.5 font-medium">
+                    <span
+                      className={cn(
+                        "h-1.5 w-1.5 rounded-full",
+                        getStatusDotClass(selectedOrder.status),
+                      )}
+                    />
+                    <span>{getOrderStatusLabel(selectedOrder.status)}</span>
                   </div>
+                </div>
+              </div>
+            </div>
+
+            {selectedOrder.diagnosis && (
+              <div className="rounded bg-background/70 px-2 py-1 text-xs">
+                <span className="text-muted-foreground">Diagnosis: </span>
+                <span className="font-medium">{selectedOrder.diagnosis}</span>
+              </div>
+            )}
+
+            <div className="border rounded overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/50">
+                    <TableHead className="w-10 text-xs">No</TableHead>
+                    <TableHead className="text-xs">Tindakan Operasi</TableHead>
+                    <TableHead className="text-xs">Parameter</TableHead>
+                    <TableHead className="text-xs">Hasil</TableHead>
+                    <TableHead className="text-xs">Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {selectedOrder.items?.map((item, itemIdx) => {
+                    const parameters = item.procedure?.parameters || [];
+                    const rowSpan = Math.max(parameters.length, 1);
+
+                    return parameters.length > 0 ? (
+                      parameters.map((param, paramIdx) => (
+                        <TableRow key={`${item.id}-${param.id}`}>
+                          {paramIdx === 0 && (
+                            <>
+                              <TableCell
+                                rowSpan={rowSpan}
+                                className="align-top border-r text-xs font-medium"
+                              >
+                                {itemIdx + 1}
+                              </TableCell>
+                              <TableCell rowSpan={rowSpan} className="align-top border-r">
+                                <div className="text-sm font-medium">{item.procedure?.name}</div>
+                                <div className="text-xs text-muted-foreground font-mono">
+                                  {item.procedure?.code}
+                                </div>
+                              </TableCell>
+                            </>
+                          )}
+                          <TableCell className="text-xs py-1">{param.name}</TableCell>
+                          <TableCell className="py-1">{renderInlineInput(item, param)}</TableCell>
+                          {paramIdx === 0 && (
+                            <TableCell rowSpan={rowSpan} className="align-top border-l">
+                              {getItemStatusBadge(item.status)}
+                            </TableCell>
+                          )}
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow key={item.id}>
+                        <TableCell className="text-xs font-medium">{itemIdx + 1}</TableCell>
+                        <TableCell>
+                          <div className="text-sm font-medium">{item.procedure?.name}</div>
+                          <div className="text-xs text-muted-foreground font-mono">
+                            {item.procedure?.code}
+                          </div>
+                        </TableCell>
+                        <TableCell colSpan={2} className="text-xs text-muted-foreground italic">
+                          Tidak ada parameter
+                        </TableCell>
+                        <TableCell>{getItemStatusBadge(item.status)}</TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+
+            {selectedOrder.status === "in_progress" && canPerform && !rmDuplicateMode && (
+              <div className="rounded border border-dashed px-3 py-2 text-sm text-muted-foreground">
+                Gunakan tombol Simpan di footer untuk menyimpan hasil operasi.
+              </div>
+            )}
+
+            {canShowSignatureArea && (
+              <div className="border-t pt-3 mt-3 space-y-2">
+                {signatureStatus?.is_signed ? (
+                  <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 dark:bg-green-950 p-3 rounded">
+                    <CheckCircle2 className="h-4 w-4" />
+                    <div>
+                      <span className="font-medium">
+                        Ditandatangani oleh {signatureStatus.signer_name}
+                      </span>
+                      {signatureStatus.signed_at && (
+                        <span className="text-xs text-muted-foreground ml-2">
+                          {new Date(signatureStatus.signed_at).toLocaleString("id-ID")}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ) : selectedOrder.status === "completed" ? (
+                  <Button
+                    onClick={() => setShowSignatureDialog(true)}
+                    variant="outline"
+                    className="w-full"
+                    size="sm"
+                  >
+                    <ShieldCheck className="h-4 w-4 mr-1" />
+                    Tanda Tangani Hasil Operasi
+                  </Button>
+                ) : null}
+                {signatureStatus?.is_signed && selectedOrder.status !== "completed" && (
+                  <p className="text-xs text-muted-foreground">
+                    Dokumen sudah ditandatangani. Status order saat ini: {selectedOrder.status}.
+                  </p>
                 )}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -711,7 +858,6 @@ export function SurgeryWorkstation({ visitId, readOnly: _readOnly = false }: Sur
         onVerify={handleVerifyPIN}
       />
 
-      {/* Signature Dialog */}
       {selectedOrder && (
         <SignaturePINDialog
           open={showSignatureDialog}
@@ -720,9 +866,130 @@ export function SurgeryWorkstation({ visitId, readOnly: _readOnly = false }: Sur
           documentId={selectedOrder.id}
           visitId={visitId}
           documentTitle={selectedOrder.order_number}
-          patientName={selectedOrder.source_visit?.registration?.patient?.nama_lengkap}
           onSuccess={handleSignatureSuccess}
         />
+      )}
+
+      {rmDuplicateMode && selectedOrder && (
+        <Dialog open={orderPickerOpen} onOpenChange={setOrderPickerOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Pilih Order Operasi</DialogTitle>
+            </DialogHeader>
+            <div className="max-h-64 overflow-y-auto space-y-1">
+              {orders.map((order) => {
+                const isSelected = selectedOrder.id === order.id;
+                return (
+                  <button
+                    key={order.id}
+                    type="button"
+                    onClick={() => {
+                      selectOrder(order);
+                      setOrderPickerOpen(false);
+                    }}
+                    className={cn(
+                      "w-full rounded-md border px-3 py-2 text-left text-sm transition-colors",
+                      isSelected
+                        ? "border-primary bg-primary/10"
+                        : "border-border hover:bg-accent",
+                    )}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="inline-flex items-center gap-2 font-medium">
+                        <span
+                          className={cn(
+                            "h-1.5 w-1.5 rounded-full",
+                            getStatusDotClass(order.status),
+                          )}
+                        />
+                        {order.order_number}
+                      </span>
+                      {getStatusBadge(order.status)}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {rmDuplicateMode && selectedOrder && (
+        <Dialog open={doctorModalOpen} onOpenChange={setDoctorModalOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Pilih Dokter Order</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3">
+              <Input
+                value={pendingDoctorName}
+                onChange={(e) => setPendingDoctorName(e.target.value)}
+                placeholder="Nama dokter"
+              />
+              <Input
+                value={doctorSearch}
+                onChange={(e) => setDoctorSearch(e.target.value)}
+                placeholder="Cari dari daftar dokter..."
+              />
+              <div className="max-h-52 overflow-y-auto rounded border divide-y">
+                <button
+                  type="button"
+                  className="w-full px-3 py-2 text-left text-sm hover:bg-muted"
+                  onClick={() => setPendingDoctorName("")}
+                >
+                  -
+                </button>
+                {duplicateDoctorOptions
+                  .filter((doc) =>
+                    doc.name.toLowerCase().includes(doctorSearch.toLowerCase()),
+                  )
+                  .map((doc) => (
+                    <button
+                      key={doc.id}
+                      type="button"
+                      className="w-full px-3 py-2 text-left text-sm hover:bg-muted"
+                      onClick={() => setPendingDoctorName(doc.name)}
+                    >
+                      {doc.name}
+                    </button>
+                  ))}
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => setDoctorModalOpen(false)}>
+                  Batal
+                </Button>
+                <Button type="button" onClick={() => applyDuplicateDoctor(pendingDoctorName)}>
+                  Simpan
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {rmDuplicateMode && selectedOrder && (
+        <Dialog open={dateModalOpen} onOpenChange={setDateModalOpen}>
+          <DialogContent className="sm:max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Set Tanggal Order</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3">
+              <Input
+                type="datetime-local"
+                value={pendingOrderDate}
+                onChange={(e) => setPendingOrderDate(e.target.value)}
+              />
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => setDateModalOpen(false)}>
+                  Batal
+                </Button>
+                <Button type="button" onClick={applyDuplicateDate}>
+                  Simpan
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );

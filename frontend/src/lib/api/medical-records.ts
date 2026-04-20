@@ -162,6 +162,7 @@ export interface DiagnosisItem {
   severity?: string;
   body_site?: string;
   onset_date?: string;
+  differential_diagnosis?: string;
   note?: string;
   created_at?: string;
   updated_at?: string;

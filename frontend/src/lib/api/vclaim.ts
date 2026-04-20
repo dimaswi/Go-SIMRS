@@ -86,6 +86,65 @@ export interface VClaimRujukanWrapper {
   asalFaskes?: string;
 }
 
+export interface VClaimReferralLocal {
+  id: number;
+  no_rujukan: string;
+  no_sep?: string;
+  version?: string;
+  tgl_rujukan?: string;
+  tgl_rencana_kunjungan?: string;
+  ppk_dirujuk?: string;
+  nama_ppk_dirujuk?: string;
+  jns_pelayanan?: string;
+  catatan?: string;
+  diag_rujukan?: string;
+  diag_rujukan_nama?: string;
+  tipe_rujukan?: string;
+  poli_rujukan?: string;
+  poli_rujukan_nama?: string;
+  no_kartu?: string;
+  nama_peserta?: string;
+  status?: string;
+  is_khusus?: boolean;
+  khusus_id_rujukan?: string;
+  khusus_diagnosa_codes?: string;
+  khusus_procedure_codes?: string;
+  visit_id?: number;
+  registration_id?: number;
+  patient_id?: number;
+  sep_id?: number;
+}
+
+export interface VClaimCreateRujukanV1Request {
+  no_sep: string;
+  visit_id?: number;
+  registration_id?: number;
+  patient_id?: number;
+  sep_id?: number;
+  tgl_rujukan: string;
+  ppk_dirujuk: string;
+  jns_pelayanan: string;
+  catatan?: string;
+  diag_rujukan: string;
+  tipe_rujukan: string;
+  poli_rujukan?: string;
+}
+
+export interface VClaimCreateRujukanV2Request extends VClaimCreateRujukanV1Request {
+  tgl_rencana_kunjungan: string;
+}
+
+export interface VClaimRujukanKhususRequest {
+  no_rujukan: string;
+  diagnosa_codes: string[];
+  procedure_codes?: string[];
+}
+
+export interface VClaimDeleteRujukanKhususRequest {
+  id_rujukan: string;
+  no_rujukan: string;
+}
+
 // SEP Request Body
 export interface VClaimSEPRequest {
   noKartu: string;
@@ -202,6 +261,19 @@ export interface VClaimRefDokter {
 
 // Referensi Diagnosa
 export interface VClaimRefDiagnosa {
+  kode: string;
+  nama: string;
+}
+
+export interface VClaimRujukanSpesialistik {
+  kode: string;
+  nama: string;
+  kapasitas?: string;
+  jumlah_rujukan?: string;
+  persentase?: string;
+}
+
+export interface VClaimRujukanSarana {
   kode: string;
   nama: string;
 }
@@ -634,6 +706,40 @@ export const vclaimApi = {
   getRujukanByPeserta: (noKartu: string, asalFaskes: string = "1") =>
     api.get<{ data: VClaimRujukanWrapper[]; message: string }>(`/bpjs/vclaim/rujukan/peserta/${noKartu}`, {
       params: { asalFaskes }
+    }),
+
+  getRujukanByVisit: (visitId: number) =>
+    api.get<{ data: VClaimReferralLocal }>(`/bpjs/vclaim/rujukan/visit/${visitId}`),
+
+  createRujukanV1: (payload: VClaimCreateRujukanV1Request) =>
+    api.post<{ data: { noRujukan?: string }; message: string }>('/bpjs/vclaim/rujukan/v1', payload),
+
+  updateRujukanV1: (noRujukan: string, payload: VClaimCreateRujukanV1Request) =>
+    api.put<{ data: { no_rujukan?: string }; message: string }>(`/bpjs/vclaim/rujukan/v1/${noRujukan}`, payload),
+
+  createRujukanV2: (payload: VClaimCreateRujukanV2Request) =>
+    api.post<{ data: { noRujukan?: string }; message: string }>('/bpjs/vclaim/rujukan/v2', payload),
+
+  updateRujukanV2: (noRujukan: string, payload: VClaimCreateRujukanV2Request) =>
+    api.put<{ data: { no_rujukan?: string }; message: string }>(`/bpjs/vclaim/rujukan/v2/${noRujukan}`, payload),
+
+  deleteRujukan: (noRujukan: string) =>
+    api.delete<{ data?: { no_rujukan?: string }; message: string }>(`/bpjs/vclaim/rujukan/${noRujukan}`),
+
+  createRujukanKhusus: (payload: VClaimRujukanKhususRequest) =>
+    api.post<{ data: { norujukan?: string }; message: string }>('/bpjs/vclaim/rujukan/khusus', payload),
+
+  deleteRujukanKhusus: (payload: VClaimDeleteRujukanKhususRequest) =>
+    api.delete<{ data?: { id_rujukan?: string }; message: string }>('/bpjs/vclaim/rujukan/khusus', { data: payload }),
+
+  getRujukanSpesialistik: (ppkRujukan: string, tglRujukan: string, keyword?: string) =>
+    api.get<{ data: VClaimRujukanSpesialistik[] }>('/bpjs/vclaim/rujukan/spesialistik', {
+      params: { ppk_rujukan: ppkRujukan, tgl_rujukan: tglRujukan, keyword }
+    }),
+
+  getRujukanSarana: (ppkRujukan: string, keyword?: string) =>
+    api.get<{ data: VClaimRujukanSarana[] }>('/bpjs/vclaim/rujukan/sarana', {
+      params: { ppk_rujukan: ppkRujukan, keyword }
     }),
 
   // SEP

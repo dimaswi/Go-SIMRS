@@ -4,7 +4,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Checkbox } from '@/components/ui/checkbox';
 import { eklaimLocalApi } from '@/lib/api/eklaim-local';
 import type { EKlaimLocal } from '@/lib/api/eklaim-local';
 import { useToast } from '@/hooks/use-toast';
@@ -63,8 +62,11 @@ export default function INACBGCodingTab({ detail, onRefresh }: INACBGCodingTabPr
   // After grouping: hide entire coding form, only show result.
   // "Ubah Coding" re-shows the form for re-coding / re-grouping.
   const grouped = detail.inacbg_grouper_stage1_success || detail.inacbg_grouper_stage2_success;
+  const isFailedINACBG = /^gagal:/i.test(detail.inacbg_cbg_description || '');
+  const [groupedOverride, setGroupedOverride] = useState(false);
+  const [stage2LockedOverride, setStage2LockedOverride] = useState(false);
   const [codingEditMode, setCodingEditMode] = useState(false);
-  const showCodingForm = !grouped || codingEditMode;
+  const showCodingForm = !(grouped || groupedOverride) || codingEditMode;
 
   // Diagnosa state
   const [diagCodes, setDiagCodes] = useState<string[]>(() => {
@@ -118,6 +120,41 @@ export default function INACBGCodingTab({ detail, onRefresh }: INACBGCodingTabPr
 
   const disabled = detail.inacbg_final_success;
   const buttons = detail.buttons || {};
+  const hasSpecialCMG = specialCMGOptions.length > 0;
+  const specialCMGDisabled = disabled || detail.inacbg_grouper_stage2_success || stage2LockedOverride;
+
+  const getCMGOptionsByType = (typeKey: 'procedure' | 'prosthesis' | 'investigation' | 'drug') => {
+    const keywords: Record<'procedure' | 'prosthesis' | 'investigation' | 'drug', string[]> = {
+      procedure: ['procedure', 'proc', 'special procedure'],
+      prosthesis: ['prosthesis', 'prosthetic'],
+      investigation: ['investigation', 'investigasi'],
+      drug: ['drug', 'obat'],
+    };
+    const terms = keywords[typeKey];
+    return specialCMGOptions.filter((opt) => {
+      const t = String(opt.type || '').toLowerCase();
+      return terms.some((term) => t.includes(term));
+    });
+  };
+
+  const getSelectedCMGByType = (typeKey: 'procedure' | 'prosthesis' | 'investigation' | 'drug') => {
+    const opts = getCMGOptionsByType(typeKey);
+    const found = opts.find((opt) => selectedCMG.includes(opt.code));
+    return found?.code || '';
+  };
+
+  const setSelectedCMGByType = (
+    typeKey: 'procedure' | 'prosthesis' | 'investigation' | 'drug',
+    code: string,
+  ) => {
+    const opts = getCMGOptionsByType(typeKey);
+    const optCodes = new Set(opts.map((opt) => opt.code));
+    setSelectedCMG((prev) => {
+      const withoutCategory = prev.filter((c) => !optCodes.has(c));
+      if (!code) return withoutCategory;
+      return [...withoutCategory, code];
+    });
+  };
 
   // Sync local state when detail prop changes (e.g. after onRefresh)
   useEffect(() => {
@@ -157,9 +194,14 @@ export default function INACBGCodingTab({ detail, onRefresh }: INACBGCodingTabPr
     setSelectedCMG(cmg);
   }, [detail.selected_special_cmg]);
 
+  useEffect(() => {
+    setStage2LockedOverride(!!detail.inacbg_grouper_stage2_success);
+  }, [detail.id, detail.inacbg_grouper_stage2_success]);
+
   // Auto-close coding form when grouping succeeds
   useEffect(() => {
     if (detail.inacbg_grouper_stage1_success || detail.inacbg_grouper_stage2_success) {
+      setGroupedOverride(false); // reset override when actual data arrives
       setCodingEditMode(false);
     }
   }, [detail.inacbg_grouper_stage1_success, detail.inacbg_grouper_stage2_success]);
@@ -218,13 +260,6 @@ export default function INACBGCodingTab({ detail, onRefresh }: INACBGCodingTabPr
     setProcCodes(prev => prev.filter((_, i) => i !== index));
   };
 
-  // ========= Special CMG Toggle =========
-  const toggleCMG = (code: string) => {
-    setSelectedCMG(prev =>
-      prev.includes(code) ? prev.filter(c => c !== code) : [...prev, code]
-    );
-  };
-
   // ========= API Actions =========
   const handleImport = async () => {
     setSubmitting(true);
@@ -271,13 +306,9 @@ export default function INACBGCodingTab({ detail, onRefresh }: INACBGCodingTabPr
   };
 
   const handleSetProcedure = async () => {
-    if (procCodes.length === 0) {
-      toast({ variant: 'destructive', title: 'Error!', description: 'Masukkan minimal 1 kode prosedur.' });
-      return;
-    }
     setSubmitting(true);
     try {
-      const procedure = procCodes.join('#');
+      const procedure = procCodes.length > 0 ? procCodes.join('#') : '#';
       const res = await eklaimLocalApi.sendINACBGProcedureSet(detail.id, { procedure });
       const expanded = res?.response?.data?.expanded || res?.data?.expanded || res?.expanded || [];
       setProcExpanded(expanded);
@@ -291,13 +322,29 @@ export default function INACBGCodingTab({ detail, onRefresh }: INACBGCodingTabPr
   };
 
   const handleGrouperStage1 = async () => {
+    if (diagCodes.length === 0) {
+      toast({ variant: 'destructive', title: 'Error!', description: 'Masukkan minimal 1 kode diagnosa.' });
+      return;
+    }
     setSubmitting(true);
     try {
+      // Auto set diagnosa before grouping
+      const diagnosa = diagCodes.join('#');
+      const diagRes = await eklaimLocalApi.sendINACBGDiagnosaSet(detail.id, { diagnosa });
+      setDiagExpanded(diagRes?.response?.data?.expanded || diagRes?.data?.expanded || diagRes?.expanded || []);
+
+      // Auto set procedure before grouping
+      const procedure = procCodes.length > 0 ? procCodes.join('#') : '#';
+      await eklaimLocalApi.sendINACBGProcedureSet(detail.id, { procedure });
+
+      // Grouping Stage 1
       await eklaimLocalApi.sendGrouperINACBGStage1(detail.id);
-      toast({ variant: 'success', title: 'Berhasil!', description: 'Grouping INACBG Stage 1 berhasil.' });
+        setGroupedOverride(true); // immediately hide coding form
+        setCodingEditMode(false);
+      toast({ variant: 'success', title: 'Berhasil!', description: 'Grouping INACBG berhasil.' });
       onRefresh();
     } catch (err: any) {
-      toast({ variant: 'destructive', title: 'Error!', description: err?.response?.data?.error || 'Gagal grouping INACBG stage 1.' });
+      toast({ variant: 'destructive', title: 'Error!', description: err?.response?.data?.error || 'Gagal grouping INACBG.' });
     } finally {
       setSubmitting(false);
     }
@@ -308,6 +355,7 @@ export default function INACBGCodingTab({ detail, onRefresh }: INACBGCodingTabPr
     try {
       const special_cmg = selectedCMG.join('#');
       await eklaimLocalApi.sendGrouperINACBGStage2(detail.id, { special_cmg });
+      setStage2LockedOverride(true);
       toast({ variant: 'success', title: 'Berhasil!', description: 'Grouping INACBG Stage 2 berhasil.' });
       onRefresh();
     } catch (err: any) {
@@ -341,14 +389,6 @@ export default function INACBGCodingTab({ detail, onRefresh }: INACBGCodingTabPr
     } finally {
       setSubmitting(false);
     }
-  };
-
-  // Format currency for tariff display
-  const formatCurrency = (value?: string | number) => {
-    if (!value) return '-';
-    const num = typeof value === 'string' ? parseFloat(value) : value;
-    if (isNaN(num)) return String(value);
-    return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num);
   };
 
   return (
@@ -391,8 +431,10 @@ export default function INACBGCodingTab({ detail, onRefresh }: INACBGCodingTabPr
           )}
 
           {/* ==================== DIAGNOSA & PROSEDUR ==================== */}
-          <div className="rounded-lg border p-4 space-y-4">
+          <div className="rounded-lg border p-4">
+            <div className="grid grid-cols-2 gap-6">
             {/* --- Diagnosa --- */}
+            <div className="space-y-3">
             <div className="flex items-center justify-between">
               <Label className="text-sm font-medium">Diagnosa (ICD-10)</Label>
               {detail.inacbg_diagnosa && (
@@ -543,9 +585,9 @@ export default function INACBGCodingTab({ detail, onRefresh }: INACBGCodingTabPr
               </div>
             )}
 
-            <Separator />
-
+            </div>
             {/* --- Prosedur --- */}
+            <div className="space-y-3">
             <div className="flex items-center justify-between">
               <Label className="text-sm font-medium">Prosedur (ICD-9-CM)</Label>
               {detail.inacbg_procedure && (
@@ -653,7 +695,7 @@ export default function INACBGCodingTab({ detail, onRefresh }: INACBGCodingTabPr
                     </div>
                   </DialogContent>
                 </Dialog>
-                <Button size="sm" onClick={handleSetProcedure} disabled={submitting || procCodes.length === 0}>
+                <Button size="sm" onClick={handleSetProcedure} disabled={submitting}>
                   {submitting ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Play className="mr-1 h-4 w-4" />}
                   Set Prosedur INACBG
                 </Button>
@@ -693,124 +735,275 @@ export default function INACBGCodingTab({ detail, onRefresh }: INACBGCodingTabPr
                 </div>
               </div>
             )}
+            </div>
+            </div>
           </div>
 
           <Separator />
-
-          {/* Special CMG (shown after stage 1) */}
-          {specialCMGOptions.length > 0 && (
-            <div className="rounded-lg border p-4 space-y-3">
-              <div>
-                <p className="text-sm font-medium">Special CMG Options</p>
-                <p className="text-xs text-muted-foreground">Pilih special CMG yang berlaku untuk klaim ini</p>
-              </div>
-              <div className="space-y-2">
-                {specialCMGOptions.map((opt, i) => (
-                  <label key={i} className="flex items-start gap-3 p-2 rounded hover:bg-accent cursor-pointer">
-                    <Checkbox
-                      checked={selectedCMG.includes(opt.code)}
-                      onCheckedChange={() => toggleCMG(opt.code)}
-                      disabled={disabled}
-                    />
-                    <div className="text-sm">
-                      <p className="font-mono font-medium">{opt.code}</p>
-                      <p className="text-xs text-muted-foreground">{opt.description}</p>
-                      {opt.type && (
-                        <Badge variant="outline" className="text-[10px] mt-0.5">{opt.type}</Badge>
-                      )}
-                    </div>
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
         </>
       )}
 
-      {/* ===== GROUPER RESULT — always visible when data exists ===== */}
-      {detail.inacbg_cbg_code && (
-        <div className="rounded-lg border p-4 space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <Label className="text-sm font-medium">Hasil Grouping INACBG</Label>
-              <p className="text-xs text-muted-foreground">Hasil grouper INACBG</p>
-            </div>
-            {grouped && (
-              <Badge className="bg-green-100 text-green-800">
-                <CheckCircle className="mr-1 h-3 w-3" /> Grouped
-              </Badge>
-            )}
-          </div>
+      {/* ===== GROUPER RESULT — hidden when editing ===== */}
+      {detail.inacbg_cbg_code && !codingEditMode && (
+        (() => {
+          const isFinal = !!detail.inacbg_final_success;
+          const formatDateTime = (value?: string) => {
+            if (!value) return '';
+            const dt = new Date(value);
+            if (Number.isNaN(dt.getTime())) return value;
+            return new Intl.DateTimeFormat('id-ID', {
+              year: 'numeric',
+              month: '2-digit',
+              day: '2-digit',
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+            }).format(dt);
+          };
+          const jenisRawatLabel = (() => {
+            const jr = String(detail.jenis_rawat || '').trim();
+            if (jr === '1') return '1 - Rawat Inap (RI)';
+            if (jr === '2') return '2 - Rawat Jalan (RJ)';
+            return jr || '-';
+          })();
+          const infoParts = [
+            formatDateTime(detail.inacbg_grouper_stage1_sent_at || detail.inacbg_grouper_stage2_sent_at || ''),
+            detail.kode_tarif || '',
+          ].filter(Boolean);
 
-          <div className="p-4 rounded-lg bg-teal-50 dark:bg-teal-950/20 border border-teal-200 dark:border-teal-800">
-            <p className="text-xs font-semibold text-teal-700 dark:text-teal-300 mb-3 flex items-center gap-1.5">
-              <BarChart3 className="h-3.5 w-3.5" />
-              Hasil Grouping INACBG
-            </p>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-              <div>
-                <p className="text-muted-foreground text-xs">Kode CBG</p>
-                <p className="font-mono text-lg font-bold text-teal-700 dark:text-teal-300">
-                  {detail.inacbg_cbg_code}
-                </p>
-              </div>
-              <div className="md:col-span-2">
-                <p className="text-muted-foreground text-xs">Deskripsi</p>
-                <p className="font-medium">{detail.inacbg_cbg_description || '-'}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground text-xs">Status</p>
-                <Badge
-                  variant={detail.inacbg_status_cd === 'normal' ? 'default' : 'destructive'}
-                  className="text-xs mt-0.5"
-                >
-                  {detail.inacbg_status_cd || '-'}
-                </Badge>
-              </div>
-            </div>
+          const rowClass = isFinal
+            ? 'border-b border-[#b7c7b7]'
+            : 'border-b border-[#c9c9c9]';
+          const leftCellClass = isFinal
+            ? 'w-56 px-3 py-2 text-right border-r border-[#b7c7b7] font-medium text-[#111]'
+            : 'w-56 px-3 py-2 text-right border-r border-[#c9c9c9] font-medium text-[#111]';
+          const rightCellClass = 'px-3 py-2 text-[#111]';
+          const selectRowCellClass = 'pl-0 pr-3 py-0 text-[#111]';
+          const currency = (val?: string | number) => {
+            const num = typeof val === 'string' ? parseFloat(val) : Number(val || 0);
+            if (isNaN(num)) return '0';
+            return new Intl.NumberFormat('id-ID').format(num);
+          };
 
-            <Separator className="my-3" />
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-              <div>
-                <p className="text-muted-foreground text-xs">Base Tarif</p>
-                <p className="font-mono font-medium">{formatCurrency(detail.inacbg_base_tariff)}</p>
+          return (
+            <div className={`rounded border overflow-hidden ${isFinal ? 'bg-[#d6e4d6] border-[#b7c7b7]' : 'bg-[#f2f2f2] border-[#c9c9c9]'}`}>
+              <div className={`text-center font-semibold py-2 ${isFinal ? 'bg-[#bccfbc]' : 'bg-[#e8e8e8]'}`}>
+                {isFinal ? 'Hasil Grouping INACBG - Final' : 'Hasil Grouping INACBG'}
               </div>
-              <div>
-                <p className="text-muted-foreground text-xs">Tarif INACBG</p>
-                <p className="font-mono text-base font-bold text-green-700 dark:text-green-400">
-                  {formatCurrency(detail.inacbg_tariff)}
-                </p>
-              </div>
-            </div>
-          </div>
 
-          {/* Ungroupable warning */}
-          {detail.inacbg_status_cd && detail.inacbg_status_cd !== 'normal' && (
-            <div className="flex items-start gap-2 p-3 rounded-md bg-destructive/10 border border-destructive/20">
-              <AlertTriangle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
-              <div>
-                <p className="text-sm font-medium text-destructive">Status Tidak Normal</p>
-                <p className="text-xs text-destructive/80">
-                  Status "{detail.inacbg_status_cd}" — periksa kembali coding diagnosa dan prosedur.
-                </p>
+              <table className="w-full text-sm border-collapse">
+                <tbody>
+                  <tr className={rowClass}>
+                    <td className={leftCellClass}>Info</td>
+                    <td className={rightCellClass}>{infoParts.length > 0 ? infoParts.join(' | ') : '-'}</td>
+                  </tr>
+                  <tr className={rowClass}>
+                    <td className={leftCellClass}>Jenis Rawat</td>
+                    <td className={rightCellClass}>{jenisRawatLabel}</td>
+                  </tr>
+                  <tr className={rowClass}>
+                    <td className={leftCellClass}>Group</td>
+                    <td className={rightCellClass}>
+                      <div className="grid grid-cols-[minmax(0,1fr)_120px_32px_120px] items-center gap-2">
+                        <span className={isFailedINACBG ? 'text-red-600 font-semibold' : ''}>{detail.inacbg_cbg_description || '-'}</span>
+                        <span className="font-mono text-right">{detail.inacbg_cbg_code || '-'}</span>
+                        <span className="text-right">Rp</span>
+                        <span className="font-mono text-right">{currency(detail.inacbg_tariff)}</span>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr className={rowClass}>
+                    <td className={leftCellClass}>Sub Acute</td>
+                    <td className={rightCellClass}>
+                      <div className="grid grid-cols-[minmax(0,1fr)_120px_32px_120px] items-center gap-2">
+                        <span>-</span>
+                        <span className="font-mono text-right">-</span>
+                        <span className="text-right">Rp</span>
+                        <span className="font-mono text-right">0</span>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr className={rowClass}>
+                    <td className={leftCellClass}>Chronic</td>
+                    <td className={rightCellClass}>
+                      <div className="grid grid-cols-[minmax(0,1fr)_120px_32px_120px] items-center gap-2">
+                        <span>-</span>
+                        <span className="font-mono text-right">-</span>
+                        <span className="text-right">Rp</span>
+                        <span className="font-mono text-right">0</span>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr className={rowClass}>
+                    <td className={leftCellClass}>Special Procedure</td>
+                    <td className={selectRowCellClass}>
+                      <div className="grid grid-cols-[minmax(0,1fr)_120px_32px_120px] items-center gap-2">
+                        <select
+                          className="h-9 rounded border bg-background px-2 text-sm"
+                          disabled={specialCMGDisabled || getCMGOptionsByType('procedure').length === 0}
+                          value={getSelectedCMGByType('procedure')}
+                          onChange={(e) => setSelectedCMGByType('procedure', e.target.value)}
+                        >
+                          <option value="">None</option>
+                          {getCMGOptionsByType('procedure').map((opt) => (
+                            <option key={opt.code} value={opt.code}>{opt.description}</option>
+                          ))}
+                        </select>
+                        <span className="font-mono text-right">-</span>
+                        <span className="text-right">Rp</span>
+                        <span className="font-mono text-right">0</span>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr className={rowClass}>
+                    <td className={leftCellClass}>Special Prosthesis</td>
+                    <td className={selectRowCellClass}>
+                      <div className="grid grid-cols-[minmax(0,1fr)_120px_32px_120px] items-center gap-2">
+                        <select
+                          className="h-9 rounded border bg-background px-2 text-sm"
+                          disabled={specialCMGDisabled || getCMGOptionsByType('prosthesis').length === 0}
+                          value={getSelectedCMGByType('prosthesis')}
+                          onChange={(e) => setSelectedCMGByType('prosthesis', e.target.value)}
+                        >
+                          <option value="">None</option>
+                          {getCMGOptionsByType('prosthesis').map((opt) => (
+                            <option key={opt.code} value={opt.code}>{opt.description}</option>
+                          ))}
+                        </select>
+                        <span className="font-mono text-right">-</span>
+                        <span className="text-right">Rp</span>
+                        <span className="font-mono text-right">0</span>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr className={rowClass}>
+                    <td className={leftCellClass}>Special Investigation</td>
+                    <td className={selectRowCellClass}>
+                      <div className="grid grid-cols-[minmax(0,1fr)_120px_32px_120px] items-center gap-2">
+                        <select
+                          className="h-9 rounded border bg-background px-2 text-sm"
+                          disabled={specialCMGDisabled || getCMGOptionsByType('investigation').length === 0}
+                          value={getSelectedCMGByType('investigation')}
+                          onChange={(e) => setSelectedCMGByType('investigation', e.target.value)}
+                        >
+                          <option value="">None</option>
+                          {getCMGOptionsByType('investigation').map((opt) => (
+                            <option key={opt.code} value={opt.code}>{opt.description}</option>
+                          ))}
+                        </select>
+                        <span className="font-mono text-right">-</span>
+                        <span className="text-right">Rp</span>
+                        <span className="font-mono text-right">0</span>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr className={rowClass}>
+                    <td className={leftCellClass}>Special Drug</td>
+                    <td className={selectRowCellClass}>
+                      <div className="grid grid-cols-[minmax(0,1fr)_120px_32px_120px] items-center gap-2">
+                        <select
+                          className="h-9 rounded border bg-background px-2 text-sm"
+                          disabled={specialCMGDisabled || getCMGOptionsByType('drug').length === 0}
+                          value={getSelectedCMGByType('drug')}
+                          onChange={(e) => setSelectedCMGByType('drug', e.target.value)}
+                        >
+                          <option value="">None</option>
+                          {getCMGOptionsByType('drug').map((opt) => (
+                            <option key={opt.code} value={opt.code}>{opt.description}</option>
+                          ))}
+                        </select>
+                        <span className="font-mono text-right">-</span>
+                        <span className="text-right">Rp</span>
+                        <span className="font-mono text-right">0</span>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr className={rowClass}>
+                    <td className={leftCellClass}>Total Klaim</td>
+                    <td className={rightCellClass}>
+                      <div className="grid grid-cols-[minmax(0,1fr)_120px_32px_120px] items-center gap-2 font-semibold">
+                        <span></span>
+                        <span className="font-mono text-right"></span>
+                        <span className="text-right">Rp</span>
+                        <span className="font-mono text-right">{currency(detail.inacbg_tariff)}</span>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className={leftCellClass}>Status</td>
+                    <td className={rightCellClass}>{detail.inacbg_status_cd || (isFinal ? 'final' : '-')}</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <div className={`px-3 py-2 min-h-12 flex items-center justify-end gap-2 ${isFinal ? 'border-t border-[#b7c7b7]' : 'border-t border-[#c9c9c9]'}`}>
+                {isFailedINACBG && !disabled && (
+                  <p className="text-xs text-red-600 self-center">
+                    Grouping gagal. Perbaiki coding lalu grouping ulang.
+                  </p>
+                )}
+                
+                {/* Grouping Stage 1 shown only when no Special CMG options */}
+                {buttons.grouping_inacbg && !disabled && (!grouped || codingEditMode) && !hasSpecialCMG && (
+                  <Button size="sm" onClick={handleGrouperStage1} disabled={submitting}>
+                    {submitting ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <BarChart3 className="mr-1 h-4 w-4" />}
+                    Grouping
+                  </Button>
+                )}
+
+
+                {grouped && !disabled && !codingEditMode && (
+                  <Button variant="outline" size="sm" onClick={() => setCodingEditMode(true)}>
+                    <RotateCcw className="mr-1 h-4 w-4" />
+                    Ubah Coding INACBG
+                  </Button>
+                )}
+
+                {/* Grouping Stage 2: shown when Special CMG available but Stage 2 not yet successful */}
+                {!disabled && hasSpecialCMG && !detail.inacbg_grouper_stage2_success && (
+                  <Button size="sm" onClick={handleGrouperStage2} disabled={submitting}>
+                    {submitting ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <BarChart3 className="mr-1 h-4 w-4" />}
+                    Grouping Stage 2
+                  </Button>
+                )}
+
+                {/* Final button: require Stage 2 if Special CMG exists */}
+                {grouped && !disabled && !isFailedINACBG && (hasSpecialCMG ? detail.inacbg_grouper_stage2_success : true) && (
+                  <Button
+                    size="sm"
+                    onClick={handleFinal}
+                    disabled={submitting || !buttons.final_inacbg}
+                  >
+                    {submitting ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-1 h-4 w-4" />}
+                    Final INACBG
+                  </Button>
+                )}
+
+                {buttons.reedit_inacbg && disabled && (
+                  <Button variant="outline" size="sm" onClick={handleReedit} disabled={submitting}>
+                    {submitting ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <RotateCcw className="mr-1 h-4 w-4" />}
+                    Edit Ulang INACBG
+                  </Button>
+                )}
               </div>
             </div>
-          )}
-        </div>
+          );
+        })()
       )}
 
       {/* ==================== GROUPING / UBAH / FINAL / REEDIT — same row ==================== */}
+      {(!detail.inacbg_cbg_code || codingEditMode) && (
       <div className="flex flex-wrap items-center gap-2">
         {/* Grouping Stage 1 */}
-        {buttons.grouping_inacbg && !disabled && (!grouped || codingEditMode) && (
+        {buttons.grouping_inacbg && !disabled && (!grouped || codingEditMode) && !hasSpecialCMG && (
           <Button size="sm" onClick={handleGrouperStage1} disabled={submitting}>
             {submitting ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <BarChart3 className="mr-1 h-4 w-4" />}
             Grouping Stage 1
           </Button>
         )}
-        {/* Grouping Stage 2 */}
-        {!disabled && specialCMGOptions.length > 0 && (
-          <Button size="sm" onClick={handleGrouperStage2} disabled={submitting || selectedCMG.length === 0}>
+        {/* Grouping Stage 2: shown when Special CMG available but Stage 2 not yet successful */}
+        {!disabled && hasSpecialCMG && !detail.inacbg_grouper_stage2_success && (
+          <Button size="sm" onClick={handleGrouperStage2} disabled={submitting}>
             {submitting ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <BarChart3 className="mr-1 h-4 w-4" />}
             Grouping Stage 2
           </Button>
@@ -822,7 +1015,8 @@ export default function INACBGCodingTab({ detail, onRefresh }: INACBGCodingTabPr
             Ubah Coding INACBG
           </Button>
         )}
-        {grouped && !disabled && (
+        {/* Final button: require Stage 2 if Special CMG exists */}
+        {grouped && !disabled && !codingEditMode && !isFailedINACBG && (hasSpecialCMG ? detail.inacbg_grouper_stage2_success : true) && (
           <Button
             size="sm"
             onClick={handleFinal}
@@ -844,6 +1038,7 @@ export default function INACBGCodingTab({ detail, onRefresh }: INACBGCodingTabPr
           </Button>
         )}
       </div>
+      )}
 
       {/* Raw Response JSON — Dialog modal */}
       {(detail.inacbg_grouper_stage1_response || detail.inacbg_grouper_stage2_response) && (

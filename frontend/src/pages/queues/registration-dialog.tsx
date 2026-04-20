@@ -37,6 +37,8 @@ import { ClinicalPackageSelector } from "@/components/registration/clinical-pack
 import { OrderRoomSelection } from "@/components/registration/order-room-selection";
 import { mapClinicalPackageToRegistrationSelections, mergeRoomMedicinesWithClinicalPackage, mergeRoomProceduresWithClinicalPackage } from "@/lib/clinical-package-utils";
 
+const normalizeRoomType = (value?: string) => (value || "").trim().toLowerCase();
+
 interface RegistrationDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -118,6 +120,17 @@ export function RegistrationDialog({
   const [loadingRoomItems, setLoadingRoomItems] = useState(false);
   const [scheduledFollowUps, setScheduledFollowUps] = useState<Registration[]>([]);
   const doctorRequired = !["farmasi", "penunjang_medis"].includes(selectedServiceType);
+  const destinationRoom = rooms.find((room) => room.id === destinationRoomId);
+
+  const isDirectLaboratoryRoom = ["laboratorium", "laboratorium_pk", "laboratorium_pa", "lab"].includes(normalizeRoomType(destinationRoom?.room_type));
+  const isDirectRadiologyRoom = ["radiologi", "radiology"].includes(normalizeRoomType(destinationRoom?.room_type));
+  const isDirectPharmacyRoom = destinationRoom?.service_type === "farmasi" || ["farmasi", "depo_farmasi", "gudang_farmasi", "apotek", "pharmacy"].includes(normalizeRoomType(destinationRoom?.room_type));
+
+  const destinationRoomHandlesProcedureDirectly = (procedureType?: string) => {
+    if (procedureType === "laboratory") return isDirectLaboratoryRoom;
+    if (procedureType === "radiology") return isDirectRadiologyRoom;
+    return false;
+  };
 
   // Region data state
   const [provinces, setProvinces] = useState<Province[]>([]);
@@ -857,7 +870,7 @@ export function RegistrationDialog({
       };
 
       const registrationType = registrationTypeMap[selectedServiceType] || "outpatient";
-      const shouldCreateRoomQueue = ["rawat_jalan", "gawat_darurat"].includes(selectedServiceType);
+      const shouldCreateRoomQueue = selectedServiceType !== "rawat_inap";
 
       // Prepare registration data
       const registrationData: any = {
@@ -901,6 +914,18 @@ export function RegistrationDialog({
         });
       }
 
+      if ((isDirectLaboratoryRoom || isDirectRadiologyRoom) && validProcedures.length === 0) {
+        toast({
+          variant: "destructive",
+          title: "Tindakan wajib diisi",
+          description: isDirectLaboratoryRoom
+            ? "Pilih minimal satu tindakan laboratorium untuk pendaftaran langsung."
+            : "Pilih minimal satu tindakan radiologi untuk pendaftaran langsung.",
+        });
+        setLoading(false);
+        return;
+      }
+
       const procedureById = new Map(
         effectiveRoomProcedures.map((roomProcedure) => [
           roomProcedure.procedure_id,
@@ -910,7 +935,8 @@ export function RegistrationDialog({
       const missingTargetRoomProcedures = validProcedures.filter((item) => {
         const procedureType = procedureById.get(item.procedure_id)?.procedure_type;
         const requiresTargetRoom =
-          procedureType === "consultation" || procedureType === "radiology" || procedureType === "laboratory";
+          (procedureType === "consultation" || procedureType === "radiology" || procedureType === "laboratory") &&
+          !destinationRoomHandlesProcedureDirectly(procedureType);
         return requiresTargetRoom && !item.target_room_id;
       });
 
@@ -931,7 +957,19 @@ export function RegistrationDialog({
         registrationData.procedure_items = validProcedures;
       }
 
-      const missingPharmacyRoomMedicines = selectedMedicines.filter((item) => !item.pharmacy_room_id);
+      if (isDirectPharmacyRoom && selectedMedicines.length === 0) {
+        toast({
+          variant: "destructive",
+          title: "Obat wajib diisi",
+          description: "Pilih minimal satu obat untuk pendaftaran langsung farmasi.",
+        });
+        setLoading(false);
+        return;
+      }
+
+      const missingPharmacyRoomMedicines = isDirectPharmacyRoom
+        ? []
+        : selectedMedicines.filter((item) => !item.pharmacy_room_id);
       if (missingPharmacyRoomMedicines.length > 0) {
         const medicineNameById = new Map(
           effectiveRoomMedicines.map((roomMedicine) => [

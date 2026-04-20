@@ -1063,7 +1063,7 @@ export default function PatientSearchShow() {
   }
 
   return (
-    <div className="flex flex-1 flex-col p-4">
+    <div className="flex flex-1 flex-col px-4">
       <div>
         {/* Patient Header */}
         <div className="flex flex-wrap items-center justify-between gap-4 pb-4">

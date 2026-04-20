@@ -28,6 +28,9 @@ type CPPT struct {
 	// Profession/Role of the recorder
 	Profession string `gorm:"size:50;not null" json:"profession"` // dokter, perawat, bidan, gizi, farmasi, dll
 
+	// Documentation format
+	CPPTFormat string `gorm:"size:20;default:'soap'" json:"cppt_format,omitempty"` // soap, sbar, tbak
+
 	// SOAP Format
 	Subjective string `gorm:"type:text" json:"subjective,omitempty"` // Keluhan/apa yang dirasakan pasien
 	Objective  string `gorm:"type:text" json:"objective,omitempty"`  // Hasil pemeriksaan fisik, vital sign, lab, dll
@@ -66,6 +69,10 @@ func (CPPT) TableName() string {
 
 // CPPT Profession constants
 const (
+	CPPTFormatSOAP = "soap"
+	CPPTFormatSBAR = "sbar"
+	CPPTFormatTBAK = "tbak"
+
 	CPPTProfessionDoctor    = "dokter"
 	CPPTProfessionNurse     = "perawat"
 	CPPTProfessionMidwife   = "bidan"

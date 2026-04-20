@@ -34,9 +34,9 @@ interface VisitHistoryItem {
 const visitTypeLabels: Record<string, string> = {
   consultation: "Konsultasi", // Hanya untuk ORDER konsultasi
   procedure: "Tindakan",
-  lab: "Laboratorium",
-  radiology: "Radiologi",
-  pharmacy: "Farmasi",
+  lab: "Order Laboratorium",
+  radiology: "Order Radiologi",
+  pharmacy: "Order Farmasi",
   inpatient: "Rawat Inap",
   outpatient: "Rawat Jalan", // Kunjungan biasa ke Poli
   emergency: "Gawat Darurat", // Kunjungan biasa ke UGD

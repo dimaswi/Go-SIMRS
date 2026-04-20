@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
-import { visitsApi, medicalRecordsApi, medicineOrdersApi, procedureOrdersApi } from "@/lib/api";
+import { visitsApi, medicalRecordsApi, medicineOrdersApi, procedureOrdersApi, visitProceduresApi } from "@/lib/api";
 import { format } from "date-fns";
 import { id as localeId } from "date-fns/locale";
 import {
@@ -109,9 +109,9 @@ interface RegistrationGroup {
 const visitTypeLabels: Record<string, string> = {
   consultation: "Konsultasi",
   procedure: "Tindakan",
-  lab: "Lab",
-  radiology: "Radiologi",
-  pharmacy: "Farmasi",
+  lab: "Order Laboratorium",
+  radiology: "Order Radiologi",
+  pharmacy: "Order Farmasi",
   inpatient: "Rawat Inap",
   outpatient: "Rawat Jalan",
   emergency: "UGD",
@@ -138,6 +138,9 @@ const getVisitTypeBadgeColor = (type: string): string => {
     inpatient: "bg-purple-100 text-purple-800 border-purple-200",
     emergency: "bg-red-100 text-red-800 border-red-200",
     consultation: "bg-green-100 text-green-800 border-green-200",
+    lab: "bg-amber-100 text-amber-800 border-amber-200",
+    radiology: "bg-amber-100 text-amber-800 border-amber-200",
+    pharmacy: "bg-amber-100 text-amber-800 border-amber-200",
     surgery: "bg-orange-100 text-orange-800 border-orange-200",
   };
   return colors[type] || "bg-gray-100 text-gray-800 border-gray-200";
@@ -260,32 +263,49 @@ export function VisitHistoryDrawer({
 
     setLoadingDetails((prev) => new Set(prev).add(visitId));
     try {
-      // For pharmacy visits - load medicine orders
+      // For pharmacy visits - load direct visit medicines first, then fallback to orders.
       if (visitType === "pharmacy") {
-        const ordersRes = await medicineOrdersApi.getAll({ pharmacy_visit_id: visitId }).catch(() => ({ data: [] }));
-        const orders = ordersRes.data || [];
-        
-        // Collect all active items from all orders
         const allMedications: any[] = [];
-        for (const order of orders) {
-          if (order.items) {
-            for (const item of order.items) {
-              // Filter out cancelled items
-              if (item.status !== "cancelled") {
-                allMedications.push({
-                  id: item.id,
-                  medicine_name: item.medicine?.name || "Obat",
-                  quantity: item.quantity,
-                  unit: item.unit,
-                  dosage: item.dosage,
-                  frequency: item.frequency,
-                  status: item.status,
-                });
+
+        const summaryRes = await medicalRecordsApi.get(visitId).catch(() => ({ data: null }));
+        const directItems = summaryRes.data?.visit_medicine_items || [];
+        for (const item of directItems) {
+          if (item.status !== "cancelled") {
+            allMedications.push({
+              id: item.id,
+              medicine_name: item.medicine?.name || "Obat",
+              quantity: item.quantity,
+              unit: item.unit,
+              dosage: item.dosage,
+              frequency: item.frequency,
+              status: item.status || "recorded",
+            });
+          }
+        }
+
+        if (allMedications.length === 0) {
+          const ordersRes = await medicineOrdersApi.getAll({ pharmacy_visit_id: visitId }).catch(() => ({ data: [] }));
+          const orders = ordersRes.data || [];
+
+          for (const order of orders) {
+            if (order.items) {
+              for (const item of order.items) {
+                if (item.status !== "cancelled") {
+                  allMedications.push({
+                    id: item.id,
+                    medicine_name: item.medicine?.name || "Obat",
+                    quantity: item.quantity,
+                    unit: item.unit,
+                    dosage: item.dosage,
+                    frequency: item.frequency,
+                    status: item.status,
+                  });
+                }
               }
             }
           }
         }
-        
+
         setVisitDetails((prev) => ({
           ...prev,
           [visitId]: {
@@ -294,30 +314,53 @@ export function VisitHistoryDrawer({
           },
         }));
       }
-      // For lab/radiology/surgery visits - load procedure orders
+      // For lab/radiology direct visits, use visit procedures first and fallback to orders.
       else if (visitType && ["lab", "radiology", "surgery"].includes(visitType)) {
-        const ordersRes = await procedureOrdersApi.getAll({ target_visit_id: visitId }).catch(() => ({ data: [] }));
-        const orders = ordersRes.data || [];
-        
-        // Collect all active items from all orders
         const allProcedures: any[] = [];
-        for (const order of orders) {
-          if (order.items) {
-            for (const item of order.items) {
-              // Filter out cancelled items
-              if (item.status !== "cancelled") {
-                allProcedures.push({
-                  id: item.id,
-                  procedure_name: item.procedure?.name || "Pemeriksaan",
-                  procedure_code: item.procedure?.code || "",
-                  status: item.status,
-                  order_type: order.order_type,
-                });
+
+        if (visitType === "lab" || visitType === "radiology") {
+          const directProceduresRes = await visitProceduresApi.getAll(visitId).catch(() => ({ data: { data: [] } }));
+          const directProcedures = directProceduresRes.data?.data || [];
+
+          for (const item of directProcedures) {
+            const procedureType = item.procedure?.procedure_type;
+            const matchesVisitType =
+              (visitType === "lab" && procedureType === "laboratory") ||
+              (visitType === "radiology" && procedureType === "radiology");
+
+            if (matchesVisitType && item.status !== "cancelled") {
+              allProcedures.push({
+                id: item.id,
+                procedure_name: item.procedure?.name || "Pemeriksaan",
+                procedure_code: item.procedure?.code || "",
+                status: item.status,
+                order_type: procedureType,
+              });
+            }
+          }
+        }
+
+        if (allProcedures.length === 0) {
+          const ordersRes = await procedureOrdersApi.getAll({ target_visit_id: visitId }).catch(() => ({ data: [] }));
+          const orders = ordersRes.data || [];
+
+          for (const order of orders) {
+            if (order.items) {
+              for (const item of order.items) {
+                if (item.status !== "cancelled") {
+                  allProcedures.push({
+                    id: item.id,
+                    procedure_name: item.procedure?.name || "Pemeriksaan",
+                    procedure_code: item.procedure?.code || "",
+                    status: item.status,
+                    order_type: order.order_type,
+                  });
+                }
               }
             }
           }
         }
-        
+
         setVisitDetails((prev) => ({
           ...prev,
           [visitId]: {

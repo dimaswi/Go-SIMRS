@@ -136,6 +136,7 @@ const menuItems: MenuItem[] = [
       { path: '/counters', label: 'Loket', icon: Monitor, permission: 'counters.view' },
       { path: '/inventories', label: 'Inventaris', icon: Package, permission: 'inventories.view' },
       { path: '/medicines', label: 'Obat', icon: Pill, permission: 'medicines.view' },
+      { path: '/ppk', label: 'Master PPK', icon: Building2, permission: 'master_data.view' },
       { path: '/procedures', label: 'Tindakan', icon: Syringe, permission: 'procedures.view' },
       { path: '/clinical-packages', label: 'Paket Klinis', icon: Package, permission: 'master_data.view' },
       { path: '/icd', label: 'Kode ICD', icon: BookMarked },

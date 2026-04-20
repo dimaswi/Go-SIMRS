@@ -1,12 +1,19 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 import { usePermission } from "@/hooks/usePermission";
 import { setPageTitle } from "@/lib/page-title";
-import { Loader2 } from "lucide-react";
+import { Activity, Loader2, History, Save, X } from "lucide-react";
 import { useBreadcrumb } from "@/contexts/breadcrumb-context";
-import { visitsApi, medicalRecordsApi, cpptApi, fluidBalanceApi, nursingCareApi, medicineOrdersApi, procedureOrdersApi } from "@/lib/api";
+import { visitsApi, medicalRecordsApi, cpptApi, fluidBalanceApi, nursingCareApi, medicineOrdersApi, procedureOrdersApi, patientAllergyApi } from "@/lib/api";
 import { PatientInfo } from "@/components/medical-record/patient-info";
 import { MedicalRecordTabs } from "@/components/medical-record/medical-record-tabs";
 import { TriageForm } from "@/components/medical-record/triage-form";
@@ -16,6 +23,7 @@ import { DiagnosisForm } from "@/components/medical-record/diagnosis-form";
 import { AssessmentPlanForm } from "@/components/medical-record/assessment-plan-form";
 import { DispositionForm } from "@/components/medical-record/disposition-form";
 import { MedicineOrderForm } from "@/components/medical-record/medicine-order-form";
+import { MedicineTimesheetForm } from "@/components/medical-record/medicine-timesheet-form";
 import { RadiologyOrderForm } from "@/components/medical-record/radiology-order-form";
 import { LaboratoryOrderForm } from "@/components/medical-record/laboratory-order-form";
 import { ConsultationOrderForm } from "@/components/medical-record/consultation-order-form";
@@ -41,6 +49,8 @@ import { SuratForm } from "@/components/medical-record/surat-form";
 import { VisitHistoryDrawer } from "@/components/medical-record/visit-history-drawer";
 import { CopyFromHistoryDrawer } from "@/components/medical-record/copy-from-history-drawer";
 import { VisitMedicineSummary } from "@/components/medical-record/visit-medicine-summary";
+import { MedicalRecordPrintSelect } from "@/components/medical-record/print-select";
+import { ObservationReportDrawer } from "@/components/medical-record/observation-report-drawer";
 import { MEDICAL_RECORD_TAB_INDICATOR_EVENT, MEDICAL_RECORD_TAB_SAVED_EVENT, emitMedicalRecordTabIndicator, emitMedicalRecordTabSaved } from "@/components/medical-record/tab-indicator";
 import type { MedicalRecordSummary } from "@/lib/api/medical-records";
 
@@ -49,6 +59,37 @@ const isMeaningfulAllergySummary = (value?: string) => {
   if (!normalized) return false;
   return !/^(none|no known allergies|nkda|nka|nihil|\-|tidak ada|tidak ada alergi)$/.test(normalized);
 };
+
+const ORDER_TAB_IDS = new Set([
+  "medicine-order",
+  "radiology-order",
+  "laboratory-order",
+  "consultation-order",
+  "surgery-order",
+  "nutrition-order",
+]);
+
+const FINAL_TAB_IDS = new Set([
+  "pharmacy-final",
+  "radiology-final",
+  "laboratory-final",
+  "surgery-final",
+  "consultation-final",
+]);
+
+const EDIT_TAB_IDS = new Set([
+  "prescription-edit",
+  "radiology-edit",
+  "laboratory-edit",
+  "surgery-edit",
+]);
+
+const ADMIN_TAB_IDS = new Set(["surat", "disposition", "medicine-timesheet"]);
+const INLINE_PRIMARY_ACTION_REGEX = /(simpan|save|perbarui|update|kirim|send|selesaikan|submit)/i;
+const FOOTER_ACTION_EVENT = "medical-record-footer-action";
+
+const shouldUseFooterActionForTab = (tabId: string) =>
+  !ADMIN_TAB_IDS.has(tabId) && !EDIT_TAB_IDS.has(tabId);
 
 export default function VisitShow() {
   const { id } = useParams<{ id: string }>();
@@ -73,12 +114,19 @@ export default function VisitShow() {
   const [tabSavedStates, setTabSavedStates] = useState<Record<string, boolean>>({});
   const [historyDrawerOpen, setHistoryDrawerOpen] = useState(false);
   const [copyHistoryDrawerOpen, setCopyHistoryDrawerOpen] = useState(false);
+  const [observationDrawerOpen, setObservationDrawerOpen] = useState(false);
   const [patientId, setPatientId] = useState<number | null>(null);
   const [patientName, setPatientName] = useState<string>("");
   const [medicalRecordSummary, setMedicalRecordSummary] = useState<MedicalRecordSummary | null>(null);
   const { setOverride } = useBreadcrumb();
   const tabScrollPositionsRef = useRef<Record<string, number>>({});
+  const tabContentContainerRef = useRef<HTMLDivElement | null>(null);
   const scrollStorageKey = `mr-tab-scroll:${id || ""}`;
+  const isOrderTab = ORDER_TAB_IDS.has(activeTab);
+  const isFinalTab = FINAL_TAB_IDS.has(activeTab);
+  const isEditTab = EDIT_TAB_IDS.has(activeTab);
+  const isAdministrativeTab = ADMIN_TAB_IDS.has(activeTab);
+  const isFooterActionHiddenTab = !shouldUseFooterActionForTab(activeTab);
 
   const getScrollTargets = (): HTMLElement[] => {
     const targets: (HTMLElement | null | undefined)[] = [
@@ -109,9 +157,53 @@ export default function VisitShow() {
     }
     window.scrollTo({ top, behavior: "auto" });
   };
+
+  const restoreTabScroll = (tabId: string) => {
+    const savedTop = tabScrollPositionsRef.current[tabId] ?? 0;
+    requestAnimationFrame(() => {
+      setScrollTopAllTargets(savedTop);
+    });
+  };
+
+  const handleTabChange = (nextTab: string) => {
+    if (nextTab === activeTab) return;
+
+    if (activeTab) {
+      tabScrollPositionsRef.current[activeTab] = getCurrentScrollTop();
+      try {
+        sessionStorage.setItem(scrollStorageKey, JSON.stringify(tabScrollPositionsRef.current));
+      } catch {
+        // Ignore storage errors
+      }
+    }
+
+    setMountedTabs((previous) => {
+      if (previous.has(nextTab)) return previous;
+      const next = new Set(previous);
+      next.add(nextTab);
+      return next;
+    });
+    setActiveTab(nextTab);
+  };
   
   const triggerActiveTabSave = (): boolean => {
     if (!activeTab) return false;
+
+    const footerActionEvent = new CustomEvent<{
+      tabId: string;
+      action: "save" | "final";
+      handled: boolean;
+    }>(FOOTER_ACTION_EVENT, {
+      detail: {
+        tabId: activeTab,
+        action: isFinalTab ? "final" : "save",
+        handled: false,
+      },
+    });
+    window.dispatchEvent(footerActionEvent);
+    if (footerActionEvent.detail.handled) {
+      return true;
+    }
 
     const activePane = document.querySelector<HTMLElement>(`[data-mr-tab-pane="${activeTab}"]`);
     if (!activePane) return false;
@@ -126,7 +218,7 @@ export default function VisitShow() {
     const candidate = buttons.find((button) => {
       if (button.disabled) return false;
       const label = (button.textContent || "").trim().toLowerCase();
-      return /(simpan|save|perbarui|update)/.test(label);
+      return INLINE_PRIMARY_ACTION_REGEX.test(label);
     });
 
     if (candidate) {
@@ -135,37 +227,6 @@ export default function VisitShow() {
     }
 
     return false;
-  };
-
-  // Track visited tabs so they stay mounted (preserve unsaved form state)
-  useEffect(() => {
-    if (activeTab) {
-      setMountedTabs(prev => new Set([...prev, activeTab]));
-    }
-  }, [activeTab]);
-
-  const saveCurrentTabScroll = () => {
-    if (!activeTab) return;
-    const currentTop = getCurrentScrollTop();
-    tabScrollPositionsRef.current[activeTab] = currentTop;
-    try {
-      sessionStorage.setItem(scrollStorageKey, JSON.stringify(tabScrollPositionsRef.current));
-    } catch {
-      // Ignore storage errors
-    }
-  };
-
-  const handleTabChange = (tab: string) => {
-    if (tab === activeTab) return;
-    saveCurrentTabScroll();
-    setActiveTab(tab);
-  };
-
-  const restoreTabScroll = (tab: string) => {
-    const targetTop = tabScrollPositionsRef.current[tab] ?? 0;
-    requestAnimationFrame(() => {
-      setScrollTopAllTargets(targetTop);
-    });
   };
   
   // Update breadcrumb with patient name when available
@@ -178,7 +239,6 @@ export default function VisitShow() {
     return () => setOverride(null);
   }, [patientName, setOverride]);
 
-  // Reset states and load visit when ID changes (navigating to different visit)
   // This ensures the correct default tab is shown for each visit type
   useEffect(() => {
     setPageTitle("Rekam Medis");
@@ -215,6 +275,16 @@ export default function VisitShow() {
   useLayoutEffect(() => {
     if (!activeTab) return;
     restoreTabScroll(activeTab);
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (!activeTab) return;
+    setMountedTabs((previous) => {
+      if (previous.has(activeTab)) return previous;
+      const next = new Set(previous);
+      next.add(activeTab);
+      return next;
+    });
   }, [activeTab]);
   
   useEffect(() => {
@@ -330,7 +400,10 @@ export default function VisitShow() {
       setIsPatientDischarged(discharged);
 
       // Pre-load tab indicators for all medical record sections
-      preloadTabIndicators(Number(id));
+      preloadTabIndicators(
+        Number(id),
+        visitData.registration?.patient?.id || visitData.registration?.patient_id,
+      );
 
       // Set default active tab based on visit type and permissions (only on first load)
       if (!activeTab) {
@@ -348,8 +421,17 @@ export default function VisitShow() {
             setActiveTab("prescription-edit");
           }
         } else if (radiology) {
-          // Radiology visit tabs - mulai dari edit order
-          if (hasPermission("procedure_orders.edit")) {
+          // Radiology visit tabs - default to workstation when no procedure order exists
+          const radiologyOrderCount = await procedureOrdersApi.getAll({
+            target_visit_id: visitData.id,
+            order_type: "radiology",
+          })
+            .then((res) => (res.data || []).length)
+            .catch(() => 0);
+
+          if (radiologyOrderCount === 0 && hasPermission("procedure_orders.perform")) {
+            setActiveTab("radiology-workstation");
+          } else if (hasPermission("procedure_orders.edit")) {
             setActiveTab("radiology-edit");
           } else if (hasPermission("procedure_orders.perform")) {
             setActiveTab("radiology-workstation");
@@ -357,8 +439,17 @@ export default function VisitShow() {
             setActiveTab("radiology-edit"); // fallback
           }
         } else if (laboratory) {
-          // Laboratory visit tabs - mulai dari edit order
-          if (hasPermission("procedure_orders.edit")) {
+          // Laboratory visit tabs - default to workstation when no procedure order exists
+          const laboratoryOrderCount = await procedureOrdersApi.getAll({
+            target_visit_id: visitData.id,
+            order_type: "laboratory",
+          })
+            .then((res) => (res.data || []).length)
+            .catch(() => 0);
+
+          if (laboratoryOrderCount === 0 && hasPermission("procedure_orders.perform")) {
+            setActiveTab("laboratory-workstation");
+          } else if (hasPermission("procedure_orders.edit")) {
             setActiveTab("laboratory-edit");
           } else if (hasPermission("procedure_orders.perform")) {
             setActiveTab("laboratory-workstation");
@@ -411,7 +502,7 @@ export default function VisitShow() {
   };
 
   // Pre-load tab indicators from API so they appear immediately without opening each tab
-  const preloadTabIndicators = async (visitId: number) => {
+  const preloadTabIndicators = async (visitId: number, preloadPatientId?: number) => {
     try {
       const res = await medicalRecordsApi.get(visitId);
       const summary = res.data;
@@ -424,12 +515,12 @@ export default function VisitShow() {
         const filledText = triageTextFields.filter(v => v && String(v).trim() !== "").length;
         const filledNumeric = [
           t.heart_rate, t.respiratory_rate, t.temperature, t.oxygen_saturation, t.pain_scale
-        ].filter(v => v !== undefined && v !== null && v !== 0).length;
+        ].filter(v => Number(v) > 0).length;
         const filledGCS = [
-          t.gcs_e !== undefined && t.gcs_e !== null ? 1 : 0,
-          t.gcs_v !== undefined && t.gcs_v !== null ? 1 : 0,
-          t.gcs_m !== undefined && t.gcs_m !== null ? 1 : 0,
-        ].reduce((a, b) => a + b, 0);
+          t.gcs_e,
+          t.gcs_v,
+          t.gcs_m,
+        ].filter(v => Number(v) > 0).length;
         const filledTriage = filledText + filledNumeric + filledGCS;
         emitMedicalRecordTabIndicator("triage", `${filledTriage}/22`);
         emitMedicalRecordTabSaved("triage", !!t.id && filledTriage > 0);
@@ -437,68 +528,101 @@ export default function VisitShow() {
         emitMedicalRecordTabIndicator("triage", "0/22");
       }
 
-      // Anamnesis: count filled fields out of 7
-      // Note: allergies are counted from structured patient allergies by the form itself,
-      // but preload can only check the legacy text field. The form will update the count on mount.
+      // Anamnesis: keep this formula consistent with `anamnesis-form.tsx`
+      // 8 text/select fields + 1 allergy bucket = total 9.
       if (summary.anamnesis) {
         const a = summary.anamnesis;
-        const textFields = [a.chief_complaint, a.history_of_present_illness, a.past_medical_history, a.family_history, a.social_history, a.current_medications];
+        const anamnesisSource = a.anamnesis_source || "autoanamnesis";
+        const textFields = [
+          anamnesisSource,
+          a.functional_status,
+          a.chief_complaint,
+          a.history_of_present_illness,
+          a.past_medical_history,
+          a.family_history,
+          a.social_history,
+          a.current_medications,
+        ];
         const filledText = textFields.filter(v => v && v.trim() !== "").length;
         const hasLegacyAllergy = isMeaningfulAllergySummary(a.allergies);
-        const filled = filledText + (hasLegacyAllergy ? 1 : 0);
-        emitMedicalRecordTabIndicator("anamnesis", `${filled}/7`);
+
+        let hasStructuredAllergy = false;
+        if (preloadPatientId) {
+          try {
+            const allergyRes = await patientAllergyApi.getByPatient(preloadPatientId);
+            hasStructuredAllergy = (allergyRes.data?.data?.length || 0) > 0;
+          } catch {
+            hasStructuredAllergy = false;
+          }
+        }
+
+        const hasAllergy = hasLegacyAllergy || hasStructuredAllergy;
+        const filled = filledText + (hasAllergy ? 1 : 0);
+        emitMedicalRecordTabIndicator("anamnesis", `${filled}/9`);
         emitMedicalRecordTabSaved("anamnesis", !!a.id && filled > 0);
       } else {
-        emitMedicalRecordTabIndicator("anamnesis", "0/7");
+        emitMedicalRecordTabIndicator("anamnesis", "0/9");
       }
 
-      // Physical Exam: body sections (13) + core fields (11) = total 24
+      // Physical Exam: body sections (13) + core fields (13) = total 26.
+      // Keep this formula aligned with `physical-exam-form.tsx` so indicator is correct
+      // even before user opens the tab.
       if (summary.physical_exam) {
         const p = summary.physical_exam;
+        const pExtras = p as unknown as { pain_scale?: unknown; pain_location?: unknown };
         const bodySectionIds = ["head", "eyes", "ears", "nose", "throat", "neck", "chest", "heart", "lungs", "abdomen", "extremities", "skin", "neurological"];
+        const hasText = (v: unknown) => typeof v === "string" && v.trim() !== "";
+        const hasPositiveNumber = (v: unknown) => {
+          const n = typeof v === "number" ? v : Number(v);
+          return Number.isFinite(n) && n > 0;
+        };
         const filledBody = bodySectionIds.filter(id => {
           const val = p[id as keyof typeof p];
-          return val && typeof val === "string" && val.trim() !== "";
+          return hasText(val);
         }).length;
         const filledVitals = [
-          p.general_condition ? 1 : 0,
-          p.consciousness ? 1 : 0,
-          (p.blood_pressure_systolic || p.systolic) ? 1 : 0,
-          (p.blood_pressure_diastolic || p.diastolic) ? 1 : 0,
-          p.heart_rate ? 1 : 0,
-          p.respiratory_rate ? 1 : 0,
-          p.temperature ? 1 : 0,
-          p.oxygen_saturation ? 1 : 0,
-          p.upper_arm_circum ? 1 : 0,
-          p.head_circum ? 1 : 0,
-          p.waist ? 1 : 0,
+          hasText(p.general_condition) ? 1 : 0,
+          hasText(p.consciousness) ? 1 : 0,
+          hasPositiveNumber(p.blood_pressure_systolic ?? p.systolic) ? 1 : 0,
+          hasPositiveNumber(p.blood_pressure_diastolic ?? p.diastolic) ? 1 : 0,
+          hasPositiveNumber(p.heart_rate) ? 1 : 0,
+          hasPositiveNumber(p.respiratory_rate) ? 1 : 0,
+          hasPositiveNumber(p.temperature) ? 1 : 0,
+          hasPositiveNumber(p.oxygen_saturation) ? 1 : 0,
+          hasPositiveNumber(pExtras.pain_scale) ? 1 : 0,
+          hasText(pExtras.pain_location) ? 1 : 0,
+          hasText(p.upper_arm_circum) ? 1 : 0,
+          hasText(p.head_circum) ? 1 : 0,
+          hasText(p.waist) ? 1 : 0,
         ].reduce((a, b) => a + b, 0);
         const totalFilled = filledBody + filledVitals;
-        emitMedicalRecordTabIndicator("physical-exam", `${totalFilled}/24`);
+        emitMedicalRecordTabIndicator("physical-exam", `${totalFilled}/26`);
         emitMedicalRecordTabSaved("physical-exam", !!p.id && totalFilled > 0);
       } else {
-        emitMedicalRecordTabIndicator("physical-exam", "0/24");
+        emitMedicalRecordTabIndicator("physical-exam", "0/26");
       }
 
-      // Diagnosis: count items + clinical_impression + differential_diagnosis
+      // Diagnosis: count items + item-level differential diagnoses + legacy global differential diagnosis
       if (summary.diagnosis) {
         const d = summary.diagnosis;
-        const count = (d.items?.length || 0) + (d.clinical_impression?.trim() ? 1 : 0) + (d.differential_diagnosis?.trim() ? 1 : 0);
+      const itemDifferentials = d.items?.filter((item: any) => item?.differential_diagnosis?.trim()).length || 0;
+      const legacyDifferential = d.differential_diagnosis?.trim() ? 1 : 0;
+      const count = (d.items?.length || 0) + itemDifferentials + legacyDifferential;
         emitMedicalRecordTabIndicator("diagnosis", `${count}`);
         emitMedicalRecordTabSaved("diagnosis", count > 0);
       } else {
         emitMedicalRecordTabIndicator("diagnosis", "0");
       }
 
-      // Assessment Plan: count filled fields out of 10
+      // Assessment Plan: count filled fields out of 11 (including informed consent)
       if (summary.assessment_plan) {
         const ap = summary.assessment_plan;
-        const apFields = [ap.clinical_assessment, ap.treatment_plan, ap.prognosis, ap.medication_plan, ap.diet_plan, ap.activity_plan, ap.education_plan, ap.procedure_plan, ap.consultation_plan, ap.monitoring_plan];
+        const apFields = [ap.clinical_assessment, ap.treatment_plan, ap.prognosis, ap.medication_plan, ap.diet_plan, ap.activity_plan, ap.education_plan, ap.procedure_plan, ap.consultation_plan, ap.monitoring_plan, (ap as any).informed_consent];
         const filledAP = apFields.filter(v => v && v.trim() !== "").length;
-        emitMedicalRecordTabIndicator("assessment-plan", `${filledAP}/10`);
+        emitMedicalRecordTabIndicator("assessment-plan", `${filledAP}/11`);
         emitMedicalRecordTabSaved("assessment-plan", !!ap.id && filledAP > 0);
       } else {
-        emitMedicalRecordTabIndicator("assessment-plan", "0/10");
+        emitMedicalRecordTabIndicator("assessment-plan", "0/11");
       }
     } catch {
       // Ignore — indicators will be set when forms mount
@@ -530,6 +654,14 @@ export default function VisitShow() {
           const r = await medicineOrdersApi.getAll({ source_visit_id: visitId });
           const orders = Array.isArray(r.data) ? r.data : [];
           return orders.filter((order: any) => order?.status !== "cancelled").length;
+        },
+      },
+      {
+        key: "medicine-timesheet",
+        fetch: async () => {
+          const today = new Date().toISOString().slice(0, 10);
+          const r = await medicineOrdersApi.getTimesheet(visitId, today);
+          return Array.isArray(r.data?.items) ? r.data.items.length : 0;
         },
       },
       {
@@ -588,6 +720,72 @@ export default function VisitShow() {
     loadVisit(true); // Silent reload to update visit data without showing loading state
   };
 
+  const handleSaveActiveTabFromFooter = () => {
+    const saved = triggerActiveTabSave();
+    if (!saved) {
+      toast({
+        title: "Simpan tidak tersedia",
+        description: "Tab aktif tidak memiliki aksi simpan.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleCancelActiveTabFromFooter = () => {
+    window.location.reload();
+  };
+
+  useEffect(() => {
+    const root = tabContentContainerRef.current;
+    if (!root) return;
+
+    const syncInlineActionButtons = () => {
+      const panes = Array.from(root.querySelectorAll<HTMLElement>("[data-mr-tab-pane]"));
+      for (const pane of panes) {
+        const tabId = pane.dataset.mrTabPane || "";
+        const hideInlineActionButtons = shouldUseFooterActionForTab(tabId);
+        const buttons = Array.from(pane.querySelectorAll<HTMLButtonElement>("button"));
+
+        for (const button of buttons) {
+          const label = (button.textContent || "").trim().toLowerCase();
+          const isPrimaryAction = INLINE_PRIMARY_ACTION_REGEX.test(label);
+          const hiddenByFooter = button.getAttribute("data-hidden-by-footer") === "true";
+
+          if (hideInlineActionButtons && isPrimaryAction) {
+            if (!hiddenByFooter) {
+              button.style.display = "none";
+              button.setAttribute("aria-hidden", "true");
+              button.setAttribute("data-hidden-by-footer", "true");
+            }
+            continue;
+          }
+
+          if (hiddenByFooter) {
+            button.style.removeProperty("display");
+            button.removeAttribute("aria-hidden");
+            button.removeAttribute("data-hidden-by-footer");
+          }
+        }
+      }
+    };
+
+    syncInlineActionButtons();
+
+    const observer = new MutationObserver(() => {
+      syncInlineActionButtons();
+    });
+
+    observer.observe(root, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [activeTab, mountedTabs]);
+
   useEffect(() => {
     const handleIndicatorUpdate = (event: Event) => {
       const customEvent = event as CustomEvent<{ tabId: string; value: string }>;
@@ -638,12 +836,12 @@ export default function VisitShow() {
       const filledText = triageTextFields.filter((v: any) => v && String(v).trim() !== "").length;
       const filledNumeric = [
         data.heart_rate, data.respiratory_rate, data.temperature, data.oxygen_saturation, data.pain_scale
-      ].filter((v: any) => v !== undefined && v !== null && v !== 0).length;
+      ].filter((v: any) => Number(v) > 0).length;
       const filledGCS = [
-        data.gcs_e !== undefined && data.gcs_e !== null ? 1 : 0,
-        data.gcs_v !== undefined && data.gcs_v !== null ? 1 : 0,
-        data.gcs_m !== undefined && data.gcs_m !== null ? 1 : 0,
-      ].reduce((a: number, b: number) => a + b, 0);
+        data.gcs_e,
+        data.gcs_v,
+        data.gcs_m,
+      ].filter((v: any) => Number(v) > 0).length;
       emitMedicalRecordTabIndicator("triage", `${filledText + filledNumeric + filledGCS}/22`);
       // Trigger refresh print options dan final visit
       window.dispatchEvent(new CustomEvent("refresh-print-options"));
@@ -972,6 +1170,27 @@ export default function VisitShow() {
             visitId={visit.id}
             registrationId={visit.registration_id}
             sourceRoomId={visit.room_id}
+            sourceServiceType={visit.room?.service_type}
+            readOnly={isPatientDischarged}
+          />
+        );
+      case "medicine-timesheet":
+        // Medicine timesheet only for clinical visits (not support visits)
+        if (isSupportVisit) {
+          return renderWrongVisitTypeMessage("klinis (Rawat Jalan/Rawat Inap/UGD)");
+        }
+        if (!hasPermission("medical_records.medicine_order")) {
+          return (
+            <Card className="p-6">
+              <p className="text-center text-muted-foreground">
+                Anda tidak memiliki akses untuk Timesheet Obat
+              </p>
+            </Card>
+          );
+        }
+        return (
+          <MedicineTimesheetForm
+            visitId={visit.id}
             readOnly={isPatientDischarged}
           />
         );
@@ -1312,47 +1531,137 @@ export default function VisitShow() {
   }
 
   return (
-    <div>
-      {/* Patient Info + Tabs Header - Sticky */}
-      <div className="sticky top-0 z-40 bg-background">
-        <div className="px-3 sm:px-6 pt-3 sm:pt-4 pb-2">
-        <PatientInfo visit={visit} onCopyHistoryOpen={() => setCopyHistoryDrawerOpen(true)} />
-        </div>
-
-        <div className="px-3 sm:px-6 pb-2">
-          <MedicalRecordTabs
-            activeTab={activeTab}
-            onTabChange={handleTabChange}
-            indicators={tabIndicators}
-            savedStates={tabSavedStates}
-            isEmergency={isEmergency}
-            isPharmacy={isPharmacy}
-            isRadiology={isRadiology}
-            isLaboratory={isLaboratory}
-            isConsultation={isConsultation}
-            isSurgery={isSurgery}
-            showProcedureTab={showProcedureTab}
-            isInpatient={isInpatient}
-          />
-        </div>
-      </div>
-
-      {/* Main Content Area with Tabs and Form */}
-      <div className="px-3 sm:px-6 pb-4 sm:pb-6 pt-2">
-        <div className="min-w-0">
-          <div className="mb-4">
-            <VisitMedicineSummary items={medicalRecordSummary?.visit_medicine_items} />
-          </div>
-          {Array.from(mountedTabs).map(tab => (
-            <div
-              key={tab}
-              data-mr-tab-pane={tab}
-              className={tab === activeTab ? "" : "hidden"}
-            >
-              {renderTabContent(tab)}
+    <div className="flex h-full min-h-0 flex-col px-3 pb-3 pt-3 sm:px-6 sm:pb-4 sm:pt-4">
+      <div className="grid min-h-0 flex-1 gap-0 border xl:grid-cols-[minmax(240px,15%)_minmax(0,85%)] 2xl:grid-cols-[minmax(260px,15%)_minmax(0,85%)]">
+        <aside className="min-h-0 min-w-0 border-r">
+          <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
+            <div className="min-h-[190px] shrink-0 basis-[30%] border-b">
+              <PatientInfo
+                visit={visit}
+                variant="compact"
+                onCopyHistoryOpen={() => setCopyHistoryDrawerOpen(true)}
+                onVisitRefresh={() => loadVisit(true)}
+              />
             </div>
-          ))}
-        </div>
+            <div className="min-h-0 flex-1 basis-[70%]">
+              <MedicalRecordTabs
+                activeTab={activeTab}
+                onTabChange={handleTabChange}
+                layout="vertical"
+                indicators={tabIndicators}
+                savedStates={tabSavedStates}
+                isEmergency={isEmergency}
+                isPharmacy={isPharmacy}
+                isRadiology={isRadiology}
+                isLaboratory={isLaboratory}
+                isConsultation={isConsultation}
+                isSurgery={isSurgery}
+                showProcedureTab={showProcedureTab}
+                isInpatient={isInpatient}
+              />
+            </div>
+          </div>
+        </aside>
+
+        <main className="flex min-h-0 min-w-0 flex-col overflow-hidden bg-card">
+          <div className="sticky top-0 z-20 shrink-0 border-b bg-background px-3 py-2 sm:px-4">
+            <div className="flex items-center justify-end gap-2">
+              <TooltipProvider delayDuration={200}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8 rounded-none"
+                  onClick={() => setObservationDrawerOpen(true)}
+                  title="Observasi"
+                  aria-label="Observasi"
+                >
+                  <Activity className="h-4 w-4" />
+                </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Observasi</TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8 rounded-none"
+                  onClick={() => setCopyHistoryDrawerOpen(true)}
+                  disabled={!patientId}
+                  title="Riwayat"
+                  aria-label="Riwayat"
+                >
+                  <History className="h-4 w-4" />
+                </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Riwayat</TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div>
+                <MedicalRecordPrintSelect
+                  visitId={visit.id}
+                  isInpatient={isInpatient}
+                  isEmergency={isEmergency}
+                  iconOnly
+                  triggerClassName="h-8 w-8 rounded-none"
+                />
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>Cetak</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+          </div>
+
+          {!!medicalRecordSummary?.visit_medicine_items?.length && (
+            <div className="shrink-0 border-b p-3 sm:p-4">
+              <VisitMedicineSummary items={medicalRecordSummary?.visit_medicine_items} />
+            </div>
+          )}
+
+          <div ref={tabContentContainerRef} className="min-h-0 min-w-0 flex-1 overflow-y-auto p-3 sm:p-4">
+            {Array.from(mountedTabs).map(tab => (
+              <div
+                key={tab}
+                data-mr-tab-pane={tab}
+                className={tab === activeTab ? "" : "hidden"}
+              >
+                {renderTabContent(tab)}
+              </div>
+            ))}
+          </div>
+
+          {!isEditTab && (
+            <div className="sticky bottom-0 z-20 shrink-0 border-t bg-background px-3 py-2 sm:px-4">
+              <div className="flex items-center justify-end gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 rounded-none"
+                  onClick={handleCancelActiveTabFromFooter}
+                >
+                  <X className="mr-1.5 h-3.5 w-3.5" />
+                  Batal
+                </Button>
+                {!isFooterActionHiddenTab && !isAdministrativeTab && (
+                  <Button
+                    size="sm"
+                    className="h-8 rounded-none"
+                    onClick={handleSaveActiveTabFromFooter}
+                  >
+                    <Save className="mr-1.5 h-3.5 w-3.5" />
+                    {isFinalTab ? "Final" : isOrderTab ? "Kirim" : "Simpan"}
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+        </main>
       </div>
 
       {/* Visit History Drawer */}
@@ -1368,6 +1677,16 @@ export default function VisitShow() {
           onVisitSelect={handleVisitSelect}
         />
       )}
+
+      <ObservationReportDrawer
+        open={observationDrawerOpen}
+        onOpenChange={setObservationDrawerOpen}
+        visitId={visit.id}
+        patientId={patientId || undefined}
+        patientName={patientName}
+        visitStartAt={visit?.start_time || visit?.check_in_time || visit?.created_at}
+        summary={medicalRecordSummary}
+      />
 
       {/* Copy from History Drawer */}
       {patientId && (

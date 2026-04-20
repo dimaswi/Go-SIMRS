@@ -37,6 +37,8 @@ interface SearchResultItem {
   code: string;
   description: string;
   im?: boolean;
+  validcode?: string;
+  accpdx?: string;
 }
 
 interface ExpandedItem {
@@ -62,6 +64,27 @@ interface IDRGGrouperParsed {
   nbr?: string;
   status_cd?: string;
 }
+
+const isValidCodeOne = (value: unknown): boolean => {
+  if (typeof value === 'number') return value === 1;
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    return normalized === '1' || normalized === 'true' || normalized === 't';
+  }
+  // Default true to avoid blocking when source does not provide validcode.
+  return true;
+};
+
+const isAccPdxPrimaryAllowed = (value: unknown): boolean => {
+  if (typeof value === 'string') {
+    return value.trim().toUpperCase() === 'Y';
+  }
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value === 1;
+  // Default allow when source does not provide ACCPDX explicitly.
+  return true;
+};
 
 export default function IDRGCodingTab({ detail, onRefresh }: IDRGCodingTabProps) {
   const { toast } = useToast();
@@ -211,7 +234,8 @@ export default function IDRGCodingTab({ detail, onRefresh }: IDRGCodingTabProps)
       setDiagSearchResults(data.map((item: any) => ({
         code: item.code || item[1] || '',
         description: item.description || item[0] || '',
-        im: !!item.im,
+        validcode: item.validcode ?? item.valid_code ?? '1',
+        accpdx: item.accpdx ?? item.acc_pdx ?? 'Y',
       })));
     } catch (err: any) {
       toast({ variant: 'destructive', title: 'Error!', description: err?.response?.data?.error || 'Gagal mencari diagnosa.' });
@@ -225,6 +249,29 @@ export default function IDRGCodingTab({ detail, onRefresh }: IDRGCodingTabProps)
     if (!trimmed || diagCodes.includes(trimmed)) return;
     setDiagCodes(prev => [...prev, trimmed]);
     setDiagInput('');
+  };
+
+  const addDiagFromSearch = (item: SearchResultItem) => {
+    if (!isValidCodeOne(item.validcode)) {
+      toast({
+        variant: 'destructive',
+        title: 'Diagnosa tidak valid untuk grouping',
+        description: `Kode ${item.code} memiliki VALIDCODE 0.`,
+      });
+      return;
+    }
+
+    const canBePrimary = isAccPdxPrimaryAllowed(item.accpdx);
+    if (diagCodes.length === 0 && !canBePrimary) {
+      toast({
+        variant: 'destructive',
+        title: 'Diagnosa utama tidak valid',
+        description: `Kode ${item.code} ACCPDX=N, hanya boleh sebagai diagnosa sekunder. Pilih diagnosa utama (ACCPDX=Y) terlebih dahulu.`,
+      });
+      return;
+    }
+
+    addDiagCode(item.code);
   };
 
   const removeDiagCode = (index: number) => {
@@ -242,7 +289,8 @@ export default function IDRGCodingTab({ detail, onRefresh }: IDRGCodingTabProps)
       setProcSearchResults(data.map((item: any) => ({
         code: item.code || item[1] || '',
         description: item.description || item[0] || '',
-        im: !!item.im,
+        validcode: item.validcode ?? item.valid_code ?? '1',
+        accpdx: item.accpdx ?? item.acc_pdx ?? 'Y',
       })));
     } catch (err: any) {
       toast({ variant: 'destructive', title: 'Error!', description: err?.response?.data?.error || 'Gagal mencari prosedur.' });
@@ -259,6 +307,26 @@ export default function IDRGCodingTab({ detail, onRefresh }: IDRGCodingTabProps)
     setProcMultiplicity(1);
   };
 
+  const addProcFromSearch = (item: SearchResultItem) => {
+    if (!isValidCodeOne(item.validcode)) {
+      toast({
+        variant: 'destructive',
+        title: 'Procedure tidak valid untuk grouping',
+        description: `Kode ${item.code} memiliki VALIDCODE 0.`,
+      });
+      return;
+    }
+    if (!isAccPdxPrimaryAllowed(item.accpdx)) {
+      toast({
+        variant: 'destructive',
+        title: 'Procedure tidak valid untuk grouping',
+        description: `Kode ${item.code} memiliki ACCPDX=N.`,
+      });
+      return;
+    }
+    addProcEntry(item.code);
+  };
+
   const removeProcEntry = (index: number) => {
     setProcEntries(prev => prev.filter((_, i) => i !== index));
   };
@@ -269,6 +337,19 @@ export default function IDRGCodingTab({ detail, onRefresh }: IDRGCodingTabProps)
 
   // ========= API Actions =========
   const handleSetDiagnosa = async () => {
+    const primaryCode = diagCodes[0];
+    if (primaryCode) {
+      const primaryMeta = diagSearchResults.find((it) => it.code.trim().toUpperCase() === primaryCode.trim().toUpperCase());
+      if (primaryMeta && !isAccPdxPrimaryAllowed(primaryMeta.accpdx)) {
+        toast({
+          variant: 'destructive',
+          title: 'Diagnosa utama tidak valid',
+          description: `Kode utama ${primaryCode} memiliki ACCPDX=N. Diagnosa utama wajib ACCPDX=Y.`,
+        });
+        return;
+      }
+    }
+
     setSubmitting(true);
     try {
       const diagnosa = diagCodes.length > 0 ? diagCodes.join('#') : '#';
@@ -305,8 +386,20 @@ export default function IDRGCodingTab({ detail, onRefresh }: IDRGCodingTabProps)
   const handleGrouper = async () => {
     setSubmitting(true);
     try {
+      // Auto set diagnosa before grouping
+      const diagnosa = diagCodes.length > 0 ? diagCodes.join('#') : '#';
+      const diagRes = await eklaimLocalApi.sendIDRGDiagnosaSet(detail.id, { diagnosa });
+      setDiagExpanded(diagRes?.response?.data?.expanded || diagRes?.data?.expanded || diagRes?.expanded || []);
+
+      // Auto set procedure before grouping
+      const procedure = procEntries.length > 0
+        ? procEntries.map(e => e.multiplicity > 1 ? `${e.code}+${e.multiplicity}` : e.code).join('#')
+        : '#';
+      await eklaimLocalApi.sendIDRGProcedureSet(detail.id, { procedure });
+
+      // Grouping
       await eklaimLocalApi.sendGrouperIDRG(detail.id);
-      setGroupedOverride(true);  // immediately hide coding form
+      setGroupedOverride(true);
       setCodingEditMode(false);
       toast({ variant: 'success', title: 'Berhasil!', description: 'Grouping iDRG berhasil.' });
       onRefresh();
@@ -379,8 +472,10 @@ export default function IDRGCodingTab({ detail, onRefresh }: IDRGCodingTabProps)
       {showCodingForm && (
         <>
           {/* ==================== DIAGNOSA & PROSEDUR ==================== */}
-          <div className="rounded-lg border p-4 space-y-4">
+          <div className="rounded-lg border p-4">
+            <div className="grid grid-cols-2 gap-6">
             {/* --- Diagnosa --- */}
+            <div className="space-y-3">
             <div className="flex items-center justify-between">
               <Label className="text-sm font-medium">Diagnosa (ICD-10 IM)</Label>
               {detail.idrg_diagnosa && (
@@ -415,7 +510,7 @@ export default function IDRGCodingTab({ detail, onRefresh }: IDRGCodingTabProps)
                       Tambah Diagnosa
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="max-w-lg">
+                  <DialogContent className="max-w-2xl">
                     <DialogHeader>
                       <DialogTitle>Cari & Tambah Diagnosa ICD-10 IM</DialogTitle>
                     </DialogHeader>
@@ -435,26 +530,42 @@ export default function IDRGCodingTab({ detail, onRefresh }: IDRGCodingTabProps)
                       </div>
                       {/* Search results */}
                       {diagSearchResults.length > 0 && (
-                        <div className="max-h-60 overflow-y-auto rounded border bg-muted/50 divide-y">
+                        <div className="max-h-64 overflow-y-auto rounded border bg-background divide-y">
                           {diagSearchResults.map((item, i) => (
                             <button
                               key={i}
                               type="button"
-                              className="w-full text-left px-3 py-2 hover:bg-accent text-xs flex items-center gap-2"
-                              onClick={() => addDiagCode(item.code)}
+                              className={`w-full text-left px-3 py-2.5 text-xs ${isValidCodeOne(item.validcode) ? 'hover:bg-accent' : 'bg-amber-50/70 dark:bg-amber-950/20 hover:bg-amber-50 dark:hover:bg-amber-950/30'}`}
+                              onClick={() => addDiagFromSearch(item)}
                             >
-                              <span className="font-mono font-medium shrink-0">{item.code}</span>
-                              <span className="text-muted-foreground truncate">{item.description}</span>
-                              {item.im && (
-                                <Badge variant="outline" className="shrink-0 text-[10px] px-1.5 py-0 h-4 border-blue-400 text-blue-600 dark:text-blue-400">IM</Badge>
-                              )}
-                              {diagCodes.includes(item.code.trim().toUpperCase()) && (
-                                <CheckCircle className="h-3.5 w-3.5 text-green-600 shrink-0 ml-auto" />
-                              )}
+                              <div className="grid grid-cols-[88px_minmax(0,1fr)_auto] items-center gap-2 w-full">
+                                <span className="font-mono font-medium">{item.code}</span>
+                                <span className="text-muted-foreground truncate pr-2">{item.description}</span>
+                                <div className="justify-self-end flex items-center justify-end gap-1.5 flex-wrap max-w-[260px]">
+                                  {isValidCodeOne(item.validcode) ? (
+                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 border-emerald-400 text-emerald-700 dark:text-emerald-400">VALIDCODE: 1</Badge>
+                                  ) : (
+                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 border-amber-500 text-amber-700 dark:text-amber-400">VALIDCODE: 0</Badge>
+                                  )}
+                                  <Badge variant="outline" className={`text-[10px] px-1.5 py-0 h-4 ${isAccPdxPrimaryAllowed(item.accpdx) ? 'border-sky-400 text-sky-700 dark:text-sky-400' : 'border-rose-400 text-rose-700 dark:text-rose-400'}`}>
+                                    ACCPDX: {isAccPdxPrimaryAllowed(item.accpdx) ? 'Y' : 'N'}
+                                  </Badge>
+                                  {!isValidCodeOne(item.validcode) && <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />}
+                                  {diagCodes.includes(item.code.trim().toUpperCase()) && (
+                                    <CheckCircle className="h-3.5 w-3.5 text-green-600" />
+                                  )}
+                                </div>
+                              </div>
                             </button>
                           ))}
                         </div>
                       )}
+                      <p className="text-[11px] text-amber-700 dark:text-amber-400">
+                        Kode dengan VALIDCODE 0 tetap ditampilkan. Jika diklik, akan muncul peringatan.
+                      </p>
+                      <p className="text-[11px] text-sky-700 dark:text-sky-400">
+                        ACCPDX=Y boleh jadi diagnosa utama. ACCPDX=N hanya boleh sebagai diagnosa sekunder.
+                      </p>
                       {/* Manual input */}
                       <Separator />
                       <p className="text-xs text-muted-foreground">Atau masukkan kode manual:</p>
@@ -517,9 +628,9 @@ export default function IDRGCodingTab({ detail, onRefresh }: IDRGCodingTabProps)
               </div>
             )}
 
-            <Separator />
-
+            </div>
             {/* --- Prosedur --- */}
+            <div className="space-y-3">
             <div className="flex items-center justify-between">
               <Label className="text-sm font-medium">Prosedur (ICD-9-CM IM)</Label>
               {detail.idrg_procedure && (
@@ -566,7 +677,7 @@ export default function IDRGCodingTab({ detail, onRefresh }: IDRGCodingTabProps)
                       Tambah Prosedur
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="max-w-lg">
+                  <DialogContent className="max-w-2xl">
                     <DialogHeader>
                       <DialogTitle>Cari & Tambah Prosedur ICD-9-CM IM</DialogTitle>
                     </DialogHeader>
@@ -586,23 +697,43 @@ export default function IDRGCodingTab({ detail, onRefresh }: IDRGCodingTabProps)
                       </div>
                       {/* Search results */}
                       {procSearchResults.length > 0 && (
-                        <div className="max-h-60 overflow-y-auto rounded border bg-muted/50 divide-y">
+                        <div className="max-h-64 overflow-y-auto rounded border bg-background divide-y">
                           {procSearchResults.map((item, i) => (
                             <button
                               key={i}
                               type="button"
-                              className="w-full text-left px-3 py-2 hover:bg-accent text-xs flex items-center gap-2"
-                              onClick={() => addProcEntry(item.code)}
+                              className={`w-full text-left px-3 py-2.5 text-xs ${isValidCodeOne(item.validcode) ? 'hover:bg-accent' : 'bg-amber-50/70 dark:bg-amber-950/20 hover:bg-amber-50 dark:hover:bg-amber-950/30'}`}
+                              onClick={() => addProcFromSearch(item)}
                             >
-                              <span className="font-mono font-medium shrink-0">{item.code}</span>
-                              <span className="text-muted-foreground truncate">{item.description}</span>
-                              {item.im && (
-                                <Badge variant="outline" className="shrink-0 text-[10px] px-1.5 py-0 h-4 border-blue-400 text-blue-600 dark:text-blue-400">IM</Badge>
-                              )}
+                              <div className="grid grid-cols-[88px_minmax(0,1fr)_auto] items-center gap-2 w-full">
+                                <span className="font-mono font-medium">{item.code}</span>
+                                <span className="text-muted-foreground truncate pr-2">{item.description}</span>
+                                <div className="justify-self-end flex items-center justify-end gap-1.5 flex-wrap max-w-[260px]">
+                                  {isValidCodeOne(item.validcode) ? (
+                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 border-emerald-400 text-emerald-700 dark:text-emerald-400">VALIDCODE: 1</Badge>
+                                  ) : (
+                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 border-amber-500 text-amber-700 dark:text-amber-400">VALIDCODE: 0</Badge>
+                                  )}
+                                  <Badge variant="outline" className={`text-[10px] px-1.5 py-0 h-4 ${isAccPdxPrimaryAllowed(item.accpdx) ? 'border-sky-400 text-sky-700 dark:text-sky-400' : 'border-rose-400 text-rose-700 dark:text-rose-400'}`}>
+                                    ACCPDX: {isAccPdxPrimaryAllowed(item.accpdx) ? 'Y' : 'N'}
+                                  </Badge>
+                                  {!isValidCodeOne(item.validcode) && <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />}
+                                  {!isAccPdxPrimaryAllowed(item.accpdx) && <AlertTriangle className="h-3.5 w-3.5 text-rose-600" />}
+                                  {procEntries.some((e) => e.code.trim().toUpperCase() === item.code.trim().toUpperCase()) && (
+                                    <CheckCircle className="h-3.5 w-3.5 text-green-600" />
+                                  )}
+                                </div>
+                              </div>
                             </button>
                           ))}
                         </div>
                       )}
+                      <p className="text-[11px] text-amber-700 dark:text-amber-400">
+                        Prosedur dengan VALIDCODE 0 tetap ditampilkan. Jika diklik, akan muncul peringatan.
+                      </p>
+                      <p className="text-[11px] text-sky-700 dark:text-sky-400">
+                        Prosedur dengan ACCPDX=N tetap ditampilkan. Jika diklik, akan muncul peringatan.
+                      </p>
                       {/* Manual input */}
                       <Separator />
                       <p className="text-xs text-muted-foreground">Atau masukkan kode manual:</p>
@@ -676,136 +807,153 @@ export default function IDRGCodingTab({ detail, onRefresh }: IDRGCodingTabProps)
                 </div>
               </div>
             )}
+            </div>
+            </div>
           </div>
 
           <Separator />
         </>
       )}
 
-      {/* ===== GROUPER RESULT — always visible when data exists ===== */}
-      {(detail.idrg_code || grouperParsed) && (
-        <div className="rounded-lg border p-4 space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <Label className="text-sm font-medium">Hasil Grouping iDRG</Label>
-              <p className="text-xs text-muted-foreground">Hasil grouper iDRG</p>
+      {/* ===== GROUPER RESULT — hidden when editing ===== */}
+      {(detail.idrg_code || grouperParsed) && !codingEditMode && (
+        (() => {
+          const isFinal = !!detail.idrg_final_success;
+          const formatDateTime = (value?: string) => {
+            if (!value) return '';
+            const dt = new Date(value);
+            if (Number.isNaN(dt.getTime())) return value;
+            return new Intl.DateTimeFormat('id-ID', {
+              year: 'numeric',
+              month: '2-digit',
+              day: '2-digit',
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+            }).format(dt);
+          };
+          const jenisRawatLabel = (() => {
+            const jr = String(detail.jenis_rawat || '').trim();
+            if (jr === '1') return '1 - Rawat Inap (RI)';
+            if (jr === '2') return '2 - Rawat Jalan (RJ)';
+            return jr || '-';
+          })();
+          const mdcDescription = String(grouperParsed?.mdc_description || '').trim();
+          const drgDescription = String(detail.idrg_description || grouperParsed?.drg_description || '').trim();
+          const isUngroupableIDRG = /ungroupable|unrelated/.test(`${mdcDescription} ${drgDescription}`.toLowerCase());
+          const infoParts = [
+            formatDateTime(detail.idrg_grouper_sent_at || ''),
+            grouperParsed?.script_version || '',
+            grouperParsed?.logic_version || '',
+          ].filter(Boolean);
+
+          const rowClass = isFinal
+            ? 'border-b border-[#b7c7b7]'
+            : 'border-b border-[#c9c9c9]';
+          const leftCellClass = isFinal
+            ? 'w-44 px-3 py-2 text-right border-r border-[#b7c7b7] font-medium text-[#111]'
+            : 'w-44 px-3 py-2 text-right border-r border-[#c9c9c9] font-medium text-[#111]';
+          const rightCellClass = 'px-3 py-2 text-[#111]';
+
+          return (
+            <div className={`rounded border overflow-hidden ${isFinal ? 'bg-[#d6e4d6] border-[#b7c7b7]' : 'bg-[#f2f2f2] border-[#c9c9c9]'}`}>
+              <div className={`text-center font-semibold py-2 ${isFinal ? 'bg-[#bccfbc]' : 'bg-[#e8e8e8]'}`}>
+                {isFinal ? 'Hasil Grouping iDRG - Final' : 'Hasil Grouping iDRG'}
+              </div>
+
+              <table className="w-full text-sm border-collapse">
+                <tbody>
+                  <tr className={rowClass}>
+                    <td className={leftCellClass}>Info</td>
+                    <td className={rightCellClass}>{infoParts.length > 0 ? infoParts.join(' | ') : '-'}</td>
+                  </tr>
+                  <tr className={rowClass}>
+                    <td className={leftCellClass}>Jenis Rawat</td>
+                    <td className={rightCellClass}>{jenisRawatLabel}</td>
+                  </tr>
+                  <tr className={rowClass}>
+                    <td className={leftCellClass}>MDC</td>
+                    <td className={rightCellClass}>
+                      <div className="flex justify-between gap-3">
+                        <span className={isUngroupableIDRG ? 'text-red-600 font-semibold' : ''}>{grouperParsed?.mdc_description || '-'}</span>
+                        <span className="font-mono">{grouperParsed?.mdc_number || '-'}</span>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr className={rowClass}>
+                    <td className={leftCellClass}>DRG</td>
+                    <td className={rightCellClass}>
+                      <div className="flex justify-between gap-3">
+                        <span className={isUngroupableIDRG ? 'text-red-600 font-semibold' : ''}>{detail.idrg_description || grouperParsed?.drg_description || '-'}</span>
+                        <span className="font-mono">{detail.idrg_code || grouperParsed?.drg_code || '-'}</span>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr className={rowClass}>
+                    <td className={leftCellClass}>Cost Weight ** )</td>
+                    <td className={rightCellClass}>{detail.idrg_cost_weight || grouperParsed?.total_cost_weight || '-'}</td>
+                  </tr>
+                  <tr className={rowClass}>
+                    <td className={leftCellClass}>NBR ** )</td>
+                    <td className={rightCellClass}>{grouperParsed?.nbr || '-'}</td>
+                  </tr>
+                  <tr>
+                    <td className={leftCellClass}>Status</td>
+                    <td className={rightCellClass}>{detail.idrg_status_cd || grouperParsed?.status_cd || (isFinal ? 'final' : '-')}</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <div className={`px-3 py-2 text-blue-700 italic text-sm ${isFinal ? 'border-t border-[#b7c7b7]' : 'border-t border-[#c9c9c9]'}`}>
+                ** ) Catatan: Nilai belum final, sewaktu-waktu bisa berubah
+              </div>
+
+              <div className={`px-3 py-2 min-h-12 flex items-center justify-end gap-2 ${isFinal ? 'border-t border-[#b7c7b7]' : 'border-t border-[#c9c9c9]'}`}>
+                {/* Grouping iDRG */}
+                {buttons.grouping_idrg && !disabled && (!grouped || codingEditMode) && (
+                  <Button size="sm" onClick={handleGrouper} disabled={submitting}>
+                    {submitting ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <BarChart3 className="mr-1 h-4 w-4" />}
+                    Grouping iDRG
+                  </Button>
+                )}
+                {isUngroupableIDRG && !disabled && (
+                  <p className="text-xs text-red-600 self-center">
+                    Hasil grouper menunjukkan ungroupable/unrelated. Final iDRG dinonaktifkan.
+                  </p>
+                )}
+                {/* Ubah Coding iDRG: when grouped, not final, not already editing */}
+                {grouped && !disabled && !codingEditMode && (
+                  <Button variant="outline" size="sm" onClick={() => setCodingEditMode(true)}>
+                    <RotateCcw className="mr-1 h-4 w-4" />
+                    Ubah Coding iDRG
+                  </Button>
+                )}
+                {/* Final iDRG button: show after valid grouping */}
+                {grouped && !disabled && !isUngroupableIDRG && (
+                  <Button
+                    size="sm"
+                    onClick={handleFinal}
+                    disabled={submitting || !buttons.final_idrg}
+                  >
+                    {submitting ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-1 h-4 w-4" />}
+                    Final iDRG
+                  </Button>
+                )}
+                {/* Edit Ulang iDRG: show when final */}
+                {buttons.reedit_idrg && disabled && (
+                  <Button variant="outline" size="sm" onClick={handleReedit} disabled={submitting}>
+                    {submitting ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <RotateCcw className="mr-1 h-4 w-4" />}
+                    Edit Ulang iDRG
+                  </Button>
+                )}
+              </div>
             </div>
-            {grouped && (
-              <Badge className="bg-green-100 text-green-800">
-                <CheckCircle className="mr-1 h-3 w-3" /> Grouped
-              </Badge>
-            )}
-          </div>
-
-          {/* Main result card */}
-          <div className="p-4 rounded-lg bg-indigo-50 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-800">
-            <p className="text-xs font-semibold text-indigo-700 dark:text-indigo-300 mb-3 flex items-center gap-1.5">
-              <BarChart3 className="h-3.5 w-3.5" />
-              Hasil Grouping iDRG
-            </p>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-              <div>
-                <p className="text-muted-foreground text-xs">DRG Code</p>
-                <p className="font-mono text-lg font-bold text-indigo-700 dark:text-indigo-300">
-                  {detail.idrg_code || grouperParsed?.drg_code || '-'}
-                </p>
-              </div>
-              <div className="md:col-span-2">
-                <p className="text-muted-foreground text-xs">Deskripsi DRG</p>
-                <p className="font-medium">
-                  {detail.idrg_description || grouperParsed?.drg_description || '-'}
-                </p>
-              </div>
-              <div>
-                <p className="text-muted-foreground text-xs">Status</p>
-                <Badge
-                  variant={(detail.idrg_status_cd || grouperParsed?.status_cd) === 'normal' ? 'default' : 'destructive'}
-                  className="text-xs mt-0.5"
-                >
-                  {detail.idrg_status_cd || grouperParsed?.status_cd || '-'}
-                </Badge>
-              </div>
-            </div>
-
-            {/* Cost weight breakdown */}
-            <Separator className="my-3" />
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-              <div>
-                <p className="text-muted-foreground text-xs">Total Cost Weight</p>
-                <p className="font-mono text-base font-bold">
-                  {detail.idrg_cost_weight || grouperParsed?.total_cost_weight || '-'}
-                </p>
-              </div>
-              {grouperParsed?.cost_weight && (
-                <div>
-                  <p className="text-muted-foreground text-xs">Acute Weight</p>
-                  <p className="font-mono font-medium">{grouperParsed.cost_weight}</p>
-                </div>
-              )}
-              {grouperParsed?.sub_acute_weight && (
-                <div>
-                  <p className="text-muted-foreground text-xs">Sub-Acute Weight</p>
-                  <p className="font-mono font-medium">{grouperParsed.sub_acute_weight}</p>
-                </div>
-              )}
-              {grouperParsed?.chronic_weight && (
-                <div>
-                  <p className="text-muted-foreground text-xs">Chronic Weight</p>
-                  <p className="font-mono font-medium">{grouperParsed.chronic_weight}</p>
-                </div>
-              )}
-            </div>
-
-            {/* MDC info */}
-            {grouperParsed?.mdc_number && (
-              <>
-                <Separator className="my-3" />
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                  <div>
-                    <p className="text-muted-foreground text-xs">MDC</p>
-                    <p className="font-mono font-medium">{grouperParsed.mdc_number}</p>
-                  </div>
-                  <div className="md:col-span-2">
-                    <p className="text-muted-foreground text-xs">MDC Deskripsi</p>
-                    <p className="font-medium">{grouperParsed.mdc_description || '-'}</p>
-                  </div>
-                  {grouperParsed.nbr && (
-                    <div>
-                      <p className="text-muted-foreground text-xs">NBR</p>
-                      <p className="font-mono font-medium">{grouperParsed.nbr}</p>
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-
-            {/* Version info */}
-            {(grouperParsed?.script_version || grouperParsed?.logic_version) && (
-              <div className="mt-3 flex gap-4 text-[10px] text-muted-foreground">
-                {grouperParsed.script_version && <span>Script: {grouperParsed.script_version}</span>}
-                {grouperParsed.logic_version && <span>Logic: {grouperParsed.logic_version}</span>}
-              </div>
-            )}
-          </div>
-
-          {/* Ungroupable warning */}
-          {(detail.idrg_status_cd || grouperParsed?.status_cd) &&
-           (detail.idrg_status_cd || grouperParsed?.status_cd) !== 'normal' && (
-            <div className="flex items-start gap-2 p-3 rounded-md bg-destructive/10 border border-destructive/20">
-              <AlertTriangle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
-              <div>
-                <p className="text-sm font-medium text-destructive">Status Tidak Normal</p>
-                <p className="text-xs text-destructive/80">
-                  Grouping menghasilkan status "{detail.idrg_status_cd || grouperParsed?.status_cd}".
-                  Periksa kembali diagnosa dan prosedur yang diinput, atau konsultasikan dengan koder.
-                </p>
-              </div>
-            </div>
-          )}
-        </div>
+          );
+        })()
       )}
 
       {/* ==================== GROUPING / UBAH / FINAL / REEDIT — same row ==================== */}
+      {(!(detail.idrg_code || grouperParsed) || codingEditMode) && (
       <div className="flex flex-wrap items-center gap-2">
         {/* Grouping iDRG */}
         {buttons.grouping_idrg && !disabled && (!grouped || codingEditMode) && (
@@ -822,7 +970,7 @@ export default function IDRGCodingTab({ detail, onRefresh }: IDRGCodingTabProps)
           </Button>
         )}
         {/* Final iDRG button: show after valid grouping */}
-        {grouped && !disabled && (
+        {grouped && !disabled && !codingEditMode && (
           <Button
             size="sm"
             onClick={handleFinal}
@@ -846,6 +994,7 @@ export default function IDRGCodingTab({ detail, onRefresh }: IDRGCodingTabProps)
           </Button>
         )}
       </div>
+      )}
 
       {/* Raw Response JSON — Dialog modal */}
       {detail.idrg_grouper_response && (

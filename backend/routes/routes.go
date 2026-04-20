@@ -37,6 +37,7 @@ func SetupRoutes(r *gin.Engine) {
 
 			// Master data
 			setupMasterDataRoutes(protected)
+			setupPPKRoutes(protected)
 
 			// Counter management
 			setupCounterRoutes(protected)

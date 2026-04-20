@@ -92,7 +92,7 @@ export default function RegencyCreatePage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col p-4">
+    <div className="flex flex-1 flex-col px-4">
       <Card className="max-w-2xl">
         <CardHeader className="border-b bg-muted/50">
           <div className="flex items-center gap-4">

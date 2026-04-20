@@ -40,6 +40,8 @@ interface PrintSelectProps {
   isInpatient?: boolean;
   isEmergency?: boolean;
   refreshTrigger?: number; // Increment this to trigger data reload
+  iconOnly?: boolean;
+  triggerClassName?: string;
 }
 
 interface PrintOption {
@@ -79,7 +81,9 @@ export function MedicalRecordPrintSelect({
   visitId, 
   isInpatient = false,
   isEmergency = false,
-  refreshTrigger = 0
+  refreshTrigger = 0,
+  iconOnly = false,
+  triggerClassName,
 }: PrintSelectProps) {
   const { toast } = useToast();
   const user = useAuthStore((state) => state.user);
@@ -957,9 +961,20 @@ export function MedicalRecordPrintSelect({
 
   if (loading) {
     return (
-      <Button variant="outline" size="sm" disabled className="h-7 gap-1 text-xs whitespace-nowrap px-2.5">
+      <Button
+        variant="outline"
+        size="sm"
+        disabled
+        className={cn(
+          "text-xs whitespace-nowrap",
+          iconOnly ? "h-8 w-8 rounded-none p-0" : "h-7 gap-1 px-2.5",
+          triggerClassName
+        )}
+        aria-label="Memuat opsi cetak"
+        title="Memuat opsi cetak"
+      >
         <Loader2 className="h-3.5 w-3.5 animate-spin" />
-        Memuat...
+        {!iconOnly && "Memuat..."}
       </Button>
     );
   }
@@ -972,16 +987,28 @@ export function MedicalRecordPrintSelect({
           variant="outline"
           size="sm"
           disabled={loading || printing}
-          className="h-7 gap-1 text-xs whitespace-nowrap px-2.5 shrink-0"
+          className={cn(
+            "text-xs whitespace-nowrap shrink-0",
+            iconOnly ? "relative h-8 w-8 rounded-none p-0" : "h-7 gap-1 px-2.5",
+            triggerClassName
+          )}
+          aria-label="Cetak rekam medis"
+          title="Cetak rekam medis"
         >
           {loading || printing ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
           ) : (
             <Printer className="h-3.5 w-3.5" />
           )}
-          Cetak
-          {printOptions.length > 0 && (
-            <Badge variant="secondary" className="ml-0.5 h-4 min-w-4 px-1 text-[10px] leading-none">
+          {!iconOnly && "Cetak"}
+          {!iconOnly && printOptions.length > 0 && (
+            <Badge
+              variant="secondary"
+              className={cn(
+                "h-4 min-w-4 px-1 text-[10px] leading-none",
+                iconOnly ? "absolute -right-1 -top-1" : "ml-0.5"
+              )}
+            >
               {printOptions.length}
             </Badge>
           )}

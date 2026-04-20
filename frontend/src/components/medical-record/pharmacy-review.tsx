@@ -6,6 +6,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { usePermission } from "@/hooks/usePermission";
 import {
@@ -15,11 +22,12 @@ import {
   User,
   AlertTriangle,
   CheckCircle2,
-  XCircle,
   Clock,
 } from "lucide-react";
 import { medicineOrdersApi } from "@/lib/api";
 import type { MedicineOrder, PrescriptionReview } from "@/lib/api";
+
+const FOOTER_ACTION_EVENT = "medical-record-footer-action";
 
 interface PharmacyReviewProps {
   visitId: number;
@@ -191,6 +199,116 @@ export function PharmacyReview({ visitId, readOnly = false }: PharmacyReviewProp
     }
   };
 
+  const canReview = hasPermission("pharmacy.review");
+
+  // Check if order is already reviewed
+  const isAlreadyReviewed = selectedOrder?.status === "reviewed" ||
+    selectedOrder?.status === "preparing" ||
+    selectedOrder?.status === "ready" ||
+    selectedOrder?.status === "delivered" ||
+    selectedOrder?.status === "completed";
+
+  // Check if already approved (has existing review with is_approved = true)
+  const isAlreadyApproved = existingReview?.is_approved === true;
+
+  // Check if all checklist items are checked
+  const allChecklistCompleted =
+    reviewForm.drug_interaction_check &&
+    reviewForm.dose_check &&
+    reviewForm.duplication_check &&
+    reviewForm.allergy_check &&
+    reviewForm.contraindication_check &&
+    reviewForm.indication_check;
+
+  // Can only approve if all checklist is completed, not already reviewed, and not already approved
+  const canApprove = canReview && allChecklistCompleted && !isAlreadyReviewed && !isAlreadyApproved;
+
+  const submitReview = async () => {
+    if (!selectedOrder || submitting || readOnly || !canReview) return;
+    if (isAlreadyApproved) {
+      toast({
+        title: "Info",
+        description: "Telaah resep sudah disetujui.",
+      });
+      return;
+    }
+    if (isAlreadyReviewed && !existingReview) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Resep sudah ditelaah dan tidak dapat diubah.",
+      });
+      return;
+    }
+    if (!hasDecided) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Pilih keputusan telaah terlebih dahulu.",
+      });
+      return;
+    }
+    if (reviewForm.is_approved && !canApprove) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Lengkapi semua checklist untuk menyetujui resep.",
+      });
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await medicineOrdersApi.submitReview(selectedOrder.id, reviewForm);
+      toast({
+        title: "Berhasil",
+        description: reviewForm.is_approved
+          ? "Telaah resep disetujui"
+          : "Telaah resep tidak disetujui",
+      });
+      loadOrders();
+      window.dispatchEvent(new CustomEvent("refresh-print-options"));
+      window.dispatchEvent(new CustomEvent("refresh-final-visit"));
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.response?.data?.error || "Gagal menyimpan telaah resep",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  useEffect(() => {
+    const handleFooterAction = (event: Event) => {
+      const customEvent = event as CustomEvent<{
+        tabId: string;
+        action: "save" | "final";
+        handled: boolean;
+      }>;
+      if (customEvent.detail?.tabId !== "prescription-review") return;
+      customEvent.detail.handled = true;
+      void submitReview();
+    };
+
+    window.addEventListener(FOOTER_ACTION_EVENT, handleFooterAction as EventListener);
+    return () => {
+      window.removeEventListener(FOOTER_ACTION_EVENT, handleFooterAction as EventListener);
+    };
+  }, [
+    selectedOrder,
+    submitting,
+    readOnly,
+    canReview,
+    isAlreadyApproved,
+    isAlreadyReviewed,
+    existingReview,
+    hasDecided,
+    reviewForm,
+    canApprove,
+  ]);
+
   if (loading) {
     return (
       <div>
@@ -218,29 +336,11 @@ export function PharmacyReview({ visitId, readOnly = false }: PharmacyReviewProp
   }
 
   const patient = selectedOrder?.source_visit?.registration?.patient;
-  const canReview = hasPermission('pharmacy.review');
-  
-  // Check if order is already reviewed
-  const isAlreadyReviewed = selectedOrder?.status === 'reviewed' || 
-    selectedOrder?.status === 'preparing' || 
-    selectedOrder?.status === 'ready' || 
-    selectedOrder?.status === 'delivered' ||
-    selectedOrder?.status === 'completed';
-  
-  // Check if already approved (has existing review with is_approved = true)
-  const isAlreadyApproved = existingReview?.is_approved === true;
-  
-  // Check if all checklist items are checked
-  const allChecklistCompleted = 
-    reviewForm.drug_interaction_check &&
-    reviewForm.dose_check &&
-    reviewForm.duplication_check &&
-    reviewForm.allergy_check &&
-    reviewForm.contraindication_check &&
-    reviewForm.indication_check;
-  
-  // Can only approve if all checklist is completed, not already reviewed, and not already approved
-  const canApprove = canReview && allChecklistCompleted && !isAlreadyReviewed && !isAlreadyApproved;
+  const reviewDecision = hasDecided
+    ? reviewForm.is_approved
+      ? "approved"
+      : "rejected"
+    : "";
   const activeItems = selectedOrder?.items?.filter((i) => i.status !== "cancelled") || [];
   const grandTotal = activeItems.reduce((total, item) => {
     return total + getUnitPrice(item) * Number(item.quantity || 0);
@@ -554,88 +654,36 @@ export function PharmacyReview({ visitId, readOnly = false }: PharmacyReviewProp
                 {!hasDecided && allChecklistCompleted && !isAlreadyReviewed && !isAlreadyApproved && (
                   <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 text-sm bg-blue-50 dark:bg-blue-950 p-2 rounded">
                     <Clock className="h-4 w-4" />
-                    <span>Pilih Setuju atau Tidak Setuju untuk melanjutkan</span>
+                    <span>Pilih keputusan, lalu tekan Simpan di footer</span>
                   </div>
                 )}
 
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    variant={isAlreadyApproved || (hasDecided && reviewForm.is_approved) ? "default" : "outline"}
-                    className="flex-1"
-                    onClick={async () => {
-                      if (!selectedOrder || submitting || isAlreadyApproved) return;
-                      const newForm = { ...reviewForm, is_approved: true };
-                      setReviewForm(newForm);
+                <div className="space-y-2">
+                  <Label htmlFor="review-decision">Keputusan Telaah</Label>
+                  <Select
+                    value={reviewDecision}
+                    onValueChange={(value) => {
                       setHasDecided(true);
-                      
-                      // Auto submit when clicking Setuju
-                      setSubmitting(true);
-                      try {
-                        await medicineOrdersApi.submitReview(selectedOrder.id, newForm);
-                        toast({
-                          title: "Berhasil",
-                          description: "Telaah resep disetujui",
-                        });
-                        loadOrders();
-                        // Trigger refresh on final visit
-                        window.dispatchEvent(new CustomEvent("refresh-print-options"));
-                        window.dispatchEvent(new CustomEvent("refresh-final-visit"));
-                      } catch (error: any) {
-                        toast({
-                          variant: "destructive",
-                          title: "Error",
-                          description: error.response?.data?.error || "Gagal menyimpan telaah resep",
-                        });
-                      } finally {
-                        setSubmitting(false);
-                      }
-                    }}
-                    disabled={!canApprove || submitting || readOnly}
-                  >
-                    {submitting && reviewForm.is_approved && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                    <CheckCircle2 className="h-4 w-4 mr-2" />
-                    {isAlreadyApproved ? "Sudah Disetujui" : "Setuju"}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={hasDecided && !reviewForm.is_approved && !isAlreadyApproved ? "destructive" : "outline"}
-                    className="flex-1"
-                    onClick={async () => {
-                      if (!selectedOrder || submitting || isAlreadyApproved) return;
-                      const newForm = { ...reviewForm, is_approved: false };
-                      setReviewForm(newForm);
-                      setHasDecided(true);
-                      
-                      // Auto submit when clicking Tidak Setuju
-                      setSubmitting(true);
-                      try {
-                        await medicineOrdersApi.submitReview(selectedOrder.id, newForm);
-                        toast({
-                          variant: "destructive",
-                          title: "Berhasil",
-                          description: "Telaah resep tidak disetujui",
-                        });
-                        loadOrders();
-                        // Trigger refresh on final visit
-                        window.dispatchEvent(new CustomEvent("refresh-print-options"));
-                        window.dispatchEvent(new CustomEvent("refresh-final-visit"));
-                      } catch (error: any) {
-                        toast({
-                          variant: "destructive",
-                          title: "Error",
-                          description: error.response?.data?.error || "Gagal menyimpan telaah resep",
-                        });
-                      } finally {
-                        setSubmitting(false);
-                      }
+                      setReviewForm((prev) => ({
+                        ...prev,
+                        is_approved: value === "approved",
+                      }));
                     }}
                     disabled={!canReview || isAlreadyReviewed || isAlreadyApproved || submitting || readOnly}
                   >
-                    {submitting && !reviewForm.is_approved && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                    <XCircle className="h-4 w-4 mr-2" />
-                    Tidak Setuju
-                  </Button>
+                    <SelectTrigger id="review-decision">
+                      <SelectValue placeholder="Pilih keputusan" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="approved" disabled={!allChecklistCompleted}>
+                        Setuju
+                      </SelectItem>
+                      <SelectItem value="rejected">Tidak Setuju</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Gunakan tombol Simpan di footer untuk menyimpan telaah resep.
+                  </p>
                 </div>
               </div>
             </div>

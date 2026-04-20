@@ -167,6 +167,7 @@ export interface EKlaimLocal {
   claim_send_success: boolean;
   claim_reedit_sent_at?: string;
   claim_reedit_response: string;
+  claim_data_last_sync_at?: string;
 
   // === Button visibility (from GetButtonVisibility) ===
   buttons?: Record<string, boolean>;
@@ -232,6 +233,10 @@ export interface EKlaimRMDuplicate {
   id: number;
   eklaim_local_id: number;
   visit_id: number;
+
+  // Anamnesis meta
+  anamnesis_source?: string;
+  functional_status?: string;
   original_diagnoses_json?: string;
   original_procedures_json?: string;
   original_tarif_json?: string;
@@ -262,6 +267,9 @@ export interface EKlaimRMDuplicate {
   bmi: number;
   waist: string;
   head_circum: string;
+  pain_method: string;
+  pain_scale: number;
+  pain_location: string;
 
   // Body Systems (legacy composite)
   head_neck: string;
@@ -329,6 +337,7 @@ export interface EKlaimRMDuplicate {
   orders: EKlaimRMOrder[];
   medicine_items: EKlaimRMMedicineItem[];
   cppt_notes: EKlaimRMCPPT[];
+  nursing_cares: EKlaimRMNursingCare[];
   fluid_balances: EKlaimRMFluidBalance[];
   billing?: EKlaimRMBilling;
 
@@ -532,6 +541,7 @@ export interface EKlaimRMCPPT {
   rm_duplicate_id?: number;
   record_date: string;
   profession: string;
+  cppt_format?: "soap" | "sbar" | "tbak";
   staff_name: string;
   subjective: string;
   objective: string;
@@ -547,6 +557,8 @@ export interface EKlaimRMCPPT {
   is_fake: boolean;
   notes: string;
   sequence: number;
+  created_by_name?: string;
+  approved_by_name?: string;
 }
 
 export interface EKlaimRMFluidBalance {
@@ -576,6 +588,58 @@ export interface EKlaimRMFluidBalance {
   is_fake: boolean;
   notes: string;
   sequence: number;
+  created_by_name?: string;
+  approved_by_name?: string;
+}
+
+export interface EKlaimRMNursingCare {
+  id?: number;
+  rm_duplicate_id?: number;
+  record_date: string;
+  shift_type: string;
+  staff_name: string;
+  chief_complaint: string;
+  pain_assessment: string;
+  pain_scale?: number;
+  consciousness_level: string;
+  functional_status: string;
+  fall_risk_assessment: string;
+  fall_risk_score?: number;
+  nutrition_assessment: string;
+  skin_assessment: string;
+  pressure_ulcer_risk: string;
+  blood_pressure?: string;
+  heart_rate?: number;
+  respiratory_rate?: number;
+  temperature?: string;
+  oxygen_saturation?: number;
+  nursing_diagnosis: string;
+  nursing_diagnosis_code: string;
+  problem_etiology: string;
+  signs_symptoms: string;
+  nursing_outcome: string;
+  nursing_outcome_code: string;
+  outcome_indicators: string;
+  outcome_target: string;
+  nursing_intervention: string;
+  nursing_intervention_code: string;
+  observation_actions: string;
+  therapeutic_actions: string;
+  education_actions: string;
+  collaboration_actions: string;
+  implementation: string;
+  implementation_time: string;
+  patient_response: string;
+  evaluation_subjective: string;
+  evaluation_objective: string;
+  evaluation_analysis: string;
+  evaluation_planning: string;
+  problem_status: string;
+  is_fake: boolean;
+  notes: string;
+  sequence: number;
+  created_by_name?: string;
+  approved_by_name?: string;
 }
 
 export interface EKlaimRMBilling {
@@ -817,6 +881,8 @@ export interface OriginalMedicineOrderItem {
   id: number;
   medicine?: { id: number; name: string; code?: string; form?: string; strength?: string };
   quantity: number;
+  dispensed_qty?: number;
+  status?: string;
   unit?: string;
   dosage?: string;
   frequency?: string;
@@ -1125,6 +1191,22 @@ export const eklaimLocalApi = {
     return response.data;
   },
 
+  updateRMDuplicateAnamnesis: async (id: number, data: {
+    anamnesis_source?: string;
+    functional_status?: string;
+    chief_complaint?: string;
+    history_of_present_illness?: string;
+    past_medical_history?: string;
+    family_history?: string;
+    social_history?: string;
+    allergies?: string;
+    current_medications?: string;
+    review_of_systems?: string;
+  }) => {
+    const response = await api.put(`/eklaim-local/${id}/rm-duplicate/anamnesis`, data);
+    return response.data;
+  },
+
   syncRMFromVisit: async (id: number) => {
     const response = await api.post(`/eklaim-local/${id}/sync-rm-from-visit`);
     return response.data;
@@ -1194,6 +1276,11 @@ export const eklaimLocalApi = {
 
   getClaimPrint: async (id: number) => {
     const response = await api.get(`/eklaim-local/${id}/claim-print`);
+    return response.data;
+  },
+
+  syncClaimDataFromEKlaim: async (id: number) => {
+    const response = await api.post(`/eklaim-local/${id}/sync-claim-data`);
     return response.data;
   },
 

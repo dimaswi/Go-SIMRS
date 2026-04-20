@@ -103,6 +103,21 @@ const REG_TABS: RegTab[] = [
     serviceTypes: ["gawat_darurat"],
   },
   {
+    key: "laboratory",
+    label: "Laboratorium",
+    serviceTypes: ["laboratorium", "laboratorium_pk", "laboratorium_pa", "lab", "laboratory"],
+  },
+  {
+    key: "radiology",
+    label: "Radiologi",
+    serviceTypes: ["radiologi", "radiology"],
+  },
+  {
+    key: "pharmacy",
+    label: "Farmasi",
+    serviceTypes: ["farmasi", "depo_farmasi", "gudang_farmasi", "apotek", "pharmacy"],
+  },
+  {
     key: "admission_requests",
     label: "Permintaan Rawat Inap",
     serviceTypes: [],
@@ -204,9 +219,11 @@ export default function RegistrationIndex() {
   const tabRoomOptions = useMemo(() => {
     if (currentTab.serviceTypes.length === 0) return rooms;
     return rooms.filter((r) =>
-      currentTab.serviceTypes.some(
-        (st) => r.service_type?.toLowerCase() === st
-      )
+      currentTab.serviceTypes.some((st) => {
+        const serviceType = r.service_type?.toLowerCase();
+        const roomType = r.room_type?.toLowerCase();
+        return serviceType === st || roomType === st;
+      })
     );
   }, [rooms, currentTab]);
 
@@ -225,13 +242,16 @@ export default function RegistrationIndex() {
           activeStatuses.includes(r.status)
         ).length;
       } else {
-        counts[tab.key] = allRegistrations.filter(
-          (r) =>
+        counts[tab.key] = allRegistrations.filter((r) => {
+          const serviceType = r.destination_room?.service_type?.toLowerCase();
+          const roomType = r.destination_room?.room_type?.toLowerCase();
+          return (
             tab.serviceTypes.some(
-              (st) => r.destination_room?.service_type === st
+              (st) => serviceType === st || roomType === st
             ) &&
             activeStatuses.includes(r.status)
-        ).length;
+          );
+        }).length;
       }
     }
     return counts;
@@ -359,7 +379,12 @@ export default function RegistrationIndex() {
 
       // Filter by room service_type (tab)
       if (activeTab) {
-        params.service_type = activeTab;
+        const serviceTypeMap: Record<string, string> = {
+          laboratory: "penunjang_medis",
+          radiology: "penunjang_medis",
+          pharmacy: "farmasi",
+        };
+        params.service_type = serviceTypeMap[activeTab] || activeTab;
       }
 
       if (selectedRoom)
@@ -367,9 +392,30 @@ export default function RegistrationIndex() {
       if (selectedStatus !== "all") params.status = selectedStatus;
 
       const response = await registrationApi.getAll(params);
+      let registrationsData = response.data.data || [];
+
+      if (activeTab === "laboratory") {
+        const validRoomTypes = ["laboratorium", "laboratorium_pk", "laboratorium_pa", "lab", "laboratory"];
+        registrationsData = registrationsData.filter((r) => {
+          const roomType = r.destination_room?.room_type?.toLowerCase();
+          return validRoomTypes.includes(roomType || "");
+        });
+      } else if (activeTab === "radiology") {
+        registrationsData = registrationsData.filter((r) => {
+          const roomType = r.destination_room?.room_type?.toLowerCase();
+          return roomType === "radiologi" || roomType === "radiology";
+        });
+      } else if (activeTab === "pharmacy") {
+        const validRoomTypes = ["farmasi", "depo_farmasi", "gudang_farmasi", "apotek", "pharmacy"];
+        registrationsData = registrationsData.filter((r) => {
+          const roomType = r.destination_room?.room_type?.toLowerCase();
+          const serviceType = r.destination_room?.service_type?.toLowerCase();
+          return serviceType === "farmasi" || validRoomTypes.includes(roomType || "");
+        });
+      }
 
       // Sort by registration_date descending (newest first)
-      const sortedData = (response.data.data || []).sort(
+      const sortedData = registrationsData.sort(
         (a: Registration, b: Registration) => {
           const dateA = a.registration_date
             ? new Date(a.registration_date).getTime()
@@ -975,7 +1021,7 @@ export default function RegistrationIndex() {
   );
 
   return (
-    <div className="flex flex-1 flex-col p-4">
+    <div className="flex flex-1 flex-col px-4">
       {/* ── Header ────────────────────────────────────────────────── */}
       <div className="flex items-start justify-between">
         <div>

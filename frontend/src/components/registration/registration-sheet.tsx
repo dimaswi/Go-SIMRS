@@ -27,6 +27,8 @@ import { OrderRoomSelection } from "@/components/registration/order-room-selecti
 import { mapClinicalPackageToRegistrationSelections, mergeRoomMedicinesWithClinicalPackage, mergeRoomProceduresWithClinicalPackage } from "@/lib/clinical-package-utils";
 import { useNavigate } from "react-router-dom";
 
+const normalizeRoomType = (value?: string) => (value || "").trim().toLowerCase();
+
 interface RegistrationSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -89,6 +91,17 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
   const [activeRegistration, setActiveRegistration] = useState<any>(null);
   const [scheduledFollowUps, setScheduledFollowUps] = useState<Registration[]>([]);
   const doctorRequired = !["farmasi", "penunjang_medis"].includes(selectedServiceType);
+  const destinationRoom = rooms.find((room) => room.id === destinationRoomId);
+
+  const isDirectLaboratoryRoom = ["laboratorium", "laboratorium_pk", "laboratorium_pa", "lab"].includes(normalizeRoomType(destinationRoom?.room_type));
+  const isDirectRadiologyRoom = ["radiologi", "radiology"].includes(normalizeRoomType(destinationRoom?.room_type));
+  const isDirectPharmacyRoom = destinationRoom?.service_type === "farmasi" || ["farmasi", "depo_farmasi", "gudang_farmasi", "apotek", "pharmacy"].includes(normalizeRoomType(destinationRoom?.room_type));
+
+  const destinationRoomHandlesProcedureDirectly = (procedureType?: string) => {
+    if (procedureType === "laboratory") return isDirectLaboratoryRoom;
+    if (procedureType === "radiology") return isDirectRadiologyRoom;
+    return false;
+  };
 
   // Check active registration and load rooms when sheet opens
   useEffect(() => {
@@ -595,6 +608,18 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
         });
       }
 
+      if ((isDirectLaboratoryRoom || isDirectRadiologyRoom) && validProcedures.length === 0) {
+        toast({
+          variant: "destructive",
+          title: "Tindakan wajib diisi",
+          description: isDirectLaboratoryRoom
+            ? "Pilih minimal satu tindakan laboratorium untuk pendaftaran langsung."
+            : "Pilih minimal satu tindakan radiologi untuk pendaftaran langsung.",
+        });
+        setLoading(false);
+        return;
+      }
+
       const procedureById = new Map(
         effectiveRoomProcedures.map((roomProcedure) => [
           roomProcedure.procedure_id,
@@ -604,7 +629,8 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
       const missingTargetRoomProcedures = validProcedures.filter((item) => {
         const procedureType = procedureById.get(item.procedure_id)?.procedure_type;
         const requiresTargetRoom =
-          procedureType === "consultation" || procedureType === "radiology" || procedureType === "laboratory";
+          (procedureType === "consultation" || procedureType === "radiology" || procedureType === "laboratory") &&
+          !destinationRoomHandlesProcedureDirectly(procedureType);
         return requiresTargetRoom && !item.target_room_id;
       });
 
@@ -625,7 +651,19 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
         registrationData.procedure_items = validProcedures;
       }
 
-      const missingPharmacyRoomMedicines = selectedMedicines.filter((item) => !item.pharmacy_room_id);
+      if (isDirectPharmacyRoom && selectedMedicines.length === 0) {
+        toast({
+          variant: "destructive",
+          title: "Obat wajib diisi",
+          description: "Pilih minimal satu obat untuk pendaftaran langsung farmasi.",
+        });
+        setLoading(false);
+        return;
+      }
+
+      const missingPharmacyRoomMedicines = isDirectPharmacyRoom
+        ? []
+        : selectedMedicines.filter((item) => !item.pharmacy_room_id);
       if (missingPharmacyRoomMedicines.length > 0) {
         const medicineNameById = new Map(
           effectiveRoomMedicines.map((roomMedicine) => [

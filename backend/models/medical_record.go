@@ -247,10 +247,11 @@ type Diagnosis struct {
 	Severity           string `gorm:"size:20" json:"severity,omitempty"`                                // mild, moderate, severe
 
 	// Additional Info
-	BodySite  string     `gorm:"size:200" json:"body_site,omitempty"`
-	OnsetDate *time.Time `gorm:"type:date" json:"onset_date,omitempty"`
-	OnsetNote string     `gorm:"size:200" json:"onset_note,omitempty"`
-	Note      string     `gorm:"type:text" json:"note,omitempty"`
+	BodySite              string     `gorm:"size:200" json:"body_site,omitempty"`
+	OnsetDate             *time.Time `gorm:"type:date" json:"onset_date,omitempty"`
+	OnsetNote             string     `gorm:"size:200" json:"onset_note,omitempty"`
+	DifferentialDiagnosis string     `gorm:"type:text" json:"differential_diagnosis,omitempty"`
+	Note                  string     `gorm:"type:text" json:"note,omitempty"`
 
 	// SatuSehat Integration
 	SatuSehatConditionID string     `gorm:"size:100" json:"satusehat_condition_id,omitempty"` // Condition ID dari SatuSehat

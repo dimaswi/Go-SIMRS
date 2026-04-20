@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"starter/backend/database"
@@ -15,6 +16,20 @@ import (
 // ===========================================================================
 // CPPT HANDLERS - Catatan Perkembangan Pasien Terintegrasi
 // ===========================================================================
+
+func normalizeCPPTFormat(value string) string {
+	format := strings.ToLower(strings.TrimSpace(value))
+	switch format {
+	case "", models.CPPTFormatSOAP:
+		return models.CPPTFormatSOAP
+	case models.CPPTFormatSBAR:
+		return models.CPPTFormatSBAR
+	case models.CPPTFormatTBAK:
+		return models.CPPTFormatTBAK
+	default:
+		return ""
+	}
+}
 
 // GetCPPTs returns all CPPT records for a visit
 func GetCPPTs(c *gin.Context) {
@@ -57,6 +72,12 @@ func GetCPPTs(c *gin.Context) {
 		return
 	}
 
+	for i := range cppts {
+		if cppts[i].CPPTFormat == "" {
+			cppts[i].CPPTFormat = models.CPPTFormatSOAP
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{"data": cppts})
 }
 
@@ -74,6 +95,9 @@ func GetCPPT(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Data CPPT tidak ditemukan"})
 		return
 	}
+	if cppt.CPPTFormat == "" {
+		cppt.CPPTFormat = models.CPPTFormatSOAP
+	}
 
 	c.JSON(http.StatusOK, gin.H{"data": cppt})
 }
@@ -87,6 +111,7 @@ func CreateCPPT(c *gin.Context) {
 	var input struct {
 		RecordDate       string `json:"record_date" binding:"required"`
 		Profession       string `json:"profession" binding:"required"`
+		CPPTFormat       string `json:"cppt_format"`
 		Subjective       string `json:"subjective"`
 		Objective        string `json:"objective"`
 		Assessment       string `json:"assessment"`
@@ -102,6 +127,12 @@ func CreateCPPT(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	cpptFormat := normalizeCPPTFormat(input.CPPTFormat)
+	if cpptFormat == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Format CPPT tidak valid. Gunakan: soap, sbar, atau tbak"})
 		return
 	}
 
@@ -130,6 +161,7 @@ func CreateCPPT(c *gin.Context) {
 		VisitID:          uint(visitIDUint),
 		RecordDate:       recordDate,
 		Profession:       input.Profession,
+		CPPTFormat:       cpptFormat,
 		Subjective:       input.Subjective,
 		Objective:        input.Objective,
 		Assessment:       input.Assessment,
@@ -177,6 +209,7 @@ func UpdateCPPT(c *gin.Context) {
 	var input struct {
 		RecordDate       string `json:"record_date"`
 		Profession       string `json:"profession"`
+		CPPTFormat       string `json:"cppt_format"`
 		Subjective       string `json:"subjective"`
 		Objective        string `json:"objective"`
 		Assessment       string `json:"assessment"`
@@ -195,8 +228,21 @@ func UpdateCPPT(c *gin.Context) {
 		return
 	}
 
+	cpptFormat := cppt.CPPTFormat
+	if cpptFormat == "" {
+		cpptFormat = models.CPPTFormatSOAP
+	}
+	if input.CPPTFormat != "" {
+		cpptFormat = normalizeCPPTFormat(input.CPPTFormat)
+		if cpptFormat == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Format CPPT tidak valid. Gunakan: soap, sbar, atau tbak"})
+			return
+		}
+	}
+
 	updates := map[string]interface{}{
 		"profession":        input.Profession,
+		"cppt_format":       cpptFormat,
 		"subjective":        input.Subjective,
 		"objective":         input.Objective,
 		"assessment":        input.Assessment,

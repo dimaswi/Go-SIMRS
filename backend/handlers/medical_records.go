@@ -536,15 +536,16 @@ func GetDiagnoses(c *gin.Context) {
 	items := make([]gin.H, 0)
 	for _, d := range diagnoses {
 		item := gin.H{
-			"id":                  d.ID,
-			"icd10_code":          d.ICD10Code,
-			"icd10_name":          d.ICD10Name,
-			"diagnosis_type":      d.Type,
-			"clinical_status":     d.ClinicalStatus,
-			"verification_status": d.VerificationStatus,
-			"severity":            d.Severity,
-			"body_site":           d.BodySite,
-			"note":                d.Note,
+			"id":                     d.ID,
+			"icd10_code":             d.ICD10Code,
+			"icd10_name":             d.ICD10Name,
+			"diagnosis_type":         d.Type,
+			"clinical_status":        d.ClinicalStatus,
+			"verification_status":    d.VerificationStatus,
+			"severity":               d.Severity,
+			"body_site":              d.BodySite,
+			"differential_diagnosis": d.DifferentialDiagnosis,
+			"note":                   d.Note,
 		}
 		if d.OnsetDate != nil {
 			item["onset_date"] = d.OnsetDate.Format("2006-01-02")
@@ -578,28 +579,30 @@ func SaveDiagnoses(c *gin.Context) {
 		ClinicalImpression    string `json:"clinical_impression"`
 		DifferentialDiagnosis string `json:"differential_diagnosis"`
 		Diagnoses             []struct {
-			ICD10Code          string `json:"icd10_code"`
-			ICD10Name          string `json:"icd10_name"`
-			Type               string `json:"type"`
-			DiagnosisType      string `json:"diagnosis_type"` // Frontend uses this
-			ClinicalStatus     string `json:"clinical_status"`
-			VerificationStatus string `json:"verification_status"`
-			Severity           string `json:"severity"`
-			BodySite           string `json:"body_site"`
-			OnsetDate          string `json:"onset_date"`
-			OnsetNote          string `json:"onset_note"`
-			Note               string `json:"note"`
+			ICD10Code             string `json:"icd10_code"`
+			ICD10Name             string `json:"icd10_name"`
+			Type                  string `json:"type"`
+			DiagnosisType         string `json:"diagnosis_type"` // Frontend uses this
+			ClinicalStatus        string `json:"clinical_status"`
+			VerificationStatus    string `json:"verification_status"`
+			Severity              string `json:"severity"`
+			BodySite              string `json:"body_site"`
+			OnsetDate             string `json:"onset_date"`
+			OnsetNote             string `json:"onset_note"`
+			DifferentialDiagnosis string `json:"differential_diagnosis"`
+			Note                  string `json:"note"`
 		} `json:"diagnoses"`
 		Items []struct {
-			ICD10Code          string `json:"icd10_code"`
-			ICD10Name          string `json:"icd10_name"`
-			DiagnosisType      string `json:"diagnosis_type"`
-			ClinicalStatus     string `json:"clinical_status"`
-			VerificationStatus string `json:"verification_status"`
-			Severity           string `json:"severity"`
-			BodySite           string `json:"body_site"`
-			OnsetDate          string `json:"onset_date"`
-			Note               string `json:"note"`
+			ICD10Code             string `json:"icd10_code"`
+			ICD10Name             string `json:"icd10_name"`
+			DiagnosisType         string `json:"diagnosis_type"`
+			ClinicalStatus        string `json:"clinical_status"`
+			VerificationStatus    string `json:"verification_status"`
+			Severity              string `json:"severity"`
+			BodySite              string `json:"body_site"`
+			OnsetDate             string `json:"onset_date"`
+			DifferentialDiagnosis string `json:"differential_diagnosis"`
+			Note                  string `json:"note"`
 		} `json:"items"` // Frontend sends items instead of diagnoses
 	}
 
@@ -625,15 +628,16 @@ func SaveDiagnoses(c *gin.Context) {
 
 	// Combine diagnoses from both formats (legacy "diagnoses" and new "items")
 	type diagInput struct {
-		ICD10Code          string
-		ICD10Name          string
-		DiagnosisType      string
-		ClinicalStatus     string
-		VerificationStatus string
-		Severity           string
-		BodySite           string
-		OnsetDate          string
-		Note               string
+		ICD10Code             string
+		ICD10Name             string
+		DiagnosisType         string
+		ClinicalStatus        string
+		VerificationStatus    string
+		Severity              string
+		BodySite              string
+		OnsetDate             string
+		DifferentialDiagnosis string
+		Note                  string
 	}
 
 	var allDiagnoses []diagInput
@@ -645,30 +649,32 @@ func SaveDiagnoses(c *gin.Context) {
 			diagType = d.Type
 		}
 		allDiagnoses = append(allDiagnoses, diagInput{
-			ICD10Code:          d.ICD10Code,
-			ICD10Name:          d.ICD10Name,
-			DiagnosisType:      diagType,
-			ClinicalStatus:     d.ClinicalStatus,
-			VerificationStatus: d.VerificationStatus,
-			Severity:           d.Severity,
-			BodySite:           d.BodySite,
-			OnsetDate:          d.OnsetDate,
-			Note:               d.Note,
+			ICD10Code:             d.ICD10Code,
+			ICD10Name:             d.ICD10Name,
+			DiagnosisType:         diagType,
+			ClinicalStatus:        d.ClinicalStatus,
+			VerificationStatus:    d.VerificationStatus,
+			Severity:              d.Severity,
+			BodySite:              d.BodySite,
+			OnsetDate:             d.OnsetDate,
+			DifferentialDiagnosis: d.DifferentialDiagnosis,
+			Note:                  d.Note,
 		})
 	}
 
 	// Process new format (items)
 	for _, d := range input.Items {
 		allDiagnoses = append(allDiagnoses, diagInput{
-			ICD10Code:          d.ICD10Code,
-			ICD10Name:          d.ICD10Name,
-			DiagnosisType:      d.DiagnosisType,
-			ClinicalStatus:     d.ClinicalStatus,
-			VerificationStatus: d.VerificationStatus,
-			Severity:           d.Severity,
-			BodySite:           d.BodySite,
-			OnsetDate:          d.OnsetDate,
-			Note:               d.Note,
+			ICD10Code:             d.ICD10Code,
+			ICD10Name:             d.ICD10Name,
+			DiagnosisType:         d.DiagnosisType,
+			ClinicalStatus:        d.ClinicalStatus,
+			VerificationStatus:    d.VerificationStatus,
+			Severity:              d.Severity,
+			BodySite:              d.BodySite,
+			OnsetDate:             d.OnsetDate,
+			DifferentialDiagnosis: d.DifferentialDiagnosis,
+			Note:                  d.Note,
 		})
 	}
 
@@ -701,17 +707,18 @@ func SaveDiagnoses(c *gin.Context) {
 		}
 
 		diagnosis := models.Diagnosis{
-			VisitID:            visit.ID,
-			ICD10Code:          diag.ICD10Code,
-			ICD10Name:          diag.ICD10Name,
-			Type:               diagnosisType,
-			ClinicalStatus:     clinicalStatus,
-			VerificationStatus: verificationStatus,
-			Severity:           diag.Severity,
-			BodySite:           diag.BodySite,
-			OnsetDate:          onsetDate,
-			Note:               diag.Note,
-			DiagnosedByID:      diagUserID,
+			VisitID:               visit.ID,
+			ICD10Code:             diag.ICD10Code,
+			ICD10Name:             diag.ICD10Name,
+			Type:                  diagnosisType,
+			ClinicalStatus:        clinicalStatus,
+			VerificationStatus:    verificationStatus,
+			Severity:              diag.Severity,
+			BodySite:              diag.BodySite,
+			OnsetDate:             onsetDate,
+			DifferentialDiagnosis: diag.DifferentialDiagnosis,
+			Note:                  diag.Note,
+			DiagnosedByID:         diagUserID,
 		}
 
 		if err := database.DB.Create(&diagnosis).Error; err != nil {
@@ -1112,6 +1119,18 @@ func SaveDisposition(c *gin.Context) {
 		}
 	}
 
+	resolvedDischargeMedication := strings.TrimSpace(input.DischargeMedication)
+	if input.DispositionType == "pulang" {
+		autoDischargeMedication, err := buildAutoDischargeMedicationFromTakeHomeOrders(visit.ID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mengambil data obat pulang: " + err.Error()})
+			return
+		}
+		if autoDischargeMedication != "" {
+			resolvedDischargeMedication = autoDischargeMedication
+		}
+	}
+
 	var disposition models.Disposition
 	// Use Unscoped to find soft-deleted records too
 	err := database.DB.Unscoped().Where("visit_id = ?", visitID).First(&disposition).Error
@@ -1158,7 +1177,7 @@ func SaveDisposition(c *gin.Context) {
 	disposition.DischargeStatus = input.DischargeStatus
 	disposition.DischargeCondition = input.DischargeCondition
 	disposition.DischargeInstruction = input.DischargeInstruction
-	disposition.DischargeMedication = input.DischargeMedication
+	disposition.DischargeMedication = resolvedDischargeMedication
 	disposition.FollowUpDate = followUpDate
 	disposition.FollowUpInstruction = input.FollowUpInstruction
 	disposition.FollowUpRoomID = input.FollowUpRoomID
@@ -1618,6 +1637,56 @@ func CancelFollowUpRegistration(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Jadwal kontrol berhasil dibatalkan",
 	})
+}
+
+func buildAutoDischargeMedicationFromTakeHomeOrders(visitID uint) (string, error) {
+	var orders []models.MedicineOrder
+	err := database.DB.
+		Where("source_visit_id = ?", visitID).
+		Where("status <> ?", models.OrderStatusCancelled).
+		Where("(fulfillment_type = ?) OR (COALESCE(fulfillment_type, '') = '' AND prescription_type = ?)",
+			models.FulfillmentTypeTakeHome,
+			"discharge",
+		).
+		Preload("Items", "status <> ?", models.ItemStatusCancelled).
+		Preload("Items.Medicine").
+		Order("created_at ASC").
+		Find(&orders).Error
+	if err != nil {
+		return "", err
+	}
+
+	lines := make([]string, 0)
+	for _, order := range orders {
+		for _, item := range order.Items {
+			medicineName := fmt.Sprintf("Obat ID %d", item.MedicineID)
+			if item.Medicine != nil && strings.TrimSpace(item.Medicine.Name) != "" {
+				medicineName = item.Medicine.Name
+			}
+
+			line := strings.TrimSpace(fmt.Sprintf("%s %d %s", medicineName, item.Quantity, item.Unit))
+			details := make([]string, 0, 4)
+			if item.Dosage != "" {
+				details = append(details, item.Dosage)
+			}
+			if item.Frequency != "" {
+				details = append(details, item.Frequency)
+			}
+			if item.Duration != "" {
+				details = append(details, item.Duration)
+			}
+			if item.Instructions != "" {
+				details = append(details, item.Instructions)
+			}
+
+			if len(details) > 0 {
+				line = line + " - " + strings.Join(details, ", ")
+			}
+			lines = append(lines, line)
+		}
+	}
+
+	return strings.Join(lines, "\n"), nil
 }
 
 // createInpatientVisit creates a new visit for inpatient admission
@@ -2159,12 +2228,13 @@ func GetMedicalRecordSummary(c *gin.Context) {
 	diagnosisItems := make([]gin.H, 0)
 	for _, d := range diagnoses {
 		item := gin.H{
-			"id":                  d.ID,
-			"icd10_code":          d.ICD10Code,
-			"icd10_name":          d.ICD10Name,
-			"diagnosis_type":      d.Type,
-			"clinical_status":     d.ClinicalStatus,
-			"verification_status": d.VerificationStatus,
+			"id":                     d.ID,
+			"icd10_code":             d.ICD10Code,
+			"icd10_name":             d.ICD10Name,
+			"diagnosis_type":         d.Type,
+			"clinical_status":        d.ClinicalStatus,
+			"verification_status":    d.VerificationStatus,
+			"differential_diagnosis": d.DifferentialDiagnosis,
 		}
 		diagnosisItems = append(diagnosisItems, item)
 	}

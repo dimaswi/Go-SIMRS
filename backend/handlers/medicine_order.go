@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"starter/backend/database"
 	"starter/backend/models"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -15,6 +16,19 @@ import (
 // ===========================================================================
 // MEDICINE ORDER HANDLERS
 // ===========================================================================
+
+func normalizeFulfillmentType(value string) (string, error) {
+	if value == "" {
+		return "", nil
+	}
+	normalized := strings.TrimSpace(strings.ToLower(value))
+	switch normalized {
+	case models.FulfillmentTypeInRoom, models.FulfillmentTypeTakeHome:
+		return normalized, nil
+	default:
+		return "", fmt.Errorf("invalid fulfillment_type: %s", value)
+	}
+}
 
 // GetMedicineOrders returns medicine orders with filters
 func GetMedicineOrders(c *gin.Context) {
@@ -60,6 +74,16 @@ func GetMedicineOrders(c *gin.Context) {
 	// Filter by status
 	if status := c.Query("status"); status != "" {
 		query = query.Where("status = ?", status)
+	}
+
+	// Filter by fulfillment type
+	if fulfillmentType := c.Query("fulfillment_type"); fulfillmentType != "" {
+		normalizedType, err := normalizeFulfillmentType(fulfillmentType)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		query = query.Where("fulfillment_type = ?", normalizedType)
 	}
 
 	// Filter by date range
@@ -115,6 +139,7 @@ func CreateMedicineOrder(c *gin.Context) {
 		SourceVisitID    uint   `json:"source_visit_id" binding:"required"`
 		PharmacyRoomID   uint   `json:"pharmacy_room_id" binding:"required"`
 		PrescriptionType string `json:"prescription_type"`
+		FulfillmentType  string `json:"fulfillment_type"`
 		Priority         string `json:"priority"`
 		Diagnosis        string `json:"diagnosis"`
 		Notes            string `json:"notes"`
@@ -206,6 +231,21 @@ func CreateMedicineOrder(c *gin.Context) {
 		priority = "normal"
 	}
 
+	fulfillmentType := input.FulfillmentType
+	if fulfillmentType == "" {
+		if sourceVisit.Room != nil && sourceVisit.Room.ServiceType == "rawat_inap" {
+			fulfillmentType = models.FulfillmentTypeInRoom
+		} else {
+			fulfillmentType = models.FulfillmentTypeTakeHome
+		}
+	}
+
+	normalizedFulfillmentType, err := normalizeFulfillmentType(fulfillmentType)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
 	order := models.MedicineOrder{
 		OrderNumber:      orderNumber,
 		SourceVisitID:    input.SourceVisitID,
@@ -214,6 +254,7 @@ func CreateMedicineOrder(c *gin.Context) {
 		RegistrationID:   sourceVisit.RegistrationID,
 		PrescriberID:     *user.EmployeeID,
 		PrescriptionType: prescriptionType,
+		FulfillmentType:  normalizedFulfillmentType,
 		Priority:         priority,
 		Diagnosis:        input.Diagnosis,
 		Notes:            input.Notes,
@@ -422,9 +463,10 @@ func UpdateMedicineOrder(c *gin.Context) {
 	}
 
 	var input struct {
-		Priority  string `json:"priority"`
-		Diagnosis string `json:"diagnosis"`
-		Notes     string `json:"notes"`
+		Priority        string `json:"priority"`
+		Diagnosis       string `json:"diagnosis"`
+		Notes           string `json:"notes"`
+		FulfillmentType string `json:"fulfillment_type"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -438,6 +480,14 @@ func UpdateMedicineOrder(c *gin.Context) {
 	}
 	if input.Diagnosis != "" {
 		updates["diagnosis"] = input.Diagnosis
+	}
+	if input.FulfillmentType != "" {
+		normalizedFulfillmentType, err := normalizeFulfillmentType(input.FulfillmentType)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		updates["fulfillment_type"] = normalizedFulfillmentType
 	}
 	updates["notes"] = input.Notes
 

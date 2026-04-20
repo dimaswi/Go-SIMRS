@@ -980,6 +980,194 @@ type signatureLookup struct {
 	DocID   uint
 }
 
+// ============================================================================
+// PDF Cache helpers — store/retrieve generated PDFs from document_pdf_caches
+// ============================================================================
+
+// getCachedPDF looks up a cached PDF blob by document type and ID.
+// Returns the PDF data and filename if found.
+func getCachedPDF(docType string, docID uint) ([]byte, string, bool) {
+	var cache models.DocumentPDFCache
+	if err := database.DB.
+		Where("document_type = ? AND document_id = ?", docType, docID).
+		First(&cache).Error; err != nil {
+		return nil, "", false
+	}
+	return cache.PDFData, cache.FileName, true
+}
+
+// storeCachedPDF saves a generated PDF blob to the cache table.
+// Upserts: if a cache entry already exists, it replaces the data.
+func storeCachedPDF(docType string, docID uint, pdfData []byte, fileName string) {
+	now := time.Now()
+	fileSize := int64(len(pdfData))
+
+	var existing models.DocumentPDFCache
+	err := database.DB.
+		Where("document_type = ? AND document_id = ?", docType, docID).
+		First(&existing).Error
+
+	if err == nil {
+		database.DB.Model(&existing).Updates(map[string]interface{}{
+			"pdf_data":     pdfData,
+			"file_name":    fileName,
+			"file_size":    fileSize,
+			"generated_at": now,
+		})
+	} else {
+		database.DB.Create(&models.DocumentPDFCache{
+			DocumentType: docType,
+			DocumentID:   docID,
+			PDFData:      pdfData,
+			FileName:     fileName,
+			FileSize:     fileSize,
+			GeneratedAt:  now,
+		})
+	}
+}
+
+// invalidatePDFCache removes cached PDF for a specific document type and ID.
+func invalidatePDFCache(docType string, docID uint) {
+	database.DB.
+		Where("document_type = ? AND document_id = ?", docType, docID).
+		Delete(&models.DocumentPDFCache{})
+}
+
+// invalidateAllPDFCachesForSignature removes cached PDFs for a signature document type
+// and all related cache keys. Some handlers share the same signature docType but use
+// different cache keys — this function ensures all variants are invalidated.
+func invalidateAllPDFCachesForSignature(sigDocType string, docID uint) {
+	// Always invalidate exact match
+	invalidatePDFCache(sigDocType, docID)
+
+	// Invalidate alternate cache keys for handlers that share this signature type
+	switch sigDocType {
+	case models.DocTypeVisitResume:
+		invalidatePDFCache("outpatient_resume", docID)
+		invalidatePDFCache("inpatient_resume", docID)
+		// AdmissionDischargeSummary uses registration.ID, need DB lookup
+		var visit models.Visit
+		if err := database.DB.Select("registration_id").First(&visit, docID).Error; err == nil {
+			invalidatePDFCache("admission_discharge_reg", visit.RegistrationID)
+		}
+	case models.DocTypeCPPT:
+		invalidatePDFCache("fluid_balance", docID)
+	case models.DocTypeLabResult:
+		invalidatePDFCache("lab_order", docID)
+	}
+}
+
+// InvalidateRMDuplicatePDFCaches removes ALL cached PDFs for a given RM Duplicate.
+// Call this when RM Duplicate data is updated.
+func InvalidateRMDuplicatePDFCaches(rmDuplicateID uint) {
+	database.DB.
+		Where("document_type LIKE ? AND document_id = ?", "rm_dup_%", rmDuplicateID).
+		Delete(&models.DocumentPDFCache{})
+}
+
+// InvalidateRMDuplicateOrderPDFCache removes cached PDF for a specific RM order-level doc.
+func InvalidateRMDuplicateOrderPDFCache(docType string, orderID uint) {
+	invalidatePDFCache(docType, orderID)
+}
+
+// serveCachedOrGenerate checks cache first, serves if found,
+// otherwise calls generate. Only caches the result when the document
+// has been digitally signed (blob is stored so subsequent views don't
+// need to regenerate).
+func serveCachedOrGenerate(c *gin.Context, docType string, docID uint, generate func() ([]byte, string, error)) {
+	// Check cache — blob only exists for signed documents
+	if pdfData, fileName, found := getCachedPDF(docType, docID); found {
+		c.Header("Content-Type", "application/pdf")
+		c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", fileName))
+		c.Data(http.StatusOK, "application/pdf", pdfData)
+		return
+	}
+
+	// Generate
+	pdfData, fileName, err := generate()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Only cache when document is signed — unsigned docs are always generated fresh
+	if _, isSigned := findSignatureLog(signatureLookup{docType, docID}); isSigned {
+		go storeCachedPDF(docType, docID, pdfData, fileName)
+	}
+
+	c.Header("Content-Type", "application/pdf")
+	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", fileName))
+	c.Data(http.StatusOK, "application/pdf", pdfData)
+}
+
+// ============================================================================
+// PDF Cache management endpoints (admin)
+// ============================================================================
+
+// GetPDFCacheStats returns statistics about the PDF cache
+func GetPDFCacheStats(c *gin.Context) {
+	var stats struct {
+		TotalEntries int64  `json:"total_entries"`
+		TotalSize    int64  `json:"total_size_bytes"`
+		OldestEntry  string `json:"oldest_entry,omitempty"`
+		NewestEntry  string `json:"newest_entry,omitempty"`
+	}
+
+	database.DB.Model(&models.DocumentPDFCache{}).Count(&stats.TotalEntries)
+	database.DB.Model(&models.DocumentPDFCache{}).Select("COALESCE(SUM(file_size), 0)").Scan(&stats.TotalSize)
+
+	var oldest, newest models.DocumentPDFCache
+	if database.DB.Order("created_at ASC").First(&oldest).Error == nil {
+		stats.OldestEntry = oldest.CreatedAt.Format("2006-01-02 15:04:05")
+	}
+	if database.DB.Order("created_at DESC").First(&newest).Error == nil {
+		stats.NewestEntry = newest.CreatedAt.Format("2006-01-02 15:04:05")
+	}
+
+	// Per-type breakdown
+	type TypeStat struct {
+		DocumentType string `json:"document_type"`
+		Count        int64  `json:"count"`
+		TotalSize    int64  `json:"total_size_bytes"`
+	}
+	var byType []TypeStat
+	database.DB.Model(&models.DocumentPDFCache{}).
+		Select("document_type, COUNT(*) as count, COALESCE(SUM(file_size), 0) as total_size").
+		Group("document_type").
+		Order("total_size DESC").
+		Scan(&byType)
+
+	c.JSON(http.StatusOK, gin.H{
+		"stats":   stats,
+		"by_type": byType,
+	})
+}
+
+// CleanupPDFCache deletes stale PDF cache entries older than specified days
+func CleanupPDFCache(c *gin.Context) {
+	daysStr := c.DefaultQuery("days", "30")
+	days := 30
+	if d, err := strconv.Atoi(daysStr); err == nil && d > 0 {
+		days = d
+	}
+
+	cutoff := time.Now().AddDate(0, 0, -days)
+
+	result := database.DB.Unscoped().
+		Where("created_at < ?", cutoff).
+		Delete(&models.DocumentPDFCache{})
+
+	if result.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":       fmt.Sprintf("Berhasil menghapus cache PDF yang lebih dari %d hari", days),
+		"deleted_count": result.RowsAffected,
+	})
+}
+
 // addSignature menambahkan area tanda tangan - selalu di tengah/kanan
 // Jika sudah ditandatangani digital, QR code di area TTD + footer validasi di bawah halaman terakhir
 // altLookups: optional alternate document_type+document_id pairs to check (e.g. rm_dup_* types)
@@ -1493,6 +1681,79 @@ func safeString(s string) string {
 	return s
 }
 
+func normalizeCPPTFormatForPrint(format string) string {
+	v := strings.ToLower(strings.TrimSpace(format))
+	switch v {
+	case models.CPPTFormatSBAR:
+		return models.CPPTFormatSBAR
+	case models.CPPTFormatTBAK:
+		return models.CPPTFormatTBAK
+	default:
+		return models.CPPTFormatSOAP
+	}
+}
+
+func cpptFormatHeaders(format string, mixed bool) [4]string {
+	if mixed {
+		return [4]string{"Catatan 1", "Catatan 2", "Catatan 3", "Catatan 4"}
+	}
+
+	switch normalizeCPPTFormatForPrint(format) {
+	case models.CPPTFormatSBAR:
+		return [4]string{"Situation", "Background", "Assessment", "Recommendation"}
+	case models.CPPTFormatTBAK:
+		return [4]string{"Tulis", "Baca Kembali", "Analisis", "Konfirmasi"}
+	default:
+		return [4]string{"Subjective", "Objective", "Assessment", "Plan"}
+	}
+}
+
+func cpptFormatPrefixes(format string) [4]string {
+	switch normalizeCPPTFormatForPrint(format) {
+	case models.CPPTFormatSBAR:
+		return [4]string{"S", "B", "A", "R"}
+	case models.CPPTFormatTBAK:
+		return [4]string{"T", "B", "A", "K"}
+	default:
+		return [4]string{"S", "O", "A", "P"}
+	}
+}
+
+func buildCPPTFieldTextsForPrint(cppt models.CPPT, addPrefix bool) [4]string {
+	fields := [4]string{
+		strings.TrimSpace(cppt.Subjective),
+		strings.TrimSpace(cppt.Objective),
+		strings.TrimSpace(cppt.Assessment),
+		strings.TrimSpace(cppt.Plan),
+	}
+
+	if strings.TrimSpace(cppt.Instruction) != "" {
+		if fields[3] != "" {
+			fields[3] += "\nInstruksi: " + strings.TrimSpace(cppt.Instruction)
+		} else {
+			fields[3] = "Instruksi: " + strings.TrimSpace(cppt.Instruction)
+		}
+	}
+
+	if addPrefix {
+		prefixes := cpptFormatPrefixes(cppt.CPPTFormat)
+		for i := range fields {
+			if fields[i] != "" {
+				fields[i] = prefixes[i] + ": " + fields[i]
+			}
+		}
+	}
+
+	for i := range fields {
+		if fields[i] == "" {
+			fields[i] = "-"
+		}
+		fields[i] = truncateText(fields[i], 320)
+	}
+
+	return fields
+}
+
 // parseFollowUpDate parses string date to *time.Time for RM Duplicate
 func parseFollowUpDate(dateStr string) *time.Time {
 	if dateStr == "" {
@@ -1516,6 +1777,25 @@ func parseFollowUpDate(dateStr string) *time.Time {
 func PrintOutpatientResume(c *gin.Context) {
 	visitID := c.Param("visitId")
 	rmDuplicateID := c.Query("rm_duplicate_id")
+
+	// Cache check
+	if rmDuplicateID != "" {
+		rmDupID, _ := strconv.ParseUint(rmDuplicateID, 10, 32)
+		if pdfData, fileName, found := getCachedPDF(models.DocTypeRMDupResume, uint(rmDupID)); found {
+			c.Header("Content-Type", "application/pdf")
+			c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", fileName))
+			c.Data(http.StatusOK, "application/pdf", pdfData)
+			return
+		}
+	} else {
+		vid, _ := strconv.ParseUint(visitID, 10, 32)
+		if pdfData, fileName, found := getCachedPDF("outpatient_resume", uint(vid)); found {
+			c.Header("Content-Type", "application/pdf")
+			c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", fileName))
+			c.Data(http.StatusOK, "application/pdf", pdfData)
+			return
+		}
+	}
 
 	// Load visit with all relations
 	var visit models.Visit
@@ -1829,7 +2109,7 @@ func PrintOutpatientResume(c *gin.Context) {
 		}
 
 		var medicineOrders []models.MedicineOrder
-		database.DB.Where("source_visit_id = ?", visitID).Preload("Items.Medicine").Find(&medicineOrders)
+		database.DB.Where("source_visit_id = ? AND status <> ?", visitID, models.OrderStatusCancelled).Preload("Items.Medicine").Find(&medicineOrders)
 		for _, order := range medicineOrders {
 			for _, item := range order.Items {
 				medName := ""
@@ -2363,6 +2643,16 @@ func PrintOutpatientResume(c *gin.Context) {
 	}
 
 	filename := fmt.Sprintf("Resume_Medis_%s_%s.pdf", patient.NoRM, visit.VisitNumber)
+	if rmDuplicateID != "" {
+		rmDupID, _ := strconv.ParseUint(rmDuplicateID, 10, 32)
+		if _, isSigned := findSignatureLog(signatureLookup{models.DocTypeRMDupResume, uint(rmDupID)}); isSigned {
+			go storeCachedPDF(models.DocTypeRMDupResume, uint(rmDupID), buf.Bytes(), filename)
+		}
+	} else {
+		if _, isSigned := findSignatureLog(signatureLookup{models.DocTypeVisitResume, visit.ID}); isSigned {
+			go storeCachedPDF("outpatient_resume", visit.ID, buf.Bytes(), filename)
+		}
+	}
 	c.Header("Content-Type", "application/pdf")
 	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
 	c.Data(http.StatusOK, "application/pdf", buf.Bytes())
@@ -2491,6 +2781,25 @@ func PrintPatientLabel(c *gin.Context) {
 func PrintInpatientResume(c *gin.Context) {
 	visitID := c.Param("visitId")
 	rmDuplicateID := c.Query("rm_duplicate_id")
+
+	// Cache check
+	if rmDuplicateID != "" {
+		rmDupID, _ := strconv.ParseUint(rmDuplicateID, 10, 32)
+		if pdfData, fileName, found := getCachedPDF(models.DocTypeRMDupInpatientResume, uint(rmDupID)); found {
+			c.Header("Content-Type", "application/pdf")
+			c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", fileName))
+			c.Data(http.StatusOK, "application/pdf", pdfData)
+			return
+		}
+	} else {
+		vid, _ := strconv.ParseUint(visitID, 10, 32)
+		if pdfData, fileName, found := getCachedPDF("inpatient_resume", uint(vid)); found {
+			c.Header("Content-Type", "application/pdf")
+			c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", fileName))
+			c.Data(http.StatusOK, "application/pdf", pdfData)
+			return
+		}
+	}
 
 	// Load visit
 	var visit models.Visit
@@ -2655,7 +2964,8 @@ func PrintInpatientResume(c *gin.Context) {
 		dispFollowUpDate = dispModel.FollowUpDate
 
 		var medicineOrders []models.MedicineOrder
-		database.DB.Where("source_visit_id = ? AND prescription_type = ?", visitID, "discharge").
+		database.DB.Where("source_visit_id = ? AND status <> ?", visitID, models.OrderStatusCancelled).
+			Where("(fulfillment_type = ?) OR (COALESCE(fulfillment_type, '') = '' AND prescription_type = ?)", models.FulfillmentTypeTakeHome, "discharge").
 			Preload("Items.Medicine").Find(&medicineOrders)
 		for _, order := range medicineOrders {
 			for _, item := range order.Items {
@@ -3087,6 +3397,16 @@ func PrintInpatientResume(c *gin.Context) {
 	}
 
 	filename := fmt.Sprintf("Resume_Ranap_%s_%s.pdf", patient.NoRM, visit.VisitNumber)
+	if rmDuplicateID != "" {
+		rmDupID, _ := strconv.ParseUint(rmDuplicateID, 10, 32)
+		if _, isSigned := findSignatureLog(signatureLookup{models.DocTypeRMDupInpatientResume, uint(rmDupID)}); isSigned {
+			go storeCachedPDF(models.DocTypeRMDupInpatientResume, uint(rmDupID), buf.Bytes(), filename)
+		}
+	} else {
+		if _, isSigned := findSignatureLog(signatureLookup{models.DocTypeVisitResume, visit.ID}); isSigned {
+			go storeCachedPDF("inpatient_resume", visit.ID, buf.Bytes(), filename)
+		}
+	}
 	c.Header("Content-Type", "application/pdf")
 	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
 	c.Data(http.StatusOK, "application/pdf", buf.Bytes())
@@ -3105,6 +3425,15 @@ func PrintSickLetter(c *gin.Context) {
 
 	// Check if letter_id is provided (load from saved record)
 	if letterIDStr := c.Query("letter_id"); letterIDStr != "" {
+		// Cache check
+		lid, _ := strconv.ParseUint(letterIDStr, 10, 32)
+		if pdfData, fileName, found := getCachedPDF(models.DocTypeSickLetter, uint(lid)); found {
+			c.Header("Content-Type", "application/pdf")
+			c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", fileName))
+			c.Data(http.StatusOK, "application/pdf", pdfData)
+			return
+		}
+
 		var sickLetter models.SickLetter
 		if err := database.DB.
 			Preload("IssuedBy").
@@ -3264,6 +3593,11 @@ func PrintSickLetter(c *gin.Context) {
 	}
 
 	filename := fmt.Sprintf("Surat_Sakit_%s.pdf", patient.NoRM)
+	if letterID > 0 {
+		if _, isSigned := findSignatureLog(signatureLookup{models.DocTypeSickLetter, letterID}); isSigned {
+			go storeCachedPDF(models.DocTypeSickLetter, letterID, buf.Bytes(), filename)
+		}
+	}
 	c.Header("Content-Type", "application/pdf")
 	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
 	c.Data(http.StatusOK, "application/pdf", buf.Bytes())
@@ -3284,6 +3618,15 @@ func PrintDeathCertificate(c *gin.Context) {
 
 	if certificateIDStr == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "certificate_id is required"})
+		return
+	}
+
+	// Cache check
+	cid, _ := strconv.ParseUint(certificateIDStr, 10, 32)
+	if pdfData, fileName, found := getCachedPDF(models.DocTypeDeathCertificate, uint(cid)); found {
+		c.Header("Content-Type", "application/pdf")
+		c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", fileName))
+		c.Data(http.StatusOK, "application/pdf", pdfData)
 		return
 	}
 
@@ -3512,6 +3855,9 @@ func PrintDeathCertificate(c *gin.Context) {
 	}
 
 	filename := fmt.Sprintf("Surat_Kematian_%s.pdf", patient.NoRM)
+	if _, isSigned := findSignatureLog(signatureLookup{models.DocTypeDeathCertificate, certificate.ID}); isSigned {
+		go storeCachedPDF(models.DocTypeDeathCertificate, certificate.ID, buf.Bytes(), filename)
+	}
 	c.Header("Content-Type", "application/pdf")
 	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
 	c.Data(http.StatusOK, "application/pdf", buf.Bytes())
@@ -3524,6 +3870,15 @@ func PrintHealthCertificate(c *gin.Context) {
 
 	if certificateIDStr == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "certificate_id is required"})
+		return
+	}
+
+	// Cache check
+	cid, _ := strconv.ParseUint(certificateIDStr, 10, 32)
+	if pdfData, fileName, found := getCachedPDF(models.DocTypeHealthCertificate, uint(cid)); found {
+		c.Header("Content-Type", "application/pdf")
+		c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", fileName))
+		c.Data(http.StatusOK, "application/pdf", pdfData)
 		return
 	}
 
@@ -3656,6 +4011,9 @@ func PrintHealthCertificate(c *gin.Context) {
 	}
 
 	filename := fmt.Sprintf("Surat_Sehat_%s.pdf", patient.NoRM)
+	if _, isSigned := findSignatureLog(signatureLookup{models.DocTypeHealthCertificate, certificate.ID}); isSigned {
+		go storeCachedPDF(models.DocTypeHealthCertificate, certificate.ID, buf.Bytes(), filename)
+	}
 	c.Header("Content-Type", "application/pdf")
 	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
 	c.Data(http.StatusOK, "application/pdf", buf.Bytes())
@@ -3668,6 +4026,15 @@ func PrintBirthCertificate(c *gin.Context) {
 
 	if certificateIDStr == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "certificate_id is required"})
+		return
+	}
+
+	// Cache check
+	cid, _ := strconv.ParseUint(certificateIDStr, 10, 32)
+	if pdfData, fileName, found := getCachedPDF(models.DocTypeBirthCertificate, uint(cid)); found {
+		c.Header("Content-Type", "application/pdf")
+		c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", fileName))
+		c.Data(http.StatusOK, "application/pdf", pdfData)
 		return
 	}
 
@@ -3829,6 +4196,9 @@ func PrintBirthCertificate(c *gin.Context) {
 	}
 
 	filename := fmt.Sprintf("Surat_Kelahiran_%s.pdf", patient.NoRM)
+	if _, isSigned := findSignatureLog(signatureLookup{models.DocTypeBirthCertificate, certificate.ID}); isSigned {
+		go storeCachedPDF(models.DocTypeBirthCertificate, certificate.ID, buf.Bytes(), filename)
+	}
 	c.Header("Content-Type", "application/pdf")
 	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
 	c.Data(http.StatusOK, "application/pdf", buf.Bytes())
@@ -3841,6 +4211,15 @@ func PrintLeaveCertificate(c *gin.Context) {
 
 	if certificateIDStr == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "certificate_id is required"})
+		return
+	}
+
+	// Cache check
+	cid, _ := strconv.ParseUint(certificateIDStr, 10, 32)
+	if pdfData, fileName, found := getCachedPDF(models.DocTypeLeaveCertificate, uint(cid)); found {
+		c.Header("Content-Type", "application/pdf")
+		c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", fileName))
+		c.Data(http.StatusOK, "application/pdf", pdfData)
 		return
 	}
 
@@ -3990,6 +4369,9 @@ func PrintLeaveCertificate(c *gin.Context) {
 	}
 
 	filename := fmt.Sprintf("Surat_Cuti_%s.pdf", patient.NoRM)
+	if _, isSigned := findSignatureLog(signatureLookup{models.DocTypeLeaveCertificate, certificate.ID}); isSigned {
+		go storeCachedPDF(models.DocTypeLeaveCertificate, certificate.ID, buf.Bytes(), filename)
+	}
 	c.Header("Content-Type", "application/pdf")
 	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
 	c.Data(http.StatusOK, "application/pdf", buf.Bytes())
@@ -4002,6 +4384,15 @@ func PrintMCUCertificate(c *gin.Context) {
 
 	if certificateIDStr == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "certificate_id is required"})
+		return
+	}
+
+	// Cache check
+	cid, _ := strconv.ParseUint(certificateIDStr, 10, 32)
+	if pdfData, fileName, found := getCachedPDF(models.DocTypeMCUCertificate, uint(cid)); found {
+		c.Header("Content-Type", "application/pdf")
+		c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", fileName))
+		c.Data(http.StatusOK, "application/pdf", pdfData)
 		return
 	}
 
@@ -4159,6 +4550,9 @@ func PrintMCUCertificate(c *gin.Context) {
 	}
 
 	filename := fmt.Sprintf("Surat_MCU_%s.pdf", patient.NoRM)
+	if _, isSigned := findSignatureLog(signatureLookup{models.DocTypeMCUCertificate, certificate.ID}); isSigned {
+		go storeCachedPDF(models.DocTypeMCUCertificate, certificate.ID, buf.Bytes(), filename)
+	}
 	c.Header("Content-Type", "application/pdf")
 	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
 	c.Data(http.StatusOK, "application/pdf", buf.Bytes())
@@ -4167,6 +4561,15 @@ func PrintMCUCertificate(c *gin.Context) {
 // PrintPrescription generates PDF for prescription
 func PrintPrescription(c *gin.Context) {
 	orderID := c.Param("orderId")
+
+	// Cache check
+	oid, _ := strconv.ParseUint(orderID, 10, 32)
+	if pdfData, fileName, found := getCachedPDF(models.DocTypePrescription, uint(oid)); found {
+		c.Header("Content-Type", "application/pdf")
+		c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", fileName))
+		c.Data(http.StatusOK, "application/pdf", pdfData)
+		return
+	}
 
 	// Load medicine order
 	var order models.MedicineOrder
@@ -4255,6 +4658,9 @@ func PrintPrescription(c *gin.Context) {
 	}
 
 	filename := fmt.Sprintf("Resep_%s.pdf", order.OrderNumber)
+	if _, isSigned := findSignatureLog(signatureLookup{models.DocTypePrescription, order.ID}); isSigned {
+		go storeCachedPDF(models.DocTypePrescription, order.ID, buf.Bytes(), filename)
+	}
 	c.Header("Content-Type", "application/pdf")
 	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
 	c.Data(http.StatusOK, "application/pdf", buf.Bytes())
@@ -4263,6 +4669,15 @@ func PrintPrescription(c *gin.Context) {
 // PrintLabOrder generates PDF for lab order
 func PrintLabOrder(c *gin.Context) {
 	orderID := c.Param("orderId")
+
+	// Cache check
+	oid, _ := strconv.ParseUint(orderID, 10, 32)
+	if pdfData, fileName, found := getCachedPDF("lab_order", uint(oid)); found {
+		c.Header("Content-Type", "application/pdf")
+		c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", fileName))
+		c.Data(http.StatusOK, "application/pdf", pdfData)
+		return
+	}
 
 	// Load procedure order
 	var order models.ProcedureOrder
@@ -4348,6 +4763,9 @@ func PrintLabOrder(c *gin.Context) {
 	}
 
 	filename := fmt.Sprintf("Order_Lab_%s.pdf", order.OrderNumber)
+	if _, isSigned := findSignatureLog(signatureLookup{models.DocTypeLabResult, order.ID}); isSigned {
+		go storeCachedPDF("lab_order", order.ID, buf.Bytes(), filename)
+	}
 	c.Header("Content-Type", "application/pdf")
 	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
 	c.Data(http.StatusOK, "application/pdf", buf.Bytes())
@@ -4488,6 +4906,25 @@ func PrintLabResult(c *gin.Context) {
 func PrintTriageForm(c *gin.Context) {
 	visitID := c.Param("visitId")
 	rmDuplicateID := c.Query("rm_duplicate_id")
+
+	// Cache check
+	if rmDuplicateID != "" {
+		rmDupID, _ := strconv.ParseUint(rmDuplicateID, 10, 32)
+		if pdfData, fileName, found := getCachedPDF(models.DocTypeRMDupTriage, uint(rmDupID)); found {
+			c.Header("Content-Type", "application/pdf")
+			c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", fileName))
+			c.Data(http.StatusOK, "application/pdf", pdfData)
+			return
+		}
+	} else {
+		vid, _ := strconv.ParseUint(visitID, 10, 32)
+		if pdfData, fileName, found := getCachedPDF(models.DocTypeTriage, uint(vid)); found {
+			c.Header("Content-Type", "application/pdf")
+			c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", fileName))
+			c.Data(http.StatusOK, "application/pdf", pdfData)
+			return
+		}
+	}
 
 	// Load visit with relations
 	var visit models.Visit
@@ -5011,6 +5448,16 @@ func PrintTriageForm(c *gin.Context) {
 	}
 
 	filename := fmt.Sprintf("Triage_%s.pdf", visit.VisitNumber)
+	if rmDuplicateID != "" {
+		rmDupID, _ := strconv.ParseUint(rmDuplicateID, 10, 32)
+		if _, isSigned := findSignatureLog(signatureLookup{models.DocTypeRMDupTriage, uint(rmDupID)}); isSigned {
+			go storeCachedPDF(models.DocTypeRMDupTriage, uint(rmDupID), buf.Bytes(), filename)
+		}
+	} else {
+		if _, isSigned := findSignatureLog(signatureLookup{models.DocTypeTriage, visit.ID}); isSigned {
+			go storeCachedPDF(models.DocTypeTriage, visit.ID, buf.Bytes(), filename)
+		}
+	}
 	c.Header("Content-Type", "application/pdf")
 	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
 	c.Data(http.StatusOK, "application/pdf", buf.Bytes())
@@ -5021,6 +5468,25 @@ func PrintTriageForm(c *gin.Context) {
 func PrintEmergencySummary(c *gin.Context) {
 	visitID := c.Param("visitId")
 	rmDuplicateID := c.Query("rm_duplicate_id")
+
+	// Cache check
+	if rmDuplicateID != "" {
+		rmDupID, _ := strconv.ParseUint(rmDuplicateID, 10, 32)
+		if pdfData, fileName, found := getCachedPDF(models.DocTypeRMDupEmergency, uint(rmDupID)); found {
+			c.Header("Content-Type", "application/pdf")
+			c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", fileName))
+			c.Data(http.StatusOK, "application/pdf", pdfData)
+			return
+		}
+	} else {
+		vid, _ := strconv.ParseUint(visitID, 10, 32)
+		if pdfData, fileName, found := getCachedPDF(models.DocTypeEmergencySummary, uint(vid)); found {
+			c.Header("Content-Type", "application/pdf")
+			c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", fileName))
+			c.Data(http.StatusOK, "application/pdf", pdfData)
+			return
+		}
+	}
 
 	// Load visit with relations
 	var visit models.Visit
@@ -5309,6 +5775,16 @@ func PrintEmergencySummary(c *gin.Context) {
 	}
 
 	filename := fmt.Sprintf("Ringkasan_UGD_%s.pdf", visit.VisitNumber)
+	if rmDuplicateID != "" {
+		rmDupID, _ := strconv.ParseUint(rmDuplicateID, 10, 32)
+		if _, isSigned := findSignatureLog(signatureLookup{models.DocTypeRMDupEmergency, uint(rmDupID)}); isSigned {
+			go storeCachedPDF(models.DocTypeRMDupEmergency, uint(rmDupID), buf.Bytes(), filename)
+		}
+	} else {
+		if _, isSigned := findSignatureLog(signatureLookup{models.DocTypeEmergencySummary, visit.ID}); isSigned {
+			go storeCachedPDF(models.DocTypeEmergencySummary, visit.ID, buf.Bytes(), filename)
+		}
+	}
 	c.Header("Content-Type", "application/pdf")
 	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
 	c.Data(http.StatusOK, "application/pdf", buf.Bytes())
@@ -5323,6 +5799,26 @@ func PrintEmergencySummary(c *gin.Context) {
 func PrintCPPT(c *gin.Context) {
 	visitID := c.Param("visitId")
 
+	// Cache check
+	rmDupCacheIDStr := c.Query("rm_duplicate_id")
+	if rmDupCacheIDStr != "" {
+		rmDupID, _ := strconv.ParseUint(rmDupCacheIDStr, 10, 32)
+		if pdfData, fileName, found := getCachedPDF(models.DocTypeRMDupCPPT, uint(rmDupID)); found {
+			c.Header("Content-Type", "application/pdf")
+			c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", fileName))
+			c.Data(http.StatusOK, "application/pdf", pdfData)
+			return
+		}
+	} else {
+		vid, _ := strconv.ParseUint(visitID, 10, 32)
+		if pdfData, fileName, found := getCachedPDF(models.DocTypeCPPT, uint(vid)); found {
+			c.Header("Content-Type", "application/pdf")
+			c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", fileName))
+			c.Data(http.StatusOK, "application/pdf", pdfData)
+			return
+		}
+	}
+
 	// Load visit with relations
 	var visit models.Visit
 	if err := database.DB.
@@ -5334,15 +5830,71 @@ func PrintCPPT(c *gin.Context) {
 		return
 	}
 
-	// Load CPPT records
+	// Load CPPT records - from RM duplicate if rm_duplicate_id provided, otherwise live data
 	var cpptRecords []models.CPPT
-	if err := database.DB.Preload("CreatedBy").Preload("VerifiedBy").
-		Where("visit_id = ?", visitID).
-		Order("record_date ASC").
-		Find(&cpptRecords).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memuat data CPPT"})
-		return
+	rmDupIDStr := c.Query("rm_duplicate_id")
+	if rmDupIDStr != "" {
+		var rmDupCPPTs []models.EKlaimRMCPPT
+		if err := database.DB.
+			Where("rm_duplicate_id = ?", rmDupIDStr).
+			Order("sequence ASC, record_date ASC").
+			Find(&rmDupCPPTs).Error; err == nil && len(rmDupCPPTs) > 0 {
+			for _, rmc := range rmDupCPPTs {
+				t, _ := time.Parse("2006-01-02T15:04", rmc.RecordDate)
+				if t.IsZero() {
+					t, _ = time.Parse("2006-01-02 15:04:05", rmc.RecordDate)
+				}
+				staffName := rmc.StaffName
+				if staffName == "" {
+					staffName = rmc.CreatedByName
+				}
+				cpptRecords = append(cpptRecords, models.CPPT{
+					RecordDate:       t,
+					Profession:       rmc.Profession,
+					CPPTFormat:       normalizeCPPTFormatForPrint(rmc.CPPTFormat),
+					Subjective:       rmc.Subjective,
+					Objective:        rmc.Objective,
+					Assessment:       rmc.Assessment,
+					Plan:             rmc.Plan,
+					Instruction:      rmc.Instruction,
+					BloodPressure:    rmc.BloodPressure,
+					HeartRate:        rmc.HeartRate,
+					RespiratoryRate:  rmc.RespiratoryRate,
+					Temperature:      rmc.Temperature,
+					OxygenSaturation: rmc.OxygenSaturation,
+					PainScale:        rmc.PainScale,
+					CreatedBy:        &models.User{FullName: staffName},
+					IsVerified:       rmc.ApprovedByName != "",
+				})
+			}
+		}
 	}
+	if len(cpptRecords) == 0 && rmDupIDStr == "" {
+		if err := database.DB.Preload("CreatedBy").Preload("VerifiedBy").
+			Where("visit_id = ?", visitID).
+			Order("record_date ASC").
+			Find(&cpptRecords).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memuat data CPPT"})
+			return
+		}
+	}
+
+	for i := range cpptRecords {
+		cpptRecords[i].CPPTFormat = normalizeCPPTFormatForPrint(cpptRecords[i].CPPTFormat)
+	}
+
+	dominantFormat := models.CPPTFormatSOAP
+	if len(cpptRecords) > 0 {
+		dominantFormat = cpptRecords[0].CPPTFormat
+	}
+	mixedCPPTFormat := false
+	for _, cppt := range cpptRecords {
+		if cppt.CPPTFormat != dominantFormat {
+			mixedCPPTFormat = true
+			break
+		}
+	}
+	cpptFieldHeaders := cpptFormatHeaders(dominantFormat, mixedCPPTFormat)
 
 	patient := visit.Registration.Patient
 	hospitalInfo := getHospitalInfo()
@@ -5374,11 +5926,11 @@ func PrintCPPT(c *gin.Context) {
 	// Total = 24+18+180+30+25 = 277
 
 	pdf.CellFormat(colDate, 7, "Tanggal/Jam", "1", 0, "C", true, 0, "")
-	pdf.CellFormat(colProf, 7, "Profesi", "1", 0, "C", true, 0, "")
-	pdf.CellFormat(colSOAP, 7, "Subjective", "1", 0, "C", true, 0, "")
-	pdf.CellFormat(colSOAP, 7, "Objective", "1", 0, "C", true, 0, "")
-	pdf.CellFormat(colSOAP, 7, "Assessment", "1", 0, "C", true, 0, "")
-	pdf.CellFormat(colSOAP, 7, "Plan", "1", 0, "C", true, 0, "")
+	pdf.CellFormat(colProf, 7, "Prof/Format", "1", 0, "C", true, 0, "")
+	pdf.CellFormat(colSOAP, 7, cpptFieldHeaders[0], "1", 0, "C", true, 0, "")
+	pdf.CellFormat(colSOAP, 7, cpptFieldHeaders[1], "1", 0, "C", true, 0, "")
+	pdf.CellFormat(colSOAP, 7, cpptFieldHeaders[2], "1", 0, "C", true, 0, "")
+	pdf.CellFormat(colSOAP, 7, cpptFieldHeaders[3], "1", 0, "C", true, 0, "")
 	pdf.CellFormat(colVital, 7, "TTV", "1", 0, "C", true, 0, "")
 	pdf.CellFormat(colSign, 7, "TTD", "1", 1, "C", true, 0, "")
 	pdf.SetLineWidth(0.2)
@@ -5394,23 +5946,71 @@ func PrintCPPT(c *gin.Context) {
 	}
 
 	for _, cppt := range cpptRecords {
-		// Calculate row height based on content - minimum 15mm for readability
+		dateStr := cppt.RecordDate.Format("02/01/06 15:04")
+		profStr := fmt.Sprintf("%s\n%s", truncateText(cppt.Profession, 14), strings.ToUpper(cppt.CPPTFormat))
+		soapFields := buildCPPTFieldTextsForPrint(cppt, mixedCPPTFormat)
+
+		vitalParts := []string{}
+		if strings.TrimSpace(cppt.BloodPressure) != "" {
+			vitalParts = append(vitalParts, "TD:"+cppt.BloodPressure)
+		}
+		if cppt.HeartRate > 0 {
+			vitalParts = append(vitalParts, fmt.Sprintf("N:%d x/m", cppt.HeartRate))
+		}
+		if cppt.RespiratoryRate > 0 {
+			vitalParts = append(vitalParts, fmt.Sprintf("RR:%d x/m", cppt.RespiratoryRate))
+		}
+		if strings.TrimSpace(cppt.Temperature) != "" {
+			vitalParts = append(vitalParts, "S:"+cppt.Temperature+" C")
+		}
+		if cppt.OxygenSaturation > 0 {
+			vitalParts = append(vitalParts, fmt.Sprintf("SpO2:%d%%", cppt.OxygenSaturation))
+		}
+		if cppt.PainScale > 0 {
+			vitalParts = append(vitalParts, fmt.Sprintf("Nyeri:%d/10", cppt.PainScale))
+		}
+		vitalStr := "-"
+		if len(vitalParts) > 0 {
+			vitalStr = strings.Join(vitalParts, "\n")
+		}
+
+		signName := "-"
+		if cppt.CreatedBy != nil {
+			signName = truncateText(cppt.CreatedBy.FullName, 20)
+		}
+		signStatus := "Pending"
+		if cppt.IsVerified {
+			signStatus = "Verified"
+		}
+		signCellText := signName + "\n" + signStatus
+
+		// Calculate row height based on all cell contents
 		maxLines := 1
-		sLines := len(pdf.SplitLines([]byte(cppt.Subjective), colSOAP-2))
-		oLines := len(pdf.SplitLines([]byte(cppt.Objective), colSOAP-2))
-		aLines := len(pdf.SplitLines([]byte(cppt.Assessment), colSOAP-2))
-		pLines := len(pdf.SplitLines([]byte(cppt.Plan), colSOAP-2))
-		for _, l := range []int{sLines, oLines, aLines, pLines} {
-			if l > maxLines {
-				maxLines = l
+		lineCandidates := []struct {
+			text  string
+			width float64
+		}{
+			{text: dateStr, width: colDate - 2},
+			{text: profStr, width: colProf - 2},
+			{text: soapFields[0], width: colSOAP - 2},
+			{text: soapFields[1], width: colSOAP - 2},
+			{text: soapFields[2], width: colSOAP - 2},
+			{text: soapFields[3], width: colSOAP - 2},
+			{text: vitalStr, width: colVital - 2},
+			{text: signCellText, width: colSign - 2},
+		}
+		for _, candidate := range lineCandidates {
+			lines := len(pdf.SplitLines([]byte(candidate.text), candidate.width))
+			if lines > maxLines {
+				maxLines = lines
 			}
 		}
-		rowH := float64(maxLines) * 4.5
+		rowH := float64(maxLines) * 3.8
 		if rowH < 15 {
 			rowH = 15
 		}
-		if rowH > 60 {
-			rowH = 60
+		if rowH > 70 {
+			rowH = 70
 		}
 
 		// Check page break
@@ -5421,38 +6021,29 @@ func PrintCPPT(c *gin.Context) {
 			pdf.SetFillColor(220, 220, 220)
 			pdf.SetDrawColor(0, 0, 0)
 			pdf.CellFormat(colDate, 7, "Tanggal/Jam", "1", 0, "C", true, 0, "")
-			pdf.CellFormat(colProf, 7, "Profesi", "1", 0, "C", true, 0, "")
-			pdf.CellFormat(colSOAP, 7, "Subjective", "1", 0, "C", true, 0, "")
-			pdf.CellFormat(colSOAP, 7, "Objective", "1", 0, "C", true, 0, "")
-			pdf.CellFormat(colSOAP, 7, "Assessment", "1", 0, "C", true, 0, "")
-			pdf.CellFormat(colSOAP, 7, "Plan", "1", 0, "C", true, 0, "")
+			pdf.CellFormat(colProf, 7, "Prof/Format", "1", 0, "C", true, 0, "")
+			pdf.CellFormat(colSOAP, 7, cpptFieldHeaders[0], "1", 0, "C", true, 0, "")
+			pdf.CellFormat(colSOAP, 7, cpptFieldHeaders[1], "1", 0, "C", true, 0, "")
+			pdf.CellFormat(colSOAP, 7, cpptFieldHeaders[2], "1", 0, "C", true, 0, "")
+			pdf.CellFormat(colSOAP, 7, cpptFieldHeaders[3], "1", 0, "C", true, 0, "")
 			pdf.CellFormat(colVital, 7, "TTV", "1", 0, "C", true, 0, "")
 			pdf.CellFormat(colSign, 7, "TTD", "1", 1, "C", true, 0, "")
 			pdf.SetFont("Arial", "", 9)
 		}
 
 		startY := pdf.GetY()
-
-		// Date
-		dateStr := cppt.RecordDate.Format("02/01/06 15:04")
 		pdf.Rect(marginL, startY, colDate, rowH, "D")
 		pdf.SetXY(marginL+1, startY+1)
 		pdf.MultiCell(colDate-2, 3, dateStr, "", "L", false)
 
-		// Profession
+		// Profession and format
 		x := marginL + colDate
 		pdf.Rect(x, startY, colProf, rowH, "D")
 		pdf.SetXY(x+1, startY+1)
-		pdf.MultiCell(colProf-2, 3, truncateText(cppt.Profession, 15), "", "L", false)
+		pdf.MultiCell(colProf-2, 3, profStr, "", "L", false)
 
-		// SOAP fields
+		// CPPT fields according to selected format
 		x += colProf
-		soapFields := []string{
-			truncateText(cppt.Subjective, 200),
-			truncateText(cppt.Objective, 200),
-			truncateText(cppt.Assessment, 200),
-			truncateText(cppt.Plan, 200),
-		}
 		for _, text := range soapFields {
 			pdf.Rect(x, startY, colSOAP, rowH, "D")
 			pdf.SetXY(x+1, startY+1)
@@ -5460,24 +6051,16 @@ func PrintCPPT(c *gin.Context) {
 			x += colSOAP
 		}
 
-		// Vital Signs - format dengan newline
-		vitalStr := fmt.Sprintf("TD:%s\nN:%d x/m\nS:%s C", safeString(cppt.BloodPressure), cppt.HeartRate, safeString(cppt.Temperature))
+		// Vital Signs
 		pdf.Rect(x, startY, colVital, rowH, "D")
 		pdf.SetXY(x+1, startY+1)
 		pdf.MultiCell(colVital-2, 3, vitalStr, "", "L", false)
 		x += colVital
 
 		// Signature
-		signName := "-"
-		if cppt.CreatedBy != nil {
-			signName = truncateText(cppt.CreatedBy.FullName, 20)
-		}
-		if cppt.IsVerified {
-			signName += "*"
-		}
 		pdf.Rect(x, startY, colSign, rowH, "D")
 		pdf.SetXY(x+1, startY+1)
-		pdf.MultiCell(colSign-2, 3, signName, "", "L", false)
+		pdf.MultiCell(colSign-2, 3, signCellText, "", "L", false)
 
 		pdf.SetY(startY + rowH)
 	}
@@ -5498,6 +6081,16 @@ func PrintCPPT(c *gin.Context) {
 	}
 
 	filename := fmt.Sprintf("CPPT_%s.pdf", visit.VisitNumber)
+	if rmDupCacheIDStr != "" {
+		rmDupID, _ := strconv.ParseUint(rmDupCacheIDStr, 10, 32)
+		if _, isSigned := findSignatureLog(signatureLookup{models.DocTypeRMDupCPPT, uint(rmDupID)}); isSigned {
+			go storeCachedPDF(models.DocTypeRMDupCPPT, uint(rmDupID), buf.Bytes(), filename)
+		}
+	} else {
+		if _, isSigned := findSignatureLog(signatureLookup{models.DocTypeCPPT, visit.ID}); isSigned {
+			go storeCachedPDF(models.DocTypeCPPT, visit.ID, buf.Bytes(), filename)
+		}
+	}
 	c.Header("Content-Type", "application/pdf")
 	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
 	c.Data(http.StatusOK, "application/pdf", buf.Bytes())
@@ -5507,6 +6100,26 @@ func PrintCPPT(c *gin.Context) {
 // GET /api/print/nursing-care/:visitId
 func PrintNursingCare(c *gin.Context) {
 	visitID := c.Param("visitId")
+
+	// Cache check
+	rmDupCacheIDStr := c.Query("rm_duplicate_id")
+	if rmDupCacheIDStr != "" {
+		rmDupID, _ := strconv.ParseUint(rmDupCacheIDStr, 10, 32)
+		if pdfData, fileName, found := getCachedPDF(models.DocTypeRMDupNursingCare, uint(rmDupID)); found {
+			c.Header("Content-Type", "application/pdf")
+			c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", fileName))
+			c.Data(http.StatusOK, "application/pdf", pdfData)
+			return
+		}
+	} else {
+		vid, _ := strconv.ParseUint(visitID, 10, 32)
+		if pdfData, fileName, found := getCachedPDF(models.DocTypeNursingCare, uint(vid)); found {
+			c.Header("Content-Type", "application/pdf")
+			c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", fileName))
+			c.Data(http.StatusOK, "application/pdf", pdfData)
+			return
+		}
+	}
 
 	// Load visit with relations
 	var visit models.Visit
@@ -5519,14 +6132,83 @@ func PrintNursingCare(c *gin.Context) {
 		return
 	}
 
-	// Load Nursing Care records
+	// Load Nursing Care records - from RM duplicate if rm_duplicate_id provided, otherwise live data
 	var nursingCares []models.NursingCare
-	if err := database.DB.Preload("CreatedBy").
-		Where("visit_id = ?", visitID).
-		Order("record_date ASC").
-		Find(&nursingCares).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memuat data asuhan keperawatan"})
-		return
+	rmDupIDStr := c.Query("rm_duplicate_id")
+	if rmDupIDStr != "" {
+		var rmDupNCs []models.EKlaimRMNursingCare
+		if err := database.DB.
+			Where("rm_duplicate_id = ?", rmDupIDStr).
+			Order("sequence ASC, record_date ASC").
+			Find(&rmDupNCs).Error; err == nil && len(rmDupNCs) > 0 {
+			for _, rnc := range rmDupNCs {
+				t, _ := time.Parse("2006-01-02T15:04", rnc.RecordDate)
+				if t.IsZero() {
+					t, _ = time.Parse("2006-01-02 15:04:05", rnc.RecordDate)
+				}
+				staffName := rnc.StaffName
+				if staffName == "" {
+					staffName = rnc.CreatedByName
+				}
+				implTime := time.Time{}
+				if rnc.ImplementationTime != "" {
+					implTime, _ = time.Parse("2006-01-02T15:04", rnc.ImplementationTime)
+				}
+				nursingCares = append(nursingCares, models.NursingCare{
+					ID:                      rnc.ID,
+					RecordDate:              t,
+					ShiftType:               rnc.ShiftType,
+					ChiefComplaint:          rnc.ChiefComplaint,
+					PainAssessment:          rnc.PainAssessment,
+					PainScale:               rnc.PainScale,
+					ConsciousnessLevel:      rnc.ConsciousnessLevel,
+					FunctionalStatus:        rnc.FunctionalStatus,
+					FallRiskAssessment:      rnc.FallRiskAssessment,
+					FallRiskScore:           rnc.FallRiskScore,
+					NutritionAssessment:     rnc.NutritionAssessment,
+					SkinAssessment:          rnc.SkinAssessment,
+					PressureUlcerRisk:       rnc.PressureUlcerRisk,
+					BloodPressure:           rnc.BloodPressure,
+					HeartRate:               rnc.HeartRate,
+					RespiratoryRate:         rnc.RespiratoryRate,
+					Temperature:             rnc.Temperature,
+					OxygenSaturation:        rnc.OxygenSaturation,
+					NursingDiagnosis:        rnc.NursingDiagnosis,
+					NursingDiagnosisCode:    rnc.NursingDiagnosisCode,
+					ProblemEtiology:         rnc.ProblemEtiology,
+					SignsSymptoms:           rnc.SignsSymptoms,
+					NursingOutcome:          rnc.NursingOutcome,
+					NursingOutcomeCode:      rnc.NursingOutcomeCode,
+					OutcomeIndicators:       rnc.OutcomeIndicators,
+					OutcomeTarget:           rnc.OutcomeTarget,
+					NursingIntervention:     rnc.NursingIntervention,
+					NursingInterventionCode: rnc.NursingInterventionCode,
+					ObservationActions:      rnc.ObservationActions,
+					TherapeuticActions:      rnc.TherapeuticActions,
+					EducationActions:        rnc.EducationActions,
+					CollaborationActions:    rnc.CollaborationActions,
+					Implementation:          rnc.Implementation,
+					ImplementationTime:      implTime,
+					PatientResponse:         rnc.PatientResponse,
+					EvaluationSubjective:    rnc.EvaluationSubjective,
+					EvaluationObjective:     rnc.EvaluationObjective,
+					EvaluationAnalysis:      rnc.EvaluationAnalysis,
+					EvaluationPlanning:      rnc.EvaluationPlanning,
+					ProblemStatus:           rnc.ProblemStatus,
+					Notes:                   rnc.Notes,
+					CreatedBy:               &models.User{FullName: staffName},
+				})
+			}
+		}
+	}
+	if len(nursingCares) == 0 && rmDupIDStr == "" {
+		if err := database.DB.Preload("CreatedBy").
+			Where("visit_id = ?", visitID).
+			Order("record_date ASC").
+			Find(&nursingCares).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memuat data asuhan keperawatan"})
+			return
+		}
 	}
 
 	if len(nursingCares) == 0 {
@@ -5717,6 +6399,16 @@ func PrintNursingCare(c *gin.Context) {
 	}
 
 	filename := fmt.Sprintf("Asuhan_Keperawatan_%s.pdf", visit.VisitNumber)
+	if rmDupCacheIDStr != "" {
+		rmDupID, _ := strconv.ParseUint(rmDupCacheIDStr, 10, 32)
+		if _, isSigned := findSignatureLog(signatureLookup{models.DocTypeRMDupNursingCare, uint(rmDupID)}); isSigned {
+			go storeCachedPDF(models.DocTypeRMDupNursingCare, uint(rmDupID), buf.Bytes(), filename)
+		}
+	} else {
+		if _, isSigned := findSignatureLog(signatureLookup{models.DocTypeNursingCare, visit.ID}); isSigned {
+			go storeCachedPDF(models.DocTypeNursingCare, visit.ID, buf.Bytes(), filename)
+		}
+	}
 	c.Header("Content-Type", "application/pdf")
 	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
 	c.Data(http.StatusOK, "application/pdf", buf.Bytes())
@@ -5726,6 +6418,26 @@ func PrintNursingCare(c *gin.Context) {
 // GET /api/print/fluid-balance/:visitId
 func PrintFluidBalance(c *gin.Context) {
 	visitID := c.Param("visitId")
+
+	// Cache check
+	rmDupCacheIDStr := c.Query("rm_duplicate_id")
+	if rmDupCacheIDStr != "" {
+		rmDupID, _ := strconv.ParseUint(rmDupCacheIDStr, 10, 32)
+		if pdfData, fileName, found := getCachedPDF(models.DocTypeRMDupFluidBalance, uint(rmDupID)); found {
+			c.Header("Content-Type", "application/pdf")
+			c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", fileName))
+			c.Data(http.StatusOK, "application/pdf", pdfData)
+			return
+		}
+	} else {
+		vid, _ := strconv.ParseUint(visitID, 10, 32)
+		if pdfData, fileName, found := getCachedPDF("fluid_balance", uint(vid)); found {
+			c.Header("Content-Type", "application/pdf")
+			c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", fileName))
+			c.Data(http.StatusOK, "application/pdf", pdfData)
+			return
+		}
+	}
 
 	// Load visit with relations
 	var visit models.Visit
@@ -5738,14 +6450,59 @@ func PrintFluidBalance(c *gin.Context) {
 		return
 	}
 
-	// Load Fluid Balance records
+	// Load Fluid Balance records - from RM duplicate if rm_duplicate_id provided, otherwise live data
 	var fluidBalances []models.FluidBalance
-	if err := database.DB.Preload("CreatedBy").
-		Where("visit_id = ?", visitID).
-		Order("record_date ASC").
-		Find(&fluidBalances).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memuat data balance cairan"})
-		return
+	rmDupIDStr := c.Query("rm_duplicate_id")
+	if rmDupIDStr != "" {
+		var rmDupFBs []models.EKlaimRMFluidBalance
+		if err := database.DB.
+			Where("rm_duplicate_id = ?", rmDupIDStr).
+			Order("sequence ASC, record_date ASC").
+			Find(&rmDupFBs).Error; err == nil && len(rmDupFBs) > 0 {
+			for _, rfb := range rmDupFBs {
+				t, _ := time.Parse("2006-01-02", rfb.RecordDate)
+				if t.IsZero() {
+					t, _ = time.Parse("2006-01-02T15:04", rfb.RecordDate)
+				}
+				staffName := rfb.StaffName
+				if staffName == "" {
+					staffName = rfb.CreatedByName
+				}
+				fluidBalances = append(fluidBalances, models.FluidBalance{
+					RecordDate:   t,
+					ShiftType:    rfb.ShiftType,
+					OralDrink:    rfb.OralDrink,
+					OralFood:     rfb.OralFood,
+					OralMedicine: rfb.OralMedicine,
+					IVFluid:      rfb.IVFluid,
+					IVMedicine:   rfb.IVMedicine,
+					BloodProduct: rfb.BloodProduct,
+					EnteralFeed:  rfb.EnteralFeed,
+					OtherIntake:  rfb.OtherIntake,
+					UrineAmount:  rfb.UrineAmount,
+					FecesAmount:  rfb.FecesAmount,
+					VomitAmount:  rfb.VomitAmount,
+					DrainAmount:  rfb.DrainAmount,
+					BloodLoss:    rfb.BloodLoss,
+					IWL:          rfb.IWL,
+					OtherOutput:  rfb.OtherOutput,
+					TotalIntake:  rfb.TotalIntake,
+					TotalOutput:  rfb.TotalOutput,
+					Balance:      rfb.Balance,
+					Notes:        rfb.Notes,
+					CreatedBy:    &models.User{FullName: staffName},
+				})
+			}
+		}
+	}
+	if len(fluidBalances) == 0 && rmDupIDStr == "" {
+		if err := database.DB.Preload("CreatedBy").
+			Where("visit_id = ?", visitID).
+			Order("record_date ASC").
+			Find(&fluidBalances).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memuat data balance cairan"})
+			return
+		}
 	}
 
 	if len(fluidBalances) == 0 {
@@ -5921,6 +6678,16 @@ func PrintFluidBalance(c *gin.Context) {
 	}
 
 	filename := fmt.Sprintf("Balance_Cairan_%s.pdf", visit.VisitNumber)
+	if rmDupCacheIDStr != "" {
+		rmDupID, _ := strconv.ParseUint(rmDupCacheIDStr, 10, 32)
+		if _, isSigned := findSignatureLog(signatureLookup{models.DocTypeRMDupFluidBalance, uint(rmDupID)}); isSigned {
+			go storeCachedPDF(models.DocTypeRMDupFluidBalance, uint(rmDupID), buf.Bytes(), filename)
+		}
+	} else {
+		if _, isSigned := findSignatureLog(signatureLookup{models.DocTypeCPPT, visit.ID}); isSigned {
+			go storeCachedPDF("fluid_balance", visit.ID, buf.Bytes(), filename)
+		}
+	}
 	c.Header("Content-Type", "application/pdf")
 	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
 	c.Data(http.StatusOK, "application/pdf", buf.Bytes())
@@ -6215,6 +6982,18 @@ func PrintUnitTransfer(c *gin.Context) {
 func PrintVitalSignChart(c *gin.Context) {
 	visitID := c.Param("visitId")
 
+	// Cache check for RM duplicate mode
+	rmDupCacheIDStr := c.Query("rm_duplicate_id")
+	if rmDupCacheIDStr != "" {
+		rmDupID, _ := strconv.ParseUint(rmDupCacheIDStr, 10, 32)
+		if pdfData, fileName, found := getCachedPDF(models.DocTypeRMDupVitalSign, uint(rmDupID)); found {
+			c.Header("Content-Type", "application/pdf")
+			c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", fileName))
+			c.Data(http.StatusOK, "application/pdf", pdfData)
+			return
+		}
+	}
+
 	// Load visit with relations
 	var visit models.Visit
 	if err := database.DB.
@@ -6226,15 +7005,50 @@ func PrintVitalSignChart(c *gin.Context) {
 		return
 	}
 
-	// Load CPPT records that have vital sign data
+	// Load CPPT records that have vital sign data - from RM duplicate if rm_duplicate_id provided
 	var cppts []models.CPPT
-	if err := database.DB.Preload("CreatedBy").
-		Where("visit_id = ?", visitID).
-		Where("(blood_pressure != '' AND blood_pressure IS NOT NULL) OR heart_rate > 0 OR respiratory_rate > 0 OR (temperature != '' AND temperature IS NOT NULL) OR oxygen_saturation > 0 OR pain_scale > 0").
-		Order("record_date ASC").
-		Find(&cppts).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memuat data tanda vital dari CPPT"})
-		return
+	rmDupIDStr := c.Query("rm_duplicate_id")
+	if rmDupIDStr != "" {
+		var rmDupCPPTs []models.EKlaimRMCPPT
+		if err := database.DB.
+			Where("rm_duplicate_id = ?", rmDupIDStr).
+			Order("sequence ASC, record_date ASC").
+			Find(&rmDupCPPTs).Error; err == nil {
+			for _, rmc := range rmDupCPPTs {
+				if rmc.BloodPressure == "" && rmc.HeartRate == 0 && rmc.Temperature == "" && rmc.OxygenSaturation == 0 && rmc.PainScale == 0 {
+					continue
+				}
+				t, _ := time.Parse("2006-01-02T15:04", rmc.RecordDate)
+				if t.IsZero() {
+					t, _ = time.Parse("2006-01-02 15:04:05", rmc.RecordDate)
+				}
+				staffName := rmc.StaffName
+				if staffName == "" {
+					staffName = rmc.CreatedByName
+				}
+				cppts = append(cppts, models.CPPT{
+					RecordDate:       t,
+					Profession:       rmc.Profession,
+					BloodPressure:    rmc.BloodPressure,
+					HeartRate:        rmc.HeartRate,
+					RespiratoryRate:  rmc.RespiratoryRate,
+					Temperature:      rmc.Temperature,
+					OxygenSaturation: rmc.OxygenSaturation,
+					PainScale:        rmc.PainScale,
+					CreatedBy:        &models.User{FullName: staffName},
+				})
+			}
+		}
+	}
+	if len(cppts) == 0 && rmDupIDStr == "" {
+		if err := database.DB.Preload("CreatedBy").
+			Where("visit_id = ?", visitID).
+			Where("(blood_pressure != '' AND blood_pressure IS NOT NULL) OR heart_rate > 0 OR respiratory_rate > 0 OR (temperature != '' AND temperature IS NOT NULL) OR oxygen_saturation > 0 OR pain_scale > 0").
+			Order("record_date ASC").
+			Find(&cppts).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memuat data tanda vital dari CPPT"})
+			return
+		}
 	}
 
 	if len(cppts) == 0 {
@@ -6375,6 +7189,12 @@ func PrintVitalSignChart(c *gin.Context) {
 	}
 
 	filename := fmt.Sprintf("Vital_Sign_%s.pdf", visit.VisitNumber)
+	if rmDupCacheIDStr != "" {
+		rmDupID, _ := strconv.ParseUint(rmDupCacheIDStr, 10, 32)
+		if _, isSigned := findSignatureLog(signatureLookup{models.DocTypeRMDupVitalSign, uint(rmDupID)}); isSigned {
+			go storeCachedPDF(models.DocTypeRMDupVitalSign, uint(rmDupID), buf.Bytes(), filename)
+		}
+	}
 	c.Header("Content-Type", "application/pdf")
 	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
 	c.Data(http.StatusOK, "application/pdf", buf.Bytes())
@@ -6461,6 +7281,26 @@ func GetAvailableDocs(c *gin.Context) {
 // GET /api/print/referral-letter/:visitId
 func PrintReferralLetter(c *gin.Context) {
 	visitID := c.Param("visitId")
+
+	// Cache check
+	rmDuplicateID := c.Query("rm_duplicate_id")
+	if rmDuplicateID != "" {
+		rmDupID, _ := strconv.ParseUint(rmDuplicateID, 10, 32)
+		if pdfData, fileName, found := getCachedPDF(models.DocTypeRMDupReferral, uint(rmDupID)); found {
+			c.Header("Content-Type", "application/pdf")
+			c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", fileName))
+			c.Data(http.StatusOK, "application/pdf", pdfData)
+			return
+		}
+	} else {
+		vid, _ := strconv.ParseUint(visitID, 10, 32)
+		if pdfData, fileName, found := getCachedPDF(models.DocTypeReferralLetter, uint(vid)); found {
+			c.Header("Content-Type", "application/pdf")
+			c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", fileName))
+			c.Data(http.StatusOK, "application/pdf", pdfData)
+			return
+		}
+	}
 
 	// Load visit with relations
 	var visit models.Visit
@@ -6618,6 +7458,16 @@ func PrintReferralLetter(c *gin.Context) {
 	}
 
 	filename := fmt.Sprintf("Surat_Rujukan_%s.pdf", visit.VisitNumber)
+	if rmDuplicateID != "" {
+		rmDupID, _ := strconv.ParseUint(rmDuplicateID, 10, 32)
+		if _, isSigned := findSignatureLog(signatureLookup{models.DocTypeRMDupReferral, uint(rmDupID)}); isSigned {
+			go storeCachedPDF(models.DocTypeRMDupReferral, uint(rmDupID), buf.Bytes(), filename)
+		}
+	} else {
+		if _, isSigned := findSignatureLog(signatureLookup{models.DocTypeReferralLetter, visit.ID}); isSigned {
+			go storeCachedPDF(models.DocTypeReferralLetter, visit.ID, buf.Bytes(), filename)
+		}
+	}
 	c.Header("Content-Type", "application/pdf")
 	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
 	c.Data(http.StatusOK, "application/pdf", buf.Bytes())
@@ -6627,6 +7477,26 @@ func PrintReferralLetter(c *gin.Context) {
 // GET /api/print/inpatient-certificate/:visitId
 func PrintInpatientCertificate(c *gin.Context) {
 	visitID := c.Param("visitId")
+
+	// Cache check
+	rmDuplicateID := c.Query("rm_duplicate_id")
+	if rmDuplicateID != "" {
+		rmDupID, _ := strconv.ParseUint(rmDuplicateID, 10, 32)
+		if pdfData, fileName, found := getCachedPDF(models.DocTypeRMDupInpatientCert, uint(rmDupID)); found {
+			c.Header("Content-Type", "application/pdf")
+			c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", fileName))
+			c.Data(http.StatusOK, "application/pdf", pdfData)
+			return
+		}
+	} else {
+		vid, _ := strconv.ParseUint(visitID, 10, 32)
+		if pdfData, fileName, found := getCachedPDF(models.DocTypeInpatientCert, uint(vid)); found {
+			c.Header("Content-Type", "application/pdf")
+			c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", fileName))
+			c.Data(http.StatusOK, "application/pdf", pdfData)
+			return
+		}
+	}
 
 	// Load visit with relations
 	var visit models.Visit
@@ -6790,6 +7660,16 @@ func PrintInpatientCertificate(c *gin.Context) {
 	}
 
 	filename := fmt.Sprintf("Surat_Keterangan_Rawat_Inap_%s.pdf", visit.VisitNumber)
+	if rmDuplicateID != "" {
+		rmDupID, _ := strconv.ParseUint(rmDuplicateID, 10, 32)
+		if _, isSigned := findSignatureLog(signatureLookup{models.DocTypeRMDupInpatientCert, uint(rmDupID)}); isSigned {
+			go storeCachedPDF(models.DocTypeRMDupInpatientCert, uint(rmDupID), buf.Bytes(), filename)
+		}
+	} else {
+		if _, isSigned := findSignatureLog(signatureLookup{models.DocTypeInpatientCert, visit.ID}); isSigned {
+			go storeCachedPDF(models.DocTypeInpatientCert, visit.ID, buf.Bytes(), filename)
+		}
+	}
 	c.Header("Content-Type", "application/pdf")
 	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
 	c.Data(http.StatusOK, "application/pdf", buf.Bytes())
@@ -7640,6 +8520,15 @@ func PrintPrescriptionThermal(c *gin.Context) {
 func PrintLaboratoryResult(c *gin.Context) {
 	id := c.Param("id")
 
+	// Cache check
+	lid, _ := strconv.ParseUint(id, 10, 32)
+	if pdfData, fileName, found := getCachedPDF(models.DocTypeLabResult, uint(lid)); found {
+		c.Header("Content-Type", "application/pdf")
+		c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", fileName))
+		c.Data(http.StatusOK, "application/pdf", pdfData)
+		return
+	}
+
 	var order models.ProcedureOrder
 	if err := database.DB.
 		Preload("SourceVisit.Registration.Patient").
@@ -7780,6 +8669,9 @@ func PrintLaboratoryResult(c *gin.Context) {
 	}
 
 	filename := fmt.Sprintf("Hasil_Lab_%s.pdf", order.OrderNumber)
+	if _, isSigned := findSignatureLog(signatureLookup{models.DocTypeLabResult, order.ID}); isSigned {
+		go storeCachedPDF(models.DocTypeLabResult, order.ID, buf.Bytes(), filename)
+	}
 	c.Header("Content-Type", "application/pdf")
 	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
 	c.Data(http.StatusOK, "application/pdf", buf.Bytes())
@@ -7933,6 +8825,15 @@ func PrintLaboratoryResultItem(c *gin.Context) {
 func PrintRadiologyResult(c *gin.Context) {
 	id := c.Param("id")
 
+	// Cache check
+	rid, _ := strconv.ParseUint(id, 10, 32)
+	if pdfData, fileName, found := getCachedPDF(models.DocTypeRadiologyResult, uint(rid)); found {
+		c.Header("Content-Type", "application/pdf")
+		c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", fileName))
+		c.Data(http.StatusOK, "application/pdf", pdfData)
+		return
+	}
+
 	var order models.ProcedureOrder
 	if err := database.DB.
 		Preload("SourceVisit.Registration.Patient").
@@ -8039,6 +8940,9 @@ func PrintRadiologyResult(c *gin.Context) {
 	}
 
 	filename := fmt.Sprintf("Hasil_Radiologi_%s.pdf", order.OrderNumber)
+	if _, isSigned := findSignatureLog(signatureLookup{models.DocTypeRadiologyResult, order.ID}); isSigned {
+		go storeCachedPDF(models.DocTypeRadiologyResult, order.ID, buf.Bytes(), filename)
+	}
 	c.Header("Content-Type", "application/pdf")
 	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
 	c.Data(http.StatusOK, "application/pdf", buf.Bytes())
@@ -8644,6 +9548,25 @@ func PrintInformedConsent(c *gin.Context) {
 		return
 	}
 
+	// Cache check
+	rmDuplicateID := c.Query("rm_duplicate_id")
+	if rmDuplicateID != "" {
+		rmDupID, _ := strconv.ParseUint(rmDuplicateID, 10, 32)
+		if pdfData, fileName, found := getCachedPDF(models.DocTypeRMDupConsent, uint(rmDupID)); found {
+			c.Header("Content-Type", "application/pdf")
+			c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", fileName))
+			c.Data(http.StatusOK, "application/pdf", pdfData)
+			return
+		}
+	} else {
+		if pdfData, fileName, found := getCachedPDF(models.DocTypeInformedConsent, uint(patientID)); found {
+			c.Header("Content-Type", "application/pdf")
+			c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", fileName))
+			c.Data(http.StatusOK, "application/pdf", pdfData)
+			return
+		}
+	}
+
 	var patient models.Patient
 	if err := database.DB.First(&patient, patientID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Patient not found"})
@@ -8903,6 +9826,16 @@ func PrintInformedConsent(c *gin.Context) {
 	}
 
 	filename := fmt.Sprintf("Informed_Consent_%s.pdf", patient.NoRM)
+	if rmDuplicateID != "" {
+		rmDupID, _ := strconv.ParseUint(rmDuplicateID, 10, 32)
+		if _, isSigned := findSignatureLog(signatureLookup{models.DocTypeRMDupConsent, uint(rmDupID)}); isSigned {
+			go storeCachedPDF(models.DocTypeRMDupConsent, uint(rmDupID), buf.Bytes(), filename)
+		}
+	} else {
+		if consentIsSigned {
+			go storeCachedPDF(models.DocTypeInformedConsent, patient.ID, buf.Bytes(), filename)
+		}
+	}
 	c.Header("Content-Type", "application/pdf")
 	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=%s", filename))
 	c.Data(http.StatusOK, "application/pdf", buf.Bytes())
@@ -8912,6 +9845,26 @@ func PrintInformedConsent(c *gin.Context) {
 // Uses registrationId to track the full patient journey across all visits
 func PrintAdmissionDischargeSummary(c *gin.Context) {
 	registrationID := c.Param("registrationId")
+
+	// Cache check
+	rmDuplicateID := c.Query("rm_duplicate_id")
+	if rmDuplicateID != "" {
+		rmDupID, _ := strconv.ParseUint(rmDuplicateID, 10, 32)
+		if pdfData, fileName, found := getCachedPDF(models.DocTypeRMDupAdmission, uint(rmDupID)); found {
+			c.Header("Content-Type", "application/pdf")
+			c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", fileName))
+			c.Data(http.StatusOK, "application/pdf", pdfData)
+			return
+		}
+	} else {
+		rid, _ := strconv.ParseUint(registrationID, 10, 32)
+		if pdfData, fileName, found := getCachedPDF("admission_discharge_reg", uint(rid)); found {
+			c.Header("Content-Type", "application/pdf")
+			c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", fileName))
+			c.Data(http.StatusOK, "application/pdf", pdfData)
+			return
+		}
+	}
 
 	// Load registration with patient
 	var registration models.Registration
@@ -8972,7 +9925,8 @@ func PrintAdmissionDischargeSummary(c *gin.Context) {
 
 	// Load discharge medicine orders (from any visit under registration)
 	var dischargeMedicineOrders []models.MedicineOrder
-	database.DB.Where("source_visit_id IN ? AND prescription_type = ?", visitIDs, "discharge").
+	database.DB.Where("source_visit_id IN ? AND status <> ?", visitIDs, models.OrderStatusCancelled).
+		Where("(fulfillment_type = ?) OR (COALESCE(fulfillment_type, '') = '' AND prescription_type = ?)", models.FulfillmentTypeTakeHome, "discharge").
 		Preload("Items.Medicine").Find(&dischargeMedicineOrders)
 
 	hospitalInfo := getHospitalInfo()
@@ -9252,7 +10206,8 @@ func PrintAdmissionDischargeSummary(c *gin.Context) {
 		database.DB.Where("source_visit_id = ?", mv.ID).Find(&mvProcedureOrders)
 
 		var mvMedicineOrders []models.MedicineOrder
-		database.DB.Where("source_visit_id = ? AND (prescription_type IS NULL OR prescription_type != ?)", mv.ID, "discharge").
+		database.DB.Where("source_visit_id = ? AND status <> ?", mv.ID, models.OrderStatusCancelled).
+			Where("(COALESCE(fulfillment_type, '') != ?) AND (prescription_type IS NULL OR prescription_type != ?)", models.FulfillmentTypeTakeHome, "discharge").
 			Preload("Items.Medicine").Find(&mvMedicineOrders)
 
 		// ---- DATA MASUK ----
@@ -9719,6 +10674,16 @@ func PrintAdmissionDischargeSummary(c *gin.Context) {
 	}
 
 	filename := fmt.Sprintf("MR1_Ringkasan_Masuk_Keluar_%s_%s.pdf", patient.NoRM, registration.RegistrationNumber)
+	if rmDuplicateID != "" {
+		rmDupID, _ := strconv.ParseUint(rmDuplicateID, 10, 32)
+		if _, isSigned := findSignatureLog(signatureLookup{models.DocTypeRMDupAdmission, uint(rmDupID)}); isSigned {
+			go storeCachedPDF(models.DocTypeRMDupAdmission, uint(rmDupID), buf.Bytes(), filename)
+		}
+	} else if lastVisitID > 0 {
+		if _, isSigned := findSignatureLog(signatureLookup{models.DocTypeVisitResume, lastVisitID}); isSigned {
+			go storeCachedPDF("admission_discharge_reg", registration.ID, buf.Bytes(), filename)
+		}
+	}
 	c.Header("Content-Type", "application/pdf")
 	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
 	c.Data(http.StatusOK, "application/pdf", buf.Bytes())
@@ -9727,6 +10692,26 @@ func PrintAdmissionDischargeSummary(c *gin.Context) {
 // PrintRegistrationReceipt generates Bukti Registrasi / Tanda Pendaftaran
 func PrintRegistrationReceipt(c *gin.Context) {
 	registrationID := c.Param("registrationId")
+
+	// Cache check
+	rmDuplicateID := c.Query("rm_duplicate_id")
+	if rmDuplicateID != "" {
+		rmDupID, _ := strconv.ParseUint(rmDuplicateID, 10, 32)
+		if pdfData, fileName, found := getCachedPDF(models.DocTypeRMDupRegistration, uint(rmDupID)); found {
+			c.Header("Content-Type", "application/pdf")
+			c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", fileName))
+			c.Data(http.StatusOK, "application/pdf", pdfData)
+			return
+		}
+	} else {
+		rid, _ := strconv.ParseUint(registrationID, 10, 32)
+		if pdfData, fileName, found := getCachedPDF(models.DocTypeRegistration, uint(rid)); found {
+			c.Header("Content-Type", "application/pdf")
+			c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", fileName))
+			c.Data(http.StatusOK, "application/pdf", pdfData)
+			return
+		}
+	}
 
 	var registration models.Registration
 	if err := database.DB.
@@ -10225,6 +11210,16 @@ func PrintRegistrationReceipt(c *gin.Context) {
 	}
 
 	filename := fmt.Sprintf("Bukti_Registrasi_%s_%s.pdf", patient.NoRM, registration.RegistrationNumber)
+	if rmDuplicateID != "" {
+		rmDupID, _ := strconv.ParseUint(rmDuplicateID, 10, 32)
+		if _, isSigned := findSignatureLog(signatureLookup{models.DocTypeRMDupRegistration, uint(rmDupID)}); isSigned {
+			go storeCachedPDF(models.DocTypeRMDupRegistration, uint(rmDupID), buf.Bytes(), filename)
+		}
+	} else {
+		if isSigned {
+			go storeCachedPDF(models.DocTypeRegistration, registration.ID, buf.Bytes(), filename)
+		}
+	}
 	c.Header("Content-Type", "application/pdf")
 	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
 	c.Data(http.StatusOK, "application/pdf", buf.Bytes())
@@ -11668,7 +12663,7 @@ func addRMOrderInfoTable(pdf *gofpdf.Fpdf, patient *models.Patient, rmOrder *mod
 		case "consultation":
 			typeLabel = "KON"
 		}
-		orderNumber = fmt.Sprintf("RM-%s-%d", typeLabel, rmOrder.ID)
+		orderNumber = fmt.Sprintf("%s%s%d", typeLabel, orderDate.Format("02012006"), rmOrder.ID)
 	}
 
 	fakeOrder := &models.ProcedureOrder{
@@ -11687,493 +12682,494 @@ func addRMOrderInfoTable(pdf *gofpdf.Fpdf, patient *models.Patient, rmOrder *mod
 // PrintRMDuplicateLabOrder generates PDF for lab order request from RM Duplicate data
 func PrintRMDuplicateLabOrder(c *gin.Context) {
 	rmOrderID := c.Param("rmOrderId")
-
-	rmOrder, patient, visit, err := loadRMOrderWithPatient(rmOrderID)
+	oid, err := strconv.ParseUint(rmOrderID, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID tidak valid"})
 		return
 	}
 
-	if rmOrder.OrderType != "laboratory" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Order bukan tipe laboratorium"})
-		return
-	}
-
-	info := getHospitalInfo()
-
-	pdf := gofpdf.New("P", "mm", "A4", "")
-	pdf.SetMargins(marginLeft, marginTop, marginRight)
-	pdf.SetAutoPageBreak(false, 0)
-	pdf.AddPage()
-
-	addHeader(pdf, info, "Permintaan Pemeriksaan Laboratorium", rmOrder.OrderNumber)
-	addRMOrderInfoTable(pdf, patient, rmOrder, visit)
-
-	// Procedures table
-	addTableHeader(pdf, "DAFTAR PEMERIKSAAN")
-	pdf.SetFont("Arial", "B", 9)
-	pdf.SetFillColor(240, 240, 240)
-	pdf.CellFormat(10, 6, "No", "1", 0, "C", true, 0, "")
-	pdf.CellFormat(60, 6, "Nama Pemeriksaan", "1", 0, "C", true, 0, "")
-	pdf.CellFormat(30, 6, "Kode", "1", 0, "C", true, 0, "")
-	pdf.CellFormat(80, 6, "Catatan", "1", 1, "C", true, 0, "")
-
-	pdf.SetFont("Arial", "", 9)
-	for i, item := range rmOrder.Items {
-		procName := item.ProcedureName
-		procCode := ""
-		if item.Procedure != nil {
-			procName = item.Procedure.Name
-			procCode = item.Procedure.Code
+	serveCachedOrGenerate(c, "rm_dup_lab_order", uint(oid), func() ([]byte, string, error) {
+		rmOrder, patient, visit, err := loadRMOrderWithPatient(rmOrderID)
+		if err != nil {
+			return nil, "", err
 		}
-		notes := item.Notes
 
-		pdf.CellFormat(10, 6, fmt.Sprintf("%d", i+1), "1", 0, "C", false, 0, "")
-		pdf.CellFormat(60, 6, truncateText(procName, 35), "1", 0, "", false, 0, "")
-		pdf.CellFormat(30, 6, procCode, "1", 0, "C", false, 0, "")
-		pdf.CellFormat(80, 6, truncateText(notes, 45), "1", 1, "", false, 0, "")
-	}
+		if rmOrder.OrderType != "laboratory" {
+			return nil, "", fmt.Errorf("Order bukan tipe laboratorium")
+		}
 
-	// Clinical notes
-	if rmOrder.ClinicalNotes != "" {
-		pdf.SetY(pdf.GetY() + 3)
-		addTableHeader(pdf, "CATATAN KLINIS")
-		addTableFullRow(pdf, rmOrder.ClinicalNotes, false)
-		addTableEnd(pdf)
-	}
+		info := getHospitalInfo()
 
-	// Signature
-	doctorName := "-"
-	if visit != nil && visit.Doctor != nil {
-		doctorName = resolveAssignedUserNameFromEmployee(visit.Doctor, doctorName)
-	}
-	addSignature(pdf, info.City, doctorName, "Petugas Laboratorium", models.DocTypeRMDupLabResult, rmOrder.ID)
+		pdf := gofpdf.New("P", "mm", "A4", "")
+		pdf.SetMargins(marginLeft, marginTop, marginRight)
+		pdf.SetAutoPageBreak(false, 0)
+		pdf.AddPage()
 
-	var buf bytes.Buffer
-	if err := pdf.Output(&buf); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal generate PDF"})
-		return
-	}
+		addHeader(pdf, info, "Permintaan Pemeriksaan Laboratorium", rmOrder.OrderNumber)
+		addRMOrderInfoTable(pdf, patient, rmOrder, visit)
 
-	filename := fmt.Sprintf("Order_Lab_RM_%s.pdf", rmOrder.OrderNumber)
-	c.Header("Content-Type", "application/pdf")
-	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
-	c.Data(http.StatusOK, "application/pdf", buf.Bytes())
+		addTableHeader(pdf, "DAFTAR PEMERIKSAAN")
+		pdf.SetFont("Arial", "B", 9)
+		pdf.SetFillColor(240, 240, 240)
+		pdf.CellFormat(10, 6, "No", "1", 0, "C", true, 0, "")
+		pdf.CellFormat(60, 6, "Nama Pemeriksaan", "1", 0, "C", true, 0, "")
+		pdf.CellFormat(30, 6, "Kode", "1", 0, "C", true, 0, "")
+		pdf.CellFormat(80, 6, "Catatan", "1", 1, "C", true, 0, "")
+
+		pdf.SetFont("Arial", "", 9)
+		for i, item := range rmOrder.Items {
+			procName := item.ProcedureName
+			procCode := ""
+			if item.Procedure != nil {
+				procName = item.Procedure.Name
+				procCode = item.Procedure.Code
+			}
+			notes := item.Notes
+
+			pdf.CellFormat(10, 6, fmt.Sprintf("%d", i+1), "1", 0, "C", false, 0, "")
+			pdf.CellFormat(60, 6, truncateText(procName, 35), "1", 0, "", false, 0, "")
+			pdf.CellFormat(30, 6, procCode, "1", 0, "C", false, 0, "")
+			pdf.CellFormat(80, 6, truncateText(notes, 45), "1", 1, "", false, 0, "")
+		}
+
+		if rmOrder.ClinicalNotes != "" {
+			pdf.SetY(pdf.GetY() + 3)
+			addTableHeader(pdf, "CATATAN KLINIS")
+			addTableFullRow(pdf, rmOrder.ClinicalNotes, false)
+			addTableEnd(pdf)
+		}
+
+		doctorName := "-"
+		if visit != nil && visit.Doctor != nil {
+			doctorName = resolveAssignedUserNameFromEmployee(visit.Doctor, doctorName)
+		}
+		addSignature(pdf, info.City, doctorName, "Petugas Laboratorium", models.DocTypeRMDupLabResult, rmOrder.ID)
+
+		var buf bytes.Buffer
+		if err := pdf.Output(&buf); err != nil {
+			return nil, "", fmt.Errorf("Gagal generate PDF")
+		}
+
+		filename := fmt.Sprintf("Order_Lab_RM_%s.pdf", rmOrder.OrderNumber)
+		return buf.Bytes(), filename, nil
+	})
 }
 
 // PrintRMDuplicateLabResult generates PDF for lab results from RM Duplicate data
 func PrintRMDuplicateLabResult(c *gin.Context) {
 	rmOrderID := c.Param("rmOrderId")
-
-	rmOrder, patient, visit, err := loadRMOrderWithPatient(rmOrderID)
+	oid, err := strconv.ParseUint(rmOrderID, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID tidak valid"})
 		return
 	}
 
-	if rmOrder.OrderType != "laboratory" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Order bukan tipe laboratorium"})
-		return
-	}
-
-	info := getHospitalInfo()
-
-	pdf := gofpdf.New("P", "mm", "A4", "")
-	pdf.SetMargins(marginLeft, 10, marginRight)
-	pdf.SetAutoPageBreak(false, 15)
-
-	for idx, item := range rmOrder.Items {
-		pdf.AddPage()
-		addHeader(pdf, info, "HASIL PEMERIKSAAN LABORATORIUM", "")
-		addRMOrderInfoTable(pdf, patient, rmOrder, visit)
-
-		// Procedure name
-		procName := item.ProcedureName
-		if item.Procedure != nil {
-			procName = item.Procedure.Name
-		}
-		addTableHeader(pdf, fmt.Sprintf("PEMERIKSAAN: %s", strings.ToUpper(procName)))
-
-		// Results table header
-		pdf.SetFont("Arial", "B", 9)
-		pdf.SetFillColor(230, 230, 230)
-		pdf.CellFormat(60, 7, "Parameter", "1", 0, "C", true, 0, "")
-		pdf.CellFormat(35, 7, "Hasil", "1", 0, "C", true, 0, "")
-		pdf.CellFormat(20, 7, "Satuan", "1", 0, "C", true, 0, "")
-		pdf.CellFormat(45, 7, "Nilai Rujukan", "1", 0, "C", true, 0, "")
-		pdf.CellFormat(20, 7, "Ket", "1", 1, "C", true, 0, "")
-
-		pdf.SetFont("Arial", "", 9)
-		for _, result := range item.Results {
-			paramName := result.ParameterName
-			unit := ""
-			refRange := ""
-			if result.ProcedureParameter != nil {
-				paramName = result.ProcedureParameter.Name
-				unit = result.ProcedureParameter.Unit
-				if result.ProcedureParameter.NormalText != "" {
-					refRange = result.ProcedureParameter.NormalText
-				} else if result.ProcedureParameter.NormalMin > 0 || result.ProcedureParameter.NormalMax > 0 {
-					refRange = fmt.Sprintf("%.2f - %.2f", result.ProcedureParameter.NormalMin, result.ProcedureParameter.NormalMax)
-				}
-			}
-			if paramName == "" {
-				paramName = "-"
-			}
-
-			status := ""
-			pdf.SetTextColor(0, 0, 0)
-			if result.IsCritical {
-				status = "KRITIS"
-				pdf.SetTextColor(255, 0, 0)
-			} else if result.IsHigh {
-				status = "H"
-				pdf.SetTextColor(255, 0, 0)
-			} else if result.IsLow {
-				status = "L"
-				pdf.SetTextColor(0, 0, 255)
-			}
-
-			pdf.CellFormat(60, 6, paramName, "1", 0, "L", false, 0, "")
-			pdf.CellFormat(35, 6, result.Value, "1", 0, "C", false, 0, "")
-			pdf.SetTextColor(0, 0, 0)
-			pdf.CellFormat(20, 6, unit, "1", 0, "C", false, 0, "")
-			pdf.CellFormat(45, 6, refRange, "1", 0, "C", false, 0, "")
-
-			if result.IsCritical || result.IsHigh {
-				pdf.SetTextColor(255, 0, 0)
-			} else if result.IsLow {
-				pdf.SetTextColor(0, 0, 255)
-			}
-			pdf.CellFormat(20, 6, status, "1", 1, "C", false, 0, "")
-			pdf.SetTextColor(0, 0, 0)
+	serveCachedOrGenerate(c, models.DocTypeRMDupLabResult, uint(oid), func() ([]byte, string, error) {
+		rmOrder, patient, visit, err := loadRMOrderWithPatient(rmOrderID)
+		if err != nil {
+			return nil, "", err
 		}
 
-		// Notes
-		if item.Notes != "" {
-			pdf.Ln(3)
+		if rmOrder.OrderType != "laboratory" {
+			return nil, "", fmt.Errorf("Order bukan tipe laboratorium")
+		}
+
+		info := getHospitalInfo()
+
+		pdf := gofpdf.New("P", "mm", "A4", "")
+		pdf.SetMargins(marginLeft, 10, marginRight)
+		pdf.SetAutoPageBreak(false, 15)
+
+		for idx, item := range rmOrder.Items {
+			pdf.AddPage()
+			addHeader(pdf, info, "HASIL PEMERIKSAAN LABORATORIUM", "")
+			addRMOrderInfoTable(pdf, patient, rmOrder, visit)
+
+			procName := item.ProcedureName
+			if item.Procedure != nil {
+				procName = item.Procedure.Name
+			}
+			addTableHeader(pdf, fmt.Sprintf("PEMERIKSAAN: %s", strings.ToUpper(procName)))
+
 			pdf.SetFont("Arial", "B", 9)
-			pdf.CellFormat(0, 5, "Catatan:", "", 1, "L", false, 0, "")
+			pdf.SetFillColor(230, 230, 230)
+			pdf.CellFormat(60, 7, "Parameter", "1", 0, "C", true, 0, "")
+			pdf.CellFormat(35, 7, "Hasil", "1", 0, "C", true, 0, "")
+			pdf.CellFormat(20, 7, "Satuan", "1", 0, "C", true, 0, "")
+			pdf.CellFormat(45, 7, "Nilai Rujukan", "1", 0, "C", true, 0, "")
+			pdf.CellFormat(20, 7, "Ket", "1", 1, "C", true, 0, "")
+
 			pdf.SetFont("Arial", "", 9)
-			pdf.MultiCell(0, 5, item.Notes, "", "L", false)
+			for _, result := range item.Results {
+				paramName := result.ParameterName
+				unit := ""
+				refRange := ""
+				if result.ProcedureParameter != nil {
+					paramName = result.ProcedureParameter.Name
+					unit = result.ProcedureParameter.Unit
+					if result.ProcedureParameter.NormalText != "" {
+						refRange = result.ProcedureParameter.NormalText
+					} else if result.ProcedureParameter.NormalMin > 0 || result.ProcedureParameter.NormalMax > 0 {
+						refRange = fmt.Sprintf("%.2f - %.2f", result.ProcedureParameter.NormalMin, result.ProcedureParameter.NormalMax)
+					}
+				}
+				if paramName == "" {
+					paramName = "-"
+				}
+
+				status := ""
+				pdf.SetTextColor(0, 0, 0)
+				if result.IsCritical {
+					status = "KRITIS"
+					pdf.SetTextColor(255, 0, 0)
+				} else if result.IsHigh {
+					status = "H"
+					pdf.SetTextColor(255, 0, 0)
+				} else if result.IsLow {
+					status = "L"
+					pdf.SetTextColor(0, 0, 255)
+				}
+
+				pdf.CellFormat(60, 6, paramName, "1", 0, "L", false, 0, "")
+				pdf.CellFormat(35, 6, result.Value, "1", 0, "C", false, 0, "")
+				pdf.SetTextColor(0, 0, 0)
+				pdf.CellFormat(20, 6, unit, "1", 0, "C", false, 0, "")
+				pdf.CellFormat(45, 6, refRange, "1", 0, "C", false, 0, "")
+
+				if result.IsCritical || result.IsHigh {
+					pdf.SetTextColor(255, 0, 0)
+				} else if result.IsLow {
+					pdf.SetTextColor(0, 0, 255)
+				}
+				pdf.CellFormat(20, 6, status, "1", 1, "C", false, 0, "")
+				pdf.SetTextColor(0, 0, 0)
+			}
+
+			if item.Notes != "" {
+				pdf.Ln(3)
+				pdf.SetFont("Arial", "B", 9)
+				pdf.CellFormat(0, 5, "Catatan:", "", 1, "L", false, 0, "")
+				pdf.SetFont("Arial", "", 9)
+				pdf.MultiCell(0, 5, item.Notes, "", "L", false)
+			}
+
+			labSignerName := "-"
+			if visit != nil && visit.Doctor != nil {
+				labSignerName = resolveAssignedUserNameFromEmployee(visit.Doctor, labSignerName)
+			}
+			labSigLog, labIsSigned := findSignatureLog(
+				signatureLookup{models.DocTypeRMDupLabResult, rmOrder.ID},
+			)
+			if labIsSigned {
+				labSignerName = resolveSignedUserName(labSigLog, labSignerName)
+			}
+
+			pdf.Ln(10)
+			signY := pdf.GetY()
+			pdf.SetFont("Arial", "", 9)
+			examDate := formatDateIndonesian(rmOrder.CreatedAt)
+			if rmOrder.FakeDate != nil {
+				examDate = formatDateIndonesian(*rmOrder.FakeDate)
+			}
+			pdf.CellFormat(0, 5, fmt.Sprintf("Tanggal Pemeriksaan: %s", examDate), "", 1, "L", false, 0, "")
+			pdf.Ln(2)
+
+			labSigX := marginLeft + 120.0
+			pdf.SetXY(labSigX, signY+5)
+			pdf.SetFont("Arial", "", 9)
+			pdf.CellFormat(60, 5, "Petugas Pemeriksa,", "", 1, "C", false, 0, "")
+			if labIsSigned {
+				addSignatureQR(pdf, labSigLog, labSigX+30, signY+16, 16.0, fmt.Sprintf("lab_%d_%d", rmOrder.ID, idx))
+			}
+			pdf.SetXY(labSigX, signY+25)
+			pdf.SetFont("Arial", "BU", 9)
+			pdf.CellFormat(60, 5, labSignerName, "", 1, "C", false, 0, "")
+
+			pdf.SetFont("Arial", "", 8)
+			pdf.SetXY(marginLeft, 280)
+			pdf.CellFormat(0, 5, fmt.Sprintf("Halaman %d dari %d", idx+1, len(rmOrder.Items)), "", 0, "C", false, 0, "")
 		}
 
-		// Signature section
-		labSignerName := "-"
-		if visit != nil && visit.Doctor != nil {
-			labSignerName = resolveAssignedUserNameFromEmployee(visit.Doctor, labSignerName)
-		}
-		labSigLog, labIsSigned := findSignatureLog(
-			signatureLookup{models.DocTypeRMDupLabResult, rmOrder.ID},
-		)
-		if labIsSigned {
-			labSignerName = resolveSignedUserName(labSigLog, labSignerName)
+		var buf bytes.Buffer
+		if err := pdf.Output(&buf); err != nil {
+			return nil, "", fmt.Errorf("Gagal generate PDF")
 		}
 
-		pdf.Ln(10)
-		signY := pdf.GetY()
-		pdf.SetFont("Arial", "", 9)
-		examDate := formatDateIndonesian(rmOrder.CreatedAt)
-		if rmOrder.FakeDate != nil {
-			examDate = formatDateIndonesian(*rmOrder.FakeDate)
-		}
-		pdf.CellFormat(0, 5, fmt.Sprintf("Tanggal Pemeriksaan: %s", examDate), "", 1, "L", false, 0, "")
-		pdf.Ln(2)
-
-		labSigX := marginLeft + 120.0
-		pdf.SetXY(labSigX, signY+5)
-		pdf.SetFont("Arial", "", 9)
-		pdf.CellFormat(60, 5, "Petugas Pemeriksa,", "", 1, "C", false, 0, "")
-		if labIsSigned {
-			addSignatureQR(pdf, labSigLog, labSigX+30, signY+16, 16.0, fmt.Sprintf("lab_%d_%d", rmOrder.ID, idx))
-		}
-		pdf.SetXY(labSigX, signY+25)
-		pdf.SetFont("Arial", "BU", 9)
-		pdf.CellFormat(60, 5, labSignerName, "", 1, "C", false, 0, "")
-
-		// Page number
-		pdf.SetFont("Arial", "", 8)
-		pdf.SetXY(marginLeft, 280)
-		pdf.CellFormat(0, 5, fmt.Sprintf("Halaman %d dari %d", idx+1, len(rmOrder.Items)), "", 0, "C", false, 0, "")
-	}
-
-	var buf bytes.Buffer
-	if err := pdf.Output(&buf); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal generate PDF"})
-		return
-	}
-
-	filename := fmt.Sprintf("Hasil_Lab_RM_%s.pdf", rmOrder.OrderNumber)
-	c.Header("Content-Type", "application/pdf")
-	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
-	c.Data(http.StatusOK, "application/pdf", buf.Bytes())
+		filename := fmt.Sprintf("Hasil_Lab_RM_%s.pdf", rmOrder.OrderNumber)
+		return buf.Bytes(), filename, nil
+	})
 }
 
 // PrintRMDuplicateRadiologyResult generates PDF for radiology results from RM Duplicate data
 func PrintRMDuplicateRadiologyResult(c *gin.Context) {
 	rmOrderID := c.Param("rmOrderId")
-
-	rmOrder, patient, visit, err := loadRMOrderWithPatient(rmOrderID)
+	oid, err := strconv.ParseUint(rmOrderID, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID tidak valid"})
 		return
 	}
 
-	if rmOrder.OrderType != "radiology" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Order bukan tipe radiologi"})
-		return
-	}
-
-	info := getHospitalInfo()
-
-	pdf := gofpdf.New("P", "mm", "A4", "")
-	pdf.SetMargins(marginLeft, 10, marginRight)
-	pdf.SetAutoPageBreak(false, 15)
-
-	for idx, item := range rmOrder.Items {
-		pdf.AddPage()
-		addHeader(pdf, info, "HASIL PEMERIKSAAN RADIOLOGI", "")
-		addRMOrderInfoTable(pdf, patient, rmOrder, visit)
-
-		procName := item.ProcedureName
-		if item.Procedure != nil {
-			procName = item.Procedure.Name
-		}
-		addTableHeader(pdf, fmt.Sprintf("PEMERIKSAAN: %s", strings.ToUpper(procName)))
-
-		// Results - radiology uses addTableMultiRow for text
-		for _, result := range item.Results {
-			paramName := result.ParameterName
-			if result.ProcedureParameter != nil {
-				paramName = result.ProcedureParameter.Name
-			}
-			if paramName == "" {
-				paramName = "-"
-			}
-
-			value := "-"
-			if result.Value != "" {
-				value = result.Value
-			}
-			addTableMultiRow(pdf, paramName, value, 35)
+	serveCachedOrGenerate(c, models.DocTypeRMDupRadResult, uint(oid), func() ([]byte, string, error) {
+		rmOrder, patient, visit, err := loadRMOrderWithPatient(rmOrderID)
+		if err != nil {
+			return nil, "", err
 		}
 
-		// If no item-level results, show order-level results (ResultSummary, Conclusion, Suggestion)
-		if len(item.Results) == 0 {
-			if rmOrder.ResultSummary != "" {
-				addTableMultiRow(pdf, "Deskripsi", rmOrder.ResultSummary, 35)
-			}
-			if rmOrder.Conclusion != "" {
-				addTableMultiRow(pdf, "Kesan", rmOrder.Conclusion, 35)
-			}
-			if rmOrder.Suggestion != "" {
-				addTableMultiRow(pdf, "Saran", rmOrder.Suggestion, 35)
-			}
+		if rmOrder.OrderType != "radiology" {
+			return nil, "", fmt.Errorf("Order bukan tipe radiologi")
 		}
-		addTableEnd(pdf)
 
-		// Notes
-		if item.Notes != "" {
-			pdf.Ln(2)
-			addTableHeader(pdf, "CATATAN")
-			addTableMultiRow(pdf, "Catatan", item.Notes, 35)
+		info := getHospitalInfo()
+
+		pdf := gofpdf.New("P", "mm", "A4", "")
+		pdf.SetMargins(marginLeft, 10, marginRight)
+		pdf.SetAutoPageBreak(false, 15)
+
+		for idx, item := range rmOrder.Items {
+			pdf.AddPage()
+			addHeader(pdf, info, "HASIL PEMERIKSAAN RADIOLOGI", "")
+			addRMOrderInfoTable(pdf, patient, rmOrder, visit)
+
+			procName := item.ProcedureName
+			if item.Procedure != nil {
+				procName = item.Procedure.Name
+			}
+			addTableHeader(pdf, fmt.Sprintf("PEMERIKSAAN: %s", strings.ToUpper(procName)))
+
+			for _, result := range item.Results {
+				paramName := result.ParameterName
+				if result.ProcedureParameter != nil {
+					paramName = result.ProcedureParameter.Name
+				}
+				if paramName == "" {
+					paramName = "-"
+				}
+
+				value := "-"
+				if result.Value != "" {
+					value = result.Value
+				}
+				addTableMultiRow(pdf, paramName, value, 35)
+			}
+
+			if len(item.Results) == 0 {
+				if rmOrder.ResultSummary != "" {
+					addTableMultiRow(pdf, "Deskripsi", rmOrder.ResultSummary, 35)
+				}
+				if rmOrder.Conclusion != "" {
+					addTableMultiRow(pdf, "Kesan", rmOrder.Conclusion, 35)
+				}
+				if rmOrder.Suggestion != "" {
+					addTableMultiRow(pdf, "Saran", rmOrder.Suggestion, 35)
+				}
+			}
 			addTableEnd(pdf)
+
+			if item.Notes != "" {
+				pdf.Ln(2)
+				addTableHeader(pdf, "CATATAN")
+				addTableMultiRow(pdf, "Catatan", item.Notes, 35)
+				addTableEnd(pdf)
+			}
+
+			radSignerName := "-"
+			if visit != nil && visit.Doctor != nil {
+				radSignerName = resolveAssignedUserNameFromEmployee(visit.Doctor, radSignerName)
+			}
+			radSigLog, radIsSigned := findSignatureLog(
+				signatureLookup{models.DocTypeRMDupRadResult, rmOrder.ID},
+			)
+			if radIsSigned {
+				radSignerName = resolveSignedUserName(radSigLog, radSignerName)
+			}
+
+			pdf.Ln(10)
+			signY := pdf.GetY()
+			pdf.SetFont("Arial", "", 9)
+			examDate := formatDateIndonesian(rmOrder.CreatedAt)
+			if rmOrder.FakeDate != nil {
+				examDate = formatDateIndonesian(*rmOrder.FakeDate)
+			}
+			pdf.CellFormat(0, 5, fmt.Sprintf("Tanggal Pemeriksaan: %s", examDate), "", 1, "L", false, 0, "")
+			pdf.Ln(2)
+
+			radSigX := marginLeft + 120.0
+			pdf.SetXY(radSigX, signY+5)
+			pdf.SetFont("Arial", "", 9)
+			pdf.CellFormat(60, 5, "Petugas Pemeriksa,", "", 1, "C", false, 0, "")
+			if radIsSigned {
+				addSignatureQR(pdf, radSigLog, radSigX+30, signY+16, 16.0, fmt.Sprintf("rad_%d_%d", rmOrder.ID, idx))
+			}
+			pdf.SetXY(radSigX, signY+25)
+			pdf.SetFont("Arial", "BU", 9)
+			pdf.CellFormat(60, 5, radSignerName, "", 1, "C", false, 0, "")
+
+			pdf.SetFont("Arial", "", 8)
+			pdf.SetXY(marginLeft, 280)
+			pdf.CellFormat(0, 5, fmt.Sprintf("Halaman %d dari %d", idx+1, len(rmOrder.Items)), "", 0, "C", false, 0, "")
 		}
 
-		// Signature section
-		radSignerName := "-"
-		if visit != nil && visit.Doctor != nil {
-			radSignerName = resolveAssignedUserNameFromEmployee(visit.Doctor, radSignerName)
-		}
-		radSigLog, radIsSigned := findSignatureLog(
-			signatureLookup{models.DocTypeRMDupRadResult, rmOrder.ID},
-		)
-		if radIsSigned {
-			radSignerName = resolveSignedUserName(radSigLog, radSignerName)
+		var buf bytes.Buffer
+		if err := pdf.Output(&buf); err != nil {
+			return nil, "", fmt.Errorf("Gagal generate PDF")
 		}
 
-		pdf.Ln(10)
-		signY := pdf.GetY()
-		pdf.SetFont("Arial", "", 9)
-		examDate := formatDateIndonesian(rmOrder.CreatedAt)
-		if rmOrder.FakeDate != nil {
-			examDate = formatDateIndonesian(*rmOrder.FakeDate)
-		}
-		pdf.CellFormat(0, 5, fmt.Sprintf("Tanggal Pemeriksaan: %s", examDate), "", 1, "L", false, 0, "")
-		pdf.Ln(2)
-
-		radSigX := marginLeft + 120.0
-		pdf.SetXY(radSigX, signY+5)
-		pdf.SetFont("Arial", "", 9)
-		pdf.CellFormat(60, 5, "Petugas Pemeriksa,", "", 1, "C", false, 0, "")
-		if radIsSigned {
-			addSignatureQR(pdf, radSigLog, radSigX+30, signY+16, 16.0, fmt.Sprintf("rad_%d_%d", rmOrder.ID, idx))
-		}
-		pdf.SetXY(radSigX, signY+25)
-		pdf.SetFont("Arial", "BU", 9)
-		pdf.CellFormat(60, 5, radSignerName, "", 1, "C", false, 0, "")
-
-		// Page number
-		pdf.SetFont("Arial", "", 8)
-		pdf.SetXY(marginLeft, 280)
-		pdf.CellFormat(0, 5, fmt.Sprintf("Halaman %d dari %d", idx+1, len(rmOrder.Items)), "", 0, "C", false, 0, "")
-	}
-
-	var buf bytes.Buffer
-	if err := pdf.Output(&buf); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal generate PDF"})
-		return
-	}
-
-	filename := fmt.Sprintf("Hasil_Radiologi_RM_%s.pdf", rmOrder.OrderNumber)
-	c.Header("Content-Type", "application/pdf")
-	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
-	c.Data(http.StatusOK, "application/pdf", buf.Bytes())
+		filename := fmt.Sprintf("Hasil_Radiologi_RM_%s.pdf", rmOrder.OrderNumber)
+		return buf.Bytes(), filename, nil
+	})
 }
 
 // PrintRMDuplicateProcedureResult generates PDF for surgery/consultation results from RM Duplicate data
 func PrintRMDuplicateProcedureResult(c *gin.Context) {
 	rmOrderID := c.Param("rmOrderId")
-
-	rmOrder, patient, visit, err := loadRMOrderWithPatient(rmOrderID)
+	oid, err := strconv.ParseUint(rmOrderID, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID tidak valid"})
 		return
 	}
 
-	if rmOrder.OrderType != "surgery" && rmOrder.OrderType != "consultation" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Order bukan tipe operasi atau konsultasi"})
+	// Determine doc type after loading order — use surgery by default, override below
+	// We need to peek at the order type first for correct cache key
+	var peekOrder models.EKlaimRMOrder
+	if err := database.DB.Select("order_type").First(&peekOrder, oid).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Order tidak ditemukan"})
 		return
 	}
-
-	info := getHospitalInfo()
-
-	pdf := gofpdf.New("P", "mm", "A4", "")
-	pdf.SetMargins(marginLeft, 10, marginRight)
-	pdf.SetAutoPageBreak(false, 15)
-	pdf.AddPage()
-
-	if rmOrder.OrderType == "surgery" {
-		addHeader(pdf, info, "CATATAN OPERASI", rmOrder.OrderNumber)
-	} else {
-		addHeader(pdf, info, "HASIL KONSULTASI", rmOrder.OrderNumber)
+	cacheDocType := models.DocTypeRMDupSurgeryReport
+	if peekOrder.OrderType == "consultation" {
+		cacheDocType = models.DocTypeRMDupConsultation
 	}
 
-	addRMOrderInfoTable(pdf, patient, rmOrder, visit)
-
-	if rmOrder.OrderType == "consultation" {
-		// SOAP format for consultation
-		addTableHeader(pdf, "KONSULTASI")
-
-		if rmOrder.ConsultantName != "" {
-			addTableMultiRow(pdf, "Dokter Konsultan", rmOrder.ConsultantName, 40)
-		}
-		if rmOrder.Specialty != "" {
-			addTableMultiRow(pdf, "Spesialisasi", rmOrder.Specialty, 40)
-		}
-		if rmOrder.Subjective != "" {
-			addTableMultiRow(pdf, "Subjective (S)", rmOrder.Subjective, 40)
-		}
-		if rmOrder.Objective != "" {
-			addTableMultiRow(pdf, "Objective (O)", rmOrder.Objective, 40)
-		}
-		if rmOrder.Assessment != "" {
-			addTableMultiRow(pdf, "Assessment (A)", rmOrder.Assessment, 40)
-		}
-		if rmOrder.Plan != "" {
-			addTableMultiRow(pdf, "Plan (P)", rmOrder.Plan, 40)
-		}
-		if rmOrder.Recommendation != "" {
-			addTableMultiRow(pdf, "Rekomendasi", rmOrder.Recommendation, 40)
-		}
-		addTableEnd(pdf)
-	} else {
-		// Surgery format
-		addTableHeader(pdf, "DATA OPERASI")
-
-		if rmOrder.SurgeonName != "" {
-			addTableMultiRow(pdf, "Operator", rmOrder.SurgeonName, 40)
-		}
-		if rmOrder.AnesthesiaType != "" {
-			addTableMultiRow(pdf, "Jenis Anestesi", rmOrder.AnesthesiaType, 40)
-		}
-		if rmOrder.ScheduledDate != nil {
-			addTableMultiRow(pdf, "Tanggal Operasi", formatDateIndonesian(*rmOrder.ScheduledDate), 40)
+	serveCachedOrGenerate(c, cacheDocType, uint(oid), func() ([]byte, string, error) {
+		rmOrder, patient, visit, err := loadRMOrderWithPatient(rmOrderID)
+		if err != nil {
+			return nil, "", err
 		}
 
-		// Procedure items
-		if len(rmOrder.Items) > 0 {
+		if rmOrder.OrderType != "surgery" && rmOrder.OrderType != "consultation" {
+			return nil, "", fmt.Errorf("Order bukan tipe operasi atau konsultasi")
+		}
+
+		info := getHospitalInfo()
+
+		pdf := gofpdf.New("P", "mm", "A4", "")
+		pdf.SetMargins(marginLeft, 10, marginRight)
+		pdf.SetAutoPageBreak(false, 15)
+		pdf.AddPage()
+
+		if rmOrder.OrderType == "surgery" {
+			addHeader(pdf, info, "CATATAN OPERASI", rmOrder.OrderNumber)
+		} else {
+			addHeader(pdf, info, "HASIL KONSULTASI", rmOrder.OrderNumber)
+		}
+
+		addRMOrderInfoTable(pdf, patient, rmOrder, visit)
+
+		if rmOrder.OrderType == "consultation" {
+			addTableHeader(pdf, "KONSULTASI")
+
+			if rmOrder.ConsultantName != "" {
+				addTableMultiRow(pdf, "Dokter Konsultan", rmOrder.ConsultantName, 40)
+			}
+			if rmOrder.Specialty != "" {
+				addTableMultiRow(pdf, "Spesialisasi", rmOrder.Specialty, 40)
+			}
+			if rmOrder.Subjective != "" {
+				addTableMultiRow(pdf, "Subjective (S)", rmOrder.Subjective, 40)
+			}
+			if rmOrder.Objective != "" {
+				addTableMultiRow(pdf, "Objective (O)", rmOrder.Objective, 40)
+			}
+			if rmOrder.Assessment != "" {
+				addTableMultiRow(pdf, "Assessment (A)", rmOrder.Assessment, 40)
+			}
+			if rmOrder.Plan != "" {
+				addTableMultiRow(pdf, "Plan (P)", rmOrder.Plan, 40)
+			}
+			if rmOrder.Recommendation != "" {
+				addTableMultiRow(pdf, "Rekomendasi", rmOrder.Recommendation, 40)
+			}
 			addTableEnd(pdf)
-			addTableHeader(pdf, "DAFTAR TINDAKAN")
-			for i, item := range rmOrder.Items {
-				procName := item.ProcedureName
-				if item.Procedure != nil {
-					procName = item.Procedure.Name
-				}
-				addTableMultiRow(pdf, fmt.Sprintf("Tindakan %d", i+1), procName, 40)
-				if item.Notes != "" {
-					addTableMultiRow(pdf, "Catatan", item.Notes, 40)
+		} else {
+			addTableHeader(pdf, "DATA OPERASI")
+
+			if rmOrder.SurgeonName != "" {
+				addTableMultiRow(pdf, "Operator", rmOrder.SurgeonName, 40)
+			}
+			if rmOrder.AnesthesiaType != "" {
+				addTableMultiRow(pdf, "Jenis Anestesi", rmOrder.AnesthesiaType, 40)
+			}
+			if rmOrder.ScheduledDate != nil {
+				addTableMultiRow(pdf, "Tanggal Operasi", formatDateIndonesian(*rmOrder.ScheduledDate), 40)
+			}
+
+			if len(rmOrder.Items) > 0 {
+				addTableEnd(pdf)
+				addTableHeader(pdf, "DAFTAR TINDAKAN")
+				for i, item := range rmOrder.Items {
+					procName := item.ProcedureName
+					if item.Procedure != nil {
+						procName = item.Procedure.Name
+					}
+					addTableMultiRow(pdf, fmt.Sprintf("Tindakan %d", i+1), procName, 40)
+					if item.Notes != "" {
+						addTableMultiRow(pdf, "Catatan", item.Notes, 40)
+					}
 				}
 			}
-		}
 
-		// Result summary
-		if rmOrder.ResultSummary != "" {
+			if rmOrder.ResultSummary != "" {
+				addTableEnd(pdf)
+				addTableHeader(pdf, "LAPORAN OPERASI")
+				addTableMultiRow(pdf, "Deskripsi", rmOrder.ResultSummary, 40)
+			}
+			if rmOrder.Conclusion != "" {
+				addTableMultiRow(pdf, "Kesimpulan", rmOrder.Conclusion, 40)
+			}
+			if rmOrder.Suggestion != "" {
+				addTableMultiRow(pdf, "Saran", rmOrder.Suggestion, 40)
+			}
 			addTableEnd(pdf)
-			addTableHeader(pdf, "LAPORAN OPERASI")
-			addTableMultiRow(pdf, "Deskripsi", rmOrder.ResultSummary, 40)
 		}
-		if rmOrder.Conclusion != "" {
-			addTableMultiRow(pdf, "Kesimpulan", rmOrder.Conclusion, 40)
-		}
-		if rmOrder.Suggestion != "" {
-			addTableMultiRow(pdf, "Saran", rmOrder.Suggestion, 40)
-		}
-		addTableEnd(pdf)
-	}
 
-	// Clinical notes
-	if rmOrder.ClinicalNotes != "" {
-		addTableHeader(pdf, "CATATAN KLINIS")
-		addTableFullRow(pdf, rmOrder.ClinicalNotes, false)
-		addTableEnd(pdf)
-	}
-
-	// Signature
-	doctorName := "-"
-	sigLabel := "Dokter Pemeriksa"
-	procSigDocType := models.DocTypeRMDupSurgeryReport
-	if rmOrder.OrderType == "consultation" {
-		sigLabel = "Dokter Konsultan"
-		procSigDocType = models.DocTypeRMDupConsultation
-		if rmOrder.ConsultantName != "" {
-			doctorName = rmOrder.ConsultantName
+		if rmOrder.ClinicalNotes != "" {
+			addTableHeader(pdf, "CATATAN KLINIS")
+			addTableFullRow(pdf, rmOrder.ClinicalNotes, false)
+			addTableEnd(pdf)
 		}
-	} else if rmOrder.OrderType == "surgery" {
-		sigLabel = "Dokter Operator"
-		if rmOrder.SurgeonName != "" {
-			doctorName = rmOrder.SurgeonName
+
+		doctorName := "-"
+		sigLabel := "Dokter Pemeriksa"
+		procSigDocType := models.DocTypeRMDupSurgeryReport
+		if rmOrder.OrderType == "consultation" {
+			sigLabel = "Dokter Konsultan"
+			procSigDocType = models.DocTypeRMDupConsultation
+			if rmOrder.ConsultantName != "" {
+				doctorName = rmOrder.ConsultantName
+			}
+		} else if rmOrder.OrderType == "surgery" {
+			sigLabel = "Dokter Operator"
+			if rmOrder.SurgeonName != "" {
+				doctorName = rmOrder.SurgeonName
+			}
 		}
-	}
-	if doctorName == "-" && visit != nil && visit.Doctor != nil {
-		doctorName = resolveAssignedUserNameFromEmployee(visit.Doctor, doctorName)
-	}
-	addSignature(pdf, info.City, doctorName, sigLabel, procSigDocType, rmOrder.ID)
+		if doctorName == "-" && visit != nil && visit.Doctor != nil {
+			doctorName = resolveAssignedUserNameFromEmployee(visit.Doctor, doctorName)
+		}
+		addSignature(pdf, info.City, doctorName, sigLabel, procSigDocType, rmOrder.ID)
 
-	var buf bytes.Buffer
-	if err := pdf.Output(&buf); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal generate PDF"})
-		return
-	}
+		var buf bytes.Buffer
+		if err := pdf.Output(&buf); err != nil {
+			return nil, "", fmt.Errorf("Gagal generate PDF")
+		}
 
-	typeLabel := "Operasi"
-	if rmOrder.OrderType == "consultation" {
-		typeLabel = "Konsultasi"
-	}
-	filename := fmt.Sprintf("%s_RM_%s.pdf", typeLabel, rmOrder.OrderNumber)
-	c.Header("Content-Type", "application/pdf")
-	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
-	c.Data(http.StatusOK, "application/pdf", buf.Bytes())
+		typeLabel := "Operasi"
+		if rmOrder.OrderType == "consultation" {
+			typeLabel = "Konsultasi"
+		}
+		filename := fmt.Sprintf("%s_RM_%s.pdf", typeLabel, rmOrder.OrderNumber)
+		return buf.Bytes(), filename, nil
+	})
 }
 
 // ===========================================================================
@@ -12395,6 +13391,15 @@ func PrintSPRI(c *gin.Context) {
 func PrintSuratKontrol(c *gin.Context) {
 	skID := c.Param("suratKontrolId")
 
+	// Cache check
+	sid, _ := strconv.ParseUint(skID, 10, 32)
+	if pdfData, fileName, found := getCachedPDF(models.DocTypeSuratKontrol, uint(sid)); found {
+		c.Header("Content-Type", "application/pdf")
+		c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", fileName))
+		c.Data(http.StatusOK, "application/pdf", pdfData)
+		return
+	}
+
 	var sk models.SuratKontrol
 	if err := database.DB.Preload("Visit.Doctor").First(&sk, skID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -12503,6 +13508,9 @@ func PrintSuratKontrol(c *gin.Context) {
 	}
 
 	filename := fmt.Sprintf("SuratKontrol_%s.pdf", sk.NoSuratKontrol)
+	if _, isSigned := findSignatureLog(signatureLookup{models.DocTypeSuratKontrol, sk.ID}); isSigned {
+		go storeCachedPDF(models.DocTypeSuratKontrol, sk.ID, buf.Bytes(), filename)
+	}
 	c.Header("Content-Type", "application/pdf")
 	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
 	c.Data(http.StatusOK, "application/pdf", buf.Bytes())
@@ -12609,4 +13617,328 @@ func PrintSuratKontrolSIMRS(c *gin.Context) {
 	c.Header("Content-Type", "application/pdf")
 	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
 	c.Data(http.StatusOK, "application/pdf", buf.Bytes())
+}
+
+// PrintRMDuplicatePrescription generates PDF for prescription from RM Duplicate medicine items
+// GET /api/print/rm-duplicate/prescription/:rmOrderId
+func PrintRMDuplicatePrescription(c *gin.Context) {
+	rmOrderID := c.Param("rmOrderId")
+
+	// Load the RM order (pharmacy type)
+	var rmOrder models.EKlaimRMOrder
+	if err := database.DB.First(&rmOrder, rmOrderID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "RM Order tidak ditemukan"})
+		return
+	}
+	if rmOrder.OrderType != "pharmacy" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Order bukan tipe farmasi"})
+		return
+	}
+
+	serveCachedOrGenerate(c, models.DocTypeRMDupPrescription, rmOrder.ID, func() ([]byte, string, error) {
+		// Load RMDuplicate → Visit → Registration → Patient
+		var rmDup models.EKlaimRMDuplicate
+		if err := database.DB.
+			Preload("Visit.Registration.Patient").
+			Preload("Visit.Room").
+			Preload("Visit.Doctor").
+			First(&rmDup, rmOrder.RMDuplicateID).Error; err != nil {
+			return nil, "", fmt.Errorf("RM Duplicate tidak ditemukan")
+		}
+		if rmDup.Visit == nil || rmDup.Visit.Registration == nil || rmDup.Visit.Registration.Patient == nil {
+			return nil, "", fmt.Errorf("Data pasien tidak ditemukan")
+		}
+
+		patient := rmDup.Visit.Registration.Patient
+		visit := rmDup.Visit
+
+		// Load medicine items linked to this pharmacy order via fake_date
+		var items []models.EKlaimRMMedicineItem
+		if rmOrder.FakeDate != nil {
+			database.DB.
+				Where("rm_duplicate_id = ? AND fake_date = ?", rmOrder.RMDuplicateID, *rmOrder.FakeDate).
+				Order("sequence ASC, id ASC").
+				Find(&items)
+		} else {
+			database.DB.
+				Where("rm_duplicate_id = ?", rmOrder.RMDuplicateID).
+				Order("sequence ASC, id ASC").
+				Find(&items)
+		}
+
+		info := getHospitalInfo()
+
+		orderDate := rmOrder.CreatedAt
+		if rmOrder.FakeDate != nil {
+			orderDate = *rmOrder.FakeDate
+		}
+
+		orderNumber := rmOrder.OrderNumber
+		if orderNumber == "" {
+			orderNumber = fmt.Sprintf("RX%s%d", orderDate.Format("02012006"), rmOrder.ID)
+		}
+
+		pdf := gofpdf.New("P", "mm", "A4", "")
+		pdf.SetMargins(marginLeft, marginTop, marginRight)
+		pdf.SetAutoPageBreak(false, 0)
+		pdf.AddPage()
+
+		addHeader(pdf, info, "Resep Obat", orderNumber)
+		addPatientInfoTable(pdf, patient, visit)
+
+		pdf.SetFont("Arial", "", 9)
+		pdf.CellFormat(0, 5, fmt.Sprintf("Tanggal Order: %s", orderDate.Format("02/01/2006 15:04")), "", 1, "", false, 0, "")
+		pdf.Ln(2)
+
+		addTableHeader(pdf, "DAFTAR OBAT")
+		pdf.SetFont("Arial", "B", 9)
+		pdf.SetFillColor(240, 240, 240)
+		pdf.CellFormat(10, 6, "No", "1", 0, "C", true, 0, "")
+		pdf.CellFormat(60, 6, "Nama Obat", "1", 0, "C", true, 0, "")
+		pdf.CellFormat(20, 6, "Jumlah", "1", 0, "C", true, 0, "")
+		pdf.CellFormat(25, 6, "Dosis", "1", 0, "C", true, 0, "")
+		pdf.CellFormat(25, 6, "Frekuensi", "1", 0, "C", true, 0, "")
+		pdf.CellFormat(40, 6, "Instruksi", "1", 1, "C", true, 0, "")
+
+		pdf.SetFont("Arial", "", 9)
+		for i, item := range items {
+			medName := item.MedicineName
+			qty := fmt.Sprintf("%d", item.Quantity)
+			dosage := item.Dosage
+			frequency := item.Frequency
+			instruction := item.Instructions
+			if instruction == "" {
+				instruction = item.Route
+			}
+
+			pdf.CellFormat(10, 6, fmt.Sprintf("%d", i+1), "1", 0, "C", false, 0, "")
+			pdf.CellFormat(60, 6, truncateText(medName, 35), "1", 0, "", false, 0, "")
+			pdf.CellFormat(20, 6, qty, "1", 0, "C", false, 0, "")
+			pdf.CellFormat(25, 6, dosage, "1", 0, "C", false, 0, "")
+			pdf.CellFormat(25, 6, frequency, "1", 0, "C", false, 0, "")
+			pdf.CellFormat(40, 6, truncateText(instruction, 25), "1", 1, "", false, 0, "")
+		}
+
+		doctorName := "-"
+		if visit.Doctor != nil {
+			doctorName = resolveAssignedUserNameFromEmployee(visit.Doctor, doctorName)
+		}
+		addSignature(pdf, info.City, doctorName, "DPJP / Apoteker", models.DocTypeRMDupPrescription, rmOrder.ID)
+
+		var buf bytes.Buffer
+		if err := pdf.Output(&buf); err != nil {
+			return nil, "", fmt.Errorf("Gagal generate PDF")
+		}
+
+		filename := fmt.Sprintf("Resep_RM_%s.pdf", orderNumber)
+		return buf.Bytes(), filename, nil
+	})
+}
+
+// PrintRMDuplicateBilling generates PDF for billing/rincian biaya from RM Duplicate data
+// GET /api/print/rm-duplicate/billing/:rmDuplicateId
+func PrintRMDuplicateBilling(c *gin.Context) {
+	rmDuplicateID := c.Param("rmDuplicateId")
+	rmDupID, err := strconv.ParseUint(rmDuplicateID, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID tidak valid"})
+		return
+	}
+
+	serveCachedOrGenerate(c, models.DocTypeRMDupBilling, uint(rmDupID), func() ([]byte, string, error) {
+		var rmDup models.EKlaimRMDuplicate
+		if err := database.DB.
+			Preload("Billing.Items", func(db *gorm.DB) *gorm.DB {
+				return db.Order("sequence ASC, id ASC")
+			}).
+			Preload("Visit.Registration.Patient").
+			Preload("Visit.Room").
+			Preload("Visit.Doctor").
+			First(&rmDup, rmDupID).Error; err != nil {
+			return nil, "", fmt.Errorf("RM Duplicate tidak ditemukan")
+		}
+
+		if rmDup.Billing == nil {
+			return nil, "", fmt.Errorf("Billing RM Duplikat tidak ditemukan")
+		}
+		if rmDup.Visit == nil || rmDup.Visit.Registration == nil || rmDup.Visit.Registration.Patient == nil {
+			return nil, "", fmt.Errorf("Data pasien tidak ditemukan")
+		}
+
+		billing := rmDup.Billing
+		patient := rmDup.Visit.Registration.Patient
+		visit := rmDup.Visit
+		info := getHospitalInfo()
+
+		pdf := gofpdf.New("P", "mm", "A4", "")
+		pdf.SetMargins(15, 15, 15)
+		pdf.SetAutoPageBreak(true, 15)
+		pdf.AddPage()
+
+		regNumber := ""
+		if visit.Registration != nil {
+			regNumber = visit.Registration.RegistrationNumber
+		}
+		addHeader(pdf, info, "RINCIAN BIAYA PELAYANAN", regNumber)
+
+		pdf.SetY(pdf.GetY() + 8)
+		pdf.SetFont("Arial", "B", 10)
+		pdf.CellFormat(0, 6, "DATA PASIEN", "", 1, "", false, 0, "")
+		pdf.SetFont("Arial", "", 10)
+
+		leftColWidth := 35.0
+		rightColWidth := 55.0
+		gapWidth := 10.0
+
+		pdf.CellFormat(leftColWidth, 5, "Nama", "", 0, "", false, 0, "")
+		pdf.CellFormat(5, 5, ":", "", 0, "", false, 0, "")
+		pdf.SetFont("Arial", "B", 10)
+		pdf.CellFormat(rightColWidth, 5, patient.NamaLengkap, "", 0, "", false, 0, "")
+		pdf.SetFont("Arial", "", 10)
+		pdf.CellFormat(gapWidth, 5, "", "", 0, "", false, 0, "")
+		pdf.CellFormat(leftColWidth, 5, "No. RM", "", 0, "", false, 0, "")
+		pdf.CellFormat(5, 5, ":", "", 0, "", false, 0, "")
+		pdf.CellFormat(rightColWidth, 5, patient.NoRM, "", 1, "", false, 0, "")
+
+		nik := patient.NIK
+		if nik == "" {
+			nik = "-"
+		}
+		pdf.CellFormat(leftColWidth, 5, "NIK", "", 0, "", false, 0, "")
+		pdf.CellFormat(5, 5, ":", "", 0, "", false, 0, "")
+		pdf.CellFormat(rightColWidth, 5, nik, "", 0, "", false, 0, "")
+		pdf.CellFormat(gapWidth, 5, "", "", 0, "", false, 0, "")
+		pdf.CellFormat(leftColWidth, 5, "No. Registrasi", "", 0, "", false, 0, "")
+		pdf.CellFormat(5, 5, ":", "", 0, "", false, 0, "")
+		pdf.CellFormat(rightColWidth, 5, regNumber, "", 1, "", false, 0, "")
+
+		roomName := "-"
+		if visit.Room != nil {
+			roomName = visit.Room.Name
+		}
+		doctorName := "-"
+		if visit.Doctor != nil {
+			doctorName = resolveAssignedUserNameFromEmployee(visit.Doctor, "-")
+		}
+		pdf.CellFormat(leftColWidth, 5, "Ruangan", "", 0, "", false, 0, "")
+		pdf.CellFormat(5, 5, ":", "", 0, "", false, 0, "")
+		pdf.CellFormat(rightColWidth, 5, roomName, "", 0, "", false, 0, "")
+		pdf.CellFormat(gapWidth, 5, "", "", 0, "", false, 0, "")
+		pdf.CellFormat(leftColWidth, 5, "Dokter", "", 0, "", false, 0, "")
+		pdf.CellFormat(5, 5, ":", "", 0, "", false, 0, "")
+		pdf.CellFormat(rightColWidth, 5, truncateText(doctorName, 30), "", 1, "", false, 0, "")
+
+		pdf.Ln(3)
+
+		pdf.SetFont("Arial", "B", 10)
+		pdf.CellFormat(0, 6, "RINCIAN BIAYA", "", 1, "", false, 0, "")
+
+		pdf.SetFont("Arial", "B", 9)
+		pdf.SetFillColor(240, 240, 240)
+		pdf.CellFormat(10, 7, "No", "1", 0, "C", true, 0, "")
+		pdf.CellFormat(80, 7, "Uraian", "1", 0, "C", true, 0, "")
+		pdf.CellFormat(15, 7, "Qty", "1", 0, "C", true, 0, "")
+		pdf.CellFormat(35, 7, "Harga Satuan", "1", 0, "C", true, 0, "")
+		pdf.CellFormat(40, 7, "Subtotal", "1", 1, "C", true, 0, "")
+
+		itemTypeLabels := map[string]string{
+			"procedure":  "Tindakan",
+			"medicine":   "Obat",
+			"radiology":  "Radiologi",
+			"laboratory": "Laboratorium",
+			"room":       "Kamar",
+			"other":      "Lain-lain",
+		}
+
+		itemTypes := []string{"procedure", "radiology", "laboratory", "medicine", "room", "other"}
+		pdf.SetFont("Arial", "", 9)
+		no := 1
+		for _, itemType := range itemTypes {
+			var typeItems []models.EKlaimRMBillingItem
+			for _, item := range billing.Items {
+				if item.ItemType == itemType {
+					typeItems = append(typeItems, item)
+				}
+			}
+			if len(typeItems) == 0 {
+				continue
+			}
+
+			label := itemTypeLabels[itemType]
+			if label == "" {
+				label = itemType
+			}
+			pdf.SetFont("Arial", "B", 9)
+			pdf.SetFillColor(250, 250, 250)
+			pdf.CellFormat(180, 6, label, "1", 1, "L", true, 0, "")
+			pdf.SetFont("Arial", "", 9)
+
+			for _, item := range typeItems {
+				pdf.CellFormat(10, 6, fmt.Sprintf("%d", no), "1", 0, "C", false, 0, "")
+				pdf.CellFormat(80, 6, truncateText(item.Description, 50), "1", 0, "L", false, 0, "")
+				pdf.CellFormat(15, 6, fmt.Sprintf("%d", item.Quantity), "1", 0, "C", false, 0, "")
+				pdf.CellFormat(35, 6, formatCurrency(item.UnitPrice), "1", 0, "R", false, 0, "")
+				pdf.CellFormat(40, 6, formatCurrency(item.Subtotal), "1", 1, "R", false, 0, "")
+				no++
+			}
+		}
+
+		pdf.Ln(2)
+		summaryX := 100.0
+		labelW := 40.0
+		valueW := 40.0
+
+		pdf.SetX(summaryX)
+		pdf.SetFont("Arial", "", 10)
+		pdf.CellFormat(labelW, 6, "Total", "0", 0, "R", false, 0, "")
+		pdf.CellFormat(5, 6, ":", "0", 0, "C", false, 0, "")
+		pdf.CellFormat(valueW, 6, formatCurrency(billing.TotalAmount), "0", 1, "R", false, 0, "")
+
+		if billing.DiscountAmount > 0 {
+			pdf.SetX(summaryX)
+			pdf.CellFormat(labelW, 6, "Diskon", "0", 0, "R", false, 0, "")
+			pdf.CellFormat(5, 6, ":", "0", 0, "C", false, 0, "")
+			pdf.SetTextColor(255, 0, 0)
+			pdf.CellFormat(valueW, 6, "- "+formatCurrency(billing.DiscountAmount), "0", 1, "R", false, 0, "")
+			pdf.SetTextColor(0, 0, 0)
+		}
+
+		if billing.AdjustAmount != 0 {
+			pdf.SetX(summaryX)
+			pdf.CellFormat(labelW, 6, "Penyesuaian", "0", 0, "R", false, 0, "")
+			pdf.CellFormat(5, 6, ":", "0", 0, "C", false, 0, "")
+			if billing.AdjustAmount < 0 {
+				pdf.SetTextColor(255, 0, 0)
+			}
+			pdf.CellFormat(valueW, 6, formatCurrency(billing.AdjustAmount), "0", 1, "R", false, 0, "")
+			pdf.SetTextColor(0, 0, 0)
+		}
+
+		pdf.SetX(summaryX)
+		pdf.SetFont("Arial", "B", 11)
+		pdf.CellFormat(labelW, 8, "GRAND TOTAL", "T", 0, "R", false, 0, "")
+		pdf.CellFormat(5, 8, ":", "T", 0, "C", false, 0, "")
+		pdf.CellFormat(valueW, 8, formatCurrency(billing.FinalAmount), "T", 1, "R", false, 0, "")
+
+		if billing.Notes != "" {
+			pdf.Ln(3)
+			pdf.SetFont("Arial", "I", 9)
+			pdf.MultiCell(0, 5, "Catatan: "+billing.Notes, "", "", false)
+		}
+
+		pdf.Ln(10)
+		addSignature(pdf, info.City, doctorName, "DPJP", models.DocTypeRMDupBilling, rmDup.ID)
+
+		pdf.Ln(5)
+		pdf.SetFont("Arial", "I", 8)
+		pdf.CellFormat(0, 4, "Dokumen ini dicetak secara otomatis oleh sistem SIMRS.", "", 1, "C", false, 0, "")
+
+		var buf bytes.Buffer
+		if err := pdf.Output(&buf); err != nil {
+			return nil, "", fmt.Errorf("Gagal generate PDF")
+		}
+
+		filename := fmt.Sprintf("Rincian_Biaya_RM_%d.pdf", billing.ID)
+		return buf.Bytes(), filename, nil
+	})
 }

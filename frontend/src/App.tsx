@@ -41,6 +41,7 @@ const FloorPlanPage = lazy(() => import('./pages/floor-plan/index'));
 
 // Buildings
 const BuildingsPage = lazy(() => import('./pages/buildings/index'));
+const PPKPage = lazy(() => import('./pages/ppk/index'));
 
 // Users
 const UsersIndex = lazy(() => import('./pages/users/index'));
@@ -140,6 +141,9 @@ function App() {
           
           {/* Buildings */}
           <Route path="/buildings" element={<ProtectedRoute><BuildingsPage /></ProtectedRoute>} />
+
+          {/* Master PPK */}
+          <Route path="/ppk" element={<ProtectedRoute><PPKPage /></ProtectedRoute>} />
           
           {/* Check-in Scanner */}
           <Route path="/checkin" element={<ProtectedRoute><CheckInScannerPage /></ProtectedRoute>} />

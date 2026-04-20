@@ -494,7 +494,8 @@ export const printApi = {
       fetchPdfBlob(`${BASE_URL}/bed-transfer/${visitId}${rmDuplicateId ? `?rm_duplicate_id=${rmDuplicateId}` : ''}`),
     vitalSignChart: (visitId: number, rmDuplicateId?: number) =>
       fetchPdfBlob(`${BASE_URL}/vital-sign-chart/${visitId}${rmDuplicateId ? `?rm_duplicate_id=${rmDuplicateId}` : ''}`),
-    prescription: (orderId: number) => fetchPdfBlob(`${BASE_URL}/prescription/${orderId}`),
+    prescription: (orderId: number, rmDuplicateId?: number) =>
+      fetchPdfBlob(`${BASE_URL}/prescription/${orderId}${rmDuplicateId ? `?rm_duplicate_id=${rmDuplicateId}` : ''}`),
     prescriptionThermal: (orderId: number) => fetchPdfBlob(`${BASE_URL}/prescription-thermal/${orderId}`),
     labOrder: (orderId: number) => fetchPdfBlob(`${BASE_URL}/lab-order/${orderId}`),
     labResult: (orderId: number) => fetchPdfBlob(`${BASE_URL}/lab-result/${orderId}`),
@@ -516,5 +517,7 @@ export const printApi = {
     rmDuplicateLabResult: (rmOrderId: number) => fetchPdfBlob(`${BASE_URL}/rm-duplicate/lab-result/${rmOrderId}`),
     rmDuplicateRadiologyResult: (rmOrderId: number) => fetchPdfBlob(`${BASE_URL}/rm-duplicate/radiology-result/${rmOrderId}`),
     rmDuplicateProcedureResult: (rmOrderId: number) => fetchPdfBlob(`${BASE_URL}/rm-duplicate/procedure-result/${rmOrderId}`),
+    rmDuplicatePrescription: (rmOrderId: number) => fetchPdfBlob(`${BASE_URL}/rm-duplicate/prescription/${rmOrderId}`),
+    rmDuplicateBilling: (rmDuplicateId: number) => fetchPdfBlob(`${BASE_URL}/rm-duplicate/billing/${rmDuplicateId}`),
   },
 };

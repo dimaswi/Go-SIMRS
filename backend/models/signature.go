@@ -121,6 +121,7 @@ const (
 	DocTypeRMDupBedTransfer     = "rm_dup_bed_transfer"     // Mutasi Pasien RM Duplikat
 	DocTypeRMDupVitalSign       = "rm_dup_vital_sign"       // Grafik Tanda Vital RM Duplikat
 	DocTypeRMDupInpatientCert   = "rm_dup_inpatient_cert"   // Surat Rawat Inap RM Duplikat
+	DocTypeRMDupBilling         = "rm_dup_billing"          // Rincian Biaya RM Duplikat
 )
 
 // Signature action constants
@@ -129,3 +130,32 @@ const (
 	SignActionRevoke      = "revoke"      // Revoke signature
 	SignActionCountersign = "countersign" // Counter-signature (additional signer)
 )
+
+// DocumentPDFCache stores generated PDF blobs for caching
+// Keyed by (document_type, document_id) — same keys used by DocumentSignature
+// When data changes, the cache entry should be invalidated (deleted).
+type DocumentPDFCache struct {
+	ID        uint           `gorm:"primarykey" json:"id"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
+
+	DocumentType string `gorm:"size:50;not null;uniqueIndex:idx_pdf_cache_doc" json:"document_type"`
+	DocumentID   uint   `gorm:"not null;uniqueIndex:idx_pdf_cache_doc" json:"document_id"`
+
+	// PDF blob data
+	PDFData []byte `gorm:"type:bytea;not null" json:"-"`
+
+	// Metadata
+	FileName    string `gorm:"size:200" json:"file_name"`
+	FileSize    int64  `gorm:"default:0" json:"file_size"`       // Size in bytes
+	GeneratedAt time.Time `json:"generated_at"`                  // When this PDF was generated
+	SignedAt    *time.Time `json:"signed_at,omitempty"`           // Signature state at generation time
+
+	// Version tracking — hash of input data to detect staleness
+	ContentHash string `gorm:"size:64" json:"content_hash,omitempty"` // SHA256 of key input data
+}
+
+func (DocumentPDFCache) TableName() string {
+	return "document_pdf_caches"
+}

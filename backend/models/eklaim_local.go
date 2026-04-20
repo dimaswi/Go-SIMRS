@@ -108,6 +108,7 @@ type EKlaimLocal struct {
 
 	ClaimReeditSentAt   *time.Time `json:"claim_reedit_sent_at"`
 	ClaimReeditResponse string     `gorm:"type:text" json:"claim_reedit_response,omitempty"`
+	ClaimDataLastSyncAt *time.Time `json:"claim_data_last_sync_at"`
 
 	// Form data saved flag — true once user has saved form data via SendSetClaimData
 	FormDataSaved bool `gorm:"default:false" json:"form_data_saved"`
@@ -368,6 +369,8 @@ type EKlaimRMDuplicate struct {
 	OriginalRMJSON         string `gorm:"type:text" json:"original_rm_json,omitempty"` // Full snapshot of anamnesis+exam+assessment+disposition
 
 	// ===== ANAMNESIS (Editable copy) =====
+	AnamnesisSource         string `gorm:"size:50" json:"anamnesis_source"`
+	FunctionalStatus        string `gorm:"size:100" json:"functional_status"`
 	ChiefComplaint          string `gorm:"type:text" json:"chief_complaint"`
 	HistoryOfPresentIllness string `gorm:"type:text" json:"history_of_present_illness"`
 	PastMedicalHistory      string `gorm:"type:text" json:"past_medical_history"`
@@ -392,6 +395,9 @@ type EKlaimRMDuplicate struct {
 	BMI              float64 `json:"bmi"`
 	Waist            string  `gorm:"size:100" json:"waist"`
 	HeadCircum       string  `gorm:"size:100" json:"head_circum"`
+	PainMethod       string  `gorm:"size:50" json:"pain_method"`
+	PainScale        int     `gorm:"default:0" json:"pain_scale"`
+	PainLocation     string  `gorm:"size:255" json:"pain_location"`
 
 	// Body System Examinations (legacy composite fields)
 	HeadNeck     string `gorm:"type:text" json:"head_neck"`
@@ -492,6 +498,9 @@ type EKlaimRMDuplicate struct {
 	// Editable CPPT (E-Klaim version — rawat inap)
 	CPPTNotes []EKlaimRMCPPT `gorm:"foreignKey:RMDuplicateID" json:"cppt_notes,omitempty"`
 
+	// Editable Nursing Care (E-Klaim version — rawat inap)
+	NursingCares []EKlaimRMNursingCare `gorm:"foreignKey:RMDuplicateID" json:"nursing_cares,omitempty"`
+
 	// Editable Fluid Balance (E-Klaim version — balance cairan rawat inap)
 	FluidBalances []EKlaimRMFluidBalance `gorm:"foreignKey:RMDuplicateID" json:"fluid_balances,omitempty"`
 
@@ -520,8 +529,8 @@ type EKlaimRMDuplicate struct {
 	TotalTarif            float64 `json:"total_tarif"`
 
 	// Inpatient-specific fields
-	AdmissionDate             string  `gorm:"size:100" json:"admission_date"`                          // Tanggal masuk rawat inap (yyyy-mm-dd HH:mm:ss)
-	DischargeDate             string  `gorm:"size:100" json:"discharge_date"`                          // Tanggal keluar rawat inap (yyyy-mm-dd HH:mm:ss)
+	AdmissionDate             string  `gorm:"size:100" json:"admission_date"`                         // Tanggal masuk rawat inap (yyyy-mm-dd HH:mm:ss)
+	DischargeDate             string  `gorm:"size:100" json:"discharge_date"`                         // Tanggal keluar rawat inap (yyyy-mm-dd HH:mm:ss)
 	LengthOfStay              int     `gorm:"default:0" json:"length_of_stay"`                        // Jumlah hari rawat (override manual, 0 = auto-calculate)
 	AccommodationTariffPerDay float64 `gorm:"type:decimal(15,2)" json:"accommodation_tariff_per_day"` // Tarif akomodasi per hari (override manual, 0 = auto dari room tariff)
 
@@ -758,7 +767,8 @@ type EKlaimRMCPPT struct {
 
 	// Record Info
 	RecordDate string `gorm:"size:100" json:"record_date"` // yyyy-mm-dd HH:mm:ss
-	Profession string `gorm:"size:50" json:"profession"`  // dokter, perawat, bidan, gizi, farmasi, dll
+	Profession string `gorm:"size:50" json:"profession"`   // dokter, perawat, bidan, gizi, farmasi, dll
+	CPPTFormat string `gorm:"size:20;default:'soap'" json:"cppt_format,omitempty"`
 	StaffName  string `gorm:"size:200" json:"staff_name"` // Nama petugas
 
 	// SOAP Format
@@ -779,12 +789,86 @@ type EKlaimRMCPPT struct {
 	// Fake Order Support
 	IsFake bool `gorm:"default:false" json:"is_fake"`
 
+	// Staff attribution for duplicate RM
+	CreatedByName  string `gorm:"size:200" json:"created_by_name"`
+	ApprovedByName string `gorm:"size:200" json:"approved_by_name"`
+
 	Notes    string `gorm:"type:text" json:"notes"`
 	Sequence int    `gorm:"default:0" json:"sequence"`
 }
 
 func (EKlaimRMCPPT) TableName() string {
 	return "eklaim_rm_cppts"
+}
+
+// EKlaimRMNursingCare stores editable nursing care entries for E-Klaim RM duplicate (inpatient)
+type EKlaimRMNursingCare struct {
+	ID        uint           `gorm:"primarykey" json:"id"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
+
+	RMDuplicateID uint `gorm:"column:rm_duplicate_id;not null;index" json:"rm_duplicate_id"`
+
+	RecordDate string `gorm:"size:100" json:"record_date"`
+	ShiftType  string `gorm:"size:20" json:"shift_type"`
+	StaffName  string `gorm:"size:200" json:"staff_name"`
+
+	ChiefComplaint      string `gorm:"type:text" json:"chief_complaint"`
+	PainAssessment      string `gorm:"type:text" json:"pain_assessment"`
+	PainScale           int    `gorm:"default:0" json:"pain_scale"`
+	ConsciousnessLevel  string `gorm:"size:50" json:"consciousness_level"`
+	FunctionalStatus    string `gorm:"size:50" json:"functional_status"`
+	FallRiskAssessment  string `gorm:"type:text" json:"fall_risk_assessment"`
+	FallRiskScore       int    `gorm:"default:0" json:"fall_risk_score"`
+	NutritionAssessment string `gorm:"type:text" json:"nutrition_assessment"`
+	SkinAssessment      string `gorm:"type:text" json:"skin_assessment"`
+	PressureUlcerRisk   string `gorm:"size:50" json:"pressure_ulcer_risk"`
+
+	BloodPressure    string `gorm:"size:20" json:"blood_pressure,omitempty"`
+	HeartRate        int    `gorm:"default:0" json:"heart_rate,omitempty"`
+	RespiratoryRate  int    `gorm:"default:0" json:"respiratory_rate,omitempty"`
+	Temperature      string `gorm:"size:20" json:"temperature,omitempty"`
+	OxygenSaturation int    `gorm:"default:0" json:"oxygen_saturation,omitempty"`
+
+	NursingDiagnosis     string `gorm:"type:text" json:"nursing_diagnosis"`
+	NursingDiagnosisCode string `gorm:"size:20" json:"nursing_diagnosis_code"`
+	ProblemEtiology      string `gorm:"type:text" json:"problem_etiology"`
+	SignsSymptoms        string `gorm:"type:text" json:"signs_symptoms"`
+
+	NursingOutcome     string `gorm:"type:text" json:"nursing_outcome"`
+	NursingOutcomeCode string `gorm:"size:20" json:"nursing_outcome_code"`
+	OutcomeIndicators  string `gorm:"type:text" json:"outcome_indicators"`
+	OutcomeTarget      string `gorm:"size:50" json:"outcome_target"`
+
+	NursingIntervention     string `gorm:"type:text" json:"nursing_intervention"`
+	NursingInterventionCode string `gorm:"size:20" json:"nursing_intervention_code"`
+	ObservationActions      string `gorm:"type:text" json:"observation_actions"`
+	TherapeuticActions      string `gorm:"type:text" json:"therapeutic_actions"`
+	EducationActions        string `gorm:"type:text" json:"education_actions"`
+	CollaborationActions    string `gorm:"type:text" json:"collaboration_actions"`
+
+	Implementation     string `gorm:"type:text" json:"implementation"`
+	ImplementationTime string `gorm:"size:100" json:"implementation_time"`
+	PatientResponse    string `gorm:"type:text" json:"patient_response"`
+
+	EvaluationSubjective string `gorm:"type:text" json:"evaluation_subjective"`
+	EvaluationObjective  string `gorm:"type:text" json:"evaluation_objective"`
+	EvaluationAnalysis   string `gorm:"type:text" json:"evaluation_analysis"`
+	EvaluationPlanning   string `gorm:"type:text" json:"evaluation_planning"`
+	ProblemStatus        string `gorm:"size:30" json:"problem_status"`
+
+	CreatedByName  string `gorm:"size:200" json:"created_by_name"`
+	ApprovedByName string `gorm:"size:200" json:"approved_by_name"`
+
+	IsFake bool `gorm:"default:false" json:"is_fake"`
+
+	Notes    string `gorm:"type:text" json:"notes"`
+	Sequence int    `gorm:"default:0" json:"sequence"`
+}
+
+func (EKlaimRMNursingCare) TableName() string {
+	return "eklaim_rm_nursing_cares"
 }
 
 // EKlaimRMFluidBalance stores editable fluid balance for E-Klaim RM duplicate (inpatient)
@@ -798,8 +882,8 @@ type EKlaimRMFluidBalance struct {
 
 	// Record Period
 	RecordDate string `gorm:"size:100" json:"record_date"` // yyyy-mm-dd
-	ShiftType  string `gorm:"size:20" json:"shift_type"`  // pagi, siang, malam
-	StaffName  string `gorm:"size:200" json:"staff_name"` // Nama petugas
+	ShiftType  string `gorm:"size:20" json:"shift_type"`   // pagi, siang, malam
+	StaffName  string `gorm:"size:200" json:"staff_name"`  // Nama petugas
 
 	// Intake (ml)
 	OralDrink    float64 `gorm:"type:decimal(10,2);default:0" json:"oral_drink"`
@@ -824,6 +908,9 @@ type EKlaimRMFluidBalance struct {
 	TotalIntake float64 `gorm:"type:decimal(10,2);default:0" json:"total_intake"`
 	TotalOutput float64 `gorm:"type:decimal(10,2);default:0" json:"total_output"`
 	Balance     float64 `gorm:"type:decimal(10,2);default:0" json:"balance"`
+
+	CreatedByName  string `gorm:"size:200" json:"created_by_name"`
+	ApprovedByName string `gorm:"size:200" json:"approved_by_name"`
 
 	// Fake Order Support
 	IsFake bool `gorm:"default:false" json:"is_fake"`

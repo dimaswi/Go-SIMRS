@@ -121,17 +121,39 @@ const getQueueStatusBadge = (status: string) => {
 // HANYA support visit (lab/rad/pharmacy/consultation) yang punya referral_from yang dianggap order
 // Inpatient/rawat jalan/UGD BUKAN order meskipun punya referral_from
 const getVisitCategoryBadge = (visit: Visit) => {
-  const supportVisitTypes = ["lab", "radiology", "pharmacy", "consultation", "surgery"];
+  const serviceType = visit.room?.service_type;
+  const roomType = (visit.room?.room_type || "").toLowerCase();
+
+  if (visit.visit_type === "lab" || serviceType === "penunjang_medis" && roomType.includes("laboratorium")) {
+    return (
+      <Badge variant="outline" className="bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300 border-amber-300 text-xs">
+        Order Laboratorium
+      </Badge>
+    );
+  }
+  if (visit.visit_type === "radiology" || serviceType === "penunjang_medis" && roomType === "radiologi") {
+    return (
+      <Badge variant="outline" className="bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300 border-amber-300 text-xs">
+        Order Radiologi
+      </Badge>
+    );
+  }
+  if (visit.visit_type === "pharmacy" || serviceType === "farmasi") {
+    return (
+      <Badge variant="outline" className="bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300 border-amber-300 text-xs">
+        Order Farmasi
+      </Badge>
+    );
+  }
+
+  const supportVisitTypes = ["consultation", "surgery"];
   const isOrder = visit.referral_from !== null &&
                   visit.referral_from !== undefined &&
                   supportVisitTypes.includes(visit.visit_type);
 
   if (isOrder) {
     const orderLabels: Record<string, string> = {
-      lab: "Order Lab",
-      radiology: "Order Radiologi",
       consultation: "Order Konsultasi",
-      pharmacy: "Order Farmasi",
       surgery: "Order Operasi",
     };
     return (
@@ -140,9 +162,7 @@ const getVisitCategoryBadge = (visit: Visit) => {
       </Badge>
     );
   }
-  
-  // Service type based badges
-  const serviceType = visit.room?.service_type;
+
   if (serviceType === "rawat_inap" || visit.visit_type === "inpatient") {
     return (
       <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 text-xs">
@@ -154,29 +174,6 @@ const getVisitCategoryBadge = (visit: Visit) => {
     return (
       <Badge className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 text-xs">
         🚨 UGD
-      </Badge>
-    );
-  }
-
-  // Direct visit to penunjang (lab/radiologi/farmasi) - tanpa referral
-  if (visit.visit_type === "lab" || serviceType === "penunjang_medis" && visit.room?.room_type?.includes("laboratorium")) {
-    return (
-      <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 text-xs">
-        🔬 Lab
-      </Badge>
-    );
-  }
-  if (visit.visit_type === "radiology" || serviceType === "penunjang_medis" && visit.room?.room_type === "radiologi") {
-    return (
-      <Badge className="bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200 text-xs">
-        📷 Radiologi
-      </Badge>
-    );
-  }
-  if (visit.visit_type === "pharmacy" || serviceType === "farmasi") {
-    return (
-      <Badge className="bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200 text-xs">
-        💊 Farmasi
       </Badge>
     );
   }

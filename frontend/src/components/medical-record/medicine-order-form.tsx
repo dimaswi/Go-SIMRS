@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { Combobox } from "@/components/ui/combobox";
 import { useToast } from "@/hooks/use-toast";
@@ -49,12 +50,17 @@ import {
   medicineOrderTemplatesApi,
   type DoctorMedicineTemplate,
 } from "@/lib/api/medicine-order-templates";
-import type { MedicineOrder, CreateMedicineOrderInput } from "@/lib/api";
+import type {
+  MedicineOrder,
+  CreateMedicineOrderInput,
+  MedicineFulfillmentType,
+} from "@/lib/api";
 
 interface MedicineOrderFormProps {
   visitId: number;
   registrationId: number;
   sourceRoomId: number;
+  sourceServiceType?: string;
   readOnly?: boolean;
 }
 
@@ -108,6 +114,11 @@ const ORDER_STATUS_LABELS: Record<string, { label: string; variant: "default" | 
   returned: { label: "Ada Return", variant: "outline" },
 };
 
+const FULFILLMENT_TYPE_LABELS: Record<MedicineFulfillmentType, string> = {
+  in_room: "Dipakai di Ruangan",
+  take_home: "Dibawa Pulang",
+};
+
 // Collapsible Order Item Component
 function OrderCollapsible({ order }: { order: MedicineOrder }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -156,6 +167,9 @@ function OrderCollapsible({ order }: { order: MedicineOrder }) {
                 <Badge variant={ORDER_STATUS_LABELS[order.status]?.variant || "secondary"} className="text-xs">
                   {ORDER_STATUS_LABELS[order.status]?.label || order.status}
                 </Badge>
+                <Badge variant={order.fulfillment_type === "in_room" ? "outline" : "secondary"} className="text-xs">
+                  {FULFILLMENT_TYPE_LABELS[order.fulfillment_type as MedicineFulfillmentType] || "Dibawa Pulang"}
+                </Badge>
                 {order.priority === "urgent" && (
                   <Badge variant="destructive" className="text-xs">Urgent</Badge>
                 )}
@@ -171,14 +185,27 @@ function OrderCollapsible({ order }: { order: MedicineOrder }) {
             </div>
           </CollapsibleTrigger>
           {order.pharmacy_visit?.room_queue && (
-            <Button variant="outline" size="sm" onClick={handlePrintQueue} disabled={isPrinting}>
-              {isPrinting ? (
-                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-              ) : (
-                <Printer className="h-4 w-4 mr-1" />
-              )}
-              Cetak Antrian
-            </Button>
+            <TooltipProvider delayDuration={120}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={handlePrintQueue}
+                    disabled={isPrinting}
+                    aria-label="Cetak antrian"
+                  >
+                    {isPrinting ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Printer className="h-4 w-4" />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">Cetak Antrian</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           )}
         </div>
         <CollapsibleContent>
@@ -197,6 +224,14 @@ function OrderCollapsible({ order }: { order: MedicineOrder }) {
                       <td className="py-1">
                         <Badge variant={order.priority === "urgent" ? "destructive" : "outline"} className="text-xs">
                           {order.priority === "urgent" ? "Urgent" : "Normal"}
+                        </Badge>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="py-1 text-muted-foreground">Pemakaian Obat</td>
+                      <td className="py-1">
+                        <Badge variant={order.fulfillment_type === "in_room" ? "outline" : "secondary"} className="text-xs">
+                          {FULFILLMENT_TYPE_LABELS[order.fulfillment_type as MedicineFulfillmentType] || "Dibawa Pulang"}
                         </Badge>
                       </td>
                     </tr>
@@ -259,9 +294,11 @@ function OrderCollapsible({ order }: { order: MedicineOrder }) {
   );
 }
 
-export function MedicineOrderForm({ visitId, readOnly = false }: MedicineOrderFormProps) {
+export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false }: MedicineOrderFormProps) {
   const { toast } = useToast();
   const { hasPermission } = usePermission();
+
+  const initialFulfillmentType: MedicineFulfillmentType = sourceServiceType === "rawat_inap" ? "in_room" : "take_home";
   
   const [activeTab, setActiveTab] = useState<"form" | "history">("form");
   const [loading, setLoading] = useState(true);
@@ -276,6 +313,7 @@ export function MedicineOrderForm({ visitId, readOnly = false }: MedicineOrderFo
   const [diagnosis, setDiagnosis] = useState("");
   const [notes, setNotes] = useState("");
   const [priority, setPriority] = useState("normal");
+  const [fulfillmentType, setFulfillmentType] = useState<MedicineFulfillmentType>(initialFulfillmentType);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showTemplateDialog, setShowTemplateDialog] = useState(false);
   const [showCreateTemplateDialog, setShowCreateTemplateDialog] = useState(false);
@@ -356,6 +394,10 @@ export function MedicineOrderForm({ visitId, readOnly = false }: MedicineOrderFo
   useEffect(() => {
     loadData();
   }, [visitId]);
+
+  useEffect(() => {
+    setFulfillmentType(sourceServiceType === "rawat_inap" ? "in_room" : "take_home");
+  }, [sourceServiceType, visitId]);
 
   useEffect(() => {
     if (selectedPharmacyRoom) {
@@ -794,6 +836,7 @@ export function MedicineOrderForm({ visitId, readOnly = false }: MedicineOrderFo
         source_visit_id: visitId,
         pharmacy_room_id: selectedPharmacyRoom,
         prescription_type: "regular",
+        fulfillment_type: fulfillmentType,
         priority,
         diagnosis,
         notes,
@@ -821,6 +864,7 @@ export function MedicineOrderForm({ visitId, readOnly = false }: MedicineOrderFo
       setDiagnosis("");
       setNotes("");
       setPriority("normal");
+      setFulfillmentType(sourceServiceType === "rawat_inap" ? "in_room" : "take_home");
 
       // Reload orders
       loadData();
@@ -896,62 +940,92 @@ export function MedicineOrderForm({ visitId, readOnly = false }: MedicineOrderFo
         </div>
 
         <div className="p-4">
+          <TooltipProvider delayDuration={120}>
             {/* Order Form Tab */}
             {activeTab === "form" && (
               <div className="space-y-4">
-                <fieldset disabled={readOnly}>
-          {/* Pharmacy Room Selection */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Ruang Farmasi Tujuan</Label>
-              <Select
-                value={selectedPharmacyRoom?.toString() || ""}
-                onValueChange={(value) => setSelectedPharmacyRoom(Number(value))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Pilih ruang farmasi" />
-                </SelectTrigger>
-                <SelectContent>
-                  {pharmacyRooms.map((room) => (
-                    <SelectItem key={room.id} value={room.id.toString()}>
-                      {room.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                <fieldset disabled={readOnly} className="space-y-4 [&_input]:h-10 [&_[role=combobox]]:h-10">
+          <div className="border border-border/70">
+            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              Konfigurasi Order
             </div>
-            <div className="space-y-2">
-              <Label>Prioritas</Label>
-              <Select value={priority} onValueChange={setPriority}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="normal">Normal</SelectItem>
-                  <SelectItem value="urgent">Urgent</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="space-y-4 p-3 sm:p-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>Ruang Farmasi Tujuan</Label>
+                  <Select
+                    value={selectedPharmacyRoom?.toString() || ""}
+                    onValueChange={(value) => setSelectedPharmacyRoom(Number(value))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Pilih ruang farmasi" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {pharmacyRooms.map((room) => (
+                        <SelectItem key={room.id} value={room.id.toString()}>
+                          {room.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Prioritas</Label>
+                  <Select value={priority} onValueChange={setPriority}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="normal">Normal</SelectItem>
+                      <SelectItem value="urgent">Urgent</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Pemakaian Obat</Label>
+                  <Select value={fulfillmentType} onValueChange={(value) => setFulfillmentType(value as MedicineFulfillmentType)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="in_room">Dipakai di Ruangan</SelectItem>
+                      <SelectItem value="take_home">Dibawa Pulang</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Diagnosis Terkait</Label>
+                <Input
+                  placeholder="Tulis diagnosis yang berkaitan dengan resep ini"
+                  value={diagnosis}
+                  onChange={(e) => setDiagnosis(e.target.value)}
+                />
+              </div>
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label>Diagnosis Terkait</Label>
-            <Input
-              placeholder="Tulis diagnosis yang berkaitan dengan resep ini"
-              value={diagnosis}
-              onChange={(e) => setDiagnosis(e.target.value)}
-            />
-          </div>
           {/* Order Items */}
-          <div className="space-y-2 pt-2">
+          <div className="space-y-2 border border-border/70 p-3 sm:p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <Label className="text-base font-medium">Daftar Obat</Label>
+              <div className="flex flex-wrap items-center gap-2">
+                <Label className="text-base font-medium">Daftar Obat</Label>
+                <Badge variant={orderItems.length > 0 ? "default" : "outline"}>{orderItems.length} item</Badge>
+                <Badge variant={orderGrandTotal > 0 ? "secondary" : "outline"}>{formatRupiah(orderGrandTotal)}</Badge>
+              </div>
               <div className="flex items-center gap-2">
                 <Dialog open={showTemplateDialog} onOpenChange={setShowTemplateDialog}>
                   <DialogTrigger asChild>
-                    <Button size="sm" variant="outline" disabled={!selectedPharmacyRoom || loadingTemplates || readOnly}>
-                      <Package className="h-4 w-4 mr-1" />
-                      Tambah Template
+                    <Button
+                      size="icon"
+                      variant="outline"
+                      className="h-8 w-8"
+                      title="Tambah Template"
+                      aria-label="Tambah template"
+                      disabled={!selectedPharmacyRoom || loadingTemplates || readOnly}
+                    >
+                      <Package className="h-4 w-4" />
                     </Button>
                   </DialogTrigger>
                   <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
@@ -1012,16 +1086,18 @@ export function MedicineOrderForm({ visitId, readOnly = false }: MedicineOrderFo
                 <Dialog open={showCreateTemplateDialog} onOpenChange={setShowCreateTemplateDialog}>
                   <DialogTrigger asChild>
                     <Button
-                      size="sm"
+                      size="icon"
                       variant="outline"
+                      className="h-8 w-8"
+                      title="Buat Template"
+                      aria-label="Buat template"
                       disabled={readOnly}
                       onClick={() => {
                         setTemplateItems(orderItems.map((item) => ({ ...item })));
                         setTemplateMedicineSearch("");
                       }}
                     >
-                      <BookmarkPlus className="h-4 w-4 mr-1" />
-                      Buat Template
+                      <BookmarkPlus className="h-4 w-4" />
                     </Button>
                   </DialogTrigger>
                   <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-4xl max-h-[85vh] overflow-hidden flex flex-col">
@@ -1215,9 +1291,14 @@ export function MedicineOrderForm({ visitId, readOnly = false }: MedicineOrderFo
 
                 <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
                   <DialogTrigger asChild>
-                    <Button size="sm" disabled={!selectedPharmacyRoom || loadingMedicines || readOnly}>
-                      <Plus className="h-4 w-4 mr-1" />
-                      Tambah Obat
+                    <Button
+                      size="icon"
+                      className="h-8 w-8"
+                      title="Tambah Obat"
+                      aria-label="Tambah obat"
+                      disabled={!selectedPharmacyRoom || loadingMedicines || readOnly}
+                    >
+                      <Plus className="h-4 w-4" />
                     </Button>
                   </DialogTrigger>
                   <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
@@ -1285,7 +1366,7 @@ export function MedicineOrderForm({ visitId, readOnly = false }: MedicineOrderFo
               <div className="border-2 border-dashed rounded-lg p-8 text-center text-muted-foreground">
                 <Pill className="h-8 w-8 mx-auto mb-2 opacity-50" />
                 <p>Belum ada obat ditambahkan</p>
-                <p className="text-sm">Klik "Tambah Obat" atau "Tambah Template" untuk memulai</p>
+                <p className="text-sm">Gunakan tombol aksi di kanan atas untuk mulai menambah item.</p>
               </div>
             ) : (
               <>
@@ -1584,6 +1665,7 @@ export function MedicineOrderForm({ visitId, readOnly = false }: MedicineOrderFo
                 )}
               </div>
             )}
+          </TooltipProvider>
         </div>
       </div>
     </div>

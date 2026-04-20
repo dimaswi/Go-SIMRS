@@ -330,6 +330,9 @@ func SignDocument(c *gin.Context) {
 		database.DB.Create(&docSignature)
 	}
 
+	// Invalidate cached PDF for this document (signature changes the rendered output)
+	go invalidateAllPDFCachesForSignature(req.DocumentType, req.DocumentID)
+
 	c.JSON(http.StatusOK, gin.H{
 		"message":        "Dokumen berhasil ditandatangani",
 		"signature_hash": signatureHash,
@@ -829,6 +832,9 @@ func RevokeDocumentSignature(c *gin.Context) {
 	docSignature.SignatureHash = ""
 	docSignature.IsLocked = false
 	database.DB.Save(&docSignature)
+
+	// Delete cached PDF blob — signature revoked, so cached signed PDF is stale
+	go invalidateAllPDFCachesForSignature(req.DocumentType, req.DocumentID)
 
 	c.JSON(http.StatusOK, gin.H{
 		"message":    "Tanda tangan berhasil dibatalkan",

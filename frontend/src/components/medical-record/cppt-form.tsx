@@ -38,10 +38,11 @@ import { useToast } from "@/hooks/use-toast";
 import { usePermission } from "@/hooks/usePermission";
 import {
   cpptApi,
+  CPPT_FORMATS,
   CPPT_PROFESSIONS,
   getCPPTProfessionLabel,
 } from "@/lib/api";
-import type { CPPT, CreateCPPTInput } from "@/lib/api";
+import type { CPPT, CPPTFormat, CreateCPPTInput } from "@/lib/api";
 import { emitMedicalRecordTabIndicator } from "./tab-indicator";
 import {
   Loader2,
@@ -51,12 +52,14 @@ import {
   CheckCircle,
   ClipboardCheck,
   User,
+  UserCheck,
   Heart,
   Thermometer,
   Activity,
   ShieldCheck,
   ChevronDown,
   ChevronRight,
+  Search,
 } from "lucide-react";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
@@ -64,7 +67,84 @@ import { id as idLocale } from "date-fns/locale";
 interface CPPTFormProps {
   visitId: number;
   readOnly?: boolean;
+  externalData?: CPPT[];
+  useExternalData?: boolean;
+  /** Options for the set-creator / set-approver dropdowns (rm-duplicate mode) */
+  staffOptions?: { id: number; name: string }[];
+  onSetCreatedBy?: (cpptId: number, name: string) => void;
+  onSetApprovedBy?: (cpptId: number, name: string) => void;
 }
+
+type CPPTFormatFieldKey = "subjective" | "objective" | "assessment" | "plan";
+
+type CPPTFormatMeta = {
+  shortLabel: string;
+  summaryPrefix: Record<CPPTFormatFieldKey, string>;
+  fieldLabel: Record<CPPTFormatFieldKey, string>;
+  placeholder: Record<CPPTFormatFieldKey, string>;
+};
+
+const CPPT_FORMAT_META: Record<CPPTFormat, CPPTFormatMeta> = {
+  soap: {
+    shortLabel: "SOAP",
+    summaryPrefix: { subjective: "S", objective: "O", assessment: "A", plan: "P" },
+    fieldLabel: {
+      subjective: "S - Subjektif (Keluhan)",
+      objective: "O - Objektif (Pemeriksaan)",
+      assessment: "A - Asesmen (Diagnosis)",
+      plan: "P - Plan (Rencana)",
+    },
+    placeholder: {
+      subjective: "Keluhan yang dirasakan pasien...",
+      objective: "Hasil pemeriksaan fisik, vital sign, lab...",
+      assessment: "Diagnosis atau masalah keperawatan...",
+      plan: "Rencana tindakan atau terapi...",
+    },
+  },
+  sbar: {
+    shortLabel: "SBAR",
+    summaryPrefix: { subjective: "S", objective: "B", assessment: "A", plan: "R" },
+    fieldLabel: {
+      subjective: "S - Situation",
+      objective: "B - Background",
+      assessment: "A - Assessment",
+      plan: "R - Recommendation",
+    },
+    placeholder: {
+      subjective: "Kondisi pasien saat ini yang perlu disampaikan...",
+      objective: "Latar belakang klinis yang relevan...",
+      assessment: "Penilaian klinis saat ini...",
+      plan: "Rekomendasi/tindak lanjut yang diminta...",
+    },
+  },
+  tbak: {
+    shortLabel: "TBAK",
+    summaryPrefix: { subjective: "T", objective: "B", assessment: "A", plan: "K" },
+    fieldLabel: {
+      subjective: "T - Tulis",
+      objective: "B - Baca Kembali",
+      assessment: "A - Analisis",
+      plan: "K - Konfirmasi",
+    },
+    placeholder: {
+      subjective: "Pesan/instruksi yang ditulis dengan jelas...",
+      objective: "Hasil baca ulang pesan oleh penerima...",
+      assessment: "Analisis kesesuaian pesan dengan kondisi pasien...",
+      plan: "Konfirmasi akhir tindakan/instruksi...",
+    },
+  },
+};
+
+const normalizeCPPTFormat = (value?: string): CPPTFormat => {
+  if (value === "sbar" || value === "tbak") {
+    return value;
+  }
+  return "soap";
+};
+
+const getCPPTFormatMeta = (value?: string): CPPTFormatMeta => {
+  return CPPT_FORMAT_META[normalizeCPPTFormat(value)];
+};
 
 // Collapsible Row Component for CPPT
 function CPPTCollapsibleRow({
@@ -76,6 +156,9 @@ function CPPTCollapsibleRow({
   onEdit,
   onDelete,
   getProfessionColor,
+  staffOptions,
+  onSetCreatedBy,
+  onSetApprovedBy,
 }: {
   cppt: CPPT;
   canVerify: boolean;
@@ -85,16 +168,53 @@ function CPPTCollapsibleRow({
   onEdit: (cppt: CPPT) => void;
   onDelete: (id: number) => void;
   getProfessionColor: (profession: string) => string;
+  staffOptions?: { id: number; name: string }[];
+  onSetCreatedBy?: (cpptId: number, name: string) => void;
+  onSetApprovedBy?: (cpptId: number, name: string) => void;
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  // State for staff-picker modal
+  const [staffModalOpen, setStaffModalOpen] = useState(false);
+  const [staffModalMode, setStaffModalMode] = useState<"pembuat" | "approval">("pembuat");
+  const [staffSearch, setStaffSearch] = useState("");
 
-  // Get summary of SOAP
-  const getSoapSummary = () => {
+  const openStaffModal = (mode: "pembuat" | "approval") => {
+    setStaffModalMode(mode);
+    setStaffSearch("");
+    setStaffModalOpen(true);
+  };
+
+  const handlePickStaff = (name: string) => {
+    if (staffModalMode === "pembuat") onSetCreatedBy?.(cppt.id, name);
+    else onSetApprovedBy?.(cppt.id, name);
+    setStaffModalOpen(false);
+  };
+
+  const filteredStaff = (staffOptions || []).filter((s) =>
+    s.name.toLowerCase().includes(staffSearch.toLowerCase()),
+  );
+
+  const formatMeta = getCPPTFormatMeta(cppt.cppt_format);
+
+  // Get summary of CPPT fields according to selected format
+  const getCPPTSummary = () => {
     const parts = [];
-    if (cppt.subjective) parts.push(`S: ${cppt.subjective.substring(0, 30)}${cppt.subjective.length > 30 ? '...' : ''}`);
-    if (cppt.objective) parts.push(`O: ${cppt.objective.substring(0, 30)}${cppt.objective.length > 30 ? '...' : ''}`);
-    if (cppt.assessment) parts.push(`A: ${cppt.assessment.substring(0, 30)}${cppt.assessment.length > 30 ? '...' : ''}`);
-    return parts.join(' | ') || '-';
+    if (cppt.subjective) {
+      parts.push(
+        `${formatMeta.summaryPrefix.subjective}: ${cppt.subjective.substring(0, 30)}${cppt.subjective.length > 30 ? "..." : ""}`,
+      );
+    }
+    if (cppt.objective) {
+      parts.push(
+        `${formatMeta.summaryPrefix.objective}: ${cppt.objective.substring(0, 30)}${cppt.objective.length > 30 ? "..." : ""}`,
+      );
+    }
+    if (cppt.assessment) {
+      parts.push(
+        `${formatMeta.summaryPrefix.assessment}: ${cppt.assessment.substring(0, 30)}${cppt.assessment.length > 30 ? "..." : ""}`,
+      );
+    }
+    return parts.join(" | ") || "-";
   };
 
   return (
@@ -116,30 +236,56 @@ function CPPTCollapsibleRow({
             </div>
           </div>
           <div className="col-span-2">
-            <Badge className={getProfessionColor(cppt.profession)}>
-              {getCPPTProfessionLabel(cppt.profession)}
-            </Badge>
+            <div className="flex flex-col gap-1">
+              <Badge className={getProfessionColor(cppt.profession)}>
+                {getCPPTProfessionLabel(cppt.profession)}
+              </Badge>
+              <Badge variant="outline" className="w-fit text-[10px] uppercase">
+                {formatMeta.shortLabel}
+              </Badge>
+            </div>
           </div>
           <div className="col-span-4">
-            <p className="text-xs text-muted-foreground truncate">{getSoapSummary()}</p>
+            <p className="text-xs text-muted-foreground truncate">{getCPPTSummary()}</p>
           </div>
           <div className="col-span-2">
             <div className="flex flex-col gap-0.5">
-              {cppt.is_verified ? (
-                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 w-fit">
-                  <ShieldCheck className="h-3 w-3 mr-1" />
-                  Verified
-                </Badge>
+              {/* In rm-duplicate mode: show Selesai + names when both are set */}
+              {(onSetCreatedBy || onSetApprovedBy) ? (
+                <>
+                  {(cppt.created_by?.full_name || cppt.verified_by?.full_name) ? (
+                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 w-fit">
+                      <ShieldCheck className="h-3 w-3 mr-1" />
+                      Selesai
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-muted-foreground w-fit">Pending</Badge>
+                  )}
+                  <div className="text-[10px] text-muted-foreground truncate">
+                    {cppt.created_by?.full_name && <span>Pembuat: {cppt.created_by.full_name}</span>}
+                    {cppt.verified_by?.full_name && <span className="ml-1">• Approval: {cppt.verified_by.full_name}</span>}
+                  </div>
+                </>
               ) : (
-                <Badge variant="outline" className="text-muted-foreground w-fit">Pending</Badge>
+                <>
+                  {cppt.is_verified ? (
+                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 w-fit">
+                      <ShieldCheck className="h-3 w-3 mr-1" />
+                      Verified
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-muted-foreground w-fit">Pending</Badge>
+                  )}
+                  <div className="text-[10px] text-muted-foreground truncate">
+                    {cppt.created_by && <span>{cppt.created_by.full_name}</span>}
+                    {cppt.is_verified && cppt.verified_by && <span className="ml-1">• {cppt.verified_by.full_name}</span>}
+                  </div>
+                </>
               )}
-              <div className="text-[10px] text-muted-foreground truncate">
-                {cppt.created_by && <span>{cppt.created_by.full_name}</span>}
-                {cppt.is_verified && cppt.verified_by && <span className="ml-1">• {cppt.verified_by.full_name}</span>}
-              </div>
             </div>
           </div>
           <div className="col-span-1 flex items-center gap-1">
+            {/* Standard (non-duplicate) action buttons */}
             {canVerify && !cppt.is_verified && (
               <Button variant="ghost" size="icon" className="h-7 w-7 text-green-600" onClick={() => onVerify(cppt.id)}>
                 <CheckCircle className="h-4 w-4" />
@@ -155,35 +301,85 @@ function CPPTCollapsibleRow({
                 <Trash2 className="h-4 w-4" />
               </Button>
             )}
+            {/* RM-duplicate mode: set Pembuat and Approval via modal */}
+            {onSetCreatedBy && staffOptions && staffOptions.length > 0 && (
+              <Button variant="ghost" size="icon" className="h-7 w-7" title="Set Pembuat" onClick={() => openStaffModal("pembuat")}>
+                <User className="h-4 w-4" />
+              </Button>
+            )}
+            {onSetApprovedBy && staffOptions && staffOptions.length > 0 && (
+              <Button variant="ghost" size="icon" className="h-7 w-7" title="Set Approval" onClick={() => openStaffModal("approval")}>
+                <UserCheck className="h-4 w-4" />
+              </Button>
+            )}
           </div>
         </div>
+
+        {/* Staff Picker Modal */}
+        <Dialog open={staffModalOpen} onOpenChange={setStaffModalOpen}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>
+                {staffModalMode === "pembuat" ? "Pilih Pembuat" : "Pilih Approval"}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                className="pl-8"
+                placeholder="Cari nama..."
+                value={staffSearch}
+                onChange={(e) => setStaffSearch(e.target.value)}
+                autoFocus
+              />
+            </div>
+            <div className="max-h-64 overflow-y-auto divide-y rounded-md border">
+              {filteredStaff.length === 0 ? (
+                <p className="py-6 text-center text-sm text-muted-foreground">Tidak ada hasil</p>
+              ) : (
+                filteredStaff.map((s) => (
+                  <button
+                    key={s.id}
+                    className="w-full px-3 py-2.5 text-left text-sm hover:bg-muted/50 transition-colors"
+                    onClick={() => handlePickStaff(s.name)}
+                  >
+                    {s.name}
+                  </button>
+                ))
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setStaffModalOpen(false)}>Batal</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Expanded Content */}
         <CollapsibleContent>
           <div className="px-4 pb-4 pt-0 ml-8 mr-4">
-            {/* SOAP Content */}
+            {/* CPPT content by selected format */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
               {cppt.subjective && (
                 <div className="bg-muted/50 border rounded-lg p-3">
-                  <p className="font-medium text-foreground mb-1">S - Subjektif</p>
+                  <p className="font-medium text-foreground mb-1">{formatMeta.fieldLabel.subjective}</p>
                   <p className="whitespace-pre-wrap">{cppt.subjective}</p>
                 </div>
               )}
               {cppt.objective && (
                 <div className="bg-muted/50 border rounded-lg p-3">
-                  <p className="font-medium text-foreground mb-1">O - Objektif</p>
+                  <p className="font-medium text-foreground mb-1">{formatMeta.fieldLabel.objective}</p>
                   <p className="whitespace-pre-wrap">{cppt.objective}</p>
                 </div>
               )}
               {cppt.assessment && (
                 <div className="bg-muted/50 border rounded-lg p-3">
-                  <p className="font-medium text-foreground mb-1">A - Asesmen</p>
+                  <p className="font-medium text-foreground mb-1">{formatMeta.fieldLabel.assessment}</p>
                   <p className="whitespace-pre-wrap">{cppt.assessment}</p>
                 </div>
               )}
               {cppt.plan && (
                 <div className="bg-muted/50 border rounded-lg p-3">
-                  <p className="font-medium text-foreground mb-1">P - Plan</p>
+                  <p className="font-medium text-foreground mb-1">{formatMeta.fieldLabel.plan}</p>
                   <p className="whitespace-pre-wrap">{cppt.plan}</p>
                 </div>
               )}
@@ -258,6 +454,7 @@ function CPPTCollapsibleRow({
 const defaultFormData: CreateCPPTInput = {
   record_date: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
   profession: "dokter",
+  cppt_format: "soap",
   subjective: "",
   objective: "",
   assessment: "",
@@ -271,7 +468,15 @@ const defaultFormData: CreateCPPTInput = {
   pain_scale: 0,
 };
 
-export function CPPTForm({ visitId, readOnly = false }: CPPTFormProps) {
+export function CPPTForm({
+  visitId,
+  readOnly = false,
+  externalData,
+  useExternalData = false,
+  staffOptions,
+  onSetCreatedBy,
+  onSetApprovedBy,
+}: CPPTFormProps) {
   const { toast } = useToast();
   const { hasPermission } = usePermission();
 
@@ -299,6 +504,11 @@ export function CPPTForm({ visitId, readOnly = false }: CPPTFormProps) {
   // Load data
   const loadData = useCallback(async () => {
     setLoading(true);
+    if (useExternalData) {
+      setCppts(externalData || []);
+      setLoading(false);
+      return;
+    }
     try {
       const res = await cpptApi.getAll(visitId);
       setCppts(res.data.data || []);
@@ -311,7 +521,7 @@ export function CPPTForm({ visitId, readOnly = false }: CPPTFormProps) {
     } finally {
       setLoading(false);
     }
-  }, [visitId, toast]);
+  }, [externalData, useExternalData, visitId, toast]);
 
   useEffect(() => {
     loadData();
@@ -341,6 +551,7 @@ export function CPPTForm({ visitId, readOnly = false }: CPPTFormProps) {
     setFormData({
       record_date: format(new Date(cppt.record_date), "yyyy-MM-dd'T'HH:mm"),
       profession: cppt.profession,
+      cppt_format: normalizeCPPTFormat(cppt.cppt_format),
       subjective: cppt.subjective || "",
       objective: cppt.objective || "",
       assessment: cppt.assessment || "",
@@ -374,14 +585,19 @@ export function CPPTForm({ visitId, readOnly = false }: CPPTFormProps) {
 
     setSaving(true);
     try {
+      const payload: CreateCPPTInput = {
+        ...formData,
+        cppt_format: normalizeCPPTFormat(formData.cppt_format),
+      };
+
       if (editingId) {
-        await cpptApi.update(visitId, editingId, formData);
+        await cpptApi.update(visitId, editingId, payload);
         toast({
           title: "Berhasil",
           description: "CPPT berhasil diperbarui",
         });
       } else {
-        await cpptApi.create(visitId, formData);
+        await cpptApi.create(visitId, payload);
         toast({
           title: "Berhasil",
           description: "CPPT berhasil ditambahkan",
@@ -454,6 +670,8 @@ export function CPPTForm({ visitId, readOnly = false }: CPPTFormProps) {
     return "bg-muted text-muted-foreground";
   };
 
+  const selectedFormatMeta = getCPPTFormatMeta(formData.cppt_format);
+
   if (loading) {
     return (
       <div>
@@ -470,60 +688,71 @@ export function CPPTForm({ visitId, readOnly = false }: CPPTFormProps) {
   return (
     <>
       <div>
-        <div className="p-0">
-          {cppts.length > 0 ? (
-            <div className="rounded-lg border overflow-x-auto">
-              {/* Table Header */}
-              <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-muted/50 text-xs font-medium text-muted-foreground border-b sticky top-0">
-                <div className="col-span-1"></div>
-                <div className="col-span-2">Tanggal/Waktu</div>
-                <div className="col-span-2">Profesi</div>
-                <div className="col-span-4">Ringkasan SOAP</div>
-                <div className="col-span-2">Status</div>
-                <div className="col-span-1">Aksi</div>
+        <div className="space-y-3">
+          <div className="rounded-lg border border-border/70 bg-muted/20 px-3 py-3 sm:px-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-foreground">Catatan CPPT</p>
+                <p className="text-xs text-muted-foreground">Total catatan: {cppts.length}</p>
               </div>
-              <div className="divide-y">
-                {cppts.map((cppt) => (
-                  <CPPTCollapsibleRow
-                    key={cppt.id}
-                    cppt={cppt}
-                    canVerify={canVerify}
-                    canEdit={canEdit}
-                    canDelete={canDelete}
-                    onVerify={handleVerify}
-                    onEdit={handleOpenEdit}
-                    onDelete={(id) => {
-                      setCpptToDelete(id);
-                      setDeleteDialogOpen(true);
-                    }}
-                    getProfessionColor={getProfessionColor}
-                  />
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="py-12 text-center text-muted-foreground border rounded-lg">
-              <ClipboardCheck className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p className="font-medium">Belum ada catatan CPPT</p>
-              <p className="text-sm mt-1">Klik "Tambah CPPT" untuk menambahkan catatan perkembangan.</p>
               {canCreate && !readOnly && (
-                <div className="mt-4 flex justify-center">
-                  <Button onClick={handleOpenCreate} size="sm">
-                    <Plus className="h-4 w-4 mr-1" />
-                    Tambah CPPT
-                  </Button>
-                </div>
+                <Button onClick={handleOpenCreate} size="sm">
+                  <Plus className="h-4 w-4 mr-1" />
+                  Tambah CPPT
+                </Button>
               )}
             </div>
-          )}
-          {canCreate && !readOnly && cppts.length > 0 && (
-            <div className="mt-4 flex justify-center">
-              <Button onClick={handleOpenCreate} size="sm">
-                <Plus className="h-4 w-4 mr-1" />
-                Tambah CPPT
-              </Button>
+          </div>
+
+          <div className="rounded-lg border border-border/70 bg-background overflow-hidden">
+            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              Daftar CPPT
             </div>
-          )}
+            {cppts.length > 0 ? (
+              <div className="overflow-x-auto">
+                {/* Table Header */}
+                <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-muted/50 text-xs font-medium text-muted-foreground border-b sticky top-0">
+                  <div className="col-span-1"></div>
+                  <div className="col-span-2">Tanggal/Waktu</div>
+                  <div className="col-span-2">Profesi</div>
+                  <div className="col-span-4">Ringkasan CPPT</div>
+                  <div className="col-span-2">Status</div>
+                  <div className="col-span-1">Aksi</div>
+                </div>
+                <div className="divide-y">
+                  {cppts.map((cppt) => (
+                    <CPPTCollapsibleRow
+                      key={cppt.id}
+                      cppt={cppt}
+                      canVerify={canVerify}
+                      canEdit={canEdit}
+                      canDelete={canDelete}
+                      onVerify={handleVerify}
+                      onEdit={handleOpenEdit}
+                      onDelete={(id) => {
+                        setCpptToDelete(id);
+                        setDeleteDialogOpen(true);
+                      }}
+                      getProfessionColor={getProfessionColor}
+                      staffOptions={staffOptions}
+                      onSetCreatedBy={onSetCreatedBy}
+                      onSetApprovedBy={onSetApprovedBy}
+                    />
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="py-12 text-center text-muted-foreground">
+                <ClipboardCheck className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p className="font-medium">Belum ada catatan CPPT</p>
+                <p className="text-sm mt-1">
+                  {readOnly
+                    ? "Belum ada catatan CPPT pada RM duplikat."
+                    : 'Klik "Tambah CPPT" untuk menambahkan catatan perkembangan.'}
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -539,8 +768,8 @@ export function CPPTForm({ visitId, readOnly = false }: CPPTFormProps) {
 
           <ScrollArea className="flex-1 px-6 py-4">
             <div className="grid gap-4 pb-4">
-              {/* Row 1 - Date, Profession */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Row 1 - Date, Profession, Format */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label>Tanggal & Waktu</Label>
                   <Input
@@ -567,43 +796,61 @@ export function CPPTForm({ visitId, readOnly = false }: CPPTFormProps) {
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="space-y-2">
+                  <Label>Format CPPT</Label>
+                  <Select
+                    value={normalizeCPPTFormat(formData.cppt_format)}
+                    onValueChange={(v) => handleChange("cppt_format", v as CPPTFormat)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Pilih format" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CPPT_FORMATS.map((f) => (
+                        <SelectItem key={f.value} value={f.value}>
+                          {f.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
-              {/* SOAP */}
+              {/* CPPT fields */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>S - Subjektif (Keluhan)</Label>
+                  <Label>{selectedFormatMeta.fieldLabel.subjective}</Label>
                   <Textarea
                     value={formData.subjective}
                     onChange={(e) => handleChange("subjective", e.target.value)}
-                    placeholder="Keluhan yang dirasakan pasien..."
+                    placeholder={selectedFormatMeta.placeholder.subjective}
                     rows={6}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>O - Objektif (Pemeriksaan)</Label>
+                  <Label>{selectedFormatMeta.fieldLabel.objective}</Label>
                   <Textarea
                     value={formData.objective}
                     onChange={(e) => handleChange("objective", e.target.value)}
-                    placeholder="Hasil pemeriksaan fisik, vital sign, lab..."
+                    placeholder={selectedFormatMeta.placeholder.objective}
                     rows={6}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>A - Asesmen (Diagnosis)</Label>
+                  <Label>{selectedFormatMeta.fieldLabel.assessment}</Label>
                   <Textarea
                     value={formData.assessment}
                     onChange={(e) => handleChange("assessment", e.target.value)}
-                    placeholder="Diagnosis atau masalah keperawatan..."
+                    placeholder={selectedFormatMeta.placeholder.assessment}
                     rows={6}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>P - Plan (Rencana)</Label>
+                  <Label>{selectedFormatMeta.fieldLabel.plan}</Label>
                   <Textarea
                     value={formData.plan}
                     onChange={(e) => handleChange("plan", e.target.value)}
-                    placeholder="Rencana tindakan atau terapi..."
+                    placeholder={selectedFormatMeta.placeholder.plan}
                     rows={6}
                   />
                 </div>

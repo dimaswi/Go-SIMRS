@@ -1,5 +1,8 @@
 import { api } from './client';
 
+export type MedicineFulfillmentType = 'in_room' | 'take_home';
+export type MedicationTimesheetStatus = 'scheduled' | 'given' | 'held' | 'skipped';
+
 // Types
 export interface MedicineOrderItem {
   id?: number;
@@ -104,6 +107,7 @@ export interface MedicineOrder {
     tipe_karyawan: string;
   };
   prescription_type: string;
+  fulfillment_type?: MedicineFulfillmentType;
   priority: string;
   diagnosis: string;
   notes: string;
@@ -128,6 +132,7 @@ export interface CreateMedicineOrderInput {
   source_visit_id: number;
   pharmacy_room_id: number;
   prescription_type?: string;
+  fulfillment_type?: MedicineFulfillmentType;
   priority?: string;
   diagnosis?: string;
   notes?: string;
@@ -215,6 +220,39 @@ export interface CreateMedicineReturnInput {
   notes?: string;
 }
 
+export interface MedicationTimesheetItem {
+  order_id: number;
+  order_number: string;
+  order_item_id: number;
+  medicine_id: number;
+  medicine_name: string;
+  medicine_code: string;
+  quantity: number;
+  unit: string;
+  dosage: string;
+  frequency: string;
+  route: string;
+  duration: string;
+  instructions: string;
+}
+
+export interface MedicationTimesheetEntry {
+  id: number;
+  medicine_order_item_id: number;
+  scheduled_at: string;
+  status: MedicationTimesheetStatus;
+  administered_at?: string;
+  administered_by?: number;
+  notes: string;
+}
+
+export interface MedicationTimesheetResponse {
+  visit_id: number;
+  date: string;
+  items: MedicationTimesheetItem[];
+  entries: MedicationTimesheetEntry[];
+}
+
 // API Functions
 export const medicineOrdersApi = {
   // Get all medicine orders
@@ -224,6 +262,7 @@ export const medicineOrdersApi = {
     pharmacy_room_id?: number;
     registration_id?: number;
     status?: string;
+    fulfillment_type?: MedicineFulfillmentType;
     start_date?: string;
     end_date?: string;
   }) => {
@@ -233,6 +272,7 @@ export const medicineOrdersApi = {
     if (params?.pharmacy_room_id) searchParams.append('pharmacy_room_id', String(params.pharmacy_room_id));
     if (params?.registration_id) searchParams.append('registration_id', String(params.registration_id));
     if (params?.status) searchParams.append('status', params.status);
+    if (params?.fulfillment_type) searchParams.append('fulfillment_type', params.fulfillment_type);
     if (params?.start_date) searchParams.append('start_date', params.start_date);
     if (params?.end_date) searchParams.append('end_date', params.end_date);
     
@@ -254,8 +294,27 @@ export const medicineOrdersApi = {
   },
 
   // Update medicine order
-  update: async (id: number, data: { priority?: string; diagnosis?: string; notes?: string }) => {
+  update: async (id: number, data: { priority?: string; diagnosis?: string; notes?: string; fulfillment_type?: MedicineFulfillmentType }) => {
     const response = await api.put<MedicineOrder>(`/medicine-orders/${id}`, data);
+    return response;
+  },
+
+  // Get in-room medication timesheet by visit and date
+  getTimesheet: async (visitId: number, date: string) => {
+    const response = await api.get<MedicationTimesheetResponse>(`/medicine-orders/timesheet?visit_id=${visitId}&date=${encodeURIComponent(date)}`);
+    return response;
+  },
+
+  // Upsert one timesheet slot (item x hour)
+  upsertTimesheetEntry: async (data: {
+    visit_id: number;
+    medicine_order_item_id: number;
+    date: string;
+    hour: number;
+    status?: MedicationTimesheetStatus | '';
+    notes?: string;
+  }) => {
+    const response = await api.post<MedicationTimesheetEntry | { message: string }>('/medicine-orders/timesheet/entry', data);
     return response;
   },
 

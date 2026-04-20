@@ -86,6 +86,19 @@ func GetProcedureOrders(c *gin.Context) {
 		return
 	}
 
+	refreshed, err := ensureProcedureOrdersHaveParameters(database.DB, orders)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if refreshed {
+		orders = nil
+		if err := query.Find(&orders).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	}
+
 	// For consultation orders without direct consultation relation, try to load by target_visit_id or procedure_order_id
 	for i := range orders {
 		if orders[i].OrderType == "consultation" && orders[i].Consultation == nil {
@@ -133,6 +146,34 @@ func GetProcedureOrder(c *gin.Context) {
 		First(&order, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Procedure order not found"})
 		return
+	}
+
+	refreshed, err := ensureProcedureOrderHasParameters(database.DB, order.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if refreshed {
+		if err := database.DB.
+			Preload("SourceVisit.Registration.Patient").
+			Preload("TargetVisit.RoomQueue").
+			Preload("SourceRoom").
+			Preload("TargetRoom").
+			Preload("Registration.Patient").
+			Preload("OrderedBy").
+			Preload("SurgeonDoctor").
+			Preload("PerformedBy").
+			Preload("ValidatedBy").
+			Preload("Items.Procedure.Parameters", func(db *gorm.DB) *gorm.DB {
+				return db.Where("is_active = ?", true).Order("sort_order ASC")
+			}).
+			Preload("Items.Results.ProcedureParameter").
+			Preload("Items.PerformedBy").
+			Preload("Consultation.Consultant").
+			First(&order, id).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Procedure order not found"})
+			return
+		}
 	}
 
 	c.JSON(http.StatusOK, order)
@@ -393,6 +434,11 @@ func CreateProcedureOrder(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Procedure ID %d not found", itemInput.ProcedureID)})
 			return
 		}
+		if err := ensureProcedureDefaultParameters(tx, &procedure); err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Gagal menyiapkan parameter tindakan '%s'", procedure.Name)})
+			return
+		}
 
 		if input.OrderType == models.ProcedureOrderTypeSurgery {
 			// For surgery: validate that procedure is assigned to the target OR room
@@ -516,6 +562,52 @@ func generateProcedureQueueNumber(tx *gorm.DB, roomID uint) string {
 	return fmt.Sprintf("%s%03d", prefix, queueNum)
 }
 
+func ensureProcedureOrdersHaveParameters(tx *gorm.DB, orders []models.ProcedureOrder) (bool, error) {
+	refreshed := false
+	for _, order := range orders {
+		updated, err := ensureProcedureOrderHasParameters(tx, order.ID)
+		if err != nil {
+			return false, err
+		}
+		if updated {
+			refreshed = true
+		}
+	}
+
+	return refreshed, nil
+}
+
+func ensureProcedureOrderHasParameters(tx *gorm.DB, orderID uint) (bool, error) {
+	var items []models.ProcedureOrderItem
+	if err := tx.Where("procedure_order_id = ?", orderID).Find(&items).Error; err != nil {
+		return false, err
+	}
+
+	refreshed := false
+	for _, item := range items {
+		var paramCount int64
+		if err := tx.Model(&models.ProcedureParameter{}).
+			Where("procedure_id = ? AND is_active = ?", item.ProcedureID, true).
+			Count(&paramCount).Error; err != nil {
+			return false, err
+		}
+		if paramCount > 0 {
+			continue
+		}
+
+		var procedure models.Procedure
+		if err := tx.First(&procedure, item.ProcedureID).Error; err != nil {
+			return false, err
+		}
+		if err := ensureProcedureDefaultParameters(tx, &procedure); err != nil {
+			return false, err
+		}
+		refreshed = true
+	}
+
+	return refreshed, nil
+}
+
 // StartProcedureOrder starts working on a procedure order
 func StartProcedureOrder(c *gin.Context) {
 	id := c.Param("id")
@@ -557,6 +649,10 @@ func StartProcedureOrder(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	if _, err := ensureProcedureOrderHasParameters(database.DB, order.ID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 
 	// Update target visit status
 	if order.TargetVisitID != nil {
@@ -569,10 +665,23 @@ func StartProcedureOrder(c *gin.Context) {
 			})
 	}
 
-	// Reload
+	// Reload full order payload so workstation gets parameters immediately after start.
 	database.DB.
+		Preload("SourceVisit.Registration.Patient").
+		Preload("TargetVisit.RoomQueue").
+		Preload("TargetVisit.Doctor").
+		Preload("SourceRoom").
+		Preload("TargetRoom").
+		Preload("Registration.Patient").
+		Preload("OrderedBy").
+		Preload("SurgeonDoctor").
 		Preload("PerformedBy").
-		Preload("Items.Procedure").
+		Preload("ValidatedBy").
+		Preload("Items.Procedure.Parameters", func(db *gorm.DB) *gorm.DB {
+			return db.Where("is_active = ?", true).Order("sort_order ASC")
+		}).
+		Preload("Items.Results.ProcedureParameter").
+		Preload("Consultation.Consultant").
 		First(&order, order.ID)
 
 	c.JSON(http.StatusOK, order)
@@ -763,11 +872,23 @@ func SubmitProcedureResults(c *gin.Context) {
 		return
 	}
 
-	// Reload order
+	// Reload full order payload so saved results appear immediately in the workstation.
 	database.DB.
+		Preload("SourceVisit.Registration.Patient").
+		Preload("TargetVisit.RoomQueue").
+		Preload("TargetVisit.Doctor").
+		Preload("SourceRoom").
+		Preload("TargetRoom").
+		Preload("Registration.Patient").
+		Preload("OrderedBy").
+		Preload("SurgeonDoctor").
 		Preload("PerformedBy").
-		Preload("Items.Procedure").
+		Preload("ValidatedBy").
+		Preload("Items.Procedure.Parameters", func(db *gorm.DB) *gorm.DB {
+			return db.Where("is_active = ?", true).Order("sort_order ASC")
+		}).
 		Preload("Items.Results.ProcedureParameter").
+		Preload("Consultation.Consultant").
 		First(&order, order.ID)
 
 	c.JSON(http.StatusOK, order)
@@ -955,11 +1076,23 @@ func SaveItemResults(c *gin.Context) {
 		return
 	}
 
-	// Reload order
+	// Reload full order payload so saved results appear immediately in the workstation.
 	database.DB.
+		Preload("SourceVisit.Registration.Patient").
+		Preload("TargetVisit.RoomQueue").
+		Preload("TargetVisit.Doctor").
+		Preload("SourceRoom").
+		Preload("TargetRoom").
+		Preload("Registration.Patient").
+		Preload("OrderedBy").
+		Preload("SurgeonDoctor").
 		Preload("PerformedBy").
-		Preload("Items.Procedure").
+		Preload("ValidatedBy").
+		Preload("Items.Procedure.Parameters", func(db *gorm.DB) *gorm.DB {
+			return db.Where("is_active = ?", true).Order("sort_order ASC")
+		}).
 		Preload("Items.Results.ProcedureParameter").
+		Preload("Consultation.Consultant").
 		First(&order, order.ID)
 
 	c.JSON(http.StatusOK, order)
@@ -1763,6 +1896,10 @@ func AddProcedureOrderItem(c *gin.Context) {
 	var procedure models.Procedure
 	if err := database.DB.First(&procedure, input.ProcedureID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Procedure not found"})
+		return
+	}
+	if err := ensureProcedureDefaultParameters(database.DB, &procedure); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyiapkan parameter tindakan"})
 		return
 	}
 

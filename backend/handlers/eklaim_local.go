@@ -305,6 +305,9 @@ func DuplicateRM(c *gin.Context) {
 		BMI:               physicalExam.BMI,
 		Waist:             physicalExam.Waist,
 		HeadCircum:        physicalExam.HeadCircum,
+		PainMethod:        physicalExam.PainMethod,
+		PainScale:         physicalExam.PainScale,
+		PainLocation:      physicalExam.PainLocation,
 		HeadNeck:          physicalExam.HeadNeck,
 		Eyes:              physicalExam.Eyes,
 		ENT:               physicalExam.ENT,
@@ -404,7 +407,7 @@ func DuplicateRM(c *gin.Context) {
 
 	// Copy ALL procedure orders (lab, radiology, surgery, consultation) using unified EKlaimRMOrder hierarchy
 	var allProcOrders []models.ProcedureOrder
-	database.DB.Where("source_visit_id = ?", *sep.VisitID).
+	database.DB.Where("source_visit_id = ? AND status = ?", *sep.VisitID, models.ProcedureOrderStatusCompleted).
 		Preload("Items.Procedure").
 		Preload("Items.Results.ProcedureParameter").
 		Preload("Consultation.Consultant").
@@ -497,12 +500,15 @@ func DuplicateRM(c *gin.Context) {
 
 	// Copy medicine orders from MedicineOrders
 	var medOrders []models.MedicineOrder
-	database.DB.Where("source_visit_id = ?", *sep.VisitID).
+	database.DB.Where("source_visit_id = ? AND status IN ?", *sep.VisitID, []string{models.OrderStatusDelivered, models.OrderStatusPartial}).
 		Preload("Items.Medicine").Find(&medOrders)
 	medSeq := 0
 	for _, order := range medOrders {
 		srcOrderID := order.ID
 		for _, item := range order.Items {
+			if item.DispensedQty <= 0 {
+				continue
+			}
 			medSeq++
 			medName := ""
 			var medID *uint
@@ -521,7 +527,7 @@ func DuplicateRM(c *gin.Context) {
 				Dosage:        item.Dosage,
 				Frequency:     item.Frequency,
 				Route:         item.Route,
-				Quantity:      item.Quantity,
+				Quantity:      item.DispensedQty,
 				Unit:          item.Unit,
 				Duration:      item.Duration,
 				Instructions:  item.Instructions,
@@ -536,10 +542,15 @@ func DuplicateRM(c *gin.Context) {
 	database.DB.Where("visit_id = ?", *sep.VisitID).Order("record_date ASC").Find(&cpptEntries)
 	for i, cppt := range cpptEntries {
 		recordDate := cppt.RecordDate.Format("2006-01-02 15:04:05")
+		cpptFormat := cppt.CPPTFormat
+		if cpptFormat == "" {
+			cpptFormat = models.CPPTFormatSOAP
+		}
 		database.DB.Create(&models.EKlaimRMCPPT{
 			RMDuplicateID:    rmDuplicate.ID,
 			RecordDate:       recordDate,
 			Profession:       cppt.Profession,
+			CPPTFormat:       cpptFormat,
 			Subjective:       cppt.Subjective,
 			Objective:        cppt.Objective,
 			Assessment:       cppt.Assessment,
@@ -552,6 +563,66 @@ func DuplicateRM(c *gin.Context) {
 			OxygenSaturation: cppt.OxygenSaturation,
 			PainScale:        cppt.PainScale,
 			Sequence:         i + 1,
+		})
+	}
+
+	// Copy Nursing Care entries (inpatient)
+	var nursingEntries []models.NursingCare
+	database.DB.Where("visit_id = ?", *sep.VisitID).Preload("CreatedBy.Employee").Order("record_date ASC").Find(&nursingEntries)
+	for i, record := range nursingEntries {
+		recordDate := record.RecordDate.Format("2006-01-02 15:04:05")
+		implementationTime := ""
+		if !record.ImplementationTime.IsZero() {
+			implementationTime = record.ImplementationTime.Format("2006-01-02 15:04:05")
+		}
+		staffName := ""
+		if record.CreatedBy != nil && record.CreatedBy.Employee != nil {
+			staffName = record.CreatedBy.Employee.NamaLengkap
+		}
+		database.DB.Create(&models.EKlaimRMNursingCare{
+			RMDuplicateID:           rmDuplicate.ID,
+			RecordDate:              recordDate,
+			ShiftType:               record.ShiftType,
+			StaffName:               staffName,
+			ChiefComplaint:          record.ChiefComplaint,
+			PainAssessment:          record.PainAssessment,
+			PainScale:               record.PainScale,
+			ConsciousnessLevel:      record.ConsciousnessLevel,
+			FunctionalStatus:        record.FunctionalStatus,
+			FallRiskAssessment:      record.FallRiskAssessment,
+			FallRiskScore:           record.FallRiskScore,
+			NutritionAssessment:     record.NutritionAssessment,
+			SkinAssessment:          record.SkinAssessment,
+			PressureUlcerRisk:       record.PressureUlcerRisk,
+			BloodPressure:           record.BloodPressure,
+			HeartRate:               record.HeartRate,
+			RespiratoryRate:         record.RespiratoryRate,
+			Temperature:             record.Temperature,
+			OxygenSaturation:        record.OxygenSaturation,
+			NursingDiagnosis:        record.NursingDiagnosis,
+			NursingDiagnosisCode:    record.NursingDiagnosisCode,
+			ProblemEtiology:         record.ProblemEtiology,
+			SignsSymptoms:           record.SignsSymptoms,
+			NursingOutcome:          record.NursingOutcome,
+			NursingOutcomeCode:      record.NursingOutcomeCode,
+			OutcomeIndicators:       record.OutcomeIndicators,
+			OutcomeTarget:           record.OutcomeTarget,
+			NursingIntervention:     record.NursingIntervention,
+			NursingInterventionCode: record.NursingInterventionCode,
+			ObservationActions:      record.ObservationActions,
+			TherapeuticActions:      record.TherapeuticActions,
+			EducationActions:        record.EducationActions,
+			CollaborationActions:    record.CollaborationActions,
+			Implementation:          record.Implementation,
+			ImplementationTime:      implementationTime,
+			PatientResponse:         record.PatientResponse,
+			EvaluationSubjective:    record.EvaluationSubjective,
+			EvaluationObjective:     record.EvaluationObjective,
+			EvaluationAnalysis:      record.EvaluationAnalysis,
+			EvaluationPlanning:      record.EvaluationPlanning,
+			ProblemStatus:           record.ProblemStatus,
+			Notes:                   record.Notes,
+			Sequence:                i + 1,
 		})
 	}
 
@@ -591,7 +662,7 @@ func DuplicateRM(c *gin.Context) {
 	database.DB.Preload("Diagnoses").Preload("Procedures").
 		Preload("Orders.Items.Procedure.Parameters").Preload("Orders.Items.Results.ProcedureParameter").
 		Preload("MedicineItems.Medicine").
-		Preload("CPPTNotes").Preload("FluidBalances").
+		Preload("CPPTNotes").Preload("NursingCares").Preload("FluidBalances").
 		Preload("Billing.Items").
 		First(&rmDuplicate, rmDuplicate.ID)
 
@@ -730,6 +801,9 @@ func CreateClaimFromSEP(c *gin.Context) {
 			BMI:               pe.BMI,
 			Waist:             pe.Waist,
 			HeadCircum:        pe.HeadCircum,
+			PainMethod:        pe.PainMethod,
+			PainScale:         pe.PainScale,
+			PainLocation:      pe.PainLocation,
 			HeadNeck:          pe.HeadNeck,
 			Eyes:              pe.Eyes,
 			ENT:               pe.ENT,
@@ -822,7 +896,7 @@ func CreateClaimFromSEP(c *gin.Context) {
 
 		// Copy procedure orders (lab, radiology, surgery, consultation)
 		var allProcOrders []models.ProcedureOrder
-		database.DB.Where("source_visit_id = ?", *sep.VisitID).
+		database.DB.Where("source_visit_id = ? AND status = ?", *sep.VisitID, models.ProcedureOrderStatusCompleted).
 			Preload("Items.Procedure").
 			Preload("Items.Results.ProcedureParameter").
 			Preload("Consultation.Consultant").
@@ -908,11 +982,14 @@ func CreateClaimFromSEP(c *gin.Context) {
 
 		// Copy medicine orders
 		var medOrders []models.MedicineOrder
-		database.DB.Where("source_visit_id = ?", *sep.VisitID).Preload("Items.Medicine").Find(&medOrders)
+		database.DB.Where("source_visit_id = ? AND status IN ?", *sep.VisitID, []string{models.OrderStatusDelivered, models.OrderStatusPartial}).Preload("Items.Medicine").Find(&medOrders)
 		medSeq := 0
 		for _, order := range medOrders {
 			srcOrderID := order.ID
 			for _, item := range order.Items {
+				if item.DispensedQty <= 0 {
+					continue
+				}
 				medSeq++
 				medName := ""
 				var medID *uint
@@ -931,7 +1008,7 @@ func CreateClaimFromSEP(c *gin.Context) {
 					Dosage:        item.Dosage,
 					Frequency:     item.Frequency,
 					Route:         item.Route,
-					Quantity:      item.Quantity,
+					Quantity:      item.DispensedQty,
 					Unit:          item.Unit,
 					Duration:      item.Duration,
 					Instructions:  item.Instructions,
@@ -946,10 +1023,15 @@ func CreateClaimFromSEP(c *gin.Context) {
 		database.DB.Where("visit_id = ?", *sep.VisitID).Order("record_date ASC").Find(&cpptEntries)
 		for i, cppt := range cpptEntries {
 			recordDate := cppt.RecordDate.Format("2006-01-02 15:04:05")
+			cpptFormat := cppt.CPPTFormat
+			if cpptFormat == "" {
+				cpptFormat = models.CPPTFormatSOAP
+			}
 			database.DB.Create(&models.EKlaimRMCPPT{
 				RMDuplicateID:    rmDup.ID,
 				RecordDate:       recordDate,
 				Profession:       cppt.Profession,
+				CPPTFormat:       cpptFormat,
 				Subjective:       cppt.Subjective,
 				Objective:        cppt.Objective,
 				Assessment:       cppt.Assessment,
@@ -1510,6 +1592,9 @@ func UpdateRMDuplicate(c *gin.Context) {
 		BMI              float64 `json:"bmi"`
 		Waist            string  `json:"waist"`
 		HeadCircum       string  `json:"head_circum"`
+		PainMethod       string  `json:"pain_method"`
+		PainScale        int     `json:"pain_scale"`
+		PainLocation     string  `json:"pain_location"`
 
 		// Body Systems (legacy)
 		HeadNeck     string `json:"head_neck"`
@@ -1572,26 +1657,27 @@ func UpdateRMDuplicate(c *gin.Context) {
 		DeathCause           string `json:"death_cause"`
 
 		// Diagnoses, Procedures, Tarif
-		Diagnoses             []models.EKlaimRMDiagnosis `json:"diagnoses"`
-		Procedures            []models.EKlaimRMProcedure `json:"procedures"`
-		TarifProsedurNonBedah float64                    `json:"tarif_prosedur_non_bedah"`
-		TarifProsedurBedah    float64                    `json:"tarif_prosedur_bedah"`
-		TarifKonsultasi       float64                    `json:"tarif_konsultasi"`
-		TarifTenagaAhli       float64                    `json:"tarif_tenaga_ahli"`
-		TarifKeperawatan      float64                    `json:"tarif_keperawatan"`
-		TarifPenunjang        float64                    `json:"tarif_penunjang"`
-		TarifRadiologi        float64                    `json:"tarif_radiologi"`
-		TarifLaboratorium     float64                    `json:"tarif_laboratorium"`
-		TarifPelayananDarah   float64                    `json:"tarif_pelayanan_darah"`
-		TarifRehabilitasi     float64                    `json:"tarif_rehabilitasi"`
-		TarifKamar            float64                    `json:"tarif_kamar"`
-		TarifRawatIntensif    float64                    `json:"tarif_rawat_intensif"`
-		TarifObat             float64                    `json:"tarif_obat"`
-		TarifObatKronis       float64                    `json:"tarif_obat_kronis"`
-		TarifObatKemoterapi   float64                    `json:"tarif_obat_kemoterapi"`
-		TarifAlkes            float64                    `json:"tarif_alkes"`
-		TarifBMHP             float64                    `json:"tarif_bmhp"`
-		TarifSewaAlat         float64                    `json:"tarif_sewa_alat"`
+		// Use pointer types so nil (field absent) means "don't replace" vs [] which means "clear all"
+		Diagnoses             *[]models.EKlaimRMDiagnosis `json:"diagnoses"`
+		Procedures            *[]models.EKlaimRMProcedure `json:"procedures"`
+		TarifProsedurNonBedah float64                     `json:"tarif_prosedur_non_bedah"`
+		TarifProsedurBedah    float64                     `json:"tarif_prosedur_bedah"`
+		TarifKonsultasi       float64                     `json:"tarif_konsultasi"`
+		TarifTenagaAhli       float64                     `json:"tarif_tenaga_ahli"`
+		TarifKeperawatan      float64                     `json:"tarif_keperawatan"`
+		TarifPenunjang        float64                     `json:"tarif_penunjang"`
+		TarifRadiologi        float64                     `json:"tarif_radiologi"`
+		TarifLaboratorium     float64                     `json:"tarif_laboratorium"`
+		TarifPelayananDarah   float64                     `json:"tarif_pelayanan_darah"`
+		TarifRehabilitasi     float64                     `json:"tarif_rehabilitasi"`
+		TarifKamar            float64                     `json:"tarif_kamar"`
+		TarifRawatIntensif    float64                     `json:"tarif_rawat_intensif"`
+		TarifObat             float64                     `json:"tarif_obat"`
+		TarifObatKronis       float64                     `json:"tarif_obat_kronis"`
+		TarifObatKemoterapi   float64                     `json:"tarif_obat_kemoterapi"`
+		TarifAlkes            float64                     `json:"tarif_alkes"`
+		TarifBMHP             float64                     `json:"tarif_bmhp"`
+		TarifSewaAlat         float64                     `json:"tarif_sewa_alat"`
 
 		// Inpatient-specific fields
 		AdmissionDate             string  `json:"admission_date"`
@@ -1600,12 +1686,14 @@ func UpdateRMDuplicate(c *gin.Context) {
 		AccommodationTariffPerDay float64 `json:"accommodation_tariff_per_day"`
 
 		// Lab, Radiology, Surgery, Consultation — unified order hierarchy
-		Orders []models.EKlaimRMOrder `json:"orders"`
+		// Pointer so nil = absent (skip replace) vs [] = explicit clear
+		Orders *[]models.EKlaimRMOrder `json:"orders"`
 
 		// Medicine, CPPT, Fluid Balance
-		MedicineItems []models.EKlaimRMMedicineItem `json:"medicine_items"`
-		CPPTNotes     []models.EKlaimRMCPPT         `json:"cppt_notes"`
-		FluidBalances []models.EKlaimRMFluidBalance `json:"fluid_balances"`
+		MedicineItems *[]models.EKlaimRMMedicineItem `json:"medicine_items"`
+		CPPTNotes     *[]models.EKlaimRMCPPT         `json:"cppt_notes"`
+		NursingCares  *[]models.EKlaimRMNursingCare  `json:"nursing_cares"`
+		FluidBalances *[]models.EKlaimRMFluidBalance `json:"fluid_balances"`
 
 		// Triage UGD
 		HasTriage             bool   `json:"has_triage"`
@@ -1662,6 +1750,9 @@ func UpdateRMDuplicate(c *gin.Context) {
 	rmDup.BMI = req.BMI
 	rmDup.Waist = req.Waist
 	rmDup.HeadCircum = req.HeadCircum
+	rmDup.PainMethod = req.PainMethod
+	rmDup.PainScale = req.PainScale
+	rmDup.PainLocation = req.PainLocation
 
 	// Body Systems (legacy)
 	rmDup.HeadNeck = req.HeadNeck
@@ -1811,174 +1902,212 @@ func UpdateRMDuplicate(c *gin.Context) {
 		}
 	}
 
-	// Replace diagnoses
-	if err := tx.Where("rm_duplicate_id = ?", rmDup.ID).Delete(&models.EKlaimRMDiagnosis{}).Error; err != nil {
-		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal hapus diagnosis lama: " + err.Error()})
-		return
-	}
-	for i, d := range req.Diagnoses {
-		d.RMDuplicateID = rmDup.ID
-		d.ID = 0
-		d.Sequence = i + 1
-		if err := tx.Create(&d).Error; err != nil {
+	// Replace diagnoses — only when explicitly provided (nil = field absent in request)
+	if req.Diagnoses != nil {
+		if err := tx.Where("rm_duplicate_id = ?", rmDup.ID).Delete(&models.EKlaimRMDiagnosis{}).Error; err != nil {
 			tx.Rollback()
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal simpan diagnosis: " + err.Error()})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal hapus diagnosis lama: " + err.Error()})
 			return
 		}
-	}
-
-	// Replace procedures
-	if err := tx.Where("rm_duplicate_id = ?", rmDup.ID).Delete(&models.EKlaimRMProcedure{}).Error; err != nil {
-		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal hapus prosedur lama: " + err.Error()})
-		return
-	}
-	for i, p := range req.Procedures {
-		p.RMDuplicateID = rmDup.ID
-		p.ID = 0
-		p.Sequence = i + 1
-		if err := tx.Create(&p).Error; err != nil {
-			tx.Rollback()
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal simpan prosedur: " + err.Error()})
-			return
-		}
-	}
-
-	// Replace orders (unified: lab/radiology/surgery/consultation)
-	// First delete old order results, items, then orders (cascade)
-	var oldOrderIDs []uint
-	if err := tx.Model(&models.EKlaimRMOrder{}).Where("rm_duplicate_id = ?", rmDup.ID).Pluck("id", &oldOrderIDs).Error; err != nil {
-		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal query order lama: " + err.Error()})
-		return
-	}
-	if len(oldOrderIDs) > 0 {
-		var oldItemIDs []uint
-		if err := tx.Model(&models.EKlaimRMOrderItem{}).Where("eklaim_rm_order_id IN ?", oldOrderIDs).Pluck("id", &oldItemIDs).Error; err != nil {
-			tx.Rollback()
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal query order item lama: " + err.Error()})
-			return
-		}
-		if len(oldItemIDs) > 0 {
-			if err := tx.Where("eklaim_rm_order_item_id IN ?", oldItemIDs).Delete(&models.EKlaimRMOrderResult{}).Error; err != nil {
+		for i, d := range *req.Diagnoses {
+			d.RMDuplicateID = rmDup.ID
+			d.ID = 0
+			d.Sequence = i + 1
+			if err := tx.Create(&d).Error; err != nil {
 				tx.Rollback()
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal hapus order result lama: " + err.Error()})
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal simpan diagnosis: " + err.Error()})
 				return
 			}
 		}
-		if err := tx.Where("eklaim_rm_order_id IN ?", oldOrderIDs).Delete(&models.EKlaimRMOrderItem{}).Error; err != nil {
-			tx.Rollback()
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal hapus order item lama: " + err.Error()})
-			return
-		}
-	}
-	if err := tx.Where("rm_duplicate_id = ?", rmDup.ID).Delete(&models.EKlaimRMOrder{}).Error; err != nil {
-		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal hapus order lama: " + err.Error()})
-		return
 	}
 
-	for orderSeq, o := range req.Orders {
-		o.RMDuplicateID = rmDup.ID
-		o.ID = 0
-		o.Sequence = orderSeq + 1
-		items := o.Items
-		o.Items = nil // Create order first without items
-		if err := tx.Create(&o).Error; err != nil {
+	// Replace procedures — only when explicitly provided
+	if req.Procedures != nil {
+		if err := tx.Where("rm_duplicate_id = ?", rmDup.ID).Delete(&models.EKlaimRMProcedure{}).Error; err != nil {
 			tx.Rollback()
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal simpan order: " + err.Error()})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal hapus prosedur lama: " + err.Error()})
 			return
 		}
-		for itemSeq, item := range items {
-			item.EKlaimRMOrderID = o.ID
-			item.ID = 0
-			item.Sequence = itemSeq + 1
-			results := item.Results
-			item.Results = nil // Create item first without results
-			if err := tx.Create(&item).Error; err != nil {
+		for i, p := range *req.Procedures {
+			p.RMDuplicateID = rmDup.ID
+			p.ID = 0
+			p.Sequence = i + 1
+			if err := tx.Create(&p).Error; err != nil {
 				tx.Rollback()
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal simpan order item: " + err.Error()})
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal simpan prosedur: " + err.Error()})
 				return
 			}
-			for resSeq, res := range results {
-				res.EKlaimRMOrderItemID = item.ID
-				res.ID = 0
-				res.Sequence = resSeq + 1
-				if err := tx.Create(&res).Error; err != nil {
+		}
+	}
+
+	// Replace orders — only when explicitly provided
+	if req.Orders != nil {
+		// First delete old order results, items, then orders (cascade)
+		var oldOrderIDs []uint
+		if err := tx.Model(&models.EKlaimRMOrder{}).Where("rm_duplicate_id = ?", rmDup.ID).Pluck("id", &oldOrderIDs).Error; err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal query order lama: " + err.Error()})
+			return
+		}
+		if len(oldOrderIDs) > 0 {
+			var oldItemIDs []uint
+			if err := tx.Model(&models.EKlaimRMOrderItem{}).Where("eklaim_rm_order_id IN ?", oldOrderIDs).Pluck("id", &oldItemIDs).Error; err != nil {
+				tx.Rollback()
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal query order item lama: " + err.Error()})
+				return
+			}
+			if len(oldItemIDs) > 0 {
+				if err := tx.Where("eklaim_rm_order_item_id IN ?", oldItemIDs).Delete(&models.EKlaimRMOrderResult{}).Error; err != nil {
 					tx.Rollback()
-					c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal simpan order result: " + err.Error()})
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal hapus order result lama: " + err.Error()})
 					return
+				}
+			}
+			if err := tx.Where("eklaim_rm_order_id IN ?", oldOrderIDs).Delete(&models.EKlaimRMOrderItem{}).Error; err != nil {
+				tx.Rollback()
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal hapus order item lama: " + err.Error()})
+				return
+			}
+		}
+		if err := tx.Where("rm_duplicate_id = ?", rmDup.ID).Delete(&models.EKlaimRMOrder{}).Error; err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal hapus order lama: " + err.Error()})
+			return
+		}
+		for orderSeq, o := range *req.Orders {
+			o.RMDuplicateID = rmDup.ID
+			o.ID = 0
+			o.Sequence = orderSeq + 1
+			items := o.Items
+			o.Items = nil // Create order first without items
+			if err := tx.Create(&o).Error; err != nil {
+				tx.Rollback()
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal simpan order: " + err.Error()})
+				return
+			}
+			for itemSeq, item := range items {
+				item.EKlaimRMOrderID = o.ID
+				item.ID = 0
+				item.Sequence = itemSeq + 1
+				results := item.Results
+				item.Results = nil // Create item first without results
+				if err := tx.Create(&item).Error; err != nil {
+					tx.Rollback()
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal simpan order item: " + err.Error()})
+					return
+				}
+				for resSeq, res := range results {
+					res.EKlaimRMOrderItemID = item.ID
+					res.ID = 0
+					res.Sequence = resSeq + 1
+					if err := tx.Create(&res).Error; err != nil {
+						tx.Rollback()
+						c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal simpan order result: " + err.Error()})
+						return
+					}
 				}
 			}
 		}
 	}
 
-	// Replace medicine items
-	if err := tx.Where("rm_duplicate_id = ?", rmDup.ID).Delete(&models.EKlaimRMMedicineItem{}).Error; err != nil {
-		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal hapus obat lama: " + err.Error()})
-		return
-	}
-	for i, m := range req.MedicineItems {
-		m.RMDuplicateID = rmDup.ID
-		m.ID = 0
-		m.Sequence = i + 1
-		// Auto-calculate sub_total
-		m.SubTotal = float64(m.Quantity) * m.UnitPrice
-		if err := tx.Create(&m).Error; err != nil {
+	// Replace medicine items — only when explicitly provided
+	if req.MedicineItems != nil {
+		if err := tx.Where("rm_duplicate_id = ?", rmDup.ID).Delete(&models.EKlaimRMMedicineItem{}).Error; err != nil {
 			tx.Rollback()
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal simpan obat: " + err.Error()})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal hapus obat lama: " + err.Error()})
 			return
+		}
+		for i, m := range *req.MedicineItems {
+			m.RMDuplicateID = rmDup.ID
+			m.ID = 0
+			m.Sequence = i + 1
+			// Auto-calculate sub_total
+			m.SubTotal = float64(m.Quantity) * m.UnitPrice
+			if err := tx.Create(&m).Error; err != nil {
+				tx.Rollback()
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal simpan obat: " + err.Error()})
+				return
+			}
 		}
 	}
 
-	// Replace CPPT notes
-	if err := tx.Where("rm_duplicate_id = ?", rmDup.ID).Delete(&models.EKlaimRMCPPT{}).Error; err != nil {
-		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal hapus CPPT lama: " + err.Error()})
-		return
-	}
-	for i, cppt := range req.CPPTNotes {
-		cppt.RMDuplicateID = rmDup.ID
-		cppt.ID = 0
-		cppt.Sequence = i + 1
-		if err := tx.Create(&cppt).Error; err != nil {
+	// Replace CPPT notes — only when explicitly provided
+	if req.CPPTNotes != nil {
+		if err := tx.Where("rm_duplicate_id = ?", rmDup.ID).Delete(&models.EKlaimRMCPPT{}).Error; err != nil {
 			tx.Rollback()
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal simpan CPPT: " + err.Error()})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal hapus CPPT lama: " + err.Error()})
 			return
+		}
+		for i, cppt := range *req.CPPTNotes {
+			cppt.RMDuplicateID = rmDup.ID
+			cppt.ID = 0
+			cppt.Sequence = i + 1
+			if cppt.CPPTFormat == "" {
+				cppt.CPPTFormat = models.CPPTFormatSOAP
+			}
+			if err := tx.Create(&cppt).Error; err != nil {
+				tx.Rollback()
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal simpan CPPT: " + err.Error()})
+				return
+			}
 		}
 	}
 
-	// Replace fluid balances
-	if err := tx.Where("rm_duplicate_id = ?", rmDup.ID).Delete(&models.EKlaimRMFluidBalance{}).Error; err != nil {
-		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal hapus fluid balance lama: " + err.Error()})
-		return
-	}
-	for i, fb := range req.FluidBalances {
-		fb.RMDuplicateID = rmDup.ID
-		fb.ID = 0
-		fb.Sequence = i + 1
-		// Auto-calculate totals
-		fb.TotalIntake = fb.OralDrink + fb.OralFood + fb.OralMedicine + fb.IVFluid + fb.IVMedicine + fb.BloodProduct + fb.EnteralFeed + fb.OtherIntake
-		fb.TotalOutput = fb.UrineAmount + fb.FecesAmount + fb.VomitAmount + fb.DrainAmount + fb.BloodLoss + fb.IWL + fb.OtherOutput
-		fb.Balance = fb.TotalIntake - fb.TotalOutput
-		if err := tx.Create(&fb).Error; err != nil {
+	// Replace nursing cares — only when explicitly provided
+	if req.NursingCares != nil {
+		if err := tx.Where("rm_duplicate_id = ?", rmDup.ID).Delete(&models.EKlaimRMNursingCare{}).Error; err != nil {
 			tx.Rollback()
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal simpan balance cairan: " + err.Error()})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal hapus asuhan keperawatan lama: " + err.Error()})
 			return
+		}
+		for i, nursing := range *req.NursingCares {
+			nursing.RMDuplicateID = rmDup.ID
+			nursing.ID = 0
+			nursing.Sequence = i + 1
+			if err := tx.Create(&nursing).Error; err != nil {
+				tx.Rollback()
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal simpan asuhan keperawatan: " + err.Error()})
+				return
+			}
 		}
 	}
 
-	// Recalculate billing based on orders and medicines
-	if err := RecalculateEKlaimRMBilling(tx, rmDup.ID, rmDup.VisitID); err != nil {
-		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal kalkulasi billing: " + err.Error()})
-		return
+	// Replace fluid balances — only when explicitly provided
+	if req.FluidBalances != nil {
+		if err := tx.Where("rm_duplicate_id = ?", rmDup.ID).Delete(&models.EKlaimRMFluidBalance{}).Error; err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal hapus fluid balance lama: " + err.Error()})
+			return
+		}
+		for i, fb := range *req.FluidBalances {
+			fb.RMDuplicateID = rmDup.ID
+			fb.ID = 0
+			fb.Sequence = i + 1
+			// Auto-calculate totals
+			fb.TotalIntake = fb.OralDrink + fb.OralFood + fb.OralMedicine + fb.IVFluid + fb.IVMedicine + fb.BloodProduct + fb.EnteralFeed + fb.OtherIntake
+			fb.TotalOutput = fb.UrineAmount + fb.FecesAmount + fb.VomitAmount + fb.DrainAmount + fb.BloodLoss + fb.IWL + fb.OtherOutput
+			fb.Balance = fb.TotalIntake - fb.TotalOutput
+			if err := tx.Create(&fb).Error; err != nil {
+				tx.Rollback()
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal simpan balance cairan: " + err.Error()})
+				return
+			}
+		}
+	}
+
+	// Recalculate billing only when order/medicine data was explicitly updated
+	if req.Orders != nil || req.MedicineItems != nil {
+		if err := RecalculateEKlaimRMBilling(tx, rmDup.ID, rmDup.VisitID); err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal kalkulasi billing: " + err.Error()})
+			return
+		}
 	}
 
 	tx.Commit()
+
+	// Invalidate all cached PDFs for this RM duplicate
+	go InvalidateRMDuplicatePDFCaches(rmDup.ID)
 
 	// ===== Auto-sync RM Edit data back to EKlaimLocal (claim data fields) =====
 	updates := map[string]interface{}{}
@@ -2010,12 +2139,85 @@ func UpdateRMDuplicate(c *gin.Context) {
 	database.DB.Preload("Diagnoses").Preload("Procedures").
 		Preload("Orders.Items.Procedure.Parameters").Preload("Orders.Items.Results.ProcedureParameter").
 		Preload("MedicineItems.Medicine").
-		Preload("CPPTNotes").Preload("FluidBalances").
+		Preload("CPPTNotes").Preload("NursingCares").Preload("FluidBalances").
 		Preload("Billing.Items").
 		First(&rmDup, rmDup.ID)
 
 	c.JSON(http.StatusOK, gin.H{
 		"message":      "RM Duplicate berhasil diupdate",
+		"rm_duplicate": rmDup,
+	})
+}
+
+// UpdateRMDuplicateAnamnesis updates only anamnesis section in RM duplicate.
+// PUT /eklaim-local/:id/rm-duplicate/anamnesis
+func UpdateRMDuplicateAnamnesis(c *gin.Context) {
+	eklaimID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+		return
+	}
+
+	var eklaimLocal models.EKlaimLocal
+	if err := database.DB.First(&eklaimLocal, eklaimID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Eklaim local tidak ditemukan"})
+		return
+	}
+
+	var req struct {
+		AnamnesisSource         string `json:"anamnesis_source"`
+		FunctionalStatus        string `json:"functional_status"`
+		ChiefComplaint          string `json:"chief_complaint"`
+		HistoryOfPresentIllness string `json:"history_of_present_illness"`
+		PastMedicalHistory      string `json:"past_medical_history"`
+		FamilyHistory           string `json:"family_history"`
+		SocialHistory           string `json:"social_history"`
+		Allergies               string `json:"allergies"`
+		CurrentMedications      string `json:"current_medications"`
+		ReviewOfSystems         string `json:"review_of_systems"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request: " + err.Error()})
+		return
+	}
+
+	var rmDupID uint
+	row := database.DB.Raw(`
+		INSERT INTO eklaim_rm_duplicates (e_klaim_local_id, visit_id, created_at, updated_at, duplicated_at, deleted_at)
+		VALUES (?, ?, NOW(), NOW(), NOW(), NULL)
+		ON CONFLICT (e_klaim_local_id) DO UPDATE SET deleted_at = NULL, updated_at = NOW()
+		RETURNING id
+	`, eklaimLocal.ID, eklaimLocal.VisitID).Row()
+	if err := row.Scan(&rmDupID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat/menemukan RM Duplicate: " + err.Error()})
+		return
+	}
+
+	updates := map[string]interface{}{
+		"anamnesis_source":           req.AnamnesisSource,
+		"functional_status":          req.FunctionalStatus,
+		"chief_complaint":            req.ChiefComplaint,
+		"history_of_present_illness": req.HistoryOfPresentIllness,
+		"past_medical_history":       req.PastMedicalHistory,
+		"family_history":             req.FamilyHistory,
+		"social_history":             req.SocialHistory,
+		"allergies":                  req.Allergies,
+		"current_medications":        req.CurrentMedications,
+		"review_of_systems":          req.ReviewOfSystems,
+	}
+	if err := database.DB.Model(&models.EKlaimRMDuplicate{}).Where("id = ?", rmDupID).Updates(updates).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal update anamnesis RM Duplicate: " + err.Error()})
+		return
+	}
+
+	var rmDup models.EKlaimRMDuplicate
+	if err := database.DB.First(&rmDup, rmDupID).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal load RM Duplicate: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":      "Anamnesis RM Duplicate berhasil diupdate",
 		"rm_duplicate": rmDup,
 	})
 }
@@ -2081,7 +2283,7 @@ func InitRMDuplicate(c *gin.Context) {
 		Preload("Diagnoses").Preload("Procedures").
 		Preload("Orders.Items.Procedure.Parameters").Preload("Orders.Items.Results.ProcedureParameter").
 		Preload("MedicineItems.Medicine").
-		Preload("CPPTNotes").Preload("FluidBalances").
+		Preload("CPPTNotes").Preload("NursingCares").Preload("FluidBalances").
 		Preload("Billing.Items").
 		First(&existing).Error == nil
 
@@ -2243,7 +2445,7 @@ func InitRMDuplicate(c *gin.Context) {
 		// Re-sync orders if empty
 		if len(existing.Orders) == 0 {
 			var allProcOrders []models.ProcedureOrder
-			database.DB.Where("source_visit_id = ?", visitID).
+			database.DB.Where("source_visit_id = ? AND status = ?", visitID, models.ProcedureOrderStatusCompleted).
 				Preload("Items.Procedure").
 				Preload("Items.Results.ProcedureParameter").
 				Preload("Consultation.Consultant").
@@ -2330,7 +2532,7 @@ func InitRMDuplicate(c *gin.Context) {
 		database.DB.Preload("Diagnoses").Preload("Procedures").
 			Preload("Orders.Items.Procedure.Parameters").Preload("Orders.Items.Results.ProcedureParameter").
 			Preload("MedicineItems.Medicine").
-			Preload("CPPTNotes").Preload("FluidBalances").
+			Preload("CPPTNotes").Preload("NursingCares").Preload("FluidBalances").
 			Preload("Billing.Items").
 			First(&existing, existing.ID)
 
@@ -2449,7 +2651,7 @@ func InitRMDuplicate(c *gin.Context) {
 				database.DB.Preload("Diagnoses").Preload("Procedures").
 					Preload("Orders.Items.Procedure.Parameters").Preload("Orders.Items.Results.ProcedureParameter").
 					Preload("MedicineItems.Medicine").
-					Preload("CPPTNotes").Preload("FluidBalances").
+					Preload("CPPTNotes").Preload("NursingCares").Preload("FluidBalances").
 					Preload("Billing.Items").
 					First(&raceExisting, raceExisting.ID)
 				c.JSON(http.StatusOK, gin.H{"message": "RM Duplicate berhasil di-sync", "rm_duplicate": raceExisting})
@@ -2488,7 +2690,7 @@ func InitRMDuplicate(c *gin.Context) {
 
 	// Copy all procedure orders (lab, radiology, surgery, consultation)
 	var allProcOrders []models.ProcedureOrder
-	database.DB.Where("source_visit_id = ?", visitID).
+	database.DB.Where("source_visit_id = ? AND status = ?", visitID, models.ProcedureOrderStatusCompleted).
 		Preload("Items.Procedure").
 		Preload("Items.Results.ProcedureParameter").
 		Preload("Consultation.Consultant").
@@ -2574,7 +2776,7 @@ func InitRMDuplicate(c *gin.Context) {
 	database.DB.Preload("Diagnoses").Preload("Procedures").
 		Preload("Orders.Items.Procedure.Parameters").Preload("Orders.Items.Results.ProcedureParameter").
 		Preload("MedicineItems.Medicine").
-		Preload("CPPTNotes").Preload("FluidBalances").
+		Preload("CPPTNotes").Preload("NursingCares").Preload("FluidBalances").
 		Preload("Billing.Items").
 		First(&rmDup, rmDup.ID)
 
@@ -3614,6 +3816,441 @@ func GetClaimPrint(c *gin.Context) {
 	})
 }
 
+// SyncClaimDataFromEKlaim fetches get_claim_data from E-Klaim server and syncs key fields to local DB.
+// POST /eklaim-local/:id/sync-claim-data
+func SyncClaimDataFromEKlaim(c *gin.Context) {
+	eklaimID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+		return
+	}
+
+	var eklaimLocal models.EKlaimLocal
+	if err := database.DB.First(&eklaimLocal, eklaimID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Eklaim local tidak ditemukan"})
+		return
+	}
+
+	client, err := eklaimSvc.NewClient()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal koneksi ke server E-Klaim: " + err.Error()})
+		return
+	}
+
+	resp, reqJSON, respJSON, elapsed, apiErr := client.GetClaimData(eklaimLocal.NoSEP)
+
+	userID := getUserIDValue(c)
+	logEntry := models.EKlaimLocalLog{
+		EKlaimLocalID: eklaimLocal.ID,
+		Method:        "sync_claim_data_from_eklaim",
+		RequestBody:   string(reqJSON),
+		ResponseBody:  string(respJSON),
+		ResponseTime:  elapsed,
+		IsSuccess:     apiErr == nil,
+	}
+	if resp != nil {
+		logEntry.ResponseCode = resp.Metadata.Code.String()
+	}
+	if apiErr != nil {
+		logEntry.ErrorMessage = apiErr.Error()
+	}
+	if userID > 0 {
+		logEntry.UserID = &userID
+	}
+	database.DB.Create(&logEntry)
+
+	if apiErr != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "sync get_claim_data gagal: " + apiErr.Error(), "response": resp})
+		return
+	}
+
+	if resp == nil || len(resp.Response) == 0 {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "Response get_claim_data kosong"})
+		return
+	}
+
+	var payload struct {
+		Data map[string]interface{} `json:"data"`
+	}
+	if err := json.Unmarshal(resp.Response, &payload); err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "Format response get_claim_data tidak valid: " + err.Error()})
+		return
+	}
+
+	toString := func(v interface{}) string {
+		switch val := v.(type) {
+		case nil:
+			return ""
+		case string:
+			return strings.TrimSpace(val)
+		case float64:
+			if val == float64(int64(val)) {
+				return strconv.FormatInt(int64(val), 10)
+			}
+			return strconv.FormatFloat(val, 'f', -1, 64)
+		case json.Number:
+			return val.String()
+		default:
+			return strings.TrimSpace(fmt.Sprintf("%v", val))
+		}
+	}
+
+	normalizeDate := func(s string) string {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			return ""
+		}
+		layouts := []string{"02/01/2006", "02/01/2006 15:04:05", "2006-01-02", "2006-01-02 15:04:05"}
+		for _, layout := range layouts {
+			if t, err := time.Parse(layout, s); err == nil {
+				if strings.Contains(layout, "15:04:05") {
+					return t.Format("2006-01-02 15:04:05")
+				}
+				return t.Format("2006-01-02")
+			}
+		}
+		return s
+	}
+
+	toInt := func(v interface{}) int {
+		s := toString(v)
+		if s == "" {
+			return 0
+		}
+		n, _ := strconv.Atoi(strings.Split(s, ".")[0])
+		return n
+	}
+
+	get := func(key string) string {
+		if payload.Data == nil {
+			return ""
+		}
+		return toString(payload.Data[key])
+	}
+	has := func(key string) bool {
+		if payload.Data == nil {
+			return false
+		}
+		_, ok := payload.Data[key]
+		return ok
+	}
+	normalizeCodes := func(s string) string {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			return ""
+		}
+		parts := strings.FieldsFunc(s, func(r rune) bool {
+			return r == ',' || r == '#'
+		})
+		clean := make([]string, 0, len(parts))
+		for _, p := range parts {
+			p = strings.TrimSpace(p)
+			if p != "" {
+				clean = append(clean, p)
+			}
+		}
+		return strings.Join(clean, "#")
+	}
+
+	updates := map[string]interface{}{}
+	now := time.Now()
+	updates["claim_data_last_sync_at"] = &now
+
+	// Reset derived fields first so UI does not keep stale grouping/special CMG values.
+	updates["idrg_code"] = ""
+	updates["idrg_description"] = ""
+	updates["idrg_cost_weight"] = ""
+	updates["idrg_status_cd"] = ""
+	updates["idrg_grouper_success"] = false
+	updates["idrg_final_success"] = false
+	updates["inacbg_cbg_code"] = ""
+	updates["inacbg_cbg_description"] = ""
+	updates["inacbg_base_tariff"] = ""
+	updates["inacbg_tariff"] = ""
+	updates["inacbg_status_cd"] = ""
+	updates["inacbg_grouper_stage1_success"] = false
+	updates["inacbg_grouper_stage2_success"] = false
+	updates["inacbg_final_success"] = false
+	updates["selected_special_cmg"] = ""
+	updates["special_cmg_options"] = ""
+
+	if has("tgl_masuk") {
+		v := normalizeDate(get("tgl_masuk"))
+		updates["tgl_masuk"] = v
+	}
+	if has("tgl_pulang") {
+		v := normalizeDate(get("tgl_pulang"))
+		updates["tgl_pulang"] = v
+	}
+	if has("cara_masuk") {
+		updates["cara_masuk"] = get("cara_masuk")
+	}
+	if has("jenis_rawat") {
+		updates["jenis_rawat"] = get("jenis_rawat")
+	}
+	if has("kelas_rawat") {
+		updates["kelas_rawat"] = get("kelas_rawat")
+	}
+	if has("discharge_status") {
+		updates["discharge_status"] = get("discharge_status")
+	}
+	if has("kode_tarif") {
+		updates["kode_tarif"] = get("kode_tarif")
+	}
+	if has("diagnosa") {
+		v := get("diagnosa")
+		updates["diagnosa"] = v
+		updates["idrg_diagnosa"] = normalizeCodes(v)
+	}
+	if has("procedure") {
+		v := get("procedure")
+		updates["procedure"] = v
+		updates["idrg_procedure"] = normalizeCodes(v)
+	}
+	if has("diagnosa_inagrouper") {
+		v := get("diagnosa_inagrouper")
+		updates["diagnosa_inagrouper"] = v
+		updates["inacbg_diagnosa"] = normalizeCodes(v)
+	}
+	if has("procedure_inagrouper") {
+		v := get("procedure_inagrouper")
+		updates["procedure_inagrouper"] = v
+		updates["inacbg_procedure"] = normalizeCodes(v)
+	}
+	if has("adl_sub_acute") {
+		updates["adl_sub_acute"] = get("adl_sub_acute")
+	}
+	if has("adl_chronic") {
+		updates["adl_chronic"] = get("adl_chronic")
+	}
+	if has("icu_indikator") {
+		updates["icu_indikator"] = get("icu_indikator")
+	}
+	if has("icu_los") {
+		updates["icu_los"] = get("icu_los")
+	}
+	if has("ventilator_hour") {
+		updates["ventilator_hour"] = get("ventilator_hour")
+	}
+	if has("upgrade_class_ind") {
+		updates["upgrade_class_ind"] = get("upgrade_class_ind")
+	}
+	if has("upgrade_class_class") {
+		updates["upgrade_class_class"] = get("upgrade_class_class")
+	}
+	if has("upgrade_class_los") {
+		updates["upgrade_class_los"] = get("upgrade_class_los")
+	}
+	if has("add_payment_pct") {
+		updates["add_payment_pct"] = get("add_payment_pct")
+	}
+	if has("nama_pasien") {
+		updates["nama_pasien"] = get("nama_pasien")
+	}
+	if has("nomor_kartu") {
+		updates["no_kartu"] = get("nomor_kartu")
+	}
+	if has("payor_id") {
+		updates["payor_id"] = get("payor_id")
+	}
+	if has("coder_nik") {
+		updates["coder_nik"] = get("coder_nik")
+	}
+	if has("nama_dokter") {
+		updates["nama_dokter"] = get("nama_dokter")
+	}
+	if has("tarif_poli_eks") {
+		updates["tarif_poli_eks"] = get("tarif_poli_eks")
+	}
+	if payload.Data != nil {
+		if v, ok := payload.Data["kemenkes_dc_status_cd"]; ok {
+			dcStatus := strings.ToLower(toString(v))
+			updates["claim_send_success"] = dcStatus == "sent"
+		}
+		if v, ok := payload.Data["klaim_status_cd"]; ok {
+			ks := strings.ToLower(toString(v))
+			updates["claim_final_success"] = ks == "final" || ks == "klaim_final"
+		}
+
+		if _, ok := payload.Data["sistole"]; ok {
+			updates["sistole"] = toInt(payload.Data["sistole"])
+		}
+		if _, ok := payload.Data["diastole"]; ok {
+			updates["diastole"] = toInt(payload.Data["diastole"])
+		}
+		if _, ok := payload.Data["kantong_darah"]; ok {
+			updates["kantong_darah"] = toInt(payload.Data["kantong_darah"])
+		}
+		if _, ok := payload.Data["alteplase_ind"]; ok {
+			updates["alteplase_ind"] = toInt(payload.Data["alteplase_ind"])
+		}
+		if tarifRaw, ok := payload.Data["tarif_rs"]; ok {
+			if tarifMap, ok := tarifRaw.(map[string]interface{}); ok {
+				total := 0.0
+				for _, val := range tarifMap {
+					switch n := val.(type) {
+					case float64:
+						total += n
+					case json.Number:
+						if f, err := n.Float64(); err == nil {
+							total += f
+						}
+					case string:
+						if f, err := strconv.ParseFloat(strings.TrimSpace(n), 64); err == nil {
+							total += f
+						}
+					}
+				}
+				updates["tarif_rs"] = total
+			}
+		}
+
+		if grouperRaw, ok := payload.Data["grouper"]; ok {
+			if grouperMap, ok := grouperRaw.(map[string]interface{}); ok {
+				if idrgRaw, ok := grouperMap["response_idrg"]; ok {
+					if idrgMap, ok := idrgRaw.(map[string]interface{}); ok {
+						if v, ok := idrgMap["drg_code"]; ok {
+							updates["idrg_code"] = toString(v)
+						}
+						if v, ok := idrgMap["drg_description"]; ok {
+							updates["idrg_description"] = toString(v)
+						}
+						if v, ok := idrgMap["cost_weight"]; ok {
+							updates["idrg_cost_weight"] = toString(v)
+						}
+						if v, ok := idrgMap["status_cd"]; ok {
+							status := toString(v)
+							updates["idrg_status_cd"] = status
+							updates["idrg_final_success"] = strings.EqualFold(status, "final")
+						}
+						updates["idrg_grouper_success"] = true
+					}
+				}
+
+				if inacbgRaw, ok := grouperMap["response_inacbg"]; ok {
+					if inacbgMap, ok := inacbgRaw.(map[string]interface{}); ok {
+						if v, ok := inacbgMap["status_cd"]; ok {
+							status := toString(v)
+							updates["inacbg_status_cd"] = status
+							updates["inacbg_final_success"] = strings.EqualFold(status, "final")
+						}
+						if v, ok := inacbgMap["tariff"]; ok {
+							updates["inacbg_tariff"] = toString(v)
+						}
+						if v, ok := inacbgMap["base_tariff"]; ok {
+							updates["inacbg_base_tariff"] = toString(v)
+						}
+						if cbgRaw, ok := inacbgMap["cbg"]; ok {
+							if cbgMap, ok := cbgRaw.(map[string]interface{}); ok {
+								if v, ok := cbgMap["code"]; ok {
+									updates["inacbg_cbg_code"] = toString(v)
+								}
+								if v, ok := cbgMap["description"]; ok {
+									updates["inacbg_cbg_description"] = toString(v)
+								}
+							}
+						}
+
+						if specialRaw, ok := inacbgMap["special_cmg"]; ok {
+							if specialArr, ok := specialRaw.([]interface{}); ok {
+								selectedCodes := make([]string, 0, len(specialArr))
+								specialOpts := make([]map[string]string, 0, len(specialArr))
+								for _, item := range specialArr {
+									itemMap, ok := item.(map[string]interface{})
+									if !ok {
+										continue
+									}
+									code := toString(itemMap["code"])
+									desc := toString(itemMap["description"])
+									typ := toString(itemMap["type"])
+									if code == "" {
+										continue
+									}
+									selectedCodes = append(selectedCodes, code)
+									specialOpts = append(specialOpts, map[string]string{
+										"code":        code,
+										"description": desc,
+										"type":        typ,
+									})
+								}
+								updates["selected_special_cmg"] = strings.Join(selectedCodes, "#")
+								if optsJSON, err := json.Marshal(specialOpts); err == nil {
+									updates["special_cmg_options"] = string(optsJSON)
+								}
+								if len(selectedCodes) > 0 {
+									updates["inacbg_grouper_stage2_success"] = true
+								}
+							}
+						}
+						updates["inacbg_grouper_stage1_success"] = true
+					}
+				}
+			}
+		}
+	}
+
+	getBoolUpdate := func(key string, fallback bool) bool {
+		if raw, ok := updates[key]; ok {
+			if b, ok := raw.(bool); ok {
+				return b
+			}
+		}
+		return fallback
+	}
+
+	claimSendSuccess := getBoolUpdate("claim_send_success", eklaimLocal.ClaimSendSuccess)
+	claimFinalSuccess := getBoolUpdate("claim_final_success", eklaimLocal.ClaimFinalSuccess)
+	inacbgFinalSuccess := getBoolUpdate("inacbg_final_success", eklaimLocal.INACBGFinalSuccess)
+	inacbgGrouped := getBoolUpdate("inacbg_grouper_stage1_success", eklaimLocal.INACBGGrouperStage1Success) ||
+		getBoolUpdate("inacbg_grouper_stage2_success", eklaimLocal.INACBGGrouperStage2Success)
+	idrgFinalSuccess := getBoolUpdate("idrg_final_success", eklaimLocal.IDRGFinalSuccess)
+	idrgGrouped := getBoolUpdate("idrg_grouper_success", eklaimLocal.IDRGGrouperSuccess)
+	// Fallback: jika kedua modul sudah final berdasarkan status_cd masing-masing,
+	// anggap claim final juga true saat klaim_status_cd tidak dikirim.
+	if !claimFinalSuccess && idrgFinalSuccess && inacbgFinalSuccess {
+		claimFinalSuccess = true
+		updates["claim_final_success"] = true
+	}
+	setClaimDataSuccess := eklaimLocal.SetClaimDataSuccess
+	newClaimSuccess := eklaimLocal.NewClaimSuccess
+
+	newStatus := "draft"
+	if claimSendSuccess {
+		newStatus = "claim_sent"
+	} else if claimFinalSuccess {
+		newStatus = "claim_final"
+	} else if inacbgFinalSuccess {
+		newStatus = "inacbg_final"
+	} else if inacbgGrouped {
+		newStatus = "inacbg_grouped"
+	} else if idrgFinalSuccess {
+		newStatus = "idrg_final"
+	} else if idrgGrouped {
+		newStatus = "idrg_grouped"
+	} else if setClaimDataSuccess {
+		newStatus = "set_claim_data"
+	} else if newClaimSuccess {
+		newStatus = "new_claim"
+	}
+	updates["status"] = newStatus
+
+	if err := database.DB.Model(&eklaimLocal).Updates(updates).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan sinkronisasi ke database: " + err.Error()})
+		return
+	}
+
+	if err := database.DB.First(&eklaimLocal, eklaimID).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memuat data setelah sinkronisasi: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":      "Sinkronisasi dari E-Klaim berhasil",
+		"eklaim_local": eklaimLocal,
+		"response":     resp,
+	})
+}
+
 // GetClaimStatusList returns claim report from local database.
 // GET /eklaim-local/claim-status?tgl_masuk_from=&tgl_masuk_to=&jenis_rawat=&status=
 func GetClaimStatusList(c *gin.Context) {
@@ -3804,12 +4441,14 @@ func GetEKlaimLocalDetail(c *gin.Context) {
 		Preload("Visit.Room").
 		Preload("Visit.Doctor").
 		Preload("Visit.Registration").
+		Preload("Visit.Registration.Patient").
 		Preload("RMDuplicate").
 		Preload("RMDuplicate.Diagnoses").
 		Preload("RMDuplicate.Procedures").
 		Preload("RMDuplicate.Orders.Items.Procedure.Parameters").Preload("RMDuplicate.Orders.Items.Results.ProcedureParameter").
 		Preload("RMDuplicate.MedicineItems.Medicine").
 		Preload("RMDuplicate.CPPTNotes").
+		Preload("RMDuplicate.NursingCares").
 		Preload("RMDuplicate.FluidBalances").
 		Preload("RMDuplicate.Billing.Items").
 		Preload("Logs", func(db *gorm.DB) *gorm.DB {
@@ -3892,7 +4531,7 @@ func GetEKlaimLocalDetail(c *gin.Context) {
 				database.DB.Preload("Diagnoses").Preload("Procedures").
 					Preload("Orders.Items.Procedure.Parameters").Preload("Orders.Items.Results.ProcedureParameter").
 					Preload("MedicineItems.Medicine").
-					Preload("CPPTNotes").Preload("FluidBalances").
+					Preload("CPPTNotes").Preload("NursingCares").Preload("FluidBalances").
 					Preload("Billing.Items").
 					First(item.RMDuplicate, rmDup.ID)
 			}
@@ -4088,7 +4727,7 @@ func GetEKlaimLocalDetail(c *gin.Context) {
 				}
 			}
 			var srcOrders []models.ProcedureOrder
-			database.DB.Where("source_visit_id = ? AND order_type = ?", visitID, ord.OrderType).
+			database.DB.Where("source_visit_id = ? AND order_type = ? AND status = ?", visitID, ord.OrderType, models.ProcedureOrderStatusCompleted).
 				Order("created_at ASC").Find(&srcOrders)
 			if pos < len(srcOrders) {
 				srcID := srcOrders[pos].ID
@@ -4132,7 +4771,7 @@ func GetEKlaimLocalDetail(c *gin.Context) {
 
 	// Lab results from procedure orders
 	var labOrders []models.ProcedureOrder
-	if err := database.DB.Where("source_visit_id = ? AND order_type = ?", visitID, "laboratory").
+	if err := database.DB.Where("source_visit_id = ? AND order_type = ? AND status = ?", visitID, "laboratory", models.ProcedureOrderStatusCompleted).
 		Preload("Items").Preload("Items.Procedure").
 		Preload("Items.Results").Preload("Items.Results.ProcedureParameter").
 		Preload("PerformedBy").Preload("ValidatedBy").
@@ -4142,7 +4781,7 @@ func GetEKlaimLocalDetail(c *gin.Context) {
 
 	// Radiology results from procedure orders
 	var radOrders []models.ProcedureOrder
-	if err := database.DB.Where("source_visit_id = ? AND order_type = ?", visitID, "radiology").
+	if err := database.DB.Where("source_visit_id = ? AND order_type = ? AND status = ?", visitID, "radiology", models.ProcedureOrderStatusCompleted).
 		Preload("Items").Preload("Items.Procedure").
 		Preload("Items.Results").Preload("Items.Results.ProcedureParameter").
 		Preload("PerformedBy").Preload("ValidatedBy").
@@ -4152,7 +4791,7 @@ func GetEKlaimLocalDetail(c *gin.Context) {
 
 	// Surgery orders
 	var surgeryOrders []models.ProcedureOrder
-	if err := database.DB.Where("source_visit_id = ? AND order_type = ?", visitID, "surgery").
+	if err := database.DB.Where("source_visit_id = ? AND order_type = ? AND status = ?", visitID, "surgery", models.ProcedureOrderStatusCompleted).
 		Preload("Items").Preload("Items.Procedure").
 		Preload("Items.Results").Preload("Items.Results.ProcedureParameter").
 		Preload("PerformedBy").Preload("SurgeonDoctor").
@@ -4162,7 +4801,7 @@ func GetEKlaimLocalDetail(c *gin.Context) {
 
 	// Consultation orders
 	var consultationOrders []models.ProcedureOrder
-	if err := database.DB.Where("source_visit_id = ? AND order_type = ?", visitID, "consultation").
+	if err := database.DB.Where("source_visit_id = ? AND order_type = ? AND status = ?", visitID, "consultation", models.ProcedureOrderStatusCompleted).
 		Preload("Items").Preload("Items.Procedure").
 		Preload("Consultation.Consultant").
 		Preload("PerformedBy").
@@ -4172,7 +4811,7 @@ func GetEKlaimLocalDetail(c *gin.Context) {
 
 	// Medicine orders
 	var medicineOrders []models.MedicineOrder
-	if err := database.DB.Where("source_visit_id = ?", visitID).
+	if err := database.DB.Where("source_visit_id = ? AND status IN ?", visitID, []string{models.OrderStatusDelivered, models.OrderStatusPartial}).
 		Preload("Items").Preload("Items.Medicine").
 		Find(&medicineOrders).Error; err == nil && len(medicineOrders) > 0 {
 		originalRM["medicine_orders"] = medicineOrders
@@ -4359,7 +4998,7 @@ func BackfillRMOrderSourceIDs() {
 
 		// Find all ProcedureOrders for this visit+type, ordered by created_at
 		var srcOrders []models.ProcedureOrder
-		database.DB.Where("source_visit_id = ? AND order_type = ?", visitID, rmOrd.OrderType).
+		database.DB.Where("source_visit_id = ? AND order_type = ? AND status = ?", visitID, rmOrd.OrderType, models.ProcedureOrderStatusCompleted).
 			Order("created_at ASC").
 			Find(&srcOrders)
 		if len(srcOrders) == 0 {
@@ -4466,6 +5105,9 @@ func SyncRMFromVisit(c *gin.Context) {
 	rm.BMI = pe.BMI
 	rm.Waist = pe.Waist
 	rm.HeadCircum = pe.HeadCircum
+	rm.PainMethod = pe.PainMethod
+	rm.PainScale = pe.PainScale
+	rm.PainLocation = pe.PainLocation
 	rm.HeadNeck = pe.HeadNeck
 	rm.Eyes = pe.Eyes
 	rm.ENT = pe.ENT
@@ -4640,7 +5282,7 @@ func SyncRMFromVisit(c *gin.Context) {
 
 	// Re-copy all procedure orders from original visit
 	var syncAllOrders []models.ProcedureOrder
-	database.DB.Where("source_visit_id = ?", visitID).
+	database.DB.Where("source_visit_id = ? AND status = ?", visitID, models.ProcedureOrderStatusCompleted).
 		Preload("Items.Procedure").
 		Preload("Items.Results.ProcedureParameter").
 		Preload("Consultation.Consultant").
@@ -4725,13 +5367,16 @@ func SyncRMFromVisit(c *gin.Context) {
 	// Replace medicine items (only non-fake)
 	tx.Where("rm_duplicate_id = ? AND is_fake = false", rm.ID).Delete(&models.EKlaimRMMedicineItem{})
 	var syncMedOrders []models.MedicineOrder
-	database.DB.Where("source_visit_id = ?", visitID).Preload("Items.Medicine").Find(&syncMedOrders)
+	database.DB.Where("source_visit_id = ? AND status IN ?", visitID, []string{models.OrderStatusDelivered, models.OrderStatusPartial}).Preload("Items.Medicine").Find(&syncMedOrders)
 	var maxFakeMedSeq int
 	database.DB.Model(&models.EKlaimRMMedicineItem{}).Where("rm_duplicate_id = ? AND is_fake = true", rm.ID).Select("COALESCE(MAX(sequence),0)").Scan(&maxFakeMedSeq)
 	medSeq := 0
 	for _, order := range syncMedOrders {
 		srcOrderID := order.ID
 		for _, item := range order.Items {
+			if item.DispensedQty <= 0 {
+				continue
+			}
 			medSeq++
 			medName := ""
 			var medID *uint
@@ -4750,7 +5395,7 @@ func SyncRMFromVisit(c *gin.Context) {
 				Dosage:        item.Dosage,
 				Frequency:     item.Frequency,
 				Route:         item.Route,
-				Quantity:      item.Quantity,
+				Quantity:      item.DispensedQty,
 				Unit:          item.Unit,
 				Duration:      item.Duration,
 				Instructions:  item.Instructions,
@@ -4768,6 +5413,10 @@ func SyncRMFromVisit(c *gin.Context) {
 	database.DB.Model(&models.EKlaimRMCPPT{}).Where("rm_duplicate_id = ? AND is_fake = true", rm.ID).Select("COALESCE(MAX(sequence),0)").Scan(&maxFakeCPPTSeq)
 	for i, cppt := range syncCPPTs {
 		recordDate := cppt.RecordDate.Format("2006-01-02 15:04:05")
+		cpptFormat := cppt.CPPTFormat
+		if cpptFormat == "" {
+			cpptFormat = models.CPPTFormatSOAP
+		}
 		staffName := ""
 		if cppt.CreatedBy != nil && cppt.CreatedBy.Employee != nil {
 			staffName = cppt.CreatedBy.Employee.NamaLengkap
@@ -4776,6 +5425,7 @@ func SyncRMFromVisit(c *gin.Context) {
 			RMDuplicateID:    rm.ID,
 			RecordDate:       recordDate,
 			Profession:       cppt.Profession,
+			CPPTFormat:       cpptFormat,
 			StaffName:        staffName,
 			Subjective:       cppt.Subjective,
 			Objective:        cppt.Objective,
@@ -4789,6 +5439,69 @@ func SyncRMFromVisit(c *gin.Context) {
 			OxygenSaturation: cppt.OxygenSaturation,
 			PainScale:        cppt.PainScale,
 			Sequence:         maxFakeCPPTSeq + i + 1,
+		})
+	}
+
+	// Replace nursing care (only non-fake)
+	tx.Where("rm_duplicate_id = ? AND is_fake = false", rm.ID).Delete(&models.EKlaimRMNursingCare{})
+	var syncNursing []models.NursingCare
+	database.DB.Where("visit_id = ?", visitID).Preload("CreatedBy.Employee").Order("record_date ASC").Find(&syncNursing)
+	var maxFakeNursingSeq int
+	database.DB.Model(&models.EKlaimRMNursingCare{}).Where("rm_duplicate_id = ? AND is_fake = true", rm.ID).Select("COALESCE(MAX(sequence),0)").Scan(&maxFakeNursingSeq)
+	for i, record := range syncNursing {
+		recordDate := record.RecordDate.Format("2006-01-02 15:04:05")
+		implementationTime := ""
+		if !record.ImplementationTime.IsZero() {
+			implementationTime = record.ImplementationTime.Format("2006-01-02 15:04:05")
+		}
+		staffName := ""
+		if record.CreatedBy != nil && record.CreatedBy.Employee != nil {
+			staffName = record.CreatedBy.Employee.NamaLengkap
+		}
+		tx.Create(&models.EKlaimRMNursingCare{
+			RMDuplicateID:           rm.ID,
+			RecordDate:              recordDate,
+			ShiftType:               record.ShiftType,
+			StaffName:               staffName,
+			ChiefComplaint:          record.ChiefComplaint,
+			PainAssessment:          record.PainAssessment,
+			PainScale:               record.PainScale,
+			ConsciousnessLevel:      record.ConsciousnessLevel,
+			FunctionalStatus:        record.FunctionalStatus,
+			FallRiskAssessment:      record.FallRiskAssessment,
+			FallRiskScore:           record.FallRiskScore,
+			NutritionAssessment:     record.NutritionAssessment,
+			SkinAssessment:          record.SkinAssessment,
+			PressureUlcerRisk:       record.PressureUlcerRisk,
+			BloodPressure:           record.BloodPressure,
+			HeartRate:               record.HeartRate,
+			RespiratoryRate:         record.RespiratoryRate,
+			Temperature:             record.Temperature,
+			OxygenSaturation:        record.OxygenSaturation,
+			NursingDiagnosis:        record.NursingDiagnosis,
+			NursingDiagnosisCode:    record.NursingDiagnosisCode,
+			ProblemEtiology:         record.ProblemEtiology,
+			SignsSymptoms:           record.SignsSymptoms,
+			NursingOutcome:          record.NursingOutcome,
+			NursingOutcomeCode:      record.NursingOutcomeCode,
+			OutcomeIndicators:       record.OutcomeIndicators,
+			OutcomeTarget:           record.OutcomeTarget,
+			NursingIntervention:     record.NursingIntervention,
+			NursingInterventionCode: record.NursingInterventionCode,
+			ObservationActions:      record.ObservationActions,
+			TherapeuticActions:      record.TherapeuticActions,
+			EducationActions:        record.EducationActions,
+			CollaborationActions:    record.CollaborationActions,
+			Implementation:          record.Implementation,
+			ImplementationTime:      implementationTime,
+			PatientResponse:         record.PatientResponse,
+			EvaluationSubjective:    record.EvaluationSubjective,
+			EvaluationObjective:     record.EvaluationObjective,
+			EvaluationAnalysis:      record.EvaluationAnalysis,
+			EvaluationPlanning:      record.EvaluationPlanning,
+			ProblemStatus:           record.ProblemStatus,
+			Notes:                   record.Notes,
+			Sequence:                maxFakeNursingSeq + i + 1,
 		})
 	}
 
@@ -4850,7 +5563,7 @@ func SyncRMFromVisit(c *gin.Context) {
 	database.DB.Preload("Diagnoses").Preload("Procedures").
 		Preload("Orders.Items.Procedure.Parameters").Preload("Orders.Items.Results.ProcedureParameter").
 		Preload("MedicineItems.Medicine").
-		Preload("CPPTNotes").Preload("FluidBalances").
+		Preload("CPPTNotes").Preload("NursingCares").Preload("FluidBalances").
 		Preload("Billing.Items").
 		First(rm, rm.ID)
 
@@ -5548,6 +6261,11 @@ func SendIDRGDiagnosaSet(c *gin.Context) {
 		return
 	}
 
+	if err := validatePrimaryDiagnosaAccPdx(req.Diagnosa); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
 	client, err := eklaimSvc.NewClient()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal koneksi ke server E-Klaim: " + err.Error()})
@@ -5606,6 +6324,33 @@ func SendIDRGDiagnosaSet(c *gin.Context) {
 	})
 }
 
+func validatePrimaryDiagnosaAccPdx(diagnosa string) error {
+	parts := strings.Split(diagnosa, "#")
+	primaryCode := ""
+	for _, p := range parts {
+		code := strings.TrimSpace(p)
+		if code != "" {
+			primaryCode = code
+			break
+		}
+	}
+	if primaryCode == "" {
+		return nil
+	}
+
+	var icd models.ICD10
+	err := database.DB.Where("code = ? OR code2 = ?", primaryCode, strings.ReplaceAll(primaryCode, ".", "")).Select("acc_pdx").First(&icd).Error
+	if err != nil {
+		// If code is not found in local ICD10, skip strict ACCPDX validation.
+		return nil
+	}
+
+	if !icd.AccPdx {
+		return errors.New("Diagnosa utama harus memiliki ACCPDX=Y; kode dengan ACCPDX=N hanya boleh sebagai diagnosa sekunder")
+	}
+	return nil
+}
+
 // GetIDRGDiagnosa fetches current iDRG diagnoses from E-Klaim local server.
 // GET /eklaim-local/:id/idrg-diagnosa
 func GetIDRGDiagnosa(c *gin.Context) {
@@ -5658,11 +6403,14 @@ func SendIDRGProcedureSet(c *gin.Context) {
 	}
 
 	var req struct {
-		Procedure string `json:"procedure" binding:"required"`
+		Procedure string `json:"procedure"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request: " + err.Error()})
 		return
+	}
+	if strings.TrimSpace(req.Procedure) == "" {
+		req.Procedure = "#"
 	}
 
 	var eklaimLocal models.EKlaimLocal
@@ -5673,6 +6421,28 @@ func SendIDRGProcedureSet(c *gin.Context) {
 
 	if !eklaimLocal.CanDoIDRGCoding() {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Tidak dapat melakukan iDRG coding saat ini"})
+		return
+	}
+
+	if invalidCodes, err := validateProcedureValidCodes(req.Procedure); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal validasi procedure VALIDCODE"})
+		return
+	} else if len(invalidCodes) > 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":             "Kode prosedur dengan VALIDCODE 0 tidak boleh diset",
+			"invalid_procedure": invalidCodes,
+		})
+		return
+	}
+
+	if invalidAccPdxCodes, err := validateProcedureAccPdx(req.Procedure); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal validasi procedure ACCPDX"})
+		return
+	} else if len(invalidAccPdxCodes) > 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":               "Kode prosedur dengan ACCPDX=N tidak boleh diset untuk grouping",
+			"invalid_accpdx_code": invalidAccPdxCodes,
+		})
 		return
 	}
 
@@ -5732,6 +6502,118 @@ func SendIDRGProcedureSet(c *gin.Context) {
 		"response":     resp,
 		"buttons":      eklaimLocal.GetButtonVisibility(),
 	})
+}
+
+func validateProcedureValidCodes(procedure string) ([]string, error) {
+	parts := strings.Split(procedure, "#")
+	if len(parts) == 0 {
+		return []string{}, nil
+	}
+
+	seen := map[string]struct{}{}
+	codes := make([]string, 0, len(parts))
+	for _, p := range parts {
+		raw := strings.TrimSpace(p)
+		if raw == "" {
+			continue
+		}
+		base := raw
+		if idx := strings.Index(raw, "+"); idx >= 0 {
+			base = strings.TrimSpace(raw[:idx])
+		}
+		if base == "" {
+			continue
+		}
+		norm := strings.ToUpper(base)
+		if _, ok := seen[norm]; ok {
+			continue
+		}
+		seen[norm] = struct{}{}
+		codes = append(codes, norm)
+	}
+
+	if len(codes) == 0 {
+		return []string{}, nil
+	}
+
+	var rows []models.ICD9CM
+	if err := database.DB.
+		Where("(code IN ? OR code2 IN ?) AND valid_code = ?", codes, codes, true).
+		Select("code", "code2").
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	validMap := map[string]bool{}
+	for _, r := range rows {
+		validMap[strings.ToUpper(strings.TrimSpace(r.Code))] = true
+		validMap[strings.ToUpper(strings.TrimSpace(r.Code2))] = true
+	}
+
+	invalid := make([]string, 0)
+	for _, code := range codes {
+		if !validMap[code] {
+			invalid = append(invalid, code)
+		}
+	}
+
+	return invalid, nil
+}
+
+func validateProcedureAccPdx(procedure string) ([]string, error) {
+	parts := strings.Split(procedure, "#")
+	if len(parts) == 0 {
+		return []string{}, nil
+	}
+
+	seen := map[string]struct{}{}
+	codes := make([]string, 0, len(parts))
+	for _, p := range parts {
+		raw := strings.TrimSpace(p)
+		if raw == "" {
+			continue
+		}
+		base := raw
+		if idx := strings.Index(raw, "+"); idx >= 0 {
+			base = strings.TrimSpace(raw[:idx])
+		}
+		if base == "" {
+			continue
+		}
+		norm := strings.ToUpper(base)
+		if _, ok := seen[norm]; ok {
+			continue
+		}
+		seen[norm] = struct{}{}
+		codes = append(codes, norm)
+	}
+
+	if len(codes) == 0 {
+		return []string{}, nil
+	}
+
+	var rows []models.ICD9CM
+	if err := database.DB.
+		Where("(code IN ? OR code2 IN ?) AND acc_pdx = ?", codes, codes, true).
+		Select("code", "code2").
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	allowedMap := map[string]bool{}
+	for _, r := range rows {
+		allowedMap[strings.ToUpper(strings.TrimSpace(r.Code))] = true
+		allowedMap[strings.ToUpper(strings.TrimSpace(r.Code2))] = true
+	}
+
+	invalid := make([]string, 0)
+	for _, code := range codes {
+		if !allowedMap[code] {
+			invalid = append(invalid, code)
+		}
+	}
+
+	return invalid, nil
 }
 
 // GetIDRGProcedure fetches current iDRG procedures from E-Klaim local server.
@@ -6183,6 +7065,20 @@ func SendINACBGDiagnosaSet(c *gin.Context) {
 
 	eklaimLocal.INACBGDiagnosa = req.Diagnosa
 	eklaimLocal.INACBGDiagnosaResponse = string(respJSON)
+	// Diagnosis/procedure changes invalidate previous grouping and special CMG options.
+	eklaimLocal.INACBGGrouperStage1SentAt = nil
+	eklaimLocal.INACBGGrouperStage1Response = ""
+	eklaimLocal.INACBGGrouperStage1Success = false
+	eklaimLocal.SpecialCMGOptions = ""
+	eklaimLocal.SelectedSpecialCMG = ""
+	eklaimLocal.INACBGGrouperStage2SentAt = nil
+	eklaimLocal.INACBGGrouperStage2Response = ""
+	eklaimLocal.INACBGGrouperStage2Success = false
+	eklaimLocal.INACBGCBGCode = ""
+	eklaimLocal.INACBGCBGDescription = ""
+	eklaimLocal.INACBGBaseTariff = ""
+	eklaimLocal.INACBGTariff = ""
+	eklaimLocal.INACBGStatusCd = ""
 	eklaimLocal.Status = "inacbg_coded"
 	eklaimLocal.LastError = ""
 	eklaimLocal.LastErrorAt = nil
@@ -6248,11 +7144,14 @@ func SendINACBGProcedureSet(c *gin.Context) {
 	}
 
 	var req struct {
-		Procedure string `json:"procedure" binding:"required"`
+		Procedure string `json:"procedure"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request: " + err.Error()})
 		return
+	}
+	if strings.TrimSpace(req.Procedure) == "" {
+		req.Procedure = "#"
 	}
 
 	var eklaimLocal models.EKlaimLocal
@@ -6311,6 +7210,20 @@ func SendINACBGProcedureSet(c *gin.Context) {
 
 	eklaimLocal.INACBGProcedure = req.Procedure
 	eklaimLocal.INACBGProcedureResponse = string(respJSON)
+	// Diagnosis/procedure changes invalidate previous grouping and special CMG options.
+	eklaimLocal.INACBGGrouperStage1SentAt = nil
+	eklaimLocal.INACBGGrouperStage1Response = ""
+	eklaimLocal.INACBGGrouperStage1Success = false
+	eklaimLocal.SpecialCMGOptions = ""
+	eklaimLocal.SelectedSpecialCMG = ""
+	eklaimLocal.INACBGGrouperStage2SentAt = nil
+	eklaimLocal.INACBGGrouperStage2Response = ""
+	eklaimLocal.INACBGGrouperStage2Success = false
+	eklaimLocal.INACBGCBGCode = ""
+	eklaimLocal.INACBGCBGDescription = ""
+	eklaimLocal.INACBGBaseTariff = ""
+	eklaimLocal.INACBGTariff = ""
+	eklaimLocal.INACBGStatusCd = ""
 	eklaimLocal.Status = "inacbg_coded"
 	eklaimLocal.LastError = ""
 	eklaimLocal.LastErrorAt = nil
@@ -6894,6 +7807,74 @@ type searchResultItem struct {
 	Code        string `json:"code"`
 	Description string `json:"description"`
 	IM          bool   `json:"im"`
+	ValidCode   string `json:"validcode,omitempty"`
+	AccPdx      string `json:"accpdx,omitempty"`
+}
+
+func normalizeValidCode(value interface{}) string {
+	switch v := value.(type) {
+	case string:
+		n := strings.TrimSpace(strings.ToLower(v))
+		if n == "0" || n == "false" || n == "f" {
+			return "0"
+		}
+		if n == "1" || n == "true" || n == "t" {
+			return "1"
+		}
+	case float64:
+		if v == 0 {
+			return "0"
+		}
+		if v == 1 {
+			return "1"
+		}
+	case int:
+		if v == 0 {
+			return "0"
+		}
+		if v == 1 {
+			return "1"
+		}
+	case bool:
+		if v {
+			return "1"
+		}
+		return "0"
+	}
+	return "1"
+}
+
+func normalizeAccPdx(value interface{}) string {
+	switch v := value.(type) {
+	case string:
+		n := strings.TrimSpace(strings.ToUpper(v))
+		if n == "N" || n == "0" || n == "FALSE" || n == "F" {
+			return "N"
+		}
+		if n == "Y" || n == "1" || n == "TRUE" || n == "T" {
+			return "Y"
+		}
+	case float64:
+		if v == 0 {
+			return "N"
+		}
+		if v == 1 {
+			return "Y"
+		}
+	case int:
+		if v == 0 {
+			return "N"
+		}
+		if v == 1 {
+			return "Y"
+		}
+	case bool:
+		if v {
+			return "Y"
+		}
+		return "N"
+	}
+	return "Y"
 }
 
 // extractSearchItems extracts E-Klaim search response into normalized items.
@@ -6923,6 +7904,14 @@ func extractSearchItems(resp *eklaimSvc.EKlaimResponse) []searchResultItem {
 			item := searchResultItem{
 				Code:        fmt.Sprintf("%v", obj["code"]),
 				Description: fmt.Sprintf("%v", obj["description"]),
+				ValidCode:   normalizeValidCode(obj["validcode"]),
+				AccPdx:      normalizeAccPdx(obj["accpdx"]),
+			}
+			if _, ok := obj["validcode"]; !ok {
+				item.ValidCode = normalizeValidCode(obj["valid_code"])
+			}
+			if _, ok := obj["accpdx"]; !ok {
+				item.AccPdx = normalizeAccPdx(obj["acc_pdx"])
 			}
 			items = append(items, item)
 			continue
@@ -6933,6 +7922,8 @@ func extractSearchItems(resp *eklaimSvc.EKlaimResponse) []searchResultItem {
 			items = append(items, searchResultItem{
 				Code:        fmt.Sprintf("%v", arr[1]),
 				Description: fmt.Sprintf("%v", arr[0]),
+				ValidCode:   "1",
+				AccPdx:      "Y",
 			})
 		}
 	}
@@ -6949,18 +7940,28 @@ func enrichICD10IM(items []searchResultItem) []searchResultItem {
 		codes[i] = it.Code
 	}
 	var icdRows []models.ICD10
-	database.DB.Where("code IN ? OR code2 IN ?", codes, codes).Select("code", "code2", "im").Find(&icdRows)
+	database.DB.Where("code IN ? OR code2 IN ?", codes, codes).Select("code", "code2", "im", "acc_pdx").Find(&icdRows)
 
 	imMap := make(map[string]bool)
+	accPdxMap := make(map[string]string)
 	for _, row := range icdRows {
 		if row.IM {
 			imMap[row.Code] = true
 			imMap[row.Code2] = true
 		}
+		accVal := "N"
+		if row.AccPdx {
+			accVal = "Y"
+		}
+		accPdxMap[row.Code] = accVal
+		accPdxMap[row.Code2] = accVal
 	}
 	for i := range items {
 		if imMap[items[i].Code] {
 			items[i].IM = true
+		}
+		if acc, ok := accPdxMap[items[i].Code]; ok {
+			items[i].AccPdx = acc
 		}
 	}
 	return items
@@ -6976,18 +7977,28 @@ func enrichICD9CMIM(items []searchResultItem) []searchResultItem {
 		codes[i] = it.Code
 	}
 	var icdRows []models.ICD9CM
-	database.DB.Where("code IN ? OR code2 IN ?", codes, codes).Select("code", "code2", "im").Find(&icdRows)
+	database.DB.Where("code IN ? OR code2 IN ?", codes, codes).Select("code", "code2", "im", "acc_pdx").Find(&icdRows)
 
 	imMap := make(map[string]bool)
+	accPdxMap := make(map[string]string)
 	for _, row := range icdRows {
 		if row.IM {
 			imMap[row.Code] = true
 			imMap[row.Code2] = true
 		}
+		accVal := "N"
+		if row.AccPdx {
+			accVal = "Y"
+		}
+		accPdxMap[row.Code] = accVal
+		accPdxMap[row.Code2] = accVal
 	}
 	for i := range items {
 		if imMap[items[i].Code] {
 			items[i].IM = true
+		}
+		if acc, ok := accPdxMap[items[i].Code]; ok {
+			items[i].AccPdx = acc
 		}
 	}
 	return items

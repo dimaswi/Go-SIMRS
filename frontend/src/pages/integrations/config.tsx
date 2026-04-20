@@ -740,7 +740,7 @@ export default function IntegrationsConfigPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col p-4">
+    <div className="flex flex-1 flex-col px-4">
       <div className="grid gap-4">
         <div className="flex items-center p-4">
           <div>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, Fragment } from "react";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Combobox } from "@/components/ui/combobox";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { 
@@ -30,6 +30,7 @@ import { useEditMode, EditModeBanner, EditConfirmDialog, PINVerificationDialog }
 import { emitMedicalRecordTabIndicator, emitMedicalRecordTabSaved, MEDICAL_RECORD_TAB_SAVED_EVENT } from "./tab-indicator";
 import { COPY_FROM_HISTORY_EVENT } from "./copy-from-history-drawer";
 import { saveFormDraft, loadFormDraft, clearFormDraft, loadPendingCopy, clearPendingCopy } from "@/lib/form-persistence";
+import { useToast } from "@/hooks/use-toast";
 
 interface PhysicalExamFormProps {
   visitId: number;
@@ -37,6 +38,8 @@ interface PhysicalExamFormProps {
   isEmergency?: boolean;
   readOnly?: boolean;
   isPatientDischarged?: boolean;
+  externalData?: Partial<PhysicalExam>;
+  useExternalData?: boolean;
 }
 
 // Physical exam sections
@@ -251,7 +254,16 @@ const painLocationOptionsBase = [
   { value: "multi_lokasi", label: "Multi Lokasi" },
 ];
 
-export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnly = false, isPatientDischarged = false }: PhysicalExamFormProps) {
+export function PhysicalExamForm({
+  visitId,
+  onSave,
+  isEmergency = false,
+  readOnly = false,
+  isPatientDischarged = false,
+  externalData,
+  useExternalData = false,
+}: PhysicalExamFormProps) {
+  const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState(defaultFormData);
   const [checkedSections, setCheckedSections] = useState<Record<string, boolean>>({});
@@ -290,9 +302,76 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
   });
 
   // Determine if form should be disabled
-  const isFormDisabled = readOnly || (isPatientDischarged && !isEditing);
+  const isFormDisabled =
+    readOnly || (!useExternalData && isPatientDischarged && !isEditing);
+
+  const applyLoadedData = (loadedData: typeof defaultFormData) => {
+    setFormData(loadedData);
+    const checked: Record<string, boolean> = {};
+    physicalExamSections.forEach((section) => {
+      const value = loadedData[section.id as keyof typeof loadedData];
+      if (value && typeof value === "string" && value.trim() !== "") {
+        checked[section.id] = true;
+      }
+    });
+    setCheckedSections(checked);
+  };
 
   useEffect(() => {
+    if (useExternalData) {
+      const d = externalData || {};
+      const bp = parseBloodPressure((d as any).blood_pressure);
+      const loadedData = {
+        general_condition: d.general_condition || "",
+        consciousness: d.consciousness || "",
+        blood_pressure_systolic:
+          (d as any).systolic || (d as any).blood_pressure_systolic || bp.systolic || 0,
+        blood_pressure_diastolic:
+          (d as any).diastolic || (d as any).blood_pressure_diastolic || bp.diastolic || 0,
+        heart_rate: Number(d.heart_rate) || 0,
+        respiratory_rate: Number(d.respiratory_rate) || 0,
+        temperature: Number(d.temperature) || 0,
+        oxygen_saturation: Number(d.oxygen_saturation) || 0,
+        weight: Number(d.weight) || 0,
+        height: Number(d.height) || 0,
+        bmi: Number(d.bmi) || 0,
+        upper_arm_circum: (d as any).upper_arm_circum || "",
+        head_circum: d.head_circum || "",
+        waist: d.waist || "",
+        head: d.head || "",
+        eyes: d.eyes || "",
+        ears: d.ears || "",
+        nose: d.nose || "",
+        throat: d.throat || "",
+        neck: d.neck || "",
+        chest: d.chest || (d as any).thorax || "",
+        heart: d.heart || (d as any).cardiac || "",
+        lungs: d.lungs || (d as any).pulmonary || "",
+        abdomen: d.abdomen || "",
+        extremities: d.extremities || "",
+        skin: d.skin || "",
+        neurological: d.neurological || "",
+        other_findings: d.other_findings || "",
+        ecg_performed: (d as any).ecg_performed || false,
+        ecg_result: (d as any).ecg_result || "",
+        ecg_interpretation: (d as any).ecg_interpretation || "",
+        ecg_notes: (d as any).ecg_notes || "",
+        ctg_performed: (d as any).ctg_performed || false,
+        ctg_result: (d as any).ctg_result || "",
+        ctg_interpretation: (d as any).ctg_interpretation || "",
+        ctg_notes: (d as any).ctg_notes || "",
+        pelvic_performed: (d as any).pelvic_performed || false,
+        pelvic_result: (d as any).pelvic_result || "",
+        pelvic_notes: (d as any).pelvic_notes || "",
+        pain_method: (d as any).pain_method || "nrs",
+        pain_scale: Number((d as any).pain_scale) || 0,
+        pain_location: (d as any).pain_location || "",
+      };
+      applyLoadedData(loadedData);
+      setLoading(false);
+      return;
+    }
+
     const loadPhysicalExam = async () => {
       let hasExistingPhysicalExam = false;
       try {
@@ -364,19 +443,9 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
             pain_location: data.pain_location || "",
           };
           
-          setFormData(loadedData);
+          applyLoadedData(loadedData);
           setPhysicalExamId(data.id);
           emitMedicalRecordTabSaved("physical-exam", true);
-          
-          // Set checked state for sections that have data
-          const checked: Record<string, boolean> = {};
-          physicalExamSections.forEach(section => {
-            const value = loadedData[section.id as keyof typeof loadedData];
-            if (value && typeof value === 'string' && value.trim() !== '') {
-              checked[section.id] = true;
-            }
-          });
-          setCheckedSections(checked);
         }
       } catch {
         // No existing data
@@ -389,14 +458,17 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
           setCheckedSections(draft.checkedSections);
           emitMedicalRecordTabSaved("physical-exam", false);
         }
+
         // Check for pending copy from history (takes priority over draft)
         const pendingCopy = loadPendingCopy<any>("physical-exam");
         if (pendingCopy) {
           const newData = {
             general_condition: pendingCopy.general_condition || "",
             consciousness: pendingCopy.consciousness || "",
-            blood_pressure_systolic: Number(pendingCopy.systolic || pendingCopy.blood_pressure_systolic) || 0,
-            blood_pressure_diastolic: Number(pendingCopy.diastolic || pendingCopy.blood_pressure_diastolic) || 0,
+            blood_pressure_systolic:
+              Number(pendingCopy.systolic || pendingCopy.blood_pressure_systolic) || 0,
+            blood_pressure_diastolic:
+              Number(pendingCopy.diastolic || pendingCopy.blood_pressure_diastolic) || 0,
             heart_rate: Number(pendingCopy.heart_rate) || 0,
             respiratory_rate: Number(pendingCopy.respiratory_rate) || 0,
             temperature: Number(pendingCopy.temperature) || 0,
@@ -436,14 +508,7 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
             pain_scale: Number(pendingCopy.pain_scale) || 0,
             pain_location: pendingCopy.pain_location || "",
           };
-          setFormData(newData);
-          const checked: Record<string, boolean> = {};
-          ["head", "eyes", "ears", "nose", "throat", "neck", "chest", "heart", "lungs", "abdomen", "extremities", "skin", "neurological"].forEach(key => {
-            if (newData[key as keyof typeof newData] && String(newData[key as keyof typeof newData]).trim()) {
-              checked[key] = true;
-            }
-          });
-          setCheckedSections(checked);
+          applyLoadedData(newData);
           emitMedicalRecordTabSaved("physical-exam", false);
         }
 
@@ -477,7 +542,7 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
     };
 
     loadPhysicalExam();
-  }, [visitId]);
+  }, [visitId, useExternalData, externalData]);
 
   const handleChange = (field: string, value: string | number | boolean) => {
     setFormData((prev) => {
@@ -534,7 +599,53 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
     }
   };
 
+  const handleLoadFromTriage = async () => {
+    try {
+      const triageRes = await medicalRecordsApi.getTriage(visitId);
+      const triage = triageRes.data as any;
+      if (!triage?.id) {
+        toast({
+          variant: "destructive",
+          title: "Data triase tidak ditemukan",
+          description: "Belum ada data triase yang bisa dimuat ke pemeriksaan fisik.",
+        });
+        return;
+      }
+
+      const bp = parseBloodPressure(triage.blood_pressure || "");
+      setFormData((prev) => ({
+        ...prev,
+        consciousness: triage.consciousness || prev.consciousness || "",
+        blood_pressure_systolic: bp.systolic || prev.blood_pressure_systolic,
+        blood_pressure_diastolic: bp.diastolic || prev.blood_pressure_diastolic,
+        heart_rate: Number(triage.heart_rate) || prev.heart_rate,
+        respiratory_rate: Number(triage.breathing_rate || triage.respiratory_rate) || prev.respiratory_rate,
+        temperature: Number(triage.temperature) || prev.temperature,
+        oxygen_saturation: Number(triage.oxygen_saturation) || prev.oxygen_saturation,
+        pain_method: triage.pain_method || prev.pain_method || "nrs",
+        pain_scale: Number(triage.pain_scale) || prev.pain_scale,
+        pain_location: triage.pain_location || prev.pain_location || "",
+      }));
+      emitMedicalRecordTabSaved("physical-exam", false);
+      toast({
+        title: "Berhasil",
+        description: "Data triase berhasil dimuat ke pemeriksaan fisik.",
+      });
+    } catch {
+      toast({
+        variant: "destructive",
+        title: "Gagal memuat triase",
+        description: "Terjadi kesalahan saat mengambil data triase.",
+      });
+    }
+  };
+
   const doSave = async () => {
+    if (useExternalData) {
+      onSave?.(formData);
+      return;
+    }
+
     // Log edit if patient is discharged
     if (isPatientDischarged && physicalExamId) {
       try {
@@ -557,7 +668,7 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
     e.preventDefault();
     
     // If patient is discharged, verify PIN before saving
-    if (isPatientDischarged) {
+    if (!useExternalData && isPatientDischarged) {
       requestPINVerification(doSave);
       return;
     }
@@ -606,12 +717,14 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
 
   // Auto-save draft to localStorage on every form change
   useEffect(() => {
+    if (useExternalData) return;
     if (loading) return;
     saveFormDraft(`mr-draft-physical-exam-${visitId}`, { formData, checkedSections });
-  }, [formData, checkedSections, loading, visitId]);
+  }, [formData, checkedSections, loading, visitId, useExternalData]);
 
   // Clear draft when save is confirmed by server
   useEffect(() => {
+    if (useExternalData) return;
     const handler = (e: Event) => {
       const ev = e as CustomEvent<{ tabId: string; saved: boolean }>;
       if (ev.detail?.tabId === "physical-exam" && ev.detail.saved === true) {
@@ -620,10 +733,11 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
     };
     window.addEventListener(MEDICAL_RECORD_TAB_SAVED_EVENT, handler as EventListener);
     return () => window.removeEventListener(MEDICAL_RECORD_TAB_SAVED_EVENT, handler as EventListener);
-  }, [visitId]);
+  }, [visitId, useExternalData]);
 
   // Listen for copy-from-history events
   useEffect(() => {
+    if (useExternalData) return;
     const handler = (e: Event) => {
       const ev = e as CustomEvent<{ section: string; data: any }>;
       if (ev.detail?.section !== "physical-exam" || !ev.detail.data) return;
@@ -686,7 +800,7 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
     };
     window.addEventListener(COPY_FROM_HISTORY_EVENT, handler as EventListener);
     return () => window.removeEventListener(COPY_FROM_HISTORY_EVENT, handler as EventListener);
-  }, []);
+  }, [useExternalData]);
 
   if (loading) {
     return (
@@ -704,17 +818,23 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
   return (
     <div>
       <div>
-            <EditModeBanner
-              isPatientDischarged={isPatientDischarged}
-              isEditing={isEditing}
-              onRequestEdit={handleRequestEdit}
-              recordTypeLabel="Pemeriksaan Fisik"
-            />
-            <form onSubmit={handleSubmit}>
-              <fieldset disabled={isFormDisabled} className="space-y-4 sm:space-y-6">
+            {!useExternalData && (
+              <EditModeBanner
+                isPatientDischarged={isPatientDischarged}
+                isEditing={isEditing}
+                onRequestEdit={handleRequestEdit}
+                recordTypeLabel="Pemeriksaan Fisik"
+              />
+            )}
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <fieldset disabled={isFormDisabled} className="space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11">
             
             {/* Section 1: Kondisi Umum & Tanda Vital */}
-            <div className="space-y-4">
+            <div className="border border-border/70">
+                <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  Kondisi Umum, Vital, dan Antropometri
+                </div>
+                <div className="space-y-7 p-3 sm:p-4">
                 
                 {/* Kondisi Umum */}
                 <div>
@@ -746,9 +866,19 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
 
                 {/* Tanda Vital */}
                 <div>
-                  <h4 className="text-sm font-medium text-muted-foreground mb-3">
-                    Tanda Vital {isEmergency && <span className="text-destructive">*</span>}
-                  </h4>
+                  {isEmergency && !isFormDisabled && (
+                    <div className="mb-3 flex justify-end">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="w-full sm:w-auto"
+                        onClick={handleLoadFromTriage}
+                      >
+                        Ambil Data Triase
+                      </Button>
+                    </div>
+                  )}
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
                     <div className="space-y-1">
                       <Label htmlFor="blood_pressure_systolic" className="text-xs flex flex-wrap items-center gap-1.5 leading-5">
@@ -894,7 +1024,6 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
 
                 {/* Skala Nyeri */}
                 <div>
-                  <h4 className="text-sm font-medium text-muted-foreground mb-3">Skala Nyeri</h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="pain_method" className="text-xs">Metode Penilaian Nyeri</Label>
@@ -1010,7 +1139,6 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
                 {/* Antropometri */}
                 <div>
                   <div className="flex items-center justify-between mb-3">
-                    <h4 className="text-sm font-medium text-muted-foreground">Antropometri</h4>
                     <p className="text-[11px] text-muted-foreground">Input dalam satuan cm/kg</p>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
@@ -1117,10 +1245,15 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
                     </div>
                   </div>
                 </div>
+              </div>
             </div>
 
             {/* Section 2: Pemeriksaan Fisik - Table with Checkbox Column */}
-            <div className="space-y-4">
+            <div className="border border-border/70">
+                <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  Pemeriksaan Fisik Sistemik
+                </div>
+                <div className="space-y-4 p-3 sm:p-4">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                   <div className="flex items-center gap-3"><Badge variant={filledPhysicalExam > 0 ? "default" : "secondary"}>
                       {filledBodySections}/{physicalExamSections.length}
@@ -1209,77 +1342,73 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
                         const value = formData[section.id as keyof typeof formData] as string;
                         
                         return (
-                          <Collapsible key={section.id} open={isExpanded} asChild>
-                            <>
-                              <tr 
-                                className={cn(
-                                  "border-b transition-colors hover:bg-muted/50",
-                                  isChecked && "bg-green-50/50 dark:bg-green-950/10",
-                                  isChecked && "cursor-pointer hover:bg-green-100/50 dark:hover:bg-green-950/20"
+                          <Fragment key={section.id}>
+                            <tr 
+                              className={cn(
+                                "border-b transition-colors hover:bg-muted/50",
+                                isChecked && "bg-green-50/50 dark:bg-green-950/10",
+                                isChecked && "cursor-pointer hover:bg-green-100/50 dark:hover:bg-green-950/20"
+                              )}
+                              onClick={() => isChecked && toggleRowExpand(section.id)}
+                            >
+                              <td className="p-2 align-middle text-center" onClick={(e) => e.stopPropagation()}>
+                                <Checkbox
+                                  id={`check-${section.id}`}
+                                  checked={isChecked}
+                                  onCheckedChange={(checked) => handleCheckSection(section.id, checked as boolean)}
+                                  disabled={isFormDisabled}
+                                />
+                              </td>
+                              <td className="p-4 align-middle font-medium">{section.label}</td>
+                              <td className="p-4 align-middle">
+                                {isChecked ? (
+                                  <span className="text-sm text-muted-foreground line-clamp-1">
+                                    {value || "-"}
+                                  </span>
+                                ) : (
+                                  <span className="text-sm text-muted-foreground/50 italic">
+                                    Belum diperiksa
+                                  </span>
                                 )}
-                                onClick={() => isChecked && toggleRowExpand(section.id)}
-                              >
-                                <td className="p-2 align-middle text-center" onClick={(e) => e.stopPropagation()}>
-                                  <Checkbox
-                                    id={`check-${section.id}`}
-                                    checked={isChecked}
-                                    onCheckedChange={(checked) => handleCheckSection(section.id, checked as boolean)}
-                                    disabled={isFormDisabled}
-                                  />
-                                </td>
-                                <td className="p-4 align-middle font-medium">{section.label}</td>
-                                <td className="p-4 align-middle">
-                                  {isChecked ? (
-                                    <span className="text-sm text-muted-foreground line-clamp-1">
-                                      {value || "-"}
-                                    </span>
-                                  ) : (
-                                    <span className="text-sm text-muted-foreground/50 italic">
-                                      Belum diperiksa
-                                    </span>
-                                  )}
-                                </td>
-                                <td className="p-2 align-middle">
-                                  {isChecked && (
-                                    <CollapsibleTrigger asChild>
-                                      <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-8 w-8 p-0"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          toggleRowExpand(section.id);
-                                        }}
-                                      >
-                                        {isExpanded ? (
-                                          <ChevronUp className="h-4 w-4" />
-                                        ) : (
-                                          <ChevronDown className="h-4 w-4" />
-                                        )}
-                                      </Button>
-                                    </CollapsibleTrigger>
-                                  )}
+                              </td>
+                              <td className="p-2 align-middle">
+                                {isChecked && (
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 p-0"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleRowExpand(section.id);
+                                    }}
+                                  >
+                                    {isExpanded ? (
+                                      <ChevronUp className="h-4 w-4" />
+                                    ) : (
+                                      <ChevronDown className="h-4 w-4" />
+                                    )}
+                                  </Button>
+                                )}
+                              </td>
+                            </tr>
+                            {isExpanded && (
+                              <tr>
+                                <td colSpan={4} className="p-0">
+                                  <div className="px-4 py-3 bg-muted/30 border-t">
+                                    <Textarea
+                                      id={section.id}
+                                      placeholder={`Hasil pemeriksaan ${section.label.toLowerCase()}...`}
+                                      value={value || ""}
+                                      onChange={(e) => handleChange(section.id, e.target.value)}
+                                      className="min-h-[80px] resize-none text-sm"
+                                      disabled={isFormDisabled}
+                                    />
+                                  </div>
                                 </td>
                               </tr>
-                              <CollapsibleContent asChild>
-                                <tr>
-                                  <td colSpan={4} className="p-0">
-                                    <div className="px-4 py-3 bg-muted/30 border-t">
-                                      <Textarea
-                                        id={section.id}
-                                        placeholder={`Hasil pemeriksaan ${section.label.toLowerCase()}...`}
-                                        value={value || ""}
-                                        onChange={(e) => handleChange(section.id, e.target.value)}
-                                        className="min-h-[80px] resize-none text-sm"
-                                        disabled={isFormDisabled}
-                                      />
-                                    </div>
-                                  </td>
-                                </tr>
-                              </CollapsibleContent>
-                            </>
-                          </Collapsible>
+                            )}
+                          </Fragment>
                         );
                       })}
                     </tbody>
@@ -1288,7 +1417,7 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
                 </div>
                 
                 {/* Temuan Lain */}
-                <div className="p-4 border-t">
+                <div className="pt-4">
                   <Label htmlFor="other_findings" className="text-sm font-medium">Temuan Lain</Label>
                   <Textarea
                     id="other_findings"
@@ -1298,10 +1427,15 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
                     className="mt-2 min-h-[60px] resize-none"
                   />
                 </div>
+                </div>
             </div>
 
             {/* Section 3: Pemeriksaan Penunjang - Table with Checkbox Column */}
-            <div className="space-y-4">
+            <div className="border border-border/70">
+                <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  Pemeriksaan Penunjang Terkait
+                </div>
+                <div className="space-y-4 p-3 sm:p-4">
                 <div className="flex items-center gap-3"><Badge variant={formData.ecg_performed || formData.ctg_performed || formData.pelvic_performed ? "default" : "secondary"}>
                     {(formData.ecg_performed ? 1 : 0) + (formData.ctg_performed ? 1 : 0) + (formData.pelvic_performed ? 1 : 0)}/3
                   </Badge>
@@ -1439,8 +1573,7 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
                     </thead>
                     <tbody className="[&_tr:last-child]:border-0">
                       {/* ECG Row */}
-                      <Collapsible open={expandedRows.ecg} asChild>
-                        <>
+                      <>
                           <tr 
                             className={cn(
                               "border-b transition-colors hover:bg-muted/50",
@@ -1505,7 +1638,6 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
                             </td>
                             <td className="p-2 align-middle">
                               {formData.ecg_performed && (
-                                <CollapsibleTrigger asChild>
                                   <Button
                                     type="button"
                                     variant="ghost"
@@ -1522,11 +1654,10 @@ export function PhysicalExamForm({ visitId, onSave, isEmergency = false, readOnl
                                       <ChevronDown className="h-4 w-4" />
                                     )}
                                   </Button>
-                                </CollapsibleTrigger>
                               )}
                             </td>
                           </tr>
-                          <CollapsibleContent asChild>
+                          {expandedRows.ecg && (
                             <tr>
                               <td colSpan={4} className="p-0">
                                 <div className="px-4 py-3 bg-muted/30 border-t space-y-4">
@@ -1577,13 +1708,11 @@ Kesimpulan: EKG dalam batas normal`}
                                 </div>
                               </td>
                             </tr>
-                          </CollapsibleContent>
+                          )}
                         </>
-                      </Collapsible>
 
                       {/* Pelvis Row */}
-                      <Collapsible open={expandedRows.pelvic} asChild>
-                        <>
+                      <>
                           <tr 
                             className={cn(
                               "border-b transition-colors hover:bg-muted/50",
@@ -1634,7 +1763,6 @@ Kesimpulan: EKG dalam batas normal`}
                             </td>
                             <td className="p-2 align-middle">
                               {formData.pelvic_performed && (
-                                <CollapsibleTrigger asChild>
                                   <Button
                                     type="button"
                                     variant="ghost"
@@ -1651,11 +1779,10 @@ Kesimpulan: EKG dalam batas normal`}
                                       <ChevronDown className="h-4 w-4" />
                                     )}
                                   </Button>
-                                </CollapsibleTrigger>
                               )}
                             </td>
                           </tr>
-                          <CollapsibleContent asChild>
+                          {expandedRows.pelvic && (
                             <tr>
                               <td colSpan={4} className="p-0">
                                 <div className="px-4 py-3 bg-muted/30 border-t space-y-4">
@@ -1687,13 +1814,11 @@ Kesimpulan: EKG dalam batas normal`}
                                 </div>
                               </td>
                             </tr>
-                          </CollapsibleContent>
+                          )}
                         </>
-                      </Collapsible>
 
                       {/* CTG Row */}
-                      <Collapsible open={expandedRows.ctg} asChild>
-                        <>
+                      <>
                           <tr 
                             className={cn(
                               "border-b transition-colors hover:bg-muted/50",
@@ -1758,7 +1883,6 @@ Kesimpulan: EKG dalam batas normal`}
                             </td>
                             <td className="p-2 align-middle">
                               {formData.ctg_performed && (
-                                <CollapsibleTrigger asChild>
                                   <Button
                                     type="button"
                                     variant="ghost"
@@ -1775,11 +1899,10 @@ Kesimpulan: EKG dalam batas normal`}
                                       <ChevronDown className="h-4 w-4" />
                                     )}
                                   </Button>
-                                </CollapsibleTrigger>
                               )}
                             </td>
                           </tr>
-                          <CollapsibleContent asChild>
+                          {expandedRows.ctg && (
                             <tr>
                               <td colSpan={4} className="p-0">
                                 <div className="px-4 py-3 bg-muted/30 border-t space-y-4">
@@ -1822,9 +1945,8 @@ Kesimpulan: EKG dalam batas normal`}
                                 </div>
                               </td>
                             </tr>
-                          </CollapsibleContent>
+                          )}
                         </>
-                      </Collapsible>
                     </tbody>
                   </table>
                 </div>
@@ -1834,7 +1956,8 @@ Kesimpulan: EKG dalam batas normal`}
                     * Pemeriksaan penunjang lainnya (EEG, USG, dll) akan ditambahkan kemudian
                   </p>
                 </div>
-            </div>
+                </div>
+              </div>
 
             {/* Submit Button */}
             {!isFormDisabled && (
@@ -1848,23 +1971,27 @@ Kesimpulan: EKG dalam batas normal`}
           </fieldset>
         </form>
       </div>
-      <EditConfirmDialog
-        open={showEditDialog}
-        onOpenChange={setShowEditDialog}
-        editReason={editReason}
-        onEditReasonChange={setEditReason}
-        onConfirm={handleConfirmEdit}
-      />
-      <PINVerificationDialog
-        open={showPINDialog}
-        onOpenChange={setShowPINDialog}
-        pin={pin}
-        verifying={verifyingPIN}
-        pinInputRefs={pinInputRefs}
-        onPINChange={handlePINChange}
-        onPINKeyDown={handlePINKeyDown}
-        onVerify={handleVerifyPIN}
-      />
+      {!useExternalData && (
+        <>
+          <EditConfirmDialog
+            open={showEditDialog}
+            onOpenChange={setShowEditDialog}
+            editReason={editReason}
+            onEditReasonChange={setEditReason}
+            onConfirm={handleConfirmEdit}
+          />
+          <PINVerificationDialog
+            open={showPINDialog}
+            onOpenChange={setShowPINDialog}
+            pin={pin}
+            verifying={verifyingPIN}
+            pinInputRefs={pinInputRefs}
+            onPINChange={handlePINChange}
+            onPINKeyDown={handlePINKeyDown}
+            onVerify={handleVerifyPIN}
+          />
+        </>
+      )}
     </div>
   );
 }

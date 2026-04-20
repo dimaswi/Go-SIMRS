@@ -189,6 +189,8 @@ export function SuratForm({ visitId, readOnly = false }: SuratFormProps) {
     setLetterCounts((prev) => ({ ...prev, [type]: count }));
   };
 
+  const totalLetters = Object.values(letterCounts).reduce((total, count) => total + count, 0);
+
   if (loadingCounts) {
     return (
       <div className="flex items-center justify-center h-48">
@@ -201,111 +203,136 @@ export function SuratForm({ visitId, readOnly = false }: SuratFormProps) {
   if (!selectedType) {
     return (
       <div className="space-y-3">
-        <div className="flex items-center gap-2">
-          <Label className="text-sm font-semibold">Pilih Jenis Surat</Label>
+        <div className="rounded-lg border border-border/70 bg-muted/20 px-3 py-3 sm:px-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-foreground">Surat</p>
+              <p className="text-xs text-muted-foreground">Pilih jenis surat yang akan dibuat atau ditinjau untuk kunjungan ini.</p>
+            </div>
+            <Badge variant="outline">Total Surat: {totalLetters}</Badge>
+          </div>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-          {letterTypes.map((lt) => {
-            const count = letterCounts[lt.id] || 0;
-            return (
-              <button
-                key={lt.id}
-                type="button"
-                onClick={() => setSelectedType(lt.id)}
-                className={cn(
-                  "p-4 rounded-lg border-2 text-left transition-all flex flex-col gap-2 group",
-                  "border-muted hover:border-primary/50 hover:bg-muted/30"
-                )}
-              >
-                <div className="flex items-center justify-between text-muted-foreground">
-                  <div className="flex items-center gap-2">
-                    {lt.icon}
-                    <span className="font-semibold text-sm">{lt.label}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    {count > 0 && (
-                      <Badge variant="secondary" className="h-5 px-1.5 text-xs">
-                        {count}
-                      </Badge>
+
+        <div className="rounded-lg border border-border/70 bg-background overflow-hidden">
+          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            Pilih Jenis Surat
+          </div>
+          <div className="p-3 sm:p-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+              {letterTypes.map((lt) => {
+                const count = letterCounts[lt.id] || 0;
+                return (
+                  <button
+                    key={lt.id}
+                    type="button"
+                    onClick={() => setSelectedType(lt.id)}
+                    className={cn(
+                      "p-4 rounded-lg border-2 text-left transition-all flex flex-col gap-2 group",
+                      "border-muted hover:border-primary/50 hover:bg-muted/30"
                     )}
-                    <ArrowRight className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </div>
-                </div>
-                <p className="text-xs text-muted-foreground">{lt.description}</p>
-              </button>
-            );
-          })}
+                  >
+                    <div className="flex items-center justify-between text-muted-foreground">
+                      <div className="flex items-center gap-2">
+                        {lt.icon}
+                        <span className="font-semibold text-sm">{lt.label}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        {count > 0 && (
+                          <Badge variant="secondary" className="h-5 px-1.5 text-xs">
+                            {count}
+                          </Badge>
+                        )}
+                        <ArrowRight className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{lt.description}</p>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </div>
     );
   }
 
   const selectedTypeInfo = letterTypes.find((lt) => lt.id === selectedType)!;
+  const selectedCount = letterCounts[selectedType] || 0;
 
   return (
-    <div>
-      {/* Header with back button */}
-      <div className="flex items-center gap-2 mb-4 pb-3 border-b">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setSelectedType(null)}
-          className="gap-1 -ml-2"
-        >
-          <ChevronLeft className="h-4 w-4" />
-          Kembali
-        </Button>
-        <div className="flex items-center gap-2">
-          <span className="p-1 rounded">
-            {selectedTypeInfo.icon}
-          </span>
-          <span className="font-medium">{selectedTypeInfo.label}</span>
+    <div className="space-y-3">
+      <div className="rounded-lg border border-border/70 bg-muted/20 px-3 py-3 sm:px-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSelectedType(null)}
+              className="gap-1 -ml-2"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Kembali
+            </Button>
+            <div className="h-5 w-px bg-border" />
+            <span className="p-1 rounded text-muted-foreground">{selectedTypeInfo.icon}</span>
+            <div>
+              <p className="text-sm font-semibold text-foreground">{selectedTypeInfo.label}</p>
+              <p className="text-xs text-muted-foreground">Total dokumen: {selectedCount}</p>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Render appropriate form */}
-      {selectedType === "sick-letter" && (
-        <SickLetterSubForm
-          visitId={visitId}
-          readOnly={readOnly}
-          onCountChange={(c) => handleCountUpdate("sick-letter", c)}
-        />
-      )}
-      {selectedType === "health-certificate" && (
-        <HealthCertificateSubForm
-          visitId={visitId}
-          readOnly={readOnly}
-          onCountChange={(c) => handleCountUpdate("health-certificate", c)}
-        />
-      )}
-      {selectedType === "birth-certificate" && (
-        <BirthCertificateSubForm
-          visitId={visitId}
-          readOnly={readOnly}
-          onCountChange={(c) => handleCountUpdate("birth-certificate", c)}
-        />
-      )}
-      {selectedType === "leave-certificate" && (
-        <LeaveCertificateSubForm
-          visitId={visitId}
-          readOnly={readOnly}
-          onCountChange={(c) => handleCountUpdate("leave-certificate", c)}
-        />
-      )}
-      {selectedType === "mcu-certificate" && (
-        <MCUCertificateSubForm
-          visitId={visitId}
-          readOnly={readOnly}
-          onCountChange={(c) => handleCountUpdate("mcu-certificate", c)}
-        />
-      )}
-      {selectedType === "death-certificate" && (
-        <DeathCertificateSubFormWrapper
-          visitId={visitId}
-          readOnly={readOnly}
-          onCountChange={(c) => handleCountUpdate("death-certificate", c)}
-        />
-      )}
+      <div className="rounded-lg border border-border/70 bg-background overflow-hidden">
+        <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+          Form Surat
+        </div>
+        <div className="p-3 sm:p-4">
+          {/* Render appropriate form */}
+          {selectedType === "sick-letter" && (
+            <SickLetterSubForm
+              visitId={visitId}
+              readOnly={readOnly}
+              onCountChange={(c) => handleCountUpdate("sick-letter", c)}
+            />
+          )}
+          {selectedType === "health-certificate" && (
+            <HealthCertificateSubForm
+              visitId={visitId}
+              readOnly={readOnly}
+              onCountChange={(c) => handleCountUpdate("health-certificate", c)}
+            />
+          )}
+          {selectedType === "birth-certificate" && (
+            <BirthCertificateSubForm
+              visitId={visitId}
+              readOnly={readOnly}
+              onCountChange={(c) => handleCountUpdate("birth-certificate", c)}
+            />
+          )}
+          {selectedType === "leave-certificate" && (
+            <LeaveCertificateSubForm
+              visitId={visitId}
+              readOnly={readOnly}
+              onCountChange={(c) => handleCountUpdate("leave-certificate", c)}
+            />
+          )}
+          {selectedType === "mcu-certificate" && (
+            <MCUCertificateSubForm
+              visitId={visitId}
+              readOnly={readOnly}
+              onCountChange={(c) => handleCountUpdate("mcu-certificate", c)}
+            />
+          )}
+          {selectedType === "death-certificate" && (
+            <DeathCertificateSubFormWrapper
+              visitId={visitId}
+              readOnly={readOnly}
+              onCountChange={(c) => handleCountUpdate("death-certificate", c)}
+            />
+          )}
+        </div>
+      </div>
     </div>
   );
 }

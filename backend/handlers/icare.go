@@ -50,7 +50,7 @@ func ICareValidate(c *gin.Context) {
 	if err := database.DB.Where("employee_id = ? AND is_active = ?", *visit.DoctorID, true).
 		First(&doctorMapping).Error; err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": fmt.Sprintf("Dokter belum di-mapping ke BPJS. Silakan mapping dokter di menu Integrasi > BPJS > Mapping Dokter."),
+			"error": "Dokter belum di-mapping ke BPJS. Silakan mapping dokter di menu Integrasi > BPJS > Mapping Dokter.",
 		})
 		return
 	}

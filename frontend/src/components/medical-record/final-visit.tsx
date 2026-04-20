@@ -9,8 +9,11 @@ import {
   AlertCircle,
   XCircle,
 } from "lucide-react";
-import { visitsApi, medicineOrdersApi, procedureOrdersApi, medicalRecordsApi } from "@/lib/api";
+import { visitsApi, medicineOrdersApi, procedureOrdersApi, medicalRecordsApi, visitProceduresApi } from "@/lib/api";
 import type { MedicineOrder, ProcedureOrder } from "@/lib/api";
+import type { MedicalRecordSummary } from "@/lib/api/medical-records";
+
+const FOOTER_ACTION_EVENT = "medical-record-footer-action";
 
 interface FinalVisitProps {
   visitId: number;
@@ -39,6 +42,23 @@ export function FinalVisit({ visitId, type, onVisitUpdate }: FinalVisitProps) {
 
   const permission = type === "pharmacy" ? "pharmacy.final" : "procedure_orders.final";
 
+  const getFooterTabId = () => {
+    switch (type) {
+      case "pharmacy":
+        return "pharmacy-final";
+      case "radiology":
+        return "radiology-final";
+      case "laboratory":
+        return "laboratory-final";
+      case "consultation":
+        return "consultation-final";
+      case "surgery":
+        return "surgery-final";
+      default:
+        return "";
+    }
+  };
+
   useEffect(() => {
     loadData();
   }, [visitId, type]);
@@ -57,6 +77,24 @@ export function FinalVisit({ visitId, type, onVisitUpdate }: FinalVisitProps) {
     };
   }, [visitId, type]);
 
+  useEffect(() => {
+    const handleFooterAction = (event: Event) => {
+      const customEvent = event as CustomEvent<{
+        tabId: string;
+        action: "save" | "final";
+        handled: boolean;
+      }>;
+      if (customEvent.detail?.tabId !== getFooterTabId()) return;
+      customEvent.detail.handled = true;
+      void handleFinalize();
+    };
+
+    window.addEventListener(FOOTER_ACTION_EVENT, handleFooterAction as EventListener);
+    return () => {
+      window.removeEventListener(FOOTER_ACTION_EVENT, handleFooterAction as EventListener);
+    };
+  }, [type, submitting, canFinalize, isFinal, permission, visit]);
+
   const loadData = async () => {
     setLoading(true);
     try {
@@ -72,25 +110,37 @@ export function FinalVisit({ visitId, type, onVisitUpdate }: FinalVisitProps) {
       if (type === "pharmacy") {
         const ordersRes = await medicineOrdersApi.getAll({ pharmacy_visit_id: visitId });
         const ordersData = ordersRes.data || [];
-        setOrders(ordersData);
-        
-        // Can finalize if all orders are delivered/cancelled/returned
-        // OR if all items in each order are cancelled/delivered
-        const allDelivered = ordersData.length > 0 && 
-          ordersData.every((o: MedicineOrder) => {
-            // Order sudah delivered/cancelled/returned
+        if (ordersData.length > 0) {
+          setOrders(ordersData);
+
+          // Can finalize if all orders are delivered/cancelled/returned
+          // OR if all items in each order are cancelled/delivered
+          const allDelivered = ordersData.every((o: MedicineOrder) => {
             if (o.status === "delivered" || o.status === "cancelled" || o.status === "returned") {
               return true;
             }
-            // Cek jika semua item sudah cancelled atau delivered
             if (o.items && o.items.length > 0) {
-              return o.items.every((item: any) => 
+              return o.items.every((item: any) =>
                 item.status === "cancelled" || item.status === "delivered"
               );
             }
             return false;
           });
-        setCanFinalize(allDelivered);
+          setCanFinalize(allDelivered);
+        } else {
+          const mrRes = await medicalRecordsApi.get(visitId);
+          const summary = mrRes.data as MedicalRecordSummary;
+          const directItems = (summary.visit_medicine_items || []).filter((item) => item.status !== "cancelled");
+
+          setOrders(
+            directItems.map((item) => ({
+              id: item.id,
+              order_number: item.medicine?.name || "Obat",
+              status: item.status || "recorded",
+            }))
+          );
+          setCanFinalize(directItems.length > 0);
+        }
       } else if (type === "consultation") {
         // Consultation - primary source: consultation procedure order status
         try {
@@ -134,15 +184,39 @@ export function FinalVisit({ visitId, type, onVisitUpdate }: FinalVisitProps) {
         const procedureType = type === "radiology" ? "radiology" : "laboratory";
         const ordersRes = await procedureOrdersApi.getAll({ target_visit_id: visitId, order_type: procedureType });
         const ordersData = ordersRes.data || [];
-        setOrders(ordersData);
-        
-        // Can finalize if all orders are completed or have results
-        const allCompleted = ordersData.length > 0 && 
-          ordersData.every((o: ProcedureOrder) => 
+        if (ordersData.length > 0) {
+          setOrders(ordersData);
+
+          // Can finalize if all orders are completed or have results
+          const allCompleted = ordersData.every((o: ProcedureOrder) =>
             o.status === "completed" || o.status === "cancelled" ||
-            (o.items && o.items.every(item => item.status === "completed"))
+            (o.items && o.items.every(item => item.status === "completed" || item.status === "cancelled"))
           );
-        setCanFinalize(allCompleted);
+          setCanFinalize(allCompleted);
+        } else {
+          const proceduresRes = await visitProceduresApi.getAll(visitId);
+          const directProcedures = (proceduresRes.data?.data || []).filter((item) => {
+            if (item.status === "cancelled") {
+              return false;
+            }
+            if (type === "radiology") {
+              return item.procedure?.procedure_type === "radiology";
+            }
+            return item.procedure?.procedure_type === "laboratory";
+          });
+
+          setOrders(
+            directProcedures.map((item) => ({
+              id: item.id,
+              order_number: item.procedure?.name || "Pemeriksaan",
+              status: item.status,
+            }))
+          );
+          setCanFinalize(
+            directProcedures.length > 0 &&
+              directProcedures.every((item) => item.status === "completed" || item.status === "cancelled")
+          );
+        }
       }
     } catch (error) {
       console.error("Error loading data:", error);
@@ -157,6 +231,27 @@ export function FinalVisit({ visitId, type, onVisitUpdate }: FinalVisitProps) {
   };
 
   const handleFinalize = async () => {
+    if (submitting) return;
+    if (isFinal) {
+      toast({
+        title: "Info",
+        description: "Kunjungan sudah berstatus selesai.",
+      });
+      return;
+    }
+    if (!canFinalize) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description:
+          type === "pharmacy"
+            ? "Semua obat harus diserahkan sebelum dapat menyelesaikan kunjungan"
+            : type === "consultation"
+            ? "Konsultasi harus dijawab sebelum dapat menyelesaikan kunjungan"
+            : "Semua tindakan harus selesai sebelum dapat menyelesaikan kunjungan",
+      });
+      return;
+    }
     if (!hasPermission(permission)) {
       toast({
         variant: "destructive",
@@ -243,11 +338,11 @@ export function FinalVisit({ visitId, type, onVisitUpdate }: FinalVisitProps) {
   const getTypeLabel = () => {
     switch (type) {
       case "pharmacy":
-        return "Farmasi";
+        return "Order Farmasi";
       case "radiology":
-        return "Radiologi";
+        return "Order Radiologi";
       case "laboratory":
-        return "Laboratorium";
+        return "Order Laboratorium";
       case "consultation":
         return "Konsultasi";
     }
@@ -341,24 +436,9 @@ export function FinalVisit({ visitId, type, onVisitUpdate }: FinalVisitProps) {
                 </span>
               </div>
             )}
-
-            <Button
-              className="w-full"
-              onClick={handleFinalize}
-              disabled={submitting || !canFinalize || !hasPermission(permission)}
-            >
-              {submitting ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Memproses...
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 className="h-4 w-4 mr-2" />
-                  Selesaikan Kunjungan {getTypeLabel()}
-                </>
-              )}
-            </Button>
+            <div className="rounded border border-dashed px-3 py-2 text-sm text-muted-foreground">
+              Gunakan tombol Final di footer untuk menyelesaikan kunjungan {getTypeLabel()}.
+            </div>
           </>
         )}
 

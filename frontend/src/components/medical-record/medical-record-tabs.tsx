@@ -28,6 +28,7 @@ import {
   Repeat,
   ChevronLeft,
   ChevronRight,
+  Clock3,
 } from "lucide-react";
 
 interface Tab {
@@ -41,6 +42,7 @@ interface Tab {
 interface MedicalRecordTabsProps {
   activeTab: string;
   onTabChange: (tabId: string) => void;
+  layout?: "horizontal" | "vertical";
   indicators?: Record<string, string>;
   savedStates?: Record<string, boolean>;
   isEmergency?: boolean;
@@ -58,6 +60,7 @@ type TabIndicatorStatus = "empty" | "progress" | "complete" | "neutral";
 export function MedicalRecordTabs({
   activeTab,
   onTabChange,
+  layout = "horizontal",
   indicators = {},
   savedStates = {},
   isEmergency = false,
@@ -255,6 +258,13 @@ export function MedicalRecordTabs({
       icon: <Pill />,
       permission: "medical_records.medicine_order",
       section: "order",
+    },
+    {
+      id: "medicine-timesheet",
+      label: "Timesheet Obat",
+      icon: <Clock3 />,
+      permission: "medical_records.medicine_order",
+      section: "care",
     },
     // Procedure tab - show for clinical visits (rawat_jalan, rawat_inap, gawat_darurat)
     ...(showProcedureTab ? [{
@@ -479,6 +489,15 @@ export function MedicalRecordTabs({
   }, [legacyTabOrderKey, normalizeOrder, tabIds, tabOrderStorageMode, userScopedTabOrderKey]);
 
   const orderedTabs = useMemo(() => orderTabIds(tabs, tabOrder), [orderTabIds, tabs, tabOrder]);
+  const groupedTabs = useMemo(() => {
+    const groups = new Map<string, Tab[]>();
+    orderedTabs.forEach((tab) => {
+      const existing = groups.get(tab.section) || [];
+      existing.push(tab);
+      groups.set(tab.section, existing);
+    });
+    return Array.from(groups.entries());
+  }, [orderedTabs]);
 
   const getIndicatorStatus = (value?: string): TabIndicatorStatus => {
     if (!value) {
@@ -518,17 +537,19 @@ export function MedicalRecordTabs({
     return "progress";
   };
 
-  const getTabStatusClass = (status: TabIndicatorStatus, isActive: boolean) => {
+  const getTabStatusClass = (status: TabIndicatorStatus, isActive: boolean, hasFractionIndicator: boolean) => {
+    if (!hasFractionIndicator) {
+      return isActive ? "text-primary" : "text-muted-foreground hover:text-foreground";
+    }
+
     if (isActive) {
       if (status === "complete") return "text-green-600";
       if (status === "progress") return "text-amber-600";
-      if (status === "empty") return "text-red-600";
       return "text-primary";
     }
 
     if (status === "complete") return "text-green-600";
     if (status === "progress") return "text-amber-600";
-    if (status === "empty") return "text-red-600";
     return "text-muted-foreground hover:text-foreground";
   };
 
@@ -687,183 +708,293 @@ export function MedicalRecordTabs({
         const next = el.getBoundingClientRect();
         const dx = previous.left - next.left;
         const dy = previous.top - next.top;
-        if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
 
-        el.animate(
-          [
-            { transform: `translate(${dx}px, ${dy}px)` },
-            { transform: "translate(0, 0)" },
-          ],
-          {
-            duration: 220,
-            easing: "cubic-bezier(0.22, 1, 0.36, 1)",
-          }
-        );
+        if (dx !== 0 || dy !== 0) {
+          el.style.transform = `translate(${dx}px, ${dy}px)`;
+          el.style.transition = "transform 0s";
+
+          requestAnimationFrame(() => {
+            el.style.transform = "";
+            el.style.transition = "transform 250ms cubic-bezier(0.2, 0, 0, 1)";
+          });
+        }
       });
     });
   };
 
-  return (
-    <nav className="medical-record-tabs">
-      <div className="flex h-10 items-center gap-1 rounded-md border bg-background p-1 shadow-sm">
+  const handleDragStart = (event: React.DragEvent<HTMLButtonElement>, tabId: string) => {
+    setDraggingTabId(tabId);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", tabId);
+
+    // Use a transparent drag image to avoid the default browser "ghost" image.
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 1;
+    const ctx = canvas.getContext("2d");
+    if (ctx) ctx.clearRect(0, 0, 1, 1);
+    event.dataTransfer.setDragImage(canvas, 0, 0);
+  };
+
+  const handleDragOverTab = (event: React.DragEvent<HTMLButtonElement>, tabId: string) => {
+    if (!draggingTabId || draggingTabId === tabId) return;
+    event.preventDefault();
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    const midpoint = layout === "horizontal" ? rect.left + rect.width / 2 : rect.top + rect.height / 2;
+    const position = (layout === "horizontal" ? event.clientX : event.clientY) > midpoint ? "after" : "before";
+
+    if (tabId !== dragOverTabId || position !== dragOverPosition) {
+      setDragOverTabId(tabId);
+      setDragOverPosition(position);
+    }
+  };
+
+  const handleDragEnd = () => {
+    setDraggingTabId(null);
+    setDragOverTabId(null);
+    setDragOverPosition("before");
+  };
+
+  const renderTab = (tab: Tab) => {
+    const isActive = activeTab === tab.id;
+    const indicatorValue = indicators[tab.id];
+    const indicatorStatus = getIndicatorStatus(indicatorValue);
+    const hasFractionIndicator = Boolean(indicatorValue?.replace(/\s+/g, "").includes("/"));
+    const isSaved = savedStates[tab.id];
+    const isDraggingThis = draggingTabId === tab.id;
+    const isDragOverThis = dragOverTabId === tab.id;
+
+    const indicatorClass = (() => {
+      if (!hasFractionIndicator) {
+        return isActive ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground";
+      }
+
+      if (indicatorStatus === "complete") {
+        return "bg-green-100 text-green-700";
+      }
+
+      if (indicatorStatus === "progress") {
+        return "bg-amber-100 text-amber-700";
+      }
+
+      return isActive ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground";
+    })();
+
+    const tabStatusIcon = (() => {
+      if (hasFractionIndicator) {
+        if (indicatorStatus === "complete") {
+          return <Check className="h-4 w-4" />;
+        }
+        if (indicatorStatus === "progress") {
+          return <Clock3 className="h-4 w-4" />;
+        }
+      }
+      return isSaved ? <Check className="h-4 w-4" /> : tab.icon;
+    })();
+
+    const iconClass = (() => {
+      if (hasFractionIndicator) {
+        if (indicatorStatus === "complete") {
+          return "bg-green-100 text-green-700";
+        }
+        if (indicatorStatus === "progress") {
+          return "bg-amber-100 text-amber-700";
+        }
+      }
+      return isActive ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground";
+    })();
+
+    const tabContent = (
+      <>
+        <div className="flex min-w-0 flex-1 items-center gap-2.5">
+          <div
+            className={cn(
+              "flex h-6 w-6 items-center justify-center rounded-md [&>svg]:h-4 [&>svg]:w-4",
+              iconClass,
+            )}
+          >
+            {tabStatusIcon}
+          </div>
+          <span className="truncate text-left text-[13px] leading-tight" title={tab.label}>{tab.label}</span>
+        </div>
+        {indicatorValue && (
+          <span
+            className={cn(
+              "ml-auto shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium",
+              indicatorClass,
+            )}
+          >
+            {indicatorValue}
+          </span>
+        )}
+      </>
+    );
+
+    return (
+      <div
+        key={tab.id}
+        className={cn(
+          "relative",
+          isDraggingThis && "opacity-40",
+          isDragOverThis && dragOverPosition === "before" && (layout === "horizontal" ? "border-l-2 border-primary" : "border-t-2 border-primary"),
+          isDragOverThis && dragOverPosition === "after" && (layout === "horizontal" ? "border-r-2 border-primary" : "border-b-2 border-primary"),
+        )}
+      >
         <button
-          type="button"
-          onClick={() => handleScrollTabs("left")}
-          disabled={!canScrollLeft}
-          className={cn(
-            "shrink-0 self-center rounded-md p-1 transition-colors",
-            canScrollLeft
-              ? "text-foreground hover:bg-accent"
-              : "text-muted-foreground/40"
-          )}
-          aria-label="Geser tab ke kiri"
-        >
-          <ChevronLeft className="h-4 w-4 text-muted-foreground" />
-        </button>
-
-        <div
-          ref={tabScrollRef}
-          onWheel={handleWheelScrollTabs}
-          onDragOver={handleContainerDragOver}
-          onDragLeave={(event) => {
-            if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
-            setDragOverTabId(null);
+          data-tab-id={tab.id}
+          onClick={() => onTabChange(tab.id)}
+          draggable
+          onDragStart={(e) => handleDragStart(e, tab.id)}
+          onDragOver={(e) => handleDragOverTab(e, tab.id)}
+          onDragEnd={handleDragEnd}
+          onDrop={(e) => {
+            e.preventDefault();
+            const droppedTabId = e.dataTransfer.getData("text/plain");
+            if (droppedTabId) {
+              handleDropOnTab(tab.id, dragOverPosition);
+            }
           }}
-          className="flex-1 overflow-x-auto overscroll-contain"
+          className={cn(
+            "flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+            isActive
+              ? "bg-primary/10 font-semibold text-primary"
+              : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+          )}
         >
-          <div className="flex min-w-max items-center gap-1 px-0.5">
-            {orderedTabs.map((tab) => {
-              const isActive = activeTab === tab.id;
-              const indicatorValue = indicators[tab.id];
-              const indicatorStatus = getIndicatorStatus(indicatorValue);
-              const isOrderTab = ["medicine-order", "radiology-order", "laboratory-order", "consultation-order", "surgery-order"].includes(tab.id);
-              const effectiveStatus = isOrderTab ? "neutral" : indicatorStatus;
-              const savedState = savedStates[tab.id]; // true=saved, false=unsaved, undefined=untouched
+          {tabContent}
+        </button>
+      </div>
+    );
+  };
 
-              return (
-              <button
-                key={tab.id}
-                type="button"
-                data-tab-id={tab.id}
-                draggable
-                onDragStart={(event) => {
-                  setDraggingTabId(tab.id);
-                  setDragOverTabId(null);
-                  setDragOverPosition("before");
-                  event.dataTransfer.effectAllowed = "move";
-                }}
-                onDragEnd={() => {
-                  setDraggingTabId(null);
-                  setDragOverTabId(null);
-                  setDragOverPosition("before");
-                }}
-                onDragOver={(event) => {
-                  event.preventDefault();
-                  event.dataTransfer.dropEffect = "move";
-                  if (draggingTabId && draggingTabId !== tab.id) {
-                    setDragOverTabId(tab.id);
-                    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-                    const isAfter = event.clientX > rect.left + rect.width / 2;
-                    setDragOverPosition(isAfter ? "after" : "before");
-                  }
-                }}
-                onDragLeave={() => {
-                  if (dragOverTabId === tab.id) {
-                    setDragOverTabId(null);
-                  }
-                }}
-                onDrop={() => handleDropOnTab(tab.id, dragOverPosition)}
-                onClick={() => onTabChange(tab.id)}
-                className={cn(
-                  "group relative inline-flex h-9 sm:h-8 min-w-fit cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-md px-3 sm:px-2.5 text-[13px] sm:text-xs font-medium transition-[color,background-color,opacity,transform,box-shadow] duration-200",
-                  isActive
-                    ? "bg-background text-foreground shadow"
-                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-                  draggingTabId === tab.id && "z-20 scale-105 -translate-y-0.5 bg-background text-foreground shadow-lg ring-2 ring-orange-500/60 opacity-45",
-                  dragOverTabId === tab.id && draggingTabId !== tab.id && "ring-2 ring-orange-500/80 bg-orange-100/60",
-                  dragOverTabId === tab.id && draggingTabId !== tab.id && dragOverPosition === "before" && "translate-x-1",
-                  dragOverTabId === tab.id && draggingTabId !== tab.id && dragOverPosition === "after" && "-translate-x-1",
-                  getTabStatusClass(effectiveStatus, isActive)
-                )}
-                title="Klik untuk buka tab"
-              >
-                {dragOverTabId === tab.id && draggingTabId !== tab.id && (
-                  <span
-                    className={cn(
-                      "pointer-events-none absolute inset-y-0.5 w-1 rounded-full bg-orange-600 animate-pulse shadow-[0_0_0_1px_rgba(255,255,255,0.55),0_0_12px_rgba(234,88,12,0.95)]",
-                      dragOverPosition === "before" ? "left-0" : "right-0"
-                    )}
-                  />
-                )}
-                <div className="relative [&>svg]:h-3.5 [&>svg]:w-3.5">
-                  {tab.icon}
-                  {savedState === false && (
-                    <span className="absolute -right-1.5 -top-1 h-1.5 w-1.5 rounded-full bg-amber-500" />
-                  )}
-                  {savedState === true && (
-                    <span className="absolute -right-1.5 -top-1 flex h-3 w-3 items-center justify-center rounded-full bg-green-500">
-                      <Check className="h-1.5 w-1.5 text-white" />
-                    </span>
-                  )}
+  const sectionLabels: Record<string, string> = {
+    assessment: "Asesmen",
+    order: "Order",
+    care: "Perawatan & Tindakan",
+    administrative: "Administratif",
+    pharmacy: "Farmasi",
+    radiology: "Radiologi",
+    laboratory: "Laboratorium",
+    surgery: "Operasi",
+    consultation: "Konsultasi",
+  };
+
+  if (layout === "vertical") {
+    return (
+      <div className="flex h-full flex-col overflow-hidden bg-background">
+        <div className="flex-1 overflow-y-auto p-1.5 pb-3">
+          <div className="space-y-2.5">
+            {groupedTabs.map(([section, sectionTabs]) => (
+              <div key={section}>
+                <h3 className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  {sectionLabels[section] || section}
+                </h3>
+                <div className="space-y-1">
+                  {sectionTabs.map(renderTab)}
                 </div>
-                <div className="flex items-center gap-1 whitespace-nowrap leading-none">
-                  <span>{tab.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Horizontal layout
+  return (
+    <div className="relative rounded-xl bg-background shadow-sm ring-1 ring-border">
+      {canScrollLeft && (
+        <div className="absolute left-0 top-0 z-10 flex h-full items-center bg-gradient-to-r from-background via-background/80 to-transparent pr-6">
+          <button
+            onClick={() => handleScrollTabs("left")}
+            className="ml-1 flex h-8 w-8 items-center justify-center rounded-full border bg-background text-muted-foreground shadow-md transition-all hover:bg-muted hover:text-foreground"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+        </div>
+      )}
+      <div
+        ref={tabScrollRef}
+        className="flex items-center gap-2 overflow-x-auto p-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        onWheel={handleWheelScrollTabs}
+        onDragOver={handleContainerDragOver}
+      >
+        {orderedTabs.map((tab) => {
+          const isActive = activeTab === tab.id;
+          const indicatorValue = indicators[tab.id];
+          const isSaved = savedStates[tab.id];
+          const indicatorStatus = getIndicatorStatus(indicatorValue);
+          const hasFractionIndicator = Boolean(indicatorValue?.replace(/\s+/g, "").includes("/"));
+          const isDraggingThis = draggingTabId === tab.id;
+          const isDragOverThis = dragOverTabId === tab.id;
+
+          const horizontalStatusIcon = (() => {
+            if (hasFractionIndicator) {
+              if (indicatorStatus === "complete") {
+                return <Check className="h-6 w-6" />;
+              }
+              if (indicatorStatus === "progress") {
+                return <Clock3 className="h-6 w-6" />;
+              }
+            }
+            return isSaved ? <Check className="h-6 w-6" /> : tab.icon;
+          })();
+
+          return (
+            <div
+              key={tab.id}
+              className={cn(
+                "relative shrink-0",
+                isDraggingThis && "opacity-40",
+                isDragOverThis && dragOverPosition === "before" && "border-l-2 border-primary",
+                isDragOverThis && dragOverPosition === "after" && "border-r-2 border-primary",
+              )}
+            >
+              <button
+                data-tab-id={tab.id}
+                onClick={() => onTabChange(tab.id)}
+                draggable
+                onDragStart={(e) => handleDragStart(e, tab.id)}
+                onDragOver={(e) => handleDragOverTab(e, tab.id)}
+                onDragEnd={handleDragEnd}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const droppedTabId = e.dataTransfer.getData("text/plain");
+                  if (droppedTabId) {
+                    handleDropOnTab(tab.id, dragOverPosition);
+                  }
+                }}
+                className={cn(
+                  "flex flex-col items-center justify-center gap-2 rounded-lg p-3 text-center transition-colors",
+                  "w-28 h-24", // Fixed size for horizontal tabs
+                  getTabStatusClass(indicatorStatus, isActive, hasFractionIndicator),
+                  isActive && "bg-primary/10",
+                )}
+              >
+                <div className="relative">
+                  {horizontalStatusIcon}
                   {indicatorValue && (
-                    <span
-                      className={cn(
-                        "rounded-full px-1.5 py-0.5 text-[10px] leading-none",
-                        isOrderTab
-                          ? Number(indicatorValue) > 0
-                            ? "bg-green-100 text-green-700"
-                            : "bg-slate-600 text-slate-100"
-                          : indicatorStatus === "complete"
-                          ? "bg-green-100 text-green-700"
-                          : indicatorStatus === "progress"
-                          ? "bg-amber-100 text-amber-700"
-                          : indicatorStatus === "empty"
-                          ? "bg-red-100 text-red-700"
-                          : "bg-muted text-muted-foreground"
-                      )}
-                    >
+                    <span className="absolute -right-2 -top-1 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-current px-1 text-[10px] font-bold text-background">
                       {indicatorValue}
                     </span>
                   )}
                 </div>
-                <span
-                  className={cn(
-                    "absolute bottom-0 left-2 right-2 h-0.5 rounded-full transition-opacity",
-                    isActive
-                      ? effectiveStatus === "complete"
-                        ? "bg-green-600 opacity-100"
-                        : effectiveStatus === "progress"
-                        ? "bg-amber-600 opacity-100"
-                        : effectiveStatus === "empty"
-                        ? "bg-red-600 opacity-100"
-                        : "bg-primary opacity-100"
-                      : "opacity-0"
-                  )}
-                />
+                <span className="text-xs font-medium leading-tight">{tab.label}</span>
               </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => handleScrollTabs("right")}
-          disabled={!canScrollRight}
-          className={cn(
-            "shrink-0 self-center rounded-md p-1 transition-colors",
-            canScrollRight
-              ? "text-foreground hover:bg-accent"
-              : "text-muted-foreground/40"
-          )}
-          aria-label="Geser tab ke kanan"
-        >
-          <ChevronRight className="h-4 w-4 text-muted-foreground" />
-        </button>
+            </div>
+          );
+        })}
       </div>
-    </nav>
+      {canScrollRight && (
+        <div className="absolute right-0 top-0 z-10 flex h-full items-center bg-gradient-to-l from-background via-background/80 to-transparent pl-6">
+          <button
+            onClick={() => handleScrollTabs("right")}
+            className="mr-1 flex h-8 w-8 items-center justify-center rounded-full border bg-background text-muted-foreground shadow-md transition-all hover:bg-muted hover:text-foreground"
+          >
+            <ChevronRight className="h-5 w-5" />
+          </button>
+        </div>
+      )}
+    </div>
   );
 }

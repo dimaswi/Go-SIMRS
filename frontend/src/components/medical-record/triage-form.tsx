@@ -3,11 +3,10 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Combobox } from "@/components/ui/combobox";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Save, Loader2, ShieldCheck } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useMultipleMasterData } from "@/hooks/useMasterData";
 import { medicalRecordsApi, signatureApi, DOCUMENT_TYPES } from "@/lib/api";
 import { medicalRecordEditLogApi } from "@/lib/api/visits";
@@ -23,6 +22,8 @@ interface TriageFormProps {
   onSave?: (data: any) => void;
   readOnly?: boolean;
   isPatientDischarged?: boolean;
+  externalData?: Partial<Triage>;
+  useExternalData?: boolean;
 }
 
 // Triage level dengan warna khusus (tidak dari master data karena butuh warna)
@@ -240,14 +241,21 @@ const painLocationOptionsBase = [
   { value: "multi_lokasi", label: "Multi Lokasi" },
 ];
 
-export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischarged = false }: TriageFormProps) {
+export function TriageForm({
+  visitId,
+  onSave,
+  readOnly = false,
+  isPatientDischarged = false,
+  externalData,
+  useExternalData = false,
+}: TriageFormProps) {
   const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState(defaultFormData);
   const [triageId, setTriageId] = useState<number | undefined>();
 
   // Signature state
   const [showSignatureDialog, setShowSignatureDialog] = useState(false);
-  const [signatureStatus, setSignatureStatus] = useState<{ is_signed: boolean; signer_name?: string } | null>(null);
+  const [, setSignatureStatus] = useState<{ is_signed: boolean; signer_name?: string } | null>(null);
 
   // Edit mode controller for post-discharge edits
   const {
@@ -275,7 +283,7 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
   });
 
   // Determine if form should be disabled
-  const isFormDisabled = readOnly || (isPatientDischarged && !isEditing);
+  const isFormDisabled = readOnly || (!useExternalData && isPatientDischarged && !isEditing);
 
   // Fetch master data untuk semua kategori yang dibutuhkan
   const { getOptions, loading: masterDataLoading } = useMultipleMasterData([
@@ -310,6 +318,36 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
 
   // Load existing data on mount
   useEffect(() => {
+    if (useExternalData) {
+      const d = externalData || {};
+      setFormData({
+        arrival_mode: (d as any).arrival_mode || "",
+        triage_complaint: (d as any).triage_complaint || "",
+        triage_level: (d as any).triage_level || "",
+        airway: (d as any).airway || "",
+        airway_note: (d as any).airway_note || "",
+        breathing: (d as any).breathing || "",
+        breathing_note: (d as any).breathing_note || "",
+        circulation: (d as any).circulation || "",
+        circulation_note: (d as any).circulation_note || "",
+        blood_pressure: (d as any).blood_pressure || "",
+        heart_rate: Number((d as any).heart_rate) || 0,
+        respiratory_rate: Number((d as any).respiratory_rate || (d as any).breathing_rate) || 0,
+        temperature: Number((d as any).temperature) || 0,
+        oxygen_saturation: Number((d as any).oxygen_saturation) || 0,
+        pain_scale: Number((d as any).pain_scale) || 0,
+        pain_method: (d as any).pain_method || "nrs",
+        pain_location: (d as any).pain_location || "",
+        gcs_e: Number((d as any).gcs_e) || 4,
+        gcs_v: Number((d as any).gcs_v) || 5,
+        gcs_m: Number((d as any).gcs_m) || 6,
+        triage_assessment: (d as any).triage_assessment || "",
+        immediate_actions: (d as any).immediate_actions || "",
+      });
+      setLoading(false);
+      return;
+    }
+
     const loadTriage = async () => {
       try {
         setLoading(true);
@@ -363,7 +401,7 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
     };
 
     loadTriage();
-  }, [visitId]);
+  }, [visitId, useExternalData, externalData]);
 
   const handleChange = (field: string, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -384,12 +422,14 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
 
   // Auto-save draft to localStorage on state change
   useEffect(() => {
+    if (useExternalData) return;
     if (loading) return;
     saveFormDraft(`mr-draft-triage-${visitId}`, formData);
-  }, [formData, loading, visitId]);
+  }, [formData, loading, visitId, useExternalData]);
 
   // Clear draft when save is confirmed by show.tsx
   useEffect(() => {
+    if (useExternalData) return;
     const handler = (e: Event) => {
       const ev = e as CustomEvent<{ tabId: string; saved: boolean }>;
       if (ev.detail?.tabId === "triage" && ev.detail.saved === true) {
@@ -398,9 +438,14 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
     };
     window.addEventListener(MEDICAL_RECORD_TAB_SAVED_EVENT, handler as EventListener);
     return () => window.removeEventListener(MEDICAL_RECORD_TAB_SAVED_EVENT, handler as EventListener);
-  }, [visitId]);
+  }, [visitId, useExternalData]);
 
   const doSave = async () => {
+    if (useExternalData) {
+      onSave?.(formData);
+      return;
+    }
+
     // Log edit if patient is discharged
     if (isPatientDischarged && triageId) {
       try {
@@ -423,7 +468,7 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
     e.preventDefault();
     
     // If patient is discharged, verify PIN before saving
-    if (isPatientDischarged) {
+    if (!useExternalData && isPatientDischarged) {
       requestPINVerification(doSave);
       return;
     }
@@ -479,18 +524,24 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
     <div>
       <div>
           {/* Edit Mode Banner for discharged patients */}
-          <EditModeBanner
-            isPatientDischarged={isPatientDischarged}
-            isEditing={isEditing}
-            onRequestEdit={handleRequestEdit}
-            recordTypeLabel="Triase"
-          />
+          {!useExternalData && (
+            <EditModeBanner
+              isPatientDischarged={isPatientDischarged}
+              isEditing={isEditing}
+              onRequestEdit={handleRequestEdit}
+              recordTypeLabel="Triase"
+            />
+          )}
           
-        <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
-          <fieldset disabled={isFormDisabled} className="space-y-4 sm:space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <fieldset disabled={isFormDisabled} className="space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11">
           
           {/* Section 1: Informasi Kedatangan */}
-          <div className="space-y-4"><div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="border border-border/70">
+            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              Informasi Kedatangan
+            </div>
+            <div className="space-y-6 p-3 sm:p-4"><div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="arrival_mode" className="text-sm font-semibold">
                     Moda Kedatangan <span className="text-destructive">*</span>
@@ -525,7 +576,7 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
                 <Label className="text-sm font-semibold">
                   Level Triase <span className="text-destructive">*</span>
                 </Label>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3" role="radiogroup" aria-label="Level Triase">
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3" role="radiogroup" aria-label="Level Triase">
                   {triageLevelOptions.map((level) => (
                     <button
                       key={level.value}
@@ -560,8 +611,8 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
                 {selectedTriageMeta && (
                   <div
                     className={cn(
-                      "rounded-lg border p-3",
-                      selectedTriagePalette?.container || "border-border bg-muted/30"
+                      "border-l-4 pl-3 py-1",
+                      selectedTriagePalette?.container || "border-border"
                     )}
                   >
                     <p className={cn("text-sm font-semibold", selectedTriagePalette?.title || "") }>
@@ -573,10 +624,15 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
                   </div>
                 )}
               </div>
+            </div>
           </div>
 
           {/* Section 2: Primary Survey (ABC) */}
-          <div className="space-y-4"><div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="border border-border/70">
+            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              Primary Survey ABC
+            </div>
+            <div className="space-y-5 p-3 sm:p-4"><div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="airway" className="text-sm font-semibold">Airway (Jalan Napas)</Label>
                   <Combobox
@@ -588,7 +644,7 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
                     emptyText="Tidak ditemukan"
                   />
                 </div>
-                <div className="col-span-2 space-y-2">
+                <div className="space-y-2">
                   <Label htmlFor="airway_note" className="text-sm font-semibold">Catatan Airway</Label>
                   <Input
                     id="airway_note"
@@ -600,7 +656,7 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="breathing" className="text-sm font-semibold">Breathing (Pernapasan)</Label>
                   <Combobox
@@ -612,7 +668,7 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
                     emptyText="Tidak ditemukan"
                   />
                 </div>
-                <div className="col-span-2 space-y-2">
+                <div className="space-y-2">
                   <Label htmlFor="breathing_note" className="text-sm font-semibold">Catatan Breathing</Label>
                   <Input
                     id="breathing_note"
@@ -624,7 +680,7 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="circulation" className="text-sm font-semibold">Circulation (Sirkulasi)</Label>
                   <Combobox
@@ -636,7 +692,7 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
                     emptyText="Tidak ditemukan"
                   />
                 </div>
-                <div className="col-span-2 space-y-2">
+                <div className="space-y-2">
                   <Label htmlFor="circulation_note" className="text-sm font-semibold">Catatan Circulation</Label>
                   <Input
                     id="circulation_note"
@@ -647,10 +703,15 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
                   />
                 </div>
               </div>
+            </div>
           </div>
 
           {/* Section 3: Tanda Vital */}
-          <div className="space-y-4"><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="border border-border/70">
+            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              Tanda Vital dan Nyeri
+            </div>
+            <div className="space-y-6 p-3 sm:p-4"><div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="blood_pressure" className="text-sm font-semibold flex items-center gap-1.5">
                     Tekanan Darah
@@ -746,8 +807,7 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
                     required
                   />
                 </div>
-                <div className="space-y-4 md:col-span-3">
-                  <h4 className="text-sm font-medium text-muted-foreground">Skala Nyeri</h4>
+                <div className="space-y-4 md:col-span-2 xl:col-span-5">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="pain_method" className="text-xs">Metode Penilaian Nyeri</Label>
@@ -860,10 +920,16 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
                   </div>
                 </div>
               </div>
+            </div>
           </div>
 
           {/* Section 4: GCS & Penilaian */}
-          <div className="space-y-4"><div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="border border-border/70">
+            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              GCS dan Tindakan Awal
+            </div>
+            <div className="space-y-6 p-3 sm:p-4"><div className="grid gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="gcs_e" className="text-sm font-semibold">Eye Opening (E) [1-4]</Label>
                   <Input
@@ -902,7 +968,7 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
                 </div>
               </div>
               
-              <div className="p-3 bg-muted/50 rounded-lg">
+              <div className="p-3 bg-muted/40 rounded-md">
                 <div className="text-sm font-semibold flex items-center gap-2">
                   <span>Total GCS:</span>
                   <Badge variant="default">{gcsTotal}</Badge>
@@ -911,96 +977,75 @@ export function TriageForm({ visitId, onSave, readOnly = false, isPatientDischar
                   </span>
                 </div>
               </div>
-
-              {/* Assessment */}
-              <div className="space-y-2">
-                <Label htmlFor="triage_assessment" className="text-sm font-semibold">
-                  Penilaian Awal
-                </Label>
-                <Textarea
-                  id="triage_assessment"
-                  placeholder="Penilaian awal kondisi pasien..."
-                  value={formData.triage_assessment}
-                  onChange={(e) => handleChange("triage_assessment", e.target.value)}
-                  className="min-h-[100px] resize-none"
-                />
               </div>
 
-              {/* Immediate Actions */}
-              <div className="space-y-2">
-                <Label htmlFor="immediate_actions" className="text-sm font-semibold">
-                  Tindakan Segera
-                </Label>
-                <Textarea
-                  id="immediate_actions"
-                  placeholder="Tindakan segera yang telah/akan dilakukan..."
-                  value={formData.immediate_actions}
-                  onChange={(e) => handleChange("immediate_actions", e.target.value)}
-                  className="min-h-[100px] resize-none"
-                />
-              </div>
-          </div>
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="triage_assessment" className="text-sm font-semibold">
+                    Penilaian Awal
+                  </Label>
+                  <Textarea
+                    id="triage_assessment"
+                    placeholder="Penilaian awal kondisi pasien..."
+                    value={formData.triage_assessment}
+                    onChange={(e) => handleChange("triage_assessment", e.target.value)}
+                    className="min-h-[120px] resize-none"
+                  />
+                </div>
 
-          {/* Submit Button - only show when can edit */}
-          {!isFormDisabled && (
-            <div className="flex flex-col sm:flex-row sm:justify-end gap-2 sm:gap-3 pt-4 border-t">
-              <Button type="submit" className="gap-2 w-full sm:w-auto">
-                <Save className="h-4 w-4" />
-                Simpan Triase
-              </Button>
-              {triageId && !signatureStatus?.is_signed && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="gap-2 w-full sm:w-auto"
-                  onClick={() => setShowSignatureDialog(true)}
-                >
-                  <ShieldCheck className="h-4 w-4" />
-                  Tanda Tangan
-                </Button>
-              )}
-              {signatureStatus?.is_signed && (
-                <Badge variant="default" className="gap-1 bg-green-600 h-9 px-3">
-                  <ShieldCheck className="h-4 w-4" />
-                  Sudah Ditandatangani
-                </Badge>
-              )}
+                <div className="space-y-2">
+                  <Label htmlFor="immediate_actions" className="text-sm font-semibold">
+                    Tindakan Segera
+                  </Label>
+                  <Textarea
+                    id="immediate_actions"
+                    placeholder="Tindakan segera yang telah/akan dilakukan..."
+                    value={formData.immediate_actions}
+                    onChange={(e) => handleChange("immediate_actions", e.target.value)}
+                    className="min-h-[120px] resize-none"
+                  />
+                </div>
+              </div>
             </div>
-          )}
+          </div>
           </fieldset>
         </form>
       </div>
       
       {/* Edit Confirmation Dialog */}
-      <EditConfirmDialog
-        open={showEditDialog}
-        onOpenChange={setShowEditDialog}
-        editReason={editReason}
-        onEditReasonChange={setEditReason}
-        onConfirm={handleConfirmEdit}
-      />
-      <PINVerificationDialog
-        open={showPINDialog}
-        onOpenChange={setShowPINDialog}
-        pin={pin}
-        verifying={verifyingPIN}
-        pinInputRefs={pinInputRefs}
-        onPINChange={handlePINChange}
-        onPINKeyDown={handlePINKeyDown}
-        onVerify={handleVerifyPIN}
-      />
+      {!useExternalData && (
+        <>
+          <EditConfirmDialog
+            open={showEditDialog}
+            onOpenChange={setShowEditDialog}
+            editReason={editReason}
+            onEditReasonChange={setEditReason}
+            onConfirm={handleConfirmEdit}
+          />
+          <PINVerificationDialog
+            open={showPINDialog}
+            onOpenChange={setShowPINDialog}
+            pin={pin}
+            verifying={verifyingPIN}
+            pinInputRefs={pinInputRefs}
+            onPINChange={handlePINChange}
+            onPINKeyDown={handlePINKeyDown}
+            onVerify={handleVerifyPIN}
+          />
 
-      {/* Signature Dialog */}
-      {triageId && (
-        <SignaturePINDialog
-          open={showSignatureDialog}
-          onOpenChange={setShowSignatureDialog}
-          documentType={DOCUMENT_TYPES.TRIAGE}
-          documentId={triageId}
-          visitId={visitId}
-          documentTitle="Form Triage"
-          onSuccess={handleSignatureSuccess}
-        />
+          {/* Signature Dialog */}
+          {triageId && (
+            <SignaturePINDialog
+              open={showSignatureDialog}
+              onOpenChange={setShowSignatureDialog}
+              documentType={DOCUMENT_TYPES.TRIAGE}
+              documentId={triageId}
+              visitId={visitId}
+              documentTitle="Form Triage"
+              onSuccess={handleSignatureSuccess}
+            />
+          )}
+        </>
       )}
     </div>
   );

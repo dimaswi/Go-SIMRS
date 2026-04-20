@@ -499,6 +499,360 @@ func (c *VClaimClient) GetRujukanByPeserta(noKartu string, asalFaskes string) ([
 	return result.Rujukan, nil
 }
 
+// RujukanCreateRequest is a common input for VClaim referral insert (v1/v2).
+type RujukanCreateRequest struct {
+	NoSEP               string
+	TglRujukan          string
+	TglRencanaKunjungan string
+	PPKDirujuk          string
+	JnsPelayanan        string
+	Catatan             string
+	DiagRujukan         string
+	TipeRujukan         string
+	PoliRujukan         string
+	User                string
+}
+
+// RujukanUpdateRequest is a common input for VClaim referral update (v1/v2).
+type RujukanUpdateRequest struct {
+	NoRujukan           string
+	TglRujukan          string
+	TglRencanaKunjungan string
+	PPKDirujuk          string
+	JnsPelayanan        string
+	Catatan             string
+	DiagRujukan         string
+	TipeRujukan         string
+	PoliRujukan         string
+	User                string
+}
+
+// RujukanCreateResponseData stores referral data returned by BPJS.
+type RujukanCreateResponseData struct {
+	NoRujukan           string `json:"noRujukan"`
+	TglRujukan          string `json:"tglRujukan"`
+	TglRencanaKunjungan string `json:"tglRencanaKunjungan"`
+	TglBerlakuKunjungan string `json:"tglBerlakuKunjungan"`
+	Diagnosa            struct {
+		Kode string `json:"kode"`
+		Nama string `json:"nama"`
+	} `json:"diagnosa"`
+	PoliTujuan struct {
+		Kode string `json:"kode"`
+		Nama string `json:"nama"`
+	} `json:"poliTujuan"`
+	Peserta struct {
+		NoKartu string `json:"noKartu"`
+		Nama    string `json:"nama"`
+	} `json:"peserta"`
+	TujuanRujukan struct {
+		Kode string `json:"kode"`
+		Nama string `json:"nama"`
+	} `json:"tujuanRujukan"`
+}
+
+func parseSimpleVClaimStringResponse(respBody []byte) string {
+	result := strings.TrimSpace(string(respBody))
+	result = strings.Trim(result, "\"")
+	return result
+}
+
+// InsertRujukanV1 creates referral using VClaim v1 endpoint.
+func (c *VClaimClient) InsertRujukanV1(input RujukanCreateRequest) (*RujukanCreateResponseData, error) {
+	reqBody := map[string]interface{}{
+		"request": map[string]interface{}{
+			"t_rujukan": map[string]interface{}{
+				"noSep":        input.NoSEP,
+				"tglRujukan":   input.TglRujukan,
+				"ppkDirujuk":   input.PPKDirujuk,
+				"jnsPelayanan": input.JnsPelayanan,
+				"catatan":      input.Catatan,
+				"diagRujukan":  input.DiagRujukan,
+				"tipeRujukan":  input.TipeRujukan,
+				"poliRujukan":  input.PoliRujukan,
+				"user":         input.User,
+			},
+		},
+	}
+
+	respBody, code, err := c.Request("POST", "/Rujukan/insert", reqBody)
+	if err != nil {
+		return nil, err
+	}
+	if code != 200 {
+		return nil, fmt.Errorf("VClaim response code: %d", code)
+	}
+
+	var result struct {
+		Rujukan *RujukanCreateResponseData `json:"rujukan"`
+	}
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return nil, fmt.Errorf("parse insert rujukan v1 response: %w", err)
+	}
+
+	if result.Rujukan == nil {
+		return &RujukanCreateResponseData{}, nil
+	}
+
+	return result.Rujukan, nil
+}
+
+// UpdateRujukanV1 updates referral using VClaim v1 endpoint.
+func (c *VClaimClient) UpdateRujukanV1(input RujukanUpdateRequest) (string, error) {
+	reqBody := map[string]interface{}{
+		"request": map[string]interface{}{
+			"t_rujukan": map[string]interface{}{
+				"noRujukan":    input.NoRujukan,
+				"ppkDirujuk":   input.PPKDirujuk,
+				"tipe":         input.TipeRujukan,
+				"jnsPelayanan": input.JnsPelayanan,
+				"catatan":      input.Catatan,
+				"diagRujukan":  input.DiagRujukan,
+				"tipeRujukan":  input.TipeRujukan,
+				"poliRujukan":  input.PoliRujukan,
+				"user":         input.User,
+			},
+		},
+	}
+
+	respBody, code, err := c.Request("PUT", "/Rujukan/update", reqBody)
+	if err != nil {
+		return "", err
+	}
+	if code != 200 {
+		return "", fmt.Errorf("VClaim response code: %d", code)
+	}
+
+	return parseSimpleVClaimStringResponse(respBody), nil
+}
+
+// InsertRujukanV2 creates referral using VClaim v2 endpoint.
+func (c *VClaimClient) InsertRujukanV2(input RujukanCreateRequest) (*RujukanCreateResponseData, error) {
+	reqBody := map[string]interface{}{
+		"request": map[string]interface{}{
+			"t_rujukan": map[string]interface{}{
+				"noSep":               input.NoSEP,
+				"tglRujukan":          input.TglRujukan,
+				"tglRencanaKunjungan": input.TglRencanaKunjungan,
+				"ppkDirujuk":          input.PPKDirujuk,
+				"jnsPelayanan":        input.JnsPelayanan,
+				"catatan":             input.Catatan,
+				"diagRujukan":         input.DiagRujukan,
+				"tipeRujukan":         input.TipeRujukan,
+				"poliRujukan":         input.PoliRujukan,
+				"user":                input.User,
+			},
+		},
+	}
+
+	respBody, code, err := c.Request("POST", "/Rujukan/2.0/insert", reqBody)
+	if err != nil {
+		return nil, err
+	}
+	if code != 200 {
+		return nil, fmt.Errorf("VClaim response code: %d", code)
+	}
+
+	var result struct {
+		Rujukan *RujukanCreateResponseData `json:"rujukan"`
+	}
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return nil, fmt.Errorf("parse insert rujukan v2 response: %w", err)
+	}
+
+	if result.Rujukan == nil {
+		return &RujukanCreateResponseData{}, nil
+	}
+
+	return result.Rujukan, nil
+}
+
+// UpdateRujukanV2 updates referral using VClaim v2 endpoint.
+func (c *VClaimClient) UpdateRujukanV2(input RujukanUpdateRequest) (string, error) {
+	reqBody := map[string]interface{}{
+		"request": map[string]interface{}{
+			"t_rujukan": map[string]interface{}{
+				"noRujukan":           input.NoRujukan,
+				"tglRujukan":          input.TglRujukan,
+				"tglRencanaKunjungan": input.TglRencanaKunjungan,
+				"ppkDirujuk":          input.PPKDirujuk,
+				"jnsPelayanan":        input.JnsPelayanan,
+				"catatan":             input.Catatan,
+				"diagRujukan":         input.DiagRujukan,
+				"tipeRujukan":         input.TipeRujukan,
+				"poliRujukan":         input.PoliRujukan,
+				"user":                input.User,
+			},
+		},
+	}
+
+	respBody, code, err := c.Request("PUT", "/Rujukan/2.0/Update", reqBody)
+	if err != nil {
+		return "", err
+	}
+	if code != 200 {
+		return "", fmt.Errorf("VClaim response code: %d", code)
+	}
+
+	return parseSimpleVClaimStringResponse(respBody), nil
+}
+
+// DeleteRujukan deletes referral (v1/v2) using common VClaim endpoint.
+func (c *VClaimClient) DeleteRujukan(noRujukan, user string) (string, error) {
+	reqBody := map[string]interface{}{
+		"request": map[string]interface{}{
+			"t_rujukan": map[string]interface{}{
+				"noRujukan": noRujukan,
+				"user":      user,
+			},
+		},
+	}
+
+	respBody, code, err := c.Request("DELETE", "/Rujukan/delete", reqBody)
+	if err != nil {
+		return "", err
+	}
+	if code != 200 {
+		return "", fmt.Errorf("VClaim response code: %d", code)
+	}
+
+	return parseSimpleVClaimStringResponse(respBody), nil
+}
+
+// RujukanKhususInsertResponse stores response from insert special referral endpoint.
+type RujukanKhususInsertResponse struct {
+	NoRujukan string `json:"norujukan"`
+	NoKartu   string `json:"nokapst"`
+	Nama      string `json:"nmpst"`
+}
+
+// InsertRujukanKhusus creates a special referral linked to an existing referral number.
+func (c *VClaimClient) InsertRujukanKhusus(noRujukan string, diagnosaCodes, procedureCodes []string, user string) (*RujukanKhususInsertResponse, error) {
+	diagnosa := make([]map[string]string, 0, len(diagnosaCodes))
+	for _, code := range diagnosaCodes {
+		trimmed := strings.TrimSpace(code)
+		if trimmed == "" {
+			continue
+		}
+		diagnosa = append(diagnosa, map[string]string{"kode": trimmed})
+	}
+
+	procedures := make([]map[string]string, 0, len(procedureCodes))
+	for _, code := range procedureCodes {
+		trimmed := strings.TrimSpace(code)
+		if trimmed == "" {
+			continue
+		}
+		procedures = append(procedures, map[string]string{"kode": trimmed})
+	}
+
+	reqBody := map[string]interface{}{
+		"noRujukan": noRujukan,
+		"diagnosa":  diagnosa,
+		"procedure": procedures,
+		"user":      user,
+	}
+
+	respBody, code, err := c.Request("POST", "/Rujukan/Khusus/insert", reqBody)
+	if err != nil {
+		return nil, err
+	}
+	if code != 200 {
+		return nil, fmt.Errorf("VClaim response code: %d", code)
+	}
+
+	var result struct {
+		Rujukan RujukanKhususInsertResponse `json:"rujukan"`
+	}
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return nil, fmt.Errorf("parse insert rujukan khusus response: %w", err)
+	}
+
+	return &result.Rujukan, nil
+}
+
+// DeleteRujukanKhusus deletes special referral by id and referral number.
+func (c *VClaimClient) DeleteRujukanKhusus(idRujukan, noRujukan, user string) (string, error) {
+	reqBody := map[string]interface{}{
+		"request": map[string]interface{}{
+			"t_rujukan": map[string]interface{}{
+				"idRujukan": idRujukan,
+				"noRujukan": noRujukan,
+				"user":      user,
+			},
+		},
+	}
+
+	respBody, code, err := c.Request("DELETE", "/Rujukan/Khusus/delete", reqBody)
+	if err != nil {
+		return "", err
+	}
+	if code != 200 {
+		return "", fmt.Errorf("VClaim response code: %d", code)
+	}
+
+	return parseSimpleVClaimStringResponse(respBody), nil
+}
+
+// RujukanSpesialistikItem stores specialist destination data for referral.
+type RujukanSpesialistikItem struct {
+	KodeSpesialis string `json:"kodeSpesialis"`
+	NamaSpesialis string `json:"namaSpesialis"`
+	Kapasitas     string `json:"kapasitas"`
+	JumlahRujukan string `json:"jumlahRujukan"`
+	Persentase    string `json:"persentase"`
+}
+
+// RujukanSaranaItem stores supporting facility data for referral.
+type RujukanSaranaItem struct {
+	KodeSarana string `json:"kodeSarana"`
+	NamaSarana string `json:"namaSarana"`
+}
+
+// GetRujukanListSpesialistik gets specialist destination list by target PPK and referral date.
+func (c *VClaimClient) GetRujukanListSpesialistik(ppkRujukan, tglRujukan string) ([]RujukanSpesialistikItem, error) {
+	endpoint := fmt.Sprintf("/Rujukan/ListSpesialistik/PPKRujukan/%s/TglRujukan/%s", ppkRujukan, tglRujukan)
+
+	respBody, code, err := c.Request("GET", endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+	if code != 200 {
+		return nil, fmt.Errorf("VClaim response code: %d", code)
+	}
+
+	var result struct {
+		List []RujukanSpesialistikItem `json:"list"`
+	}
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return nil, fmt.Errorf("parse list spesialistik response: %w", err)
+	}
+
+	return result.List, nil
+}
+
+// GetRujukanListSarana gets available supporting facilities by target PPK.
+func (c *VClaimClient) GetRujukanListSarana(ppkRujukan string) ([]RujukanSaranaItem, error) {
+	endpoint := fmt.Sprintf("/Rujukan/ListSarana/PPKRujukan/%s", ppkRujukan)
+
+	respBody, code, err := c.Request("GET", endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+	if code != 200 {
+		return nil, fmt.Errorf("VClaim response code: %d", code)
+	}
+
+	var result struct {
+		List []RujukanSaranaItem `json:"list"`
+	}
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return nil, fmt.Errorf("parse list sarana response: %w", err)
+	}
+
+	return result.List, nil
+}
+
 // ==================== SEP ====================
 
 // SEPRequest adalah struktur request untuk insert SEP

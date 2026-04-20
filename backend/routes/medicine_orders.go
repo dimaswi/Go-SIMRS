@@ -20,6 +20,10 @@ func setupMedicineOrderRoutes(router *gin.RouterGroup) {
 		// Get all medicine orders (with filters) - accessible by doctors and pharmacists
 		orders.GET("", handlers.GetMedicineOrders)
 
+		// In-room medication timesheet (hourly administration)
+		orders.GET("/timesheet", middleware.RequirePermission("medical_records.medicine_order"), handlers.GetMedicationTimesheet)
+		orders.POST("/timesheet/entry", middleware.RequirePermission("medical_records.medicine_order"), handlers.UpsertMedicationTimesheetEntry)
+
 		// Get single medicine order
 		orders.GET("/:id", handlers.GetMedicineOrder)
 

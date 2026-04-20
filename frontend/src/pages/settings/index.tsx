@@ -287,7 +287,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="flex flex-1 flex-col p-4 max-w-full">
+    <div className="flex flex-1 flex-col px-4 max-w-full">
       <div className="flex items-center gap-4">
         <Button
           variant="ghost"
