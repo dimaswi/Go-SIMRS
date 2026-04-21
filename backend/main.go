@@ -69,17 +69,13 @@ func main() {
 
 	// CORS middleware
 	r.Use(cors.New(cors.Config{
-		AllowOrigins: []string{
-			"http://localhost:5173",
-			"http://localhost:3000",
-			"http://192.168.12.122:3232",
-			"https://simrs.klinikmuhammadiyahkedungadem.id",
-			"http://simrs.klinikmuhammadiyahkedungadem.id",
-		},
+		AllowOrigins:     cfg.CORSAllowedOrigins,
+		AllowWildcard:    true,
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "X-Requested-With"},
 		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: true,
+		MaxAge:           12 * time.Hour,
 	}))
 
 	// Setup all routes

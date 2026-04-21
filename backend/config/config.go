@@ -4,13 +4,15 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 )
 
 type Config struct {
-	DatabaseDSN string
-	JWTSecret   string
-	ServerPort  string
-	Environment string
+	DatabaseDSN        string
+	JWTSecret          string
+	ServerPort         string
+	Environment        string
+	CORSAllowedOrigins []string
 }
 
 func Load() *Config {
@@ -19,6 +21,15 @@ func Load() *Config {
 	config := &Config{
 		Environment: env,
 		ServerPort:  getEnv("SERVER_PORT", "8080"),
+		CORSAllowedOrigins: getEnvCSV("CORS_ALLOWED_ORIGINS", []string{
+			"http://localhost:*",
+			"http://127.0.0.1:*",
+			"http://192.168.12.122:*",
+			"http://43.128.92.161:*",
+			"https://43.128.92.161:*",
+			"https://simrs.klinikmuhammadiyahkedungadem.id",
+			"http://simrs.klinikmuhammadiyahkedungadem.id",
+		}),
 	}
 
 	// Database DSN - wajib diset di production
@@ -52,4 +63,26 @@ func getEnvRequired(key string) string {
 		panic(fmt.Sprintf("Required environment variable %s is not set", key))
 	}
 	return value
+}
+
+func getEnvCSV(key string, defaultValues []string) []string {
+	raw := os.Getenv(key)
+	if strings.TrimSpace(raw) == "" {
+		return defaultValues
+	}
+
+	parts := strings.Split(raw, ",")
+	result := make([]string, 0, len(parts))
+	for _, p := range parts {
+		item := strings.TrimSpace(p)
+		if item != "" {
+			result = append(result, item)
+		}
+	}
+
+	if len(result) == 0 {
+		return defaultValues
+	}
+
+	return result
 }
