@@ -20,6 +20,9 @@ ARG VITE_API_URL=http://localhost:8899/api
 # Set environment variable for build
 ENV VITE_API_URL=${VITE_API_URL}
 
+# Increase Node.js heap for Vite/TypeScript build inside constrained Docker builders
+ENV NODE_OPTIONS=--max-old-space-size=3072
+
 # Build the application
 RUN npm run build
 
