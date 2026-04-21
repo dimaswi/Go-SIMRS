@@ -15,7 +15,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Save, Loader2, Pill, AlertCircle, Search, X, Plus, AlertTriangle } from "lucide-react";
+import { Loader2, Pill, AlertCircle, Search, X, Plus, AlertTriangle } from "lucide-react";
 import { medicalRecordsApi, patientAllergyApi, ALLERGY_CATEGORY_LABELS, ALLERGY_CRITICALITY_LABELS, ALLERGY_CRITICALITY_COLORS } from "@/lib/api";
 import { medicalRecordEditLogApi } from "@/lib/api/visits";
 import { useEditMode, EditModeBanner, EditConfirmDialog, PINVerificationDialog } from "./edit-mode-controller";

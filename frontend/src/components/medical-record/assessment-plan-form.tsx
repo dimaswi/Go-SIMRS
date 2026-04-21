@@ -6,7 +6,6 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
-  Save, 
   Loader2, 
   Heart, 
   Utensils,
@@ -101,7 +100,7 @@ export function AssessmentPlanForm({
 
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [, setSaving] = useState(false);
   const [syncingMedicationPlan, setSyncingMedicationPlan] = useState(false);
   const [syncingProcedurePlan, setSyncingProcedurePlan] = useState(false);
   const [syncingConsultationPlan, setSyncingConsultationPlan] = useState(false);
