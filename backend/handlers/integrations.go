@@ -268,19 +268,7 @@ func testBPJSConnectionForType(c *gin.Context, startTime time.Time, integrationT
 	}
 
 	// Get base URL based on environment
-	baseURL := configMap["base_url_dev"]
-	if environment == "production" {
-		baseURL = configMap["base_url_prod"]
-	}
-
-	// Backward compatibility: jika base URL tidak include service name, tambahkan otomatis
-	if baseURL != "" && !strings.Contains(baseURL, "/antreanrs") {
-		if environment == "production" {
-			baseURL = baseURL + "/antreanrs"
-		} else {
-			baseURL = baseURL + "/antreanrs_dev"
-		}
-	}
+	baseURL := resolveBPJSBaseURLForTest(integrationType, environment, configMap)
 
 	fmt.Printf("[BPJS Test %s] Environment=%s, BaseURL=%s\n", serviceName, environment, baseURL)
 
@@ -293,9 +281,9 @@ func testBPJSConnectionForType(c *gin.Context, startTime time.Time, integrationT
 	// Create HMAC-SHA256 signature
 	signature := createHMACSHA256(signatureData, secretKey)
 
-	// Make test request to BPJS API (referensi poli endpoint as simple test)
+	// Make test request to BPJS API using service-specific lightweight endpoint.
 	client := &http.Client{Timeout: 30 * time.Second}
-	testURL := baseURL + "/ref/poli"
+	testURL := strings.TrimRight(baseURL, "/") + getBPJSTestEndpoint(integrationType)
 
 	req, err := http.NewRequest("GET", testURL, nil)
 	if err != nil {
@@ -459,6 +447,44 @@ func createHMACSHA256(data, key string) string {
 	h := hmac.New(sha256.New, []byte(key))
 	h.Write([]byte(data))
 	return base64.StdEncoding.EncodeToString(h.Sum(nil))
+}
+
+func resolveBPJSBaseURLForTest(integrationType models.IntegrationType, environment string, configMap map[string]string) string {
+	baseURL := configMap["base_url_dev"]
+	if environment == "production" {
+		baseURL = configMap["base_url_prod"]
+	}
+
+	baseURL = strings.TrimRight(baseURL, "/")
+	if baseURL == "" {
+		return baseURL
+	}
+
+	if integrationType == models.IntegrationTypeBPJSApotek {
+		if strings.Contains(baseURL, "/apotek-rest") {
+			return baseURL
+		}
+		if environment == "production" {
+			return baseURL + "/apotek-rest"
+		}
+		return baseURL + "/apotek-rest-dev"
+	}
+
+	if !strings.Contains(baseURL, "/antreanrs") {
+		if environment == "production" {
+			return baseURL + "/antreanrs"
+		}
+		return baseURL + "/antreanrs_dev"
+	}
+
+	return baseURL
+}
+
+func getBPJSTestEndpoint(integrationType models.IntegrationType) string {
+	if integrationType == models.IntegrationTypeBPJSApotek {
+		return "/referensi/dpho"
+	}
+	return "/ref/poli"
 }
 
 // GetIntegrationLogs returns sync logs for an integration

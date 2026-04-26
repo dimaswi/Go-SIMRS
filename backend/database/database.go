@@ -5,6 +5,7 @@ import (
 	"log"
 	"starter/backend/migrations"
 	"starter/backend/models"
+	"strings"
 	"time"
 
 	"gorm.io/driver/postgres"
@@ -126,6 +127,15 @@ func Migrate() error {
 	if DB.Migrator().HasColumn(&models.Room{}, "operating_hours") {
 		DB.Exec("ALTER TABLE rooms DROP COLUMN IF EXISTS operating_hours")
 		log.Println("Removed operating_hours column from rooms table (replaced by schedules)")
+	}
+
+	// Remove BPJS master-data fields from medicines. This feature was reverted and the stale data must be deleted.
+	if DB.Migrator().HasTable(&models.Medicine{}) {
+		DB.Exec("ALTER TABLE medicines DROP COLUMN IF EXISTS bpjs_kode_obat")
+		DB.Exec("ALTER TABLE medicines DROP COLUMN IF EXISTS bpjs_sync_status")
+		DB.Exec("ALTER TABLE medicines DROP COLUMN IF EXISTS bpjs_sync_message")
+		DB.Exec("ALTER TABLE medicines DROP COLUMN IF EXISTS bpjs_synced_at")
+		log.Println("Removed legacy BPJS medicine master-data columns from medicines table")
 	}
 
 	// Handle queue counter migration - migrate from counter (int) to counter_id (FK)
@@ -316,6 +326,8 @@ func Migrate() error {
 		&models.DiagnosisSummary{},    // Diagnosis Summary (Clinical Impression & Differential)
 		&models.AssessmentPlan{},      // Assessment & Plan
 		&models.Disposition{},         // Disposition/Discharge
+		&models.DischargePlanning{},   // Discharge Planning checklist
+		&models.BodyMarker{},          // Body marker images and points per visit
 		&models.VitalSign{},           // Vital Signs History
 		// Medicine Orders (Resep Obat)
 		&models.MedicineOrder{},                   // Medicine Orders (Resep)
@@ -522,6 +534,54 @@ func Migrate() error {
 	DB.Model(&models.SnomedMaster{}).Count(&snomedCount)
 	log.Printf("SNOMED master data: %d rows", snomedCount)
 
+	if err := ensureBPJSApotekDefaults(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func ensureBPJSApotekDefaults() error {
+	configKeys := models.GetIntegrationConfigKeys(models.IntegrationTypeBPJSApotek)
+	for _, cfg := range configKeys {
+		var existing models.IntegrationConfig
+		err := DB.Where("integration = ? AND key = ?", cfg.Integration, cfg.Key).First(&existing).Error
+		if err == gorm.ErrRecordNotFound {
+			if err := DB.Create(&models.IntegrationConfig{
+				Integration: cfg.Integration,
+				Key:         cfg.Key,
+				Value:       cfg.Default,
+				Description: cfg.Description,
+				IsEncrypted: cfg.IsEncrypted,
+				IsSecret:    cfg.IsSecret,
+			}).Error; err != nil {
+				return err
+			}
+			continue
+		}
+
+		if err != nil {
+			return err
+		}
+
+		updates := map[string]interface{}{
+			"description":  cfg.Description,
+			"is_encrypted": cfg.IsEncrypted,
+			"is_secret":    cfg.IsSecret,
+		}
+
+		if strings.TrimSpace(existing.Value) == "" && cfg.Default != "" {
+			updates["value"] = cfg.Default
+		}
+
+		if err := DB.Model(&models.IntegrationConfig{}).
+			Where("id = ?", existing.ID).
+			Updates(updates).Error; err != nil {
+			return err
+		}
+	}
+
+	log.Println("Ensured BPJS Apotek defaults are configured")
 	return nil
 }
 

@@ -423,6 +423,46 @@ func (Disposition) TableName() string {
 	return "dispositions"
 }
 
+// DischargePlanning stores inpatient discharge planning checklist per visit
+type DischargePlanning struct {
+	ID        uint           `gorm:"primarykey" json:"id"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
+
+	VisitID uint   `gorm:"not null;uniqueIndex" json:"visit_id"`
+	Visit   *Visit `gorm:"foreignKey:VisitID" json:"visit,omitempty"`
+
+	ItemsJSON string `gorm:"type:text" json:"items_json,omitempty"`
+
+	UpdatedByID *uint `gorm:"index" json:"updated_by_id,omitempty"`
+	UpdatedBy   *User `gorm:"foreignKey:UpdatedByID" json:"updated_by,omitempty"`
+}
+
+func (DischargePlanning) TableName() string {
+	return "discharge_plannings"
+}
+
+// BodyMarker stores selected body marker images and marker points per visit
+type BodyMarker struct {
+	ID        uint           `gorm:"primarykey" json:"id"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
+
+	VisitID uint   `gorm:"not null;uniqueIndex" json:"visit_id"`
+	Visit   *Visit `gorm:"foreignKey:VisitID" json:"visit,omitempty"`
+
+	ItemsJSON string `gorm:"type:text" json:"items_json,omitempty"`
+
+	UpdatedByID *uint `gorm:"index" json:"updated_by_id,omitempty"`
+	UpdatedBy   *User `gorm:"foreignKey:UpdatedByID" json:"updated_by,omitempty"`
+}
+
+func (BodyMarker) TableName() string {
+	return "body_markers"
+}
+
 // ===========================================================================
 // VITAL SIGNS HISTORY (Optional - untuk tracking vital signs berkala)
 // ===========================================================================

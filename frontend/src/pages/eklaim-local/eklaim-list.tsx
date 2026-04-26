@@ -22,7 +22,7 @@ import { eklaimLocalApi, eklaimLocalStatusLabels, eklaimLocalStatusColors } from
 import type { EKlaimLocal, EKlaimLocalStatus } from '@/lib/api/eklaim-local';
 import { useToast } from '@/hooks/use-toast';
 import { setPageTitle } from '@/lib/page-title';
-import { Loader2, FileStack, Eye, FilterX, SlidersHorizontal, Search } from 'lucide-react';
+import { Loader2, Eye, FilterX, SlidersHorizontal, Search } from 'lucide-react';
 import { format } from 'date-fns';
 import { id as localeId } from 'date-fns/locale';
 
@@ -220,12 +220,8 @@ export default function EklaimListPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-lg font-semibold flex items-center gap-2">
-              <FileStack className="h-5 w-5" />
               Data Klaim
             </h1>
-            <p className="text-sm text-muted-foreground">
-              Daftar klaim yang sudah dibuat dan siap diproses
-            </p>
           </div>
           <div className="flex items-center gap-2">
             {hasActiveFilters && (

@@ -94,3 +94,180 @@
   }
 }
 
+@layer components {
+  .medical-record-workspace {
+    font-family: "IBM Plex Sans", "Plus Jakarta Sans", "Segoe UI", "Arial", sans-serif;
+  }
+
+  .medical-record-workspace .mr-shell {
+    border-radius: 0.9rem;
+    border-color: hsl(var(--border) / 0.82);
+    background:
+      radial-gradient(circle at 6% -20%, hsl(197 90% 96%), transparent 38%),
+      radial-gradient(circle at 108% 120%, hsl(157 72% 95%), transparent 36%),
+      hsl(var(--background));
+    box-shadow: 0 26px 60px -42px hsl(var(--foreground) / 0.45);
+    overflow: hidden;
+  }
+
+  .medical-record-workspace .mr-sidebar {
+    background: linear-gradient(180deg, hsl(var(--background)), hsl(var(--muted) / 0.24));
+    min-width: 0;
+  }
+
+  .medical-record-workspace .mr-main {
+    background: hsl(var(--background));
+    min-width: 0;
+  }
+
+  .medical-record-workspace .mr-toolbar,
+  .medical-record-workspace .mr-footer {
+    backdrop-filter: blur(8px);
+    background: hsl(var(--background) / 0.86);
+  }
+
+  .medical-record-workspace .mr-content {
+    background:
+      linear-gradient(180deg, hsl(var(--muted) / 0.2), transparent 38%),
+      hsl(var(--background));
+    scroll-padding-top: 1rem;
+  }
+
+  .medical-record-workspace .mr-pane > * {
+    animation: mr-fade-up 0.2s ease-out;
+  }
+
+  .medical-record-workspace .mr-tabs {
+    min-width: 0;
+  }
+
+  .medical-record-workspace .mr-tab-section-title {
+    color: hsl(var(--muted-foreground));
+    letter-spacing: 0.08em;
+    font-size: 10px;
+  }
+
+  .medical-record-workspace .mr-tab-chip {
+    border: 1px solid transparent;
+    border-radius: 0.7rem;
+    transition: all 0.18s ease;
+  }
+
+  .medical-record-workspace .mr-tab-chip:hover {
+    border-color: hsl(var(--border));
+    background: hsl(var(--muted) / 0.58);
+  }
+
+  .medical-record-workspace .mr-tab-chip[data-tab-id],
+  .medical-record-workspace .mr-tab-item button[data-tab-id] {
+    touch-action: manipulation;
+  }
+
+  .medical-record-workspace .mr-tab-item:has(> .mr-tab-chip.bg-primary\/10) .mr-tab-chip {
+    border-color: hsl(var(--ring) / 0.26);
+    box-shadow: 0 10px 24px -22px hsl(var(--foreground));
+  }
+
+  .medical-record-workspace .mr-tab-chip-horizontal {
+    border: 1px solid hsl(var(--border) / 0.9);
+    border-radius: 0.8rem;
+    background: hsl(var(--background));
+  }
+
+  .medical-record-workspace .mr-tab-chip-horizontal:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 12px 20px -16px hsl(var(--foreground) / 0.35);
+  }
+
+  .medical-record-workspace .mr-content .rounded-md.border,
+  .medical-record-workspace .mr-content .rounded-lg.border,
+  .medical-record-workspace .mr-content .rounded-xl.border,
+  .medical-record-workspace .mr-content .border.rounded-md,
+  .medical-record-workspace .mr-content .border.rounded-lg,
+  .medical-record-workspace .mr-content .border.rounded-xl {
+    border-color: hsl(var(--border) / 0.84);
+    box-shadow: 0 8px 22px -22px hsl(var(--foreground) / 0.36);
+  }
+
+  .medical-record-workspace .mr-content input,
+  .medical-record-workspace .mr-content textarea,
+  .medical-record-workspace .mr-content [role="combobox"],
+  .medical-record-workspace .mr-content button[aria-haspopup="listbox"] {
+    border-radius: 0.6rem;
+  }
+
+  .medical-record-workspace .mr-content input:focus,
+  .medical-record-workspace .mr-content textarea:focus,
+  .medical-record-workspace .mr-content [role="combobox"]:focus,
+  .medical-record-workspace .mr-content button[aria-haspopup="listbox"]:focus {
+    box-shadow: 0 0 0 3px hsl(var(--ring) / 0.17);
+  }
+
+  .medical-record-workspace .mr-content table thead {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: hsl(var(--muted) / 0.52);
+    backdrop-filter: blur(6px);
+  }
+
+  .medical-record-workspace .mr-content .pharmacy-no-sticky-head table thead {
+    position: static;
+    top: auto;
+    backdrop-filter: none;
+  }
+
+  .medical-record-workspace .mr-content table tbody tr {
+    transition: background-color 0.16s ease;
+  }
+
+  .medical-record-workspace .mr-content table tbody tr:hover {
+    background: hsl(var(--accent) / 0.45);
+  }
+
+  .medical-record-workspace .mr-footer .h-8.rounded-none,
+  .medical-record-workspace .mr-toolbar .h-8.rounded-none {
+    border-radius: 0.55rem;
+  }
+
+  .medical-record-workspace .mr-footer button,
+  .medical-record-workspace .mr-toolbar button {
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  .medical-record-workspace .mr-footer button:hover,
+  .medical-record-workspace .mr-toolbar button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 18px -16px hsl(var(--foreground));
+  }
+
+  @media (max-width: 1279px) {
+    .medical-record-workspace .mr-shell {
+      grid-template-columns: minmax(240px, 18%) minmax(0, 82%);
+    }
+  }
+
+  @media (max-width: 1024px) {
+    .medical-record-workspace .mr-shell {
+      grid-template-columns: 1fr;
+      height: auto;
+    }
+
+    .medical-record-workspace .mr-sidebar {
+      border-right-width: 0;
+      border-bottom-width: 1px;
+    }
+  }
+}
+
+@keyframes mr-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+

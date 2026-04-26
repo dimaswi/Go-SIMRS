@@ -24,6 +24,8 @@ export interface Medicine {
   current_stock: number;
   purchase_price: number;
   selling_price: number;
+  dpho_kode_obat?: string;
+  dpho_nama_obat?: string;
   indication?: string;
   contraindication?: string;
   side_effects?: string;
@@ -51,6 +53,8 @@ export interface MedicineRequest {
   max_stock?: number;
   purchase_price?: number;
   selling_price?: number;
+  dpho_kode_obat?: string;
+  dpho_nama_obat?: string;
   indication?: string;
   contraindication?: string;
   side_effects?: string;

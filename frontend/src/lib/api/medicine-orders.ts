@@ -1,7 +1,23 @@
 import { api } from './client';
 
 export type MedicineFulfillmentType = 'in_room' | 'take_home';
-export type MedicationTimesheetStatus = 'scheduled' | 'given' | 'held' | 'skipped';
+export type MedicationTimesheetStatus =
+  | 'scheduled'
+  | 'given'
+  | 'held'
+  | 'skipped'
+  | 'refused'
+  | 'not_available'
+  | 'contraindicated'
+  | 'patient_absent';
+
+export type MedicationTimesheetReasonCode =
+  | 'clinical_hold'
+  | 'contraindication'
+  | 'patient_refused'
+  | 'drug_unavailable'
+  | 'patient_unavailable'
+  | 'other';
 
 // Types
 export interface MedicineOrderItem {
@@ -16,6 +32,12 @@ export interface MedicineOrderItem {
     unit: string;
     category: string;
   };
+  item_type?: string;
+  racikan_group?: string;
+  racikan_name?: string;
+  racikan_type?: string;
+  racikan_qty?: number;
+  racikan_unit?: string;
   quantity: number;
   unit: string;
   dosage: string;
@@ -146,6 +168,12 @@ export interface CreateMedicineOrderInput {
     duration?: string;
     instructions?: string;
     notes?: string;
+    item_type?: string;
+    racikan_group?: string;
+    racikan_name?: string;
+    racikan_type?: string;
+    racikan_qty?: number;
+    racikan_unit?: string;
   }[];
 }
 
@@ -241,6 +269,8 @@ export interface MedicationTimesheetEntry {
   medicine_order_item_id: number;
   scheduled_at: string;
   status: MedicationTimesheetStatus;
+  reason_code?: MedicationTimesheetReasonCode;
+  reason_detail?: string;
   administered_at?: string;
   administered_by?: number;
   notes: string;
@@ -312,6 +342,8 @@ export const medicineOrdersApi = {
     date: string;
     hour: number;
     status?: MedicationTimesheetStatus | '';
+    reason_code?: MedicationTimesheetReasonCode | '';
+    reason_detail?: string;
     notes?: string;
   }) => {
     const response = await api.post<MedicationTimesheetEntry | { message: string }>('/medicine-orders/timesheet/entry', data);
@@ -371,6 +403,12 @@ export const medicineOrdersApi = {
     duration?: string;
     instructions?: string;
     notes?: string;
+    item_type?: string;
+    racikan_group?: string;
+    racikan_name?: string;
+    racikan_type?: string;
+    racikan_qty?: number;
+    racikan_unit?: string;
   }) => {
     const response = await api.post<MedicineOrderItem>(`/medicine-orders/${orderId}/items`, data);
     return response;
@@ -386,6 +424,12 @@ export const medicineOrdersApi = {
     duration?: string;
     instructions?: string;
     notes?: string;
+    item_type?: string;
+    racikan_group?: string;
+    racikan_name?: string;
+    racikan_type?: string;
+    racikan_qty?: number;
+    racikan_unit?: string;
   }) => {
     const response = await api.put<MedicineOrderItem>(`/medicine-orders/${orderId}/items/${itemId}`, data);
     return response;

@@ -220,7 +220,10 @@ export type {
   Diagnosis,
   DiagnosisItem,
   AssessmentPlan,
-  Disposition
+  Disposition,
+  BodyMarkerData,
+  BodyMarkerItem,
+  BodyMarkerPoint
 } from './medical-records';
 
 // Room Queues
@@ -244,6 +247,7 @@ export type {
   MedicineReturn,
   CreateMedicineReturnInput,
   MedicationTimesheetStatus,
+  MedicationTimesheetReasonCode,
   MedicationTimesheetItem,
   MedicationTimesheetEntry,
   MedicationTimesheetResponse

@@ -28,6 +28,12 @@ const (
 	ItemStatusCancelled = "cancelled" // Dibatalkan
 )
 
+// Order Item Type Constants
+const (
+	MedicineOrderItemTypeNonRacikan = "non_racikan"
+	MedicineOrderItemTypeRacikan    = "racikan"
+)
+
 // Fulfillment Type Constants
 const (
 	FulfillmentTypeInRoom   = "in_room"   // Obat digunakan langsung di ruangan
@@ -115,6 +121,16 @@ type MedicineOrderItem struct {
 	// Medicine
 	MedicineID uint      `gorm:"not null;index" json:"medicine_id"`
 	Medicine   *Medicine `gorm:"foreignKey:MedicineID" json:"medicine,omitempty"`
+
+	// Item Type
+	ItemType string `gorm:"size:20;default:'non_racikan';index" json:"item_type"`
+
+	// Racikan Group Metadata
+	RacikanGroup string `gorm:"size:100;index" json:"racikan_group"`
+	RacikanName  string `gorm:"size:200" json:"racikan_name"`
+	RacikanType  string `gorm:"size:50" json:"racikan_type"`
+	RacikanQty   int    `gorm:"default:0" json:"racikan_qty"`
+	RacikanUnit  string `gorm:"size:50" json:"racikan_unit"`
 
 	// Ordered Quantity
 	Quantity int    `gorm:"not null" json:"quantity"` // Jumlah yang di-order

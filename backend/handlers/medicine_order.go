@@ -30,6 +30,14 @@ func normalizeFulfillmentType(value string) (string, error) {
 	}
 }
 
+func normalizeMedicineOrderItemType(value string) string {
+	if strings.TrimSpace(strings.ToLower(value)) == models.MedicineOrderItemTypeRacikan {
+		return models.MedicineOrderItemTypeRacikan
+	}
+
+	return models.MedicineOrderItemTypeNonRacikan
+}
+
 // GetMedicineOrders returns medicine orders with filters
 func GetMedicineOrders(c *gin.Context) {
 	var orders []models.MedicineOrder
@@ -153,6 +161,12 @@ func CreateMedicineOrder(c *gin.Context) {
 			Duration     string `json:"duration"`
 			Instructions string `json:"instructions"`
 			Notes        string `json:"notes"`
+			ItemType     string `json:"item_type"`
+			RacikanGroup string `json:"racikan_group"`
+			RacikanName  string `json:"racikan_name"`
+			RacikanType  string `json:"racikan_type"`
+			RacikanQty   int    `json:"racikan_qty"`
+			RacikanUnit  string `json:"racikan_unit"`
 		} `json:"items" binding:"required,min=1"`
 	}
 
@@ -222,7 +236,16 @@ func CreateMedicineOrder(c *gin.Context) {
 
 	// Create the medicine order
 	prescriptionType := input.PrescriptionType
-	if prescriptionType == "" {
+	hasRacikanItems := false
+	for _, item := range input.Items {
+		if normalizeMedicineOrderItemType(item.ItemType) == models.MedicineOrderItemTypeRacikan {
+			hasRacikanItems = true
+			break
+		}
+	}
+	if hasRacikanItems {
+		prescriptionType = "racikan"
+	} else if prescriptionType == "" {
 		prescriptionType = "regular"
 	}
 
@@ -282,9 +305,42 @@ func CreateMedicineOrder(c *gin.Context) {
 			unit = medicine.Unit
 		}
 
+		itemType := normalizeMedicineOrderItemType(item.ItemType)
+		racikanGroup := strings.TrimSpace(item.RacikanGroup)
+		racikanName := strings.TrimSpace(item.RacikanName)
+		racikanType := strings.TrimSpace(item.RacikanType)
+		racikanUnit := strings.TrimSpace(item.RacikanUnit)
+		racikanQty := item.RacikanQty
+
+		if itemType == models.MedicineOrderItemTypeRacikan {
+			if racikanGroup == "" || racikanName == "" {
+				tx.Rollback()
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Racikan wajib memiliki grup dan nama racikan"})
+				return
+			}
+			if racikanQty < 1 {
+				racikanQty = 1
+			}
+			if racikanUnit == "" {
+				racikanUnit = "bungkus"
+			}
+		} else {
+			racikanGroup = ""
+			racikanName = ""
+			racikanType = ""
+			racikanQty = 0
+			racikanUnit = ""
+		}
+
 		orderItem := models.MedicineOrderItem{
 			MedicineOrderID: order.ID,
 			MedicineID:      item.MedicineID,
+			ItemType:        itemType,
+			RacikanGroup:    racikanGroup,
+			RacikanName:     racikanName,
+			RacikanType:     racikanType,
+			RacikanQty:      racikanQty,
+			RacikanUnit:     racikanUnit,
 			Quantity:        item.Quantity,
 			Unit:            unit,
 			Dosage:          item.Dosage,
@@ -652,6 +708,12 @@ func AddMedicineOrderItem(c *gin.Context) {
 		Duration     string `json:"duration"`
 		Instructions string `json:"instructions"`
 		Notes        string `json:"notes"`
+		ItemType     string `json:"item_type"`
+		RacikanGroup string `json:"racikan_group"`
+		RacikanName  string `json:"racikan_name"`
+		RacikanType  string `json:"racikan_type"`
+		RacikanQty   int    `json:"racikan_qty"`
+		RacikanUnit  string `json:"racikan_unit"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -666,11 +728,42 @@ func AddMedicineOrderItem(c *gin.Context) {
 		return
 	}
 
-	// Check if medicine already exists in order
+	itemType := normalizeMedicineOrderItemType(input.ItemType)
+	racikanGroup := strings.TrimSpace(input.RacikanGroup)
+	racikanName := strings.TrimSpace(input.RacikanName)
+	racikanType := strings.TrimSpace(input.RacikanType)
+	racikanUnit := strings.TrimSpace(input.RacikanUnit)
+	racikanQty := input.RacikanQty
+
+	if itemType == models.MedicineOrderItemTypeRacikan {
+		if racikanGroup == "" || racikanName == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Racikan wajib memiliki grup dan nama racikan"})
+			return
+		}
+		if racikanQty < 1 {
+			racikanQty = 1
+		}
+		if racikanUnit == "" {
+			racikanUnit = "bungkus"
+		}
+	} else {
+		racikanGroup = ""
+		racikanName = ""
+		racikanType = ""
+		racikanQty = 0
+		racikanUnit = ""
+	}
+
+	// Check if medicine already exists in the same non-racikan line or racikan group
 	var existingItem models.MedicineOrderItem
-	if err := database.DB.Where("medicine_order_id = ? AND medicine_id = ? AND status != ?",
-		order.ID, input.MedicineID, models.ItemStatusCancelled).
-		First(&existingItem).Error; err == nil {
+	query := database.DB.Where("medicine_order_id = ? AND medicine_id = ? AND status != ?",
+		order.ID, input.MedicineID, models.ItemStatusCancelled)
+	if itemType == models.MedicineOrderItemTypeRacikan {
+		query = query.Where("item_type = ? AND racikan_group = ?", itemType, racikanGroup)
+	} else {
+		query = query.Where("COALESCE(item_type, '') IN ('', ?)", models.MedicineOrderItemTypeNonRacikan)
+	}
+	if err := query.First(&existingItem).Error; err == nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Obat sudah ada dalam resep, silakan edit jumlahnya"})
 		return
 	}
@@ -683,6 +776,12 @@ func AddMedicineOrderItem(c *gin.Context) {
 	item := models.MedicineOrderItem{
 		MedicineOrderID: order.ID,
 		MedicineID:      input.MedicineID,
+		ItemType:        itemType,
+		RacikanGroup:    racikanGroup,
+		RacikanName:     racikanName,
+		RacikanType:     racikanType,
+		RacikanQty:      racikanQty,
+		RacikanUnit:     racikanUnit,
 		Quantity:        input.Quantity,
 		Unit:            unit,
 		Dosage:          input.Dosage,
@@ -749,6 +848,12 @@ func UpdateMedicineOrderItem(c *gin.Context) {
 		Duration     *string `json:"duration"`
 		Instructions *string `json:"instructions"`
 		Notes        *string `json:"notes"`
+		ItemType     *string `json:"item_type"`
+		RacikanGroup *string `json:"racikan_group"`
+		RacikanName  *string `json:"racikan_name"`
+		RacikanType  *string `json:"racikan_type"`
+		RacikanQty   *int    `json:"racikan_qty"`
+		RacikanUnit  *string `json:"racikan_unit"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -780,6 +885,54 @@ func UpdateMedicineOrderItem(c *gin.Context) {
 	}
 	if input.Notes != nil {
 		updates["notes"] = *input.Notes
+	}
+
+	itemType := item.ItemType
+	if input.ItemType != nil {
+		itemType = normalizeMedicineOrderItemType(*input.ItemType)
+		updates["item_type"] = itemType
+	}
+
+	if itemType == models.MedicineOrderItemTypeRacikan {
+		if input.RacikanGroup != nil {
+			racikanGroup := strings.TrimSpace(*input.RacikanGroup)
+			if racikanGroup == "" {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Grup racikan wajib diisi"})
+				return
+			}
+			updates["racikan_group"] = racikanGroup
+		}
+		if input.RacikanName != nil {
+			racikanName := strings.TrimSpace(*input.RacikanName)
+			if racikanName == "" {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Nama racikan wajib diisi"})
+				return
+			}
+			updates["racikan_name"] = racikanName
+		}
+		if input.RacikanType != nil {
+			updates["racikan_type"] = strings.TrimSpace(*input.RacikanType)
+		}
+		if input.RacikanQty != nil {
+			if *input.RacikanQty < 1 {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Jumlah racikan minimal 1"})
+				return
+			}
+			updates["racikan_qty"] = *input.RacikanQty
+		}
+		if input.RacikanUnit != nil {
+			racikanUnit := strings.TrimSpace(*input.RacikanUnit)
+			if racikanUnit == "" {
+				racikanUnit = "bungkus"
+			}
+			updates["racikan_unit"] = racikanUnit
+		}
+	} else if input.ItemType != nil {
+		updates["racikan_group"] = ""
+		updates["racikan_name"] = ""
+		updates["racikan_type"] = ""
+		updates["racikan_qty"] = 0
+		updates["racikan_unit"] = ""
 	}
 
 	if len(updates) > 0 {

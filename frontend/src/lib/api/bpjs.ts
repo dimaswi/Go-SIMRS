@@ -60,6 +60,25 @@ export interface BPJSSyncStats {
   avg_duration_ms: number;
 }
 
+export interface BPJSApotekDPHOItem {
+  kodeobat: string;
+  namaobat: string;
+  prb?: string | boolean | number | null;
+  kronis?: string | boolean | number | null;
+  kemo?: string | boolean | number | null;
+  harga?: string | null;
+  restriksi?: string | null;
+  generik?: string | null;
+  aktif?: string | null;
+  sedia?: string | null;
+  stok?: string | null;
+  [key: string]: unknown;
+}
+
+export interface BPJSApotekDPHOData {
+  list?: BPJSApotekDPHOItem[];
+}
+
 // Referensi BPJS Types
 export interface BPJSReferensiPoli {
   kdpoli: string;
@@ -313,6 +332,74 @@ export const bpjsApi = {
   // Hapus ruangan dari Aplicare
   aplicareDeleteRoom: (kodeKelas: string, kodeRuang: string) =>
     api.post<{ message: string }>('/bpjs/aplicare/bed/delete', { kode_kelas: kodeKelas, kode_ruang: kodeRuang }),
+
+  // === APOTEK ONLINE ===
+
+  apotekGetReferensiDPHO: () =>
+    api.get<{ data: BPJSApotekDPHOData | BPJSApotekDPHOItem[]; cached?: boolean; warning?: string }>('/bpjs/apotek/referensi/dpho'),
+
+  apotekGetReferensiPoli: (parameter: string) =>
+    api.get<{ data: unknown }>(`/bpjs/apotek/referensi/poli/${encodeURIComponent(parameter)}`),
+
+  apotekGetFasilitasKesehatan: (jenisFaskes: string, namaFaskes: string) =>
+    api.get<{ data: unknown }>(
+      `/bpjs/apotek/referensi/ppk/${encodeURIComponent(jenisFaskes)}/${encodeURIComponent(namaFaskes)}`,
+    ),
+
+  apotekGetSettingApotek: (kodeApotek: string) =>
+    api.get<{ data: unknown }>(`/bpjs/apotek/referensi/settingppk/${encodeURIComponent(kodeApotek)}`),
+
+  apotekGetSpesialistik: () =>
+    api.get<{ data: unknown }>('/bpjs/apotek/referensi/spesialistik'),
+
+  apotekGetReferensiObat: (kodeJenisObat: string, tglResep: string, filter: string) =>
+    api.get<{ data: unknown }>('/bpjs/apotek/referensi/obat', {
+      params: {
+        kodeJenisObat,
+        tglResep,
+        filter,
+      },
+    }),
+
+  apotekInsertObatNonRacikan: (payload: Record<string, unknown>) =>
+    api.post<{ data: unknown }>('/bpjs/apotek/obat/non-racikan', payload),
+
+  apotekInsertObatRacikan: (payload: Record<string, unknown>) =>
+    api.post<{ data: unknown }>('/bpjs/apotek/obat/racikan', payload),
+
+  apotekUpdateStokObat: (payload: Record<string, unknown>) =>
+    api.post<{ data: unknown }>('/bpjs/apotek/obat/stok', payload),
+
+  apotekHapusPelayananObat: (payload: Record<string, unknown>) =>
+    api.delete<{ data: unknown }>('/bpjs/apotek/pelayanan/obat', { data: payload }),
+
+  apotekGetDaftarPelayananObat: (noKunjungan: string) =>
+    api.get<{ data: unknown }>(`/bpjs/apotek/obat/daftar/${encodeURIComponent(noKunjungan)}`),
+
+  apotekGetRiwayatPelayananObat: (tglAwal: string, tglAkhir: string, noKartu: string) =>
+    api.get<{ data: unknown }>(
+      `/bpjs/apotek/riwayat/${encodeURIComponent(tglAwal)}/${encodeURIComponent(tglAkhir)}/${encodeURIComponent(noKartu)}`,
+    ),
+
+  apotekSimpanResep: (payload: Record<string, unknown>) =>
+    api.post<{ data: unknown }>('/bpjs/apotek/resep/simpan', payload),
+
+  apotekHapusResep: (payload: Record<string, unknown>) =>
+    api.delete<{ data: unknown }>('/bpjs/apotek/resep', { data: payload }),
+
+  apotekDaftarResep: (payload: Record<string, unknown>) =>
+    api.post<{ data: unknown }>('/bpjs/apotek/resep/daftar', payload),
+
+  apotekCariKunjunganBySEP: (noSEP: string) =>
+    api.get<{ data: unknown }>(`/bpjs/apotek/sep/${encodeURIComponent(noSEP)}`),
+
+  apotekGetDataKlaim: (bulan: string, tahun: string, jenisObat: string, status: string) =>
+    api.get<{ data: unknown }>(
+      `/bpjs/apotek/monitoring/klaim/${encodeURIComponent(bulan)}/${encodeURIComponent(tahun)}/${encodeURIComponent(jenisObat)}/${encodeURIComponent(status)}`,
+    ),
+
+  apotekGetRekapPesertaPRB: (tahun: string, bulan: string) =>
+    api.get<{ data: unknown }>(`/bpjs/apotek/prb/rekap/${encodeURIComponent(tahun)}/${encodeURIComponent(bulan)}`),
 };
 
 // BPJS Queue Types (Antrian MJKN)

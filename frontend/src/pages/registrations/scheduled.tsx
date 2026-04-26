@@ -60,13 +60,13 @@ export default function ScheduledRegistrationsPage() {
   const [registrations, setRegistrations] = useState<ScheduledRegistration[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterOpen, setFilterOpen] = useState(false);
-  
+
   // Filters
   const [selectedDate, setSelectedDate] = useState<string>(getTodayString());
   const [selectedRoom, setSelectedRoom] = useState<string>("all");
   const [selectedStatus, setSelectedStatus] = useState<string>("scheduled");
   const [rooms, setRooms] = useState<Room[]>([]);
-  
+
   // Dialogs
   const [checkInDrawerOpen, setCheckInDrawerOpen] = useState(false);
   const [checkInId, setCheckInId] = useState<number | null>(null);
@@ -106,7 +106,7 @@ export default function ScheduledRegistrationsPage() {
     setLoading(true);
     try {
       const params: Record<string, string | number | boolean> = {};
-      
+
       if (selectedDate) {
         params.date = selectedDate;
       }
@@ -229,7 +229,7 @@ export default function ScheduledRegistrationsPage() {
     if (reg.status === "cancelled") {
       return <Badge variant="secondary">Dibatalkan</Badge>;
     }
-    
+
     const scheduledDate = reg.scheduled_date ? parseISO(reg.scheduled_date) : null;
     if (scheduledDate) {
       if (isToday(scheduledDate)) {
@@ -389,69 +389,61 @@ export default function ScheduledRegistrationsPage() {
   return (
     <div className="flex flex-1 flex-col px-4">
       <Collapsible open={filterOpen} onOpenChange={setFilterOpen}>
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold">Jadwal Kontrol Pasien</h1>
-          <p className="text-sm text-muted-foreground">
-            Kelola jadwal kontrol dan check-in pasien -{" "}
-            {selectedDate
-              ? format(new Date(selectedDate), "EEEE, dd MMMM yyyy", {
-                  locale: idLocale,
-                })
-              : "Semua Data"}
-          </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-lg font-semibold">Jadwal Kontrol Pasien</h1>
+          </div>
+          <CollapsibleTrigger asChild>
+            <Button variant="outline" size="sm" className="h-9">
+              <SlidersHorizontal className="h-4 w-4 mr-2" />
+              Filter
+            </Button>
+          </CollapsibleTrigger>
         </div>
-        <CollapsibleTrigger asChild>
-          <Button variant="outline" size="sm" className="h-9">
-            <SlidersHorizontal className="h-4 w-4 mr-2" />
-            Filter
-          </Button>
-        </CollapsibleTrigger>
-      </div>
-      <CollapsibleContent>
-      <div className="flex items-center gap-2 flex-wrap pt-4">
-        <Input
-          type="date"
-          value={selectedDate}
-          onChange={(e) => setSelectedDate(e.target.value)}
-          className="h-9 w-48"
-        />
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setSelectedDate("")}
-          className="h-9"
-        >
-          Semua Data
-        </Button>
-        <Select value={selectedRoom} onValueChange={setSelectedRoom}>
-          <SelectTrigger className="h-9 w-[200px]">
-            <SelectValue placeholder="Semua Ruangan" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Semua Ruangan</SelectItem>
-            {rooms.map((room) => (
-              <SelectItem key={room.id} value={room.id.toString()}>
-                {room.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-          <SelectTrigger className="h-9 w-[150px]">
-            <SelectValue placeholder="Semua Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Semua Status</SelectItem>
-            <SelectItem value="scheduled">Terjadwal</SelectItem>
-            <SelectItem value="no_show">Tidak Datang</SelectItem>
-          </SelectContent>
-        </Select>
-        <Button variant="outline" size="icon" className="h-9 w-9" onClick={loadData}>
-          <RefreshCcw className="h-4 w-4" />
-        </Button>
-      </div>
-      </CollapsibleContent>
+        <CollapsibleContent>
+          <div className="flex items-center gap-2 flex-wrap pt-4">
+            <Input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="h-9 w-48"
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSelectedDate("")}
+              className="h-9"
+            >
+              Semua Data
+            </Button>
+            <Select value={selectedRoom} onValueChange={setSelectedRoom}>
+              <SelectTrigger className="h-9 w-[200px]">
+                <SelectValue placeholder="Semua Ruangan" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua Ruangan</SelectItem>
+                {rooms.map((room) => (
+                  <SelectItem key={room.id} value={room.id.toString()}>
+                    {room.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+              <SelectTrigger className="h-9 w-[150px]">
+                <SelectValue placeholder="Semua Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua Status</SelectItem>
+                <SelectItem value="scheduled">Terjadwal</SelectItem>
+                <SelectItem value="no_show">Tidak Datang</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button variant="outline" size="icon" className="h-9 w-9" onClick={loadData}>
+              <RefreshCcw className="h-4 w-4" />
+            </Button>
+          </div>
+        </CollapsibleContent>
       </Collapsible>
 
       <DataTable
@@ -501,8 +493,8 @@ export default function ScheduledRegistrationsPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="new_room">Ruangan Tujuan</Label>
-              <Select 
-                value={rescheduleForm.new_room_id} 
+              <Select
+                value={rescheduleForm.new_room_id}
                 onValueChange={(value) => setRescheduleForm(prev => ({ ...prev, new_room_id: value }))}
               >
                 <SelectTrigger>

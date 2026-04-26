@@ -67,6 +67,7 @@ export function PharmacyReview({ visitId, readOnly = false }: PharmacyReviewProp
   const [selectedOrder, setSelectedOrder] = useState<MedicineOrder | null>(null);
   const [existingReview, setExistingReview] = useState<PrescriptionReview | null>(null);
   const [hasDecided, setHasDecided] = useState(false);
+  const [showAllReviewItems, setShowAllReviewItems] = useState(false);
 
   const [reviewForm, setReviewForm] = useState({
     drug_interaction_check: false,
@@ -342,32 +343,43 @@ export function PharmacyReview({ visitId, readOnly = false }: PharmacyReviewProp
       : "rejected"
     : "";
   const activeItems = selectedOrder?.items?.filter((i) => i.status !== "cancelled") || [];
+  const displayedReviewItems = showAllReviewItems ? activeItems : activeItems.slice(0, 8);
   const grandTotal = activeItems.reduce((total, item) => {
     return total + getUnitPrice(item) * Number(item.quantity || 0);
   }, 0);
   
   return (
-    <div>
+    <div className="pharmacy-no-sticky-head">
       <div className="space-y-4">
       {/* Order Selection if multiple */}
       {orders.length > 1 && (
         <div className="border rounded-lg p-3 bg-muted/30">
-          <Label className="text-sm font-semibold mb-2 block">Pilih Order</Label>
-            <div className="flex flex-wrap gap-2">
-              {orders.map((order) => (
-                <Button
-                  key={order.id}
-                  variant={selectedOrder?.id === order.id ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setSelectedOrder(order)}
-                >
-                  {order.order_number}
-                  <Badge variant={ORDER_STATUS_LABELS[order.status]?.variant || "secondary"} className="ml-2">
-                    {ORDER_STATUS_LABELS[order.status]?.label || order.status}
-                  </Badge>
-                </Button>
-              ))}
-            </div>
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-[120px_minmax(0,1fr)_auto] md:items-center">
+            <Label className="text-sm font-semibold">Pilih Order</Label>
+            <Select
+              value={selectedOrder?.id ? String(selectedOrder.id) : ""}
+              onValueChange={(value) => {
+                const nextOrder = orders.find((order) => String(order.id) === value);
+                if (nextOrder) setSelectedOrder(nextOrder);
+              }}
+            >
+              <SelectTrigger className="h-8">
+                <SelectValue placeholder="Pilih order" />
+              </SelectTrigger>
+              <SelectContent>
+                {orders.map((order) => (
+                  <SelectItem key={order.id} value={String(order.id)}>
+                    {order.order_number} - {ORDER_STATUS_LABELS[order.status]?.label || order.status}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {selectedOrder && (
+              <Badge variant={ORDER_STATUS_LABELS[selectedOrder.status]?.variant || "secondary"} className="w-fit">
+                {ORDER_STATUS_LABELS[selectedOrder.status]?.label || selectedOrder.status}
+              </Badge>
+            )}
+          </div>
         </div>
       )}
 
@@ -392,29 +404,29 @@ export function PharmacyReview({ visitId, readOnly = false }: PharmacyReviewProp
               </div>
             </div>
             <div className="p-3">
-              <table className="w-full min-w-[640px] text-sm">
+              <table className="w-full table-fixed text-xs">
                 <tbody>
                   <tr className="border-b">
-                    <td className="py-2 text-muted-foreground w-1/4">Diagnosis</td>
-                    <td className="py-2 font-medium">{selectedOrder.diagnosis || "-"}</td>
+                    <td className="py-1.5 text-muted-foreground w-28 align-top">Diagnosis</td>
+                    <td className="py-1.5 font-medium break-words">{selectedOrder.diagnosis || "-"}</td>
                   </tr>
                   <tr className="border-b">
-                    <td className="py-2 text-muted-foreground">Ruang Asal</td>
-                    <td className="py-2 font-medium">{selectedOrder.source_room?.name || "-"}</td>
+                    <td className="py-1.5 text-muted-foreground align-top">Ruang Asal</td>
+                    <td className="py-1.5 font-medium break-words">{selectedOrder.source_room?.name || "-"}</td>
                   </tr>
                   <tr className="border-b">
-                    <td className="py-2 text-muted-foreground">Petugas Order</td>
-                    <td className="py-2 font-medium">{selectedOrder.prescriber?.nama_lengkap || "-"}</td>
+                    <td className="py-1.5 text-muted-foreground align-top">Petugas Order</td>
+                    <td className="py-1.5 font-medium break-words">{selectedOrder.prescriber?.nama_lengkap || "-"}</td>
                   </tr>
                   <tr className="border-b">
-                    <td className="py-2 text-muted-foreground">Waktu Order</td>
-                    <td className="py-2 font-medium">
+                    <td className="py-1.5 text-muted-foreground align-top">Waktu Order</td>
+                    <td className="py-1.5 font-medium break-words">
                       {selectedOrder.created_at ? new Date(selectedOrder.created_at).toLocaleString("id-ID") : "-"}
                     </td>
                   </tr>
                   <tr>
-                    <td className="py-2 text-muted-foreground">Prioritas</td>
-                    <td className="py-2">
+                    <td className="py-1.5 text-muted-foreground align-top">Prioritas</td>
+                    <td className="py-1.5">
                       <Badge variant={selectedOrder.priority === "urgent" ? "destructive" : "outline"}>
                         {selectedOrder.priority === "urgent" ? "Urgent" : "Normal"}
                       </Badge>
@@ -428,43 +440,58 @@ export function PharmacyReview({ visitId, readOnly = false }: PharmacyReviewProp
           {/* Order Items Table */}
           <div className="border rounded-lg">
             <div className="p-3 border-b bg-muted/30">
-              <Label className="text-sm font-semibold flex items-center gap-2">
-                <Pill className="h-4 w-4" />
-                Daftar Obat ({activeItems.length} item)
-              </Label>
+              <div className="flex items-center justify-between gap-2">
+                <Label className="text-sm font-semibold flex items-center gap-2">
+                  <Pill className="h-4 w-4" />
+                  Daftar Obat ({activeItems.length} item)
+                </Label>
+                {activeItems.length > 8 && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => setShowAllReviewItems((prev) => !prev)}
+                  >
+                    {showAllReviewItems ? "Ringkas" : `Lihat Semua (${activeItems.length})`}
+                  </Button>
+                )}
+              </div>
             </div>
             <div className="p-0">
-              <table className="w-full min-w-[640px] text-sm">
+              <table className="w-full table-fixed text-xs">
                 <thead className="bg-muted/50">
                   <tr>
-                    <th className="py-1.5 px-2 text-left font-medium">Nama Obat</th>
-                    <th className="py-1.5 px-2 text-left font-medium">Dosis</th>
-                    <th className="py-1.5 px-2 text-left font-medium">Frekuensi</th>
-                    <th className="py-1.5 px-2 text-left font-medium">Rute</th>
-                    <th className="py-1.5 px-2 text-left font-medium">Durasi</th>
-                    <th className="py-1.5 px-2 text-left font-medium">Cara Pakai</th>
-                    <th className="py-1.5 px-2 text-right font-medium">Harga</th>
-                    <th className="py-1.5 px-2 text-right font-medium">Subtotal</th>
-                    <th className="py-1.5 px-2 text-right font-medium">Jumlah</th>
+                    <th className="py-1.5 px-2 text-left font-medium w-[40%]">Obat</th>
+                    <th className="py-1.5 px-2 text-left font-medium hidden lg:table-cell w-[18%]">Aturan</th>
+                    <th className="py-1.5 px-2 text-left font-medium hidden md:table-cell w-[16%]">Cara Pakai</th>
+                    <th className="py-1.5 px-2 text-right font-medium w-[11%]">Jumlah</th>
+                    <th className="py-1.5 px-2 text-right font-medium hidden sm:table-cell w-[15%]">Harga</th>
+                    <th className="py-1.5 px-2 text-right font-medium w-[14%]">Subtotal</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {activeItems.map((item, index) => (
-                    <tr key={item.id || index} className="border-b last:border-0">
-                      <td className="py-2 px-2 align-top">
-                        <p className="font-medium">{item.medicine?.name || "Obat"}</p>
-                        <p className="text-xs text-muted-foreground">{item.medicine?.generic_name}</p>
-                      </td>
-                      <td className="py-2 px-2 align-top">{item.dosage || "-"}</td>
-                      <td className="py-2 px-2 align-top">{item.frequency || "-"}</td>
-                      <td className="py-2 px-2 align-top">{item.route || "-"}</td>
-                      <td className="py-2 px-2 align-top">{item.duration || "-"}</td>
-                      <td className="py-2 px-2 align-top">{item.instructions || item.notes || "-"}</td>
-                      <td className="py-2 px-2 text-right font-medium align-top">{formatRupiah(getUnitPrice(item))}</td>
-                      <td className="py-2 px-2 text-right font-medium align-top">{formatRupiah(getUnitPrice(item) * Number(item.quantity || 0))}</td>
-                      <td className="py-2 px-2 text-right font-medium align-top">{item.quantity} {item.unit}</td>
-                    </tr>
-                  ))}
+                  {displayedReviewItems.map((item, index) => {
+                    const unitPrice = getUnitPrice(item);
+                    const subtotal = unitPrice * Number(item.quantity || 0);
+
+                    return (
+                      <tr key={item.id || index} className="border-b last:border-0 align-top">
+                        <td className="py-1.5 px-2">
+                          <p className="font-medium break-words">{item.medicine?.name || "Obat"}</p>
+                          <p className="text-[11px] text-muted-foreground break-words">{item.medicine?.generic_name || "-"}</p>
+                        </td>
+                        <td className="py-1.5 px-2 hidden lg:table-cell">
+                          <p className="text-[11px] break-words">{item.dosage || "-"}</p>
+                          <p className="text-[11px] text-muted-foreground break-words">{item.frequency || "-"} / {item.route || "-"} / {item.duration || "-"}</p>
+                        </td>
+                        <td className="py-1.5 px-2 hidden md:table-cell text-[11px] break-words">{item.instructions || item.notes || "-"}</td>
+                        <td className="py-1.5 px-2 text-right font-medium whitespace-nowrap">{item.quantity} {item.unit}</td>
+                        <td className="py-1.5 px-2 text-right font-medium hidden sm:table-cell whitespace-nowrap">{formatRupiah(unitPrice)}</td>
+                        <td className="py-1.5 px-2 text-right font-medium whitespace-nowrap">{formatRupiah(subtotal)}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -492,7 +519,7 @@ export function PharmacyReview({ visitId, readOnly = false }: PharmacyReviewProp
             </div>
             <div className="p-3 space-y-4">
               {/* Checklist Items */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="drug_interaction"
@@ -502,7 +529,7 @@ export function PharmacyReview({ visitId, readOnly = false }: PharmacyReviewProp
                     }
                     disabled={readOnly || isAlreadyReviewed}
                   />
-                  <Label htmlFor="drug_interaction" className="text-sm">
+                  <Label htmlFor="drug_interaction" className="text-xs">
                     Cek Interaksi Obat
                   </Label>
                 </div>
@@ -515,7 +542,7 @@ export function PharmacyReview({ visitId, readOnly = false }: PharmacyReviewProp
                     }
                     disabled={readOnly || isAlreadyReviewed}
                   />
-                  <Label htmlFor="dose_check" className="text-sm">
+                  <Label htmlFor="dose_check" className="text-xs">
                     Cek Dosis
                   </Label>
                 </div>
@@ -528,7 +555,7 @@ export function PharmacyReview({ visitId, readOnly = false }: PharmacyReviewProp
                     }
                     disabled={readOnly || isAlreadyReviewed}
                   />
-                  <Label htmlFor="duplication_check" className="text-sm">
+                  <Label htmlFor="duplication_check" className="text-xs">
                     Cek Duplikasi
                   </Label>
                 </div>
@@ -541,7 +568,7 @@ export function PharmacyReview({ visitId, readOnly = false }: PharmacyReviewProp
                     }
                     disabled={readOnly || isAlreadyReviewed}
                   />
-                  <Label htmlFor="allergy_check" className="text-sm">
+                  <Label htmlFor="allergy_check" className="text-xs">
                     Cek Alergi
                   </Label>
                 </div>
@@ -554,7 +581,7 @@ export function PharmacyReview({ visitId, readOnly = false }: PharmacyReviewProp
                     }
                     disabled={readOnly || isAlreadyReviewed}
                   />
-                  <Label htmlFor="contraindication_check" className="text-sm">
+                  <Label htmlFor="contraindication_check" className="text-xs">
                     Cek Kontraindikasi
                   </Label>
                 </div>
@@ -567,7 +594,7 @@ export function PharmacyReview({ visitId, readOnly = false }: PharmacyReviewProp
                     }
                     disabled={readOnly || isAlreadyReviewed}
                   />
-                  <Label htmlFor="indication_check" className="text-sm">
+                  <Label htmlFor="indication_check" className="text-xs">
                     Cek Indikasi
                   </Label>
                 </div>
@@ -575,8 +602,8 @@ export function PharmacyReview({ visitId, readOnly = false }: PharmacyReviewProp
 
               <Separator />
 
-              {/* Warnings */}
-              <div className="space-y-2">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                <div className="space-y-2">
                 <Label htmlFor="warnings" className="flex items-center gap-2">
                   <AlertTriangle className="h-4 w-4 text-yellow-500" />
                   Peringatan (jika ada)
@@ -586,35 +613,32 @@ export function PharmacyReview({ visitId, readOnly = false }: PharmacyReviewProp
                   placeholder="Catatan peringatan untuk pasien..."
                   value={reviewForm.warnings}
                   onChange={(e) => setReviewForm({ ...reviewForm, warnings: e.target.value })}
-                  rows={2}
+                  rows={3}
                   disabled={readOnly || isAlreadyReviewed}
                 />
-              </div>
-
-              {/* Suggestion */}
-              <div className="space-y-2">
-                <Label htmlFor="suggestion">Saran untuk Dokter (jika perlu)</Label>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="suggestion">Saran untuk Dokter (jika perlu)</Label>
                 <Textarea
                   id="suggestion"
                   placeholder="Saran perubahan resep untuk dokter..."
                   value={reviewForm.suggestion}
                   onChange={(e) => setReviewForm({ ...reviewForm, suggestion: e.target.value })}
-                  rows={2}
+                  rows={3}
                   disabled={readOnly || isAlreadyReviewed}
                 />
-              </div>
-
-              {/* Notes */}
-              <div className="space-y-2">
-                <Label htmlFor="notes">Catatan Tambahan</Label>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="notes">Catatan Tambahan</Label>
                 <Textarea
                   id="notes"
                   placeholder="Catatan lainnya..."
                   value={reviewForm.notes}
                   onChange={(e) => setReviewForm({ ...reviewForm, notes: e.target.value })}
-                  rows={2}
+                  rows={3}
                   disabled={readOnly || isAlreadyReviewed}
                 />
+                </div>
               </div>
 
               <Separator />

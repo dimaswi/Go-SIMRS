@@ -848,24 +848,16 @@ export function NursingCareForm({
     <>
       <div>
         <div className="space-y-3">
-          <div className="rounded-lg border border-border/70 bg-muted/20 px-3 py-3 sm:px-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold text-foreground">Asuhan Keperawatan</p>
-                <p className="text-xs text-muted-foreground">Total catatan: {records.length}</p>
-              </div>
-              {canCreate && !readOnly && (
-                <Button onClick={handleOpenCreate} size="sm">
-                  <Plus className="h-4 w-4 mr-1" />
-                  Tambah Asuhan
-                </Button>
-              )}
-            </div>
-          </div>
-
           <div className="rounded-lg border border-border/70 bg-background overflow-hidden">
             <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              Daftar Asuhan Keperawatan
+              <div className="flex items-center justify-between">
+                <span>Asuhan Keperawatan</span>
+                {canCreate && !readOnly && (
+                  <Button onClick={handleOpenCreate} size="sm">
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
             </div>
             {records.length > 0 ? (
               <div className="overflow-x-auto">

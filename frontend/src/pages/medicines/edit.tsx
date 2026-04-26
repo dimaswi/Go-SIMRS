@@ -9,8 +9,9 @@ import { Switch } from "@/components/ui/switch";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { medicinesApi, type Medicine, type MedicineCategory, type MedicineType, type MedicineForm } from "@/lib/api/medicines";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Loader2, Pill, Tag, DollarSign, FileText, Layers, Hash, Box, Beaker, AlertTriangle, Info } from "lucide-react";
+import { ArrowLeft, Loader2, Pill, Tag, DollarSign, FileText, Layers, Box, Beaker, AlertTriangle, Info } from "lucide-react";
 import { setPageTitle } from "@/lib/page-title";
+import { DPHOMappingField } from "./dpho-mapping-field";
 
 export default function MedicineEdit() {
   const navigate = useNavigate();
@@ -36,9 +37,10 @@ export default function MedicineEdit() {
     manufacturer: "",
     min_stock: 0,
     max_stock: 100,
-    current_stock: 0,
     purchase_price: 0,
     selling_price: 0,
+    dpho_kode_obat: "",
+    dpho_nama_obat: "",
     indication: "",
     contraindication: "",
     side_effects: "",
@@ -115,9 +117,10 @@ export default function MedicineEdit() {
         manufacturer: medicine.manufacturer || "",
         min_stock: medicine.min_stock,
         max_stock: medicine.max_stock,
-        current_stock: medicine.current_stock,
         purchase_price: medicine.purchase_price,
         selling_price: medicine.selling_price,
+        dpho_kode_obat: medicine.dpho_kode_obat || "",
+        dpho_nama_obat: medicine.dpho_nama_obat || "",
         indication: medicine.indication || "",
         contraindication: medicine.contraindication || "",
         side_effects: medicine.side_effects || "",
@@ -181,6 +184,8 @@ export default function MedicineEdit() {
         max_stock: formData.max_stock,
         purchase_price: formData.purchase_price,
         selling_price: formData.selling_price,
+        dpho_kode_obat: formData.dpho_kode_obat || undefined,
+        dpho_nama_obat: formData.dpho_nama_obat || undefined,
         indication: formData.indication || undefined,
         contraindication: formData.contraindication || undefined,
         side_effects: formData.side_effects || undefined,
@@ -404,12 +409,31 @@ export default function MedicineEdit() {
                     />
                   </div>
                 </div>
+
+                <DPHOMappingField
+                  valueCode={formData.dpho_kode_obat}
+                  valueName={formData.dpho_nama_obat}
+                  onChange={(mapping: { code: string; name: string }) =>
+                    setFormData({
+                      ...formData,
+                      dpho_kode_obat: mapping.code,
+                      dpho_nama_obat: mapping.name,
+                    })
+                  }
+                  onClear={() =>
+                    setFormData({
+                      ...formData,
+                      dpho_kode_obat: "",
+                      dpho_nama_obat: "",
+                    })
+                  }
+                />
               </div>
 
               {/* Price & Stock Info */}
               <div className="space-y-4">
                 <h3 className="text-sm font-medium text-muted-foreground border-b pb-2">Harga & Stok</h3>
-                <div className="grid grid-cols-1 md:grid-cols-5 gap-5">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
                   <div className="space-y-2">
                     <Label
                       htmlFor="purchase_price"
@@ -448,24 +472,6 @@ export default function MedicineEdit() {
                         setFormData({ ...formData, selling_price: parseInt(e.target.value) || 0 })
                       }
                       className="h-9 text-sm"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label
-                      htmlFor="current_stock"
-                      className="text-xs font-medium flex items-center gap-2"
-                    >
-                      <Hash className="h-3.5 w-3.5 text-muted-foreground" />
-                      Stok Saat Ini
-                    </Label>
-                    <Input
-                      id="current_stock"
-                      type="number"
-                      min={0}
-                      placeholder="0"
-                      value={formData.current_stock || ""}
-                      disabled
-                      className="h-9 text-sm bg-muted"
                     />
                   </div>
                   <div className="space-y-2">

@@ -57,6 +57,16 @@ export const masterDataApi = {
   
   update: (id: number, data: Partial<MasterDataRequest>) =>
     api.put<{ data: MasterData; message: string }>(`/master-data/${id}`, data),
+
+  uploadImage: (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post<{ message: string; url: string }>('/master-data/upload-image', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
   
   delete: (id: number) =>
     api.delete<{ message: string }>(`/master-data/${id}`),

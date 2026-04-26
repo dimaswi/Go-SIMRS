@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -862,6 +863,226 @@ func GetDisposition(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, disposition)
+}
+
+type dischargePlanningItemPayload struct {
+	SectionCode  string `json:"section_code"`
+	SectionTitle string `json:"section_title"`
+	No           string `json:"no"`
+	Criteria     string `json:"criteria"`
+	Checked      bool   `json:"checked"`
+	OfficerName  string `json:"officer_name"`
+}
+
+type bodyMarkerPointPayload struct {
+	ID    string  `json:"id"`
+	X     float64 `json:"x"`
+	Y     float64 `json:"y"`
+	Label string  `json:"label"`
+	Note  string  `json:"note"`
+}
+
+type bodyMarkerItemPayload struct {
+	ID            string                   `json:"id"`
+	ImageMasterID uint                     `json:"image_master_id"`
+	ImageCode     string                   `json:"image_code"`
+	ImageName     string                   `json:"image_name"`
+	ImageURL      string                   `json:"image_url"`
+	CategoryCode  string                   `json:"category_code"`
+	CategoryName  string                   `json:"category_name"`
+	Markers       []bodyMarkerPointPayload `json:"markers"`
+}
+
+// GetDischargePlanning retrieves discharge planning checklist for a visit
+func GetDischargePlanning(c *gin.Context) {
+	visitID := c.Param("id")
+
+	var planning models.DischargePlanning
+	if err := database.DB.Where("visit_id = ?", visitID).Preload("UpdatedBy").First(&planning).Error; err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"visit_id": visitID,
+			"items":    []dischargePlanningItemPayload{},
+		})
+		return
+	}
+
+	items := make([]dischargePlanningItemPayload, 0)
+	if strings.TrimSpace(planning.ItemsJSON) != "" {
+		if err := json.Unmarshal([]byte(planning.ItemsJSON), &items); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to parse discharge planning items"})
+			return
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"id":            planning.ID,
+		"visit_id":      planning.VisitID,
+		"items":         items,
+		"updated_by_id": planning.UpdatedByID,
+		"updated_by":    planning.UpdatedBy,
+		"created_at":    planning.CreatedAt,
+		"updated_at":    planning.UpdatedAt,
+	})
+}
+
+// SaveDischargePlanning saves or updates discharge planning checklist for a visit
+func SaveDischargePlanning(c *gin.Context) {
+	visitID := c.Param("id")
+	userID := c.GetUint("user_id")
+
+	var input struct {
+		Items []dischargePlanningItemPayload `json:"items"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	var visit models.Visit
+	if err := database.DB.First(&visit, visitID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Visit not found"})
+		return
+	}
+
+	itemsJSON, err := json.Marshal(input.Items)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to encode discharge planning items"})
+		return
+	}
+
+	var planning models.DischargePlanning
+	err = database.DB.Where("visit_id = ?", visitID).First(&planning).Error
+
+	var updatedByID *uint
+	if userID > 0 {
+		updatedByID = &userID
+	}
+
+	if err != nil {
+		planning = models.DischargePlanning{
+			VisitID: visit.ID,
+		}
+	}
+
+	planning.ItemsJSON = string(itemsJSON)
+	planning.UpdatedByID = updatedByID
+
+	if err := database.DB.Save(&planning).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := database.DB.Where("id = ?", planning.ID).Preload("UpdatedBy").First(&planning).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"id":            planning.ID,
+		"visit_id":      planning.VisitID,
+		"items":         input.Items,
+		"updated_by_id": planning.UpdatedByID,
+		"updated_by":    planning.UpdatedBy,
+		"created_at":    planning.CreatedAt,
+		"updated_at":    planning.UpdatedAt,
+	})
+}
+
+// GetBodyMarkers retrieves body marker data for a visit
+func GetBodyMarkers(c *gin.Context) {
+	visitID := c.Param("id")
+
+	var marker models.BodyMarker
+	if err := database.DB.Where("visit_id = ?", visitID).Preload("UpdatedBy").First(&marker).Error; err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"visit_id": visitID,
+			"items":    []bodyMarkerItemPayload{},
+		})
+		return
+	}
+
+	items := make([]bodyMarkerItemPayload, 0)
+	if strings.TrimSpace(marker.ItemsJSON) != "" {
+		if err := json.Unmarshal([]byte(marker.ItemsJSON), &items); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to parse body marker items"})
+			return
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"id":            marker.ID,
+		"visit_id":      marker.VisitID,
+		"items":         items,
+		"updated_by_id": marker.UpdatedByID,
+		"updated_by":    marker.UpdatedBy,
+		"created_at":    marker.CreatedAt,
+		"updated_at":    marker.UpdatedAt,
+	})
+}
+
+// SaveBodyMarkers saves or updates body marker data for a visit
+func SaveBodyMarkers(c *gin.Context) {
+	visitID := c.Param("id")
+	userID := c.GetUint("user_id")
+
+	var input struct {
+		Items []bodyMarkerItemPayload `json:"items"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	var visit models.Visit
+	if err := database.DB.First(&visit, visitID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Visit not found"})
+		return
+	}
+
+	itemsJSON, err := json.Marshal(input.Items)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to encode body marker items"})
+		return
+	}
+
+	var marker models.BodyMarker
+	err = database.DB.Where("visit_id = ?", visitID).First(&marker).Error
+
+	var updatedByID *uint
+	if userID > 0 {
+		updatedByID = &userID
+	}
+
+	if err != nil {
+		marker = models.BodyMarker{
+			VisitID: visit.ID,
+		}
+	}
+
+	marker.ItemsJSON = string(itemsJSON)
+	marker.UpdatedByID = updatedByID
+
+	if err := database.DB.Save(&marker).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := database.DB.Where("id = ?", marker.ID).Preload("UpdatedBy").First(&marker).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"id":            marker.ID,
+		"visit_id":      marker.VisitID,
+		"items":         input.Items,
+		"updated_by_id": marker.UpdatedByID,
+		"updated_by":    marker.UpdatedBy,
+		"created_at":    marker.CreatedAt,
+		"updated_at":    marker.UpdatedAt,
+	})
 }
 
 // CheckPendingOrders checks if there are any pending orders for a visit
@@ -2208,6 +2429,13 @@ func GetMedicalRecordSummary(c *gin.Context) {
 		Order("created_at ASC").
 		Find(&visitMedicineItems)
 
+	var bodyMarker models.BodyMarker
+	database.DB.Where("visit_id = ?", visitID).Preload("UpdatedBy").First(&bodyMarker)
+	bodyMarkerItems := make([]bodyMarkerItemPayload, 0)
+	if strings.TrimSpace(bodyMarker.ItemsJSON) != "" {
+		_ = json.Unmarshal([]byte(bodyMarker.ItemsJSON), &bodyMarkerItems)
+	}
+
 	// Rawat Inap data counts (for print availability)
 	var cpptCount int64
 	database.DB.Model(&models.CPPT{}).Where("visit_id = ?", visitID).Count(&cpptCount)
@@ -2257,6 +2485,7 @@ func GetMedicalRecordSummary(c *gin.Context) {
 		"diagnosis":            diagnosisResult,
 		"assessment_plan":      assessmentPlan,
 		"disposition":          disposition,
+		"body_marker":          gin.H{"items": bodyMarkerItems},
 		"visit_medicine_items": visitMedicineItems,
 		"cppt_count":           cpptCount,
 		"nursing_care_count":   nursingCareCount,

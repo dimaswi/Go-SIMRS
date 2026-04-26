@@ -2,12 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -15,13 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Calendar,
-  Phone,
-  MapPin,
-  Droplet,
   AlertTriangle,
-  Pill,
-  MessageSquare,
   ArrowLeft,
   Loader2,
   ShieldCheck,
@@ -214,28 +203,28 @@ const getVisitCategoryLabel = (visit: PatientInfoProps["visit"]) => {
 
 export function PatientInfo({ visit, onCopyHistoryOpen, onVisitRefresh, variant = "default" }: PatientInfoProps & { onCopyHistoryOpen?: () => void }) {
   const navigate = useNavigate();
-  
+
   const { toast } = useToast();
   const patient = visit.registration?.patient;
   const patientId = patient?.id;
   const [patientDetail, setPatientDetail] = useState<Patient | null>(null);
   const [loadingPatientDetail, setLoadingPatientDetail] = useState(false);
   const modalPatient = (patientDetail || patient) as (Partial<Patient> & NonNullable<typeof patient>) | undefined;
-  
+
   // Patient allergies from dedicated allergy table
   const [patientAllergies, setPatientAllergies] = useState<PatientAllergy[]>([]);
   const [loadingAllergies, setLoadingAllergies] = useState(false);
-  
+
   // SEP Info
   const [sepInfo, setSepInfo] = useState<SEPInfo | null>(null);
   const [editDoctorOpen, setEditDoctorOpen] = useState(false);
   const [patientDetailOpen, setPatientDetailOpen] = useState(false);
-  
+
   // Load patient allergies from database
   useEffect(() => {
     const loadAllergies = async () => {
       if (!patientId) return;
-      
+
       setLoadingAllergies(true);
       try {
         const response = await patientAllergyApi.getByPatient(patientId);
@@ -290,7 +279,7 @@ export function PatientInfo({ visit, onCopyHistoryOpen, onVisitRefresh, variant 
   useEffect(() => {
     const loadSEP = async () => {
       if (visit.registration?.payment_method !== 'bpjs' || !visit.id) return;
-      
+
       try {
         // Prioritas 1: Cari SEP berdasarkan visit_id
         try {
@@ -324,24 +313,24 @@ export function PatientInfo({ visit, onCopyHistoryOpen, onVisitRefresh, variant 
   const hasAllergyRecords = patientAllergies.length > 0;
   const hasLegacyAllergies = modalPatient?.alergi_obat || modalPatient?.alergi_makanan || modalPatient?.alergi_lainnya;
   const hasAllergies = hasAllergyRecords || hasLegacyAllergies;
-  
+
   // Check if this is inpatient visit
   const isInpatient = visit.room?.service_type === "rawat_inap" || visit.visit_type === "inpatient";
-  
+
   // Check if this is emergency (UGD) visit
-  const isEmergency = visit.room?.service_type === "igd" || 
-                      visit.room?.type === "igd" || 
-                      visit.room?.type === "emergency" ||
-                      visit.visit_type === "emergency";
+  const isEmergency = visit.room?.service_type === "igd" ||
+    visit.room?.type === "igd" ||
+    visit.room?.type === "emergency" ||
+    visit.visit_type === "emergency";
 
   // History button is only relevant for main clinical visits (RJ/RI/UGD),
   // not for order visits like consultation/radiology/lab/pharmacy/surgery.
   const canShowHistoryButton = isEmergency || isInpatient || visit.visit_type === "outpatient";
-  
+
   // Check if patient is discharged
-  const isPatientDischarged = visit.registration?.status === "completed" || 
-                              visit.registration?.status === "discharged" ||
-                              visit.status === "completed";
+  const isPatientDischarged = visit.registration?.status === "completed" ||
+    visit.registration?.status === "discharged" ||
+    visit.status === "completed";
 
   // I-Care state
   const [icareOpen, setIcareOpen] = useState(false);
@@ -386,10 +375,10 @@ export function PatientInfo({ visit, onCopyHistoryOpen, onVisitRefresh, variant 
   const paymentLabel = visit.registration?.payment_method === "bpjs"
     ? "BPJS"
     : visit.registration?.payment_method === "insurance"
-    ? "Asuransi"
-    : visit.registration?.payment_method === "cash"
-    ? "Tunai"
-    : "-";
+      ? "Asuransi"
+      : visit.registration?.payment_method === "cash"
+        ? "Tunai"
+        : "-";
 
   const currentRoomId = (visit as any).room_id || (visit.room as any)?.id || 0;
   const currentDoctorId = (visit as any).doctor_id || visit.doctor?.id || null;
@@ -406,261 +395,183 @@ export function PatientInfo({ visit, onCopyHistoryOpen, onVisitRefresh, variant 
     setEditDoctorOpen(true);
   };
 
+  const renderRow = (label: React.ReactNode, value: React.ReactNode, isMono = false) => (
+    <div className="flex items-start py-2.5 border-b border-border/30 last:border-0">
+      <span className="w-1/3 text-xs text-muted-foreground font-medium pt-0.5">{label}</span>
+      <span className={cn("w-2/3 text-sm text-foreground", isMono && "font-mono text-[13px]")}>{value ? value : <span className="text-muted-foreground/40">-</span>}</span>
+    </div>
+  );
+
   const patientDetailContent = (
-    <div className="space-y-2 border-t px-4 py-3">
+    <div className="flex flex-col bg-background h-full overflow-y-auto">
       {loadingPatientDetail && (
-        <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        <div className="flex items-center justify-center gap-2 px-6 py-3 bg-muted/30 text-sm text-muted-foreground border-b">
+          <Loader2 className="h-4 w-4 animate-spin" />
           Memuat data lengkap pasien...
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-1.5 lg:grid-cols-4">
-        <div className="border px-2.5 py-1.5">
-          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">No. Visit</p>
-          <p className="mt-1 truncate font-mono text-xs font-semibold">{visit.visit_number || "-"}</p>
+      {/* Header Info */}
+      <div className="px-6 py-5 border-b bg-muted/10 grid grid-cols-2 md:grid-cols-4 gap-6 shrink-0">
+        <div>
+          <p className="text-[11px] font-medium text-muted-foreground mb-1 uppercase tracking-wider">No. Visit</p>
+          <p className="font-mono text-sm font-semibold">{visit.visit_number || "-"}</p>
         </div>
-        <div className="border px-2.5 py-1.5">
-          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">No. Daftar</p>
-          <p className="mt-1 truncate font-mono text-xs font-semibold">{visit.registration?.registration_number || "-"}</p>
+        <div>
+          <p className="text-[11px] font-medium text-muted-foreground mb-1 uppercase tracking-wider">No. Daftar</p>
+          <p className="font-mono text-sm font-semibold">{visit.registration?.registration_number || "-"}</p>
         </div>
-        <div className="border px-2.5 py-1.5">
-          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Kategori</p>
-          <p className="mt-1 text-xs font-semibold">{getVisitCategoryLabel(visit)}</p>
+        <div>
+          <p className="text-[11px] font-medium text-muted-foreground mb-1 uppercase tracking-wider">Kategori</p>
+          <p className="text-sm font-semibold">{getVisitCategoryLabel(visit)}</p>
         </div>
-        <div className="border px-2.5 py-1.5">
-          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Status</p>
-          <div className="mt-1">{getStatusBadge(visit.status, true)}</div>
+        <div>
+          <p className="text-[11px] font-medium text-muted-foreground mb-1 uppercase tracking-wider">Status</p>
+          <div className="mt-0.5">{getStatusBadge(visit.status, true)}</div>
         </div>
       </div>
 
-      {loadingAllergies ? (
-        <div className="flex items-center gap-2 py-2 text-muted-foreground mb-3">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          <span className="text-xs">Memuat data alergi...</span>
-        </div>
-      ) : hasAllergies && (
-        <div className="border border-destructive/20 bg-destructive/5 p-3">
-          <div className="flex items-center gap-1.5 mb-2">
-            <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
-            <span className="text-xs font-semibold text-destructive">Alergi Pasien</span>
-          </div>
-          <div className="space-y-1 text-xs">
-            {hasAllergyRecords && patientAllergies.map((allergy) => (
-              <div key={allergy.id} className="flex gap-1.5 items-start">
-                <Badge
-                  variant={allergy.criticality === "high" ? "destructive" : "secondary"}
-                  className="text-[10px] px-1.5 py-0 h-4 flex-shrink-0"
-                >
-                  {ALLERGY_CRITICALITY_LABELS[allergy.criticality]}
-                </Badge>
-                <span className="text-foreground">
-                  <strong>{ALLERGY_CATEGORY_LABELS[allergy.category]}:</strong>{" "}
-                  {allergy.snomed_display}
-                  {allergy.notes && <span className="text-muted-foreground"> ({allergy.notes})</span>}
-                </span>
-              </div>
-            ))}
-            {!hasAllergyRecords && hasLegacyAllergies && (
-              <>
-                {modalPatient?.alergi_obat && (
-                  <div className="flex gap-1.5 text-foreground">
-                    <Pill className="h-3.5 w-3.5 mt-0.5 flex-shrink-0 text-destructive/70" />
-                    <span><strong>Obat:</strong> {modalPatient.alergi_obat}</span>
-                  </div>
-                )}
-                {modalPatient?.alergi_makanan && (
-                  <div className="flex gap-1.5 text-foreground">
-                    <span className="text-sm mt-0.5">🍽️</span>
-                    <span><strong>Makanan:</strong> {modalPatient.alergi_makanan}</span>
-                  </div>
-                )}
-                {modalPatient?.alergi_lainnya && (
-                  <div className="flex gap-1.5 text-foreground">
-                    <AlertTriangle className="h-3.5 w-3.5 mt-0.5 flex-shrink-0 text-destructive/70" />
-                    <span><strong>Lainnya:</strong> {modalPatient.alergi_lainnya}</span>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        </div>
-      )}
+      <div className="flex flex-col lg:flex-row divide-y lg:divide-y-0 lg:divide-x flex-1">
+        {/* Left Column */}
+        <div className="flex-1 p-6 space-y-8">
 
-      <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
-        <div className="space-y-1.5 border p-2.5">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h4 className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Demografis</h4>
-            {patientId && (
-              <TooltipProvider delayDuration={300}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-5 w-5"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigate(`/patients/${patientId}/edit`);
-                      }}
-                    >
-                      <SquarePen className="h-3 w-3" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Edit Pasien</TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            )}
-          </div>
-          <div className="space-y-1.5">
-            {modalPatient?.tanggal_lahir && (
-              <div className="flex items-center gap-2">
-                <Calendar className="h-3.5 w-3.5 text-muted-foreground/70" />
-                <span className="text-xs">
-                  {formatDateValue(modalPatient.tanggal_lahir)} ({calculateAge(modalPatient.tanggal_lahir)} tahun)
-                </span>
-              </div>
-            )}
-            {(modalPatient?.golongan_darah || modalPatient?.rhesus) && (
-              <div className="flex items-center gap-2">
-                <Droplet className="h-3.5 w-3.5 text-muted-foreground/70" />
-                <span className="text-xs">
-                  Gol. {modalPatient?.golongan_darah || "-"} {modalPatient?.rhesus ? `(${modalPatient.rhesus})` : ""}
-                </span>
-              </div>
-            )}
-            {(modalPatient?.no_hp || modalPatient?.no_telepon) && (
-              <div className="flex items-center gap-2">
-                <Phone className="h-3.5 w-3.5 text-muted-foreground/70" />
-                <span className="text-xs">{modalPatient?.no_hp || modalPatient?.no_telepon}</span>
-              </div>
-            )}
-            {modalPatient?.alamat_ktp && (
-              <div className="flex items-start gap-2">
-                <MapPin className="h-3.5 w-3.5 mt-0.5 flex-shrink-0 text-muted-foreground/70" />
-                <span className="text-xs">{modalPatient.alamat_ktp}</span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="space-y-1.5 border p-2.5">
-          <h4 className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Kunjungan dan Layanan</h4>
-          <div className="space-y-1 text-xs">
-            <div className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Ruangan</span><span className="font-medium text-right">{visit.room?.name || "-"}</span></div>
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-muted-foreground">DPJP</span>
-              <button
-                type="button"
-                className="text-right font-medium text-primary underline-offset-2 hover:underline"
-                onClick={handleOpenDpjpEditor}
-              >
-                {visit.doctor?.nama_lengkap || "Pilih DPJP"}
-              </button>
+          <section>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-[13px] uppercase tracking-wider text-foreground border-l-2 border-primary pl-2">
+                Identitas Pasien
+              </h3>
+              {patientId && (
+                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={(e) => { e.stopPropagation(); navigate(`/patients/${patientId}/edit`); }}>
+                  <SquarePen className="h-3.5 w-3.5 mr-1.5" /> Edit
+                </Button>
+              )}
             </div>
-            <div className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Pembayaran</span><span className="font-medium">{paymentLabel}</span></div>
-            {visit.room_queue?.queue_number && (
-              <div className="flex items-center justify-between gap-2"><span className="text-muted-foreground">No. Antrian</span><span className="font-mono font-medium">{visit.room_queue.queue_number}</span></div>
-            )}
-            <div className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Check-in</span><span>{formatDateTimeValue(visit.check_in_time)}</span></div>
-            <div className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Masuk</span><span>{formatDateTimeValue(visit.admission_time)}</span></div>
-            <div className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Pulang</span><span>{formatDateTimeValue(visit.discharge_time)}</span></div>
-            {sepInfo && (
-              <>
-                <div className="my-2 border-t" />
-                <div className="flex items-center justify-between gap-2"><span className="text-muted-foreground">No. SEP</span><span className="font-mono font-medium">{sepInfo.no_sep || "-"}</span></div>
-                <div className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Poli SEP</span><span className="text-right">{sepInfo.nama_poli || "-"}</span></div>
-                <div className="flex items-center justify-between gap-2"><span className="text-muted-foreground">DPJP SEP</span><span className="text-right">{sepInfo.nama_dpjp || "-"}</span></div>
-              </>
-            )}
-          </div>
-          {visit.registration?.complaint && (
-            <div className="border p-2">
-              <div className="flex items-start gap-2">
-                <MessageSquare className="h-3.5 w-3.5 mt-0.5 flex-shrink-0 text-primary/70" />
-                <div>
-                  <p className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">Keluhan</p>
-                  <p className="mt-1 text-xs leading-relaxed">{visit.registration.complaint}</p>
+            <div>
+              {renderRow("NIK", formatFieldValue(modalPatient?.nik), true)}
+              {renderRow("Tempat, Tanggal Lahir", modalPatient?.tanggal_lahir ? `${formatFieldValue(modalPatient?.tempat_lahir)}, ${formatDateValue(modalPatient.tanggal_lahir)} (${calculateAge(modalPatient.tanggal_lahir)} tahun)` : "-")}
+              {renderRow("Golongan Darah", modalPatient?.golongan_darah ? `Gol. ${modalPatient.golongan_darah} ${modalPatient?.rhesus ? `(${modalPatient.rhesus})` : ""}` : "-")}
+              {renderRow("Agama", formatFieldValue(modalPatient?.agama))}
+              {renderRow("Pendidikan", formatFieldValue(modalPatient?.pendidikan_terakhir))}
+              {renderRow("Pekerjaan", formatFieldValue(modalPatient?.pekerjaan))}
+              {renderRow("Kewarganegaraan", formatFieldValue(modalPatient?.kewarganegaraan))}
+              {renderRow("Suku / Bahasa", `${formatFieldValue(modalPatient?.suku)} / ${formatFieldValue(modalPatient?.bahasa)}`)}
+            </div>
+          </section>
+
+          <section>
+            <h3 className="font-semibold text-[13px] uppercase tracking-wider text-foreground border-l-2 border-primary pl-2 mb-4">
+              Kontak & Alamat
+            </h3>
+            <div>
+              {renderRow("No. HP", formatFieldValue(modalPatient?.no_hp), true)}
+              {renderRow("Telepon Rumah", formatFieldValue(modalPatient?.no_telepon), true)}
+              {renderRow("HP Alternatif", formatFieldValue(modalPatient?.no_hp_alternatif), true)}
+              {renderRow("Email", formatFieldValue(modalPatient?.email))}
+              {renderRow("Alamat KTP", formatFullAddress(modalPatient?.alamat_ktp, modalPatient?.kelurahan_ktp, modalPatient?.kecamatan_ktp, modalPatient?.kota_ktp, modalPatient?.provinsi_ktp, modalPatient?.kode_pos_ktp, modalPatient?.rt_ktp, modalPatient?.rw_ktp))}
+              {renderRow("Alamat Domisili", formatFullAddress(modalPatient?.alamat_domisili, modalPatient?.kelurahan_domisili, modalPatient?.kecamatan_domisili, modalPatient?.kota_domisili, modalPatient?.provinsi_domisili, modalPatient?.kode_pos_domisili, modalPatient?.rt_domisili, modalPatient?.rw_domisili))}
+            </div>
+          </section>
+
+          <section>
+            <h3 className="font-semibold text-[13px] uppercase tracking-wider text-foreground border-l-2 border-primary pl-2 mb-4">
+              Penanggung Jawab & Jaminan
+            </h3>
+            <div>
+              {renderRow("Nama Penanggung Jawab", formatFieldValue(modalPatient?.nama_penanggung_jawab))}
+              {renderRow("Hubungan", formatFieldValue(modalPatient?.hubungan_penanggung_jawab))}
+              {renderRow("NIK PJ", formatFieldValue(modalPatient?.nik_penanggung_jawab), true)}
+              {renderRow("Telepon PJ", formatFieldValue(modalPatient?.telepon_penanggung_jawab), true)}
+              {renderRow("Jenis Jaminan", formatFieldValue(modalPatient?.jenis_jaminan))}
+              {renderRow("No BPJS", formatFieldValue(modalPatient?.no_bpjs || visit.registration?.bpjs_number), true)}
+              {renderRow("Kelas / Faskes 1", `${formatFieldValue(modalPatient?.kelas_bpjs)} / ${formatFieldValue(modalPatient?.faskes_tingkat_1)}`)}
+              {renderRow("Asuransi / Polis", `${formatFieldValue(modalPatient?.nama_asuransi || visit.registration?.insurance_name)} / ${formatFieldValue(modalPatient?.no_polis_asuransi)}`)}
+            </div>
+          </section>
+
+        </div>
+
+        {/* Right Column */}
+        <div className="flex-1 p-6 space-y-8 bg-muted/10">
+
+          <section>
+            <h3 className="font-semibold text-[13px] uppercase tracking-wider text-foreground border-l-2 border-primary pl-2 mb-4">
+              Kunjungan dan Layanan
+            </h3>
+            <div>
+              {renderRow("Ruangan", visit.room?.name)}
+              {renderRow("DPJP", (
+                <button type="button" className="font-medium text-primary hover:underline underline-offset-2" onClick={handleOpenDpjpEditor}>
+                  {visit.doctor?.nama_lengkap || "Pilih DPJP"}
+                </button>
+              ))}
+              {renderRow("Pembayaran", paymentLabel)}
+              {visit.room_queue?.queue_number && renderRow("No. Antrian", visit.room_queue.queue_number, true)}
+              {renderRow("Waktu Check-in", formatDateTimeValue(visit.check_in_time))}
+              {renderRow("Waktu Masuk", formatDateTimeValue(visit.admission_time))}
+              {renderRow("Waktu Pulang", formatDateTimeValue(visit.discharge_time))}
+
+              {sepInfo && (
+                <>
+                  <div className="my-4 border-t border-border/50" />
+                  {renderRow("No. SEP", sepInfo.no_sep, true)}
+                  {renderRow("Poli SEP", sepInfo.nama_poli)}
+                  {renderRow("DPJP SEP", sepInfo.nama_dpjp)}
+                </>
+              )}
+
+              {visit.registration?.complaint && (
+                <div className="mt-5 p-4 rounded-md bg-background border shadow-sm">
+                  <p className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider mb-1.5">Keluhan Pasien</p>
+                  <p className="text-sm leading-relaxed">{visit.registration.complaint}</p>
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section>
+            <div className="flex items-center gap-2 mb-4">
+              <h3 className="font-semibold text-[13px] uppercase tracking-wider text-foreground border-l-2 border-primary pl-2">
+                Riwayat Medis Penting
+              </h3>
+              {loadingAllergies && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground ml-2" />}
+            </div>
+
+            {hasAllergies && (
+              <div className="mb-5">
+                <p className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider mb-2">Alergi Terdaftar</p>
+                <div className="space-y-2">
+                  {hasAllergyRecords && patientAllergies.map((allergy) => (
+                    <div key={allergy.id} className="flex gap-2 items-start text-sm bg-background border shadow-sm p-2.5 rounded-md">
+                      <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0 h-4.5 rounded-sm font-medium border-none", allergy.criticality === "high" ? "bg-red-100 text-red-700 dark:bg-red-900/30" : "bg-orange-100 text-orange-700 dark:bg-orange-900/30")}>
+                        {ALLERGY_CRITICALITY_LABELS[allergy.criticality]}
+                      </Badge>
+                      <span className="flex-1 leading-snug">
+                        <span className="text-muted-foreground">{ALLERGY_CATEGORY_LABELS[allergy.category]}:</span>{" "}
+                        <span className="font-medium">{allergy.snomed_display}</span>
+                        {allergy.notes && <span className="text-muted-foreground ml-1">({allergy.notes})</span>}
+                      </span>
+                    </div>
+                  ))}
+                  {!hasAllergyRecords && hasLegacyAllergies && (
+                    <div className="space-y-1.5 text-sm bg-background border shadow-sm p-3 rounded-md">
+                      {modalPatient?.alergi_obat && <div className="flex gap-2"><AlertTriangle className="h-4 w-4 text-orange-500 shrink-0" /><span><span className="text-muted-foreground">Obat:</span> <span className="font-medium">{modalPatient.alergi_obat}</span></span></div>}
+                      {modalPatient?.alergi_makanan && <div className="flex gap-2"><AlertTriangle className="h-4 w-4 text-orange-500 shrink-0" /><span><span className="text-muted-foreground">Makanan:</span> <span className="font-medium">{modalPatient.alergi_makanan}</span></span></div>}
+                      {modalPatient?.alergi_lainnya && <div className="flex gap-2"><AlertTriangle className="h-4 w-4 text-orange-500 shrink-0" /><span><span className="text-muted-foreground">Lainnya:</span> <span className="font-medium">{modalPatient.alergi_lainnya}</span></span></div>}
+                    </div>
+                  )}
                 </div>
               </div>
+            )}
+
+            <div>
+              {renderRow("Penyakit Kronis", formatFieldValue(modalPatient?.penyakit_kronis))}
+              {renderRow("Riwayat Operasi", formatFieldValue(modalPatient?.riwayat_operasi))}
+              {renderRow("Obat Rutin", formatFieldValue(modalPatient?.obat_rutin))}
+              {renderRow("Disabilitas", formatFieldValue(modalPatient?.disabilitas))}
+              {renderRow("Catatan Khusus", formatFieldValue(modalPatient?.catatan_khusus))}
             </div>
-          )}
-        </div>
-      </div>
+          </section>
 
-      <div className="grid grid-cols-1 gap-2 lg:grid-cols-3">
-        <div className="space-y-1.5 border p-2.5">
-          <h4 className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Identitas Lengkap</h4>
-          <div className="space-y-1 text-xs">
-            <div className="flex items-center justify-between gap-2"><span className="text-muted-foreground">NIK</span><span className="font-mono text-right">{formatFieldValue(modalPatient?.nik)}</span></div>
-            <div className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Tempat Lahir</span><span className="text-right">{formatFieldValue(modalPatient?.tempat_lahir)}</span></div>
-            <div className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Agama</span><span className="text-right">{formatFieldValue(modalPatient?.agama)}</span></div>
-            <div className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Pendidikan</span><span className="text-right">{formatFieldValue(modalPatient?.pendidikan_terakhir)}</span></div>
-            <div className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Pekerjaan</span><span className="text-right">{formatFieldValue(modalPatient?.pekerjaan)}</span></div>
-            <div className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Kewarganegaraan</span><span className="text-right">{formatFieldValue(modalPatient?.kewarganegaraan)}</span></div>
-            <div className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Suku</span><span className="text-right">{formatFieldValue(modalPatient?.suku)}</span></div>
-            <div className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Bahasa</span><span className="text-right">{formatFieldValue(modalPatient?.bahasa)}</span></div>
-          </div>
-        </div>
-
-        <div className="space-y-1.5 border p-2.5">
-          <h4 className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Kontak dan Alamat</h4>
-          <div className="space-y-1 text-xs">
-            <div className="flex items-center justify-between gap-2"><span className="text-muted-foreground">HP</span><span className="text-right">{formatFieldValue(modalPatient?.no_hp)}</span></div>
-            <div className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Telepon</span><span className="text-right">{formatFieldValue(modalPatient?.no_telepon)}</span></div>
-            <div className="flex items-center justify-between gap-2"><span className="text-muted-foreground">HP Alternatif</span><span className="text-right">{formatFieldValue(modalPatient?.no_hp_alternatif)}</span></div>
-            <div className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Email</span><span className="text-right">{formatFieldValue(modalPatient?.email)}</span></div>
-            <div className="pt-0.5">
-              <p className="text-muted-foreground mb-1">Alamat KTP</p>
-              <p className="whitespace-pre-line leading-relaxed">{formatFullAddress(modalPatient?.alamat_ktp, modalPatient?.kelurahan_ktp, modalPatient?.kecamatan_ktp, modalPatient?.kota_ktp, modalPatient?.provinsi_ktp, modalPatient?.kode_pos_ktp, modalPatient?.rt_ktp, modalPatient?.rw_ktp)}</p>
-            </div>
-            <div className="pt-0.5">
-              <p className="text-muted-foreground mb-1">Alamat Domisili</p>
-              <p className="whitespace-pre-line leading-relaxed">{formatFullAddress(modalPatient?.alamat_domisili, modalPatient?.kelurahan_domisili, modalPatient?.kecamatan_domisili, modalPatient?.kota_domisili, modalPatient?.provinsi_domisili, modalPatient?.kode_pos_domisili, modalPatient?.rt_domisili, modalPatient?.rw_domisili)}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="space-y-1.5 border p-2.5">
-          <h4 className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Penanggung Jawab dan Jaminan</h4>
-          <div className="space-y-1 text-xs">
-            <div className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Nama PJ</span><span className="text-right">{formatFieldValue(modalPatient?.nama_penanggung_jawab)}</span></div>
-            <div className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Hubungan</span><span className="text-right">{formatFieldValue(modalPatient?.hubungan_penanggung_jawab)}</span></div>
-            <div className="flex items-center justify-between gap-2"><span className="text-muted-foreground">NIK PJ</span><span className="font-mono text-right">{formatFieldValue(modalPatient?.nik_penanggung_jawab)}</span></div>
-            <div className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Telepon PJ</span><span className="text-right">{formatFieldValue(modalPatient?.telepon_penanggung_jawab)}</span></div>
-            <div className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Jenis Jaminan</span><span className="text-right">{formatFieldValue(modalPatient?.jenis_jaminan)}</span></div>
-            <div className="flex items-center justify-between gap-2"><span className="text-muted-foreground">No BPJS</span><span className="font-mono text-right">{formatFieldValue(modalPatient?.no_bpjs || visit.registration?.bpjs_number)}</span></div>
-            <div className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Kelas BPJS</span><span className="text-right">{formatFieldValue(modalPatient?.kelas_bpjs)}</span></div>
-            <div className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Faskes 1</span><span className="text-right">{formatFieldValue(modalPatient?.faskes_tingkat_1)}</span></div>
-            <div className="flex items-center justify-between gap-2"><span className="text-muted-foreground">Asuransi</span><span className="text-right">{formatFieldValue(modalPatient?.nama_asuransi || visit.registration?.insurance_name)}</span></div>
-            <div className="flex items-center justify-between gap-2"><span className="text-muted-foreground">No Polis</span><span className="text-right">{formatFieldValue(modalPatient?.no_polis_asuransi)}</span></div>
-          </div>
-        </div>
-      </div>
-
-      <div className="space-y-1.5 border p-2.5">
-        <h4 className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Riwayat Medis Penting</h4>
-        <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs lg:grid-cols-4">
-          <div>
-            <p className="text-muted-foreground mb-1">Penyakit Kronis</p>
-            <p className="whitespace-pre-line leading-relaxed">{formatFieldValue(modalPatient?.penyakit_kronis)}</p>
-          </div>
-          <div>
-            <p className="text-muted-foreground mb-1">Riwayat Operasi</p>
-            <p className="whitespace-pre-line leading-relaxed">{formatFieldValue(modalPatient?.riwayat_operasi)}</p>
-          </div>
-          <div>
-            <p className="text-muted-foreground mb-1">Obat Rutin</p>
-            <p className="whitespace-pre-line leading-relaxed">{formatFieldValue(modalPatient?.obat_rutin)}</p>
-          </div>
-          <div>
-            <p className="text-muted-foreground mb-1">Disabilitas</p>
-            <p className="whitespace-pre-line leading-relaxed">{formatFieldValue(modalPatient?.disabilitas)}</p>
-          </div>
-        </div>
-        <div className="pt-1 border-t">
-          <p className="text-muted-foreground mb-1 text-xs">Catatan Khusus</p>
-          <p className="text-xs whitespace-pre-line leading-relaxed">{formatFieldValue(modalPatient?.catatan_khusus)}</p>
         </div>
       </div>
     </div>
@@ -674,24 +585,7 @@ export function PatientInfo({ visit, onCopyHistoryOpen, onVisitRefresh, variant 
             className="cursor-pointer bg-background px-3 py-2 transition-colors hover:bg-muted/20"
             onClick={() => setPatientDetailOpen(true)}
           >
-            <div className="mb-2 flex items-center justify-between gap-2">
-              <Badge variant="secondary" className="h-5 gap-1 rounded-full px-2 py-0 text-[10px]">
-                {getVisitCategoryLabel(visit)}
-              </Badge>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  window.history.back();
-                }}
-                className="h-7 w-7 rounded-none"
-              >
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-            </div>
-
-            <div className="flex items-start gap-2.5">
+            <div className="flex items-start gap-2.5 py-2">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center bg-muted text-sm font-semibold text-foreground">
                 {getInitials(patient?.nama_lengkap)}
               </div>
@@ -742,8 +636,8 @@ export function PatientInfo({ visit, onCopyHistoryOpen, onVisitRefresh, variant 
         </div>
 
         <Dialog open={patientDetailOpen} onOpenChange={setPatientDetailOpen}>
-              <DialogContent className="h-[88vh] max-h-[88vh] max-w-6xl overflow-hidden rounded-none p-0">
-                <DialogHeader className="border-b px-5 py-4">
+          <DialogContent className="h-[88vh] max-h-[88vh] max-w-6xl overflow-hidden rounded-none p-0">
+            <DialogHeader className="border-b px-5 py-4">
               <DialogTitle className="flex items-center gap-2 text-base">
                 <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
                   {getInitials(modalPatient?.nama_lengkap)}
@@ -804,9 +698,9 @@ export function PatientInfo({ visit, onCopyHistoryOpen, onVisitRefresh, variant 
         onClick={() => setPatientDetailOpen(true)}
       >
         <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-          <Button 
-            variant="ghost" 
-            size="icon" 
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={(e) => { e.stopPropagation(); window.history.back(); }}
             className="flex-shrink-0 h-8 w-8 rounded-full"
           >

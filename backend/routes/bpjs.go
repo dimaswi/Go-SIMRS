@@ -184,6 +184,35 @@ func SetupBPJSRoutes(api *gin.RouterGroup) {
 			icare.POST("/validate-manual", handlers.ICareValidateManual)
 		}
 
+		// ==================== APOTEK ONLINE ====================
+		apotek := bpjs.Group("/apotek")
+		apotek.Use(middleware.RequirePermission("integrations.view"))
+		{
+			apotek.GET("/referensi/dpho", handlers.ApotekGetReferensiDPHO)
+			apotek.GET("/referensi/poli/:parameter", handlers.ApotekGetReferensiPoli)
+			apotek.GET("/referensi/ppk/:jenisFaskes/:namaFaskes", handlers.ApotekGetFasilitasKesehatan)
+			apotek.GET("/referensi/settingppk/:kodeApotek", handlers.ApotekGetSettingApotek)
+			apotek.GET("/referensi/spesialistik", handlers.ApotekGetSpesialistik)
+			apotek.GET("/referensi/obat", handlers.ApotekGetReferensiObat)
+			apotek.GET("/referensi/obat/:kodeJenisObat/:tglResep/:filter", handlers.ApotekGetReferensiObat)
+
+			apotek.POST("/obat/non-racikan", middleware.RequirePermission("integrations.manage"), handlers.ApotekInsertObatNonRacikan)
+			apotek.POST("/obat/racikan", middleware.RequirePermission("integrations.manage"), handlers.ApotekInsertObatRacikan)
+			apotek.POST("/obat/stok", middleware.RequirePermission("integrations.manage"), handlers.ApotekUpdateStokObat)
+			apotek.DELETE("/pelayanan/obat", middleware.RequirePermission("integrations.manage"), handlers.ApotekHapusPelayananObat)
+
+			apotek.GET("/obat/daftar/:noKunjungan", handlers.ApotekGetDaftarPelayananObat)
+			apotek.GET("/riwayat/:tglAwal/:tglAkhir/:noKartu", handlers.ApotekGetRiwayatPelayananObat)
+
+			apotek.POST("/resep/simpan", middleware.RequirePermission("integrations.manage"), handlers.ApotekSimpanResep)
+			apotek.DELETE("/resep", middleware.RequirePermission("integrations.manage"), handlers.ApotekHapusResep)
+			apotek.POST("/resep/daftar", handlers.ApotekDaftarResep)
+
+			apotek.GET("/sep/:noSEP", handlers.ApotekCariKunjunganBySEP)
+			apotek.GET("/monitoring/klaim/:bulan/:tahun/:jenisObat/:status", handlers.ApotekGetDataKlaim)
+			apotek.GET("/prb/rekap/:tahun/:bulan", handlers.ApotekGetRekapPesertaPRB)
+		}
+
 		// ==================== APLICARE ====================
 		aplicare := bpjs.Group("/aplicare")
 		aplicare.Use(middleware.RequirePermission("integrations.view"))

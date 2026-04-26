@@ -402,6 +402,9 @@ export default function IntegrationsConfigPage() {
       if (integrationId === "bpjs-icare") {
         defaultDevUrl = "https://apijkn-dev.bpjs-kesehatan.go.id/ihs_dev/api/rs";
         defaultProdUrl = "https://apijkn.bpjs-kesehatan.go.id/wsihs/api/rs";
+      } else if (integrationId === "bpjs-apotek") {
+        defaultDevUrl = "https://apijkn-dev.bpjs-kesehatan.go.id/apotek-rest-dev";
+        defaultProdUrl = "https://apijkn.bpjs-kesehatan.go.id/apotek-rest";
       } else if (integrationId === "bpjs-aplicare") {
         defaultDevUrl = "https://dvlp.bpjs-kesehatan.go.id:8888/aplicaresws/rest";
         defaultProdUrl = "";  // Belum dapat URL prod dari BPJS

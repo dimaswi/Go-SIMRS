@@ -24,7 +24,6 @@ import { useToast } from '@/hooks/use-toast';
 import { setPageTitle } from '@/lib/page-title';
 import {
   Loader2,
-  ScrollText,
   Eye,
   Search,
   RefreshCw,
@@ -242,14 +241,8 @@ export default function AllEklaimLogsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-            <ScrollText className="h-5 w-5 text-primary" />
-          </div>
+          <h1 className="text-lg font-semibold">Log E-Klaim</h1>
           <div>
-            <h1 className="text-lg font-semibold">Log E-Klaim</h1>
-            <p className="text-sm text-muted-foreground">
-              Riwayat semua komunikasi dengan server E-Klaim ({total} log)
-            </p>
           </div>
         </div>
         <Button variant="outline" size="sm" onClick={loadData}>
@@ -261,7 +254,6 @@ export default function AllEklaimLogsPage() {
       {/* Filters */}
       <div className="flex flex-wrap gap-3 items-end">
         <div className="flex-1 min-w-[200px] max-w-[300px]">
-          <label className="text-xs text-muted-foreground mb-1 block">Cari No. SEP / Pasien</label>
           <div className="flex gap-1">
             <Input
               placeholder="Cari..."
@@ -276,7 +268,6 @@ export default function AllEklaimLogsPage() {
           </div>
         </div>
         <div className="w-[180px]">
-          <label className="text-xs text-muted-foreground mb-1 block">Method</label>
           <Select value={method || '_all'} onValueChange={(v) => { setMethod(v === '_all' ? '' : v); setPage(1); }}>
             <SelectTrigger className="h-9">
               <SelectValue />
@@ -291,7 +282,6 @@ export default function AllEklaimLogsPage() {
           </Select>
         </div>
         <div className="w-[140px]">
-          <label className="text-xs text-muted-foreground mb-1 block">Status</label>
           <Select value={status || '_all'} onValueChange={(v) => { setStatus(v === '_all' ? '' : v); setPage(1); }}>
             <SelectTrigger className="h-9">
               <SelectValue />

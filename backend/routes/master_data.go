@@ -16,6 +16,7 @@ func setupMasterDataRoutes(rg *gin.RouterGroup) {
 	// Protected CRUD
 	rg.GET("/master-data/:id", middleware.RequirePermission("master_data.view"), handlers.GetMasterData)
 	rg.POST("/master-data", middleware.RequirePermission("master_data.create"), handlers.CreateMasterData)
+	rg.POST("/master-data/upload-image", middleware.RequirePermission("master_data.create"), handlers.UploadMasterDataImage)
 	rg.PUT("/master-data/:id", middleware.RequirePermission("master_data.update"), handlers.UpdateMasterData)
 	rg.DELETE("/master-data/:id", middleware.RequirePermission("master_data.delete"), handlers.DeleteMasterData)
 }

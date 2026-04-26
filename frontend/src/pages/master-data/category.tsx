@@ -26,6 +26,8 @@ const CATEGORY_NAMES: Record<string, string> = {
   department: 'Departemen',
   position: 'Jabatan',
   specialization: 'Spesialisasi',
+  body_marker_category: 'Kategori Marker Tubuh',
+  body_marker_image: 'Gambar Marker Tubuh',
 };
 
 export default function CategoryListPage() {

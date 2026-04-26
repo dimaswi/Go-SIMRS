@@ -35,6 +35,8 @@ type timesheetEntryResponse struct {
 	MedicineOrderItemID uint       `json:"medicine_order_item_id"`
 	ScheduledAt         time.Time  `json:"scheduled_at"`
 	Status              string     `json:"status"`
+	ReasonCode          string     `json:"reason_code"`
+	ReasonDetail        string     `json:"reason_detail"`
 	AdministeredAt      *time.Time `json:"administered_at,omitempty"`
 	AdministeredBy      *uint      `json:"administered_by,omitempty"`
 	Notes               string     `json:"notes"`
@@ -45,11 +47,87 @@ func normalizeTimesheetStatus(value string) (string, bool) {
 	switch status {
 	case "", "none":
 		return "", true
-	case models.TimesheetStatusScheduled, models.TimesheetStatusGiven, models.TimesheetStatusHeld, models.TimesheetStatusSkipped:
+	case models.TimesheetStatusScheduled,
+		models.TimesheetStatusGiven,
+		models.TimesheetStatusHeld,
+		models.TimesheetStatusSkipped,
+		models.TimesheetStatusRefused,
+		models.TimesheetStatusUnavailable,
+		models.TimesheetStatusContraindicated,
+		models.TimesheetStatusPatientAbsent:
 		return status, true
 	default:
 		return "", false
 	}
+}
+
+func normalizeTimesheetReasonCode(value string) (string, bool) {
+	reason := strings.TrimSpace(strings.ToLower(value))
+	switch reason {
+	case "", "none":
+		return "", true
+	case models.TimesheetReasonClinicalHold,
+		models.TimesheetReasonContraindication,
+		models.TimesheetReasonPatientRefused,
+		models.TimesheetReasonDrugUnavailable,
+		models.TimesheetReasonPatientUnavailable,
+		models.TimesheetReasonOther:
+		return reason, true
+	default:
+		return "", false
+	}
+}
+
+func isTimesheetReasonAllowed(status string, reason string) bool {
+	if reason == "" {
+		return true
+	}
+
+	switch status {
+	case models.TimesheetStatusHeld, models.TimesheetStatusSkipped:
+		return true
+	case models.TimesheetStatusRefused:
+		return reason == models.TimesheetReasonPatientRefused || reason == models.TimesheetReasonOther
+	case models.TimesheetStatusUnavailable:
+		return reason == models.TimesheetReasonDrugUnavailable || reason == models.TimesheetReasonOther
+	case models.TimesheetStatusContraindicated:
+		return reason == models.TimesheetReasonContraindication || reason == models.TimesheetReasonClinicalHold || reason == models.TimesheetReasonOther
+	case models.TimesheetStatusPatientAbsent:
+		return reason == models.TimesheetReasonPatientUnavailable || reason == models.TimesheetReasonOther
+	default:
+		return false
+	}
+}
+
+func requiresReason(status string) bool {
+	return status != "" && status != models.TimesheetStatusScheduled && status != models.TimesheetStatusGiven
+}
+
+func validateTimesheetClinicalInput(status string, reasonCode string, reasonDetail string, notes string) error {
+	trimmedReasonDetail := strings.TrimSpace(reasonDetail)
+	trimmedNotes := strings.TrimSpace(notes)
+
+	if !requiresReason(status) {
+		return nil
+	}
+
+	if reasonCode == "" {
+		return errors.New("reason_code is required for this status")
+	}
+
+	if !isTimesheetReasonAllowed(status, reasonCode) {
+		return errors.New("reason_code is not compatible with selected status")
+	}
+
+	if reasonCode == models.TimesheetReasonOther && trimmedReasonDetail == "" {
+		return errors.New("reason_detail is required when reason_code is other")
+	}
+
+	if trimmedNotes == "" {
+		return errors.New("notes is required for non-given status")
+	}
+
+	return nil
 }
 
 func parseTimesheetDateAndHour(dateText string, hour int) (time.Time, error) {
@@ -150,6 +228,8 @@ func GetMedicationTimesheet(c *gin.Context) {
 			MedicineOrderItemID: entry.MedicineOrderItemID,
 			ScheduledAt:         entry.ScheduledAt,
 			Status:              entry.Status,
+			ReasonCode:          entry.ReasonCode,
+			ReasonDetail:        entry.ReasonDetail,
 			AdministeredAt:      entry.AdministeredAt,
 			AdministeredBy:      entry.AdministeredBy,
 			Notes:               entry.Notes,
@@ -172,6 +252,8 @@ func UpsertMedicationTimesheetEntry(c *gin.Context) {
 		Date                string `json:"date" binding:"required"`
 		Hour                *int   `json:"hour" binding:"required"`
 		Status              string `json:"status"`
+		ReasonCode          string `json:"reason_code"`
+		ReasonDetail        string `json:"reason_detail"`
 		Notes               string `json:"notes"`
 	}
 
@@ -189,6 +271,17 @@ func UpsertMedicationTimesheetEntry(c *gin.Context) {
 	status, ok := normalizeTimesheetStatus(input.Status)
 	if !ok {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid status"})
+		return
+	}
+
+	reasonCode, ok := normalizeTimesheetReasonCode(input.ReasonCode)
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid reason_code"})
+		return
+	}
+
+	if err := validateTimesheetClinicalInput(status, reasonCode, input.ReasonDetail, input.Notes); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -252,10 +345,19 @@ func UpsertMedicationTimesheetEntry(c *gin.Context) {
 	entry.Status = status
 	entry.DeletedAt = gorm.DeletedAt{}
 	entry.Notes = strings.TrimSpace(input.Notes)
+	entry.ReasonCode = reasonCode
+	entry.ReasonDetail = strings.TrimSpace(input.ReasonDetail)
 	if status == models.TimesheetStatusGiven {
 		now := time.Now()
 		entry.AdministeredAt = &now
 		entry.AdministeredBy = administeredBy
+		entry.ReasonCode = ""
+		entry.ReasonDetail = ""
+	} else if status == models.TimesheetStatusScheduled {
+		entry.AdministeredAt = nil
+		entry.AdministeredBy = nil
+		entry.ReasonCode = ""
+		entry.ReasonDetail = ""
 	} else {
 		entry.AdministeredAt = nil
 		entry.AdministeredBy = nil
@@ -282,6 +384,8 @@ func UpsertMedicationTimesheetEntry(c *gin.Context) {
 		MedicineOrderItemID: entry.MedicineOrderItemID,
 		ScheduledAt:         entry.ScheduledAt,
 		Status:              entry.Status,
+		ReasonCode:          entry.ReasonCode,
+		ReasonDetail:        entry.ReasonDetail,
 		AdministeredAt:      entry.AdministeredAt,
 		AdministeredBy:      entry.AdministeredBy,
 		Notes:               entry.Notes,

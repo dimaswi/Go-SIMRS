@@ -11,7 +11,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { usePermission } from "@/hooks/usePermission";
 import { setPageTitle } from "@/lib/page-title";
-import { Activity, Loader2, History, Save, X } from "lucide-react";
+import { Activity, CheckCircle2, History, Loader2, Save, X, XCircle } from "lucide-react";
 import { useBreadcrumb } from "@/contexts/breadcrumb-context";
 import { visitsApi, medicalRecordsApi, cpptApi, fluidBalanceApi, nursingCareApi, medicineOrdersApi, procedureOrdersApi, patientAllergyApi } from "@/lib/api";
 import { PatientInfo } from "@/components/medical-record/patient-info";
@@ -19,6 +19,7 @@ import { MedicalRecordTabs } from "@/components/medical-record/medical-record-ta
 import { TriageForm } from "@/components/medical-record/triage-form";
 import { AnamnesisForm } from "@/components/medical-record/anamnesis-form";
 import { PhysicalExamForm } from "@/components/medical-record/physical-exam-form";
+import { BodyMarkerForm } from "@/components/medical-record/body-marker-form";
 import { DiagnosisForm } from "@/components/medical-record/diagnosis-form";
 import { AssessmentPlanForm } from "@/components/medical-record/assessment-plan-form";
 import { DispositionForm } from "@/components/medical-record/disposition-form";
@@ -37,10 +38,11 @@ import { ProcedureForm } from "@/components/medical-record/procedure-form";
 import { CPPTForm } from "@/components/medical-record/cppt-form";
 import { FluidBalanceForm } from "@/components/medical-record/fluid-balance-form";
 import { NursingCareForm } from "@/components/medical-record/nursing-care-form";
+import { DischargePlanningForm } from "@/components/medical-record/discharge-planning-form";
 import { BedTransferForm } from "@/components/medical-record/bed-transfer-form";
 import { UnitTransferForm } from "@/components/medical-record/unit-transfer-form";
 import { NutritionOrderForm } from "@/components/medical-record/nutrition-order-form";
-import { FinalVisit } from "@/components/medical-record/final-visit";
+import { FinalVisit, type FinalVisitType, useFinalVisitController } from "@/components/medical-record/final-visit";
 import { ConsultationForm } from "@/components/medical-record/consultation-form";
 import { SurgeryOrderForm } from "@/components/medical-record/surgery-order-form";
 import { SurgeryWorkstation } from "@/components/medical-record/surgery-workstation";
@@ -84,7 +86,7 @@ const EDIT_TAB_IDS = new Set([
   "surgery-edit",
 ]);
 
-const ADMIN_TAB_IDS = new Set(["surat", "disposition", "medicine-timesheet"]);
+const ADMIN_TAB_IDS = new Set(["surat", "disposition", "medicine-timesheet", "discharge-planning"]);
 const INLINE_PRIMARY_ACTION_REGEX = /(simpan|save|perbarui|update|kirim|send|selesaikan|submit)/i;
 const FOOTER_ACTION_EVENT = "medical-record-footer-action";
 
@@ -624,6 +626,72 @@ export default function VisitShow() {
       } else {
         emitMedicalRecordTabIndicator("assessment-plan", "0/11");
       }
+
+      // Body Marker: preload marker count so badge appears without opening the tab.
+      const summaryBodyMarkerItems = Array.isArray(summary.body_marker?.items)
+        ? summary.body_marker.items
+        : [];
+
+      if (summaryBodyMarkerItems.length > 0) {
+        const summaryMarkerCount = summaryBodyMarkerItems.reduce(
+          (acc: number, item: any) => acc + (Array.isArray(item?.markers) ? item.markers.length : 0),
+          0,
+        );
+        const bodyMarkerIndicator = `${summaryMarkerCount}`;
+        emitMedicalRecordTabIndicator("body-marker", bodyMarkerIndicator);
+        emitMedicalRecordTabSaved("body-marker", summaryBodyMarkerItems.length > 0);
+        setTabIndicators((prev) => ({
+          ...prev,
+          ["body-marker"]: bodyMarkerIndicator,
+        }));
+      } else {
+        try {
+          const markerRes = await medicalRecordsApi.getBodyMarkers(visitId);
+          const markerItems = Array.isArray(markerRes.data?.items) ? markerRes.data.items : [];
+          const markerCount = markerItems.reduce(
+            (acc: number, item: any) => acc + (Array.isArray(item?.markers) ? item.markers.length : 0),
+            0,
+          );
+          const bodyMarkerIndicator = `${markerCount}`;
+          emitMedicalRecordTabIndicator("body-marker", bodyMarkerIndicator);
+          emitMedicalRecordTabSaved("body-marker", markerItems.length > 0);
+          setTabIndicators((prev) => ({
+            ...prev,
+            ["body-marker"]: bodyMarkerIndicator,
+          }));
+        } catch {
+          emitMedicalRecordTabIndicator("body-marker", "0");
+          emitMedicalRecordTabSaved("body-marker", false);
+          setTabIndicators((prev) => ({
+            ...prev,
+            ["body-marker"]: "0",
+          }));
+        }
+      }
+
+      // Discharge Planning: preload indicator so badge is visible before tab is opened.
+      // The form tab can still re-emit this value when it mounts.
+      try {
+        const dischargeRes = await medicalRecordsApi.getDischargePlanning(visitId);
+        const dischargeItems = Array.isArray(dischargeRes.data?.items) ? dischargeRes.data.items : [];
+        const totalDischargeItems = dischargeItems.length > 0 ? dischargeItems.length : 15;
+        const checkedDischargeItems = dischargeItems.filter((item: any) => item?.checked).length;
+        const dischargeIndicator = `${checkedDischargeItems}/${totalDischargeItems}`;
+        emitMedicalRecordTabIndicator("discharge-planning", dischargeIndicator);
+        emitMedicalRecordTabSaved("discharge-planning", checkedDischargeItems > 0);
+        setTabIndicators((prev) => ({
+          ...prev,
+          ["discharge-planning"]: dischargeIndicator,
+        }));
+      } catch {
+        const dischargeIndicator = "0/15";
+        emitMedicalRecordTabIndicator("discharge-planning", dischargeIndicator);
+        emitMedicalRecordTabSaved("discharge-planning", false);
+        setTabIndicators((prev) => ({
+          ...prev,
+          ["discharge-planning"]: dischargeIndicator,
+        }));
+      }
     } catch {
       // Ignore — indicators will be set when forms mount
     }
@@ -719,6 +787,30 @@ export default function VisitShow() {
   const handleVisitUpdate = () => {
     loadVisit(true); // Silent reload to update visit data without showing loading state
   };
+
+  const headerFinalVisitType: FinalVisitType | null = isPharmacy
+    ? "pharmacy"
+    : isRadiology
+    ? "radiology"
+    : isLaboratory
+    ? "laboratory"
+    : isConsultation
+    ? "consultation"
+    : isSurgery
+    ? "surgery"
+    : null;
+
+  const finalVisitController = useFinalVisitController({
+    visitId: id ? Number(id) : 0,
+    type: headerFinalVisitType,
+    onVisitUpdate: handleVisitUpdate,
+    enabled: Boolean(id && headerFinalVisitType),
+  });
+
+  const showHeaderFinalAction =
+    Boolean(headerFinalVisitType) &&
+    !finalVisitController.loading &&
+    (finalVisitController.isFinal || finalVisitController.canShowFinalizeAction);
 
   const handleSaveActiveTabFromFooter = () => {
     const saved = triggerActiveTabSave();
@@ -991,6 +1083,27 @@ export default function VisitShow() {
             isPatientDischarged={isPatientDischarged}
           />
         );
+      case "body-marker":
+        // Body marker only for clinical visits (not support visits)
+        if (isSupportVisit) {
+          return renderWrongVisitTypeMessage("klinis (Rawat Jalan/Rawat Inap/UGD)");
+        }
+        if (!hasPermission("medical_records.physical_exam")) {
+          return (
+            <Card className="p-6">
+              <p className="text-center text-muted-foreground">
+                Anda tidak memiliki akses untuk melihat Marker Bagian Tubuh
+              </p>
+            </Card>
+          );
+        }
+        return (
+          <BodyMarkerForm
+            visitId={visit.id}
+            readOnly={isPatientDischarged}
+            isPatientDischarged={isPatientDischarged}
+          />
+        );
       case "diagnosis":
         // Diagnosis only for clinical visits (not support visits)
         if (isSupportVisit) {
@@ -1081,6 +1194,27 @@ export default function VisitShow() {
           );
         }
         return <FluidBalanceForm key={`fluid-balance-${visit.id}`} visitId={visit.id} readOnly={isPatientDischarged} />;
+      case "discharge-planning":
+        // Discharge planning only for inpatient visits
+        if (!isInpatient) {
+          return renderWrongVisitTypeMessage("Rawat Inap");
+        }
+        if (!hasPermission("medical_records.disposition")) {
+          return (
+            <Card className="p-6">
+              <p className="text-center text-muted-foreground">
+                Anda tidak memiliki akses untuk Discharge Planning
+              </p>
+            </Card>
+          );
+        }
+        return (
+          <DischargePlanningForm
+            key={`discharge-planning-${visit.id}`}
+            visitId={visit.id}
+            readOnly={isPatientDischarged}
+          />
+        );
       case "bed-transfer":
         // Bed transfer only for inpatient visits
         if (!isInpatient) {
@@ -1531,9 +1665,9 @@ export default function VisitShow() {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col px-3 pb-3 pt-3 sm:px-6 sm:pb-4 sm:pt-4">
-      <div className="grid min-h-0 flex-1 gap-0 border xl:grid-cols-[minmax(240px,15%)_minmax(0,85%)] 2xl:grid-cols-[minmax(260px,15%)_minmax(0,85%)]">
-        <aside className="min-h-0 min-w-0 border-r">
+    <div className="medical-record-workspace flex h-full min-h-0 flex-col px-3 pb-3 pt-3 sm:px-6 sm:pb-4 sm:pt-4">
+      <div className="mr-shell grid min-h-0 flex-1 gap-0 border xl:grid-cols-[minmax(240px,15%)_minmax(0,85%)] 2xl:grid-cols-[minmax(260px,15%)_minmax(0,85%)]">
+        <aside className="mr-sidebar min-h-0 min-w-0 border-r">
           <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
             <div className="min-h-[190px] shrink-0 basis-[30%] border-b">
               <PatientInfo
@@ -1563,10 +1697,43 @@ export default function VisitShow() {
           </div>
         </aside>
 
-        <main className="flex min-h-0 min-w-0 flex-col overflow-hidden bg-card">
-          <div className="sticky top-0 z-20 shrink-0 border-b bg-background px-3 py-2 sm:px-4">
+        <main className="mr-main flex min-h-0 min-w-0 flex-col overflow-hidden bg-card">
+          <div className="mr-toolbar sticky top-0 z-20 shrink-0 border-b bg-background px-3 py-2 sm:px-4">
             <div className="flex items-center justify-end gap-2">
               <TooltipProvider delayDuration={200}>
+                {showHeaderFinalAction && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8 rounded-none"
+                        onClick={() => {
+                          if (finalVisitController.isFinal) {
+                            void finalVisitController.handleCancelFinal();
+                            return;
+                          }
+                          void finalVisitController.handleFinalize();
+                        }}
+                        disabled={finalVisitController.submitting || finalVisitController.loading}
+                        title={finalVisitController.isFinal ? "Batal Final" : "Final Kunjungan"}
+                        aria-label={finalVisitController.isFinal ? "Batal Final" : "Final Kunjungan"}
+                      >
+                        {finalVisitController.submitting || finalVisitController.loading ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : finalVisitController.isFinal ? (
+                          <XCircle className="h-4 w-4 text-destructive" />
+                        ) : (
+                          <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                        )}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {finalVisitController.isFinal ? "Batal Final" : "Final Kunjungan"}
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+
                 <Tooltip>
                   <TooltipTrigger asChild>
                 <Button
@@ -1624,12 +1791,12 @@ export default function VisitShow() {
             </div>
           )}
 
-          <div ref={tabContentContainerRef} className="min-h-0 min-w-0 flex-1 overflow-y-auto p-3 sm:p-4">
+          <div ref={tabContentContainerRef} className="mr-content min-h-0 min-w-0 flex-1 overflow-y-auto p-3 sm:p-4">
             {Array.from(mountedTabs).map(tab => (
               <div
                 key={tab}
                 data-mr-tab-pane={tab}
-                className={tab === activeTab ? "" : "hidden"}
+                className={tab === activeTab ? "mr-pane" : "hidden"}
               >
                 {renderTabContent(tab)}
               </div>
@@ -1637,7 +1804,7 @@ export default function VisitShow() {
           </div>
 
           {!isEditTab && (
-            <div className="sticky bottom-0 z-20 shrink-0 border-t bg-background px-3 py-2 sm:px-4">
+            <div className="mr-footer sticky bottom-0 z-20 shrink-0 border-t bg-background px-3 py-2 sm:px-4">
               <div className="flex items-center justify-end gap-2">
                 <Button
                   variant="outline"

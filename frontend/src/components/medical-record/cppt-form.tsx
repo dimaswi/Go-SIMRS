@@ -689,24 +689,17 @@ export function CPPTForm({
     <>
       <div>
         <div className="space-y-3">
-          <div className="rounded-lg border border-border/70 bg-muted/20 px-3 py-3 sm:px-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold text-foreground">Catatan CPPT</p>
-                <p className="text-xs text-muted-foreground">Total catatan: {cppts.length}</p>
-              </div>
-              {canCreate && !readOnly && (
-                <Button onClick={handleOpenCreate} size="sm">
-                  <Plus className="h-4 w-4 mr-1" />
-                  Tambah CPPT
-                </Button>
-              )}
-            </div>
-          </div>
 
           <div className="rounded-lg border border-border/70 bg-background overflow-hidden">
             <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              Daftar CPPT
+              <div className="flex items-center justify-between">
+                <div>Catatan Perkembangan Pasien Terintegrasi (CPPT)</div>
+                  {canCreate && !readOnly && (
+                <Button onClick={handleOpenCreate} size="sm">
+                  <Plus className="h-4 w-4" />
+                </Button>
+              )}
+              </div>
             </div>
             {cppts.length > 0 ? (
               <div className="overflow-x-auto">

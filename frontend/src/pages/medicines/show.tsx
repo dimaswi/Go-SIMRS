@@ -22,6 +22,7 @@ import {
   Pencil,
   Trash2,
   AlertTriangle,
+  Database,
   DollarSign,
   Info,
   FileText,
@@ -117,8 +118,7 @@ export default function MedicineShow() {
       </div>
     );
   }
-
-  const isLowStock = medicine.current_stock <= medicine.min_stock;
+  const currentStock = medicine.current_stock ?? 0;
 
   return (
     <div className="flex flex-1 flex-col px-4">
@@ -145,7 +145,7 @@ export default function MedicineShow() {
                       <span className="font-mono">{medicine.code}</span>
                       {medicine.generic_name && (
                         <>
-                          <span>â€¢</span>
+                          <span>/</span>
                           <span>{medicine.generic_name}</span>
                         </>
                       )}
@@ -230,13 +230,32 @@ export default function MedicineShow() {
 
               <Separator />
 
+              <div className="space-y-4">
+                <h3 className="text-sm font-medium text-muted-foreground border-b pb-2 flex items-center gap-2">
+                  <Database className="h-4 w-4" />
+                  Mapping BPJS DPHO
+                </h3>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Kode Obat DPHO</p>
+                    <p className="text-sm font-medium font-mono">{medicine.dpho_kode_obat || "-"}</p>
+                  </div>
+                  <div className="md:col-span-2">
+                    <p className="text-xs text-muted-foreground">Nama Obat DPHO</p>
+                    <p className="text-sm font-medium">{medicine.dpho_nama_obat || "Belum dipetakan ke DPHO"}</p>
+                  </div>
+                </div>
+              </div>
+
+              <Separator />
+
               {/* Price & Stock Info */}
               <div className="space-y-4">
                 <h3 className="text-sm font-medium text-muted-foreground border-b pb-2 flex items-center gap-2">
                   <DollarSign className="h-4 w-4" />
-                  Harga & Stok
+                  Harga & Batas Stok
                 </h3>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div>
                     <p className="text-xs text-muted-foreground">Harga Beli (HNA)</p>
                     <p className="text-sm font-medium">
@@ -250,23 +269,16 @@ export default function MedicineShow() {
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground">Stok Saat Ini</p>
-                    <div className="flex items-center gap-2">
-                      <p className={`text-sm font-medium ${isLowStock ? "text-red-600" : ""}`}>
-                        {medicine.current_stock} {medicine.unit}
-                      </p>
-                      {isLowStock && (
-                        <Badge variant="destructive" className="text-xs">Low Stock</Badge>
-                      )}
-                    </div>
-                  </div>
-                  <div>
                     <p className="text-xs text-muted-foreground">Stok Minimum</p>
                     <p className="text-sm font-medium">{medicine.min_stock}</p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Stok Maksimum</p>
                     <p className="text-sm font-medium">{medicine.max_stock}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Stok Saat Ini</p>
+                    <p className="text-sm font-medium">{currentStock} {medicine.unit}</p>
                   </div>
                 </div>
               </div>

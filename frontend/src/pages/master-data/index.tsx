@@ -51,6 +51,8 @@ export default function MasterDataPage() {
       department: { color: 'bg-indigo-100 text-indigo-700' },
       position: { color: 'bg-violet-100 text-violet-700' },
       specialization: { color: 'bg-teal-100 text-teal-700' },
+      body_marker_category: { color: 'bg-amber-100 text-amber-700' },
+      body_marker_image: { color: 'bg-rose-100 text-rose-700' },
     };
     return iconMap[code] || { color: 'bg-gray-100 text-gray-700' };
   };

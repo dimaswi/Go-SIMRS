@@ -154,7 +154,20 @@ var BPJSConfigKeys = []IntegrationConfigKey{
 var BPJSAntrianConfigKeys = createBPJSConfigKeys(IntegrationTypeBPJSAntrian, "Antrian Online")
 var BPJSVClaimConfigKeys = createBPJSConfigKeys(IntegrationTypeBPJSVClaim, "VClaim")
 var BPJSICareConfigKeys = createBPJSConfigKeysCustomURL(IntegrationTypeBPJSICare, "I-Care", "https://apijkn-dev.bpjs-kesehatan.go.id/ihs_dev/api/rs", "https://apijkn.bpjs-kesehatan.go.id/wsihs/api/rs")
-var BPJSApotekConfigKeys = createBPJSConfigKeys(IntegrationTypeBPJSApotek, "Apotek Online")
+var BPJSApotekConfigKeys = []IntegrationConfigKey{
+	{Integration: IntegrationTypeBPJSApotek, Key: "cons_id", Description: "Consumer ID Apotek Online", IsEncrypted: false, IsSecret: false, Default: "15545"},
+	{Integration: IntegrationTypeBPJSApotek, Key: "secret_key", Description: "Secret Key Apotek Online", IsEncrypted: false, IsSecret: true, Default: "6nJB1B36E3"},
+	{Integration: IntegrationTypeBPJSApotek, Key: "user_key", Description: "User Key Apotek Online", IsEncrypted: false, IsSecret: true, Default: "d7ab3aec168ca066992daa26280b701b"},
+	{Integration: IntegrationTypeBPJSApotek, Key: "kode_ppk", Description: "Kode Faskes/PPK", IsEncrypted: false, IsSecret: false, Default: ""},
+	{Integration: IntegrationTypeBPJSApotek, Key: "nama_ppk", Description: "Nama Faskes", IsEncrypted: false, IsSecret: false, Default: ""},
+	{Integration: IntegrationTypeBPJSApotek, Key: "environment", Description: "Environment: development atau production", IsEncrypted: false, IsSecret: false, Default: "development"},
+	{Integration: IntegrationTypeBPJSApotek, Key: "base_url_dev", Description: "Base URL Development", IsEncrypted: false, IsSecret: false, Default: "https://apijkn-dev.bpjs-kesehatan.go.id/apotek-rest-dev"},
+	{Integration: IntegrationTypeBPJSApotek, Key: "base_url_prod", Description: "Base URL Production", IsEncrypted: false, IsSecret: false, Default: "https://apijkn.bpjs-kesehatan.go.id/apotek-rest"},
+	{Integration: IntegrationTypeBPJSApotek, Key: "sync_interval_minutes", Description: "Interval sinkronisasi dalam menit", IsEncrypted: false, IsSecret: false, Default: "5"},
+	{Integration: IntegrationTypeBPJSApotek, Key: "auto_sync_enabled", Description: "Enable auto sync", IsEncrypted: false, IsSecret: false, Default: "false"},
+	{Integration: IntegrationTypeBPJSApotek, Key: "webhook_username", Description: "Username untuk BPJS webhook ke RS", IsEncrypted: false, IsSecret: false, Default: ""},
+	{Integration: IntegrationTypeBPJSApotek, Key: "webhook_password", Description: "Password untuk BPJS webhook ke RS", IsEncrypted: false, IsSecret: true, Default: ""},
+}
 var BPJSRMEConfigKeys = createBPJSConfigKeys(IntegrationTypeBPJSRME, "RME")
 var BPJSAplicareConfigKeys = createBPJSConfigKeysCustomURL(IntegrationTypeBPJSAplicare, "Aplicare", "https://dvlp.bpjs-kesehatan.go.id:8888/aplicaresws/rest", "")
 

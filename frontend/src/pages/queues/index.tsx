@@ -36,8 +36,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { format } from "date-fns";
-import { id as idLocale } from "date-fns/locale";
+
 
 export default function QueueIndex() {
   const { hasPermission } = usePermission();
@@ -269,11 +268,6 @@ export default function QueueIndex() {
             <h1 className="text-lg font-semibold">Antrean Pasien</h1>
             <p className="text-sm text-muted-foreground">
               Kelola antrean pasien untuk pendaftaran -{" "}
-              {selectedDate
-                ? format(new Date(selectedDate), "EEEE, dd MMMM yyyy", {
-                  locale: idLocale,
-                })
-                : "Semua Data"}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -425,21 +419,19 @@ export default function QueueIndex() {
               counters.map((counter) => (
                 <div
                   key={counter.id}
-                  className={`flex items-center justify-between border rounded-md p-3 transition-colors ${
-                    counter.is_open
+                  className={`flex items-center justify-between border rounded-md p-3 transition-colors ${counter.is_open
                       ? "bg-green-50 border-green-200 dark:bg-green-950/20 dark:border-green-800"
                       : "bg-background border-border"
-                  }`}
+                    }`}
                 >
                   <div className="flex-1 min-w-0 mr-2">
                     <div className="font-medium text-sm truncate">{counter.name}</div>
                     <Badge
                       variant={counter.is_open ? "default" : "secondary"}
-                      className={`text-[10px] px-1.5 py-0 ${
-                        counter.is_open
+                      className={`text-[10px] px-1.5 py-0 ${counter.is_open
                           ? "bg-green-600 hover:bg-green-600"
                           : ""
-                      }`}
+                        }`}
                     >
                       {counter.is_open ? "Buka" : "Tutup"}
                     </Badge>

@@ -53,22 +53,24 @@ const (
 	CategoryMedicineUnit     MasterDataCategory = "medicine_unit"     // Satuan Obat
 
 	// Medical Record Categories (SATUSEHAT Compliant)
-	CategoryArrivalMode        MasterDataCategory = "arrival_mode"        // Moda Kedatangan
-	CategoryTriageLevel        MasterDataCategory = "triage_level"        // Level Triase (ESI)
-	CategoryGeneralCondition   MasterDataCategory = "general_condition"   // Keadaan Umum
-	CategoryConsciousnessLevel MasterDataCategory = "consciousness_level" // Tingkat Kesadaran
-	CategoryAirwayStatus       MasterDataCategory = "airway_status"       // Status Jalan Napas
-	CategoryBreathingStatus    MasterDataCategory = "breathing_status"    // Status Pernapasan
-	CategoryCirculationStatus  MasterDataCategory = "circulation_status"  // Status Sirkulasi
-	CategoryAkralStatus        MasterDataCategory = "akral_status"        // Status Akral
-	CategoryCRTStatus          MasterDataCategory = "crt_status"          // Capillary Refill Time
-	CategoryPupilStatus        MasterDataCategory = "pupil_status"        // Status Pupil
-	CategoryClinicalStatus     MasterDataCategory = "clinical_status"     // Status Klinis Diagnosis (FHIR)
-	CategoryVerificationStatus MasterDataCategory = "verification_status" // Status Verifikasi Diagnosis (FHIR)
-	CategorySeverityLevel      MasterDataCategory = "severity_level"      // Tingkat Keparahan
-	CategoryDispositionType    MasterDataCategory = "disposition_type"    // Jenis Disposisi/Pemulangan
-	CategoryDischargeStatus    MasterDataCategory = "discharge_status"    // Status Keluar Pasien
-	CategoryDischargeCondition MasterDataCategory = "discharge_condition" // Kondisi Keluar Pasien
+	CategoryArrivalMode        MasterDataCategory = "arrival_mode"         // Moda Kedatangan
+	CategoryTriageLevel        MasterDataCategory = "triage_level"         // Level Triase (ESI)
+	CategoryGeneralCondition   MasterDataCategory = "general_condition"    // Keadaan Umum
+	CategoryConsciousnessLevel MasterDataCategory = "consciousness_level"  // Tingkat Kesadaran
+	CategoryAirwayStatus       MasterDataCategory = "airway_status"        // Status Jalan Napas
+	CategoryBreathingStatus    MasterDataCategory = "breathing_status"     // Status Pernapasan
+	CategoryCirculationStatus  MasterDataCategory = "circulation_status"   // Status Sirkulasi
+	CategoryAkralStatus        MasterDataCategory = "akral_status"         // Status Akral
+	CategoryCRTStatus          MasterDataCategory = "crt_status"           // Capillary Refill Time
+	CategoryPupilStatus        MasterDataCategory = "pupil_status"         // Status Pupil
+	CategoryClinicalStatus     MasterDataCategory = "clinical_status"      // Status Klinis Diagnosis (FHIR)
+	CategoryVerificationStatus MasterDataCategory = "verification_status"  // Status Verifikasi Diagnosis (FHIR)
+	CategorySeverityLevel      MasterDataCategory = "severity_level"       // Tingkat Keparahan
+	CategoryDispositionType    MasterDataCategory = "disposition_type"     // Jenis Disposisi/Pemulangan
+	CategoryDischargeStatus    MasterDataCategory = "discharge_status"     // Status Keluar Pasien
+	CategoryDischargeCondition MasterDataCategory = "discharge_condition"  // Kondisi Keluar Pasien
+	CategoryBodyMarkerCategory MasterDataCategory = "body_marker_category" // Kategori Gambar Marker Tubuh
+	CategoryBodyMarkerImage    MasterDataCategory = "body_marker_image"    // Master Gambar Marker Tubuh
 )
 
 // MasterData represents a master data entry
@@ -144,6 +146,8 @@ func GetCategoryLabel(category MasterDataCategory) string {
 		CategoryDispositionType:    "Jenis Disposisi",
 		CategoryDischargeStatus:    "Status Keluar",
 		CategoryDischargeCondition: "Kondisi Keluar",
+		CategoryBodyMarkerCategory: "Kategori Marker Tubuh",
+		CategoryBodyMarkerImage:    "Gambar Marker Tubuh",
 	}
 	if label, ok := labels[category]; ok {
 		return label
@@ -200,6 +204,8 @@ func GetCategoryDescription(category MasterDataCategory) string {
 		CategoryDispositionType:    "Jenis pemulangan pasien (pulang, rawat inap, rujuk, dll)",
 		CategoryDischargeStatus:    "Status keluar pasien dari pelayanan kesehatan",
 		CategoryDischargeCondition: "Kondisi fisik/medis pasien saat keluar",
+		CategoryBodyMarkerCategory: "Kategori kelompok gambar untuk marker tubuh (misalnya anterior, posterior, pediatrik)",
+		CategoryBodyMarkerImage:    "Master gambar anatomi tubuh yang dipilih pada tab marker rekam medis",
 	}
 	if desc, ok := descriptions[category]; ok {
 		return desc
@@ -249,6 +255,8 @@ func GetAllCategories() []map[string]string {
 		CategoryVerificationStatus,
 		CategorySeverityLevel,
 		CategoryDispositionType,
+		CategoryBodyMarkerCategory,
+		CategoryBodyMarkerImage,
 	}
 
 	result := make([]map[string]string, len(categories))
@@ -303,6 +311,8 @@ func GetAllCategoriesInfo() []map[string]string {
 		CategoryVerificationStatus,
 		CategorySeverityLevel,
 		CategoryDispositionType,
+		CategoryBodyMarkerCategory,
+		CategoryBodyMarkerImage,
 	}
 
 	result := make([]map[string]string, len(categories))

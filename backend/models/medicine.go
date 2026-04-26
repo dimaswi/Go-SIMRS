@@ -69,8 +69,11 @@ type Medicine struct {
 	// Stock Information (stok aktual ada di RoomMedicine per ruangan)
 	MinStock      int     `gorm:"default:0" json:"min_stock"`                         // Stok Minimum Global
 	MaxStock      int     `gorm:"default:0" json:"max_stock"`                         // Stok Maksimum Global
+	CurrentStock  int     `gorm:"-" json:"current_stock"`                             // Stok untuk kebutuhan display (bukan data master tersimpan)
 	PurchasePrice float64 `gorm:"type:decimal(15,2);default:0" json:"purchase_price"` // Harga Beli (HNA)
 	SellingPrice  float64 `gorm:"type:decimal(15,2);default:0" json:"selling_price"`  // Harga Jual (HET)
+	DPHOKodeObat  string  `gorm:"size:100" json:"dpho_kode_obat"`                     // Mapping kode obat DPHO BPJS
+	DPHONamaObat  string  `gorm:"size:255" json:"dpho_nama_obat"`                     // Snapshot nama obat DPHO BPJS
 
 	// Medical Information
 	Indication       string `gorm:"type:text" json:"indication"`       // Indikasi

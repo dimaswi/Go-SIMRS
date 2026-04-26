@@ -5,11 +5,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { masterDataApi, type MasterDataRequest } from '@/lib/api';
+import { masterDataApi, type MasterData, type MasterDataRequest } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import { setPageTitle } from '@/lib/page-title';
 import { Loader2, ArrowLeft, Save } from 'lucide-react';
 import { Combobox } from '@/components/ui/combobox';
+import { resolveBackendFileUrl } from '@/lib/api/client';
 
 // Category options
 const CATEGORY_OPTIONS = [
@@ -25,6 +26,8 @@ const CATEGORY_OPTIONS = [
   { value: 'department', label: 'Departemen' },
   { value: 'position', label: 'Jabatan' },
   { value: 'specialization', label: 'Spesialisasi' },
+  { value: 'body_marker_category', label: 'Kategori Marker Tubuh' },
+  { value: 'body_marker_image', label: 'Gambar Marker Tubuh' },
 ];
 
 export default function CreateMasterDataPage() {
@@ -34,6 +37,9 @@ export default function CreateMasterDataPage() {
   const categoryFromUrl = searchParams.get('category');
   
   const [loading, setLoading] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [markerCategories, setMarkerCategories] = useState<MasterData[]>([]);
+  const [bodyMarkerImageUrl, setBodyMarkerImageUrl] = useState('');
   const [formData, setFormData] = useState<MasterDataRequest>({
     category: categoryFromUrl || '',
     code: '',
@@ -48,6 +54,57 @@ export default function CreateMasterDataPage() {
     setPageTitle('Tambah Master Data');
   }, []);
 
+  const isBodyMarkerImageCategory = formData.category === 'body_marker_image';
+
+  useEffect(() => {
+    if (!isBodyMarkerImageCategory) {
+      setMarkerCategories([]);
+      return;
+    }
+
+    let active = true;
+    const loadMarkerCategories = async () => {
+      try {
+        const response = await masterDataApi.getByCategory('body_marker_category', { include_inactive: true });
+        if (!active) return;
+        setMarkerCategories(response.data.data || []);
+      } catch {
+        if (!active) return;
+        setMarkerCategories([]);
+      }
+    };
+
+    loadMarkerCategories();
+
+    return () => {
+      active = false;
+    };
+  }, [isBodyMarkerImageCategory]);
+
+  const handleUploadImage = async (file?: File) => {
+    if (!file) return;
+
+    setUploadingImage(true);
+    try {
+      const response = await masterDataApi.uploadImage(file);
+      const imageUrl = response.data.url;
+      setBodyMarkerImageUrl(imageUrl);
+      toast({
+        variant: 'success',
+        title: 'Berhasil!',
+        description: 'Gambar marker berhasil diunggah.',
+      });
+    } catch {
+      toast({
+        variant: 'destructive',
+        title: 'Error!',
+        description: 'Gagal mengunggah gambar marker.',
+      });
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -60,9 +117,36 @@ export default function CreateMasterDataPage() {
       return;
     }
 
+    if (isBodyMarkerImageCategory) {
+      if (!formData.parent_id) {
+        toast({
+          variant: 'destructive',
+          title: 'Error!',
+          description: 'Kategori gambar marker wajib dipilih.',
+        });
+        return;
+      }
+
+      if (!bodyMarkerImageUrl) {
+        toast({
+          variant: 'destructive',
+          title: 'Error!',
+          description: 'Gambar marker wajib diunggah.',
+        });
+        return;
+      }
+    }
+
     setLoading(true);
     try {
-      await masterDataApi.create(formData);
+      const payload: MasterDataRequest = {
+        ...formData,
+        metadata: isBodyMarkerImageCategory
+          ? JSON.stringify({ image_url: bodyMarkerImageUrl })
+          : formData.metadata,
+      };
+
+      await masterDataApi.create(payload);
       toast({
         variant: "success",
         title: "Berhasil!",
@@ -87,6 +171,10 @@ export default function CreateMasterDataPage() {
   };
 
   const handleChange = (field: keyof MasterDataRequest, value: any) => {
+    if (field === 'category' && value !== 'body_marker_image') {
+      setBodyMarkerImageUrl('');
+    }
+
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -154,6 +242,59 @@ export default function CreateMasterDataPage() {
                   />
                 </div>
               </div>
+
+              {isBodyMarkerImageCategory && (
+                <>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>Kategori Gambar Marker <span className="text-destructive">*</span></Label>
+                      <Combobox
+                        options={markerCategories.map((item) => ({
+                          value: String(item.id),
+                          label: item.name,
+                        }))}
+                        value={formData.parent_id ? String(formData.parent_id) : ''}
+                        onValueChange={(value) => handleChange('parent_id', value ? Number(value) : undefined)}
+                        placeholder="Pilih kategori gambar"
+                        searchPlaceholder="Cari kategori..."
+                        emptyText="Kategori marker belum tersedia"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="marker-image-upload">Upload Gambar Marker <span className="text-destructive">*</span></Label>
+                      <Input
+                        id="marker-image-upload"
+                        type="file"
+                        accept="image/png,image/jpeg,image/jpg,image/webp,image/svg+xml"
+                        onChange={(e) => handleUploadImage(e.target.files?.[0])}
+                        disabled={uploadingImage}
+                      />
+                      {uploadingImage && (
+                        <p className="text-xs text-muted-foreground">Mengunggah gambar...</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="marker-image-url">URL Gambar</Label>
+                    <Input
+                      id="marker-image-url"
+                      value={bodyMarkerImageUrl}
+                      onChange={(e) => setBodyMarkerImageUrl(e.target.value)}
+                      placeholder="/uploads/master-data/your-image.png"
+                    />
+                    {bodyMarkerImageUrl && (
+                      <div className="rounded-md border bg-muted/20 p-3">
+                        <img
+                          src={resolveBackendFileUrl(bodyMarkerImageUrl)}
+                          alt="Preview marker"
+                          className="max-h-48 w-auto rounded border bg-white"
+                        />
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="description">Deskripsi</Label>

@@ -250,6 +250,54 @@ export interface Disposition {
   updated_at?: string;
 }
 
+export interface DischargePlanningItem {
+  section_code: string;
+  section_title: string;
+  no: string;
+  criteria: string;
+  checked: boolean;
+  officer_name: string;
+}
+
+export interface DischargePlanning {
+  id?: number;
+  visit_id: number;
+  items: DischargePlanningItem[];
+  updated_by_id?: number;
+  updated_by?: { id: number; nama_lengkap?: string; name?: string };
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface BodyMarkerPoint {
+  id?: string;
+  x: number;
+  y: number;
+  label?: string;
+  note?: string;
+}
+
+export interface BodyMarkerItem {
+  id?: string;
+  image_master_id: number;
+  image_code: string;
+  image_name: string;
+  image_url: string;
+  category_code?: string;
+  category_name?: string;
+  markers: BodyMarkerPoint[];
+}
+
+export interface BodyMarkerData {
+  id?: number;
+  visit_id: number;
+  items: BodyMarkerItem[];
+  updated_by_id?: number;
+  updated_by?: { id: number; nama_lengkap?: string; name?: string };
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface SickLetter {
   id: number;
   visit_id: number;
@@ -422,6 +470,7 @@ export interface MedicalRecordSummary {
   diagnosis?: Diagnosis;
   assessment_plan?: AssessmentPlan;
   disposition?: Disposition;
+  body_marker?: { items?: BodyMarkerItem[] };
   visit_medicine_items?: VisitMedicineItemSummary[];
 }
 
@@ -527,6 +576,18 @@ export const medicalRecordsApi = {
   },
   saveDisposition: async (visitId: number, data: Partial<Disposition>) => {
     return api.post<Disposition>(`/visits/${visitId}/disposition`, data);
+  },
+  getDischargePlanning: async (visitId: number) => {
+    return api.get<DischargePlanning>(`/visits/${visitId}/discharge-planning`);
+  },
+  saveDischargePlanning: async (visitId: number, data: Pick<DischargePlanning, 'items'>) => {
+    return api.post<DischargePlanning>(`/visits/${visitId}/discharge-planning`, data);
+  },
+  getBodyMarkers: async (visitId: number) => {
+    return api.get<BodyMarkerData>(`/visits/${visitId}/body-markers`);
+  },
+  saveBodyMarkers: async (visitId: number, data: Pick<BodyMarkerData, 'items'>) => {
+    return api.post<BodyMarkerData>(`/visits/${visitId}/body-markers`, data);
   },
   cancelDisposition: async (visitId: number) => {
     return api.delete<{ message: string }>(`/visits/${visitId}/disposition`);

@@ -14,6 +14,20 @@ import (
 // MEDICINE HANDLERS
 // ==========================================
 
+func resolveMedicineCurrentStock(medicineID uint, fallback int) int {
+	var total int64
+	database.DB.Model(&models.RoomMedicine{}).
+		Where("medicine_id = ?", medicineID).
+		Select("COALESCE(SUM(quantity), 0)").
+		Scan(&total)
+
+	if total > 0 {
+		return int(total)
+	}
+
+	return fallback
+}
+
 // GetMedicines returns all medicines with pagination and search
 func GetMedicines(c *gin.Context) {
 	var medicines []models.Medicine
@@ -70,6 +84,10 @@ func GetMedicines(c *gin.Context) {
 		return
 	}
 
+	for i := range medicines {
+		medicines[i].CurrentStock = resolveMedicineCurrentStock(medicines[i].ID, medicines[i].CurrentStock)
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"data": medicines,
 		"meta": gin.H{
@@ -90,6 +108,8 @@ func GetMedicine(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Medicine not found"})
 		return
 	}
+
+	medicine.CurrentStock = resolveMedicineCurrentStock(medicine.ID, medicine.CurrentStock)
 
 	c.JSON(http.StatusOK, gin.H{"data": medicine})
 }
@@ -154,7 +174,6 @@ func UpdateMedicine(c *gin.Context) {
 		}
 	}
 
-	// Update fields
 	updates := map[string]interface{}{
 		"code":             input.Code,
 		"name":             input.Name,
@@ -170,6 +189,8 @@ func UpdateMedicine(c *gin.Context) {
 		"max_stock":        input.MaxStock,
 		"purchase_price":   input.PurchasePrice,
 		"selling_price":    input.SellingPrice,
+		"dpho_kode_obat":   strings.TrimSpace(input.DPHOKodeObat),
+		"dpho_nama_obat":   strings.TrimSpace(input.DPHONamaObat),
 		"indication":       input.Indication,
 		"contraindication": input.Contraindication,
 		"side_effects":     input.SideEffects,

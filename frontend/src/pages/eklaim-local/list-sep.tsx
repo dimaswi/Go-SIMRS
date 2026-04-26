@@ -9,7 +9,7 @@ import { eklaimLocalApi, eklaimLocalStatusLabels, eklaimLocalStatusColors } from
 import type { SEPWithClaim, EKlaimLocalStatus } from '@/lib/api/eklaim-local';
 import { useToast } from '@/hooks/use-toast';
 import { setPageTitle } from '@/lib/page-title';
-import { Loader2, Eye, Search, SlidersHorizontal, List, FilterX } from 'lucide-react';
+import { Loader2, Eye, Search, SlidersHorizontal, FilterX } from 'lucide-react';
 import {
   Collapsible,
   CollapsibleContent,
@@ -190,12 +190,8 @@ export default function ListSEPPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-lg font-semibold flex items-center gap-2">
-              <List className="h-5 w-5" />
               List SEP
             </h1>
-            <p className="text-sm text-muted-foreground">
-              Daftar kunjungan yang sudah memiliki SEP untuk diproses E-Klaim
-            </p>
           </div>
           <div className="flex items-center gap-2">
             {hasActiveFilters && (

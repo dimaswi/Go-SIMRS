@@ -7,11 +7,22 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Combobox } from "@/components/ui/combobox";
 
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { 
-  Save, 
-  Loader2, 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  Save,
+  Loader2,
   Heart,
   FileText,
   Sparkles,
@@ -26,10 +37,25 @@ import { medicalRecordEditLogApi } from "@/lib/api/visits";
 import { useMultipleMasterData } from "@/hooks/useMasterData";
 import type { PhysicalExam } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { useEditMode, EditModeBanner, EditConfirmDialog, PINVerificationDialog } from "./edit-mode-controller";
-import { emitMedicalRecordTabIndicator, emitMedicalRecordTabSaved, MEDICAL_RECORD_TAB_SAVED_EVENT } from "./tab-indicator";
+import {
+  useEditMode,
+  EditModeBanner,
+  EditConfirmDialog,
+  PINVerificationDialog,
+} from "./edit-mode-controller";
+import {
+  emitMedicalRecordTabIndicator,
+  emitMedicalRecordTabSaved,
+  MEDICAL_RECORD_TAB_SAVED_EVENT,
+} from "./tab-indicator";
 import { COPY_FROM_HISTORY_EVENT } from "./copy-from-history-drawer";
-import { saveFormDraft, loadFormDraft, clearFormDraft, loadPendingCopy, clearPendingCopy } from "@/lib/form-persistence";
+import {
+  saveFormDraft,
+  loadFormDraft,
+  clearFormDraft,
+  loadPendingCopy,
+  clearPendingCopy,
+} from "@/lib/form-persistence";
 import { useToast } from "@/hooks/use-toast";
 
 interface PhysicalExamFormProps {
@@ -44,19 +70,82 @@ interface PhysicalExamFormProps {
 
 // Physical exam sections
 const physicalExamSections = [
-  { id: "head", label: "Kepala", defaultNormal: "Normocephal, tidak ada deformitas, rambut distribusi merata" },
-  { id: "eyes", label: "Mata", defaultNormal: "Konjungtiva anemis (-/-), sklera ikterik (-/-), pupil isokor 3mm/3mm, refleks cahaya (+/+)" },
-  { id: "ears", label: "Telinga", defaultNormal: "Serumen minimal, membran timpani intak bilateral, nyeri tekan tragus (-/-)" },
-  { id: "nose", label: "Hidung", defaultNormal: "Septum deviasi (-), sekret (-/-), pernapasan cuping hidung (-)" },
-  { id: "throat", label: "Tenggorokan", defaultNormal: "Faring tidak hiperemis, tonsil T1/T1, uvula di tengah" },
-  { id: "neck", label: "Leher", defaultNormal: "JVP tidak meningkat, pembesaran KGB (-), kaku kuduk (-), tiroid tidak teraba membesar" },
-  { id: "chest", label: "Dada/Thorax", defaultNormal: "Bentuk dan pergerakan simetris, retraksi (-), fremitus taktil simetris" },
-  { id: "heart", label: "Jantung", defaultNormal: "BJ I-II reguler, murmur (-), gallop (-), batas jantung dalam batas normal" },
-  { id: "lungs", label: "Paru", defaultNormal: "Suara napas vesikuler (+/+), ronkhi (-/-), wheezing (-/-)" },
-  { id: "abdomen", label: "Abdomen", defaultNormal: "Datar, supel, bising usus (+) normal, hepar/lien tidak teraba, nyeri tekan (-)" },
-  { id: "extremities", label: "Ekstremitas", defaultNormal: "Akral hangat, CRT <2 detik, edema (-/-), kekuatan motorik 5/5" },
-  { id: "skin", label: "Kulit", defaultNormal: "Warna sawo matang, turgor baik, tidak pucat, tidak ikterik, ruam (-)" },
-  { id: "neurological", label: "Neurologis", defaultNormal: "GCS E4V5M6 (15), refleks fisiologis (+) normal, refleks patologis (-), meningeal sign (-)" },
+  {
+    id: "head",
+    label: "Kepala",
+    defaultNormal:
+      "Normocephal, tidak ada deformitas, rambut distribusi merata",
+  },
+  {
+    id: "eyes",
+    label: "Mata",
+    defaultNormal:
+      "Konjungtiva anemis (-/-), sklera ikterik (-/-), pupil isokor 3mm/3mm, refleks cahaya (+/+)",
+  },
+  {
+    id: "ears",
+    label: "Telinga",
+    defaultNormal:
+      "Serumen minimal, membran timpani intak bilateral, nyeri tekan tragus (-/-)",
+  },
+  {
+    id: "nose",
+    label: "Hidung",
+    defaultNormal:
+      "Septum deviasi (-), sekret (-/-), pernapasan cuping hidung (-)",
+  },
+  {
+    id: "throat",
+    label: "Tenggorokan",
+    defaultNormal: "Faring tidak hiperemis, tonsil T1/T1, uvula di tengah",
+  },
+  {
+    id: "neck",
+    label: "Leher",
+    defaultNormal:
+      "JVP tidak meningkat, pembesaran KGB (-), kaku kuduk (-), tiroid tidak teraba membesar",
+  },
+  {
+    id: "chest",
+    label: "Dada/Thorax",
+    defaultNormal:
+      "Bentuk dan pergerakan simetris, retraksi (-), fremitus taktil simetris",
+  },
+  {
+    id: "heart",
+    label: "Jantung",
+    defaultNormal:
+      "BJ I-II reguler, murmur (-), gallop (-), batas jantung dalam batas normal",
+  },
+  {
+    id: "lungs",
+    label: "Paru",
+    defaultNormal: "Suara napas vesikuler (+/+), ronkhi (-/-), wheezing (-/-)",
+  },
+  {
+    id: "abdomen",
+    label: "Abdomen",
+    defaultNormal:
+      "Datar, supel, bising usus (+) normal, hepar/lien tidak teraba, nyeri tekan (-)",
+  },
+  {
+    id: "extremities",
+    label: "Ekstremitas",
+    defaultNormal:
+      "Akral hangat, CRT <2 detik, edema (-/-), kekuatan motorik 5/5",
+  },
+  {
+    id: "skin",
+    label: "Kulit",
+    defaultNormal:
+      "Warna sawo matang, turgor baik, tidak pucat, tidak ikterik, ruam (-)",
+  },
+  {
+    id: "neurological",
+    label: "Neurologis",
+    defaultNormal:
+      "GCS E4V5M6 (15), refleks fisiologis (+) normal, refleks patologis (-), meningeal sign (-)",
+  },
 ];
 
 const calculateBMI = (weight: number, height: number): number => {
@@ -82,7 +171,7 @@ const getVitalStatus = (
   normalMin: number,
   normalMax: number,
   warningMin?: number,
-  warningMax?: number
+  warningMax?: number,
 ): VitalStatus => {
   if (!value || value <= 0) return "none";
 
@@ -187,7 +276,9 @@ const defaultFormData = {
   pain_location: "",
 };
 
-const parseBloodPressure = (value: string | null | undefined): { systolic: number; diastolic: number } => {
+const parseBloodPressure = (
+  value: string | null | undefined,
+): { systolic: number; diastolic: number } => {
   if (!value) return { systolic: 0, diastolic: 0 };
   const match = value.match(/(\d{2,3})\s*\/?\s*(\d{2,3})/);
   if (!match) return { systolic: 0, diastolic: 0 };
@@ -266,14 +357,16 @@ export function PhysicalExamForm({
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState(defaultFormData);
-  const [checkedSections, setCheckedSections] = useState<Record<string, boolean>>({});
+  const [checkedSections, setCheckedSections] = useState<
+    Record<string, boolean>
+  >({});
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
   const [physicalExamId, setPhysicalExamId] = useState<number | undefined>();
 
   // Fetch master data for general condition and consciousness
   const { getOptions } = useMultipleMasterData([
-    'general_condition',
-    'consciousness_level',
+    "general_condition",
+    "consciousness_level",
   ]);
 
   // Edit mode controller for post-discharge edits
@@ -325,9 +418,15 @@ export function PhysicalExamForm({
         general_condition: d.general_condition || "",
         consciousness: d.consciousness || "",
         blood_pressure_systolic:
-          (d as any).systolic || (d as any).blood_pressure_systolic || bp.systolic || 0,
+          (d as any).systolic ||
+          (d as any).blood_pressure_systolic ||
+          bp.systolic ||
+          0,
         blood_pressure_diastolic:
-          (d as any).diastolic || (d as any).blood_pressure_diastolic || bp.diastolic || 0,
+          (d as any).diastolic ||
+          (d as any).blood_pressure_diastolic ||
+          bp.diastolic ||
+          0,
         heart_rate: Number(d.heart_rate) || 0,
         respiratory_rate: Number(d.respiratory_rate) || 0,
         temperature: Number(d.temperature) || 0,
@@ -393,16 +492,18 @@ export function PhysicalExamForm({
         if (data && data.id) {
           hasExistingPhysicalExam = true;
           const parseNum = (val: string | number | undefined): number => {
-            if (typeof val === 'number') return val;
-            if (typeof val === 'string') return parseFloat(val) || 0;
+            if (typeof val === "number") return val;
+            if (typeof val === "string") return parseFloat(val) || 0;
             return 0;
           };
-          
+
           const loadedData = {
             general_condition: data.general_condition || "",
             consciousness: data.consciousness || "",
-            blood_pressure_systolic: data.systolic || data.blood_pressure_systolic || 0,
-            blood_pressure_diastolic: data.diastolic || data.blood_pressure_diastolic || 0,
+            blood_pressure_systolic:
+              data.systolic || data.blood_pressure_systolic || 0,
+            blood_pressure_diastolic:
+              data.diastolic || data.blood_pressure_diastolic || 0,
             heart_rate: parseNum(data.heart_rate),
             respiratory_rate: parseNum(data.respiratory_rate),
             temperature: parseNum(data.temperature),
@@ -442,7 +543,7 @@ export function PhysicalExamForm({
             pain_scale: data.pain_scale || 0,
             pain_location: data.pain_location || "",
           };
-          
+
           applyLoadedData(loadedData);
           setPhysicalExamId(data.id);
           emitMedicalRecordTabSaved("physical-exam", true);
@@ -452,7 +553,10 @@ export function PhysicalExamForm({
       } finally {
         setLoading(false);
         // Apply local draft if exists — overrides server data if user had unsaved changes
-        const draft = loadFormDraft<{ formData: typeof defaultFormData; checkedSections: Record<string, boolean> }>(`mr-draft-physical-exam-${visitId}`);
+        const draft = loadFormDraft<{
+          formData: typeof defaultFormData;
+          checkedSections: Record<string, boolean>;
+        }>(`mr-draft-physical-exam-${visitId}`);
         if (draft) {
           setFormData(draft.formData);
           setCheckedSections(draft.checkedSections);
@@ -466,9 +570,13 @@ export function PhysicalExamForm({
             general_condition: pendingCopy.general_condition || "",
             consciousness: pendingCopy.consciousness || "",
             blood_pressure_systolic:
-              Number(pendingCopy.systolic || pendingCopy.blood_pressure_systolic) || 0,
+              Number(
+                pendingCopy.systolic || pendingCopy.blood_pressure_systolic,
+              ) || 0,
             blood_pressure_diastolic:
-              Number(pendingCopy.diastolic || pendingCopy.blood_pressure_diastolic) || 0,
+              Number(
+                pendingCopy.diastolic || pendingCopy.blood_pressure_diastolic,
+              ) || 0,
             heart_rate: Number(pendingCopy.heart_rate) || 0,
             respiratory_rate: Number(pendingCopy.respiratory_rate) || 0,
             temperature: Number(pendingCopy.temperature) || 0,
@@ -522,12 +630,21 @@ export function PhysicalExamForm({
               setFormData((prev) => ({
                 ...prev,
                 consciousness: prev.consciousness || triage.consciousness || "",
-                blood_pressure_systolic: prev.blood_pressure_systolic || bp.systolic,
-                blood_pressure_diastolic: prev.blood_pressure_diastolic || bp.diastolic,
+                blood_pressure_systolic:
+                  prev.blood_pressure_systolic || bp.systolic,
+                blood_pressure_diastolic:
+                  prev.blood_pressure_diastolic || bp.diastolic,
                 heart_rate: prev.heart_rate || Number(triage.heart_rate) || 0,
-                respiratory_rate: prev.respiratory_rate || Number(triage.breathing_rate || triage.respiratory_rate) || 0,
-                temperature: prev.temperature || Number(triage.temperature) || 0,
-                oxygen_saturation: prev.oxygen_saturation || Number(triage.oxygen_saturation) || 0,
+                respiratory_rate:
+                  prev.respiratory_rate ||
+                  Number(triage.breathing_rate || triage.respiratory_rate) ||
+                  0,
+                temperature:
+                  prev.temperature || Number(triage.temperature) || 0,
+                oxygen_saturation:
+                  prev.oxygen_saturation ||
+                  Number(triage.oxygen_saturation) ||
+                  0,
                 pain_method: triage.pain_method || prev.pain_method || "nrs",
                 pain_scale: prev.pain_scale || Number(triage.pain_scale) || 0,
                 pain_location: prev.pain_location || triage.pain_location || "",
@@ -558,40 +675,40 @@ export function PhysicalExamForm({
   };
 
   const handleCheckSection = (sectionId: string, checked: boolean) => {
-    setCheckedSections(prev => ({ ...prev, [sectionId]: checked }));
-    
+    setCheckedSections((prev) => ({ ...prev, [sectionId]: checked }));
+
     if (checked) {
       // When checked, set normal value and expand row
-      const section = physicalExamSections.find(s => s.id === sectionId);
+      const section = physicalExamSections.find((s) => s.id === sectionId);
       if (section) {
         handleChange(sectionId, section.defaultNormal);
       }
-      setExpandedRows(prev => ({ ...prev, [sectionId]: true }));
+      setExpandedRows((prev) => ({ ...prev, [sectionId]: true }));
     } else {
       // When unchecked, clear value and collapse
       handleChange(sectionId, "");
-      setExpandedRows(prev => ({ ...prev, [sectionId]: false }));
+      setExpandedRows((prev) => ({ ...prev, [sectionId]: false }));
     }
   };
 
   const toggleRowExpand = (sectionId: string) => {
-    setExpandedRows(prev => ({ ...prev, [sectionId]: !prev[sectionId] }));
+    setExpandedRows((prev) => ({ ...prev, [sectionId]: !prev[sectionId] }));
   };
 
   const handleSetAllNormal = () => {
-    const allChecked = physicalExamSections.every(s => checkedSections[s.id]);
-    
+    const allChecked = physicalExamSections.every((s) => checkedSections[s.id]);
+
     if (allChecked) {
       // Uncheck all
       setCheckedSections({});
       setExpandedRows({});
-      physicalExamSections.forEach(section => {
+      physicalExamSections.forEach((section) => {
         handleChange(section.id, "");
       });
     } else {
       // Check all with normal values
       const newChecked: Record<string, boolean> = {};
-      physicalExamSections.forEach(section => {
+      physicalExamSections.forEach((section) => {
         newChecked[section.id] = true;
         handleChange(section.id, section.defaultNormal);
       });
@@ -607,7 +724,8 @@ export function PhysicalExamForm({
         toast({
           variant: "destructive",
           title: "Data triase tidak ditemukan",
-          description: "Belum ada data triase yang bisa dimuat ke pemeriksaan fisik.",
+          description:
+            "Belum ada data triase yang bisa dimuat ke pemeriksaan fisik.",
         });
         return;
       }
@@ -619,9 +737,12 @@ export function PhysicalExamForm({
         blood_pressure_systolic: bp.systolic || prev.blood_pressure_systolic,
         blood_pressure_diastolic: bp.diastolic || prev.blood_pressure_diastolic,
         heart_rate: Number(triage.heart_rate) || prev.heart_rate,
-        respiratory_rate: Number(triage.breathing_rate || triage.respiratory_rate) || prev.respiratory_rate,
+        respiratory_rate:
+          Number(triage.breathing_rate || triage.respiratory_rate) ||
+          prev.respiratory_rate,
         temperature: Number(triage.temperature) || prev.temperature,
-        oxygen_saturation: Number(triage.oxygen_saturation) || prev.oxygen_saturation,
+        oxygen_saturation:
+          Number(triage.oxygen_saturation) || prev.oxygen_saturation,
         pain_method: triage.pain_method || prev.pain_method || "nrs",
         pain_scale: Number(triage.pain_scale) || prev.pain_scale,
         pain_location: triage.pain_location || prev.pain_location || "",
@@ -659,20 +780,20 @@ export function PhysicalExamForm({
         console.error("Failed to log edit:", error);
       }
     }
-    
+
     onSave?.(formData);
     resetEditMode();
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // If patient is discharged, verify PIN before saving
     if (!useExternalData && isPatientDischarged) {
       requestPINVerification(doSave);
       return;
     }
-    
+
     doSave();
   };
 
@@ -680,17 +801,53 @@ export function PhysicalExamForm({
   const painLocationOptions = useMemo(() => {
     const selected = (formData.pain_location || "").trim();
     if (!selected) return painLocationOptionsBase;
-    if (painLocationOptionsBase.some((option) => option.value === selected)) return painLocationOptionsBase;
+    if (painLocationOptionsBase.some((option) => option.value === selected))
+      return painLocationOptionsBase;
 
-    return [{ value: selected, label: `${selected} (custom)` }, ...painLocationOptionsBase];
+    return [
+      { value: selected, label: `${selected} (custom)` },
+      ...painLocationOptionsBase,
+    ];
   }, [formData.pain_location]);
-  const systolicStatus = getVitalStatus(formData.blood_pressure_systolic, 90, 120, 80, 129);
-  const diastolicStatus = getVitalStatus(formData.blood_pressure_diastolic, 60, 80, 50, 89);
+  const systolicStatus = getVitalStatus(
+    formData.blood_pressure_systolic,
+    90,
+    120,
+    80,
+    129,
+  );
+  const diastolicStatus = getVitalStatus(
+    formData.blood_pressure_diastolic,
+    60,
+    80,
+    50,
+    89,
+  );
   const heartRateStatus = getVitalStatus(formData.heart_rate, 60, 100, 50, 110);
-  const respiratoryStatus = getVitalStatus(formData.respiratory_rate, 12, 20, 10, 24);
-  const temperatureStatus = getVitalStatus(formData.temperature, 36.1, 37.2, 35.5, 37.9);
-  const spo2Status = getVitalStatus(formData.oxygen_saturation, 95, 100, 90, 100);
-  const filledBodySections = Object.keys(checkedSections).filter(k => checkedSections[k]).length;
+  const respiratoryStatus = getVitalStatus(
+    formData.respiratory_rate,
+    12,
+    20,
+    10,
+    24,
+  );
+  const temperatureStatus = getVitalStatus(
+    formData.temperature,
+    36.1,
+    37.2,
+    35.5,
+    37.9,
+  );
+  const spo2Status = getVitalStatus(
+    formData.oxygen_saturation,
+    95,
+    100,
+    90,
+    100,
+  );
+  const filledBodySections = Object.keys(checkedSections).filter(
+    (k) => checkedSections[k],
+  ).length;
   const filledVitalSigns = [
     formData.general_condition ? 1 : 0,
     formData.consciousness ? 1 : 0,
@@ -712,14 +869,20 @@ export function PhysicalExamForm({
 
   useEffect(() => {
     if (loading) return;
-    emitMedicalRecordTabIndicator("physical-exam", `${filledPhysicalExam}/${totalPhysicalExam}`);
+    emitMedicalRecordTabIndicator(
+      "physical-exam",
+      `${filledPhysicalExam}/${totalPhysicalExam}`,
+    );
   }, [filledPhysicalExam, loading]);
 
   // Auto-save draft to localStorage on every form change
   useEffect(() => {
     if (useExternalData) return;
     if (loading) return;
-    saveFormDraft(`mr-draft-physical-exam-${visitId}`, { formData, checkedSections });
+    saveFormDraft(`mr-draft-physical-exam-${visitId}`, {
+      formData,
+      checkedSections,
+    });
   }, [formData, checkedSections, loading, visitId, useExternalData]);
 
   // Clear draft when save is confirmed by server
@@ -731,8 +894,15 @@ export function PhysicalExamForm({
         clearFormDraft(`mr-draft-physical-exam-${visitId}`);
       }
     };
-    window.addEventListener(MEDICAL_RECORD_TAB_SAVED_EVENT, handler as EventListener);
-    return () => window.removeEventListener(MEDICAL_RECORD_TAB_SAVED_EVENT, handler as EventListener);
+    window.addEventListener(
+      MEDICAL_RECORD_TAB_SAVED_EVENT,
+      handler as EventListener,
+    );
+    return () =>
+      window.removeEventListener(
+        MEDICAL_RECORD_TAB_SAVED_EVENT,
+        handler as EventListener,
+      );
   }, [visitId, useExternalData]);
 
   // Listen for copy-from-history events
@@ -746,8 +916,10 @@ export function PhysicalExamForm({
       const newData = {
         general_condition: d.general_condition || "",
         consciousness: d.consciousness || "",
-        blood_pressure_systolic: Number(d.systolic || d.blood_pressure_systolic) || 0,
-        blood_pressure_diastolic: Number(d.diastolic || d.blood_pressure_diastolic) || 0,
+        blood_pressure_systolic:
+          Number(d.systolic || d.blood_pressure_systolic) || 0,
+        blood_pressure_diastolic:
+          Number(d.diastolic || d.blood_pressure_diastolic) || 0,
         heart_rate: Number(d.heart_rate) || 0,
         respiratory_rate: Number(d.respiratory_rate) || 0,
         temperature: Number(d.temperature) || 0,
@@ -790,8 +962,25 @@ export function PhysicalExamForm({
       setFormData(newData);
       // Auto-check sections that have data
       const checked: Record<string, boolean> = {};
-      ["head", "eyes", "ears", "nose", "throat", "neck", "chest", "heart", "lungs", "abdomen", "extremities", "skin", "neurological"].forEach(key => {
-        if (newData[key as keyof typeof newData] && String(newData[key as keyof typeof newData]).trim()) {
+      [
+        "head",
+        "eyes",
+        "ears",
+        "nose",
+        "throat",
+        "neck",
+        "chest",
+        "heart",
+        "lungs",
+        "abdomen",
+        "extremities",
+        "skin",
+        "neurological",
+      ].forEach((key) => {
+        if (
+          newData[key as keyof typeof newData] &&
+          String(newData[key as keyof typeof newData]).trim()
+        ) {
           checked[key] = true;
         }
       });
@@ -799,7 +988,11 @@ export function PhysicalExamForm({
       emitMedicalRecordTabSaved("physical-exam", false);
     };
     window.addEventListener(COPY_FROM_HISTORY_EVENT, handler as EventListener);
-    return () => window.removeEventListener(COPY_FROM_HISTORY_EVENT, handler as EventListener);
+    return () =>
+      window.removeEventListener(
+        COPY_FROM_HISTORY_EVENT,
+        handler as EventListener,
+      );
   }, [useExternalData]);
 
   if (loading) {
@@ -818,42 +1011,49 @@ export function PhysicalExamForm({
   return (
     <div>
       <div>
-            {!useExternalData && (
-              <EditModeBanner
-                isPatientDischarged={isPatientDischarged}
-                isEditing={isEditing}
-                onRequestEdit={handleRequestEdit}
-                recordTypeLabel="Pemeriksaan Fisik"
-              />
-            )}
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <fieldset disabled={isFormDisabled} className="space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11">
-            
+        {!useExternalData && (
+          <EditModeBanner
+            isPatientDischarged={isPatientDischarged}
+            isEditing={isEditing}
+            onRequestEdit={handleRequestEdit}
+            recordTypeLabel="Pemeriksaan Fisik"
+          />
+        )}
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <fieldset
+            disabled={isFormDisabled}
+            className="space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11"
+          >
             {/* Section 1: Kondisi Umum & Tanda Vital */}
             <div className="border border-border/70">
-                <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                  Kondisi Umum, Vital, dan Antropometri
-                </div>
-                <div className="space-y-7 p-3 sm:p-4">
-                
+              <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                Kondisi Umum, Vital, dan Antropometri
+              </div>
+              <div className="space-y-7 p-3 sm:p-4">
                 {/* Kondisi Umum */}
                 <div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="general_condition" className="text-sm">Keadaan Umum</Label>
+                      <Label htmlFor="general_condition" className="text-sm">
+                        Keadaan Umum
+                      </Label>
                       <Combobox
-                        options={getOptions('general_condition')}
+                        options={getOptions("general_condition")}
                         value={formData.general_condition}
-                        onValueChange={(v) => handleChange("general_condition", v)}
+                        onValueChange={(v) =>
+                          handleChange("general_condition", v)
+                        }
                         placeholder="Pilih keadaan umum"
                         searchPlaceholder="Cari keadaan umum..."
                         disabled={isFormDisabled}
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="consciousness" className="text-sm">Kesadaran</Label>
+                      <Label htmlFor="consciousness" className="text-sm">
+                        Kesadaran
+                      </Label>
                       <Combobox
-                        options={getOptions('consciousness_level')}
+                        options={getOptions("consciousness_level")}
                         value={formData.consciousness}
                         onValueChange={(v) => handleChange("consciousness", v)}
                         placeholder="Pilih tingkat kesadaran"
@@ -881,11 +1081,28 @@ export function PhysicalExamForm({
                   )}
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
                     <div className="space-y-1">
-                      <Label htmlFor="blood_pressure_systolic" className="text-xs flex flex-wrap items-center gap-1.5 leading-5">
-                        Sistolik {isEmergency && <span className="text-destructive">*</span>}
-                        <Badge variant="outline" className="hidden sm:inline-flex text-[10px] px-1 py-0 h-4 bg-blue-50 text-blue-700 border-blue-200">SatuSehat</Badge>
+                      <Label
+                        htmlFor="blood_pressure_systolic"
+                        className="text-xs flex flex-wrap items-center gap-1.5 leading-5"
+                      >
+                        Sistolik{" "}
+                        {isEmergency && (
+                          <span className="text-destructive">*</span>
+                        )}
+                        <Badge
+                          variant="outline"
+                          className="hidden sm:inline-flex text-[10px] px-1 py-0 h-4 bg-blue-50 text-blue-700 border-blue-200"
+                        >
+                          SatuSehat
+                        </Badge>
                         {getVitalStatusLabel(systolicStatus) && (
-                          <Badge variant="outline" className={cn("text-[10px] px-1 py-0 h-4", getVitalStatusBadgeClass(systolicStatus))}>
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "text-[10px] px-1 py-0 h-4",
+                              getVitalStatusBadgeClass(systolicStatus),
+                            )}
+                          >
                             {getVitalStatusLabel(systolicStatus)}
                           </Badge>
                         )}
@@ -896,19 +1113,46 @@ export function PhysicalExamForm({
                           type="number"
                           placeholder="120"
                           value={formData.blood_pressure_systolic || ""}
-                          onChange={(e) => handleChange("blood_pressure_systolic", parseInt(e.target.value) || 0)}
+                          onChange={(e) =>
+                            handleChange(
+                              "blood_pressure_systolic",
+                              parseInt(e.target.value) || 0,
+                            )
+                          }
                           required={isEmergency}
-                          className={cn("pr-12", getVitalStatusInputClass(systolicStatus))}
+                          className={cn(
+                            "pr-12",
+                            getVitalStatusInputClass(systolicStatus),
+                          )}
                         />
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">mmHg</span>
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                          mmHg
+                        </span>
                       </div>
                     </div>
                     <div className="space-y-1">
-                      <Label htmlFor="blood_pressure_diastolic" className="text-xs flex flex-wrap items-center gap-1.5 leading-5">
-                        Diastolik {isEmergency && <span className="text-destructive">*</span>}
-                        <Badge variant="outline" className="hidden sm:inline-flex text-[10px] px-1 py-0 h-4 bg-blue-50 text-blue-700 border-blue-200">SatuSehat</Badge>
+                      <Label
+                        htmlFor="blood_pressure_diastolic"
+                        className="text-xs flex flex-wrap items-center gap-1.5 leading-5"
+                      >
+                        Diastolik{" "}
+                        {isEmergency && (
+                          <span className="text-destructive">*</span>
+                        )}
+                        <Badge
+                          variant="outline"
+                          className="hidden sm:inline-flex text-[10px] px-1 py-0 h-4 bg-blue-50 text-blue-700 border-blue-200"
+                        >
+                          SatuSehat
+                        </Badge>
                         {getVitalStatusLabel(diastolicStatus) && (
-                          <Badge variant="outline" className={cn("text-[10px] px-1 py-0 h-4", getVitalStatusBadgeClass(diastolicStatus))}>
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "text-[10px] px-1 py-0 h-4",
+                              getVitalStatusBadgeClass(diastolicStatus),
+                            )}
+                          >
                             {getVitalStatusLabel(diastolicStatus)}
                           </Badge>
                         )}
@@ -919,19 +1163,46 @@ export function PhysicalExamForm({
                           type="number"
                           placeholder="80"
                           value={formData.blood_pressure_diastolic || ""}
-                          onChange={(e) => handleChange("blood_pressure_diastolic", parseInt(e.target.value) || 0)}
+                          onChange={(e) =>
+                            handleChange(
+                              "blood_pressure_diastolic",
+                              parseInt(e.target.value) || 0,
+                            )
+                          }
                           required={isEmergency}
-                          className={cn("pr-12", getVitalStatusInputClass(diastolicStatus))}
+                          className={cn(
+                            "pr-12",
+                            getVitalStatusInputClass(diastolicStatus),
+                          )}
                         />
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">mmHg</span>
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                          mmHg
+                        </span>
                       </div>
                     </div>
                     <div className="space-y-1">
-                      <Label htmlFor="heart_rate" className="text-xs flex flex-wrap items-center gap-1.5 leading-5">
-                        Nadi {isEmergency && <span className="text-destructive">*</span>}
-                        <Badge variant="outline" className="hidden sm:inline-flex text-[10px] px-1 py-0 h-4 bg-blue-50 text-blue-700 border-blue-200">SatuSehat</Badge>
+                      <Label
+                        htmlFor="heart_rate"
+                        className="text-xs flex flex-wrap items-center gap-1.5 leading-5"
+                      >
+                        Nadi{" "}
+                        {isEmergency && (
+                          <span className="text-destructive">*</span>
+                        )}
+                        <Badge
+                          variant="outline"
+                          className="hidden sm:inline-flex text-[10px] px-1 py-0 h-4 bg-blue-50 text-blue-700 border-blue-200"
+                        >
+                          SatuSehat
+                        </Badge>
                         {getVitalStatusLabel(heartRateStatus) && (
-                          <Badge variant="outline" className={cn("text-[10px] px-1 py-0 h-4", getVitalStatusBadgeClass(heartRateStatus))}>
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "text-[10px] px-1 py-0 h-4",
+                              getVitalStatusBadgeClass(heartRateStatus),
+                            )}
+                          >
                             {getVitalStatusLabel(heartRateStatus)}
                           </Badge>
                         )}
@@ -942,19 +1213,46 @@ export function PhysicalExamForm({
                           type="number"
                           placeholder="80"
                           value={formData.heart_rate || ""}
-                          onChange={(e) => handleChange("heart_rate", parseInt(e.target.value) || 0)}
+                          onChange={(e) =>
+                            handleChange(
+                              "heart_rate",
+                              parseInt(e.target.value) || 0,
+                            )
+                          }
                           required={isEmergency}
-                          className={cn("pr-10", getVitalStatusInputClass(heartRateStatus))}
+                          className={cn(
+                            "pr-10",
+                            getVitalStatusInputClass(heartRateStatus),
+                          )}
                         />
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">x/m</span>
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                          x/m
+                        </span>
                       </div>
                     </div>
                     <div className="space-y-1">
-                      <Label htmlFor="respiratory_rate" className="text-xs flex flex-wrap items-center gap-1.5 leading-5">
-                        Napas {isEmergency && <span className="text-destructive">*</span>}
-                        <Badge variant="outline" className="hidden sm:inline-flex text-[10px] px-1 py-0 h-4 bg-blue-50 text-blue-700 border-blue-200">SatuSehat</Badge>
+                      <Label
+                        htmlFor="respiratory_rate"
+                        className="text-xs flex flex-wrap items-center gap-1.5 leading-5"
+                      >
+                        Napas{" "}
+                        {isEmergency && (
+                          <span className="text-destructive">*</span>
+                        )}
+                        <Badge
+                          variant="outline"
+                          className="hidden sm:inline-flex text-[10px] px-1 py-0 h-4 bg-blue-50 text-blue-700 border-blue-200"
+                        >
+                          SatuSehat
+                        </Badge>
                         {getVitalStatusLabel(respiratoryStatus) && (
-                          <Badge variant="outline" className={cn("text-[10px] px-1 py-0 h-4", getVitalStatusBadgeClass(respiratoryStatus))}>
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "text-[10px] px-1 py-0 h-4",
+                              getVitalStatusBadgeClass(respiratoryStatus),
+                            )}
+                          >
                             {getVitalStatusLabel(respiratoryStatus)}
                           </Badge>
                         )}
@@ -965,19 +1263,46 @@ export function PhysicalExamForm({
                           type="number"
                           placeholder="20"
                           value={formData.respiratory_rate || ""}
-                          onChange={(e) => handleChange("respiratory_rate", parseInt(e.target.value) || 0)}
+                          onChange={(e) =>
+                            handleChange(
+                              "respiratory_rate",
+                              parseInt(e.target.value) || 0,
+                            )
+                          }
                           required={isEmergency}
-                          className={cn("pr-10", getVitalStatusInputClass(respiratoryStatus))}
+                          className={cn(
+                            "pr-10",
+                            getVitalStatusInputClass(respiratoryStatus),
+                          )}
                         />
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">x/m</span>
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                          x/m
+                        </span>
                       </div>
                     </div>
                     <div className="space-y-1">
-                      <Label htmlFor="temperature" className="text-xs flex flex-wrap items-center gap-1.5 leading-5">
-                        Suhu {isEmergency && <span className="text-destructive">*</span>}
-                        <Badge variant="outline" className="hidden sm:inline-flex text-[10px] px-1 py-0 h-4 bg-blue-50 text-blue-700 border-blue-200">SatuSehat</Badge>
+                      <Label
+                        htmlFor="temperature"
+                        className="text-xs flex flex-wrap items-center gap-1.5 leading-5"
+                      >
+                        Suhu{" "}
+                        {isEmergency && (
+                          <span className="text-destructive">*</span>
+                        )}
+                        <Badge
+                          variant="outline"
+                          className="hidden sm:inline-flex text-[10px] px-1 py-0 h-4 bg-blue-50 text-blue-700 border-blue-200"
+                        >
+                          SatuSehat
+                        </Badge>
                         {getVitalStatusLabel(temperatureStatus) && (
-                          <Badge variant="outline" className={cn("text-[10px] px-1 py-0 h-4", getVitalStatusBadgeClass(temperatureStatus))}>
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "text-[10px] px-1 py-0 h-4",
+                              getVitalStatusBadgeClass(temperatureStatus),
+                            )}
+                          >
                             {getVitalStatusLabel(temperatureStatus)}
                           </Badge>
                         )}
@@ -989,19 +1314,46 @@ export function PhysicalExamForm({
                           step="0.1"
                           placeholder="36.5"
                           value={formData.temperature || ""}
-                          onChange={(e) => handleChange("temperature", parseFloat(e.target.value) || 0)}
+                          onChange={(e) =>
+                            handleChange(
+                              "temperature",
+                              parseFloat(e.target.value) || 0,
+                            )
+                          }
                           required={isEmergency}
-                          className={cn("pr-8", getVitalStatusInputClass(temperatureStatus))}
+                          className={cn(
+                            "pr-8",
+                            getVitalStatusInputClass(temperatureStatus),
+                          )}
                         />
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">°C</span>
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                          °C
+                        </span>
                       </div>
                     </div>
                     <div className="space-y-1">
-                      <Label htmlFor="oxygen_saturation" className="text-xs flex flex-wrap items-center gap-1.5 leading-5">
-                        SpO2 {isEmergency && <span className="text-destructive">*</span>}
-                        <Badge variant="outline" className="hidden sm:inline-flex text-[10px] px-1 py-0 h-4 bg-blue-50 text-blue-700 border-blue-200">SatuSehat</Badge>
+                      <Label
+                        htmlFor="oxygen_saturation"
+                        className="text-xs flex flex-wrap items-center gap-1.5 leading-5"
+                      >
+                        SpO2{" "}
+                        {isEmergency && (
+                          <span className="text-destructive">*</span>
+                        )}
+                        <Badge
+                          variant="outline"
+                          className="hidden sm:inline-flex text-[10px] px-1 py-0 h-4 bg-blue-50 text-blue-700 border-blue-200"
+                        >
+                          SatuSehat
+                        </Badge>
                         {getVitalStatusLabel(spo2Status) && (
-                          <Badge variant="outline" className={cn("text-[10px] px-1 py-0 h-4", getVitalStatusBadgeClass(spo2Status))}>
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "text-[10px] px-1 py-0 h-4",
+                              getVitalStatusBadgeClass(spo2Status),
+                            )}
+                          >
                             {getVitalStatusLabel(spo2Status)}
                           </Badge>
                         )}
@@ -1012,11 +1364,21 @@ export function PhysicalExamForm({
                           type="number"
                           placeholder="98"
                           value={formData.oxygen_saturation || ""}
-                          onChange={(e) => handleChange("oxygen_saturation", parseInt(e.target.value) || 0)}
+                          onChange={(e) =>
+                            handleChange(
+                              "oxygen_saturation",
+                              parseInt(e.target.value) || 0,
+                            )
+                          }
                           required={isEmergency}
-                          className={cn("pr-6", getVitalStatusInputClass(spo2Status))}
+                          className={cn(
+                            "pr-6",
+                            getVitalStatusInputClass(spo2Status),
+                          )}
                         />
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">%</span>
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                          %
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -1026,30 +1388,48 @@ export function PhysicalExamForm({
                 <div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="pain_method" className="text-xs">Metode Penilaian Nyeri</Label>
+                      <Label htmlFor="pain_method" className="text-xs">
+                        Metode Penilaian Nyeri
+                      </Label>
                       <Select
                         value={formData.pain_method}
-                        onValueChange={(value) => handleChange("pain_method", value)}
+                        onValueChange={(value) =>
+                          handleChange("pain_method", value)
+                        }
                         disabled={isFormDisabled}
                       >
                         <SelectTrigger id="pain_method">
                           <SelectValue placeholder="Pilih metode" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="nrs">NRS (Numeric Rating Scale)</SelectItem>
-                          <SelectItem value="wong_baker">Wong-Baker FACES</SelectItem>
-                          <SelectItem value="vas">VAS (Visual Analog Scale)</SelectItem>
-                          <SelectItem value="flacc">FLACC (bayi/anak non-verbal)</SelectItem>
-                          <SelectItem value="bps">BPS (pasien ICU/ventilator)</SelectItem>
+                          <SelectItem value="nrs">
+                            NRS (Numeric Rating Scale)
+                          </SelectItem>
+                          <SelectItem value="wong_baker">
+                            Wong-Baker FACES
+                          </SelectItem>
+                          <SelectItem value="vas">
+                            VAS (Visual Analog Scale)
+                          </SelectItem>
+                          <SelectItem value="flacc">
+                            FLACC (bayi/anak non-verbal)
+                          </SelectItem>
+                          <SelectItem value="bps">
+                            BPS (pasien ICU/ventilator)
+                          </SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="pain_location" className="text-xs">Lokasi Nyeri</Label>
+                      <Label htmlFor="pain_location" className="text-xs">
+                        Lokasi Nyeri
+                      </Label>
                       <Combobox
                         options={painLocationOptions}
                         value={formData.pain_location || ""}
-                        onValueChange={(value) => handleChange("pain_location", value)}
+                        onValueChange={(value) =>
+                          handleChange("pain_location", value)
+                        }
                         placeholder="Pilih lokasi nyeri"
                         searchPlaceholder="Cari lokasi nyeri..."
                         emptyText="Lokasi tidak ditemukan"
@@ -1057,7 +1437,9 @@ export function PhysicalExamForm({
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="pain_scale" className="text-xs">Skala Nyeri (0-10)</Label>
+                      <Label htmlFor="pain_scale" className="text-xs">
+                        Skala Nyeri (0-10)
+                      </Label>
                       {/* Wong-Baker FACES visual */}
                       {formData.pain_method === "wong_baker" && (
                         <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 pb-1">
@@ -1068,14 +1450,43 @@ export function PhysicalExamForm({
                                   <button
                                     type="button"
                                     disabled={isFormDisabled}
-                                    onClick={() => handleChange("pain_scale", v)}
-                                    className={cn("h-10 w-full text-2xl cursor-pointer rounded-lg transition-all", formData.pain_scale === v ? "bg-primary/10 ring-2 ring-primary" : "hover:bg-muted")}
+                                    onClick={() =>
+                                      handleChange("pain_scale", v)
+                                    }
+                                    className={cn(
+                                      "h-10 w-full text-2xl cursor-pointer rounded-lg transition-all",
+                                      formData.pain_scale === v
+                                        ? "bg-primary/10 ring-2 ring-primary"
+                                        : "hover:bg-muted",
+                                    )}
                                   >
-                                    {v === 0 ? "😊" : v === 2 ? "🙂" : v === 4 ? "😐" : v === 6 ? "🙁" : v === 8 ? "😢" : "😭"}
+                                    {v === 0
+                                      ? "😊"
+                                      : v === 2
+                                        ? "🙂"
+                                        : v === 4
+                                          ? "😐"
+                                          : v === 6
+                                            ? "🙁"
+                                            : v === 8
+                                              ? "😢"
+                                              : "😭"}
                                   </button>
                                 </TooltipTrigger>
                                 <TooltipContent>
-                                  <p>{v === 0 ? "Tidak nyeri" : v === 2 ? "Nyeri ringan" : v === 4 ? "Nyeri sedang" : v === 6 ? "Nyeri cukup berat" : v === 8 ? "Nyeri berat" : "Nyeri sangat berat"}</p>
+                                  <p>
+                                    {v === 0
+                                      ? "Tidak nyeri"
+                                      : v === 2
+                                        ? "Nyeri ringan"
+                                        : v === 4
+                                          ? "Nyeri sedang"
+                                          : v === 6
+                                            ? "Nyeri cukup berat"
+                                            : v === 8
+                                              ? "Nyeri berat"
+                                              : "Nyeri sangat berat"}
+                                  </p>
                                 </TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
@@ -1083,20 +1494,29 @@ export function PhysicalExamForm({
                         </div>
                       )}
                       {/* NRS / VAS numeric bar */}
-                      {(formData.pain_method === "nrs" || formData.pain_method === "vas") && (
+                      {(formData.pain_method === "nrs" ||
+                        formData.pain_method === "vas") && (
                         <div className="grid grid-cols-6 sm:grid-cols-11 gap-1 pb-1">
-                          {[0,1,2,3,4,5,6,7,8,9,10].map((v) => (
+                          {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((v) => (
                             <button
                               key={v}
                               type="button"
                               disabled={isFormDisabled}
                               onClick={() => handleChange("pain_scale", v)}
-                              className={cn("h-9 w-full text-xs font-medium rounded transition-all",
-                                formData.pain_scale === v 
-                                  ? "ring-2 ring-primary text-primary-foreground " + (v <= 3 ? "bg-green-500" : v <= 6 ? "bg-yellow-500" : "bg-red-500")
-                                  : v <= 3 ? "bg-green-100 hover:bg-green-200 text-green-800" 
-                                  : v <= 6 ? "bg-yellow-100 hover:bg-yellow-200 text-yellow-800" 
-                                  : "bg-red-100 hover:bg-red-200 text-red-800"
+                              className={cn(
+                                "h-9 w-full text-xs font-medium rounded transition-all",
+                                formData.pain_scale === v
+                                  ? "ring-2 ring-primary text-primary-foreground " +
+                                      (v <= 3
+                                        ? "bg-green-500"
+                                        : v <= 6
+                                          ? "bg-yellow-500"
+                                          : "bg-red-500")
+                                  : v <= 3
+                                    ? "bg-green-100 hover:bg-green-200 text-green-800"
+                                    : v <= 6
+                                      ? "bg-yellow-100 hover:bg-yellow-200 text-yellow-800"
+                                      : "bg-red-100 hover:bg-red-200 text-red-800",
                               )}
                             >
                               {v}
@@ -1105,20 +1525,29 @@ export function PhysicalExamForm({
                         </div>
                       )}
                       {/* FLACC / BPS numeric bar */}
-                      {(formData.pain_method === "flacc" || formData.pain_method === "bps") && (
+                      {(formData.pain_method === "flacc" ||
+                        formData.pain_method === "bps") && (
                         <div className="grid grid-cols-6 sm:grid-cols-11 gap-1 pb-1">
-                          {[0,1,2,3,4,5,6,7,8,9,10].map((v) => (
+                          {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((v) => (
                             <button
                               key={v}
                               type="button"
                               disabled={isFormDisabled}
                               onClick={() => handleChange("pain_scale", v)}
-                              className={cn("h-9 w-full text-xs font-medium rounded transition-all",
-                                formData.pain_scale === v 
-                                  ? "ring-2 ring-primary text-primary-foreground " + (v <= 3 ? "bg-green-500" : v <= 6 ? "bg-yellow-500" : "bg-red-500")
-                                  : v <= 3 ? "bg-green-100 hover:bg-green-200 text-green-800" 
-                                  : v <= 6 ? "bg-yellow-100 hover:bg-yellow-200 text-yellow-800" 
-                                  : "bg-red-100 hover:bg-red-200 text-red-800"
+                              className={cn(
+                                "h-9 w-full text-xs font-medium rounded transition-all",
+                                formData.pain_scale === v
+                                  ? "ring-2 ring-primary text-primary-foreground " +
+                                      (v <= 3
+                                        ? "bg-green-500"
+                                        : v <= 6
+                                          ? "bg-yellow-500"
+                                          : "bg-red-500")
+                                  : v <= 3
+                                    ? "bg-green-100 hover:bg-green-200 text-green-800"
+                                    : v <= 6
+                                      ? "bg-yellow-100 hover:bg-yellow-200 text-yellow-800"
+                                      : "bg-red-100 hover:bg-red-200 text-red-800",
                               )}
                             >
                               {v}
@@ -1127,10 +1556,13 @@ export function PhysicalExamForm({
                         </div>
                       )}
                       <p className="text-xs text-muted-foreground">
-                        {formData.pain_method === "flacc" ? "FLACC: Face, Legs, Activity, Cry, Consolability — untuk bayi/anak yang belum bisa bicara" 
-                        : formData.pain_method === "bps" ? "BPS: Behavioral Pain Scale — untuk pasien di bawah sedasi/ventilator" 
-                        : formData.pain_method === "wong_baker" ? "Pilih wajah yang paling sesuai dengan kondisi nyeri pasien"
-                        : "0 = Tidak nyeri, 1-3 = Ringan, 4-6 = Sedang, 7-10 = Berat"}
+                        {formData.pain_method === "flacc"
+                          ? "FLACC: Face, Legs, Activity, Cry, Consolability — untuk bayi/anak yang belum bisa bicara"
+                          : formData.pain_method === "bps"
+                            ? "BPS: Behavioral Pain Scale — untuk pasien di bawah sedasi/ventilator"
+                            : formData.pain_method === "wong_baker"
+                              ? "Pilih wajah yang paling sesuai dengan kondisi nyeri pasien"
+                              : "0 = Tidak nyeri, 1-3 = Ringan, 4-6 = Sedang, 7-10 = Berat"}
                       </p>
                     </div>
                   </div>
@@ -1139,13 +1571,23 @@ export function PhysicalExamForm({
                 {/* Antropometri */}
                 <div>
                   <div className="flex items-center justify-between mb-3">
-                    <p className="text-[11px] text-muted-foreground">Input dalam satuan cm/kg</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      Input dalam satuan cm/kg
+                    </p>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
                     <div className="space-y-1">
-                      <Label htmlFor="weight" className="text-xs flex items-center gap-1.5">
+                      <Label
+                        htmlFor="weight"
+                        className="text-xs flex items-center gap-1.5"
+                      >
                         Berat Badan
-                        <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-blue-50 text-blue-700 border-blue-200">SatuSehat</Badge>
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] px-1 py-0 h-4 bg-blue-50 text-blue-700 border-blue-200"
+                        >
+                          SatuSehat
+                        </Badge>
                       </Label>
                       <div className="relative">
                         <Input
@@ -1154,16 +1596,31 @@ export function PhysicalExamForm({
                           step="0.1"
                           placeholder="70"
                           value={formData.weight || ""}
-                          onChange={(e) => handleChange("weight", parseFloat(e.target.value) || 0)}
+                          onChange={(e) =>
+                            handleChange(
+                              "weight",
+                              parseFloat(e.target.value) || 0,
+                            )
+                          }
                           className="pr-8"
                         />
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">kg</span>
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                          kg
+                        </span>
                       </div>
                     </div>
                     <div className="space-y-1">
-                      <Label htmlFor="height" className="text-xs flex items-center gap-1.5">
+                      <Label
+                        htmlFor="height"
+                        className="text-xs flex items-center gap-1.5"
+                      >
                         Tinggi Badan
-                        <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-blue-50 text-blue-700 border-blue-200">SatuSehat</Badge>
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] px-1 py-0 h-4 bg-blue-50 text-blue-700 border-blue-200"
+                        >
+                          SatuSehat
+                        </Badge>
                       </Label>
                       <div className="relative">
                         <Input
@@ -1172,14 +1629,24 @@ export function PhysicalExamForm({
                           step="0.1"
                           placeholder="170"
                           value={formData.height || ""}
-                          onChange={(e) => handleChange("height", parseFloat(e.target.value) || 0)}
+                          onChange={(e) =>
+                            handleChange(
+                              "height",
+                              parseFloat(e.target.value) || 0,
+                            )
+                          }
                           className="pr-8"
                         />
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">cm</span>
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                          cm
+                        </span>
                       </div>
                     </div>
                     <div className="space-y-1">
-                      <Label htmlFor="upper_arm_circum" className="text-xs flex items-center gap-1.5">
+                      <Label
+                        htmlFor="upper_arm_circum"
+                        className="text-xs flex items-center gap-1.5"
+                      >
                         Lingkar Lengan Atas
                       </Label>
                       <div className="relative">
@@ -1189,14 +1656,21 @@ export function PhysicalExamForm({
                           step="0.1"
                           placeholder="24"
                           value={formData.upper_arm_circum || ""}
-                          onChange={(e) => handleChange("upper_arm_circum", e.target.value)}
+                          onChange={(e) =>
+                            handleChange("upper_arm_circum", e.target.value)
+                          }
                           className="pr-8"
                         />
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">cm</span>
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                          cm
+                        </span>
                       </div>
                     </div>
                     <div className="space-y-1">
-                      <Label htmlFor="head_circum" className="text-xs flex items-center gap-1.5">
+                      <Label
+                        htmlFor="head_circum"
+                        className="text-xs flex items-center gap-1.5"
+                      >
                         Lingkar Kepala
                       </Label>
                       <div className="relative">
@@ -1206,14 +1680,21 @@ export function PhysicalExamForm({
                           step="0.1"
                           placeholder="52"
                           value={formData.head_circum || ""}
-                          onChange={(e) => handleChange("head_circum", e.target.value)}
+                          onChange={(e) =>
+                            handleChange("head_circum", e.target.value)
+                          }
                           className="pr-8"
                         />
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">cm</span>
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                          cm
+                        </span>
                       </div>
                     </div>
                     <div className="space-y-1">
-                      <Label htmlFor="waist" className="text-xs flex items-center gap-1.5">
+                      <Label
+                        htmlFor="waist"
+                        className="text-xs flex items-center gap-1.5"
+                      >
                         Lingkar Perut
                       </Label>
                       <div className="relative">
@@ -1223,10 +1704,14 @@ export function PhysicalExamForm({
                           step="0.1"
                           placeholder="80"
                           value={formData.waist || ""}
-                          onChange={(e) => handleChange("waist", e.target.value)}
+                          onChange={(e) =>
+                            handleChange("waist", e.target.value)
+                          }
                           className="pr-8"
                         />
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">cm</span>
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                          cm
+                        </span>
                       </div>
                     </div>
                     <div className="space-y-1 sm:col-span-2 lg:col-span-2">
@@ -1234,10 +1719,17 @@ export function PhysicalExamForm({
                         BMI
                       </Label>
                       <div className="flex items-center gap-2 h-10 px-3 bg-muted rounded-md">
-                        <span className="font-medium">{formData.bmi || "-"}</span>
-                        <span className="text-xs text-muted-foreground">kg/m²</span>
+                        <span className="font-medium">
+                          {formData.bmi || "-"}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          kg/m²
+                        </span>
                         {formData.bmi > 0 && (
-                          <Badge variant="outline" className={cn("ml-auto text-xs", bmiCategory.color)}>
+                          <Badge
+                            variant="outline"
+                            className={cn("ml-auto text-xs", bmiCategory.color)}
+                          >
                             {bmiCategory.label}
                           </Badge>
                         )}
@@ -1250,15 +1742,9 @@ export function PhysicalExamForm({
 
             {/* Section 2: Pemeriksaan Fisik - Table with Checkbox Column */}
             <div className="border border-border/70">
-                <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                  Pemeriksaan Fisik Sistemik
-                </div>
-                <div className="space-y-4 p-3 sm:p-4">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                  <div className="flex items-center gap-3"><Badge variant={filledPhysicalExam > 0 ? "default" : "secondary"}>
-                      {filledBodySections}/{physicalExamSections.length}
-                    </Badge>
-                  </div>
+              <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                <div className="flex flex-col justify-between sm:flex-row sm:items-center sm:gap-2">
+                  <div>Pemeriksaan Fisik</div>
                   <Button
                     type="button"
                     variant="outline"
@@ -1280,168 +1766,222 @@ export function PhysicalExamForm({
                     )}
                   </Button>
                 </div>
+              </div>
+              <div className="space-y-4 p-3 sm:p-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2"></div>
                 <div className="w-full overflow-x-auto">
-                <div className="space-y-3 md:hidden">
-                  {physicalExamSections.map((section) => {
-                    const isChecked = checkedSections[section.id] || false;
-                    const value = formData[section.id as keyof typeof formData] as string;
+                  <div className="space-y-3 md:hidden">
+                    {physicalExamSections.map((section) => {
+                      const isChecked = checkedSections[section.id] || false;
+                      const value = formData[
+                        section.id as keyof typeof formData
+                      ] as string;
 
-                    return (
-                      <div
-                        key={`mobile-${section.id}`}
-                        className={cn(
-                          "rounded-lg border p-3",
-                          isChecked && "bg-green-50/50 dark:bg-green-950/10"
-                        )}
-                      >
-                        <div className="flex items-start gap-2">
-                          <Checkbox
-                            id={`mobile-check-${section.id}`}
-                            checked={isChecked}
-                            onCheckedChange={(checked) => handleCheckSection(section.id, checked as boolean)}
-                            disabled={isFormDisabled}
-                            className="mt-1"
-                          />
-                          <div className="flex-1 min-w-0">
-                            <Label htmlFor={`mobile-check-${section.id}`} className="text-sm font-medium">
-                              {section.label}
-                            </Label>
-                            {isChecked ? (
-                              <Textarea
-                                id={`mobile-field-${section.id}`}
-                                placeholder={`Hasil pemeriksaan ${section.label.toLowerCase()}...`}
-                                value={value || ""}
-                                onChange={(e) => handleChange(section.id, e.target.value)}
-                                className="mt-2 min-h-[96px] resize-none text-sm"
-                                disabled={isFormDisabled}
-                              />
-                            ) : (
-                              <p className="mt-1 text-xs text-muted-foreground italic">Belum diperiksa</p>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <div className="hidden md:block w-full overflow-x-auto">
-                  <table className="w-full min-w-[680px] caption-bottom text-sm">
-                    <thead className="[&_tr]:border-b">
-                      <tr className="bg-muted/50 border-b">
-                        <th className="h-10 px-2 text-left align-middle font-medium text-muted-foreground w-[50px] text-center">✓</th>
-                        <th className="h-10 px-4 text-left align-middle font-medium text-muted-foreground w-[130px]">Bagian</th>
-                        <th className="h-10 px-4 text-left align-middle font-medium text-muted-foreground">Hasil Pemeriksaan</th>
-                        <th className="h-10 px-2 text-left align-middle font-medium text-muted-foreground w-[50px]"></th>
-                      </tr>
-                    </thead>
-                    <tbody className="[&_tr:last-child]:border-0">
-                      {physicalExamSections.map((section) => {
-                        const isChecked = checkedSections[section.id] || false;
-                        const isExpanded = expandedRows[section.id] || false;
-                        const value = formData[section.id as keyof typeof formData] as string;
-                        
-                        return (
-                          <Fragment key={section.id}>
-                            <tr 
-                              className={cn(
-                                "border-b transition-colors hover:bg-muted/50",
-                                isChecked && "bg-green-50/50 dark:bg-green-950/10",
-                                isChecked && "cursor-pointer hover:bg-green-100/50 dark:hover:bg-green-950/20"
-                              )}
-                              onClick={() => isChecked && toggleRowExpand(section.id)}
-                            >
-                              <td className="p-2 align-middle text-center" onClick={(e) => e.stopPropagation()}>
-                                <Checkbox
-                                  id={`check-${section.id}`}
-                                  checked={isChecked}
-                                  onCheckedChange={(checked) => handleCheckSection(section.id, checked as boolean)}
+                      return (
+                        <div
+                          key={`mobile-${section.id}`}
+                          className={cn(
+                            "rounded-lg border p-3",
+                            isChecked && "bg-green-50/50 dark:bg-green-950/10",
+                          )}
+                        >
+                          <div className="flex items-start gap-2">
+                            <Checkbox
+                              id={`mobile-check-${section.id}`}
+                              checked={isChecked}
+                              onCheckedChange={(checked) =>
+                                handleCheckSection(
+                                  section.id,
+                                  checked as boolean,
+                                )
+                              }
+                              disabled={isFormDisabled}
+                              className="mt-1"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <Label
+                                htmlFor={`mobile-check-${section.id}`}
+                                className="text-sm font-medium"
+                              >
+                                {section.label}
+                              </Label>
+                              {isChecked ? (
+                                <Textarea
+                                  id={`mobile-field-${section.id}`}
+                                  placeholder={`Hasil pemeriksaan ${section.label.toLowerCase()}...`}
+                                  value={value || ""}
+                                  onChange={(e) =>
+                                    handleChange(section.id, e.target.value)
+                                  }
+                                  className="mt-2 min-h-[96px] resize-none text-sm"
                                   disabled={isFormDisabled}
                                 />
-                              </td>
-                              <td className="p-4 align-middle font-medium">{section.label}</td>
-                              <td className="p-4 align-middle">
-                                {isChecked ? (
-                                  <span className="text-sm text-muted-foreground line-clamp-1">
-                                    {value || "-"}
-                                  </span>
-                                ) : (
-                                  <span className="text-sm text-muted-foreground/50 italic">
-                                    Belum diperiksa
-                                  </span>
+                              ) : (
+                                <p className="mt-1 text-xs text-muted-foreground italic">
+                                  Belum diperiksa
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="hidden md:block w-full overflow-x-auto">
+                    <table className="w-full min-w-[680px] caption-bottom text-sm">
+                      <thead className="[&_tr]:border-b">
+                        <tr className="bg-muted/50 border-b">
+                          <th className="h-10 px-2 text-left align-middle font-medium text-muted-foreground w-[50px] text-center">
+                            ✓
+                          </th>
+                          <th className="h-10 px-4 text-left align-middle font-medium text-muted-foreground w-[130px]">
+                            Bagian
+                          </th>
+                          <th className="h-10 px-4 text-left align-middle font-medium text-muted-foreground">
+                            Hasil Pemeriksaan
+                          </th>
+                          <th className="h-10 px-2 text-left align-middle font-medium text-muted-foreground w-[50px]"></th>
+                        </tr>
+                      </thead>
+                      <tbody className="[&_tr:last-child]:border-0">
+                        {physicalExamSections.map((section) => {
+                          const isChecked =
+                            checkedSections[section.id] || false;
+                          const isExpanded = expandedRows[section.id] || false;
+                          const value = formData[
+                            section.id as keyof typeof formData
+                          ] as string;
+
+                          return (
+                            <Fragment key={section.id}>
+                              <tr
+                                className={cn(
+                                  "border-b transition-colors hover:bg-muted/50",
+                                  isChecked &&
+                                    "bg-green-50/50 dark:bg-green-950/10",
+                                  isChecked &&
+                                    "cursor-pointer hover:bg-green-100/50 dark:hover:bg-green-950/20",
                                 )}
-                              </td>
-                              <td className="p-2 align-middle">
-                                {isChecked && (
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 w-8 p-0"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      toggleRowExpand(section.id);
-                                    }}
-                                  >
-                                    {isExpanded ? (
-                                      <ChevronUp className="h-4 w-4" />
-                                    ) : (
-                                      <ChevronDown className="h-4 w-4" />
-                                    )}
-                                  </Button>
-                                )}
-                              </td>
-                            </tr>
-                            {isExpanded && (
-                              <tr>
-                                <td colSpan={4} className="p-0">
-                                  <div className="px-4 py-3 bg-muted/30 border-t">
-                                    <Textarea
-                                      id={section.id}
-                                      placeholder={`Hasil pemeriksaan ${section.label.toLowerCase()}...`}
-                                      value={value || ""}
-                                      onChange={(e) => handleChange(section.id, e.target.value)}
-                                      className="min-h-[80px] resize-none text-sm"
-                                      disabled={isFormDisabled}
-                                    />
-                                  </div>
+                                onClick={() =>
+                                  isChecked && toggleRowExpand(section.id)
+                                }
+                              >
+                                <td
+                                  className="p-2 align-middle text-center"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <Checkbox
+                                    id={`check-${section.id}`}
+                                    checked={isChecked}
+                                    onCheckedChange={(checked) =>
+                                      handleCheckSection(
+                                        section.id,
+                                        checked as boolean,
+                                      )
+                                    }
+                                    disabled={isFormDisabled}
+                                  />
+                                </td>
+                                <td className="p-4 align-middle font-medium">
+                                  {section.label}
+                                </td>
+                                <td className="p-4 align-middle">
+                                  {isChecked ? (
+                                    <span className="text-sm text-muted-foreground line-clamp-1">
+                                      {value || "-"}
+                                    </span>
+                                  ) : (
+                                    <span className="text-sm text-muted-foreground/50 italic">
+                                      Belum diperiksa
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="p-2 align-middle">
+                                  {isChecked && (
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-8 w-8 p-0"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        toggleRowExpand(section.id);
+                                      }}
+                                    >
+                                      {isExpanded ? (
+                                        <ChevronUp className="h-4 w-4" />
+                                      ) : (
+                                        <ChevronDown className="h-4 w-4" />
+                                      )}
+                                    </Button>
+                                  )}
                                 </td>
                               </tr>
-                            )}
-                          </Fragment>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                              {isExpanded && (
+                                <tr>
+                                  <td colSpan={4} className="p-0">
+                                    <div className="px-4 py-3 bg-muted/30 border-t">
+                                      <Textarea
+                                        id={section.id}
+                                        placeholder={`Hasil pemeriksaan ${section.label.toLowerCase()}...`}
+                                        value={value || ""}
+                                        onChange={(e) =>
+                                          handleChange(
+                                            section.id,
+                                            e.target.value,
+                                          )
+                                        }
+                                        className="min-h-[80px] resize-none text-sm"
+                                        disabled={isFormDisabled}
+                                      />
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                            </Fragment>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-                </div>
-                
+
                 {/* Temuan Lain */}
                 <div className="pt-4">
-                  <Label htmlFor="other_findings" className="text-sm font-medium">Temuan Lain</Label>
+                  <Label
+                    htmlFor="other_findings"
+                    className="text-sm font-medium"
+                  >
+                    Temuan Lain
+                  </Label>
                   <Textarea
                     id="other_findings"
                     placeholder="Temuan pemeriksaan fisik lainnya..."
                     value={formData.other_findings}
-                    onChange={(e) => handleChange("other_findings", e.target.value)}
+                    onChange={(e) =>
+                      handleChange("other_findings", e.target.value)
+                    }
                     className="mt-2 min-h-[60px] resize-none"
                   />
                 </div>
-                </div>
+              </div>
             </div>
 
             {/* Section 3: Pemeriksaan Penunjang - Table with Checkbox Column */}
             <div className="border border-border/70">
-                <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                  Pemeriksaan Penunjang Terkait
-                </div>
-                <div className="space-y-4 p-3 sm:p-4">
-                <div className="flex items-center gap-3"><Badge variant={formData.ecg_performed || formData.ctg_performed || formData.pelvic_performed ? "default" : "secondary"}>
-                    {(formData.ecg_performed ? 1 : 0) + (formData.ctg_performed ? 1 : 0) + (formData.pelvic_performed ? 1 : 0)}/3
-                  </Badge>
-                </div>
+              <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                Pemeriksaan Penunjang Terkait
+              </div>
+              <div className="space-y-4 p-3 sm:p-4">
                 <div className="md:hidden space-y-3">
-                  <div className={cn("rounded-lg border p-3", formData.ecg_performed && "bg-purple-50/50 dark:bg-purple-950/10")}>
+                  <div
+                    className={cn(
+                      "rounded-lg border p-3",
+                      formData.ecg_performed &&
+                        "bg-purple-50/50 dark:bg-purple-950/10",
+                    )}
+                  >
                     <div className="flex items-center gap-2">
                       <Checkbox
                         id="mobile-ecg-performed"
@@ -1456,26 +1996,37 @@ export function PhysicalExamForm({
                         }}
                         disabled={isFormDisabled}
                       />
-                      <Label htmlFor="mobile-ecg-performed" className="text-sm font-medium">EKG / ECG</Label>
+                      <Label
+                        htmlFor="mobile-ecg-performed"
+                        className="text-sm font-medium"
+                      >
+                        EKG / ECG
+                      </Label>
                     </div>
                     {formData.ecg_performed && (
                       <div className="mt-3 space-y-2">
                         <Input
                           placeholder="Hasil EKG"
                           value={formData.ecg_result}
-                          onChange={(e) => handleChange("ecg_result", e.target.value)}
+                          onChange={(e) =>
+                            handleChange("ecg_result", e.target.value)
+                          }
                           disabled={isFormDisabled}
                         />
                         <Input
                           placeholder="Interpretasi"
                           value={formData.ecg_interpretation}
-                          onChange={(e) => handleChange("ecg_interpretation", e.target.value)}
+                          onChange={(e) =>
+                            handleChange("ecg_interpretation", e.target.value)
+                          }
                           disabled={isFormDisabled}
                         />
                         <Textarea
                           placeholder="Catatan detail EKG"
                           value={formData.ecg_notes}
-                          onChange={(e) => handleChange("ecg_notes", e.target.value)}
+                          onChange={(e) =>
+                            handleChange("ecg_notes", e.target.value)
+                          }
                           className="min-h-[96px] resize-none text-sm"
                           disabled={isFormDisabled}
                         />
@@ -1483,7 +2034,13 @@ export function PhysicalExamForm({
                     )}
                   </div>
 
-                  <div className={cn("rounded-lg border p-3", formData.ctg_performed && "bg-blue-50/50 dark:bg-blue-950/10")}>
+                  <div
+                    className={cn(
+                      "rounded-lg border p-3",
+                      formData.ctg_performed &&
+                        "bg-blue-50/50 dark:bg-blue-950/10",
+                    )}
+                  >
                     <div className="flex items-center gap-2">
                       <Checkbox
                         id="mobile-ctg-performed"
@@ -1498,26 +2055,37 @@ export function PhysicalExamForm({
                         }}
                         disabled={isFormDisabled}
                       />
-                      <Label htmlFor="mobile-ctg-performed" className="text-sm font-medium">CTG</Label>
+                      <Label
+                        htmlFor="mobile-ctg-performed"
+                        className="text-sm font-medium"
+                      >
+                        CTG
+                      </Label>
                     </div>
                     {formData.ctg_performed && (
                       <div className="mt-3 space-y-2">
                         <Input
                           placeholder="Hasil CTG"
                           value={formData.ctg_result}
-                          onChange={(e) => handleChange("ctg_result", e.target.value)}
+                          onChange={(e) =>
+                            handleChange("ctg_result", e.target.value)
+                          }
                           disabled={isFormDisabled}
                         />
                         <Input
                           placeholder="Interpretasi"
                           value={formData.ctg_interpretation}
-                          onChange={(e) => handleChange("ctg_interpretation", e.target.value)}
+                          onChange={(e) =>
+                            handleChange("ctg_interpretation", e.target.value)
+                          }
                           disabled={isFormDisabled}
                         />
                         <Textarea
                           placeholder="Catatan detail CTG"
                           value={formData.ctg_notes}
-                          onChange={(e) => handleChange("ctg_notes", e.target.value)}
+                          onChange={(e) =>
+                            handleChange("ctg_notes", e.target.value)
+                          }
                           className="min-h-[96px] resize-none text-sm"
                           disabled={isFormDisabled}
                         />
@@ -1525,7 +2093,13 @@ export function PhysicalExamForm({
                     )}
                   </div>
 
-                  <div className={cn("rounded-lg border p-3", formData.pelvic_performed && "bg-orange-50/50 dark:bg-orange-950/10")}>
+                  <div
+                    className={cn(
+                      "rounded-lg border p-3",
+                      formData.pelvic_performed &&
+                        "bg-orange-50/50 dark:bg-orange-950/10",
+                    )}
+                  >
                     <div className="flex items-center gap-2">
                       <Checkbox
                         id="mobile-pelvic-performed"
@@ -1539,20 +2113,29 @@ export function PhysicalExamForm({
                         }}
                         disabled={isFormDisabled}
                       />
-                      <Label htmlFor="mobile-pelvic-performed" className="text-sm font-medium">Pemeriksaan Pelvis</Label>
+                      <Label
+                        htmlFor="mobile-pelvic-performed"
+                        className="text-sm font-medium"
+                      >
+                        Pemeriksaan Pelvis
+                      </Label>
                     </div>
                     {formData.pelvic_performed && (
                       <div className="mt-3 space-y-2">
                         <Input
                           placeholder="Hasil pemeriksaan pelvis"
                           value={formData.pelvic_result}
-                          onChange={(e) => handleChange("pelvic_result", e.target.value)}
+                          onChange={(e) =>
+                            handleChange("pelvic_result", e.target.value)
+                          }
                           disabled={isFormDisabled}
                         />
                         <Textarea
                           placeholder="Catatan detail pelvis"
                           value={formData.pelvic_notes}
-                          onChange={(e) => handleChange("pelvic_notes", e.target.value)}
+                          onChange={(e) =>
+                            handleChange("pelvic_notes", e.target.value)
+                          }
                           className="min-h-[96px] resize-none text-sm"
                           disabled={isFormDisabled}
                         />
@@ -1565,132 +2148,198 @@ export function PhysicalExamForm({
                   <table className="w-full min-w-[760px] caption-bottom text-sm">
                     <thead className="[&_tr]:border-b">
                       <tr className="bg-muted/50 border-b">
-                        <th className="h-10 px-2 text-left align-middle font-medium text-muted-foreground w-[50px] text-center">✓</th>
-                        <th className="h-10 px-4 text-left align-middle font-medium text-muted-foreground w-[180px]">Pemeriksaan</th>
-                        <th className="h-10 px-4 text-left align-middle font-medium text-muted-foreground">Hasil Pemeriksaan</th>
+                        <th className="h-10 px-2 text-left align-middle font-medium text-muted-foreground w-[50px] text-center">
+                          ✓
+                        </th>
+                        <th className="h-10 px-4 text-left align-middle font-medium text-muted-foreground w-[180px]">
+                          Pemeriksaan
+                        </th>
+                        <th className="h-10 px-4 text-left align-middle font-medium text-muted-foreground">
+                          Hasil Pemeriksaan
+                        </th>
                         <th className="h-10 px-2 text-left align-middle font-medium text-muted-foreground w-[50px]"></th>
                       </tr>
                     </thead>
                     <tbody className="[&_tr:last-child]:border-0">
                       {/* ECG Row */}
                       <>
-                          <tr 
-                            className={cn(
-                              "border-b transition-colors hover:bg-muted/50",
-                              formData.ecg_performed && "bg-purple-50/50 dark:bg-purple-950/10",
-                              formData.ecg_performed && "cursor-pointer hover:bg-purple-100/50 dark:hover:bg-purple-950/20"
-                            )}
-                            onClick={() => formData.ecg_performed && setExpandedRows(prev => ({ ...prev, ecg: !prev.ecg }))}
+                        <tr
+                          className={cn(
+                            "border-b transition-colors hover:bg-muted/50",
+                            formData.ecg_performed &&
+                              "bg-purple-50/50 dark:bg-purple-950/10",
+                            formData.ecg_performed &&
+                              "cursor-pointer hover:bg-purple-100/50 dark:hover:bg-purple-950/20",
+                          )}
+                          onClick={() =>
+                            formData.ecg_performed &&
+                            setExpandedRows((prev) => ({
+                              ...prev,
+                              ecg: !prev.ecg,
+                            }))
+                          }
+                        >
+                          <td
+                            className="p-2 align-middle text-center"
+                            onClick={(e) => e.stopPropagation()}
                           >
-                            <td className="p-2 align-middle text-center" onClick={(e) => e.stopPropagation()}>
-                              <Checkbox
-                                id="ecg_performed"
-                                checked={formData.ecg_performed}
-                                onCheckedChange={(checked) => {
-                                  handleChange("ecg_performed", checked as boolean);
-                                  if (checked) {
-                                    setExpandedRows(prev => ({ ...prev, ecg: true }));
-                                  } else {
-                                    setExpandedRows(prev => ({ ...prev, ecg: false }));
-                                    handleChange("ecg_result", "");
-                                    handleChange("ecg_interpretation", "");
-                                    handleChange("ecg_notes", "");
-                                  }
-                                }}
-                                disabled={isFormDisabled}
-                              />
-                            </td>
-                            <td className="p-4 align-middle">
-                              <div className="flex items-center gap-2">
-                                <Heart className={cn(
+                            <Checkbox
+                              id="ecg_performed"
+                              checked={formData.ecg_performed}
+                              onCheckedChange={(checked) => {
+                                handleChange(
+                                  "ecg_performed",
+                                  checked as boolean,
+                                );
+                                if (checked) {
+                                  setExpandedRows((prev) => ({
+                                    ...prev,
+                                    ecg: true,
+                                  }));
+                                } else {
+                                  setExpandedRows((prev) => ({
+                                    ...prev,
+                                    ecg: false,
+                                  }));
+                                  handleChange("ecg_result", "");
+                                  handleChange("ecg_interpretation", "");
+                                  handleChange("ecg_notes", "");
+                                }
+                              }}
+                              disabled={isFormDisabled}
+                            />
+                          </td>
+                          <td className="p-4 align-middle">
+                            <div className="flex items-center gap-2">
+                              <Heart
+                                className={cn(
                                   "h-4 w-4",
-                                  formData.ecg_performed ? "text-red-500" : "text-muted-foreground"
-                                )} />
-                                <div>
-                                  <span className="font-medium">EKG / ECG</span>
-                                  <p className="text-xs text-muted-foreground">Elektrokardiogram</p>
-                                </div>
+                                  formData.ecg_performed
+                                    ? "text-red-500"
+                                    : "text-muted-foreground",
+                                )}
+                              />
+                              <div>
+                                <span className="font-medium">EKG / ECG</span>
+                                <p className="text-xs text-muted-foreground">
+                                  Elektrokardiogram
+                                </p>
                               </div>
-                            </td>
-                            <td className="p-4 align-middle">
-                              {formData.ecg_performed ? (
-                                <div className="text-sm">
-                                  {formData.ecg_result || formData.ecg_interpretation ? (
-                                    <div className="space-y-0.5">
-                                      {formData.ecg_result && (
-                                        <p className="text-muted-foreground line-clamp-1">
-                                          <span className="font-medium">Hasil:</span> {formData.ecg_result}
-                                        </p>
-                                      )}
-                                      {formData.ecg_interpretation && (
-                                        <p className="text-muted-foreground line-clamp-1">
-                                          <span className="font-medium">Interpretasi:</span> {formData.ecg_interpretation}
-                                        </p>
-                                      )}
-                                    </div>
-                                  ) : (
-                                    <span className="text-muted-foreground/50 italic">Klik untuk mengisi detail</span>
-                                  )}
-                                </div>
-                              ) : (
-                                <span className="text-sm text-muted-foreground/50 italic">Belum dilakukan</span>
-                              )}
-                            </td>
-                            <td className="p-2 align-middle">
-                              {formData.ecg_performed && (
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 w-8 p-0"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setExpandedRows(prev => ({ ...prev, ecg: !prev.ecg }));
-                                    }}
-                                  >
-                                    {expandedRows.ecg ? (
-                                      <ChevronUp className="h-4 w-4" />
-                                    ) : (
-                                      <ChevronDown className="h-4 w-4" />
+                            </div>
+                          </td>
+                          <td className="p-4 align-middle">
+                            {formData.ecg_performed ? (
+                              <div className="text-sm">
+                                {formData.ecg_result ||
+                                formData.ecg_interpretation ? (
+                                  <div className="space-y-0.5">
+                                    {formData.ecg_result && (
+                                      <p className="text-muted-foreground line-clamp-1">
+                                        <span className="font-medium">
+                                          Hasil:
+                                        </span>{" "}
+                                        {formData.ecg_result}
+                                      </p>
                                     )}
-                                  </Button>
-                              )}
-                            </td>
-                          </tr>
-                          {expandedRows.ecg && (
-                            <tr>
-                              <td colSpan={4} className="p-0">
-                                <div className="px-4 py-3 bg-muted/30 border-t space-y-4">
-                                  <div className="space-y-2">
-                                    <Label htmlFor="ecg_result" className="text-sm font-medium">Hasil EKG</Label>
-                                    <Input
-                                      id="ecg_result"
-                                      placeholder="Sinus rhythm, HR 80x/menit..."
-                                      value={formData.ecg_result}
-                                      onChange={(e) => handleChange("ecg_result", e.target.value)}
-                                      disabled={isFormDisabled}
-                                      className="text-sm"
-                                    />
+                                    {formData.ecg_interpretation && (
+                                      <p className="text-muted-foreground line-clamp-1">
+                                        <span className="font-medium">
+                                          Interpretasi:
+                                        </span>{" "}
+                                        {formData.ecg_interpretation}
+                                      </p>
+                                    )}
                                   </div>
-                                  <div className="space-y-2">
-                                    <Label htmlFor="ecg_interpretation" className="text-sm font-medium">Interpretasi</Label>
-                                    <Input
-                                      id="ecg_interpretation"
-                                      placeholder="Normal / Abnormal"
-                                      value={formData.ecg_interpretation}
-                                      onChange={(e) => handleChange("ecg_interpretation", e.target.value)}
-                                      disabled={isFormDisabled}
-                                      className="text-sm"
-                                    />
-                                  </div>
-                                  <div className="space-y-2">
-                                    <Label htmlFor="ecg_notes" className="text-sm font-medium flex items-center gap-2">
-                                      <FileText className="h-4 w-4" />
-                                      Catatan Detail EKG
-                                    </Label>
-                                    <Textarea
-                                      id="ecg_notes"
-                                      placeholder={`Irama: Sinus rhythm
+                                ) : (
+                                  <span className="text-muted-foreground/50 italic">
+                                    Klik untuk mengisi detail
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-sm text-muted-foreground/50 italic">
+                                Belum dilakukan
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-2 align-middle">
+                            {formData.ecg_performed && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setExpandedRows((prev) => ({
+                                    ...prev,
+                                    ecg: !prev.ecg,
+                                  }));
+                                }}
+                              >
+                                {expandedRows.ecg ? (
+                                  <ChevronUp className="h-4 w-4" />
+                                ) : (
+                                  <ChevronDown className="h-4 w-4" />
+                                )}
+                              </Button>
+                            )}
+                          </td>
+                        </tr>
+                        {expandedRows.ecg && (
+                          <tr>
+                            <td colSpan={4} className="p-0">
+                              <div className="px-4 py-3 bg-muted/30 border-t space-y-4">
+                                <div className="space-y-2">
+                                  <Label
+                                    htmlFor="ecg_result"
+                                    className="text-sm font-medium"
+                                  >
+                                    Hasil EKG
+                                  </Label>
+                                  <Input
+                                    id="ecg_result"
+                                    placeholder="Sinus rhythm, HR 80x/menit..."
+                                    value={formData.ecg_result}
+                                    onChange={(e) =>
+                                      handleChange("ecg_result", e.target.value)
+                                    }
+                                    disabled={isFormDisabled}
+                                    className="text-sm"
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label
+                                    htmlFor="ecg_interpretation"
+                                    className="text-sm font-medium"
+                                  >
+                                    Interpretasi
+                                  </Label>
+                                  <Input
+                                    id="ecg_interpretation"
+                                    placeholder="Normal / Abnormal"
+                                    value={formData.ecg_interpretation}
+                                    onChange={(e) =>
+                                      handleChange(
+                                        "ecg_interpretation",
+                                        e.target.value,
+                                      )
+                                    }
+                                    disabled={isFormDisabled}
+                                    className="text-sm"
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label
+                                    htmlFor="ecg_notes"
+                                    className="text-sm font-medium flex items-center gap-2"
+                                  >
+                                    <FileText className="h-4 w-4" />
+                                    Catatan Detail EKG
+                                  </Label>
+                                  <Textarea
+                                    id="ecg_notes"
+                                    placeholder={`Irama: Sinus rhythm
 Rate: 80x/menit
 Axis: Normal
 Gelombang P: Normal
@@ -1699,265 +2348,385 @@ Kompleks QRS: 0.08 detik
 Segmen ST: Isoelektrik
 Gelombang T: Normal
 Kesimpulan: EKG dalam batas normal`}
-                                      value={formData.ecg_notes}
-                                      onChange={(e) => handleChange("ecg_notes", e.target.value)}
-                                      className="min-h-[120px] resize-none font-mono text-sm"
-                                      disabled={isFormDisabled}
-                                    />
-                                  </div>
+                                    value={formData.ecg_notes}
+                                    onChange={(e) =>
+                                      handleChange("ecg_notes", e.target.value)
+                                    }
+                                    className="min-h-[120px] resize-none font-mono text-sm"
+                                    disabled={isFormDisabled}
+                                  />
                                 </div>
-                              </td>
-                            </tr>
-                          )}
-                        </>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </>
 
                       {/* Pelvis Row */}
                       <>
-                          <tr 
-                            className={cn(
-                              "border-b transition-colors hover:bg-muted/50",
-                              formData.pelvic_performed && "bg-pink-50/50 dark:bg-pink-950/10",
-                              formData.pelvic_performed && "cursor-pointer hover:bg-pink-100/50 dark:hover:bg-pink-950/20"
-                            )}
-                            onClick={() => formData.pelvic_performed && setExpandedRows(prev => ({ ...prev, pelvic: !prev.pelvic }))}
+                        <tr
+                          className={cn(
+                            "border-b transition-colors hover:bg-muted/50",
+                            formData.pelvic_performed &&
+                              "bg-pink-50/50 dark:bg-pink-950/10",
+                            formData.pelvic_performed &&
+                              "cursor-pointer hover:bg-pink-100/50 dark:hover:bg-pink-950/20",
+                          )}
+                          onClick={() =>
+                            formData.pelvic_performed &&
+                            setExpandedRows((prev) => ({
+                              ...prev,
+                              pelvic: !prev.pelvic,
+                            }))
+                          }
+                        >
+                          <td
+                            className="p-2 align-middle text-center"
+                            onClick={(e) => e.stopPropagation()}
                           >
-                            <td className="p-2 align-middle text-center" onClick={(e) => e.stopPropagation()}>
-                              <Checkbox
-                                id="pelvic_performed"
-                                checked={formData.pelvic_performed}
-                                onCheckedChange={(checked) => {
-                                  handleChange("pelvic_performed", checked as boolean);
-                                  if (checked) {
-                                    setExpandedRows(prev => ({ ...prev, pelvic: true }));
-                                  } else {
-                                    setExpandedRows(prev => ({ ...prev, pelvic: false }));
-                                    handleChange("pelvic_result", "");
-                                    handleChange("pelvic_notes", "");
-                                  }
-                                }}
-                                disabled={isFormDisabled}
-                              />
-                            </td>
-                            <td className="p-4 align-middle">
-                              <div className="flex items-center gap-2">
-                                <Stethoscope className={cn(
+                            <Checkbox
+                              id="pelvic_performed"
+                              checked={formData.pelvic_performed}
+                              onCheckedChange={(checked) => {
+                                handleChange(
+                                  "pelvic_performed",
+                                  checked as boolean,
+                                );
+                                if (checked) {
+                                  setExpandedRows((prev) => ({
+                                    ...prev,
+                                    pelvic: true,
+                                  }));
+                                } else {
+                                  setExpandedRows((prev) => ({
+                                    ...prev,
+                                    pelvic: false,
+                                  }));
+                                  handleChange("pelvic_result", "");
+                                  handleChange("pelvic_notes", "");
+                                }
+                              }}
+                              disabled={isFormDisabled}
+                            />
+                          </td>
+                          <td className="p-4 align-middle">
+                            <div className="flex items-center gap-2">
+                              <Stethoscope
+                                className={cn(
                                   "h-4 w-4",
-                                  formData.pelvic_performed ? "text-pink-500" : "text-muted-foreground"
-                                )} />
-                                <div>
-                                  <span className="font-medium">Pemeriksaan Pelvis</span>
-                                  <p className="text-xs text-muted-foreground">Pemeriksaan panggul / ginekologi</p>
+                                  formData.pelvic_performed
+                                    ? "text-pink-500"
+                                    : "text-muted-foreground",
+                                )}
+                              />
+                              <div>
+                                <span className="font-medium">
+                                  Pemeriksaan Pelvis
+                                </span>
+                                <p className="text-xs text-muted-foreground">
+                                  Pemeriksaan panggul / ginekologi
+                                </p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="p-4 align-middle">
+                            {formData.pelvic_performed ? (
+                              formData.pelvic_result ? (
+                                <p className="text-sm text-muted-foreground line-clamp-1">
+                                  {formData.pelvic_result}
+                                </p>
+                              ) : (
+                                <span className="text-sm text-muted-foreground/50 italic">
+                                  Klik untuk mengisi detail
+                                </span>
+                              )
+                            ) : (
+                              <span className="text-sm text-muted-foreground/50 italic">
+                                Belum dilakukan
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-2 align-middle">
+                            {formData.pelvic_performed && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setExpandedRows((prev) => ({
+                                    ...prev,
+                                    pelvic: !prev.pelvic,
+                                  }));
+                                }}
+                              >
+                                {expandedRows.pelvic ? (
+                                  <ChevronUp className="h-4 w-4" />
+                                ) : (
+                                  <ChevronDown className="h-4 w-4" />
+                                )}
+                              </Button>
+                            )}
+                          </td>
+                        </tr>
+                        {expandedRows.pelvic && (
+                          <tr>
+                            <td colSpan={4} className="p-0">
+                              <div className="px-4 py-3 bg-muted/30 border-t space-y-4">
+                                <div className="space-y-2">
+                                  <Label
+                                    htmlFor="pelvic_result"
+                                    className="text-sm font-medium"
+                                  >
+                                    Hasil Pemeriksaan Pelvis
+                                  </Label>
+                                  <Input
+                                    id="pelvic_result"
+                                    placeholder="Inspekulo: portio livide, OUE tertutup..."
+                                    value={formData.pelvic_result}
+                                    onChange={(e) =>
+                                      handleChange(
+                                        "pelvic_result",
+                                        e.target.value,
+                                      )
+                                    }
+                                    disabled={isFormDisabled}
+                                    className="text-sm"
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label
+                                    htmlFor="pelvic_notes"
+                                    className="text-sm font-medium flex items-center gap-2"
+                                  >
+                                    <FileText className="h-4 w-4" />
+                                    Catatan Detail Pelvis
+                                  </Label>
+                                  <Textarea
+                                    id="pelvic_notes"
+                                    placeholder={`Inspekulo: ...\nVaginal Toucher: ...\nKesimpulan: ...`}
+                                    value={formData.pelvic_notes}
+                                    onChange={(e) =>
+                                      handleChange(
+                                        "pelvic_notes",
+                                        e.target.value,
+                                      )
+                                    }
+                                    className="min-h-[80px] resize-none font-mono text-sm"
+                                    disabled={isFormDisabled}
+                                  />
                                 </div>
                               </div>
                             </td>
-                            <td className="p-4 align-middle">
-                              {formData.pelvic_performed ? (
-                                formData.pelvic_result ? (
-                                  <p className="text-sm text-muted-foreground line-clamp-1">{formData.pelvic_result}</p>
-                                ) : (
-                                  <span className="text-sm text-muted-foreground/50 italic">Klik untuk mengisi detail</span>
-                                )
-                              ) : (
-                                <span className="text-sm text-muted-foreground/50 italic">Belum dilakukan</span>
-                              )}
-                            </td>
-                            <td className="p-2 align-middle">
-                              {formData.pelvic_performed && (
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 w-8 p-0"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setExpandedRows(prev => ({ ...prev, pelvic: !prev.pelvic }));
-                                    }}
-                                  >
-                                    {expandedRows.pelvic ? (
-                                      <ChevronUp className="h-4 w-4" />
-                                    ) : (
-                                      <ChevronDown className="h-4 w-4" />
-                                    )}
-                                  </Button>
-                              )}
-                            </td>
                           </tr>
-                          {expandedRows.pelvic && (
-                            <tr>
-                              <td colSpan={4} className="p-0">
-                                <div className="px-4 py-3 bg-muted/30 border-t space-y-4">
-                                  <div className="space-y-2">
-                                    <Label htmlFor="pelvic_result" className="text-sm font-medium">Hasil Pemeriksaan Pelvis</Label>
-                                    <Input
-                                      id="pelvic_result"
-                                      placeholder="Inspekulo: portio livide, OUE tertutup..."
-                                      value={formData.pelvic_result}
-                                      onChange={(e) => handleChange("pelvic_result", e.target.value)}
-                                      disabled={isFormDisabled}
-                                      className="text-sm"
-                                    />
-                                  </div>
-                                  <div className="space-y-2">
-                                    <Label htmlFor="pelvic_notes" className="text-sm font-medium flex items-center gap-2">
-                                      <FileText className="h-4 w-4" />
-                                      Catatan Detail Pelvis
-                                    </Label>
-                                    <Textarea
-                                      id="pelvic_notes"
-                                      placeholder={`Inspekulo: ...\nVaginal Toucher: ...\nKesimpulan: ...`}
-                                      value={formData.pelvic_notes}
-                                      onChange={(e) => handleChange("pelvic_notes", e.target.value)}
-                                      className="min-h-[80px] resize-none font-mono text-sm"
-                                      disabled={isFormDisabled}
-                                    />
-                                  </div>
-                                </div>
-                              </td>
-                            </tr>
-                          )}
-                        </>
+                        )}
+                      </>
 
                       {/* CTG Row */}
                       <>
-                          <tr 
-                            className={cn(
-                              "border-b transition-colors hover:bg-muted/50",
-                              formData.ctg_performed && "bg-blue-50/50 dark:bg-blue-950/10",
-                              formData.ctg_performed && "cursor-pointer hover:bg-blue-100/50 dark:hover:bg-blue-950/20"
-                            )}
-                            onClick={() => formData.ctg_performed && setExpandedRows(prev => ({ ...prev, ctg: !prev.ctg }))}
+                        <tr
+                          className={cn(
+                            "border-b transition-colors hover:bg-muted/50",
+                            formData.ctg_performed &&
+                              "bg-blue-50/50 dark:bg-blue-950/10",
+                            formData.ctg_performed &&
+                              "cursor-pointer hover:bg-blue-100/50 dark:hover:bg-blue-950/20",
+                          )}
+                          onClick={() =>
+                            formData.ctg_performed &&
+                            setExpandedRows((prev) => ({
+                              ...prev,
+                              ctg: !prev.ctg,
+                            }))
+                          }
+                        >
+                          <td
+                            className="p-2 align-middle text-center"
+                            onClick={(e) => e.stopPropagation()}
                           >
-                            <td className="p-2 align-middle text-center" onClick={(e) => e.stopPropagation()}>
-                              <Checkbox
-                                id="ctg_performed"
-                                checked={formData.ctg_performed}
-                                onCheckedChange={(checked) => {
-                                  handleChange("ctg_performed", checked as boolean);
-                                  if (checked) {
-                                    setExpandedRows(prev => ({ ...prev, ctg: true }));
-                                  } else {
-                                    setExpandedRows(prev => ({ ...prev, ctg: false }));
-                                    handleChange("ctg_result", "");
-                                    handleChange("ctg_interpretation", "");
-                                    handleChange("ctg_notes", "");
-                                  }
-                                }}
-                                disabled={isFormDisabled}
-                              />
-                            </td>
-                            <td className="p-4 align-middle">
-                              <div className="flex items-center gap-2">
-                                <Activity className={cn(
+                            <Checkbox
+                              id="ctg_performed"
+                              checked={formData.ctg_performed}
+                              onCheckedChange={(checked) => {
+                                handleChange(
+                                  "ctg_performed",
+                                  checked as boolean,
+                                );
+                                if (checked) {
+                                  setExpandedRows((prev) => ({
+                                    ...prev,
+                                    ctg: true,
+                                  }));
+                                } else {
+                                  setExpandedRows((prev) => ({
+                                    ...prev,
+                                    ctg: false,
+                                  }));
+                                  handleChange("ctg_result", "");
+                                  handleChange("ctg_interpretation", "");
+                                  handleChange("ctg_notes", "");
+                                }
+                              }}
+                              disabled={isFormDisabled}
+                            />
+                          </td>
+                          <td className="p-4 align-middle">
+                            <div className="flex items-center gap-2">
+                              <Activity
+                                className={cn(
                                   "h-4 w-4",
-                                  formData.ctg_performed ? "text-blue-500" : "text-muted-foreground"
-                                )} />
-                                <div>
-                                  <span className="font-medium">CTG</span>
-                                  <p className="text-xs text-muted-foreground">Cardiotocography (monitoring janin)</p>
+                                  formData.ctg_performed
+                                    ? "text-blue-500"
+                                    : "text-muted-foreground",
+                                )}
+                              />
+                              <div>
+                                <span className="font-medium">CTG</span>
+                                <p className="text-xs text-muted-foreground">
+                                  Cardiotocography (monitoring janin)
+                                </p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="p-4 align-middle">
+                            {formData.ctg_performed ? (
+                              <div className="text-sm">
+                                {formData.ctg_result ||
+                                formData.ctg_interpretation ? (
+                                  <div className="space-y-0.5">
+                                    {formData.ctg_result && (
+                                      <p className="text-muted-foreground line-clamp-1">
+                                        <span className="font-medium">
+                                          Hasil:
+                                        </span>{" "}
+                                        {formData.ctg_result}
+                                      </p>
+                                    )}
+                                    {formData.ctg_interpretation && (
+                                      <p className="text-muted-foreground line-clamp-1">
+                                        <span className="font-medium">
+                                          Interpretasi:
+                                        </span>{" "}
+                                        {formData.ctg_interpretation}
+                                      </p>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span className="text-muted-foreground/50 italic">
+                                    Klik untuk mengisi detail
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-sm text-muted-foreground/50 italic">
+                                Belum dilakukan
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-2 align-middle">
+                            {formData.ctg_performed && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setExpandedRows((prev) => ({
+                                    ...prev,
+                                    ctg: !prev.ctg,
+                                  }));
+                                }}
+                              >
+                                {expandedRows.ctg ? (
+                                  <ChevronUp className="h-4 w-4" />
+                                ) : (
+                                  <ChevronDown className="h-4 w-4" />
+                                )}
+                              </Button>
+                            )}
+                          </td>
+                        </tr>
+                        {expandedRows.ctg && (
+                          <tr>
+                            <td colSpan={4} className="p-0">
+                              <div className="px-4 py-3 bg-muted/30 border-t space-y-4">
+                                <div className="space-y-2">
+                                  <Label
+                                    htmlFor="ctg_result"
+                                    className="text-sm font-medium"
+                                  >
+                                    Hasil CTG
+                                  </Label>
+                                  <Input
+                                    id="ctg_result"
+                                    placeholder="Baseline FHR: 140 bpm, Variabilitas: moderate..."
+                                    value={formData.ctg_result}
+                                    onChange={(e) =>
+                                      handleChange("ctg_result", e.target.value)
+                                    }
+                                    disabled={isFormDisabled}
+                                    className="text-sm"
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label
+                                    htmlFor="ctg_interpretation"
+                                    className="text-sm font-medium"
+                                  >
+                                    Interpretasi
+                                  </Label>
+                                  <Input
+                                    id="ctg_interpretation"
+                                    placeholder="Reaktif / Non-Reaktif"
+                                    value={formData.ctg_interpretation}
+                                    onChange={(e) =>
+                                      handleChange(
+                                        "ctg_interpretation",
+                                        e.target.value,
+                                      )
+                                    }
+                                    disabled={isFormDisabled}
+                                    className="text-sm"
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label
+                                    htmlFor="ctg_notes"
+                                    className="text-sm font-medium flex items-center gap-2"
+                                  >
+                                    <FileText className="h-4 w-4" />
+                                    Catatan Detail CTG
+                                  </Label>
+                                  <Textarea
+                                    id="ctg_notes"
+                                    placeholder={`Baseline FHR: ...\nVariabilitas: ...\nAkselerasi: ...\nDeselerasi: ...\nKontraksi: ...\nKesimpulan: ...`}
+                                    value={formData.ctg_notes}
+                                    onChange={(e) =>
+                                      handleChange("ctg_notes", e.target.value)
+                                    }
+                                    className="min-h-[100px] resize-none font-mono text-sm"
+                                    disabled={isFormDisabled}
+                                  />
                                 </div>
                               </div>
                             </td>
-                            <td className="p-4 align-middle">
-                              {formData.ctg_performed ? (
-                                <div className="text-sm">
-                                  {formData.ctg_result || formData.ctg_interpretation ? (
-                                    <div className="space-y-0.5">
-                                      {formData.ctg_result && (
-                                        <p className="text-muted-foreground line-clamp-1">
-                                          <span className="font-medium">Hasil:</span> {formData.ctg_result}
-                                        </p>
-                                      )}
-                                      {formData.ctg_interpretation && (
-                                        <p className="text-muted-foreground line-clamp-1">
-                                          <span className="font-medium">Interpretasi:</span> {formData.ctg_interpretation}
-                                        </p>
-                                      )}
-                                    </div>
-                                  ) : (
-                                    <span className="text-muted-foreground/50 italic">Klik untuk mengisi detail</span>
-                                  )}
-                                </div>
-                              ) : (
-                                <span className="text-sm text-muted-foreground/50 italic">Belum dilakukan</span>
-                              )}
-                            </td>
-                            <td className="p-2 align-middle">
-                              {formData.ctg_performed && (
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 w-8 p-0"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setExpandedRows(prev => ({ ...prev, ctg: !prev.ctg }));
-                                    }}
-                                  >
-                                    {expandedRows.ctg ? (
-                                      <ChevronUp className="h-4 w-4" />
-                                    ) : (
-                                      <ChevronDown className="h-4 w-4" />
-                                    )}
-                                  </Button>
-                              )}
-                            </td>
                           </tr>
-                          {expandedRows.ctg && (
-                            <tr>
-                              <td colSpan={4} className="p-0">
-                                <div className="px-4 py-3 bg-muted/30 border-t space-y-4">
-                                  <div className="space-y-2">
-                                    <Label htmlFor="ctg_result" className="text-sm font-medium">Hasil CTG</Label>
-                                    <Input
-                                      id="ctg_result"
-                                      placeholder="Baseline FHR: 140 bpm, Variabilitas: moderate..."
-                                      value={formData.ctg_result}
-                                      onChange={(e) => handleChange("ctg_result", e.target.value)}
-                                      disabled={isFormDisabled}
-                                      className="text-sm"
-                                    />
-                                  </div>
-                                  <div className="space-y-2">
-                                    <Label htmlFor="ctg_interpretation" className="text-sm font-medium">Interpretasi</Label>
-                                    <Input
-                                      id="ctg_interpretation"
-                                      placeholder="Reaktif / Non-Reaktif"
-                                      value={formData.ctg_interpretation}
-                                      onChange={(e) => handleChange("ctg_interpretation", e.target.value)}
-                                      disabled={isFormDisabled}
-                                      className="text-sm"
-                                    />
-                                  </div>
-                                  <div className="space-y-2">
-                                    <Label htmlFor="ctg_notes" className="text-sm font-medium flex items-center gap-2">
-                                      <FileText className="h-4 w-4" />
-                                      Catatan Detail CTG
-                                    </Label>
-                                    <Textarea
-                                      id="ctg_notes"
-                                      placeholder={`Baseline FHR: ...\nVariabilitas: ...\nAkselerasi: ...\nDeselerasi: ...\nKontraksi: ...\nKesimpulan: ...`}
-                                      value={formData.ctg_notes}
-                                      onChange={(e) => handleChange("ctg_notes", e.target.value)}
-                                      className="min-h-[100px] resize-none font-mono text-sm"
-                                      disabled={isFormDisabled}
-                                    />
-                                  </div>
-                                </div>
-                              </td>
-                            </tr>
-                          )}
-                        </>
+                        )}
+                      </>
                     </tbody>
                   </table>
                 </div>
-                
+
                 <div className="p-4 border-t">
                   <p className="text-xs text-muted-foreground italic">
-                    * Pemeriksaan penunjang lainnya (EEG, USG, dll) akan ditambahkan kemudian
+                    * Pemeriksaan penunjang lainnya (EEG, USG, dll) akan
+                    ditambahkan kemudian
                   </p>
                 </div>
-                </div>
               </div>
+            </div>
 
             {/* Submit Button */}
             {!isFormDisabled && (

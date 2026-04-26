@@ -126,6 +126,29 @@ export function createMedicineColumns(options: ColumnOptions): ColumnDef<Medicin
       ),
     },
     {
+      accessorKey: "dpho_kode_obat",
+      header: "Mapping BPJS",
+      cell: ({ row }) => {
+        const kodeDPHO = row.original.dpho_kode_obat;
+        const namaDPHO = row.original.dpho_nama_obat;
+
+        if (!kodeDPHO) {
+          return <Badge variant="secondary">Belum dipetakan</Badge>;
+        }
+
+        return (
+          <div className="space-y-1">
+            <Badge variant="outline" className="font-mono">
+              {kodeDPHO}
+            </Badge>
+            <p className="max-w-[220px] truncate text-xs text-muted-foreground" title={namaDPHO || kodeDPHO}>
+              {namaDPHO || "Nama DPHO tidak tersedia"}
+            </p>
+          </div>
+        );
+      },
+    },
+    {
       accessorKey: "category",
       sortDescFirst: false,
       header: ({ column }) => (

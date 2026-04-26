@@ -2,6 +2,20 @@ import axios from 'axios';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
 
+export const getApiBaseUrl = () => API_URL.replace(/\/api\/?$/, '');
+
+export const resolveBackendFileUrl = (value?: string) => {
+  const raw = (value || '').trim();
+  if (!raw) return '';
+
+  if (/^(https?:|data:|blob:)/i.test(raw)) {
+    return raw;
+  }
+
+  const normalizedPath = raw.startsWith('/') ? raw : `/${raw}`;
+  return `${getApiBaseUrl()}${normalizedPath}`;
+};
+
 export const api = axios.create({
   baseURL: API_URL,
   headers: {

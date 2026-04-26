@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
@@ -1163,18 +1162,6 @@ export function DispositionForm({
     <>
       <div>
         <div className="space-y-3">
-          <div className="rounded-lg border border-border/70 bg-muted/20 px-3 py-3 sm:px-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold text-foreground">Pasien Pulang</p>
-                <p className="text-xs text-muted-foreground">Pilih status pemulangan pasien dan lanjutkan proses disposisi.</p>
-              </div>
-              <Badge variant={isDisabled ? "secondary" : "outline"}>
-                {isDisabled ? "Sudah Disposisi" : "Belum Disposisi"}
-              </Badge>
-            </div>
-          </div>
-
           <div className="rounded-lg border border-border/70 bg-background overflow-hidden">
             <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
               Pengaturan Disposisi

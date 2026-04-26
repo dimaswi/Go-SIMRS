@@ -19,7 +19,6 @@ import {
   Scissors,
   ClipboardCheck,
   Droplets,
-  CheckCircle,
   Check,
   Users,
   HeartPulse,
@@ -29,6 +28,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock3,
+  MapPin,
 } from "lucide-react";
 
 interface Tab {
@@ -112,13 +112,6 @@ export function MedicalRecordTabs({
       permission: "pharmacy.return",
       section: "pharmacy",
     },
-    {
-      id: "pharmacy-final",
-      label: "Final Kunjungan",
-      icon: <CheckCircle />,
-      permission: "pharmacy.final",
-      section: "pharmacy",
-    },
   ];
 
   // Tabs for radiology visits
@@ -135,13 +128,6 @@ export function MedicalRecordTabs({
       label: "Pengerjaan Radiologi",
       icon: <FileImage />,
       permission: "procedure_orders.perform",
-      section: "radiology",
-    },
-    {
-      id: "radiology-final",
-      label: "Final Kunjungan",
-      icon: <CheckCircle />,
-      permission: "procedure_orders.final",
       section: "radiology",
     },
   ];
@@ -162,13 +148,6 @@ export function MedicalRecordTabs({
       permission: "procedure_orders.perform",
       section: "laboratory",
     },
-    {
-      id: "laboratory-final",
-      label: "Final Kunjungan",
-      icon: <CheckCircle />,
-      permission: "procedure_orders.final",
-      section: "laboratory",
-    },
   ];
 
   // Tabs for surgery visits (workstation)
@@ -187,13 +166,6 @@ export function MedicalRecordTabs({
       permission: "procedure_orders.perform",
       section: "surgery",
     },
-    {
-      id: "surgery-final",
-      label: "Final Kunjungan",
-      icon: <CheckCircle />,
-      permission: "procedure_orders.final",
-      section: "surgery",
-    },
   ];
 
   // Tabs for consultation visits - HANYA FORM KONSULTASI SAJA
@@ -203,13 +175,6 @@ export function MedicalRecordTabs({
       label: "Konsultasi",
       icon: <Users />,
       permission: "medical_records.cppt",
-      section: "consultation",
-    },
-    {
-      id: "consultation-final",
-      label: "Final Kunjungan",
-      icon: <CheckCircle />,
-      permission: "procedure_orders.final",
       section: "consultation",
     },
   ];
@@ -234,6 +199,13 @@ export function MedicalRecordTabs({
       id: "physical-exam",
       label: "Pemeriksaan Fisik",
       icon: <Stethoscope />,
+      permission: "medical_records.physical_exam",
+      section: "assessment",
+    },
+    {
+      id: "body-marker",
+      label: "Marker Tubuh",
+      icon: <MapPin />,
       permission: "medical_records.physical_exam",
       section: "assessment",
     },
@@ -333,6 +305,13 @@ export function MedicalRecordTabs({
       icon: <Droplets />,
       permission: "medical_records.fluid_balance",
       section: "care",
+    }] : []),
+    ...(isInpatient ? [{
+      id: "discharge-planning",
+      label: "Discharge Planning",
+      icon: <ClipboardCheck />,
+      permission: "medical_records.disposition",
+      section: "administrative",
     }] : []),
     // Bed Transfer tab - show for rawat_inap only
     ...(isInpatient ? [{
@@ -833,8 +812,8 @@ export function MedicalRecordTabs({
     return (
       <div
         key={tab.id}
-        className={cn(
-          "relative",
+          className={cn(
+            "mr-tab-item relative",
           isDraggingThis && "opacity-40",
           isDragOverThis && dragOverPosition === "before" && (layout === "horizontal" ? "border-l-2 border-primary" : "border-t-2 border-primary"),
           isDragOverThis && dragOverPosition === "after" && (layout === "horizontal" ? "border-r-2 border-primary" : "border-b-2 border-primary"),
@@ -855,7 +834,7 @@ export function MedicalRecordTabs({
             }
           }}
           className={cn(
-            "flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+            "mr-tab-chip flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
             isActive
               ? "bg-primary/10 font-semibold text-primary"
               : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
@@ -881,12 +860,12 @@ export function MedicalRecordTabs({
 
   if (layout === "vertical") {
     return (
-      <div className="flex h-full flex-col overflow-hidden bg-background">
+      <div className="mr-tabs mr-tabs-vertical flex h-full flex-col overflow-hidden bg-background">
         <div className="flex-1 overflow-y-auto p-1.5 pb-3">
           <div className="space-y-2.5">
             {groupedTabs.map(([section, sectionTabs]) => (
               <div key={section}>
-                <h3 className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <h3 className="mr-tab-section-title mb-1 px-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                   {sectionLabels[section] || section}
                 </h3>
                 <div className="space-y-1">
@@ -902,7 +881,7 @@ export function MedicalRecordTabs({
 
   // Horizontal layout
   return (
-    <div className="relative rounded-xl bg-background shadow-sm ring-1 ring-border">
+    <div className="mr-tabs mr-tabs-horizontal relative rounded-xl bg-background shadow-sm ring-1 ring-border">
       {canScrollLeft && (
         <div className="absolute left-0 top-0 z-10 flex h-full items-center bg-gradient-to-r from-background via-background/80 to-transparent pr-6">
           <button
@@ -944,7 +923,7 @@ export function MedicalRecordTabs({
             <div
               key={tab.id}
               className={cn(
-                "relative shrink-0",
+                "mr-tab-item relative shrink-0",
                 isDraggingThis && "opacity-40",
                 isDragOverThis && dragOverPosition === "before" && "border-l-2 border-primary",
                 isDragOverThis && dragOverPosition === "after" && "border-r-2 border-primary",
@@ -965,7 +944,7 @@ export function MedicalRecordTabs({
                   }
                 }}
                 className={cn(
-                  "flex flex-col items-center justify-center gap-2 rounded-lg p-3 text-center transition-colors",
+                  "mr-tab-chip mr-tab-chip-horizontal flex flex-col items-center justify-center gap-2 rounded-lg p-3 text-center transition-colors",
                   "w-28 h-24", // Fixed size for horizontal tabs
                   getTabStatusClass(indicatorStatus, isActive, hasFractionIndicator),
                   isActive && "bg-primary/10",

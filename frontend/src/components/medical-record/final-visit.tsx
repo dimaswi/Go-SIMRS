@@ -1,8 +1,7 @@
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { usePermission } from "@/hooks/usePermission";
 import {
   Loader2,
   CheckCircle2,
@@ -15,9 +14,11 @@ import type { MedicalRecordSummary } from "@/lib/api/medical-records";
 
 const FOOTER_ACTION_EVENT = "medical-record-footer-action";
 
+export type FinalVisitType = "pharmacy" | "radiology" | "laboratory" | "consultation" | "surgery";
+
 interface FinalVisitProps {
   visitId: number;
-  type: "pharmacy" | "radiology" | "laboratory" | "consultation" | "surgery";
+  type: FinalVisitType;
   onVisitUpdate?: () => void;
 }
 
@@ -30,9 +31,47 @@ interface Visit {
   };
 }
 
-export function FinalVisit({ visitId, type, onVisitUpdate }: FinalVisitProps) {
+const getFinalizeBlockedMessage = (type: FinalVisitType) => {
+  if (type === "pharmacy") {
+    return "Semua obat harus diserahkan sebelum dapat menyelesaikan kunjungan";
+  }
+  if (type === "consultation") {
+    return "Konsultasi harus dijawab sebelum dapat menyelesaikan kunjungan";
+  }
+  return "Semua tindakan harus selesai sebelum dapat menyelesaikan kunjungan";
+};
+
+const getTypeLabel = (type: FinalVisitType) => {
+  switch (type) {
+    case "pharmacy":
+      return "Order Farmasi";
+    case "radiology":
+      return "Order Radiologi";
+    case "laboratory":
+      return "Order Laboratorium";
+    case "consultation":
+      return "Konsultasi";
+    case "surgery":
+      return "Operasi";
+    default:
+      return "Kunjungan";
+  }
+};
+
+interface UseFinalVisitControllerOptions {
+  visitId: number;
+  type: FinalVisitType | null;
+  onVisitUpdate?: () => void;
+  enabled?: boolean;
+}
+
+export function useFinalVisitController({
+  visitId,
+  type,
+  onVisitUpdate,
+  enabled = true,
+}: UseFinalVisitControllerOptions) {
   const { toast } = useToast();
-  const { hasPermission } = usePermission();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [visit, setVisit] = useState<Visit | null>(null);
@@ -40,7 +79,301 @@ export function FinalVisit({ visitId, type, onVisitUpdate }: FinalVisitProps) {
   const [canFinalize, setCanFinalize] = useState(false);
   const [isFinal, setIsFinal] = useState(false);
 
-  const permission = type === "pharmacy" ? "pharmacy.final" : "procedure_orders.final";
+  const typeLabel = type ? getTypeLabel(type) : "Kunjungan";
+  const blockedMessage = type ? getFinalizeBlockedMessage(type) : "";
+
+  const loadData = useCallback(async () => {
+    if (!enabled || !type || !visitId) {
+      setVisit(null);
+      setOrders([]);
+      setCanFinalize(false);
+      setIsFinal(false);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const visitRes = await visitsApi.getById(visitId);
+      const visitData = visitRes.data;
+      setVisit(visitData);
+      setIsFinal(visitData.status === "completed");
+
+      if (type === "pharmacy") {
+        const ordersRes = await medicineOrdersApi.getAll({ pharmacy_visit_id: visitId });
+        const ordersData = ordersRes.data || [];
+        if (ordersData.length > 0) {
+          setOrders(ordersData);
+
+          const allDelivered = ordersData.every((o: MedicineOrder) => {
+            if (o.status === "delivered" || o.status === "cancelled" || o.status === "returned") {
+              return true;
+            }
+            if (o.items && o.items.length > 0) {
+              return o.items.every((item: any) => item.status === "cancelled" || item.status === "delivered");
+            }
+            return false;
+          });
+          setCanFinalize(allDelivered);
+          return;
+        }
+
+        const mrRes = await medicalRecordsApi.get(visitId);
+        const summary = mrRes.data as MedicalRecordSummary;
+        const directItems = (summary.visit_medicine_items || []).filter((item) => item.status !== "cancelled");
+
+        setOrders(
+          directItems.map((item) => ({
+            id: item.id,
+            order_number: item.medicine?.name || "Obat",
+            status: item.status || "recorded",
+          }))
+        );
+        setCanFinalize(directItems.length > 0);
+        return;
+      }
+
+      if (type === "consultation") {
+        try {
+          const ordersRes = await procedureOrdersApi.getAll({
+            target_visit_id: visitId,
+            order_type: "consultation",
+          });
+          const ordersData = ordersRes.data || [];
+
+          if (ordersData.length > 0) {
+            setOrders(ordersData);
+            const allCompleted = ordersData.every(
+              (o: ProcedureOrder) =>
+                o.status === "completed" ||
+                o.status === "cancelled" ||
+                (o.items && o.items.length > 0 && o.items.every((item) => item.status === "completed" || item.status === "cancelled"))
+            );
+            setCanFinalize(allCompleted);
+            return;
+          }
+
+          const consultationRes = await medicalRecordsApi.getConsultation(visitId);
+          const consultationData = consultationRes.data;
+          if (consultationData && consultationData.id) {
+            setOrders([{ id: consultationData.id, order_number: "Konsultasi", status: "completed" }]);
+            setCanFinalize(true);
+          } else {
+            setOrders([]);
+            setCanFinalize(false);
+          }
+        } catch {
+          setOrders([]);
+          setCanFinalize(false);
+        }
+        return;
+      }
+
+      if (type === "surgery") {
+        const ordersRes = await procedureOrdersApi.getAll({ target_visit_id: visitId, order_type: "surgery" });
+        const ordersData = ordersRes.data || [];
+        if (ordersData.length > 0) {
+          setOrders(ordersData);
+          const allCompleted = ordersData.every(
+            (o: ProcedureOrder) =>
+              o.status === "completed" ||
+              o.status === "cancelled" ||
+              (o.items && o.items.every((item) => item.status === "completed" || item.status === "cancelled"))
+          );
+          setCanFinalize(allCompleted);
+        } else {
+          setOrders([]);
+          setCanFinalize(false);
+        }
+        return;
+      }
+
+      const procedureType = type === "radiology" ? "radiology" : "laboratory";
+      const ordersRes = await procedureOrdersApi.getAll({ target_visit_id: visitId, order_type: procedureType });
+      const ordersData = ordersRes.data || [];
+      if (ordersData.length > 0) {
+        setOrders(ordersData);
+        const allCompleted = ordersData.every(
+          (o: ProcedureOrder) =>
+            o.status === "completed" ||
+            o.status === "cancelled" ||
+            (o.items && o.items.every((item) => item.status === "completed" || item.status === "cancelled"))
+        );
+        setCanFinalize(allCompleted);
+        return;
+      }
+
+      const proceduresRes = await visitProceduresApi.getAll(visitId);
+      const directProcedures = (proceduresRes.data?.data || []).filter((item) => {
+        if (item.status === "cancelled") {
+          return false;
+        }
+        if (type === "radiology") {
+          return item.procedure?.procedure_type === "radiology";
+        }
+        return item.procedure?.procedure_type === "laboratory";
+      });
+
+      setOrders(
+        directProcedures.map((item) => ({
+          id: item.id,
+          order_number: item.procedure?.name || "Pemeriksaan",
+          status: item.status,
+        }))
+      );
+      setCanFinalize(
+        directProcedures.length > 0 &&
+          directProcedures.every((item) => item.status === "completed" || item.status === "cancelled")
+      );
+    } catch (error) {
+      console.error("Error loading data:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Gagal memuat data",
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [enabled, toast, type, visitId]);
+
+  useEffect(() => {
+    void loadData();
+  }, [loadData]);
+
+  useEffect(() => {
+    if (!enabled || !type) return;
+
+    const handleRefresh = () => {
+      void loadData();
+    };
+
+    window.addEventListener("refresh-print-options", handleRefresh);
+    window.addEventListener("refresh-final-visit", handleRefresh);
+    return () => {
+      window.removeEventListener("refresh-print-options", handleRefresh);
+      window.removeEventListener("refresh-final-visit", handleRefresh);
+    };
+  }, [enabled, loadData, type]);
+
+  const handleFinalize = useCallback(async () => {
+    if (!type || submitting) return false;
+    if (isFinal) {
+      toast({
+        title: "Info",
+        description: "Kunjungan sudah berstatus selesai.",
+      });
+      return false;
+    }
+    if (!canFinalize) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: getFinalizeBlockedMessage(type),
+      });
+      return false;
+    }
+
+    setSubmitting(true);
+    try {
+      await visitsApi.completeVisit(visitId);
+
+      toast({
+        title: "Berhasil",
+        description: "Kunjungan berhasil diselesaikan",
+      });
+
+      await loadData();
+      window.dispatchEvent(new CustomEvent("refresh-print-options"));
+      if (onVisitUpdate) {
+        onVisitUpdate();
+      }
+      return true;
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.response?.data?.error || "Gagal menyelesaikan kunjungan",
+      });
+      return false;
+    } finally {
+      setSubmitting(false);
+    }
+  }, [canFinalize, isFinal, loadData, onVisitUpdate, submitting, toast, type, visitId]);
+
+  const handleCancelFinal = useCallback(async () => {
+    if (!type) return false;
+    if (visit?.registration?.status === "completed" || visit?.registration?.status === "discharged") {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Tidak dapat membatalkan final karena pasien sudah pulang",
+      });
+      return false;
+    }
+
+    setSubmitting(true);
+    try {
+      await visitsApi.cancelCompleteVisit(visitId);
+
+      toast({
+        title: "Berhasil",
+        description: "Final kunjungan berhasil dibatalkan",
+      });
+
+      await loadData();
+      window.dispatchEvent(new CustomEvent("refresh-print-options"));
+      if (onVisitUpdate) {
+        onVisitUpdate();
+      }
+      return true;
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.response?.data?.error || "Gagal membatalkan final kunjungan",
+      });
+      return false;
+    } finally {
+      setSubmitting(false);
+    }
+  }, [loadData, onVisitUpdate, toast, type, visit, visitId]);
+
+  const isPatientDischarged = visit?.registration?.status === "completed" || visit?.registration?.status === "discharged";
+  const canShowFinalizeAction = Boolean(type) && !loading && !isFinal && canFinalize;
+  const canShowCancelAction = Boolean(type) && !loading && isFinal && !isPatientDischarged;
+
+  return {
+    loading,
+    submitting,
+    visit,
+    orders,
+    canFinalize,
+    isFinal,
+    typeLabel,
+    blockedMessage,
+    isPatientDischarged,
+    canShowFinalizeAction,
+    canShowCancelAction,
+    loadData,
+    handleFinalize,
+    handleCancelFinal,
+  };
+}
+
+export function FinalVisit({ visitId, type, onVisitUpdate }: FinalVisitProps) {
+  const {
+    loading,
+    submitting,
+    orders,
+    canFinalize,
+    isFinal,
+    typeLabel,
+    blockedMessage,
+    isPatientDischarged,
+    handleFinalize,
+    handleCancelFinal,
+  } = useFinalVisitController({ visitId, type, onVisitUpdate });
 
   const getFooterTabId = () => {
     switch (type) {
@@ -60,24 +393,6 @@ export function FinalVisit({ visitId, type, onVisitUpdate }: FinalVisitProps) {
   };
 
   useEffect(() => {
-    loadData();
-  }, [visitId, type]);
-
-  // Listen for refresh events from other components
-  useEffect(() => {
-    const handleRefresh = () => {
-      loadData();
-    };
-    
-    window.addEventListener("refresh-print-options", handleRefresh);
-    window.addEventListener("refresh-final-visit", handleRefresh);
-    return () => {
-      window.removeEventListener("refresh-print-options", handleRefresh);
-      window.removeEventListener("refresh-final-visit", handleRefresh);
-    };
-  }, [visitId, type]);
-
-  useEffect(() => {
     const handleFooterAction = (event: Event) => {
       const customEvent = event as CustomEvent<{
         tabId: string;
@@ -93,260 +408,7 @@ export function FinalVisit({ visitId, type, onVisitUpdate }: FinalVisitProps) {
     return () => {
       window.removeEventListener(FOOTER_ACTION_EVENT, handleFooterAction as EventListener);
     };
-  }, [type, submitting, canFinalize, isFinal, permission, visit]);
-
-  const loadData = async () => {
-    setLoading(true);
-    try {
-      // Load visit data
-      const visitRes = await visitsApi.getById(visitId);
-      const visitData = visitRes.data;
-      setVisit(visitData);
-
-      // Check if already finalized
-      setIsFinal(visitData.status === "completed");
-
-      // Load orders based on type
-      if (type === "pharmacy") {
-        const ordersRes = await medicineOrdersApi.getAll({ pharmacy_visit_id: visitId });
-        const ordersData = ordersRes.data || [];
-        if (ordersData.length > 0) {
-          setOrders(ordersData);
-
-          // Can finalize if all orders are delivered/cancelled/returned
-          // OR if all items in each order are cancelled/delivered
-          const allDelivered = ordersData.every((o: MedicineOrder) => {
-            if (o.status === "delivered" || o.status === "cancelled" || o.status === "returned") {
-              return true;
-            }
-            if (o.items && o.items.length > 0) {
-              return o.items.every((item: any) =>
-                item.status === "cancelled" || item.status === "delivered"
-              );
-            }
-            return false;
-          });
-          setCanFinalize(allDelivered);
-        } else {
-          const mrRes = await medicalRecordsApi.get(visitId);
-          const summary = mrRes.data as MedicalRecordSummary;
-          const directItems = (summary.visit_medicine_items || []).filter((item) => item.status !== "cancelled");
-
-          setOrders(
-            directItems.map((item) => ({
-              id: item.id,
-              order_number: item.medicine?.name || "Obat",
-              status: item.status || "recorded",
-            }))
-          );
-          setCanFinalize(directItems.length > 0);
-        }
-      } else if (type === "consultation") {
-        // Consultation - primary source: consultation procedure order status
-        try {
-          const ordersRes = await procedureOrdersApi.getAll({
-            target_visit_id: visitId,
-            order_type: "consultation",
-          });
-          const ordersData = ordersRes.data || [];
-
-          if (ordersData.length > 0) {
-            setOrders(ordersData);
-
-            // Can finalize if all consultation orders are completed/cancelled
-            // or all items inside each order are completed.
-            const allCompleted = ordersData.every((o: ProcedureOrder) =>
-              o.status === "completed" ||
-              o.status === "cancelled" ||
-              (o.items && o.items.length > 0 && o.items.every((item) => item.status === "completed" || item.status === "cancelled"))
-            );
-            setCanFinalize(allCompleted);
-          } else {
-            // Fallback for legacy SOAP consultation without order result workflow.
-            const consultationRes = await medicalRecordsApi.getConsultation(visitId);
-            const consultationData = consultationRes.data;
-
-            if (consultationData && consultationData.id) {
-              setOrders([{ id: consultationData.id, order_number: "Konsultasi", status: "completed" }]);
-              setCanFinalize(true);
-            } else {
-              setOrders([]);
-              setCanFinalize(false);
-            }
-          }
-        } catch (error) {
-          // Jika gagal load data konsultasi/order, anggap belum siap final.
-          setOrders([]);
-          setCanFinalize(false);
-        }
-      } else {
-        // Radiology or Laboratory
-        const procedureType = type === "radiology" ? "radiology" : "laboratory";
-        const ordersRes = await procedureOrdersApi.getAll({ target_visit_id: visitId, order_type: procedureType });
-        const ordersData = ordersRes.data || [];
-        if (ordersData.length > 0) {
-          setOrders(ordersData);
-
-          // Can finalize if all orders are completed or have results
-          const allCompleted = ordersData.every((o: ProcedureOrder) =>
-            o.status === "completed" || o.status === "cancelled" ||
-            (o.items && o.items.every(item => item.status === "completed" || item.status === "cancelled"))
-          );
-          setCanFinalize(allCompleted);
-        } else {
-          const proceduresRes = await visitProceduresApi.getAll(visitId);
-          const directProcedures = (proceduresRes.data?.data || []).filter((item) => {
-            if (item.status === "cancelled") {
-              return false;
-            }
-            if (type === "radiology") {
-              return item.procedure?.procedure_type === "radiology";
-            }
-            return item.procedure?.procedure_type === "laboratory";
-          });
-
-          setOrders(
-            directProcedures.map((item) => ({
-              id: item.id,
-              order_number: item.procedure?.name || "Pemeriksaan",
-              status: item.status,
-            }))
-          );
-          setCanFinalize(
-            directProcedures.length > 0 &&
-              directProcedures.every((item) => item.status === "completed" || item.status === "cancelled")
-          );
-        }
-      }
-    } catch (error) {
-      console.error("Error loading data:", error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Gagal memuat data",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleFinalize = async () => {
-    if (submitting) return;
-    if (isFinal) {
-      toast({
-        title: "Info",
-        description: "Kunjungan sudah berstatus selesai.",
-      });
-      return;
-    }
-    if (!canFinalize) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description:
-          type === "pharmacy"
-            ? "Semua obat harus diserahkan sebelum dapat menyelesaikan kunjungan"
-            : type === "consultation"
-            ? "Konsultasi harus dijawab sebelum dapat menyelesaikan kunjungan"
-            : "Semua tindakan harus selesai sebelum dapat menyelesaikan kunjungan",
-      });
-      return;
-    }
-    if (!hasPermission(permission)) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Anda tidak memiliki akses untuk menyelesaikan kunjungan",
-      });
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      await visitsApi.completeVisit(visitId);
-      
-      toast({
-        title: "Berhasil",
-        description: "Kunjungan berhasil diselesaikan",
-      });
-      
-      loadData();
-      // Trigger refresh print options
-      window.dispatchEvent(new CustomEvent("refresh-print-options"));
-      // Notify parent to refresh visit status badge
-      if (onVisitUpdate) {
-        onVisitUpdate();
-      }
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.response?.data?.error || "Gagal menyelesaikan kunjungan",
-      });
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleCancelFinal = async () => {
-    if (!hasPermission(permission)) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Anda tidak memiliki akses untuk membatalkan final",
-      });
-      return;
-    }
-
-    // Check if registration is already completed
-    if (visit?.registration?.status === "completed" || visit?.registration?.status === "discharged") {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Tidak dapat membatalkan final karena pasien sudah pulang",
-      });
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      await visitsApi.cancelCompleteVisit(visitId);
-      
-      toast({
-        title: "Berhasil",
-        description: "Final kunjungan berhasil dibatalkan",
-      });
-      
-      loadData();
-      // Trigger refresh print options
-      window.dispatchEvent(new CustomEvent("refresh-print-options"));
-      // Notify parent to refresh visit status badge
-      if (onVisitUpdate) {
-        onVisitUpdate();
-      }
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.response?.data?.error || "Gagal membatalkan final kunjungan",
-      });
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const getTypeLabel = () => {
-    switch (type) {
-      case "pharmacy":
-        return "Order Farmasi";
-      case "radiology":
-        return "Order Radiologi";
-      case "laboratory":
-        return "Order Laboratorium";
-      case "consultation":
-        return "Konsultasi";
-    }
-  };
+  }, [handleFinalize, isFinal, type]);
 
   const getOrderStatusLabel = (status: string) => {
     const labels: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
@@ -375,10 +437,6 @@ export function FinalVisit({ visitId, type, onVisitUpdate }: FinalVisitProps) {
       </div>
     );
   }
-
-  // Check if registration is completed/discharged
-  const isPatientDischarged = visit?.registration?.status === "completed" || 
-    visit?.registration?.status === "discharged";
 
   return (
     <div>
@@ -428,16 +486,14 @@ export function FinalVisit({ visitId, type, onVisitUpdate }: FinalVisitProps) {
                 <AlertCircle className="h-4 w-4 flex-shrink-0" />
                 <span>
                   {type === "pharmacy" 
-                    ? "Semua obat harus diserahkan sebelum dapat menyelesaikan kunjungan"
-                    : type === "consultation"
-                    ? "Konsultasi harus dijawab sebelum dapat menyelesaikan kunjungan"
-                    : "Semua tindakan harus selesai sebelum dapat menyelesaikan kunjungan"
+                    ? blockedMessage
+                    : blockedMessage
                   }
                 </span>
               </div>
             )}
             <div className="rounded border border-dashed px-3 py-2 text-sm text-muted-foreground">
-              Gunakan tombol Final di footer untuk menyelesaikan kunjungan {getTypeLabel()}.
+              Gunakan tombol Final di footer untuk menyelesaikan kunjungan {typeLabel}.
             </div>
           </>
         )}
@@ -446,11 +502,11 @@ export function FinalVisit({ visitId, type, onVisitUpdate }: FinalVisitProps) {
           <>
             <div className="flex items-center gap-2 text-green-600 dark:text-green-400 text-sm bg-green-50 dark:bg-green-950 p-3 rounded">
               <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
-              <span>Kunjungan {getTypeLabel()} telah diselesaikan</span>
+              <span>Kunjungan {typeLabel} telah diselesaikan</span>
             </div>
 
             {/* Cancel Final Button - only show if patient not discharged */}
-            {!isPatientDischarged && hasPermission(permission) && (
+            {!isPatientDischarged && (
               <Button
                 variant="destructive"
                 className="w-full"

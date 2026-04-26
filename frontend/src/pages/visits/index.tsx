@@ -54,8 +54,7 @@ import type { Room } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { formatPatientName } from "@/lib/print-utils";
 import { useAuthStore } from "@/lib/store";
-import { format } from "date-fns";
-import { id as idLocale } from "date-fns/locale";
+
 
 // ── Tab definitions ─────────────────────────────────────────────────────────
 interface VisitTab {
@@ -186,7 +185,7 @@ export default function VisitsIndex() {
   const setSelectedRoom = (roomId: string) => {
     setTabRooms((prev) => {
       const next = { ...prev, [activeTab]: roomId };
-      try { localStorage.setItem("visits_tab_rooms", JSON.stringify(next)); } catch {}
+      try { localStorage.setItem("visits_tab_rooms", JSON.stringify(next)); } catch { }
       return next;
     });
   };
@@ -243,7 +242,7 @@ export default function VisitsIndex() {
     try {
       localStorage.setItem("visits_filter_tab", activeTab);
       localStorage.setItem("visits_filter_status", selectedStatus);
-    } catch {}
+    } catch { }
   }, [activeTab, selectedStatus]);
 
   useEffect(() => {
@@ -298,7 +297,7 @@ export default function VisitsIndex() {
       }
       const response = await visitsApi.getAll(params);
       setAllVisits(response.data || []);
-    } catch {}
+    } catch { }
   }, [selectedDate]);
 
   const loadVisits = useCallback(async () => {
@@ -509,9 +508,9 @@ export default function VisitsIndex() {
             <span className="truncate">
               {selectedRoom
                 ? (() => {
-                    const r = rooms.find((r) => r.id.toString() === selectedRoom);
-                    return r ? `${r.code} - ${r.name}` : `Semua ${currentTab.label}`;
-                  })()
+                  const r = rooms.find((r) => r.id.toString() === selectedRoom);
+                  return r ? `${r.code} - ${r.name}` : `Semua ${currentTab.label}`;
+                })()
                 : `Semua ${currentTab.label}`}
             </span>
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -567,22 +566,6 @@ export default function VisitsIndex() {
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-lg font-semibold">Kunjungan Pasien</h1>
-          <p className="text-sm text-muted-foreground">
-            {selectedDate
-              ? format(new Date(selectedDate), "EEEE, dd MMMM yyyy", { locale: idLocale })
-              : "Semua Data"}
-            {selectedRoom && rooms.find((r) => r.id.toString() === selectedRoom) && (
-              <>
-                {" · "}
-                <button
-                  className="text-primary hover:underline"
-                  onClick={() => navigate(`/rooms/show/${selectedRoom}`)}
-                >
-                  {rooms.find((r) => r.id.toString() === selectedRoom)?.name}
-                </button>
-              </>
-            )}
-          </p>
         </div>
         <div className="flex items-center gap-2">
           {selectedRoom && (

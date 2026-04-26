@@ -17,7 +17,7 @@ import { eklaimLocalApi, eklaimLocalStatusLabels, eklaimLocalStatusColors, jenis
 import type { EKlaimLocalStatus } from '@/lib/api/eklaim-local';
 import { useToast } from '@/hooks/use-toast';
 import { setPageTitle } from '@/lib/page-title';
-import { Loader2, BarChart3, SlidersHorizontal, Search } from 'lucide-react';
+import { Loader2, SlidersHorizontal, Search } from 'lucide-react';
 import { format } from 'date-fns';
 import { id as localeId } from 'date-fns/locale';
 
@@ -245,12 +245,8 @@ export default function EklaimReportPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-lg font-semibold flex items-center gap-2">
-              <BarChart3 className="h-5 w-5" />
               Report E-Klaim
             </h1>
-            <p className="text-sm text-muted-foreground">
-                Laporan klaim berdasarkan tanggal masuk, jenis rawat, dan status klaim
-            </p>
           </div>
           <CollapsibleTrigger asChild>
             <Button variant="outline" size="sm" className="h-9">

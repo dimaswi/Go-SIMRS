@@ -25,7 +25,6 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Loader2,
   RotateCcw,
-  Pill,
   User,
   Package,
   AlertCircle,
@@ -72,6 +71,8 @@ export function PharmacyReturn({ visitId, readOnly = false }: PharmacyReturnProp
   const [orders, setOrders] = useState<MedicineOrder[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<MedicineOrder | null>(null);
   const [returns, setReturns] = useState<MedicineReturn[]>([]);
+  const [showAllReturns, setShowAllReturns] = useState(false);
+  const [showAllDeliveredItems, setShowAllDeliveredItems] = useState(false);
 
   // Return dialog
   const [showReturnDialog, setShowReturnDialog] = useState(false);
@@ -247,29 +248,41 @@ export function PharmacyReturn({ visitId, readOnly = false }: PharmacyReturnProp
   const deliveredItems = selectedOrder?.items?.filter(
     (item) => (item.dispensed_qty || 0) > 0
   ) || [];
+  const displayedReturns = showAllReturns ? returns : returns.slice(0, 5);
+  const displayedDeliveredItems = showAllDeliveredItems ? deliveredItems : deliveredItems.slice(0, 8);
 
   return (
-    <div>
+    <div className="pharmacy-no-sticky-head">
       <div className="space-y-4">
       {/* Order Selection if multiple */}
       {orders.length > 1 && (
         <div className="border rounded-lg p-3 bg-muted/30">
-          <Label className="text-sm font-semibold mb-2 block">Pilih Order</Label>
-            <div className="flex flex-wrap gap-2">
-              {orders.map((order) => (
-                <Button
-                  key={order.id}
-                  variant={selectedOrder?.id === order.id ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setSelectedOrder(order)}
-                >
-                  {order.order_number}
-                  <Badge variant={ORDER_STATUS_LABELS[order.status]?.variant || "secondary"} className="ml-2">
-                    {ORDER_STATUS_LABELS[order.status]?.label || order.status}
-                  </Badge>
-                </Button>
-              ))}
-            </div>
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-[120px_minmax(0,1fr)_auto] md:items-center">
+            <Label className="text-sm font-semibold">Pilih Order</Label>
+            <Select
+              value={selectedOrder?.id ? String(selectedOrder.id) : ""}
+              onValueChange={(value) => {
+                const nextOrder = orders.find((order) => String(order.id) === value);
+                if (nextOrder) setSelectedOrder(nextOrder);
+              }}
+            >
+              <SelectTrigger className="h-8">
+                <SelectValue placeholder="Pilih order" />
+              </SelectTrigger>
+              <SelectContent>
+                {orders.map((order) => (
+                  <SelectItem key={order.id} value={String(order.id)}>
+                    {order.order_number} - {ORDER_STATUS_LABELS[order.status]?.label || order.status}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {selectedOrder && (
+              <Badge variant={ORDER_STATUS_LABELS[selectedOrder.status]?.variant || "secondary"} className="w-fit">
+                {ORDER_STATUS_LABELS[selectedOrder.status]?.label || selectedOrder.status}
+              </Badge>
+            )}
+          </div>
         </div>
       )}
 
@@ -294,29 +307,29 @@ export function PharmacyReturn({ visitId, readOnly = false }: PharmacyReturnProp
               </div>
             </div>
             <div className="p-3">
-              <table className="w-full min-w-[640px] text-sm">
+              <table className="w-full table-fixed text-xs">
                 <tbody>
                   <tr className="border-b">
-                    <td className="py-2 text-muted-foreground w-1/4">Diagnosis</td>
-                    <td className="py-2 font-medium">{selectedOrder.diagnosis || "-"}</td>
+                    <td className="py-1.5 text-muted-foreground w-28 align-top">Diagnosis</td>
+                    <td className="py-1.5 font-medium break-words">{selectedOrder.diagnosis || "-"}</td>
                   </tr>
                   <tr className="border-b">
-                    <td className="py-2 text-muted-foreground">Ruang Asal</td>
-                    <td className="py-2 font-medium">{selectedOrder.source_room?.name || "-"}</td>
+                    <td className="py-1.5 text-muted-foreground align-top">Ruang Asal</td>
+                    <td className="py-1.5 font-medium break-words">{selectedOrder.source_room?.name || "-"}</td>
                   </tr>
                   <tr className="border-b">
-                    <td className="py-2 text-muted-foreground">Petugas Order</td>
-                    <td className="py-2 font-medium">{selectedOrder.prescriber?.nama_lengkap || "-"}</td>
+                    <td className="py-1.5 text-muted-foreground align-top">Petugas Order</td>
+                    <td className="py-1.5 font-medium break-words">{selectedOrder.prescriber?.nama_lengkap || "-"}</td>
                   </tr>
                   <tr className="border-b">
-                    <td className="py-2 text-muted-foreground">Waktu Order</td>
-                    <td className="py-2 font-medium">
+                    <td className="py-1.5 text-muted-foreground align-top">Waktu Order</td>
+                    <td className="py-1.5 font-medium break-words">
                       {selectedOrder.created_at ? new Date(selectedOrder.created_at).toLocaleString("id-ID") : "-"}
                     </td>
                   </tr>
                   <tr>
-                    <td className="py-2 text-muted-foreground">Prioritas</td>
-                    <td className="py-2">
+                    <td className="py-1.5 text-muted-foreground align-top">Prioritas</td>
+                    <td className="py-1.5">
                       <Badge variant={selectedOrder.priority === "urgent" ? "destructive" : "outline"}>
                         {selectedOrder.priority === "urgent" ? "Urgent" : "Normal"}
                       </Badge>
@@ -331,38 +344,56 @@ export function PharmacyReturn({ visitId, readOnly = false }: PharmacyReturnProp
           {returns.length > 0 && (
             <div className="border rounded-lg">
               <div className="p-3 border-b bg-muted/30">
-                <Label className="text-sm font-semibold flex items-center gap-2">
-                  <History className="h-4 w-4" />
-                  Riwayat Pengembalian
-                </Label>
-              </div>
-              <div className="p-3">
-                <div className="space-y-2">
-                  {returns.map((ret) => (
-                    <div
-                      key={ret.id}
-                      className="p-3 bg-orange-50 dark:bg-orange-950 rounded-lg border border-orange-200"
+                <div className="flex items-center justify-between gap-2">
+                  <Label className="text-sm font-semibold flex items-center gap-2">
+                    <History className="h-4 w-4" />
+                    Riwayat Pengembalian
+                  </Label>
+                  {returns.length > 5 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => setShowAllReturns((prev) => !prev)}
                     >
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <p className="font-medium">{ret.medicine?.name || "Obat"}</p>
-                          <p className="text-sm text-muted-foreground">
-                            Jumlah: {ret.quantity} | Kondisi: {ret.condition}
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            Alasan: {ret.return_reason}
-                          </p>
-                        </div>
-                        <Badge variant={ret.is_restocked ? "default" : "outline"}>
-                          {ret.is_restocked ? "Dikembalikan ke Stok" : "Tidak Restock"}
-                        </Badge>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-1">
-                      {ret.created_at && new Date(ret.created_at).toLocaleString("id-ID")}
-                    </p>
-                    </div>
-                  ))}
+                      {showAllReturns ? "Ringkas" : `Lihat Semua (${returns.length})`}
+                    </Button>
+                  )}
                 </div>
+              </div>
+              <div className="p-0">
+                <table className="w-full table-fixed text-xs">
+                  <thead className="bg-muted/50">
+                    <tr>
+                      <th className="py-1.5 px-2 text-left font-medium w-[34%]">Obat</th>
+                      <th className="py-1.5 px-2 text-left font-medium w-[10%]">Qty</th>
+                      <th className="py-1.5 px-2 text-left font-medium hidden sm:table-cell w-[12%]">Kondisi</th>
+                      <th className="py-1.5 px-2 text-left font-medium w-[24%]">Alasan</th>
+                      <th className="py-1.5 px-2 text-left font-medium hidden md:table-cell w-[10%]">Restock</th>
+                      <th className="py-1.5 px-2 text-left font-medium hidden lg:table-cell w-[20%]">Waktu</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {displayedReturns.map((ret) => (
+                      <tr key={ret.id} className="border-b last:border-0 align-top">
+                        <td className="py-1.5 px-2">
+                          <p className="font-medium break-words">{ret.medicine?.name || "Obat"}</p>
+                        </td>
+                        <td className="py-1.5 px-2 font-medium">{ret.quantity}</td>
+                        <td className="py-1.5 px-2 hidden sm:table-cell break-words">{ret.condition}</td>
+                        <td className="py-1.5 px-2 text-[11px] break-words">{ret.return_reason}</td>
+                        <td className="py-1.5 px-2 hidden md:table-cell">
+                          <Badge variant={ret.is_restocked ? "default" : "outline"}>
+                            {ret.is_restocked ? "Ya" : "Tidak"}
+                          </Badge>
+                        </td>
+                        <td className="py-1.5 px-2 text-[11px] hidden lg:table-cell">
+                          {ret.created_at && new Date(ret.created_at).toLocaleString("id-ID")}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
@@ -370,10 +401,22 @@ export function PharmacyReturn({ visitId, readOnly = false }: PharmacyReturnProp
           {/* Delivered Items for Return */}
           <div className="border rounded-lg">
             <div className="p-3 border-b bg-muted/30">
-              <Label className="text-sm font-semibold flex items-center gap-2">
-                <Package className="h-4 w-4" />
-                Obat yang Sudah Diserahkan
-              </Label>
+              <div className="flex items-center justify-between gap-2">
+                <Label className="text-sm font-semibold flex items-center gap-2">
+                  <Package className="h-4 w-4" />
+                  Obat yang Sudah Diserahkan
+                </Label>
+                {deliveredItems.length > 8 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => setShowAllDeliveredItems((prev) => !prev)}
+                  >
+                    {showAllDeliveredItems ? "Ringkas" : `Lihat Semua (${deliveredItems.length})`}
+                  </Button>
+                )}
+              </div>
             </div>
             <div className="p-3">
               {deliveredItems.length === 0 ? (
@@ -382,64 +425,54 @@ export function PharmacyReturn({ visitId, readOnly = false }: PharmacyReturnProp
                   <p>Belum ada obat yang diserahkan</p>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {deliveredItems.map((item) => {
-                    const returnableQty = (item.dispensed_qty || 0) - (item.returned_qty || 0);
-                    
-                    return (
-                      <div
-                        key={item.id}
-                        className="p-3 bg-muted/50 rounded-lg border"
-                      >
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <Pill className="h-4 w-4" />
-                              <p className="font-medium">{item.medicine?.name || "Obat"}</p>
-                            </div>
-                            <p className="text-sm text-muted-foreground mt-1">
-                              {item.medicine?.generic_name}
-                            </p>
-                            <div className="mt-2 grid grid-cols-3 gap-2 text-sm">
-                              <div>
-                                <span className="text-muted-foreground">Dipesan:</span>{" "}
-                                <span className="font-medium">{item.quantity}</span>
-                              </div>
-                              <div>
-                                <span className="text-muted-foreground">Diserahkan:</span>{" "}
-                                <span className="font-medium">{item.dispensed_qty || 0}</span>
-                              </div>
-                              <div>
-                                <span className="text-muted-foreground">Dikembalikan:</span>{" "}
-                                <span className="font-medium">{item.returned_qty || 0}</span>
-                              </div>
-                              <div>
-                                <span className="text-muted-foreground">Harga:</span>{" "}
-                                <span className="font-medium">{formatRupiah(getUnitPrice(item))}</span>
-                              </div>
-                              <div>
-                                <span className="text-muted-foreground">Subtotal Diserahkan:</span>{" "}
-                                <span className="font-medium">{formatRupiah(getUnitPrice(item) * Number(item.dispensed_qty || 0))}</span>
-                              </div>
-                              <div>
-                                <span className="text-muted-foreground">Subtotal Returnable:</span>{" "}
-                                <span className="font-medium">{formatRupiah(getUnitPrice(item) * Number(returnableQty || 0))}</span>
-                              </div>
-                            </div>
-                          </div>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleOpenReturnDialog(item)}
-                            disabled={returnableQty <= 0 || !canReturn || readOnly}
-                          >
-                            <RotateCcw className="h-4 w-4 mr-1" />
-                            Return
-                          </Button>
-                        </div>
-                      </div>
-                    );
-                  })}
+                <div className="border rounded-lg">
+                  <table className="w-full table-fixed text-xs">
+                    <thead className="bg-muted/50">
+                      <tr>
+                        <th className="py-1.5 px-2 text-left font-medium w-[36%]">Obat</th>
+                        <th className="py-1.5 px-2 text-left font-medium w-[26%]">Qty</th>
+                        <th className="py-1.5 px-2 text-right font-medium hidden sm:table-cell w-[12%]">Harga</th>
+                        <th className="py-1.5 px-2 text-right font-medium w-[14%]">Subtotal Return</th>
+                        <th className="py-1.5 px-2 text-right font-medium w-[12%]">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {displayedDeliveredItems.map((item) => {
+                        const returnableQty = (item.dispensed_qty || 0) - (item.returned_qty || 0);
+                        const unitPrice = getUnitPrice(item);
+                        const returnableSubtotal = unitPrice * Number(returnableQty || 0);
+
+                        return (
+                          <tr key={item.id} className="border-b last:border-0 align-top">
+                            <td className="py-1.5 px-2">
+                              <p className="font-medium break-words">{item.medicine?.name || "Obat"}</p>
+                              <p className="text-[11px] text-muted-foreground break-words">{item.medicine?.generic_name || "-"}</p>
+                            </td>
+                            <td className="py-1.5 px-2">
+                              <p className="text-[11px]">Dipesan: <span className="font-medium">{item.quantity}</span></p>
+                              <p className="text-[11px]">Diserahkan: <span className="font-medium">{item.dispensed_qty || 0}</span></p>
+                              <p className="text-[11px]">Dikembalikan: <span className="font-medium">{item.returned_qty || 0}</span></p>
+                              <p className="text-[11px] text-muted-foreground">Sisa return: {returnableQty}</p>
+                            </td>
+                            <td className="py-1.5 px-2 text-right font-medium whitespace-nowrap hidden sm:table-cell">{formatRupiah(unitPrice)}</td>
+                            <td className="py-1.5 px-2 text-right font-medium whitespace-nowrap">{formatRupiah(returnableSubtotal)}</td>
+                            <td className="py-1.5 px-2 text-right">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-7 px-2 text-xs"
+                                onClick={() => handleOpenReturnDialog(item)}
+                                disabled={returnableQty <= 0 || !canReturn || readOnly}
+                              >
+                                <RotateCcw className="h-4 w-4 mr-1" />
+                                Return
+                              </Button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>

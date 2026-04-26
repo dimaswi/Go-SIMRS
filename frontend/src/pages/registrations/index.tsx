@@ -158,7 +158,7 @@ export default function RegistrationIndex() {
   const setSelectedRoom = (roomId: string) => {
     setTabRooms((prev) => {
       const next = { ...prev, [activeTab]: roomId };
-      try { localStorage.setItem("reg_tab_rooms", JSON.stringify(next)); } catch {}
+      try { localStorage.setItem("reg_tab_rooms", JSON.stringify(next)); } catch { }
       return next;
     });
   };
@@ -261,7 +261,7 @@ export default function RegistrationIndex() {
   useEffect(() => {
     try {
       localStorage.setItem("reg_filter_tab", activeTab);
-    } catch {}
+    } catch { }
   }, [activeTab]);
 
   const loadScheduledCount = useCallback(async () => {
@@ -969,9 +969,9 @@ export default function RegistrationIndex() {
             <span className="truncate">
               {selectedRoom
                 ? (() => {
-                    const r = rooms.find((r) => r.id.toString() === selectedRoom);
-                    return r ? `${r.code} - ${r.name}` : "Semua Ruangan";
-                  })()
+                  const r = rooms.find((r) => r.id.toString() === selectedRoom);
+                  return r ? `${r.code} - ${r.name}` : "Semua Ruangan";
+                })()
                 : "Semua Ruangan"}
             </span>
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -1027,19 +1027,6 @@ export default function RegistrationIndex() {
         <div>
           <h1 className="text-lg font-semibold">Pendaftaran Pasien</h1>
           <p className="text-sm text-muted-foreground">
-            {selectedDate
-              ? format(new Date(selectedDate), "EEEE, dd MMMM yyyy", {
-                  locale: idLocale,
-                })
-              : "Semua Data"}
-            {selectedRoom && rooms.find((r) => r.id.toString() === selectedRoom) && (
-              <>
-                {" · "}
-                <span className="text-primary">
-                  {rooms.find((r) => r.id.toString() === selectedRoom)?.name}
-                </span>
-              </>
-            )}
           </p>
         </div>
         <div className="flex items-center gap-2">

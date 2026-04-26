@@ -9,9 +9,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Loader2,
   Package,
-  Pill,
   User,
   CheckCircle2,
   AlertCircle,
@@ -94,6 +100,8 @@ export function PharmacyDispense({
   const [orders, setOrders] = useState<MedicineOrder[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<MedicineOrder | null>(null);
   const [dispenseItems, setDispenseItems] = useState<DispenseItem[]>([]);
+  const [showDeliveredRows, setShowDeliveredRows] = useState(false);
+  const [showSelectedOnly, setShowSelectedOnly] = useState(false);
 
   // Signature state
   const [showSignatureDialog, setShowSignatureDialog] = useState(false);
@@ -261,6 +269,23 @@ export function PharmacyDispense({
   const isOrderDelivered = selectedOrder?.status === "delivered" || selectedOrder?.status === "ready";
   const canDispense = hasDispensePermission && selectedOrder && ["reviewed", "preparing", "partial"].includes(selectedOrder.status);
   const allDelivered = dispenseItems.every((item) => item.remaining === 0) || isOrderDelivered;
+  const orderedGrandTotal = dispenseItems.reduce((total, dispenseItem) => {
+    const unitPrice = Number((dispenseItem.item as any).unit_price ?? (dispenseItem.item as any).price ?? (dispenseItem.item.medicine as any)?.selling_price ?? 0);
+    return total + unitPrice * Number(dispenseItem.item.quantity || 0);
+  }, 0);
+  const deliveredGrandTotal = dispenseItems.reduce((total, dispenseItem) => {
+    const unitPrice = Number((dispenseItem.item as any).unit_price ?? (dispenseItem.item as any).price ?? (dispenseItem.item.medicine as any)?.selling_price ?? 0);
+    return total + unitPrice * Number(dispenseItem.item.dispensed_qty || 0);
+  }, 0);
+  const selectedDispenseGrandTotal = dispenseItems
+    .filter((item) => item.selected && item.dispensed_qty > 0)
+    .reduce((total, dispenseItem) => {
+      const unitPrice = Number((dispenseItem.item as any).unit_price ?? (dispenseItem.item as any).price ?? (dispenseItem.item.medicine as any)?.selling_price ?? 0);
+      return total + unitPrice * Number(dispenseItem.dispensed_qty || 0);
+    }, 0);
+  const visibleDispenseItems = dispenseItems
+    .filter((item) => (showDeliveredRows ? true : item.remaining > 0))
+    .filter((item) => (showSelectedOnly ? item.selected : true));
 
   useEffect(() => {
     const handleFooterAction = (event: Event) => {
@@ -434,27 +459,37 @@ export function PharmacyDispense({
   };
 
   return (
-    <div>
+    <div className="pharmacy-no-sticky-head">
       <div className="space-y-4">
       {/* Order Selection if multiple */}
       {orders.length > 1 && (
         <div className="border rounded-lg p-3 bg-muted/30">
-          <Label className="text-sm font-semibold mb-2 block">Pilih Order</Label>
-            <div className="flex flex-wrap gap-2">
-              {orders.map((order) => (
-                <Button
-                  key={order.id}
-                  variant={selectedOrder?.id === order.id ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setSelectedOrder(order)}
-                >
-                  {order.order_number}
-                  <Badge variant={ORDER_STATUS_LABELS[order.status]?.variant || "secondary"} className="ml-2">
-                    {ORDER_STATUS_LABELS[order.status]?.label || order.status}
-                  </Badge>
-                </Button>
-              ))}
-            </div>
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-[120px_minmax(0,1fr)_auto] md:items-center">
+            <Label className="text-sm font-semibold">Pilih Order</Label>
+            <Select
+              value={selectedOrder?.id ? String(selectedOrder.id) : ""}
+              onValueChange={(value) => {
+                const nextOrder = orders.find((order) => String(order.id) === value);
+                if (nextOrder) setSelectedOrder(nextOrder);
+              }}
+            >
+              <SelectTrigger className="h-8">
+                <SelectValue placeholder="Pilih order" />
+              </SelectTrigger>
+              <SelectContent>
+                {orders.map((order) => (
+                  <SelectItem key={order.id} value={String(order.id)}>
+                    {order.order_number} - {ORDER_STATUS_LABELS[order.status]?.label || order.status}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {selectedOrder && (
+              <Badge variant={ORDER_STATUS_LABELS[selectedOrder.status]?.variant || "secondary"} className="w-fit">
+                {ORDER_STATUS_LABELS[selectedOrder.status]?.label || selectedOrder.status}
+              </Badge>
+            )}
+          </div>
         </div>
       )}
 
@@ -482,29 +517,29 @@ export function PharmacyDispense({
               </div>
             </div>
             <div className="p-3">
-              <table className="w-full min-w-[640px] text-sm">
+              <table className="w-full table-fixed text-xs">
                 <tbody>
                   <tr className="border-b">
-                    <td className="py-2 text-muted-foreground w-1/4">Diagnosis</td>
-                    <td className="py-2 font-medium">{selectedOrder.diagnosis || "-"}</td>
+                    <td className="py-1.5 text-muted-foreground w-28 align-top">Diagnosis</td>
+                    <td className="py-1.5 font-medium break-words">{selectedOrder.diagnosis || "-"}</td>
                   </tr>
                   <tr className="border-b">
-                    <td className="py-2 text-muted-foreground">Ruang Asal</td>
-                    <td className="py-2 font-medium">{selectedOrder.source_room?.name || "-"}</td>
+                    <td className="py-1.5 text-muted-foreground align-top">Ruang Asal</td>
+                    <td className="py-1.5 font-medium break-words">{selectedOrder.source_room?.name || "-"}</td>
                   </tr>
                   <tr className="border-b">
-                    <td className="py-2 text-muted-foreground">Petugas Order</td>
-                    <td className="py-2 font-medium">{selectedOrder.prescriber?.nama_lengkap || "-"}</td>
+                    <td className="py-1.5 text-muted-foreground align-top">Petugas Order</td>
+                    <td className="py-1.5 font-medium break-words">{selectedOrder.prescriber?.nama_lengkap || "-"}</td>
                   </tr>
                   <tr className="border-b">
-                    <td className="py-2 text-muted-foreground">Waktu Order</td>
-                    <td className="py-2 font-medium">
+                    <td className="py-1.5 text-muted-foreground align-top">Waktu Order</td>
+                    <td className="py-1.5 font-medium break-words">
                       {selectedOrder.created_at ? new Date(selectedOrder.created_at).toLocaleString("id-ID") : "-"}
                     </td>
                   </tr>
                   <tr>
-                    <td className="py-2 text-muted-foreground">Prioritas</td>
-                    <td className="py-2">
+                    <td className="py-1.5 text-muted-foreground align-top">Prioritas</td>
+                    <td className="py-1.5">
                       <Badge variant={selectedOrder.priority === "urgent" ? "destructive" : "outline"}>
                         {selectedOrder.priority === "urgent" ? "Urgent" : "Normal"}
                       </Badge>
@@ -527,17 +562,6 @@ export function PharmacyDispense({
             </div>
           )}
 
-          {allDelivered && (
-            <div className="border border-green-200 bg-green-50 dark:bg-green-950 rounded-lg p-3">
-              <div className="flex items-center gap-2 text-green-700 dark:text-green-300">
-                <CheckCircle2 className="h-4 w-4" />
-                <p className="text-sm">
-                  Semua obat sudah diserahkan.
-                </p>
-              </div>
-            </div>
-          )}
-
           {/* Dispense Items */}
           <div className="border rounded-lg">
             <div className="p-3 border-b bg-muted/30">
@@ -546,8 +570,29 @@ export function PharmacyDispense({
                   <Package className="h-4 w-4" />
                   Daftar Obat untuk Diserahkan
                 </Label>
-                {canDispense && !allDelivered && (
+                <div className="flex items-center gap-3">
                   <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="show_selected_only"
+                      checked={showSelectedOnly}
+                      onCheckedChange={(checked) => setShowSelectedOnly(checked === true)}
+                    />
+                    <Label htmlFor="show_selected_only" className="text-xs text-muted-foreground">
+                      Hanya terpilih
+                    </Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="show_delivered_rows"
+                      checked={showDeliveredRows}
+                      onCheckedChange={(checked) => setShowDeliveredRows(checked === true)}
+                    />
+                    <Label htmlFor="show_delivered_rows" className="text-xs text-muted-foreground">
+                      Tampilkan item selesai
+                    </Label>
+                  </div>
+                  {canDispense && !allDelivered && (
+                    <div className="flex items-center gap-2">
                     <Checkbox
                       id="select_all"
                       checked={dispenseItems.filter((i) => i.remaining > 0).every((i) => i.selected)}
@@ -557,10 +602,14 @@ export function PharmacyDispense({
                       Pilih Semua
                     </Label>
                   </div>
-                )}
+                  )}
+                </div>
               </div>
             </div>
             <div className="p-3">
+              <div className="mb-2 text-xs text-muted-foreground">
+                Menampilkan {visibleDispenseItems.length} dari {dispenseItems.length} item.
+              </div>
               {allDelivered && (
                 <div className="flex items-center gap-2 text-green-600 dark:text-green-400 text-sm bg-green-50 dark:bg-green-950 p-3 rounded-lg mb-4 border border-green-200">
                   <CheckCircle2 className="h-5 w-5" />
@@ -568,105 +617,118 @@ export function PharmacyDispense({
                 </div>
               )}
               
-              <div className="space-y-3">
-                {dispenseItems.map((dispenseItem) => {
-                  const { item, remaining, selected, dispensed_qty } = dispenseItem;
-                  const isDelivered = remaining === 0;
-                  const unitPrice = Number((item as any).unit_price ?? (item as any).price ?? (item.medicine as any)?.selling_price ?? 0);
-                  const orderedSubtotal = unitPrice * Number(item.quantity || 0);
-                  const dispensedSubtotal = unitPrice * Number(item.dispensed_qty || 0);
+              <div className="border rounded-lg">
+                <table className="w-full table-fixed text-xs">
+                  <thead className="bg-muted/50 border-b">
+                    <tr>
+                      <th className="py-1.5 px-2 text-left font-medium w-[8%]">Pilih</th>
+                      <th className="py-1.5 px-2 text-left font-medium w-[34%]">Obat</th>
+                      <th className="py-1.5 px-2 text-left font-medium hidden xl:table-cell w-[14%]">Aturan</th>
+                      <th className="py-1.5 px-2 text-left font-medium w-[18%]">Qty</th>
+                      <th className="py-1.5 px-2 text-left font-medium w-[12%]">Qty Serah</th>
+                      <th className="py-1.5 px-2 text-right font-medium hidden lg:table-cell w-[8%]">Harga</th>
+                      <th className="py-1.5 px-2 text-right font-medium w-[10%]">Subtotal</th>
+                      <th className="py-1.5 px-2 text-left font-medium w-[10%]">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visibleDispenseItems.map((dispenseItem) => {
+                      const { item, remaining, selected, dispensed_qty } = dispenseItem;
+                      const isDelivered = remaining === 0;
+                      const unitPrice = Number((item as any).unit_price ?? (item as any).price ?? (item.medicine as any)?.selling_price ?? 0);
+                      const orderedSubtotal = unitPrice * Number(item.quantity || 0);
 
-                  return (
-                    <div
-                      key={item.id}
-                      className={`p-3 rounded-lg border ${
-                        isDelivered
-                          ? "bg-green-50 dark:bg-green-950 border-green-200"
-                          : selected
-                          ? "bg-blue-50 dark:bg-blue-950 border-blue-200"
-                          : "bg-muted/50"
-                      }`}
-                    >
-                      <div className="flex items-start gap-3">
-                        {!isDelivered && canDispense && (
-                          <Checkbox
-                            checked={selected}
-                            onCheckedChange={(checked) =>
-                              handleSelectItem(item.id!, checked as boolean)
-                            }
-                            className="mt-1"
-                            disabled={readOnly}
-                          />
-                        )}
-                        <div className="flex-1">
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <p className="font-medium flex items-center gap-2">
-                                <Pill className="h-4 w-4" />
-                                {item.medicine?.name || "Obat"}
-                              </p>
-                              <p className="text-sm text-muted-foreground">
-                                {item.medicine?.generic_name}
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Badge variant={ITEM_STATUS_LABELS[item.status]?.variant || "secondary"}>
-                                {ITEM_STATUS_LABELS[item.status]?.label || item.status}
-                              </Badge>
-                            </div>
-                          </div>
-                          <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
-                            <div>
-                              <span className="text-muted-foreground">Dipesan:</span>{" "}
-                              <span className="font-medium">{item.quantity} {item.unit}</span>
-                            </div>
-                            <div>
-                              <span className="text-muted-foreground">Sudah diserahkan:</span>{" "}
-                              <span className="font-medium">{item.dispensed_qty || 0} {item.unit}</span>
-                            </div>
-                            <div>
-                              <span className="text-muted-foreground">Harga Satuan:</span>{" "}
-                              <span className="font-medium">{formatRupiah(unitPrice)}</span>
-                            </div>
-                            <div>
-                              <span className="text-muted-foreground">Subtotal Dipesan:</span>{" "}
-                              <span className="font-medium">{formatRupiah(orderedSubtotal)}</span>
-                            </div>
-                            <div className="col-span-2">
-                              <span className="text-muted-foreground">Subtotal Terserah:</span>{" "}
-                              <span className="font-medium">{formatRupiah(dispensedSubtotal)}</span>
-                            </div>
-                          </div>
-                          {remaining > 0 && canDispense && selected && (
-                            <div className="mt-3 flex items-center gap-2">
-                              <Label className="text-sm">Jumlah diserahkan:</Label>
-                              <Input
-                                type="number"
-                                min={1}
-                                max={remaining}
-                                value={dispensed_qty}
-                                onChange={(e) =>
-                                  handleQuantityChange(item.id!, parseInt(e.target.value) || 0)
-                                }
-                                className="w-24 h-8"
+                      return (
+                        <tr
+                          key={item.id || dispenseItem.item_id}
+                          className={
+                            isDelivered
+                              ? "border-t bg-green-50/60 dark:bg-green-950/20"
+                              : selected
+                              ? "border-t bg-blue-50/60 dark:bg-blue-950/20"
+                              : "border-t"
+                          }
+                        >
+                          <td className="py-1.5 px-2 align-top">
+                            {!isDelivered && canDispense ? (
+                              <Checkbox
+                                checked={selected}
+                                onCheckedChange={(checked) => handleSelectItem(item.id!, checked as boolean)}
                                 disabled={readOnly}
                               />
-                              <span className="text-sm text-muted-foreground">
-                                (maks: {remaining})
-                              </span>
-                            </div>
-                          )}
-                          {isDelivered && (
-                            <div className="mt-2 flex items-center gap-2 text-green-600">
-                              <CheckCircle2 className="h-4 w-4" />
-                              <span className="text-sm">Sudah diserahkan semua</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+                            ) : (
+                              <span className="text-xs text-muted-foreground">-</span>
+                            )}
+                          </td>
+                          <td className="py-1.5 px-2 align-top">
+                            <p className="font-medium leading-5 break-words">{item.medicine?.name || "Obat"}</p>
+                            <p className="text-[11px] text-muted-foreground break-words">{item.medicine?.generic_name || "-"}</p>
+                          </td>
+                          <td className="py-1.5 px-2 align-top hidden xl:table-cell">
+                            <p className="text-[11px] break-words">{item.dosage || "-"}</p>
+                            <p className="text-[11px] text-muted-foreground break-words">{item.frequency || "-"} / {item.route || "-"}</p>
+                          </td>
+                          <td className="py-1.5 px-2 align-top text-[11px]">
+                            <p>Dipesan: <span className="font-medium">{item.quantity} {item.unit}</span></p>
+                            <p>Diserah: <span className="font-medium">{item.dispensed_qty || 0} {item.unit}</span></p>
+                            <p className="text-muted-foreground">Sisa: {remaining} {item.unit}</p>
+                          </td>
+                          <td className="py-1.5 px-2 align-top">
+                            {remaining > 0 && canDispense ? (
+                              <div className="space-y-1">
+                                <Input
+                                  type="number"
+                                  min={1}
+                                  max={remaining}
+                                  value={dispensed_qty}
+                                  onChange={(e) => handleQuantityChange(item.id!, parseInt(e.target.value) || 0)}
+                                  className="h-7 w-16 text-xs"
+                                  disabled={readOnly || !selected}
+                                />
+                                <span className="text-[11px] text-muted-foreground block">maks {remaining}</span>
+                              </div>
+                            ) : (
+                              <span className="text-[11px] text-muted-foreground">-</span>
+                            )}
+                          </td>
+                          <td className="py-1.5 px-2 text-right align-top font-medium whitespace-nowrap hidden lg:table-cell">{formatRupiah(unitPrice)}</td>
+                          <td className="py-1.5 px-2 text-right align-top font-medium whitespace-nowrap">{formatRupiah(orderedSubtotal)}</td>
+                          <td className="py-1.5 px-2 align-top">
+                            <Badge variant={ITEM_STATUS_LABELS[item.status]?.variant || "secondary"}>
+                              {ITEM_STATUS_LABELS[item.status]?.label || item.status}
+                            </Badge>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {visibleDispenseItems.length === 0 && (
+                      <tr>
+                        <td colSpan={8} className="py-3 px-2 text-center text-xs text-muted-foreground">
+                          Tidak ada item aktif yang perlu diserahkan.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t bg-muted/30">
+                      <td colSpan={6} className="py-2 px-2 text-right text-xs text-muted-foreground">Total Dipesan</td>
+                      <td className="py-2 px-2 text-right font-semibold whitespace-nowrap">{formatRupiah(orderedGrandTotal)}</td>
+                      <td className="py-2 px-2" />
+                    </tr>
+                    <tr className="border-t bg-muted/30">
+                      <td colSpan={6} className="py-2 px-2 text-right text-xs text-muted-foreground">Total Sudah Diserahkan</td>
+                      <td className="py-2 px-2 text-right font-semibold whitespace-nowrap">{formatRupiah(deliveredGrandTotal)}</td>
+                      <td className="py-2 px-2" />
+                    </tr>
+                    {canDispense && !allDelivered && (
+                      <tr className="border-t bg-primary/5">
+                        <td colSpan={6} className="py-2 px-2 text-right text-xs text-muted-foreground">Total Akan Diserahkan (Terpilih)</td>
+                        <td className="py-2 px-2 text-right font-semibold text-primary whitespace-nowrap">{formatRupiah(selectedDispenseGrandTotal)}</td>
+                        <td className="py-2 px-2" />
+                      </tr>
+                    )}
+                  </tfoot>
+                </table>
               </div>
 
               {/* Action buttons */}
@@ -680,12 +742,6 @@ export function PharmacyDispense({
                     <Printer className="h-4 w-4 mr-2" />
                     Cetak Daftar Obat
                   </Button>
-                )}
-                
-                {canDispense && !allDelivered && (
-                  <div className="flex-1 rounded border border-dashed px-3 py-2 text-sm text-muted-foreground">
-                    Gunakan tombol Simpan di footer untuk menyerahkan obat terpilih.
-                  </div>
                 )}
 
                 {/* Signature button - show when all delivered */}
