@@ -263,7 +263,7 @@ function OrderCollapsible({ order, onCancel, canCancel }: { order: ProcedureOrde
       });
       return;
     }
-    
+
     setIsPrinting(true);
     try {
       const url = await printApi.queueTicket(queueId);
@@ -337,7 +337,7 @@ function OrderCollapsible({ order, onCancel, canCancel }: { order: ProcedureOrde
         <CollapsibleContent>
           <div className="mt-3 ml-6 space-y-3">
             {/* Order Info Table */}
-            <div className="bg-muted/30 rounded-lg p-3">
+            <div className="bg-muted/30 border border-border/70 p-3">
               <table className="w-full min-w-[640px] text-sm">
                 <tbody>
                   <tr>
@@ -394,7 +394,7 @@ function OrderCollapsible({ order, onCancel, canCancel }: { order: ProcedureOrde
 
             {/* Order Items Table */}
             {order.items && order.items.length > 0 && (
-              <div className="border rounded-lg overflow-x-auto">
+              <div className="border border-border/70 overflow-x-auto">
                 <table className="w-full min-w-[640px] text-sm">
                   <thead className="bg-muted/50">
                     <tr>
@@ -511,7 +511,7 @@ export function SurgeryOrderForm({ visitId, readOnly = false }: SurgeryOrderForm
         procedureOrdersApi.getSurgeryRooms(),
       ]);
       const orders = ordersRes.data || [];
-      
+
       // Recalculate status for orders that might have inconsistent status
       for (const order of orders) {
         if (order.status !== "completed" && order.status !== "cancelled") {
@@ -522,7 +522,7 @@ export function SurgeryOrderForm({ visitId, readOnly = false }: SurgeryOrderForm
           }
         }
       }
-      
+
       // Reload orders after recalculation
       const updatedOrdersRes = await procedureOrdersApi.getBySourceVisit(visitId, "surgery");
       setExistingOrders(updatedOrdersRes.data || []);
@@ -603,7 +603,7 @@ export function SurgeryOrderForm({ visitId, readOnly = false }: SurgeryOrderForm
     const orderId = cancelConfirmOrderId;
     if (!orderId) return;
     setCancelConfirmOrderId(null);
-    
+
     try {
       await procedureOrdersApi.cancel(orderId, "Dibatalkan oleh dokter");
       toast({
@@ -688,7 +688,7 @@ export function SurgeryOrderForm({ visitId, readOnly = false }: SurgeryOrderForm
 
       // Reload orders
       loadData();
-      
+
       // Trigger refresh print options dan final visit
       window.dispatchEvent(new CustomEvent("refresh-print-options"));
       window.dispatchEvent(new CustomEvent("refresh-final-visit"));
@@ -721,357 +721,353 @@ export function SurgeryOrderForm({ visitId, readOnly = false }: SurgeryOrderForm
     <div>
       <div className="p-0">
         {/* Inline Tabs with Underline */}
-        <div className="border-b">
-          <div className="flex">
+        <div>
+          <div className="flex items-center gap-6 px-4">
             <button
               onClick={() => setActiveTab("form")}
               className={cn(
-                "px-4 py-2.5 text-sm font-medium transition-colors relative",
+                "py-3 text-sm font-medium transition-colors relative flex items-center gap-2",
                 activeTab === "form"
-                  ? "text-primary"
+                  ? "text-foreground"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
-              <span className="flex items-center gap-2">
-                <Scissors className="h-4 w-4" />
-                Order Baru
-              </span>
+              <Scissors className={cn("h-4 w-4", activeTab === "form" ? "text-primary" : "text-muted-foreground")} />
+              Order Baru
               {activeTab === "form" && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
+                <div className="absolute bottom-[-1px] left-0 right-0 h-[2px] bg-primary rounded-t-sm" />
               )}
             </button>
             <button
               onClick={() => setActiveTab("history")}
               className={cn(
-                "px-4 py-2.5 text-sm font-medium transition-colors relative",
+                "py-3 text-sm font-medium transition-colors relative flex items-center gap-2",
                 activeTab === "history"
-                  ? "text-primary"
+                  ? "text-foreground"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
-              <span className="flex items-center gap-2">
-                <Clock className="h-4 w-4" />
-                Riwayat Order
-                {existingOrders.length > 0 && (
-                  <Badge variant="secondary" className="ml-1 h-5 px-1.5">
-                    {existingOrders.length}
-                  </Badge>
-                )}
-              </span>
+              <Clock className={cn("h-4 w-4", activeTab === "history" ? "text-primary" : "text-muted-foreground")} />
+              Riwayat Order
+              {existingOrders.length > 0 && (
+                <Badge variant="secondary" className="ml-1 h-5 px-1.5 font-normal">
+                  {existingOrders.length}
+                </Badge>
+              )}
               {activeTab === "history" && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
+                <div className="absolute bottom-[-1px] left-0 right-0 h-[2px] bg-primary rounded-t-sm" />
               )}
             </button>
           </div>
         </div>
 
         <div className="p-4">
-            {/* Order Form Tab */}
-            {activeTab === "form" && canOrder && (
-              <fieldset disabled={readOnly} className="space-y-4 [&_input]:h-10 [&_[role=combobox]]:h-10">
-            <div className="border border-border/70">
-              <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                Konfigurasi Order
-              </div>
-              <div className="space-y-4 p-3 sm:p-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Kamar Operasi Tujuan</Label>
-                <Select
-                  value={selectedRoom?.toString() || ""}
-                  onValueChange={(value) => setSelectedRoom(Number(value))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Pilih kamar operasi" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {surgeryRooms.map((room) => (
-                      <SelectItem key={room.id} value={room.id.toString()}>
-                        {room.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Prioritas</Label>
-                <Select value={priority} onValueChange={setPriority}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="normal">Elektif</SelectItem>
-                    <SelectItem value="urgent">Urgent / Cito</SelectItem>
-                    <SelectItem value="cito">Emergency</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="flex items-center gap-1">
-                  <CalendarIcon className="h-3.5 w-3.5" />
-                  Jadwal Operasi
-                </Label>
-                <Input
-                  type="datetime-local"
-                  value={scheduledDate}
-                  onChange={(e) => setScheduledDate(e.target.value)}
-                />
-                {scheduledDate && (
-                  <p className="text-xs text-muted-foreground">
-                    Hari: {DAY_NAMES[new Date(scheduledDate).getDay()]}
-                  </p>
-                )}
-                {selectedDoctor && scheduledDate && (() => {
-                  const doc = availableDoctors.find(d => d.employee_id === selectedDoctor);
-                  if (!doc) return null;
-                  const time = scheduledDate.includes("T") ? scheduledDate.split("T")[1] : "";
-                  if (time && (time < doc.start_time || time > doc.end_time)) {
-                    return (
-                      <p className="text-xs text-destructive">
-                        Jam {time} di luar jadwal dokter ({doc.start_time} - {doc.end_time})
-                      </p>
-                    );
-                  }
-                  return null;
-                })()}
-              </div>
-              <div className="space-y-2">
-                <Label className="flex items-center gap-1">
-                  <User className="h-3.5 w-3.5" />
-                  Dokter Bedah
-                </Label>
-                {!scheduledDate ? (
-                  <div className="flex items-center h-9 px-3 border rounded-md text-sm text-muted-foreground bg-muted/30">
-                    Pilih jadwal operasi dahulu
-                  </div>
-                ) : roomClosed ? (
-                  <div className="flex items-center h-9 px-3 border border-destructive/50 rounded-md text-sm text-destructive bg-destructive/5">
-                    <AlertCircle className="h-4 w-4 mr-2" />
-                    Kamar operasi tutup di tanggal ini
-                  </div>
-                ) : availableDoctors.length > 0 ? (
-                  <Combobox
-                    options={availableDoctors.map((doc) => ({
-                      value: doc.employee_id.toString(),
-                      label: `${doc.employee_name} (${doc.start_time} - ${doc.end_time})`,
-                    }))}
-                    value={selectedDoctor?.toString() || ""}
-                    onValueChange={(value) => setSelectedDoctor(value ? Number(value) : null)}
-                    placeholder="Cari dokter bedah..."
-                    searchPlaceholder="Ketik nama dokter..."
-                    emptyText="Dokter tidak ditemukan"
-                    loading={loadingDoctors}
-                    disabled={readOnly}
-                  />
-                ) : loadingDoctors ? (
-                  <div className="flex items-center gap-2 h-9 px-3 border rounded-md text-sm text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Memuat dokter...
-                  </div>
-                ) : (
-                  <div className="flex items-center h-9 px-3 border border-amber-500/50 rounded-md text-sm text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950">
-                    <AlertCircle className="h-4 w-4 mr-2 shrink-0" />
-                    Tidak ada jadwal dokter di hari {DAY_NAMES[new Date(scheduledDate).getDay()]}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Diagnosis Pre-Operasi</Label>
-              <Textarea
-                placeholder="Tulis diagnosis pre-operasi"
-                value={diagnosis}
-                onChange={(e) => setDiagnosis(e.target.value)}
-                rows={2}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Catatan Klinis / Indikasi Operasi</Label>
-              <Textarea
-                placeholder="Catatan klinis, indikasi operasi, riwayat penyakit"
-                value={clinicalNotes}
-                onChange={(e) => setClinicalNotes(e.target.value)}
-                rows={2}
-              />
-            </div>
-              </div>
-            </div>
-
-            <div className="border border-border/70">
-              <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                Tindakan Operasi
-              </div>
-              <div className="space-y-4 p-3 sm:p-4">
-
-            {/* Procedure Selection */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <Label className="text-base font-medium">Pilih Tindakan Operasi</Label>
-                <Button
-                  type="button"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() => setShowAddDialog(true)}
-                  disabled={!selectedRoom || readOnly}
-                  aria-label="Tambah tindakan operasi"
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-
-            {orderItems.length > 0 ? (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <Label className="text-base font-medium">Tindakan Operasi Dipilih</Label>
-                  <Badge variant="secondary">{orderItems.length} item</Badge>
+          {/* Order Form Tab */}
+          {activeTab === "form" && canOrder && (
+            <fieldset disabled={readOnly} className="space-y-4 [&_input]:h-10 [&_[role=combobox]]:h-10">
+              <div className="border border-border/70">
+                <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  Konfigurasi Order
                 </div>
-                <div className="border rounded-lg divide-y">
-                  {orderItems.map((item) => (
-                    <div key={item.procedure_id} className="p-3 flex items-center justify-between gap-3">
-                      <div className="flex-1">
-                        <p className="font-medium text-sm">{item.procedure_name}</p>
-                        <p className="text-xs text-muted-foreground">{item.procedure_code}</p>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-destructive"
-                        onClick={() => handleRemoveItem(item.procedure_id)}
+                <div className="space-y-4 p-3 sm:p-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Kamar Operasi Tujuan</Label>
+                      <Select
+                        value={selectedRoom?.toString() || ""}
+                        onValueChange={(value) => setSelectedRoom(Number(value))}
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <SelectTrigger>
+                          <SelectValue placeholder="Pilih kamar operasi" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {surgeryRooms.map((room) => (
+                            <SelectItem key={room.id} value={room.id.toString()}>
+                              {room.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Prioritas</Label>
+                      <Select value={priority} onValueChange={setPriority}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="normal">Elektif</SelectItem>
+                          <SelectItem value="urgent">Urgent / Cito</SelectItem>
+                          <SelectItem value="cito">Emergency</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-1">
+                        <CalendarIcon className="h-3.5 w-3.5" />
+                        Jadwal Operasi
+                      </Label>
+                      <Input
+                        type="datetime-local"
+                        value={scheduledDate}
+                        onChange={(e) => setScheduledDate(e.target.value)}
+                      />
+                      {scheduledDate && (
+                        <p className="text-xs text-muted-foreground">
+                          Hari: {DAY_NAMES[new Date(scheduledDate).getDay()]}
+                        </p>
+                      )}
+                      {selectedDoctor && scheduledDate && (() => {
+                        const doc = availableDoctors.find(d => d.employee_id === selectedDoctor);
+                        if (!doc) return null;
+                        const time = scheduledDate.includes("T") ? scheduledDate.split("T")[1] : "";
+                        if (time && (time < doc.start_time || time > doc.end_time)) {
+                          return (
+                            <p className="text-xs text-destructive">
+                              Jam {time} di luar jadwal dokter ({doc.start_time} - {doc.end_time})
+                            </p>
+                          );
+                        }
+                        return null;
+                      })()}
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-1">
+                        <User className="h-3.5 w-3.5" />
+                        Dokter Bedah
+                      </Label>
+                      {!scheduledDate ? (
+                        <div className="flex items-center h-9 px-3 border rounded-md text-sm text-muted-foreground bg-muted/30">
+                          Pilih jadwal operasi dahulu
+                        </div>
+                      ) : roomClosed ? (
+                        <div className="flex items-center h-9 px-3 border border-destructive/50 rounded-md text-sm text-destructive bg-destructive/5">
+                          <AlertCircle className="h-4 w-4 mr-2" />
+                          Kamar operasi tutup di tanggal ini
+                        </div>
+                      ) : availableDoctors.length > 0 ? (
+                        <Combobox
+                          options={availableDoctors.map((doc) => ({
+                            value: doc.employee_id.toString(),
+                            label: `${doc.employee_name} (${doc.start_time} - ${doc.end_time})`,
+                          }))}
+                          value={selectedDoctor?.toString() || ""}
+                          onValueChange={(value) => setSelectedDoctor(value ? Number(value) : null)}
+                          placeholder="Cari dokter bedah..."
+                          searchPlaceholder="Ketik nama dokter..."
+                          emptyText="Dokter tidak ditemukan"
+                          loading={loadingDoctors}
+                          disabled={readOnly}
+                        />
+                      ) : loadingDoctors ? (
+                        <div className="flex items-center gap-2 h-9 px-3 border rounded-md text-sm text-muted-foreground">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Memuat dokter...
+                        </div>
+                      ) : (
+                        <div className="flex items-center h-9 px-3 border border-amber-500/50 rounded-md text-sm text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950">
+                          <AlertCircle className="h-4 w-4 mr-2 shrink-0" />
+                          Tidak ada jadwal dokter di hari {DAY_NAMES[new Date(scheduledDate).getDay()]}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Diagnosis Pre-Operasi</Label>
+                    <Textarea
+                      placeholder="Tulis diagnosis pre-operasi"
+                      value={diagnosis}
+                      onChange={(e) => setDiagnosis(e.target.value)}
+                      rows={2}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Catatan Klinis / Indikasi Operasi</Label>
+                    <Textarea
+                      placeholder="Catatan klinis, indikasi operasi, riwayat penyakit"
+                      value={clinicalNotes}
+                      onChange={(e) => setClinicalNotes(e.target.value)}
+                      rows={2}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="border border-border/70">
+                <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  Tindakan Operasi
+                </div>
+                <div className="space-y-4 p-3 sm:p-4">
+
+                  {/* Procedure Selection */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <Label className="text-base font-medium">Pilih Tindakan Operasi</Label>
+                      <Button
+                        type="button"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => setShowAddDialog(true)}
+                        disabled={!selectedRoom || readOnly}
+                        aria-label="Tambah tindakan operasi"
+                      >
+                        <Plus className="h-4 w-4" />
                       </Button>
                     </div>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="border-2 border-dashed rounded-lg p-8 text-center text-muted-foreground">
-                <Scissors className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                <p>Belum ada tindakan operasi dipilih</p>
-                <p className="text-sm">Gunakan tombol + untuk menambah tindakan.</p>
-              </div>
-            )}
+                  </div>
 
-            <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-              <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
-                <DialogHeader>
-                  <DialogTitle>Pilih Tindakan Operasi</DialogTitle>
-                </DialogHeader>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Cari tindakan operasi..."
-                    className="pl-9"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
-                </div>
-                <ScrollArea className="flex-1 max-h-[420px] border rounded-md">
-                  {!selectedRoom ? (
-                    <div className="text-center py-8 text-muted-foreground text-sm">Pilih kamar operasi terlebih dahulu.</div>
-                  ) : loadingProcedures ? (
-                    <div className="flex items-center justify-center py-8">
-                      <Loader2 className="h-6 w-6 animate-spin" />
-                    </div>
-                  ) : filteredProcedures.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground text-sm">
-                      {searchTerm ? "Tindakan tidak ditemukan" : "Tidak ada tindakan operasi tersedia"}
+                  {orderItems.length > 0 ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2 border-b border-border/70 pb-2">
+                        <Label className="text-base font-medium">Tindakan Operasi Dipilih</Label>
+                        <Badge variant="secondary">{orderItems.length} item</Badge>
+                      </div>
+                      <div className="border border-border/70 divide-y">
+                        {orderItems.map((item) => (
+                          <div key={item.procedure_id} className="p-3 flex items-center justify-between gap-3">
+                            <div className="flex-1">
+                              <p className="font-medium text-sm">{item.procedure_name}</p>
+                              <p className="text-xs text-muted-foreground">{item.procedure_code}</p>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-destructive"
+                              onClick={() => handleRemoveItem(item.procedure_id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   ) : (
-                    <div className="divide-y">
-                      {filteredProcedures.map((proc) => {
-                        const isSelected = orderItems.some((item) => item.procedure_id === proc.id);
-                        return (
-                          <button
-                            key={proc.id}
-                            type="button"
-                            className={cn(
-                              "w-full p-3 text-left flex items-center gap-3 hover:bg-muted/50",
-                              isSelected && "bg-primary/5"
-                            )}
-                            onClick={() => handleToggleProcedure(proc)}
-                          >
-                            <Checkbox checked={isSelected} />
-                            <div className="flex-1">
-                              <p className="font-medium text-sm">{proc.name}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {proc.code}
-                                {proc.description && ` • ${proc.description}`}
-                                {(proc as any).duration > 0 && ` • ${(proc as any).duration} menit`}
-                                {(proc as any).requires_anesthesia && " • Perlu Anestesi"}
-                              </p>
-                            </div>
-                          </button>
-                        );
-                      })}
+                    <div className="border border-dashed border-border/70 p-8 text-center text-muted-foreground">
+                      <Scissors className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                      <p>Belum ada tindakan operasi dipilih</p>
+                      <p className="text-sm">Gunakan tombol + untuk menambah tindakan.</p>
                     </div>
                   )}
-                </ScrollArea>
-              </DialogContent>
-            </Dialog>
+
+                  <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+                    <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+                      <DialogHeader>
+                        <DialogTitle>Pilih Tindakan Operasi</DialogTitle>
+                      </DialogHeader>
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          placeholder="Cari tindakan operasi..."
+                          className="pl-9"
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                      </div>
+                      <ScrollArea className="flex-1 max-h-[420px] border rounded-md">
+                        {!selectedRoom ? (
+                          <div className="text-center py-8 text-muted-foreground text-sm">Pilih kamar operasi terlebih dahulu.</div>
+                        ) : loadingProcedures ? (
+                          <div className="flex items-center justify-center py-8">
+                            <Loader2 className="h-6 w-6 animate-spin" />
+                          </div>
+                        ) : filteredProcedures.length === 0 ? (
+                          <div className="text-center py-8 text-muted-foreground text-sm">
+                            {searchTerm ? "Tindakan tidak ditemukan" : "Tidak ada tindakan operasi tersedia"}
+                          </div>
+                        ) : (
+                          <div className="divide-y">
+                            {filteredProcedures.map((proc) => {
+                              const isSelected = orderItems.some((item) => item.procedure_id === proc.id);
+                              return (
+                                <button
+                                  key={proc.id}
+                                  type="button"
+                                  className={cn(
+                                    "w-full p-3 text-left flex items-center gap-3 hover:bg-muted/50",
+                                    isSelected && "bg-primary/5"
+                                  )}
+                                  onClick={() => handleToggleProcedure(proc)}
+                                >
+                                  <Checkbox checked={isSelected} />
+                                  <div className="flex-1">
+                                    <p className="font-medium text-sm">{proc.name}</p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {proc.code}
+                                      {proc.description && ` • ${proc.description}`}
+                                      {(proc as any).duration > 0 && ` • ${(proc as any).duration} menit`}
+                                      {(proc as any).requires_anesthesia && " • Perlu Anestesi"}
+                                    </p>
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </ScrollArea>
+                    </DialogContent>
+                  </Dialog>
+                </div>
               </div>
+
+              {/* Submit Button */}
+              <div className="flex justify-stretch sm:justify-end pt-2">
+                <Button
+                  size="lg"
+                  className="w-full sm:w-auto"
+                  disabled={submitting || orderItems.length === 0 || readOnly}
+                  onClick={handleSubmitOrder}
+                >
+                  {submitting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Mengirim...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="h-4 w-4 mr-2" />
+                      Kirim Order ke Kamar Operasi
+                    </>
+                  )}
+                </Button>
+              </div>
+            </fieldset>
+          )}
+
+          {/* No permission notice for form tab */}
+          {activeTab === "form" && !canOrder && (
+            <div className="text-center py-12 text-muted-foreground">
+              <Scissors className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p>Anda tidak memiliki akses untuk membuat order operasi</p>
             </div>
+          )}
 
-            {/* Submit Button */}
-            <div className="flex justify-stretch sm:justify-end pt-2">
-              <Button
-                size="lg"
-                className="w-full sm:w-auto"
-                disabled={submitting || orderItems.length === 0 || readOnly}
-                onClick={handleSubmitOrder}
-              >
-                {submitting ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Mengirim...
-                  </>
-                ) : (
-                  <>
-                    <Send className="h-4 w-4 mr-2" />
-                    Kirim Order ke Kamar Operasi
-                  </>
-                )}
-              </Button>
+          {/* History Tab */}
+          {activeTab === "history" && (
+            <div className="space-y-2">
+              {existingOrders.length > 0 ? (
+                <div className="divide-y border border-border/70">
+                  {existingOrders.map((order) => (
+                    <OrderCollapsible
+                      key={order.id}
+                      order={order}
+                      onCancel={handleCancelOrder}
+                      canCancel={canOrder}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p>Belum ada riwayat order operasi</p>
+                </div>
+              )}
             </div>
-              </fieldset>
-            )}
-
-            {/* No permission notice for form tab */}
-            {activeTab === "form" && !canOrder && (
-              <div className="text-center py-12 text-muted-foreground">
-                <Scissors className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>Anda tidak memiliki akses untuk membuat order operasi</p>
-              </div>
-            )}
-
-            {/* History Tab */}
-            {activeTab === "history" && (
-              <div className="space-y-2">
-                {existingOrders.length > 0 ? (
-                  <div className="divide-y border rounded-lg">
-                    {existingOrders.map((order) => (
-                      <OrderCollapsible
-                        key={order.id}
-                        order={order}
-                        onCancel={handleCancelOrder}
-                        canCancel={canOrder}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                    <p>Belum ada riwayat order operasi</p>
-                  </div>
-                )}
-              </div>
-            )}
+          )}
         </div>
       </div>
 

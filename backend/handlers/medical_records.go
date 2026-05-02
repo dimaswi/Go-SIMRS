@@ -16,6 +16,17 @@ import (
 	"gorm.io/gorm"
 )
 
+// Helper to get CasemixEklaimID from query
+func getCasemixEklaimID(c *gin.Context) *uint {
+	if idStr := c.Query("casemix_eklaim_id"); idStr != "" {
+		if id, err := strconv.ParseUint(idStr, 10, 32); err == nil {
+			uid := uint(id)
+			return &uid
+		}
+	}
+	return nil
+}
+
 // ===========================================================================
 // TRIAGE HANDLERS
 // ===========================================================================
@@ -25,7 +36,7 @@ func GetTriage(c *gin.Context) {
 	visitID := c.Param("id")
 
 	var triage models.Triage
-	if err := database.DB.Where("visit_id = ?", visitID).Preload("TriagedBy").First(&triage).Error; err != nil {
+	if err := database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").Preload("TriagedBy").First(&triage).Error; err != nil {
 		// Return empty object if not found
 		c.JSON(http.StatusOK, gin.H{"visit_id": visitID})
 		return
@@ -103,7 +114,7 @@ func SaveTriage(c *gin.Context) {
 
 	// Find or create triage
 	var triage models.Triage
-	err := database.DB.Where("visit_id = ?", visitID).First(&triage).Error
+	err := database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").First(&triage).Error
 
 	var triagerID *uint
 	if userID > 0 {
@@ -113,8 +124,10 @@ func SaveTriage(c *gin.Context) {
 	if err != nil {
 		// Create new
 		triage = models.Triage{
-			VisitID:     visit.ID,
-			TriagedByID: triagerID,
+			VisitID:         visit.ID,
+			IsCasemix:       c.Query("is_casemix") == "true",
+			CasemixEklaimID: getCasemixEklaimID(c),
+			TriagedByID:     triagerID,
 		}
 	} else if triagerID != nil {
 		triage.TriagedByID = triagerID
@@ -184,7 +197,7 @@ func GetAnamnesis(c *gin.Context) {
 	visitID := c.Param("id")
 
 	var anamnesis models.Anamnesis
-	if err := database.DB.Where("visit_id = ?", visitID).Preload("RecordedBy").First(&anamnesis).Error; err != nil {
+	if err := database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").Preload("RecordedBy").First(&anamnesis).Error; err != nil {
 		// Return empty object if not found
 		c.JSON(http.StatusOK, gin.H{"visit_id": visitID})
 		return
@@ -223,7 +236,7 @@ func SaveAnamnesis(c *gin.Context) {
 	}
 
 	var anamnesis models.Anamnesis
-	err := database.DB.Where("visit_id = ?", visitID).First(&anamnesis).Error
+	err := database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").First(&anamnesis).Error
 
 	var recorderID *uint
 	if userID > 0 {
@@ -232,8 +245,10 @@ func SaveAnamnesis(c *gin.Context) {
 
 	if err != nil {
 		anamnesis = models.Anamnesis{
-			VisitID:      visit.ID,
-			RecordedByID: recorderID,
+			VisitID:         visit.ID,
+			IsCasemix:       c.Query("is_casemix") == "true",
+			CasemixEklaimID: getCasemixEklaimID(c),
+			RecordedByID:    recorderID,
 		}
 	} else if recorderID != nil {
 		anamnesis.RecordedByID = recorderID
@@ -267,7 +282,7 @@ func GetPhysicalExam(c *gin.Context) {
 	visitID := c.Param("id")
 
 	var physExam models.PhysicalExamination
-	if err := database.DB.Where("visit_id = ?", visitID).Preload("ExaminedBy").First(&physExam).Error; err != nil {
+	if err := database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").Preload("ExaminedBy").First(&physExam).Error; err != nil {
 		// Return empty object if not found
 		c.JSON(http.StatusOK, gin.H{"visit_id": visitID})
 		return
@@ -352,7 +367,7 @@ func SavePhysicalExam(c *gin.Context) {
 	}
 
 	var physExam models.PhysicalExamination
-	err := database.DB.Where("visit_id = ?", visitID).First(&physExam).Error
+	err := database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").First(&physExam).Error
 
 	var examinerID *uint
 	if userID > 0 {
@@ -361,8 +376,10 @@ func SavePhysicalExam(c *gin.Context) {
 
 	if err != nil {
 		physExam = models.PhysicalExamination{
-			VisitID:      visit.ID,
-			ExaminedByID: examinerID,
+			VisitID:         visit.ID,
+			IsCasemix:       c.Query("is_casemix") == "true",
+			CasemixEklaimID: getCasemixEklaimID(c),
+			ExaminedByID:    examinerID,
 		}
 	} else if examinerID != nil {
 		physExam.ExaminedByID = examinerID
@@ -524,14 +541,14 @@ func GetDiagnoses(c *gin.Context) {
 	visitID := c.Param("id")
 
 	var diagnoses []models.Diagnosis
-	if err := database.DB.Where("visit_id = ?", visitID).Preload("DiagnosedBy").Find(&diagnoses).Error; err != nil {
+	if err := database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").Preload("DiagnosedBy").Find(&diagnoses).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
 	// Get diagnosis summary
 	var summary models.DiagnosisSummary
-	database.DB.Where("visit_id = ?", visitID).First(&summary)
+	database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").First(&summary)
 
 	// Transform to frontend expected format
 	items := make([]gin.H, 0)
@@ -619,7 +636,7 @@ func SaveDiagnoses(c *gin.Context) {
 	}
 
 	// Delete existing diagnoses for this visit
-	database.DB.Where("visit_id = ?", visitID).Delete(&models.Diagnosis{})
+	database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").Delete(&models.Diagnosis{})
 
 	// Create new diagnoses
 	var diagUserID *uint
@@ -709,6 +726,8 @@ func SaveDiagnoses(c *gin.Context) {
 
 		diagnosis := models.Diagnosis{
 			VisitID:               visit.ID,
+			IsCasemix:             c.Query("is_casemix") == "true",
+			CasemixEklaimID:       getCasemixEklaimID(c),
 			ICD10Code:             diag.ICD10Code,
 			ICD10Name:             diag.ICD10Name,
 			Type:                  diagnosisType,
@@ -731,11 +750,11 @@ func SaveDiagnoses(c *gin.Context) {
 
 	// Save or update diagnosis summary (clinical impression & differential diagnosis)
 	var summary models.DiagnosisSummary
-	database.DB.Where("visit_id = ?", visitID).First(&summary)
+	database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").First(&summary)
 
 	if summary.ID == 0 {
 		summary = models.DiagnosisSummary{
-			VisitID:     visit.ID,
+			VisitID: visit.ID,
 			CreatedByID: diagUserID,
 		}
 	}
@@ -765,7 +784,7 @@ func GetAssessmentPlan(c *gin.Context) {
 	visitID := c.Param("id")
 
 	var assessmentPlan models.AssessmentPlan
-	if err := database.DB.Where("visit_id = ?", visitID).Preload("AssessedBy").First(&assessmentPlan).Error; err != nil {
+	if err := database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").Preload("AssessedBy").First(&assessmentPlan).Error; err != nil {
 		// Return empty object if not found
 		c.JSON(http.StatusOK, gin.H{"visit_id": visitID})
 		return
@@ -805,7 +824,7 @@ func SaveAssessmentPlan(c *gin.Context) {
 	}
 
 	var assessmentPlan models.AssessmentPlan
-	err := database.DB.Where("visit_id = ?", visitID).First(&assessmentPlan).Error
+	err := database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").First(&assessmentPlan).Error
 
 	var assessorID *uint
 	if userID > 0 {
@@ -814,8 +833,10 @@ func SaveAssessmentPlan(c *gin.Context) {
 
 	if err != nil {
 		assessmentPlan = models.AssessmentPlan{
-			VisitID:      visit.ID,
-			AssessedByID: assessorID,
+			VisitID:         visit.ID,
+			IsCasemix:       c.Query("is_casemix") == "true",
+			CasemixEklaimID: getCasemixEklaimID(c),
+			AssessedByID:    assessorID,
 		}
 	} else if assessorID != nil {
 		assessmentPlan.AssessedByID = assessorID
@@ -898,7 +919,7 @@ func GetDischargePlanning(c *gin.Context) {
 	visitID := c.Param("id")
 
 	var planning models.DischargePlanning
-	if err := database.DB.Where("visit_id = ?", visitID).Preload("UpdatedBy").First(&planning).Error; err != nil {
+	if err := database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").Preload("UpdatedBy").First(&planning).Error; err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"visit_id": visitID,
 			"items":    []dischargePlanningItemPayload{},
@@ -952,7 +973,7 @@ func SaveDischargePlanning(c *gin.Context) {
 	}
 
 	var planning models.DischargePlanning
-	err = database.DB.Where("visit_id = ?", visitID).First(&planning).Error
+	err = database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").First(&planning).Error
 
 	var updatedByID *uint
 	if userID > 0 {
@@ -961,7 +982,9 @@ func SaveDischargePlanning(c *gin.Context) {
 
 	if err != nil {
 		planning = models.DischargePlanning{
-			VisitID: visit.ID,
+			VisitID:         visit.ID,
+			IsCasemix:       c.Query("is_casemix") == "true",
+			CasemixEklaimID: getCasemixEklaimID(c),
 		}
 	}
 
@@ -994,7 +1017,7 @@ func GetBodyMarkers(c *gin.Context) {
 	visitID := c.Param("id")
 
 	var marker models.BodyMarker
-	if err := database.DB.Where("visit_id = ?", visitID).Preload("UpdatedBy").First(&marker).Error; err != nil {
+	if err := database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").Preload("UpdatedBy").First(&marker).Error; err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"visit_id": visitID,
 			"items":    []bodyMarkerItemPayload{},
@@ -1048,7 +1071,7 @@ func SaveBodyMarkers(c *gin.Context) {
 	}
 
 	var marker models.BodyMarker
-	err = database.DB.Where("visit_id = ?", visitID).First(&marker).Error
+	err = database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").First(&marker).Error
 
 	var updatedByID *uint
 	if userID > 0 {
@@ -1057,7 +1080,9 @@ func SaveBodyMarkers(c *gin.Context) {
 
 	if err != nil {
 		marker = models.BodyMarker{
-			VisitID: visit.ID,
+			VisitID:         visit.ID,
+			IsCasemix:       c.Query("is_casemix") == "true",
+			CasemixEklaimID: getCasemixEklaimID(c),
 		}
 	}
 
@@ -1364,8 +1389,10 @@ func SaveDisposition(c *gin.Context) {
 	if err != nil {
 		// No existing disposition, create new
 		disposition = models.Disposition{
-			VisitID:        visit.ID,
-			DischargedByID: dischargerID,
+			VisitID:         visit.ID,
+			IsCasemix:       c.Query("is_casemix") == "true",
+			CasemixEklaimID: getCasemixEklaimID(c),
+			DischargedByID:  dischargerID,
 		}
 	} else {
 		// Found existing disposition (might be soft-deleted)
@@ -1674,7 +1701,7 @@ func CancelDisposition(c *gin.Context) {
 
 	var disposition models.Disposition
 	dispositionFound := true
-	if err := database.DB.Where("visit_id = ?", visitID).First(&disposition).Error; err != nil {
+	if err := database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").First(&disposition).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			dispositionFound = false
 		} else {
@@ -1799,7 +1826,7 @@ func CancelFollowUpRegistration(c *gin.Context) {
 	visitID := c.Param("id")
 
 	var disposition models.Disposition
-	if err := database.DB.Where("visit_id = ?", visitID).First(&disposition).Error; err != nil {
+	if err := database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").First(&disposition).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Disposisi tidak ditemukan"})
 		return
 	}
@@ -2402,25 +2429,25 @@ func GetMedicalRecordSummary(c *gin.Context) {
 
 	// Get all components
 	var triage models.Triage
-	database.DB.Where("visit_id = ?", visitID).Preload("TriagedBy").First(&triage)
+	database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").Preload("TriagedBy").First(&triage)
 
 	var anamnesis models.Anamnesis
-	database.DB.Where("visit_id = ?", visitID).Preload("RecordedBy").First(&anamnesis)
+	database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").Preload("RecordedBy").First(&anamnesis)
 
 	var physExam models.PhysicalExamination
-	database.DB.Where("visit_id = ?", visitID).Preload("ExaminedBy").First(&physExam)
+	database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").Preload("ExaminedBy").First(&physExam)
 
 	var diagnoses []models.Diagnosis
-	database.DB.Where("visit_id = ?", visitID).Preload("DiagnosedBy").Find(&diagnoses)
+	database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").Preload("DiagnosedBy").Find(&diagnoses)
 
 	var diagnosisSummary models.DiagnosisSummary
-	database.DB.Where("visit_id = ?", visitID).First(&diagnosisSummary)
+	database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").First(&diagnosisSummary)
 
 	var assessmentPlan models.AssessmentPlan
-	database.DB.Where("visit_id = ?", visitID).Preload("AssessedBy").First(&assessmentPlan)
+	database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").Preload("AssessedBy").First(&assessmentPlan)
 
 	var disposition models.Disposition
-	database.DB.Where("visit_id = ?", visitID).Preload("DischargedBy").First(&disposition)
+	database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").Preload("DischargedBy").First(&disposition)
 
 	var visitMedicineItems []models.VisitMedicineItem
 	database.DB.Where("visit_id = ? AND status != ?", visitID, models.VisitMedicineStatusCancelled).
@@ -2430,7 +2457,7 @@ func GetMedicalRecordSummary(c *gin.Context) {
 		Find(&visitMedicineItems)
 
 	var bodyMarker models.BodyMarker
-	database.DB.Where("visit_id = ?", visitID).Preload("UpdatedBy").First(&bodyMarker)
+	database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").Preload("UpdatedBy").First(&bodyMarker)
 	bodyMarkerItems := make([]bodyMarkerItemPayload, 0)
 	if strings.TrimSpace(bodyMarker.ItemsJSON) != "" {
 		_ = json.Unmarshal([]byte(bodyMarker.ItemsJSON), &bodyMarkerItems)
@@ -2567,7 +2594,7 @@ func SaveConsultation(c *gin.Context) {
 
 	// Simpan sebagai Consultation
 	consultation := models.Consultation{
-		VisitID:          visit.ID,
+		VisitID: visit.ID,
 		ProcedureOrderID: procedureOrderID,
 		Subjective:       input.Subjective,
 		Objective:        input.Objective,
@@ -3035,7 +3062,7 @@ func generateDeathCertificateNumber() string {
 func GetHealthCertificates(c *gin.Context) {
 	visitID := c.Param("id")
 	var certs []models.HealthCertificate
-	database.DB.Where("visit_id = ?", visitID).Preload("IssuedBy").Order("created_at DESC").Find(&certs)
+	database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").Preload("IssuedBy").Order("created_at DESC").Find(&certs)
 	c.JSON(http.StatusOK, certs)
 }
 
@@ -3134,7 +3161,7 @@ func generateHealthCertificateNumber() string {
 func GetBirthCertificates(c *gin.Context) {
 	visitID := c.Param("id")
 	var certs []models.BirthCertificate
-	database.DB.Where("visit_id = ?", visitID).Preload("IssuedBy").Order("created_at DESC").Find(&certs)
+	database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").Preload("IssuedBy").Order("created_at DESC").Find(&certs)
 	c.JSON(http.StatusOK, certs)
 }
 
@@ -3267,7 +3294,7 @@ func generateBirthCertificateNumber() string {
 func GetLeaveCertificates(c *gin.Context) {
 	visitID := c.Param("id")
 	var certs []models.LeaveCertificate
-	database.DB.Where("visit_id = ?", visitID).Preload("IssuedBy").Order("created_at DESC").Find(&certs)
+	database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").Preload("IssuedBy").Order("created_at DESC").Find(&certs)
 	c.JSON(http.StatusOK, certs)
 }
 
@@ -3384,7 +3411,7 @@ func generateLeaveCertificateNumber() string {
 func GetMCUCertificates(c *gin.Context) {
 	visitID := c.Param("id")
 	var certs []models.MCUCertificate
-	database.DB.Where("visit_id = ?", visitID).Preload("IssuedBy").Order("created_at DESC").Find(&certs)
+	database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").Preload("IssuedBy").Order("created_at DESC").Find(&certs)
 	c.JSON(http.StatusOK, certs)
 }
 
@@ -3563,3 +3590,4 @@ func GetMedicalRecordEditLogs(c *gin.Context) {
 
 	c.JSON(http.StatusOK, logs)
 }
+

@@ -289,6 +289,8 @@ export {
   cpptApi,
   fluidBalanceApi,
   nursingCareApi,
+  fallRiskApi,
+  o2UsageApi,
   CPPT_FORMATS,
   CPPT_PROFESSIONS,
   SHIFT_TYPES,
@@ -316,7 +318,14 @@ export type {
   FluidBalanceSummary,
   NursingCare,
   CreateNursingCareInput,
-  UpdateNursingCareInput
+  UpdateNursingCareInput,
+  FallRiskAssessment,
+  CreateFallRiskAssessmentInput,
+  UpdateFallRiskAssessmentInput,
+  O2UsageRecord,
+  StartO2UsageInput,
+  StopO2UsageInput,
+  UpdateO2UsageInput
 } from './inpatient';
 
 // Billing & Payment

@@ -539,6 +539,11 @@ func generateBillingItemsFromRegistration(tx *gorm.DB, billing *models.Billing, 
 				return err
 			}
 		}
+
+		// O2 Usage from this visit
+		if err := generateO2UsageItems(tx, billing, visit); err != nil {
+			return err
+		}
 	}
 
 	// ============================================
@@ -1104,6 +1109,44 @@ func generateVisitMedicineItems(tx *gorm.DB, billing *models.Billing, visit *mod
 		if err := tx.Create(&billingItem).Error; err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+// generateO2UsageItems adds O2 usage items to billing
+func generateO2UsageItems(tx *gorm.DB, billing *models.Billing, visit *models.Visit) error {
+	var o2Records []models.O2UsageRecord
+	if err := tx.Where("visit_id = ?", visit.ID).Find(&o2Records).Error; err != nil {
+		return err
+	}
+
+	for _, record := range o2Records {
+		if record.TotalCharge <= 0 {
+			continue
+		}
+
+		item := models.BillingItem{
+			BillingID:     billing.ID,
+			SourceVisitID: &visit.ID,
+			ItemType:      models.BillingItemTypeOther,
+			ReferenceID:   record.ID,
+			ReferenceType: "o2_usage",
+			Description:   fmt.Sprintf("Oksigen %s (%d L/m x %d mnt)", record.TankType, int(record.FlowRate), record.DurationMinutes),
+			Quantity:      int(record.DurationMinutes),
+			Unit:          "menit",
+			UnitPrice:     record.BasePrice * record.FlowRate,
+			Subtotal:      record.TotalCharge,
+		}
+
+		if record.CreatedByID != nil {
+			item.PerformedByID = record.CreatedByID
+		}
+
+		if err := tx.Create(&item).Error; err != nil {
+			return err
+		}
+		fmt.Printf("[BILLING] Created O2 usage item: %.0f\n", record.TotalCharge)
 	}
 
 	return nil

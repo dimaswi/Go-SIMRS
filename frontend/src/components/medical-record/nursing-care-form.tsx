@@ -4,8 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import {
   Collapsible,
   CollapsibleContent,
@@ -68,6 +67,7 @@ import {
   ChevronRight,
   Search,
   UserCheck,
+  X,
 } from "lucide-react";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
@@ -906,114 +906,90 @@ export function NursingCareForm({
           </div>
         </div>
 
-        {/* Create/Edit Modal - Fullscreen */}
-        <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-          <DialogContent className="max-w-full w-full h-screen max-h-screen flex flex-col p-0 gap-0 rounded-none">
-            <DialogHeader className="px-6 py-4 border-b bg-muted/50 shrink-0">
-              <DialogTitle className="flex items-center gap-2">
-                <HeartPulse className="h-5 w-5" />
-                {editingId ? "Edit Asuhan Keperawatan" : "Tambah Asuhan Keperawatan Baru"}
-              </DialogTitle>
-            </DialogHeader>
+      {/* Create/Edit Modal - Fullscreen Monolithic, No Scroll */}
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent className="!max-w-[100vw] !w-[100vw] !h-[100dvh] !max-h-[100dvh] !rounded-none !border-none !p-0 !m-0 !fixed !top-0 !left-0 !translate-x-0 !translate-y-0 bg-background overflow-hidden flex flex-col [&>button]:hidden">
+          <DialogHeader className="px-4 py-3 border-b bg-muted/30 shrink-0 flex flex-row items-center justify-between">
+            <DialogTitle className="flex items-center gap-2 text-sm uppercase tracking-wider text-muted-foreground">
+              <HeartPulse className="h-4 w-4" />
+              {editingId ? "Edit Asuhan Keperawatan" : "Tambah Asuhan Keperawatan Baru"}
+            </DialogTitle>
+            <Button variant="ghost" size="icon" onClick={() => setIsModalOpen(false)} className="h-6 w-6 rounded-none text-muted-foreground hover:bg-muted/50">
+              <X className="h-4 w-4" />
+            </Button>
+          </DialogHeader>
 
-            <div className="flex-1 flex flex-col overflow-hidden px-6 py-4">
-            <Tabs value={activeFormTab} onValueChange={setActiveFormTab} className="flex-1 flex flex-col overflow-hidden">
-              <div className="mb-4 rounded-lg border bg-muted/30 p-3">
-                <div className="space-y-2">
-                  <Label>Pilih SDKI dari Master (Auto Isi)</Label>
-                  <Select value={currentMasterCode || ""} onValueChange={handleApplyMasterSdki}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Pilih diagnosis SDKI untuk isi otomatis" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {nursingMasterItems.length === 0 ? (
-                        <SelectItem value="__empty" disabled>
-                          Master data SDKI belum terbaca.
+          <div className="flex-1 flex flex-col overflow-y-auto px-4 py-3 gap-3">
+            <Tabs value={activeFormTab} onValueChange={setActiveFormTab} className="flex-1 flex flex-col overflow-hidden gap-3">
+              {/* Top Section: Master Selection */}
+              <div className="shrink-0 flex items-center gap-4 bg-muted/10 border border-border/70 p-2">
+                <Label className="whitespace-nowrap text-xs">Pilih SDKI dari Master:</Label>
+                <Select value={currentMasterCode || ""} onValueChange={handleApplyMasterSdki}>
+                  <SelectTrigger className="w-[300px] h-8 text-xs rounded-none border-border/70">
+                    <SelectValue placeholder="Pilih diagnosis SDKI..." />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-none">
+                    {nursingMasterItems.length === 0 ? (
+                      <SelectItem value="__empty" disabled className="text-xs">
+                        Master data SDKI belum terbaca.
+                      </SelectItem>
+                    ) : (
+                      nursingMasterItems.map((item) => (
+                        <SelectItem key={item.sdki.code} value={item.sdki.code} className="text-xs">
+                          {item.sdki.code} - {item.sdki.label}
                         </SelectItem>
-                      ) : (
-                        nursingMasterItems.map((item) => (
-                          <SelectItem key={item.sdki.code} value={item.sdki.code}>
-                            {item.sdki.code} - {item.sdki.label}
-                          </SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    Pilihan ini mengisi otomatis Diagnosis, Etiologi, Tanda-Gejala, Luaran, dan Intervensi.
-                  </p>
-                  {selectedMasterItem && (
-                    <div className="rounded-md border bg-background p-3 text-xs text-muted-foreground space-y-2">
-                      <p className="font-medium text-foreground">
-                        {selectedMasterItem.sdki.code} - {selectedMasterItem.sdki.label}
-                      </p>
-                      {selectedMasterItem.sdki.definisi && (
-                        <p className="leading-relaxed">{selectedMasterItem.sdki.definisi}</p>
-                      )}
-                      <div className="flex flex-wrap gap-2">
-                        <Badge variant="outline">SLKI Utama: {(selectedMasterItem.slki?.luaran_utama || []).length}</Badge>
-                        <Badge variant="outline">SLKI Tambahan: {(selectedMasterItem.slki?.luaran_tambahan || []).length}</Badge>
-                        <Badge variant="outline">SIKI Utama: {(selectedMasterItem.siki?.intervensi_utama || []).length}</Badge>
-                        <Badge variant="outline">SIKI Pendukung: {(selectedMasterItem.siki?.intervensi_pendukung || []).length}</Badge>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+                {selectedMasterItem && (
+                  <div className="flex items-center gap-2 text-[10px] text-muted-foreground ml-auto">
+                    <Badge variant="outline" className="rounded-none font-normal text-[10px] border-border/70">
+                      SLKI: {(selectedMasterItem.slki?.luaran_utama || []).length} / {(selectedMasterItem.slki?.luaran_tambahan || []).length}
+                    </Badge>
+                    <Badge variant="outline" className="rounded-none font-normal text-[10px] border-border/70">
+                      SIKI: {(selectedMasterItem.siki?.intervensi_utama || []).length} / {(selectedMasterItem.siki?.intervensi_pendukung || []).length}
+                    </Badge>
+                  </div>
+                )}
               </div>
 
-              <TabsList className="h-auto p-0 bg-transparent border-b border-border rounded-none w-full justify-start gap-6 mb-4 shrink-0">
-                <TabsTrigger
-                  value="diagnosis"
-                  className="px-0 py-2 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none text-sm font-medium text-muted-foreground data-[state=active]:text-foreground"
-                >
-                  Form 3S (SDKI-SLKI-SIKI)
-                </TabsTrigger>
-              </TabsList>
-
-
-              {/* Tab Diagnosis */}
-              <TabsContent value="diagnosis" className="flex-1 overflow-hidden mt-0">
-                <ScrollArea className="h-full pr-4">
-                  <div className="space-y-4 pb-4">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label>Tanggal & Waktu</Label>
+              <TabsContent value="diagnosis" className="flex-1 overflow-hidden mt-0 data-[state=active]:flex data-[state=active]:flex-col gap-3 min-h-0">
+                {/* Info Row */}
+                <div className="grid grid-cols-3 gap-3 shrink-0">
+                  <div className="flex items-center gap-2 bg-muted/10 border border-border/70 p-2">
+                    <Label className="text-[10px] uppercase text-muted-foreground w-20">Waktu</Label>
                     <Input
                       type="datetime-local"
                       value={formData.record_date}
                       onChange={(e) => handleChange("record_date", e.target.value)}
+                      className="h-7 text-[10px] rounded-none border-border/70 w-full"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label>Shift</Label>
-                    <Select
-                      value={formData.shift_type}
-                      onValueChange={(v) => handleChange("shift_type", v)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Pilih shift" />
+                  <div className="flex items-center gap-2 bg-muted/10 border border-border/70 p-2">
+                    <Label className="text-[10px] uppercase text-muted-foreground w-12">Shift</Label>
+                    <Select value={formData.shift_type} onValueChange={(v) => handleChange("shift_type", v)}>
+                      <SelectTrigger className="h-7 text-[10px] rounded-none border-border/70 w-full">
+                        <SelectValue placeholder="Shift" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="rounded-none">
                         {SHIFT_TYPES.map((s) => (
-                          <SelectItem key={s.value} value={s.value}>
+                          <SelectItem key={s.value} value={s.value} className="text-[10px]">
                             {s.label}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-2">
-                    <Label>Status Masalah</Label>
-                    <Select
-                      value={formData.problem_status}
-                      onValueChange={(v) => handleChange("problem_status", v)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Pilih status masalah" />
+                  <div className="flex items-center gap-2 bg-muted/10 border border-border/70 p-2">
+                    <Label className="text-[10px] uppercase text-muted-foreground w-20">Status</Label>
+                    <Select value={formData.problem_status} onValueChange={(v) => handleChange("problem_status", v)}>
+                      <SelectTrigger className="h-7 text-[10px] rounded-none border-border/70 w-full">
+                        <SelectValue placeholder="Status" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="rounded-none">
                         {PROBLEM_STATUS.map((s) => (
-                          <SelectItem key={s.value} value={s.value}>
+                          <SelectItem key={s.value} value={s.value} className="text-[10px]">
                             {s.label}
                           </SelectItem>
                         ))}
@@ -1022,177 +998,166 @@ export function NursingCareForm({
                   </div>
                 </div>
 
-                <div className="space-y-4 rounded-lg border border-border/70 p-4"><p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">SDKI</p><div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
-                      <div className="col-span-2 space-y-2">
-                        <Label>Diagnosis Keperawatan</Label>
+                {/* 3 Columns Layout for Data */}
+                <div className="flex-1 grid grid-cols-3 gap-3 min-h-0">
+                  {/* Column 1: SDKI */}
+                  <div className="flex flex-col border border-border/70 bg-background overflow-hidden">
+                    <div className="bg-muted/30 px-3 py-1.5 border-b border-border/70 text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center justify-between shrink-0">
+                      <span>SDKI (Diagnosis)</span>
+                      <span className="font-mono text-primary bg-primary/10 px-1">{formData.nursing_diagnosis_code || "D.----"}</span>
+                    </div>
+                    <div className="flex-1 flex flex-col p-2 gap-2 overflow-hidden">
+                      <div className="flex flex-col shrink-0">
+                        <Label className="text-[10px] text-muted-foreground mb-1">Diagnosis</Label>
                         <Textarea
                           value={formData.nursing_diagnosis}
                           onChange={(e) => handleChange("nursing_diagnosis", e.target.value)}
-                          placeholder="Contoh: Nyeri akut berhubungan dengan agen pencedera fisik"
-                          rows={2}
+                          className="h-16 text-xs rounded-none border-border/70 resize-none bg-muted/5 focus-visible:bg-background"
                         />
                       </div>
-                      <div className="space-y-2">
-                        <Label>Kode SDKI</Label>
-                        <Input
-                          value={formData.nursing_diagnosis_code}
-                          onChange={(e) => handleChange("nursing_diagnosis_code", e.target.value)}
-                          placeholder="D.0077"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label>Etiologi (Penyebab/Berhubungan dengan)</Label>
+                      <div className="flex-1 flex flex-col min-h-0">
+                        <Label className="text-[10px] text-muted-foreground mb-1 shrink-0">Etiologi (Penyebab)</Label>
                         <Textarea
                           value={formData.problem_etiology}
                           onChange={(e) => handleChange("problem_etiology", e.target.value)}
-                          placeholder="Faktor yang berhubungan dengan masalah..."
-                          rows={2}
+                          className="flex-1 text-xs rounded-none border-border/70 resize-none bg-muted/5 focus-visible:bg-background"
                         />
                       </div>
-                      <div className="space-y-2">
-                        <Label>Tanda & Gejala (Ditandai dengan)</Label>
+                      <div className="flex-1 flex flex-col min-h-0">
+                        <Label className="text-[10px] text-muted-foreground mb-1 shrink-0">Tanda & Gejala</Label>
                         <Textarea
                           value={formData.signs_symptoms}
                           onChange={(e) => handleChange("signs_symptoms", e.target.value)}
-                          placeholder="Batasan karakteristik yang ditemukan..."
-                          rows={2}
+                          className="flex-1 text-xs rounded-none border-border/70 resize-none bg-muted/5 focus-visible:bg-background"
                         />
                       </div>
                     </div>
-                </div>
+                  </div>
 
-                {/* Luaran */}
-                <div className="space-y-4 rounded-lg border border-border/70 p-4"><p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">SLKI</p><div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
-                      <div className="col-span-3 space-y-2">
-                        <Label>Luaran Keperawatan</Label>
+                  {/* Column 2: SLKI & Notes */}
+                  <div className="flex flex-col border border-border/70 bg-background overflow-hidden">
+                    <div className="bg-muted/30 px-3 py-1.5 border-b border-border/70 text-[10px] font-bold uppercase tracking-widest text-muted-foreground shrink-0">
+                      SLKI (Luaran)
+                    </div>
+                    <div className="flex-1 flex flex-col p-2 gap-2 overflow-hidden">
+                      <div className="flex flex-col shrink-0">
+                        <Label className="text-[10px] text-muted-foreground mb-1">Luaran Keperawatan</Label>
                         <Textarea
                           value={formData.nursing_outcome}
                           onChange={(e) => handleChange("nursing_outcome", e.target.value)}
-                          placeholder="Contoh: Tingkat nyeri menurun"
-                          rows={2}
+                          className="h-16 text-xs rounded-none border-border/70 resize-none bg-muted/5 focus-visible:bg-background"
                         />
                       </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label>Indikator Luaran</Label>
+                      <div className="flex-1 flex flex-col min-h-0">
+                        <Label className="text-[10px] text-muted-foreground mb-1 shrink-0">Indikator Luaran</Label>
                         <Textarea
                           value={formData.outcome_indicators}
                           onChange={(e) => handleChange("outcome_indicators", e.target.value)}
-                          placeholder="Indikator yang diukur..."
-                          rows={2}
+                          className="flex-1 text-xs rounded-none border-border/70 resize-none bg-muted/5 focus-visible:bg-background"
                         />
                       </div>
-                      <div className="space-y-2">
-                        <Label>Target Pencapaian</Label>
-                        <Select
-                          value={formData.outcome_target}
-                          onValueChange={(v) => handleChange("outcome_target", v)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Pilih target" />
+                      <div className="flex flex-col shrink-0">
+                        <Label className="text-[10px] text-muted-foreground mb-1">Target Pencapaian</Label>
+                        <Select value={formData.outcome_target} onValueChange={(v) => handleChange("outcome_target", v)}>
+                          <SelectTrigger className="h-7 text-xs rounded-none border-border/70">
+                            <SelectValue placeholder="Pilih target..." />
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent className="rounded-none">
                             {OUTCOME_TARGETS.map((t) => (
-                              <SelectItem key={t.value} value={t.value}>
+                              <SelectItem key={t.value} value={t.value} className="text-xs">
                                 {t.label}
                               </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
                       </div>
+                      <div className="flex flex-col shrink-0 mt-2">
+                        <div className="flex items-center gap-1 mb-1">
+                          <Label className="text-[10px] text-muted-foreground font-bold uppercase">Catatan</Label>
+                        </div>
+                        <Textarea
+                          value={formData.notes}
+                          onChange={(e) => handleChange("notes", e.target.value)}
+                          className="h-12 text-xs rounded-none border-border/70 resize-none bg-muted/10 focus-visible:bg-background"
+                        />
+                      </div>
                     </div>
-                </div>
+                  </div>
 
-                <div className="space-y-4 rounded-lg border border-border/70 p-4"><p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">SIKI</p><div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
-                      <div className="col-span-3 space-y-2">
-                        <Label>Intervensi Keperawatan</Label>
+                  {/* Column 3: SIKI */}
+                  <div className="flex flex-col border border-border/70 bg-background overflow-hidden">
+                    <div className="bg-muted/30 px-3 py-1.5 border-b border-border/70 text-[10px] font-bold uppercase tracking-widest text-muted-foreground shrink-0">
+                      SIKI (Intervensi)
+                    </div>
+                    <div className="flex-1 flex flex-col p-2 gap-2 overflow-hidden">
+                      <div className="flex-1 flex flex-col min-h-0">
+                        <Label className="text-[10px] text-muted-foreground mb-1 shrink-0">Intervensi Utama / Pendukung</Label>
                         <Textarea
                           value={formData.nursing_intervention}
                           onChange={(e) => handleChange("nursing_intervention", e.target.value)}
-                          placeholder="Intervensi utama dan pendukung sesuai SIKI"
-                          rows={3}
+                          className="flex-1 text-xs rounded-none border-border/70 resize-none bg-muted/5 focus-visible:bg-background"
                         />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 flex-1 min-h-0">
+                        <div className="flex flex-col min-h-0">
+                          <Label className="text-[10px] text-muted-foreground mb-1 shrink-0">Observasi</Label>
+                          <Textarea
+                            value={formData.observation_actions}
+                            onChange={(e) => handleChange("observation_actions", e.target.value)}
+                            className="flex-1 text-[10px] rounded-none border-border/70 resize-none bg-muted/5 focus-visible:bg-background"
+                          />
+                        </div>
+                        <div className="flex flex-col min-h-0">
+                          <Label className="text-[10px] text-muted-foreground mb-1 shrink-0">Terapeutik</Label>
+                          <Textarea
+                            value={formData.therapeutic_actions}
+                            onChange={(e) => handleChange("therapeutic_actions", e.target.value)}
+                            className="flex-1 text-[10px] rounded-none border-border/70 resize-none bg-muted/5 focus-visible:bg-background"
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 flex-1 min-h-0">
+                        <div className="flex flex-col min-h-0">
+                          <Label className="text-[10px] text-muted-foreground mb-1 shrink-0">Edukasi</Label>
+                          <Textarea
+                            value={formData.education_actions}
+                            onChange={(e) => handleChange("education_actions", e.target.value)}
+                            className="flex-1 text-[10px] rounded-none border-border/70 resize-none bg-muted/5 focus-visible:bg-background"
+                          />
+                        </div>
+                        <div className="flex flex-col min-h-0">
+                          <Label className="text-[10px] text-muted-foreground mb-1 shrink-0">Kolaborasi</Label>
+                          <Textarea
+                            value={formData.collaboration_actions}
+                            onChange={(e) => handleChange("collaboration_actions", e.target.value)}
+                            className="flex-1 text-[10px] rounded-none border-border/70 resize-none bg-muted/5 focus-visible:bg-background"
+                          />
+                        </div>
                       </div>
                     </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label>Tindakan Observasi</Label>
-                        <Textarea
-                          value={formData.observation_actions}
-                          onChange={(e) => handleChange("observation_actions", e.target.value)}
-                          placeholder="Ringkas tindakan observasi"
-                          rows={3}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Tindakan Terapeutik</Label>
-                        <Textarea
-                          value={formData.therapeutic_actions}
-                          onChange={(e) => handleChange("therapeutic_actions", e.target.value)}
-                          placeholder="Ringkas tindakan terapeutik"
-                          rows={3}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Tindakan Edukasi</Label>
-                        <Textarea
-                          value={formData.education_actions}
-                          onChange={(e) => handleChange("education_actions", e.target.value)}
-                          placeholder="Ringkas tindakan edukasi"
-                          rows={3}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Tindakan Kolaborasi</Label>
-                        <Textarea
-                          value={formData.collaboration_actions}
-                          onChange={(e) => handleChange("collaboration_actions", e.target.value)}
-                          placeholder="Ringkas tindakan kolaborasi"
-                          rows={3}
-                        />
-                      </div>
-                    </div>
-                </div>
-
-                <div className="space-y-2 rounded-lg border border-border/70 p-4">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Catatan</p>
-                  <Label>Catatan Tambahan</Label>
-                  <Textarea
-                    value={formData.notes}
-                    onChange={(e) => handleChange("notes", e.target.value)}
-                    placeholder="Catatan ringkas asuhan keperawatan"
-                    rows={2}
-                  />
-                </div>
                   </div>
-                </ScrollArea>
+                </div>
               </TabsContent>
             </Tabs>
-            </div>
+          </div>
 
-            <DialogFooter className="px-6 py-4 border-t bg-muted/30 shrink-0">
-              <Button variant="outline" onClick={() => setIsModalOpen(false)}>
-                Batal
-              </Button>
-              <Button onClick={handleSave} disabled={saving}>
-                {saving ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Menyimpan...
-                  </>
-                ) : (
-                  "Simpan"
-                )}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+          <DialogFooter className="px-4 py-3 border-t bg-muted/30 shrink-0">
+            <Button variant="outline" size="sm" onClick={() => setIsModalOpen(false)} className="rounded-none text-xs">
+              Batal
+            </Button>
+            <Button onClick={handleSave} disabled={saving} size="sm" className="rounded-none text-xs">
+              {saving ? (
+                <>
+                  <Loader2 className="h-3 w-3 mr-2 animate-spin" />
+                  Menyimpan...
+                </>
+              ) : (
+                "Simpan"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
         {/* Delete Confirmation */}
         <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

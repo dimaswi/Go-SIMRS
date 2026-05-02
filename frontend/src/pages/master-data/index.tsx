@@ -53,6 +53,7 @@ export default function MasterDataPage() {
       specialization: { color: 'bg-teal-100 text-teal-700' },
       body_marker_category: { color: 'bg-amber-100 text-amber-700' },
       body_marker_image: { color: 'bg-rose-100 text-rose-700' },
+      o2_type: { color: 'bg-sky-100 text-sky-700' },
     };
     return iconMap[code] || { color: 'bg-gray-100 text-gray-700' };
   };

@@ -33,14 +33,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
   Loader2,
   TestTube,
   ScanLine,
@@ -397,65 +389,101 @@ export function ProcedureEditOrder({
         {selectedOrder && (
           <div className="space-y-4">
             {/* Order Info */}
-            <div className="flex items-center justify-between text-sm">
-              <div className="flex items-center gap-4">
-                <div>
-                  <span className="text-muted-foreground">No. Order:</span>{" "}
-                  <span className="font-medium">{selectedOrder.order_number}</span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Status:</span>{" "}
+            <div className="border border-border/70 bg-background mb-4">
+              <div className="flex flex-wrap items-center justify-between border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                <span>Detail Order {orderTypeConfig.title}</span>
+                <div className="flex items-center gap-2">
                   {getStatusBadge(selectedOrder.status)}
                 </div>
-                {selectedOrder.target_room && (
-                  <div>
-                    <span className="text-muted-foreground">Ruangan:</span>{" "}
-                    <span className="font-medium">{selectedOrder.target_room.name}</span>
-                  </div>
-                )}
               </div>
-              {canEdit && canModifyOrder(selectedOrder) && (
-                <Button size="sm" onClick={openAddDialog}>
-                  <Plus className="h-4 w-4 mr-1" />
-                  Tambah Prosedur
-                </Button>
-              )}
+              <div className="p-3 sm:p-4 space-y-4">
+                <table className="w-full table-fixed text-xs">
+                  <tbody>
+                    <tr className="border-b">
+                      <td className="py-1.5 text-muted-foreground w-28 align-top">Nama Pasien</td>
+                      <td className="py-1.5 font-medium break-words">{selectedOrder.registration?.patient?.nama_lengkap || selectedOrder.source_visit?.registration?.patient?.nama_lengkap || "-"}</td>
+                    </tr>
+                    <tr className="border-b">
+                      <td className="py-1.5 text-muted-foreground w-28 align-top">No. RM</td>
+                      <td className="py-1.5 font-medium break-words">{selectedOrder.registration?.patient?.no_rm || selectedOrder.source_visit?.registration?.patient?.no_rm || "-"}</td>
+                    </tr>
+                    <tr className="border-b">
+                      <td className="py-1.5 text-muted-foreground w-28 align-top">Dokter</td>
+                      <td className="py-1.5 font-medium break-words">{selectedOrder.ordered_by?.nama_lengkap || "-"}</td>
+                    </tr>
+                    <tr className="border-b">
+                      <td className="py-1.5 text-muted-foreground w-28 align-top">Tanggal Order</td>
+                      <td className="py-1.5 font-medium break-words">{selectedOrder.created_at ? new Date(selectedOrder.created_at).toLocaleString("id-ID") : "-"}</td>
+                    </tr>
+                    <tr className="border-b">
+                      <td className="py-1.5 text-muted-foreground w-28 align-top">No. Order</td>
+                      <td className="py-1.5 font-medium break-words">{selectedOrder.order_number || "-"}</td>
+                    </tr>
+                    <tr className="border-b">
+                      <td className="py-1.5 text-muted-foreground align-top">Jumlah Item</td>
+                      <td className="py-1.5 font-medium break-words">{selectedOrder.items?.length || 0}</td>
+                    </tr>
+                    {selectedOrder.diagnosis && (
+                      <tr className="border-b">
+                        <td className="py-1.5 text-muted-foreground align-top">Diagnosis</td>
+                        <td className="py-1.5 font-medium break-words">{selectedOrder.diagnosis}</td>
+                      </tr>
+                    )}
+                    {selectedOrder.notes && (
+                      <tr>
+                        <td className="py-1.5 text-muted-foreground align-top">Catatan Order</td>
+                        <td className="py-1.5 font-medium break-words">{selectedOrder.notes}</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
 
             {/* Items Table */}
-            <div className="border rounded-md">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>No</TableHead>
-                    <TableHead>Nama Prosedur</TableHead>
-                    <TableHead>Kode</TableHead>
-                    <TableHead>Catatan</TableHead>
-                    <TableHead>Status</TableHead>
-                    {canEdit && canModifyOrder(selectedOrder) && (
-                      <TableHead className="w-[100px] text-center">Aksi</TableHead>
-                    )}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
+            <div className="border border-border/70 bg-background mb-4">
+              <div className="flex flex-wrap items-center justify-between border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                <span>Daftar Pemeriksaan</span>
+                {canEdit && canModifyOrder(selectedOrder) && (
+                  <Button size="sm" onClick={openAddDialog} className="h-6 text-[10px] py-0 px-2">
+                    <Plus className="h-3 w-3 mr-1" />
+                    Tambah Prosedur
+                  </Button>
+                )}
+              </div>
+              <div className="p-0 overflow-x-auto">
+                <table className="w-full text-xs text-left">
+                  <thead className="bg-muted/50 border-b border-border/70">
+                    <tr>
+                      <th className="py-2 px-3 font-medium">No</th>
+                      <th className="py-2 px-3 font-medium">Nama Prosedur</th>
+                      <th className="py-2 px-3 font-medium">Kode</th>
+                      <th className="py-2 px-3 font-medium">Catatan</th>
+                      <th className="py-2 px-3 font-medium">Status</th>
+                      {canEdit && canModifyOrder(selectedOrder) && (
+                        <th className="py-2 px-3 font-medium text-center w-[100px]">Aksi</th>
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody>
                   {selectedOrder.items?.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                    <tr className="border-b">
+                      <td colSpan={6} className="py-8 text-center text-muted-foreground">
                         Belum ada prosedur dalam order ini
-                      </TableCell>
-                    </TableRow>
+                      </td>
+                    </tr>
                   ) : (
                     selectedOrder.items?.map((item, idx) => (
-                      <TableRow key={item.id}>
-                        <TableCell>{idx + 1}</TableCell>
-                        <TableCell className="font-medium">{item.procedure?.name}</TableCell>
-                        <TableCell>{item.procedure?.code || "-"}</TableCell>
-                        <TableCell className="max-w-[200px] truncate">
+                      <tr key={item.id} className="border-b transition-colors hover:bg-muted/50 last:border-0">
+                        <td className="py-2 px-3">{idx + 1}</td>
+                        <td className="py-2 px-3 font-medium">{item.procedure?.name}</td>
+                        <td className="py-2 px-3">{item.procedure?.code || "-"}</td>
+                        <td className="py-2 px-3 max-w-[200px] truncate">
                           {item.notes || "-"}
-                        </TableCell>
-                        <TableCell>{getItemStatusBadge(item.status)}</TableCell>
+                        </td>
+                        <td className="py-2 px-3">{getItemStatusBadge(item.status)}</td>
                         {canEdit && canModifyOrder(selectedOrder) && (
-                          <TableCell>
+                          <td className="py-2 px-3 text-center">
                             <div className="flex items-center justify-center gap-1">
                               {canModifyItem(item) && (
                                 <>
@@ -478,13 +506,14 @@ export function ProcedureEditOrder({
                                 </>
                               )}
                             </div>
-                          </TableCell>
+                          </td>
                         )}
-                      </TableRow>
+                      </tr>
                     ))
                   )}
-                </TableBody>
-              </Table>
+                  </tbody>
+                </table>
+              </div>
             </div>
 
             {/* Notes */}

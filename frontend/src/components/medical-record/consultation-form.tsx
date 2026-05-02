@@ -10,17 +10,9 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { usePermission } from "@/hooks/usePermission";
 import { cn } from "@/lib/utils";
-import { Loader2, Save, CheckCircle2, User, Clock } from "lucide-react";
+import { Loader2, Save, User, Clock } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -165,36 +157,6 @@ export function ConsultationForm({
       fake_date: nextDate,
     });
     setDateModalOpen(false);
-  };
-
-  const getStatusDotClass = (status?: string) => {
-    switch (status) {
-      case "completed":
-        return "bg-emerald-500";
-      case "in_progress":
-        return "bg-blue-500";
-      case "pending":
-        return "bg-amber-500";
-      case "cancelled":
-        return "bg-rose-500";
-      default:
-        return "bg-zinc-400";
-    }
-  };
-
-  const getOrderStatusLabel = (status?: string) => {
-    switch (status) {
-      case "completed":
-        return "Selesai";
-      case "in_progress":
-        return "Dikerjakan";
-      case "pending":
-        return "Menunggu";
-      case "cancelled":
-        return "Dibatalkan";
-      default:
-        return status || "Unknown";
-    }
   };
 
   const updateInlineResult = (itemId: number, paramId: number, value: string) => {
@@ -407,185 +369,176 @@ export function ConsultationForm({
     <div>
       <div className="pt-2">
         {order && (
-          <div className="mb-2 space-y-3">
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 text-[11px] p-1.5 bg-muted/50 rounded items-center">
-              <div className="flex items-center gap-1">
-                <User className="h-3 w-3 text-muted-foreground" />
-                <span className="font-medium truncate">
-                  {order.source_visit?.registration?.patient?.nama_lengkap ||
-                    order.registration?.patient?.nama_lengkap ||
-                    "-"}
-                </span>
-              </div>
-              <div className="flex items-center gap-1">
-                <span className="text-muted-foreground shrink-0">RM:</span>
-                <span className="font-medium">
-                  {order.source_visit?.registration?.patient?.no_rm ||
-                    order.registration?.patient?.no_rm ||
-                    "-"}
-                </span>
-              </div>
-              <div className="flex items-center gap-1">
-                <span className="text-muted-foreground shrink-0">Dokter:</span>
-                {rmDuplicateMode ? (
-                  <span className="inline-flex items-center gap-1">
-                    <span className="font-medium">{order.ordered_by?.nama_lengkap || "-"}</span>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-5 w-5"
-                      title="Pilih dokter"
-                      onClick={() => {
-                        setPendingDoctorName(order.ordered_by?.nama_lengkap || "");
-                        setDoctorSearch("");
-                        setDoctorModalOpen(true);
-                      }}
-                    >
-                      <User className="h-3 w-3" />
-                    </Button>
-                  </span>
-                ) : (
-                  order.ordered_by?.nama_lengkap || "-"
-                )}
-              </div>
-              <div className="flex items-center gap-1">
-                <Clock className="h-3 w-3 text-muted-foreground" />
-                {rmDuplicateMode ? (
-                  <span className="inline-flex items-center gap-1">
-                    <span className="font-medium">
-                      {order.created_at
-                        ? new Date(order.created_at).toLocaleString("id-ID")
-                        : "-"}
-                    </span>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-5 w-5"
-                      title="Set tanggal order"
-                      onClick={() => {
-                        setPendingOrderDate((order.created_at || "").replace(" ", "T").slice(0, 16));
-                        setDateModalOpen(true);
-                      }}
-                    >
-                      <Clock className="h-3 w-3" />
-                    </Button>
-                  </span>
-                ) : (
-                  <span>
-                    {order.created_at ? new Date(order.created_at).toLocaleString("id-ID") : "-"}
-                  </span>
-                )}
-              </div>
+          <div className="border border-border/70 bg-background mb-4">
+            <div className="flex flex-wrap items-center justify-between border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              <span>Detail Order Konsultasi</span>
             </div>
+            <div className="p-3 sm:p-4 space-y-4">
+              <table className="w-full table-fixed text-xs">
+                <tbody>
+                  <tr className="border-b">
+                    <td className="py-1.5 text-muted-foreground w-28 align-top">Nama Pasien</td>
+                    <td className="py-1.5 font-medium break-words">
+                      {order.source_visit?.registration?.patient?.nama_lengkap ||
+                        order.registration?.patient?.nama_lengkap ||
+                        "-"}
+                    </td>
+                  </tr>
+                  <tr className="border-b">
+                    <td className="py-1.5 text-muted-foreground w-28 align-top">No. RM</td>
+                    <td className="py-1.5 font-medium break-words">
+                      {order.source_visit?.registration?.patient?.no_rm ||
+                        order.registration?.patient?.no_rm ||
+                        "-"}
+                    </td>
+                  </tr>
+                  <tr className="border-b">
+                    <td className="py-1.5 text-muted-foreground w-28 align-top">Dokter</td>
+                    <td className="py-1.5 font-medium break-words">
+                      {rmDuplicateMode ? (
+                        <span className="inline-flex items-center gap-1">
+                          <span className="font-medium">{order.ordered_by?.nama_lengkap || "-"}</span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-5 w-5"
+                            title="Pilih dokter"
+                            onClick={() => {
+                              setPendingDoctorName(order.ordered_by?.nama_lengkap || "");
+                              setDoctorSearch("");
+                              setDoctorModalOpen(true);
+                            }}
+                          >
+                            <User className="h-3 w-3" />
+                          </Button>
+                        </span>
+                      ) : (
+                        order.ordered_by?.nama_lengkap || "-"
+                      )}
+                    </td>
+                  </tr>
+                  <tr className="border-b">
+                    <td className="py-1.5 text-muted-foreground w-28 align-top">Tanggal Order</td>
+                    <td className="py-1.5 font-medium break-words">
+                      {rmDuplicateMode ? (
+                        <span className="inline-flex items-center gap-1">
+                          <span className="font-medium">
+                            {order.created_at
+                              ? new Date(order.created_at).toLocaleString("id-ID")
+                              : "-"}
+                          </span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-5 w-5"
+                            title="Set tanggal order"
+                            onClick={() => {
+                              setPendingOrderDate((order.created_at || "").replace(" ", "T").slice(0, 16));
+                              setDateModalOpen(true);
+                            }}
+                          >
+                            <Clock className="h-3 w-3" />
+                          </Button>
+                        </span>
+                      ) : (
+                        <span>
+                          {order.created_at ? new Date(order.created_at).toLocaleString("id-ID") : "-"}
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                  <tr className="border-b">
+                    <td className="py-1.5 text-muted-foreground w-28 align-top">No. Order</td>
+                    <td className="py-1.5 font-medium break-words">{order.order_number || "-"}</td>
+                  </tr>
+                  <tr className="border-b">
+                    <td className="py-1.5 text-muted-foreground align-top">Jumlah Item</td>
+                    <td className="py-1.5 font-medium break-words">
+                      {(order.items || []).filter((item) => item.status === "completed").length}/
+                      {(order.items || []).length} selesai
+                    </td>
+                  </tr>
+                  {order.diagnosis && (
+                    <tr className="border-b">
+                      <td className="py-1.5 text-muted-foreground align-top">Diagnosis</td>
+                      <td className="py-1.5 font-medium break-words">{order.diagnosis}</td>
+                    </tr>
+                  )}
+                  {order.clinical_notes && (
+                    <tr>
+                      <td className="py-1.5 text-muted-foreground align-top">Catatan Klinis</td>
+                      <td className="py-1.5 font-medium break-words">{order.clinical_notes}</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
 
-            {order.clinical_notes && (
-              <div className="p-2 bg-yellow-50 border border-yellow-200 rounded text-xs">
-                <span className="font-medium text-yellow-800">Catatan Klinis:</span>
-                <span className="ml-1">{order.clinical_notes}</span>
-              </div>
-            )}
+              <div className="space-y-2 pt-2">
+                <div className="border border-border/70 overflow-x-auto">
+                  <div className="max-h-[62vh] overflow-auto">
+                    <table className="w-full min-w-[760px] text-left text-xs">
+                      <thead className="bg-muted/50 border-b border-border/70">
+                        <tr>
+                          <th className="py-2 px-3 font-medium">Tindakan</th>
+                          <th className="py-2 px-3 font-medium">Parameter</th>
+                          <th className="py-2 px-3 font-medium">Hasil</th>
+                          <th className="py-2 px-3 font-medium">Normal</th>
+                          <th className="py-2 px-3 font-medium">Satuan</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(order.items || []).map((item) => {
+                          const parameters = item.procedure?.parameters || [];
+                          const rowSpan = Math.max(parameters.length, 1);
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-              <div className="p-2 rounded border bg-muted/30">
-                <span className="text-muted-foreground">No. Order</span>
-                <p className="font-medium mt-0.5">{order.order_number || "-"}</p>
-              </div>
-              <div className="p-2 rounded border bg-muted/30">
-                <span className="text-muted-foreground">Item Selesai</span>
-                <p className="font-medium mt-0.5">
-                  {(order.items || []).filter((item) => item.status === "completed").length}/
-                  {(order.items || []).length}
-                </p>
-              </div>
-              <div className="p-2 rounded border bg-muted/30">
-                <span className="text-muted-foreground">Status Order</span>
-                <div className="mt-1">
-                  <div className="flex items-center gap-1.5 font-medium">
-                    <span className={cn("h-1.5 w-1.5 rounded-full", getStatusDotClass(order.status))} />
-                    <span>{getOrderStatusLabel(order.status)}</span>
+                          if (parameters.length === 0) {
+                            return (
+                              <tr key={item.id || item.procedure_id} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
+                                <td className="py-2 px-3 text-xs font-medium border-r border-border/70">{item.procedure?.name || "-"}</td>
+                                <td colSpan={4} className="py-2 px-3 text-xs text-muted-foreground italic">
+                                  Tindakan ini belum punya parameter
+                                </td>
+                              </tr>
+                            );
+                          }
+
+                          return parameters.map((param, index) => (
+                            <tr key={`${item.id || item.procedure_id}-${param.id}`} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
+                              {index === 0 && (
+                                <td rowSpan={rowSpan} className="align-top border-r border-border/70 py-2 px-3">
+                                  <div className="text-xs font-medium">{item.procedure?.name || "-"}</div>
+                                  <div className="text-[11px] text-muted-foreground">{item.procedure?.code || ""}</div>
+                                </td>
+                              )}
+                              <td className="py-2 px-3 text-xs">
+                                <span className={cn(param.is_required ? "font-medium" : "")}>{param.name}</span>
+                                {param.is_required && <span className="text-destructive ml-1">*</span>}
+                              </td>
+                              <td className="min-w-[200px] py-2 px-3">{renderInlineInput(item, param)}</td>
+                              <td className="py-2 px-3 text-xs text-muted-foreground">
+                                {param.normal_text ||
+                                  (param.normal_min !== undefined && param.normal_max !== undefined
+                                    ? `${param.normal_min} - ${param.normal_max}`
+                                    : "-")}
+                              </td>
+                              <td className="py-2 px-3 text-xs text-muted-foreground">{param.unit || "-"}</td>
+                            </tr>
+                          ));
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               </div>
             </div>
-
-            {order.diagnosis && (
-              <div className="rounded bg-background/70 px-2 py-1 text-xs">
-                <span className="text-muted-foreground">Diagnosis: </span>
-                <span className="font-medium">{order.diagnosis}</span>
-              </div>
-            )}
           </div>
         )}
 
         {!order && (
           <div className="bg-muted/40 border rounded-lg p-4 mb-6 text-sm text-muted-foreground">
             Tidak ada order konsultasi aktif untuk visit ini.
-          </div>
-        )}
-
-        {order && (
-          <div className="mb-2 space-y-2">
-            <div className="flex items-center gap-2 font-medium text-sm">
-              <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
-              Parameter Tindakan Konsultasi
-            </div>
-            <div className="rounded-lg border">
-              <div className="max-h-[62vh] overflow-auto">
-                <Table className="min-w-[760px]">
-                <TableHeader>
-                  <TableRow className="sticky top-0 bg-muted/80 backdrop-blur-sm">
-                    <TableHead className="text-[11px]">Tindakan</TableHead>
-                    <TableHead className="text-[11px]">Parameter</TableHead>
-                    <TableHead className="text-[11px]">Hasil</TableHead>
-                    <TableHead className="text-[11px]">Normal</TableHead>
-                    <TableHead className="text-[11px]">Satuan</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {(order.items || []).map((item) => {
-                    const parameters = item.procedure?.parameters || [];
-                    const rowSpan = Math.max(parameters.length, 1);
-
-                    if (parameters.length === 0) {
-                      return (
-                        <TableRow key={item.id || item.procedure_id}>
-                          <TableCell className="py-2 text-xs font-medium">{item.procedure?.name || "-"}</TableCell>
-                          <TableCell colSpan={4} className="py-2 text-xs text-muted-foreground italic">
-                            Tindakan ini belum punya parameter
-                          </TableCell>
-                        </TableRow>
-                      );
-                    }
-
-                    return parameters.map((param, index) => (
-                      <TableRow key={`${item.id || item.procedure_id}-${param.id}`}>
-                        {index === 0 && (
-                          <TableCell rowSpan={rowSpan} className="align-top border-r py-2">
-                            <div className="text-xs font-medium">{item.procedure?.name || "-"}</div>
-                            <div className="text-[11px] text-muted-foreground">{item.procedure?.code || ""}</div>
-                          </TableCell>
-                        )}
-                        <TableCell className="py-1.5 text-xs">
-                          <span className={cn(param.is_required ? "font-medium" : "")}>{param.name}</span>
-                          {param.is_required && <span className="text-destructive ml-1">*</span>}
-                        </TableCell>
-                        <TableCell className="min-w-[200px] py-1">{renderInlineInput(item, param)}</TableCell>
-                        <TableCell className="py-1 text-xs text-muted-foreground">
-                          {param.normal_text ||
-                            (param.normal_min !== undefined && param.normal_max !== undefined
-                              ? `${param.normal_min} - ${param.normal_max}`
-                              : "-")}
-                        </TableCell>
-                        <TableCell className="py-1 text-xs text-muted-foreground">{param.unit || "-"}</TableCell>
-                      </TableRow>
-                    ));
-                  })}
-                </TableBody>
-              </Table>
-              </div>
-            </div>
           </div>
         )}
 

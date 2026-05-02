@@ -22,6 +22,16 @@ import (
 	"gorm.io/gorm"
 )
 
+// getClinicalDB returns CasemixDB if rm_duplicate_id is present in query, otherwise DB.
+// This allows printing to reflect Casemix-specific clinical edits while keeping
+// patient/visit/hospital metadata coming from the main DB.
+func getClinicalDB(c *gin.Context) *gorm.DB {
+	if c.Query("rm_duplicate_id") != "" || c.Query("is_casemix") == "true" {
+		return database.CasemixDB
+	}
+	return database.DB
+}
+
 // formatInpatientClass converts kelas_1 etc to display format
 func formatInpatientClass(class string) string {
 	classMap := map[string]string{
@@ -1421,10 +1431,15 @@ func findSignatureLog(lookups ...signatureLookup) (models.SignatureLog, bool) {
 
 		// Prefer active signature state to avoid stale signer names from old/revoked logs.
 		var docSig models.DocumentSignature
-		if err := database.DB.
+		sigDB := database.DB
+		if strings.HasPrefix(lk.DocType, "rm_dup_") {
+			sigDB = database.CasemixDB
+		}
+
+		if err := sigDB.
 			Where("document_type = ? AND document_id = ?", lk.DocType, lk.DocID).
 			First(&docSig).Error; err == nil && docSig.SignedAt != nil && docSig.SignatureHash != "" {
-			if err := database.DB.
+			if err := sigDB.
 				Where("signature_hash = ? AND action = ?", docSig.SignatureHash, models.SignActionSign).
 				Order("signed_at DESC").
 				First(&signatureLog).Error; err == nil {
@@ -1432,7 +1447,7 @@ func findSignatureLog(lookups ...signatureLookup) (models.SignatureLog, bool) {
 			}
 
 			// Fallback if hash lookup misses for legacy data.
-			if err := database.DB.
+			if err := sigDB.
 				Where("document_type = ? AND document_id = ? AND action = ?", lk.DocType, lk.DocID, models.SignActionSign).
 				Order("signed_at DESC").
 				First(&signatureLog).Error; err == nil {
@@ -1814,23 +1829,7 @@ func PrintOutpatientResume(c *gin.Context) {
 	}
 
 	patient := visit.Registration.Patient
-
-	// Check if we should use RM Duplicate data (priority)
-	// Only use RM Duplicate if it has been synced (has actual clinical data)
-	var useRMDuplicate bool
-	var rmDup models.EKlaimRMDuplicate
-	if rmDuplicateID != "" {
-		if err := database.DB.
-			Preload("Diagnoses").
-			Preload("Procedures").
-			Preload("MedicineItems").
-			First(&rmDup, rmDuplicateID).Error; err == nil {
-			// Only use if RM Duplicate has actual data (synced), not just an empty placeholder
-			if rmDup.ChiefComplaint != "" || rmDup.GeneralCondition != "" || len(rmDup.Diagnoses) > 0 {
-				useRMDuplicate = true
-			}
-		}
-	}
+	clinicalDB := getClinicalDB(c)
 
 	// Data structures (will be populated from RM Duplicate or Visit)
 	type AnamnesisData struct {
@@ -1926,206 +1925,119 @@ func PrintOutpatientResume(c *gin.Context) {
 	var disposition DispositionData
 	var medicineItems []MedicineItemData
 
-	if useRMDuplicate {
-		// Populate from RM Duplicate
-		anamnesis = AnamnesisData{
-			ID:                      rmDup.ID,
-			ChiefComplaint:          rmDup.ChiefComplaint,
-			HistoryOfPresentIllness: rmDup.HistoryOfPresentIllness,
-			Allergies:               rmDup.Allergies,
-		}
-		physicalExam = PhysicalExamData{
-			ID:                rmDup.ID,
-			GeneralCondition:  rmDup.GeneralCondition,
-			Consciousness:     rmDup.Consciousness,
-			BloodPressure:     rmDup.BloodPressure,
-			HeartRate:         rmDup.HeartRate,
-			RespiratoryRate:   rmDup.RespiratoryRate,
-			Temperature:       rmDup.Temperature,
-			OxygenSaturation:  rmDup.OxygenSaturation,
-			Weight:            rmDup.Weight,
-			Height:            rmDup.Height,
-			HeadCircum:        rmDup.HeadCircum,
-			Waist:             rmDup.Waist,
-			Head:              rmDup.Head,
-			Eyes:              rmDup.Eyes,
-			Ears:              rmDup.Ears,
-			Nose:              rmDup.Nose,
-			Throat:            rmDup.Throat,
-			ENT:               rmDup.ENT,
-			Neck:              rmDup.Neck,
-			Chest:             rmDup.Chest,
-			Thorax:            rmDup.Thorax,
-			Heart:             rmDup.Heart,
-			Cardiac:           rmDup.Cardiac,
-			Lungs:             rmDup.Lungs,
-			Pulmonary:         rmDup.Pulmonary,
-			Abdomen:           rmDup.Abdomen,
-			Extremities:       rmDup.Extremities,
-			Skin:              rmDup.Skin,
-			Neurological:      rmDup.Neurological,
-			Musculoskel:       rmDup.Musculoskel,
-			Genitourinary:     rmDup.Genitourinary,
-			OtherFindings:     rmDup.OtherFindings,
-			ECGPerformed:      rmDup.ECGPerformed,
-			ECGResult:         rmDup.ECGResult,
-			ECGInterpretation: rmDup.ECGInterpretation,
-			ECGNotes:          rmDup.ECGNotes,
-		}
-		for _, d := range rmDup.Diagnoses {
-			diagnoses = append(diagnoses, DiagnosisData{
-				Type:      d.Type,
-				ICD10Code: d.ICD10Code,
-				ICD10Name: d.ICD10Name,
-			})
-		}
-		assessmentPlan = AssessmentPlanData{
-			ID:               rmDup.ID,
-			MedicationPlan:   rmDup.MedicationPlan,
-			DietPlan:         rmDup.DietPlan,
-			ActivityPlan:     rmDup.ActivityPlan,
-			EducationPlan:    rmDup.EducationPlan,
-			ProcedurePlan:    rmDup.ProcedurePlan,
-			ConsultationPlan: rmDup.ConsultationPlan,
-			Prognosis:        rmDup.Prognosis,
-		}
-		disposition = DispositionData{
-			ID:                   rmDup.ID,
-			DispositionType:      rmDup.DispositionType,
-			DischargeStatus:      rmDup.DischargeStatus,
-			AdmissionWard:        "",
-			AdmissionReason:      "",
-			ReferralFacility:     rmDup.ReferralFacility,
-			ReferralReason:       rmDup.ReferralReason,
-			DischargeInstruction: rmDup.DischargeInstruction,
-			DischargeMedication:  rmDup.DischargeMedication,
-			FollowUpDate:         parseFollowUpDate(rmDup.FollowUpDate),
-			FollowUpInstruction:  rmDup.FollowUpInstruction,
-		}
-		for _, m := range rmDup.MedicineItems {
-			medicineItems = append(medicineItems, MedicineItemData{
-				Name:         m.MedicineName,
-				Dosage:       m.Dosage,
-				Frequency:    m.Frequency,
-				Route:        m.Route,
-				Quantity:     m.Quantity,
-				Unit:         m.Unit,
-				Instructions: m.Instructions,
-			})
-		}
-	} else {
-		// Load from Visit (fallback)
-		var anamnesisModel models.Anamnesis
-		database.DB.Where("visit_id = ?", visitID).First(&anamnesisModel)
-		anamnesis = AnamnesisData{
-			ID:                      anamnesisModel.ID,
-			ChiefComplaint:          anamnesisModel.ChiefComplaint,
-			HistoryOfPresentIllness: anamnesisModel.HistoryOfPresentIllness,
-			Allergies:               anamnesisModel.Allergies,
-		}
+	// Load from clinicalDB (either Main DB or Casemix DB)
+	var anamnesisModel models.Anamnesis
+	clinicalDB.Where("visit_id = ?", visitID).First(&anamnesisModel)
+	anamnesis = AnamnesisData{
+		ID:                      anamnesisModel.ID,
+		ChiefComplaint:          anamnesisModel.ChiefComplaint,
+		HistoryOfPresentIllness: anamnesisModel.HistoryOfPresentIllness,
+		Allergies:               anamnesisModel.Allergies,
+	}
 
-		var physicalExamModel models.PhysicalExamination
-		database.DB.Where("visit_id = ?", visitID).First(&physicalExamModel)
-		physicalExam = PhysicalExamData{
-			ID:                physicalExamModel.ID,
-			GeneralCondition:  physicalExamModel.GeneralCondition,
-			Consciousness:     physicalExamModel.Consciousness,
-			BloodPressure:     physicalExamModel.BloodPressure,
-			HeartRate:         physicalExamModel.HeartRate,
-			RespiratoryRate:   physicalExamModel.RespiratoryRate,
-			Temperature:       physicalExamModel.Temperature,
-			OxygenSaturation:  physicalExamModel.OxygenSaturation,
-			Weight:            physicalExamModel.Weight,
-			Height:            physicalExamModel.Height,
-			UpperArmCircum:    physicalExamModel.UpperArmCircum,
-			HeadCircum:        physicalExamModel.HeadCircum,
-			Waist:             physicalExamModel.Waist,
-			Head:              physicalExamModel.Head,
-			Eyes:              physicalExamModel.Eyes,
-			Ears:              physicalExamModel.Ears,
-			Nose:              physicalExamModel.Nose,
-			Throat:            physicalExamModel.Throat,
-			ENT:               physicalExamModel.ENT,
-			Neck:              physicalExamModel.Neck,
-			Chest:             physicalExamModel.Chest,
-			Thorax:            physicalExamModel.Thorax,
-			Heart:             physicalExamModel.Heart,
-			Cardiac:           physicalExamModel.Cardiac,
-			Lungs:             physicalExamModel.Lungs,
-			Pulmonary:         physicalExamModel.Pulmonary,
-			Abdomen:           physicalExamModel.Abdomen,
-			Extremities:       physicalExamModel.Extremities,
-			Skin:              physicalExamModel.Skin,
-			Neurological:      physicalExamModel.Neurological,
-			Musculoskel:       physicalExamModel.Musculoskel,
-			Genitourinary:     physicalExamModel.Genitourinary,
-			OtherFindings:     physicalExamModel.OtherFindings,
-			ECGPerformed:      physicalExamModel.ECGPerformed,
-			ECGResult:         physicalExamModel.ECGResult,
-			ECGInterpretation: physicalExamModel.ECGInterpretation,
-			ECGNotes:          physicalExamModel.ECGNotes,
-			PainMethod:        physicalExamModel.PainMethod,
-			PainScale:         physicalExamModel.PainScale,
-			PainLocation:      physicalExamModel.PainLocation,
-		}
+	var physicalExamModel models.PhysicalExamination
+	clinicalDB.Where("visit_id = ?", visitID).First(&physicalExamModel)
+	physicalExam = PhysicalExamData{
+		ID:                physicalExamModel.ID,
+		GeneralCondition:  physicalExamModel.GeneralCondition,
+		Consciousness:     physicalExamModel.Consciousness,
+		BloodPressure:     physicalExamModel.BloodPressure,
+		HeartRate:         physicalExamModel.HeartRate,
+		RespiratoryRate:   physicalExamModel.RespiratoryRate,
+		Temperature:       physicalExamModel.Temperature,
+		OxygenSaturation:  physicalExamModel.OxygenSaturation,
+		Weight:            physicalExamModel.Weight,
+		Height:            physicalExamModel.Height,
+		UpperArmCircum:    physicalExamModel.UpperArmCircum,
+		HeadCircum:        physicalExamModel.HeadCircum,
+		Waist:             physicalExamModel.Waist,
+		Head:              physicalExamModel.Head,
+		Eyes:              physicalExamModel.Eyes,
+		Ears:              physicalExamModel.Ears,
+		Nose:              physicalExamModel.Nose,
+		Throat:            physicalExamModel.Throat,
+		ENT:               physicalExamModel.ENT,
+		Neck:              physicalExamModel.Neck,
+		Chest:             physicalExamModel.Chest,
+		Thorax:            physicalExamModel.Thorax,
+		Heart:             physicalExamModel.Heart,
+		Cardiac:           physicalExamModel.Cardiac,
+		Lungs:             physicalExamModel.Lungs,
+		Pulmonary:         physicalExamModel.Pulmonary,
+		Abdomen:           physicalExamModel.Abdomen,
+		Extremities:       physicalExamModel.Extremities,
+		Skin:              physicalExamModel.Skin,
+		Neurological:      physicalExamModel.Neurological,
+		Musculoskel:       physicalExamModel.Musculoskel,
+		Genitourinary:     physicalExamModel.Genitourinary,
+		OtherFindings:     physicalExamModel.OtherFindings,
+		ECGPerformed:      physicalExamModel.ECGPerformed,
+		ECGResult:         physicalExamModel.ECGResult,
+		ECGInterpretation: physicalExamModel.ECGInterpretation,
+		ECGNotes:          physicalExamModel.ECGNotes,
+		PainMethod:        physicalExamModel.PainMethod,
+		PainScale:         physicalExamModel.PainScale,
+		PainLocation:      physicalExamModel.PainLocation,
+	}
 
-		var diagnosesModel []models.Diagnosis
-		database.DB.Where("visit_id = ?", visitID).Find(&diagnosesModel)
-		for _, d := range diagnosesModel {
-			diagnoses = append(diagnoses, DiagnosisData{
-				Type:      d.Type,
-				ICD10Code: d.ICD10Code,
-				ICD10Name: d.ICD10Name,
-			})
-		}
+	var diagnosesList []models.Diagnosis
+	clinicalDB.Where("visit_id = ?", visitID).Order("type ASC, sequence ASC").Find(&diagnosesList)
+	for _, d := range diagnosesList {
+		diagnoses = append(diagnoses, DiagnosisData{
+			Type:      d.Type,
+			ICD10Code: d.ICD10Code,
+			ICD10Name: d.ICD10Name,
+		})
+	}
 
-		var assessmentPlanModel models.AssessmentPlan
-		database.DB.Where("visit_id = ?", visitID).First(&assessmentPlanModel)
-		assessmentPlan = AssessmentPlanData{
-			ID:               assessmentPlanModel.ID,
-			MedicationPlan:   assessmentPlanModel.MedicationPlan,
-			DietPlan:         assessmentPlanModel.DietPlan,
-			ActivityPlan:     assessmentPlanModel.ActivityPlan,
-			EducationPlan:    assessmentPlanModel.EducationPlan,
-			ProcedurePlan:    assessmentPlanModel.ProcedurePlan,
-			ConsultationPlan: assessmentPlanModel.ConsultationPlan,
-			Prognosis:        assessmentPlanModel.Prognosis,
-		}
+	var assessmentPlanModel models.AssessmentPlan
+	clinicalDB.Where("visit_id = ?", visitID).First(&assessmentPlanModel)
+	assessmentPlan = AssessmentPlanData{
+		ID:               assessmentPlanModel.ID,
+		MedicationPlan:   assessmentPlanModel.MedicationPlan,
+		DietPlan:         assessmentPlanModel.DietPlan,
+		ActivityPlan:     assessmentPlanModel.ActivityPlan,
+		EducationPlan:    assessmentPlanModel.EducationPlan,
+		ProcedurePlan:    assessmentPlanModel.ProcedurePlan,
+		ConsultationPlan: assessmentPlanModel.ConsultationPlan,
+		Prognosis:        assessmentPlanModel.Prognosis,
+	}
 
-		var dispositionModel models.Disposition
-		database.DB.Where("visit_id = ?", visitID).First(&dispositionModel)
-		disposition = DispositionData{
-			ID:                   dispositionModel.ID,
-			DispositionType:      dispositionModel.DispositionType,
-			DischargeStatus:      dispositionModel.DischargeStatus,
-			AdmissionWard:        dispositionModel.AdmissionWard,
-			AdmissionReason:      dispositionModel.AdmissionReason,
-			ReferralFacility:     dispositionModel.ReferralFacility,
-			ReferralReason:       dispositionModel.ReferralReason,
-			DischargeInstruction: dispositionModel.DischargeInstruction,
-			DischargeMedication:  dispositionModel.DischargeMedication,
-			FollowUpDate:         dispositionModel.FollowUpDate,
-			FollowUpInstruction:  dispositionModel.FollowUpInstruction,
-		}
+	var dispositionModel models.Disposition
+	clinicalDB.Where("visit_id = ?", visitID).First(&dispositionModel)
+	disposition = DispositionData{
+		ID:                   dispositionModel.ID,
+		DispositionType:      dispositionModel.DispositionType,
+		DischargeStatus:      dispositionModel.DischargeStatus,
+		AdmissionWard:        dispositionModel.AdmissionWard,
+		AdmissionReason:      dispositionModel.AdmissionReason,
+		ReferralFacility:     dispositionModel.ReferralFacility,
+		ReferralReason:       dispositionModel.ReferralReason,
+		DischargeInstruction: dispositionModel.DischargeInstruction,
+		DischargeMedication:  dispositionModel.DischargeMedication,
+		FollowUpDate:         dispositionModel.FollowUpDate,
+		FollowUpInstruction:  dispositionModel.FollowUpInstruction,
+	}
 
-		var medicineOrders []models.MedicineOrder
-		database.DB.Where("source_visit_id = ? AND status <> ?", visitID, models.OrderStatusCancelled).Preload("Items.Medicine").Find(&medicineOrders)
-		for _, order := range medicineOrders {
-			for _, item := range order.Items {
-				medName := ""
-				if item.Medicine != nil {
-					medName = item.Medicine.Name
-				}
-				medicineItems = append(medicineItems, MedicineItemData{
-					Name:         medName,
-					Dosage:       item.Dosage,
-					Frequency:    item.Frequency,
-					Route:        item.Route,
-					Quantity:     item.Quantity,
-					Unit:         item.Unit,
-					Instructions: item.Instructions,
-				})
+	var medicineOrders []models.MedicineOrder
+	clinicalDB.Where("source_visit_id = ? AND status <> ?", visitID, models.OrderStatusCancelled).
+		Preload("Items.Medicine").
+		Find(&medicineOrders)
+	for _, order := range medicineOrders {
+		for _, item := range order.Items {
+			medName := ""
+			if item.Medicine != nil {
+				medName = item.Medicine.Name
 			}
+			medicineItems = append(medicineItems, MedicineItemData{
+				Name:         medName,
+				Dosage:       item.Dosage,
+				Frequency:    item.Frequency,
+				Route:        item.Route,
+				Quantity:     item.Quantity,
+				Unit:         item.Unit,
+				Instructions: item.Instructions,
+			})
 		}
 	}
 
@@ -2818,23 +2730,7 @@ func PrintInpatientResume(c *gin.Context) {
 	}
 
 	patient := visit.Registration.Patient
-
-	// Check RM Duplicate
-	// Only use if it has been synced (has actual clinical data), not an empty placeholder
-	var useRMDuplicate bool
-	var rmDup models.EKlaimRMDuplicate
-	if rmDuplicateID != "" {
-		if err := database.DB.
-			Preload("Diagnoses").
-			Preload("Procedures").
-			Preload("MedicineItems").
-			First(&rmDup, rmDuplicateID).Error; err == nil {
-			// Only use if RM Duplicate has actual data (synced), not just an empty placeholder
-			if rmDup.ChiefComplaint != "" || rmDup.GeneralCondition != "" || len(rmDup.Diagnoses) > 0 {
-				useRMDuplicate = true
-			}
-		}
-	}
+	clinicalDB := getClinicalDB(c)
 
 	// Data structures
 	var anamnesisChiefComplaint, anamnesisHistory, anamnesisAllergies string
@@ -2856,125 +2752,77 @@ func PrintInpatientResume(c *gin.Context) {
 	}
 	var dischargeMeds []MedItemData
 
-	if useRMDuplicate {
-		anamnesisChiefComplaint = rmDup.ChiefComplaint
-		anamnesisHistory = rmDup.HistoryOfPresentIllness
-		anamnesisAllergies = rmDup.Allergies
-		physicalExam.ID = rmDup.ID
-		physicalExam.GeneralCondition = rmDup.GeneralCondition
-		physicalExam.Consciousness = rmDup.Consciousness
-		physicalExam.BloodPressure = rmDup.BloodPressure
-		physicalExam.HeartRate = rmDup.HeartRate
-		physicalExam.RespiratoryRate = rmDup.RespiratoryRate
-		physicalExam.Temperature = rmDup.Temperature
-		physicalExam.OxygenSaturation = rmDup.OxygenSaturation
-		physicalExam.Weight = rmDup.Weight
-		physicalExam.Height = rmDup.Height
-		physicalExam.HeadCircum = rmDup.HeadCircum
-		physicalExam.Waist = rmDup.Waist
-		physicalExam.Head = rmDup.Head
-		physicalExam.Eyes = rmDup.Eyes
-		physicalExam.Ears = rmDup.Ears
-		physicalExam.Nose = rmDup.Nose
-		physicalExam.Throat = rmDup.Throat
-		physicalExam.ENT = rmDup.ENT
-		physicalExam.Neck = rmDup.Neck
-		physicalExam.Chest = rmDup.Chest
-		physicalExam.Thorax = rmDup.Thorax
-		physicalExam.Heart = rmDup.Heart
-		physicalExam.Cardiac = rmDup.Cardiac
-		physicalExam.Lungs = rmDup.Lungs
-		physicalExam.Pulmonary = rmDup.Pulmonary
-		physicalExam.Abdomen = rmDup.Abdomen
-		physicalExam.Extremities = rmDup.Extremities
-		physicalExam.Skin = rmDup.Skin
-		physicalExam.Neurological = rmDup.Neurological
-		physicalExam.Musculoskel = rmDup.Musculoskel
-		physicalExam.Genitourinary = rmDup.Genitourinary
-		physicalExam.OtherFindings = rmDup.OtherFindings
-		for _, d := range rmDup.Diagnoses {
-			diagnosesList = append(diagnosesList, DiagData{Type: d.Type, ICD10Code: d.ICD10Code, ICD10Name: d.ICD10Name})
-		}
-		dispType = rmDup.DispositionType
-		dispStatus = rmDup.DischargeStatus
-		dispInstruction = rmDup.DischargeInstruction
-		dispMedication = rmDup.DischargeMedication
-		dispFollowUpDate = parseFollowUpDate(rmDup.FollowUpDate)
-		for _, m := range rmDup.MedicineItems {
-			dischargeMeds = append(dischargeMeds, MedItemData{Name: m.MedicineName, Dosage: m.Dosage, Frequency: m.Frequency, Route: m.Route, Quantity: m.Quantity, Unit: m.Unit, Instructions: m.Instructions})
-		}
-	} else {
-		var anamnesisModel models.Anamnesis
-		database.DB.Where("visit_id = ?", visitID).First(&anamnesisModel)
-		anamnesisChiefComplaint = anamnesisModel.ChiefComplaint
-		anamnesisHistory = anamnesisModel.HistoryOfPresentIllness
-		anamnesisAllergies = anamnesisModel.Allergies
+	// Load from clinicalDB (either Main DB or Casemix DB)
+	var anamnesisModel models.Anamnesis
+	clinicalDB.Where("visit_id = ?", visitID).First(&anamnesisModel)
+	anamnesisChiefComplaint = anamnesisModel.ChiefComplaint
+	anamnesisHistory = anamnesisModel.HistoryOfPresentIllness
+	anamnesisAllergies = anamnesisModel.Allergies
 
-		var physExamModel models.PhysicalExamination
-		database.DB.Where("visit_id = ?", visitID).First(&physExamModel)
-		physicalExam.ID = physExamModel.ID
-		physicalExam.GeneralCondition = physExamModel.GeneralCondition
-		physicalExam.Consciousness = physExamModel.Consciousness
-		physicalExam.BloodPressure = physExamModel.BloodPressure
-		physicalExam.HeartRate = physExamModel.HeartRate
-		physicalExam.RespiratoryRate = physExamModel.RespiratoryRate
-		physicalExam.Temperature = physExamModel.Temperature
-		physicalExam.OxygenSaturation = physExamModel.OxygenSaturation
-		physicalExam.Weight = physExamModel.Weight
-		physicalExam.Height = physExamModel.Height
-		physicalExam.UpperArmCircum = physExamModel.UpperArmCircum
-		physicalExam.HeadCircum = physExamModel.HeadCircum
-		physicalExam.Waist = physExamModel.Waist
-		physicalExam.Head = physExamModel.Head
-		physicalExam.Eyes = physExamModel.Eyes
-		physicalExam.Ears = physExamModel.Ears
-		physicalExam.Nose = physExamModel.Nose
-		physicalExam.Throat = physExamModel.Throat
-		physicalExam.ENT = physExamModel.ENT
-		physicalExam.Neck = physExamModel.Neck
-		physicalExam.Chest = physExamModel.Chest
-		physicalExam.Thorax = physExamModel.Thorax
-		physicalExam.Heart = physExamModel.Heart
-		physicalExam.Cardiac = physExamModel.Cardiac
-		physicalExam.Lungs = physExamModel.Lungs
-		physicalExam.Pulmonary = physExamModel.Pulmonary
-		physicalExam.Abdomen = physExamModel.Abdomen
-		physicalExam.Extremities = physExamModel.Extremities
-		physicalExam.Skin = physExamModel.Skin
-		physicalExam.Neurological = physExamModel.Neurological
-		physicalExam.Musculoskel = physExamModel.Musculoskel
-		physicalExam.Genitourinary = physExamModel.Genitourinary
-		physicalExam.OtherFindings = physExamModel.OtherFindings
-		physicalExam.PainMethod = physExamModel.PainMethod
-		physicalExam.PainScale = physExamModel.PainScale
-		physicalExam.PainLocation = physExamModel.PainLocation
+	var physExamModel models.PhysicalExamination
+	clinicalDB.Where("visit_id = ?", visitID).First(&physExamModel)
+	physicalExam.ID = physExamModel.ID
+	physicalExam.GeneralCondition = physExamModel.GeneralCondition
+	physicalExam.Consciousness = physExamModel.Consciousness
+	physicalExam.BloodPressure = physExamModel.BloodPressure
+	physicalExam.HeartRate = physExamModel.HeartRate
+	physicalExam.RespiratoryRate = physExamModel.RespiratoryRate
+	physicalExam.Temperature = physExamModel.Temperature
+	physicalExam.OxygenSaturation = physExamModel.OxygenSaturation
+	physicalExam.Weight = physExamModel.Weight
+	physicalExam.Height = physExamModel.Height
+	physicalExam.UpperArmCircum = physExamModel.UpperArmCircum
+	physicalExam.HeadCircum = physExamModel.HeadCircum
+	physicalExam.Waist = physExamModel.Waist
+	physicalExam.Head = physExamModel.Head
+	physicalExam.Eyes = physExamModel.Eyes
+	physicalExam.Ears = physExamModel.Ears
+	physicalExam.Nose = physExamModel.Nose
+	physicalExam.Throat = physExamModel.Throat
+	physicalExam.ENT = physExamModel.ENT
+	physicalExam.Neck = physExamModel.Neck
+	physicalExam.Chest = physExamModel.Chest
+	physicalExam.Thorax = physExamModel.Thorax
+	physicalExam.Heart = physExamModel.Heart
+	physicalExam.Cardiac = physExamModel.Cardiac
+	physicalExam.Lungs = physExamModel.Lungs
+	physicalExam.Pulmonary = physExamModel.Pulmonary
+	physicalExam.Abdomen = physExamModel.Abdomen
+	physicalExam.Extremities = physExamModel.Extremities
+	physicalExam.Skin = physExamModel.Skin
+	physicalExam.Neurological = physExamModel.Neurological
+	physicalExam.Musculoskel = physExamModel.Musculoskel
+	physicalExam.Genitourinary = physExamModel.Genitourinary
+	physicalExam.OtherFindings = physExamModel.OtherFindings
+	physicalExam.PainMethod = physExamModel.PainMethod
+	physicalExam.PainScale = physExamModel.PainScale
+	physicalExam.PainLocation = physExamModel.PainLocation
 
-		var diagModels []models.Diagnosis
-		database.DB.Where("visit_id = ?", visitID).Find(&diagModels)
-		for _, d := range diagModels {
-			diagnosesList = append(diagnosesList, DiagData{Type: d.Type, ICD10Code: d.ICD10Code, ICD10Name: d.ICD10Name})
-		}
+	var dList []models.Diagnosis
+	clinicalDB.Where("visit_id = ?", visitID).Order("type ASC, sequence ASC").Find(&dList)
+	for _, d := range dList {
+		diagnosesList = append(diagnosesList, DiagData{Type: d.Type, ICD10Code: d.ICD10Code, ICD10Name: d.ICD10Name})
+	}
 
-		var dispModel models.Disposition
-		database.DB.Where("visit_id = ?", visitID).First(&dispModel)
-		dispType = dispModel.DispositionType
-		dispStatus = dispModel.DischargeStatus
-		dispInstruction = dispModel.DischargeInstruction
-		dispMedication = dispModel.DischargeMedication
-		dispFollowUpDate = dispModel.FollowUpDate
+	var dispModel models.Disposition
+	clinicalDB.Where("visit_id = ?", visitID).First(&dispModel)
+	dispType = dispModel.DispositionType
+	dispStatus = dispModel.DischargeStatus
+	dispInstruction = dispModel.DischargeInstruction
+	dispMedication = dispModel.DischargeMedication
+	dispFollowUpDate = dispModel.FollowUpDate
 
-		var medicineOrders []models.MedicineOrder
-		database.DB.Where("source_visit_id = ? AND status <> ?", visitID, models.OrderStatusCancelled).
-			Where("(fulfillment_type = ?) OR (COALESCE(fulfillment_type, '') = '' AND prescription_type = ?)", models.FulfillmentTypeTakeHome, "discharge").
-			Preload("Items.Medicine").Find(&medicineOrders)
-		for _, order := range medicineOrders {
-			for _, item := range order.Items {
-				medName := ""
-				if item.Medicine != nil {
-					medName = item.Medicine.Name
-				}
-				dischargeMeds = append(dischargeMeds, MedItemData{Name: medName, Dosage: item.Dosage, Frequency: item.Frequency, Route: item.Route, Quantity: item.Quantity, Unit: item.Unit, Instructions: item.Instructions})
+	var medicineOrders []models.MedicineOrder
+	clinicalDB.Where("source_visit_id = ? AND status <> ?", visitID, models.OrderStatusCancelled).
+		Where("(fulfillment_type = ?) OR (COALESCE(fulfillment_type, '') = '' AND prescription_type = ?)", models.FulfillmentTypeTakeHome, "discharge").
+		Preload("Items.Medicine").Find(&medicineOrders)
+	for _, order := range medicineOrders {
+		for _, item := range order.Items {
+			medName := ""
+			if item.Medicine != nil {
+				medName = item.Medicine.Name
 			}
+			dischargeMeds = append(dischargeMeds, MedItemData{Name: medName, Dosage: item.Dosage, Frequency: item.Frequency, Route: item.Route, Quantity: item.Quantity, Unit: item.Unit, Instructions: item.Instructions})
 		}
 	}
 
@@ -4966,48 +4814,13 @@ func PrintTriageForm(c *gin.Context) {
 		triagerName      string
 	)
 
-	useRMDuplicate := false
-	if rmDuplicateID != "" {
-		var rmDup models.EKlaimRMDuplicate
-		if err := database.DB.First(&rmDup, rmDuplicateID).Error; err == nil && rmDup.HasTriage {
-			useRMDuplicate = true
-			arrivalMode = rmDup.TriageArrivalMode
-			triageComplaint = rmDup.TriageComplaint
-			triageLevel = rmDup.TriageLevel
-			airway = rmDup.TriageAirway
-			airwayNote = rmDup.TriageAirwayNote
-			breathing = rmDup.TriageBreathing
-			breathingNote = rmDup.TriageBreathingNote
-			breathingRate = rmDup.TriageRespiratoryRate
-			circulation = rmDup.TriageCirculation
-			circulationNote = rmDup.TriageCirculationNote
-			bloodPressure = rmDup.TriageBloodPressure
-			heartRate = rmDup.TriageHeartRate
-			temperature = rmDup.TriageTemperature
-			oxygenSaturation = rmDup.TriageOxygenSat
-			painScale = rmDup.TriagePainScale
-			gcsE = rmDup.TriageGCSE
-			gcsV = rmDup.TriageGCSV
-			gcsM = rmDup.TriageGCSM
-			triageAssessment = rmDup.TriageAssessment
-			immediateActions = rmDup.TriageImmediateAction
-		}
-	}
+	clinicalDB := getClinicalDB(c)
 
-	if !useRMDuplicate {
-		// Fallback: load from original triage table with cross-registration support
-		visitIDUint, _ := strconv.ParseUint(visitID, 10, 64)
-		triagePtr, triageFound := findTriageForVisit(uint(visitIDUint))
-		if !triageFound {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Data triage tidak ditemukan"})
-			return
-		}
-		var triage models.Triage
-		if triagePtr.TriagedByID != nil {
-			database.DB.Preload("TriagedBy").First(&triage, triagePtr.ID)
-		} else {
-			triage = *triagePtr
-		}
+	// Load from clinicalDB (either Main DB or Casemix DB)
+	var triage models.Triage
+	visitIDUint, _ := strconv.ParseUint(visitID, 10, 64)
+	err := clinicalDB.Where("visit_id = ?", uint(visitIDUint)).Preload("TriagedBy").First(&triage).Error
+	if err == nil {
 		arrivalMode = triage.ArrivalMode
 		triageComplaint = triage.TriageComplaint
 		triageLevel = triage.TriageLevel
@@ -5502,47 +5315,45 @@ func PrintEmergencySummary(c *gin.Context) {
 	patient := visit.Registration.Patient
 	hospitalInfo := getHospitalInfo()
 
-	// Try to use RM Duplicate data first
-	var useRMDuplicate bool
-	var rmDup models.EKlaimRMDuplicate
-	if rmDuplicateID != "" {
-		if err := database.DB.
-			Preload("Diagnoses").
-			Preload("MedicineItems").
-			First(&rmDup, rmDuplicateID).Error; err == nil {
-			if rmDup.ChiefComplaint != "" || rmDup.HasTriage || len(rmDup.Diagnoses) > 0 {
-				useRMDuplicate = true
-			}
-		}
-	}
+	clinicalDB := getClinicalDB(c)
 
-	// Load original data as fallback
+	// Load clinical data from clinicalDB (either Main DB or Casemix DB)
 	var triage models.Triage
 	visitIDUint, _ := strconv.ParseUint(visitID, 10, 64)
 	if triagePtr, ok := findTriageForVisit(uint(visitIDUint)); ok {
-		triage = *triagePtr
+		// findTriageForVisit uses Main DB, so if we are in Casemix mode, we should try Casemix DB first
+		if clinicalDB == database.CasemixDB {
+			var tx models.Triage
+			if clinicalDB.Where("visit_id = ?", uint(visitIDUint)).First(&tx).Error == nil {
+				triage = tx
+			} else {
+				triage = *triagePtr
+			}
+		} else {
+			triage = *triagePtr
+		}
 	}
 
 	var anamnesis models.Anamnesis
-	database.DB.Where("visit_id = ?", visitID).First(&anamnesis)
+	clinicalDB.Where("visit_id = ?", visitID).First(&anamnesis)
 
 	var physicalExam models.PhysicalExamination
-	database.DB.Where("visit_id = ?", visitID).First(&physicalExam)
+	clinicalDB.Where("visit_id = ?", visitID).First(&physicalExam)
 
 	var diagnoses []models.Diagnosis
-	database.DB.Where("visit_id = ?", visitID).Find(&diagnoses)
+	clinicalDB.Where("visit_id = ?", visitID).Order("type ASC, sequence ASC").Find(&diagnoses)
 
 	var disposition models.Disposition
-	database.DB.Where("visit_id = ?", visitID).First(&disposition)
+	clinicalDB.Where("visit_id = ?", visitID).First(&disposition)
 
 	var medicineOrders []models.MedicineOrder
-	database.DB.Preload("Items.Medicine").Where("source_visit_id = ?", visitID).Find(&medicineOrders)
+	clinicalDB.Preload("Items.Medicine").Where("source_visit_id = ? OR visit_id = ?", visitID, visitID).Find(&medicineOrders)
 
 	var procedureOrders []models.ProcedureOrder
-	database.DB.Where("source_visit_id = ?", visitID).Find(&procedureOrders)
+	clinicalDB.Where("source_visit_id = ? OR visit_id = ?", visitID, visitID).Find(&procedureOrders)
 
 	var visitProcedures []models.VisitProcedure
-	database.DB.Preload("Procedure").Where("visit_id = ?", visitID).Find(&visitProcedures)
+	clinicalDB.Preload("Procedure").Where("visit_id = ?", visitID).Find(&visitProcedures)
 
 	// Create PDF
 	pdf := gofpdf.New("P", "mm", "A4", "")
@@ -5557,37 +5368,19 @@ func PrintEmergencySummary(c *gin.Context) {
 	addPatientInfoTable(pdf, patient, &visit)
 
 	// Triage Summary
-	hasTriage := useRMDuplicate && rmDup.HasTriage
-	if !hasTriage && triage.ID > 0 {
-		hasTriage = true
-	}
-	if hasTriage {
+	if triage.ID > 0 {
 		addTableHeader(pdf, "A. TRIAGE")
-		var am, tc, tl, bp, hr, temp, spo2 string
-		var gcse, gcsv, gcsm int
-		if useRMDuplicate && rmDup.HasTriage {
-			am = rmDup.TriageArrivalMode
-			tc = rmDup.TriageComplaint
-			tl = rmDup.TriageLevel
-			bp = rmDup.TriageBloodPressure
-			hr = rmDup.TriageHeartRate
-			temp = rmDup.TriageTemperature
-			spo2 = rmDup.TriageOxygenSat
-			gcse = rmDup.TriageGCSE
-			gcsv = rmDup.TriageGCSV
-			gcsm = rmDup.TriageGCSM
-		} else {
-			am = triage.ArrivalMode
-			tc = triage.TriageComplaint
-			tl = triage.TriageLevel
-			bp = triage.BloodPressure
-			hr = triage.HeartRate
-			temp = triage.Temperature
-			spo2 = triage.OxygenSaturation
-			gcse = triage.GCSE
-			gcsv = triage.GCSV
-			gcsm = triage.GCSM
-		}
+		am := triage.ArrivalMode
+		tc := triage.TriageComplaint
+		tl := triage.TriageLevel
+		bp := triage.BloodPressure
+		hr := triage.HeartRate
+		temp := triage.Temperature
+		spo2 := triage.OxygenSaturation
+		gcse := triage.GCSE
+		gcsv := triage.GCSV
+		gcsm := triage.GCSM
+
 		addTableRow(pdf, "Cara Datang", safeString(am), 45)
 		addTableRow(pdf, "Keluhan", safeString(tc), 45)
 		if tl != "" {
@@ -5601,98 +5394,39 @@ func PrintEmergencySummary(c *gin.Context) {
 	}
 
 	// Anamnesis
-	chiefComplaint := anamnesis.ChiefComplaint
-	hopi := anamnesis.HistoryOfPresentIllness
-	pastHistory := anamnesis.PastMedicalHistory
-	allergies := anamnesis.Allergies
-	if useRMDuplicate {
-		if rmDup.ChiefComplaint != "" {
-			chiefComplaint = rmDup.ChiefComplaint
-		}
-		if rmDup.HistoryOfPresentIllness != "" {
-			hopi = rmDup.HistoryOfPresentIllness
-		}
-		if rmDup.PastMedicalHistory != "" {
-			pastHistory = rmDup.PastMedicalHistory
-		}
-		if rmDup.Allergies != "" {
-			allergies = rmDup.Allergies
-		}
-	}
-	if chiefComplaint != "" || hopi != "" {
+	if anamnesis.ChiefComplaint != "" || anamnesis.HistoryOfPresentIllness != "" {
 		addTableHeader(pdf, "B. ANAMNESIS")
-		addTableMultiRow(pdf, "Keluhan Utama", safeString(chiefComplaint), 45)
-		addTableMultiRow(pdf, "Riwayat Penyakit Sekarang", safeString(hopi), 45)
-		if pastHistory != "" {
-			addTableMultiRow(pdf, "Riwayat Penyakit Dahulu", pastHistory, 45)
+		addTableMultiRow(pdf, "Keluhan Utama", safeString(anamnesis.ChiefComplaint), 45)
+		addTableMultiRow(pdf, "Riwayat Penyakit Sekarang", safeString(anamnesis.HistoryOfPresentIllness), 45)
+		if anamnesis.PastMedicalHistory != "" {
+			addTableMultiRow(pdf, "Riwayat Penyakit Dahulu", anamnesis.PastMedicalHistory, 45)
 		}
-		if allergies != "" {
-			addTableRow(pdf, "Alergi", allergies, 45)
+		if anamnesis.Allergies != "" {
+			addTableRow(pdf, "Alergi", anamnesis.Allergies, 45)
 		}
 		addTableEnd(pdf)
 	}
 
 	// Physical Examination
-	genCond := physicalExam.GeneralCondition
-	consciousness := physicalExam.Consciousness
-	peBP := physicalExam.BloodPressure
-	peHR := physicalExam.HeartRate
-	peRR := physicalExam.RespiratoryRate
-	peTemp := physicalExam.Temperature
-	peSPO2 := physicalExam.OxygenSaturation
-	if useRMDuplicate {
-		if rmDup.GeneralCondition != "" {
-			genCond = rmDup.GeneralCondition
-		}
-		if rmDup.Consciousness != "" {
-			consciousness = rmDup.Consciousness
-		}
-		if rmDup.BloodPressure != "" {
-			peBP = rmDup.BloodPressure
-		}
-		if rmDup.HeartRate != "" {
-			peHR = rmDup.HeartRate
-		}
-		if rmDup.RespiratoryRate != "" {
-			peRR = rmDup.RespiratoryRate
-		}
-		if rmDup.Temperature != "" {
-			peTemp = rmDup.Temperature
-		}
-		if rmDup.OxygenSaturation != "" {
-			peSPO2 = rmDup.OxygenSaturation
-		}
-	}
-	if genCond != "" || peBP != "" {
+	if physicalExam.GeneralCondition != "" || physicalExam.BloodPressure != "" {
 		addTableHeader(pdf, "C. PEMERIKSAAN FISIK")
-		addTableRow(pdf, "Keadaan Umum", safeString(genCond), 45)
-		addTableRow(pdf, "Kesadaran", safeString(consciousness), 45)
+		addTableRow(pdf, "Keadaan Umum", safeString(physicalExam.GeneralCondition), 45)
+		addTableRow(pdf, "Kesadaran", safeString(physicalExam.Consciousness), 45)
 		vitalStr := fmt.Sprintf("TD: %s, N: %s, RR: %s, S: %s, SpO2: %s",
-			safeString(peBP), safeString(peHR), safeString(peRR), safeString(peTemp), safeString(peSPO2))
+			safeString(physicalExam.BloodPressure), safeString(physicalExam.HeartRate), safeString(physicalExam.RespiratoryRate), safeString(physicalExam.Temperature), safeString(physicalExam.OxygenSaturation))
 		addTableRow(pdf, "Tanda Vital", vitalStr, 45)
 		addTableEnd(pdf)
 	}
 
-	// Diagnosis - prefer rm_duplicate
-	type dxItem struct{ Code, Name, Type string }
-	var dxList []dxItem
-	if useRMDuplicate && len(rmDup.Diagnoses) > 0 {
-		for _, d := range rmDup.Diagnoses {
-			dxList = append(dxList, dxItem{d.ICD10Code, d.ICD10Name, d.Type})
-		}
-	} else {
-		for _, d := range diagnoses {
-			dxList = append(dxList, dxItem{d.ICD10Code, d.ICD10Name, d.Type})
-		}
-	}
-	if len(dxList) > 0 {
+	// Diagnosis
+	if len(diagnoses) > 0 {
 		addTableHeader(pdf, "D. DIAGNOSIS")
-		for i, dx := range dxList {
+		for i, dx := range diagnoses {
 			dxType := "Sekunder"
 			if dx.Type == "primary" {
 				dxType = "Primer"
 			}
-			dxStr := fmt.Sprintf("%d. %s - %s (%s)", i+1, dx.Code, dx.Name, dxType)
+			dxStr := fmt.Sprintf("%d. %s - %s (%s)", i+1, dx.ICD10Code, dx.ICD10Name, dxType)
 			addTableFullRow(pdf, dxStr, false)
 		}
 		addTableEnd(pdf)
@@ -5830,53 +5564,14 @@ func PrintCPPT(c *gin.Context) {
 		return
 	}
 
-	// Load CPPT records - from RM duplicate if rm_duplicate_id provided, otherwise live data
+	clinicalDB := getClinicalDB(c)
 	var cpptRecords []models.CPPT
-	rmDupIDStr := c.Query("rm_duplicate_id")
-	if rmDupIDStr != "" {
-		var rmDupCPPTs []models.EKlaimRMCPPT
-		if err := database.DB.
-			Where("rm_duplicate_id = ?", rmDupIDStr).
-			Order("sequence ASC, record_date ASC").
-			Find(&rmDupCPPTs).Error; err == nil && len(rmDupCPPTs) > 0 {
-			for _, rmc := range rmDupCPPTs {
-				t, _ := time.Parse("2006-01-02T15:04", rmc.RecordDate)
-				if t.IsZero() {
-					t, _ = time.Parse("2006-01-02 15:04:05", rmc.RecordDate)
-				}
-				staffName := rmc.StaffName
-				if staffName == "" {
-					staffName = rmc.CreatedByName
-				}
-				cpptRecords = append(cpptRecords, models.CPPT{
-					RecordDate:       t,
-					Profession:       rmc.Profession,
-					CPPTFormat:       normalizeCPPTFormatForPrint(rmc.CPPTFormat),
-					Subjective:       rmc.Subjective,
-					Objective:        rmc.Objective,
-					Assessment:       rmc.Assessment,
-					Plan:             rmc.Plan,
-					Instruction:      rmc.Instruction,
-					BloodPressure:    rmc.BloodPressure,
-					HeartRate:        rmc.HeartRate,
-					RespiratoryRate:  rmc.RespiratoryRate,
-					Temperature:      rmc.Temperature,
-					OxygenSaturation: rmc.OxygenSaturation,
-					PainScale:        rmc.PainScale,
-					CreatedBy:        &models.User{FullName: staffName},
-					IsVerified:       rmc.ApprovedByName != "",
-				})
-			}
-		}
-	}
-	if len(cpptRecords) == 0 && rmDupIDStr == "" {
-		if err := database.DB.Preload("CreatedBy").Preload("VerifiedBy").
-			Where("visit_id = ?", visitID).
-			Order("record_date ASC").
-			Find(&cpptRecords).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memuat data CPPT"})
-			return
-		}
+	if err := clinicalDB.Preload("CreatedBy").Preload("VerifiedBy").
+		Where("visit_id = ?", visitID).
+		Order("record_date ASC").
+		Find(&cpptRecords).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memuat data CPPT"})
+		return
 	}
 
 	for i := range cpptRecords {
@@ -6132,83 +5827,14 @@ func PrintNursingCare(c *gin.Context) {
 		return
 	}
 
-	// Load Nursing Care records - from RM duplicate if rm_duplicate_id provided, otherwise live data
+	clinicalDB := getClinicalDB(c)
 	var nursingCares []models.NursingCare
-	rmDupIDStr := c.Query("rm_duplicate_id")
-	if rmDupIDStr != "" {
-		var rmDupNCs []models.EKlaimRMNursingCare
-		if err := database.DB.
-			Where("rm_duplicate_id = ?", rmDupIDStr).
-			Order("sequence ASC, record_date ASC").
-			Find(&rmDupNCs).Error; err == nil && len(rmDupNCs) > 0 {
-			for _, rnc := range rmDupNCs {
-				t, _ := time.Parse("2006-01-02T15:04", rnc.RecordDate)
-				if t.IsZero() {
-					t, _ = time.Parse("2006-01-02 15:04:05", rnc.RecordDate)
-				}
-				staffName := rnc.StaffName
-				if staffName == "" {
-					staffName = rnc.CreatedByName
-				}
-				implTime := time.Time{}
-				if rnc.ImplementationTime != "" {
-					implTime, _ = time.Parse("2006-01-02T15:04", rnc.ImplementationTime)
-				}
-				nursingCares = append(nursingCares, models.NursingCare{
-					ID:                      rnc.ID,
-					RecordDate:              t,
-					ShiftType:               rnc.ShiftType,
-					ChiefComplaint:          rnc.ChiefComplaint,
-					PainAssessment:          rnc.PainAssessment,
-					PainScale:               rnc.PainScale,
-					ConsciousnessLevel:      rnc.ConsciousnessLevel,
-					FunctionalStatus:        rnc.FunctionalStatus,
-					FallRiskAssessment:      rnc.FallRiskAssessment,
-					FallRiskScore:           rnc.FallRiskScore,
-					NutritionAssessment:     rnc.NutritionAssessment,
-					SkinAssessment:          rnc.SkinAssessment,
-					PressureUlcerRisk:       rnc.PressureUlcerRisk,
-					BloodPressure:           rnc.BloodPressure,
-					HeartRate:               rnc.HeartRate,
-					RespiratoryRate:         rnc.RespiratoryRate,
-					Temperature:             rnc.Temperature,
-					OxygenSaturation:        rnc.OxygenSaturation,
-					NursingDiagnosis:        rnc.NursingDiagnosis,
-					NursingDiagnosisCode:    rnc.NursingDiagnosisCode,
-					ProblemEtiology:         rnc.ProblemEtiology,
-					SignsSymptoms:           rnc.SignsSymptoms,
-					NursingOutcome:          rnc.NursingOutcome,
-					NursingOutcomeCode:      rnc.NursingOutcomeCode,
-					OutcomeIndicators:       rnc.OutcomeIndicators,
-					OutcomeTarget:           rnc.OutcomeTarget,
-					NursingIntervention:     rnc.NursingIntervention,
-					NursingInterventionCode: rnc.NursingInterventionCode,
-					ObservationActions:      rnc.ObservationActions,
-					TherapeuticActions:      rnc.TherapeuticActions,
-					EducationActions:        rnc.EducationActions,
-					CollaborationActions:    rnc.CollaborationActions,
-					Implementation:          rnc.Implementation,
-					ImplementationTime:      implTime,
-					PatientResponse:         rnc.PatientResponse,
-					EvaluationSubjective:    rnc.EvaluationSubjective,
-					EvaluationObjective:     rnc.EvaluationObjective,
-					EvaluationAnalysis:      rnc.EvaluationAnalysis,
-					EvaluationPlanning:      rnc.EvaluationPlanning,
-					ProblemStatus:           rnc.ProblemStatus,
-					Notes:                   rnc.Notes,
-					CreatedBy:               &models.User{FullName: staffName},
-				})
-			}
-		}
-	}
-	if len(nursingCares) == 0 && rmDupIDStr == "" {
-		if err := database.DB.Preload("CreatedBy").
-			Where("visit_id = ?", visitID).
-			Order("record_date ASC").
-			Find(&nursingCares).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memuat data asuhan keperawatan"})
-			return
-		}
+	if err := clinicalDB.Preload("CreatedBy").
+		Where("visit_id = ?", visitID).
+		Order("record_date ASC").
+		Find(&nursingCares).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memuat data asuhan keperawatan"})
+		return
 	}
 
 	if len(nursingCares) == 0 {
@@ -6450,59 +6076,14 @@ func PrintFluidBalance(c *gin.Context) {
 		return
 	}
 
-	// Load Fluid Balance records - from RM duplicate if rm_duplicate_id provided, otherwise live data
+	clinicalDB := getClinicalDB(c)
 	var fluidBalances []models.FluidBalance
-	rmDupIDStr := c.Query("rm_duplicate_id")
-	if rmDupIDStr != "" {
-		var rmDupFBs []models.EKlaimRMFluidBalance
-		if err := database.DB.
-			Where("rm_duplicate_id = ?", rmDupIDStr).
-			Order("sequence ASC, record_date ASC").
-			Find(&rmDupFBs).Error; err == nil && len(rmDupFBs) > 0 {
-			for _, rfb := range rmDupFBs {
-				t, _ := time.Parse("2006-01-02", rfb.RecordDate)
-				if t.IsZero() {
-					t, _ = time.Parse("2006-01-02T15:04", rfb.RecordDate)
-				}
-				staffName := rfb.StaffName
-				if staffName == "" {
-					staffName = rfb.CreatedByName
-				}
-				fluidBalances = append(fluidBalances, models.FluidBalance{
-					RecordDate:   t,
-					ShiftType:    rfb.ShiftType,
-					OralDrink:    rfb.OralDrink,
-					OralFood:     rfb.OralFood,
-					OralMedicine: rfb.OralMedicine,
-					IVFluid:      rfb.IVFluid,
-					IVMedicine:   rfb.IVMedicine,
-					BloodProduct: rfb.BloodProduct,
-					EnteralFeed:  rfb.EnteralFeed,
-					OtherIntake:  rfb.OtherIntake,
-					UrineAmount:  rfb.UrineAmount,
-					FecesAmount:  rfb.FecesAmount,
-					VomitAmount:  rfb.VomitAmount,
-					DrainAmount:  rfb.DrainAmount,
-					BloodLoss:    rfb.BloodLoss,
-					IWL:          rfb.IWL,
-					OtherOutput:  rfb.OtherOutput,
-					TotalIntake:  rfb.TotalIntake,
-					TotalOutput:  rfb.TotalOutput,
-					Balance:      rfb.Balance,
-					Notes:        rfb.Notes,
-					CreatedBy:    &models.User{FullName: staffName},
-				})
-			}
-		}
-	}
-	if len(fluidBalances) == 0 && rmDupIDStr == "" {
-		if err := database.DB.Preload("CreatedBy").
-			Where("visit_id = ?", visitID).
-			Order("record_date ASC").
-			Find(&fluidBalances).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memuat data balance cairan"})
-			return
-		}
+	if err := clinicalDB.Preload("CreatedBy").
+		Where("visit_id = ?", visitID).
+		Order("record_date ASC").
+		Find(&fluidBalances).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memuat data balance cairan"})
+		return
 	}
 
 	if len(fluidBalances) == 0 {
@@ -6710,8 +6291,9 @@ func PrintBedTransfer(c *gin.Context) {
 	}
 
 	// Load Bed Transfer records
+	clinicalDB := getClinicalDB(c)
 	var transfers []models.BedTransfer
-	if err := database.DB.
+	if err := clinicalDB.
 		Preload("FromRoom").Preload("FromBed").
 		Preload("ToRoom").Preload("ToBed").
 		Preload("CreatedBy").
@@ -7317,15 +6899,16 @@ func PrintReferralLetter(c *gin.Context) {
 	hospitalInfo := getHospitalInfo()
 
 	// Load disposition with referral data
+	clinicalDB := getClinicalDB(c)
 	var disposition models.Disposition
-	if err := database.DB.Where("visit_id = ? AND disposition_type = ?", visitID, "rujuk").First(&disposition).Error; err != nil {
+	if err := clinicalDB.Where("visit_id = ? AND disposition_type = ?", visitID, "rujuk").First(&disposition).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Data rujukan tidak ditemukan. Pastikan disposisi pasien adalah 'Rujuk'."})
 		return
 	}
 
 	// Load diagnoses
 	var diagnoses []models.Diagnosis
-	database.DB.Where("visit_id = ?", visitID).Find(&diagnoses)
+	clinicalDB.Where("visit_id = ?", visitID).Find(&diagnoses)
 
 	// Create PDF
 	pdf := gofpdf.New("P", "mm", "A4", "")
@@ -7520,8 +7103,9 @@ func PrintInpatientCertificate(c *gin.Context) {
 	hospitalInfo := getHospitalInfo()
 
 	// Load primary diagnosis
+	clinicalDB := getClinicalDB(c)
 	var diagnosis models.Diagnosis
-	database.DB.Where("visit_id = ? AND type = ?", visitID, "primary").First(&diagnosis)
+	clinicalDB.Where("visit_id = ? AND type = ?", visitID, "primary").First(&diagnosis)
 
 	// Create PDF
 	pdf := gofpdf.New("P", "mm", "A4", "")
@@ -9924,8 +9508,9 @@ func PrintAdmissionDischargeSummary(c *gin.Context) {
 	}
 
 	// Load discharge medicine orders (from any visit under registration)
+	clinicalDB := getClinicalDB(c)
 	var dischargeMedicineOrders []models.MedicineOrder
-	database.DB.Where("source_visit_id IN ? AND status <> ?", visitIDs, models.OrderStatusCancelled).
+	clinicalDB.Where("source_visit_id IN ? AND status <> ?", visitIDs, models.OrderStatusCancelled).
 		Where("(fulfillment_type = ?) OR (COALESCE(fulfillment_type, '') = '' AND prescription_type = ?)", models.FulfillmentTypeTakeHome, "discharge").
 		Preload("Items.Medicine").Find(&dischargeMedicineOrders)
 
@@ -10187,26 +9772,27 @@ func PrintAdmissionDischargeSummary(c *gin.Context) {
 		pdf.SetFont("Arial", "", 9)
 
 		// ---- Load per-visit medical data ----
+		clinicalDB := getClinicalDB(c)
 		var mvAnamnesis models.Anamnesis
-		database.DB.Where("visit_id = ?", mv.ID).First(&mvAnamnesis)
+		clinicalDB.Where("visit_id = ?", mv.ID).First(&mvAnamnesis)
 
 		var mvPhysicalExam models.PhysicalExamination
-		database.DB.Where("visit_id = ?", mv.ID).First(&mvPhysicalExam)
+		clinicalDB.Where("visit_id = ?", mv.ID).First(&mvPhysicalExam)
 
 		var mvDiagnoses []models.Diagnosis
-		database.DB.Where("visit_id = ?", mv.ID).Order("type ASC, created_at ASC").Find(&mvDiagnoses)
+		clinicalDB.Where("visit_id = ?", mv.ID).Order("type ASC, created_at ASC").Find(&mvDiagnoses)
 
 		var mvDisposition models.Disposition
-		database.DB.Where("visit_id = ?", mv.ID).First(&mvDisposition)
+		clinicalDB.Where("visit_id = ?", mv.ID).First(&mvDisposition)
 
 		var mvVisitProcedures []models.VisitProcedure
-		database.DB.Where("visit_id = ?", mv.ID).Preload("Procedure").Find(&mvVisitProcedures)
+		clinicalDB.Where("visit_id = ?", mv.ID).Preload("Procedure").Find(&mvVisitProcedures)
 
 		var mvProcedureOrders []models.ProcedureOrder
-		database.DB.Where("source_visit_id = ?", mv.ID).Find(&mvProcedureOrders)
+		clinicalDB.Where("source_visit_id = ?", mv.ID).Find(&mvProcedureOrders)
 
 		var mvMedicineOrders []models.MedicineOrder
-		database.DB.Where("source_visit_id = ? AND status <> ?", mv.ID, models.OrderStatusCancelled).
+		clinicalDB.Where("source_visit_id = ? AND status <> ?", mv.ID, models.OrderStatusCancelled).
 			Where("(COALESCE(fulfillment_type, '') != ?) AND (prescription_type IS NULL OR prescription_type != ?)", models.FulfillmentTypeTakeHome, "discharge").
 			Preload("Items.Medicine").Find(&mvMedicineOrders)
 

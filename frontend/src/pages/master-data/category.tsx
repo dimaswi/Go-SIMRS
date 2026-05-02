@@ -1,4 +1,4 @@
-﻿import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { DataTable } from '@/components/ui/data-table';
@@ -28,6 +28,7 @@ const CATEGORY_NAMES: Record<string, string> = {
   specialization: 'Spesialisasi',
   body_marker_category: 'Kategori Marker Tubuh',
   body_marker_image: 'Gambar Marker Tubuh',
+  o2_type: 'Jenis Oksigen',
 };
 
 export default function CategoryListPage() {

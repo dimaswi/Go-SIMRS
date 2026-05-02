@@ -11,14 +11,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -551,15 +543,6 @@ export function LaboratoryWorkstation({
     );
   };
 
-  const getOrderStatusLabel = (status?: string) => {
-    const config = status
-      ? PROCEDURE_ORDER_STATUS[
-          status as keyof typeof PROCEDURE_ORDER_STATUS
-        ] || { label: status }
-      : { label: "Unknown" };
-    return config.label;
-  };
-
   const getItemStatusBadge = (status: string) => {
     if (status === "completed")
       return (
@@ -641,175 +624,164 @@ export function LaboratoryWorkstation({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       {/* Selected Order */}
       {selectedOrder && (
-        <div className="shadow-sm">
-          <div className="pb-2">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div></div>
-              <div className="flex items-center gap-2">
-                {canPerform && selectedOrder.status === "pending" && (
-                  <Button
-                    onClick={handleStartOrder}
-                    disabled={submitting}
-                    size="sm"
-                  >
-                    {submitting ? (
-                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                    ) : (
-                      <Play className="h-4 w-4 mr-1" />
-                    )}
-                    Mulai Pemeriksaan
-                  </Button>
-                )}
-              </div>
+        <div className="border border-border/70 bg-background">
+          <div className="flex flex-wrap items-center justify-between border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            <span>Detail Order Laboratorium</span>
+            <div className="flex items-center gap-2">
+              {canPerform && selectedOrder.status === "pending" && (
+                <Button onClick={handleStartOrder} disabled={submitting} size="sm" className="h-6 text-[10px] py-0 px-2">
+                  {submitting ? (
+                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                  ) : (
+                    <Play className="h-3 w-3 mr-1" />
+                  )}
+                  Mulai Pemeriksaan
+                </Button>
+              )}
             </div>
           </div>
-          <div className="space-y-3">
-            {/* Patient Info */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 text-[11px] p-1.5 bg-muted/50 rounded items-center">
-              <div className="flex items-center gap-1">
-                <User className="h-3 w-3 text-muted-foreground" />
-                <span className="font-medium truncate">
-                  {formatPatientName(
-                    selectedOrder.source_visit?.registration?.patient
-                      ?.nama_lengkap ||
-                      selectedOrder.registration?.patient?.nama_lengkap,
-                    selectedOrder.source_visit?.registration?.patient
-                      ?.jenis_kelamin ||
-                      selectedOrder.registration?.patient?.jenis_kelamin,
-                    undefined,
-                    selectedOrder.source_visit?.registration?.patient
-                      ?.tanggal_lahir ||
-                      selectedOrder.registration?.patient?.tanggal_lahir,
-                  ) || "-"}
-                </span>
-              </div>
-              <div className="flex items-center gap-1">
-                <span className="text-muted-foreground shrink-0">RM:</span>
-                <span className="font-medium">
-                  {selectedOrder.source_visit?.registration?.patient?.no_rm ||
-                    selectedOrder.registration?.patient?.no_rm ||
-                    "-"}
-                </span>
-              </div>
-              <div className="flex items-center gap-1">
-                <span className="text-muted-foreground shrink-0">Dokter:</span>
-                {rmDuplicateMode ? (
-                  <span className="inline-flex items-center gap-1">
-                    <span className="font-medium">
-                      {selectedOrder.ordered_by?.nama_lengkap || "-"}
-                    </span>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-5 w-5"
-                      title="Pilih dokter"
-                      onClick={() => {
-                        setPendingDoctorName(
-                          selectedOrder.ordered_by?.nama_lengkap || "",
-                        );
-                        setDoctorSearch("");
-                        setDoctorModalOpen(true);
-                      }}
-                    >
-                      <User className="h-3 w-3" />
-                    </Button>
-                  </span>
-                ) : (
-                  selectedOrder.ordered_by?.nama_lengkap || "-"
+          <div className="p-3 sm:p-4 space-y-4">
+            <table className="w-full table-fixed text-xs">
+              <tbody>
+                <tr className="border-b">
+                  <td className="py-1.5 text-muted-foreground w-28 align-top">Nama Pasien</td>
+                  <td className="py-1.5 font-medium break-words">
+                    {formatPatientName(
+                      selectedOrder.source_visit?.registration?.patient
+                        ?.nama_lengkap ||
+                        selectedOrder.registration?.patient?.nama_lengkap,
+                      selectedOrder.source_visit?.registration?.patient
+                        ?.jenis_kelamin ||
+                        selectedOrder.registration?.patient?.jenis_kelamin,
+                      undefined,
+                      selectedOrder.source_visit?.registration?.patient
+                        ?.tanggal_lahir ||
+                        selectedOrder.registration?.patient?.tanggal_lahir,
+                    ) || "-"}
+                  </td>
+                </tr>
+                <tr className="border-b">
+                  <td className="py-1.5 text-muted-foreground w-28 align-top">No. RM</td>
+                  <td className="py-1.5 font-medium break-words">
+                    {selectedOrder.source_visit?.registration?.patient?.no_rm ||
+                      selectedOrder.registration?.patient?.no_rm ||
+                      "-"}
+                  </td>
+                </tr>
+                <tr className="border-b">
+                  <td className="py-1.5 text-muted-foreground w-28 align-top">Dokter</td>
+                  <td className="py-1.5 font-medium break-words">
+                    {rmDuplicateMode ? (
+                      <span className="inline-flex items-center gap-1">
+                        <span className="font-medium">
+                          {selectedOrder.ordered_by?.nama_lengkap || "-"}
+                        </span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-5 w-5"
+                          title="Pilih dokter"
+                          onClick={() => {
+                            setPendingDoctorName(
+                              selectedOrder.ordered_by?.nama_lengkap || "",
+                            );
+                            setDoctorSearch("");
+                            setDoctorModalOpen(true);
+                          }}
+                        >
+                          <User className="h-3 w-3" />
+                        </Button>
+                      </span>
+                    ) : (
+                      selectedOrder.ordered_by?.nama_lengkap || "-"
+                    )}
+                  </td>
+                </tr>
+                <tr className="border-b">
+                  <td className="py-1.5 text-muted-foreground w-28 align-top">Tanggal Order</td>
+                  <td className="py-1.5 font-medium break-words">
+                    {rmDuplicateMode ? (
+                      <span className="inline-flex items-center gap-1">
+                        <span className="font-medium">
+                          {selectedOrder.created_at
+                            ? new Date(selectedOrder.created_at).toLocaleString("id-ID")
+                            : "-"}
+                        </span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-5 w-5"
+                          title="Set tanggal order"
+                          onClick={() => {
+                            setPendingOrderDate(
+                              (selectedOrder.created_at || "")
+                                .replace(" ", "T")
+                                .slice(0, 16),
+                            );
+                            setDateModalOpen(true);
+                          }}
+                        >
+                          <Clock className="h-3 w-3" />
+                        </Button>
+                      </span>
+                    ) : (
+                      <span>
+                        {new Date(selectedOrder.created_at).toLocaleString("id-ID")}
+                      </span>
+                    )}
+                    {selectedOrder.priority !== "normal" && (
+                      <Badge variant="destructive" className="text-xs ml-1">
+                        {selectedOrder.priority.toUpperCase()}
+                      </Badge>
+                    )}
+                  </td>
+                </tr>
+                <tr className="border-b">
+                  <td className="py-1.5 text-muted-foreground w-28 align-top">No. Order</td>
+                  <td className="py-1.5 font-medium break-words">{selectedOrder.order_number}</td>
+                </tr>
+                <tr className="border-b">
+                  <td className="py-1.5 text-muted-foreground align-top">Jumlah Item</td>
+                  <td className="py-1.5 font-medium break-words">
+                    {selectedOrder.items?.filter((item) => item.status === "completed").length || 0}/
+                    {selectedOrder.items?.length || 0} selesai
+                  </td>
+                </tr>
+                {selectedOrder.diagnosis && (
+                  <tr className="border-b">
+                    <td className="py-1.5 text-muted-foreground align-top">Diagnosis</td>
+                    <td className="py-1.5 font-medium break-words">{selectedOrder.diagnosis}</td>
+                  </tr>
                 )}
-              </div>
-              <div className="flex items-center gap-1">
-                <Clock className="h-3 w-3 text-muted-foreground" />
-                {rmDuplicateMode ? (
-                  <span className="inline-flex items-center gap-1">
-                    <span className="font-medium">
-                      {selectedOrder.created_at
-                        ? new Date(selectedOrder.created_at).toLocaleString("id-ID")
-                        : "-"}
-                    </span>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-5 w-5"
-                      title="Set tanggal order"
-                      onClick={() => {
-                        setPendingOrderDate(
-                          (selectedOrder.created_at || "")
-                            .replace(" ", "T")
-                            .slice(0, 16),
-                        );
-                        setDateModalOpen(true);
-                      }}
-                    >
-                      <Clock className="h-3 w-3" />
-                    </Button>
-                  </span>
-                ) : (
-                  <span>
-                    {new Date(selectedOrder.created_at).toLocaleString("id-ID")}
-                  </span>
+                {selectedOrder.clinical_notes && (
+                  <tr>
+                    <td className="py-1.5 text-muted-foreground align-top">Catatan Klinis</td>
+                    <td className="py-1.5 font-medium break-words">{selectedOrder.clinical_notes}</td>
+                  </tr>
                 )}
-                {selectedOrder.priority !== "normal" && (
-                  <Badge variant="destructive" className="text-xs ml-1">
-                    {selectedOrder.priority.toUpperCase()}
-                  </Badge>
-                )}
-              </div>
-            </div>
-
-            {/* Clinical Notes */}
-            {selectedOrder.clinical_notes && (
-              <div className="p-2 bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 rounded text-xs">
-                <span className="font-medium text-yellow-800 dark:text-yellow-200">
-                  Catatan Klinis:
-                </span>
-                <span className="ml-1">{selectedOrder.clinical_notes}</span>
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-              <div className="p-2 rounded border bg-muted/30">
-                <span className="text-muted-foreground">No. Order</span>
-                <p className="font-medium mt-0.5">{selectedOrder.order_number}</p>
-              </div>
-              <div className="p-2 rounded border bg-muted/30">
-                <span className="text-muted-foreground">Item Selesai</span>
-                <p className="font-medium mt-0.5">
-                  {selectedOrder.items?.filter((item) => item.status === "completed").length || 0}/
-                  {selectedOrder.items?.length || 0}
-                </p>
-              </div>
-              <div className="p-2 rounded border bg-muted/30">
-                <span className="text-muted-foreground">Status Order</span>
-                <div className="mt-1">
-                  <div className="flex items-center gap-1.5 font-medium">
-                    <span className={cn("h-1.5 w-1.5 rounded-full", getStatusDotClass(selectedOrder.status))} />
-                    <span>{getOrderStatusLabel(selectedOrder.status)}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
+              </tbody>
+            </table>
 
             {/* Lab Results Table - Inline Edit */}
-            <div className="border rounded overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/50">
-                    <TableHead className="text-xs">Pemeriksaan</TableHead>
-                    <TableHead className="text-xs">Parameter</TableHead>
-                    <TableHead className="text-xs">Hasil</TableHead>
-                    <TableHead className="text-xs">Nilai Normal</TableHead>
-                    <TableHead className="text-xs">Satuan</TableHead>
-                    <TableHead className="text-xs">Status</TableHead>
-                    <TableHead className="text-xs w-16">Cetak</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
+            <div className="border border-border/70 overflow-x-auto mt-4">
+              <table className="w-full text-xs text-left">
+                <thead className="bg-muted/50 border-b border-border/70">
+                  <tr>
+                    <th className="py-2 px-3 font-medium">Pemeriksaan</th>
+                    <th className="py-2 px-3 font-medium">Parameter</th>
+                    <th className="py-2 px-3 font-medium">Hasil</th>
+                    <th className="py-2 px-3 font-medium">Nilai Normal</th>
+                    <th className="py-2 px-3 font-medium">Satuan</th>
+                    <th className="py-2 px-3 font-medium">Status</th>
+                    <th className="py-2 px-3 font-medium w-16 text-center">Cetak</th>
+                  </tr>
+                </thead>
+                <tbody>
                   {selectedOrder.items?.map((item) => {
                     const parameters = item.procedure?.parameters || [];
                     const rowSpan = Math.max(parameters.length, 1);
@@ -818,22 +790,22 @@ export function LaboratoryWorkstation({
                       parameters.map((param, paramIdx) => {
                         const value = inlineResults[item.id!]?.[param.id] || "";
                         return (
-                          <TableRow key={`${item.id}-${param.id}`}>
+                          <tr key={`${item.id}-${param.id}`} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
                             {paramIdx === 0 && (
-                              <TableCell
+                              <td
                                 rowSpan={rowSpan}
-                                className="align-top border-r text-xs font-medium"
+                                className="align-top border-r border-border/70 py-2 px-3 font-medium"
                               >
                                 {item.procedure?.name}
-                              </TableCell>
+                              </td>
                             )}
-                            <TableCell className="text-xs py-1">
+                            <td className="py-2 px-3">
                               {param.name}
-                            </TableCell>
-                            <TableCell className="py-1">
+                            </td>
+                            <td className="py-2 px-3">
                               {renderInlineInput(item, param)}
-                            </TableCell>
-                            <TableCell className="text-xs text-muted-foreground py-1">
+                            </td>
+                            <td className="text-muted-foreground py-2 px-3">
                               {param.normal_min !== undefined &&
                               param.normal_max !== undefined
                                 ? `${param.normal_min} - ${param.normal_max}`
@@ -842,58 +814,56 @@ export function LaboratoryWorkstation({
                                   : param.normal_max !== undefined
                                     ? `≤ ${param.normal_max}`
                                     : "-"}
-                            </TableCell>
-                            <TableCell className="text-xs text-muted-foreground py-1">
+                            </td>
+                            <td className="text-muted-foreground py-2 px-3">
                               {param.unit || "-"}
-                            </TableCell>
-                            <TableCell className="text-center py-1">
+                            </td>
+                            <td className="text-center py-2 px-3">
                               {value
                                 ? getValueIndicator(value, param)
                                 : paramIdx === 0
                                   ? getItemStatusBadge(item.status)
                                   : null}
-                            </TableCell>
+                            </td>
                             {paramIdx === 0 && (
-                              <TableCell
+                              <td
                                 rowSpan={rowSpan}
-                                className="align-top text-center"
+                                className="align-middle text-center border-l border-border/70 py-2 px-3"
                               >
                                 {item.status === "completed" && item.id && (
                                   <Button
                                     variant="ghost"
-                                    size="sm"
-                                    className="h-6 w-6 p-0"
-                                    onClick={() =>
-                                      printApi.laboratoryResultItem(item.id!)
-                                    }
+                                    size="icon"
+                                    className="h-6 w-6 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                    onClick={() => printApi.laboratoryResultItem(item.id!)}
                                     title="Cetak hasil"
                                   >
                                     <Printer className="h-3 w-3" />
                                   </Button>
                                 )}
-                              </TableCell>
+                              </td>
                             )}
-                          </TableRow>
+                          </tr>
                         );
                       })
                     ) : (
-                      <TableRow key={item.id}>
-                        <TableCell className="text-xs font-medium">
+                      <tr key={item.id} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
+                        <td className="py-2 px-3 font-medium border-r border-border/70">
                           {item.procedure?.name}
-                        </TableCell>
-                        <TableCell
+                        </td>
+                        <td
                           colSpan={4}
-                          className="text-xs text-muted-foreground italic"
+                          className="py-2 px-3 text-muted-foreground italic"
                         >
                           Tidak ada parameter
-                        </TableCell>
-                        <TableCell>{getItemStatusBadge(item.status)}</TableCell>
-                        <TableCell>
+                        </td>
+                        <td className="text-center py-2 px-3 border-l border-border/70">{getItemStatusBadge(item.status)}</td>
+                        <td className="align-middle text-center py-2 px-3">
                           {item.status === "completed" && item.id && (
                             <Button
                               variant="ghost"
-                              size="sm"
-                              className="h-6 w-6 p-0"
+                              size="icon"
+                              className="h-6 w-6 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
                               onClick={() =>
                                 printApi.laboratoryResultItem(item.id!)
                               }
@@ -902,12 +872,12 @@ export function LaboratoryWorkstation({
                               <Printer className="h-3 w-3" />
                             </Button>
                           )}
-                        </TableCell>
-                      </TableRow>
+                        </td>
+                      </tr>
                     );
                   })}
-                </TableBody>
-              </Table>
+                </tbody>
+              </table>
             </div>
 
             {selectedOrder.status === "in_progress" && canPerform && !rmDuplicateMode && (

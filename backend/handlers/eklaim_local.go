@@ -156,10 +156,6 @@ func GetSEPDetail(c *gin.Context) {
 	var eklaimLocal *models.EKlaimLocal
 	var el models.EKlaimLocal
 	if err := database.DB.Where("no_sep = ?", sep.NoSEP).
-		Preload("RMDuplicate").
-		Preload("RMDuplicate.Diagnoses").
-		Preload("RMDuplicate.Procedures").
-		Preload("RMDuplicate.Billing.Items").
 		Preload("Logs", func(db *gorm.DB) *gorm.DB {
 			return db.Order("created_at DESC").Limit(10)
 		}).
@@ -196,28 +192,10 @@ func DuplicateRM(c *gin.Context) {
 		return
 	}
 
-	// Check if eklaim_local already exists
+	// Ensure EKlaimLocal exists
 	var eklaimLocal models.EKlaimLocal
 	err = database.DB.Where("no_sep = ?", sep.NoSEP).First(&eklaimLocal).Error
-	if err != nil && err != gorm.ErrRecordNotFound {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal cek eklaim local"})
-		return
-	}
-
-	// If eklaim_local exists and already has rm_duplicate, skip
-	if err == nil {
-		var existingDup models.EKlaimRMDuplicate
-		if database.DB.Where("e_klaim_local_id = ?", eklaimLocal.ID).First(&existingDup).Error == nil {
-			c.JSON(http.StatusConflict, gin.H{
-				"error":        "Duplikasi RM sudah ada untuk SEP ini",
-				"eklaim_local": eklaimLocal,
-			})
-			return
-		}
-	}
-
-	// If no eklaim_local yet, we create one (pre-new_claim state)
-	if err == gorm.ErrRecordNotFound {
+	if err != nil {
 		eklaimLocal = models.EKlaimLocal{
 			SEPID:      sep.ID,
 			VisitID:    *sep.VisitID,
@@ -226,450 +204,168 @@ func DuplicateRM(c *gin.Context) {
 			NamaPasien: sep.NamaPasien,
 			Status:     "draft",
 		}
-
 		userID := getUserIDValue(c)
 		if userID > 0 {
 			eklaimLocal.CreatedByID = &userID
 		}
-
 		if err := database.DB.Create(&eklaimLocal).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat eklaim local: " + err.Error()})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat eklaim local"})
 			return
 		}
 	}
 
-	// Load diagnoses and procedures from original RM
-	var diagnoses []models.Diagnosis
-	database.DB.Where("visit_id = ?", *sep.VisitID).Order("type ASC, created_at ASC").Find(&diagnoses)
-
-	var visitProcedures []models.VisitProcedure
-	database.DB.Where("visit_id = ?", *sep.VisitID).Preload("Procedure").Find(&visitProcedures)
-
-	// Load clinical data from original RM
-	var anamnesis models.Anamnesis
-	database.DB.Where("visit_id = ?", *sep.VisitID).First(&anamnesis)
-
-	var physicalExam models.PhysicalExamination
-	database.DB.Where("visit_id = ?", *sep.VisitID).First(&physicalExam)
-
-	var assessmentPlan models.AssessmentPlan
-	database.DB.Where("visit_id = ?", *sep.VisitID).First(&assessmentPlan)
-
-	var disposition models.Disposition
-	database.DB.Where("visit_id = ?", *sep.VisitID).First(&disposition)
-
-	// Serialize originals as JSON (for snapshot/audit)
-	origDiagJSON, _ := json.Marshal(diagnoses)
-	origProcJSON, _ := json.Marshal(visitProcedures)
-	origRMJSON, _ := json.Marshal(map[string]interface{}{
-		"anamnesis":       anamnesis,
-		"physical_exam":   physicalExam,
-		"assessment_plan": assessmentPlan,
-		"disposition":     disposition,
-	})
-
-	// Get user for audit
-	userID := getUserIDValue(c)
-
-	now := time.Now()
-	rmDuplicate := models.EKlaimRMDuplicate{
-		EKlaimLocalID:          eklaimLocal.ID,
-		VisitID:                *sep.VisitID,
-		OriginalDiagnosesJSON:  string(origDiagJSON),
-		OriginalProceduresJSON: string(origProcJSON),
-		OriginalRMJSON:         string(origRMJSON),
-		DuplicatedAt:           &now,
-
-		// Copy Anamnesis
-		ChiefComplaint:          anamnesis.ChiefComplaint,
-		HistoryOfPresentIllness: anamnesis.HistoryOfPresentIllness,
-		PastMedicalHistory:      anamnesis.PastMedicalHistory,
-		FamilyHistory:           anamnesis.FamilyHistory,
-		SocialHistory:           anamnesis.SocialHistory,
-		Allergies:               anamnesis.Allergies,
-		CurrentMedications:      anamnesis.CurrentMedications,
-		ReviewOfSystems:         anamnesis.ReviewOfSystems,
-
-		// Copy Physical Exam
-		GeneralCondition:  physicalExam.GeneralCondition,
-		Consciousness:     physicalExam.Consciousness,
-		BloodPressure:     physicalExam.BloodPressure,
-		Systolic:          physicalExam.Systolic,
-		Diastolic:         physicalExam.Diastolic,
-		HeartRate:         physicalExam.HeartRate,
-		RespiratoryRate:   physicalExam.RespiratoryRate,
-		Temperature:       physicalExam.Temperature,
-		OxygenSaturation:  physicalExam.OxygenSaturation,
-		Weight:            physicalExam.Weight,
-		Height:            physicalExam.Height,
-		BMI:               physicalExam.BMI,
-		Waist:             physicalExam.Waist,
-		HeadCircum:        physicalExam.HeadCircum,
-		PainMethod:        physicalExam.PainMethod,
-		PainScale:         physicalExam.PainScale,
-		PainLocation:      physicalExam.PainLocation,
-		HeadNeck:          physicalExam.HeadNeck,
-		Eyes:              physicalExam.Eyes,
-		ENT:               physicalExam.ENT,
-		Thorax:            physicalExam.Thorax,
-		Cardiac:           physicalExam.Cardiac,
-		Pulmonary:         physicalExam.Pulmonary,
-		Abdomen:           physicalExam.Abdomen,
-		Extremities:       physicalExam.Extremities,
-		Neurological:      physicalExam.Neurological,
-		Skin:              physicalExam.Skin,
-		Head:              physicalExam.Head,
-		Ears:              physicalExam.Ears,
-		Nose:              physicalExam.Nose,
-		Throat:            physicalExam.Throat,
-		Neck:              physicalExam.Neck,
-		Chest:             physicalExam.Chest,
-		Heart:             physicalExam.Heart,
-		Lungs:             physicalExam.Lungs,
-		Musculoskel:       physicalExam.Musculoskel,
-		Genitourinary:     physicalExam.Genitourinary,
-		OtherFindings:     physicalExam.OtherFindings,
-		ECGPerformed:      physicalExam.ECGPerformed,
-		ECGResult:         physicalExam.ECGResult,
-		ECGInterpretation: physicalExam.ECGInterpretation,
-		ECGNotes:          physicalExam.ECGNotes,
-
-		// Copy Assessment & Plan
-		ClinicalAssessment: assessmentPlan.ClinicalAssessment,
-		Prognosis:          assessmentPlan.Prognosis,
-		TreatmentPlan:      assessmentPlan.TreatmentPlan,
-		MedicationPlan:     assessmentPlan.MedicationPlan,
-		DietPlan:           assessmentPlan.DietPlan,
-		ActivityPlan:       assessmentPlan.ActivityPlan,
-		EducationPlan:      assessmentPlan.EducationPlan,
-		MonitoringPlan:     assessmentPlan.MonitoringPlan,
-		ProcedurePlan:      assessmentPlan.ProcedurePlan,
-		ConsultationPlan:   assessmentPlan.ConsultationPlan,
-
-		// Copy Disposition
-		DispositionType:      disposition.DispositionType,
-		DispositionNote:      disposition.DispositionNote,
-		DischargeStatus:      disposition.DischargeStatus,
-		DischargeCondition:   disposition.DischargeCondition,
-		DischargeInstruction: disposition.DischargeInstruction,
-		DischargeMedication:  disposition.DischargeMedication,
-		FollowUpInstruction:  disposition.FollowUpInstruction,
-		ReferralFacility:     disposition.ReferralFacility,
-		ReferralReason:       disposition.ReferralReason,
-		ReferralDiagnosis:    disposition.ReferralDiagnosis,
-		ReferralTherapy:      disposition.ReferralTherapy,
-		ReferralNotes:        disposition.ReferralNotes,
-		DeathCause:           disposition.DeathCause,
-	}
-	// Convert *time.Time fields to string
-	if disposition.FollowUpDate != nil {
-		rmDuplicate.FollowUpDate = disposition.FollowUpDate.Format("2006-01-02")
-	}
-	if disposition.DeathTime != nil {
-		rmDuplicate.DeathTime = disposition.DeathTime.Format("2006-01-02 15:04:05")
-	}
-	if userID > 0 {
-		rmDuplicate.DuplicatedByID = &userID
-	}
-
-	if err := database.DB.Create(&rmDuplicate).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat duplikasi RM: " + err.Error()})
+	// Call service to duplicate RM
+	if err := duplicateRMLogic(*sep.VisitID, eklaimLocal.ID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal duplikasi RM ke Casemix: " + err.Error()})
 		return
 	}
 
-	// Copy diagnoses to eklaim duplicates
-	for i, d := range diagnoses {
-		eklaimDiag := models.EKlaimRMDiagnosis{
-			RMDuplicateID: rmDuplicate.ID,
-			ICD10Code:     d.ICD10Code,
-			ICD10Name:     d.ICD10Name,
-			Type:          d.Type,
-			Sequence:      i + 1,
-		}
-		database.DB.Create(&eklaimDiag)
-	}
-
-	// Copy procedures to eklaim duplicates
-	for i, vp := range visitProcedures {
-		var icd9Code, procName string
-		if vp.Procedure != nil {
-			icd9Code = vp.Procedure.ICD9CMCode
-			procName = vp.Procedure.Name
-		}
-		eklaimProc := models.EKlaimRMProcedure{
-			RMDuplicateID: rmDuplicate.ID,
-			ICD9Code:      icd9Code,
-			Name:          procName,
-			Sequence:      i + 1,
-		}
-		database.DB.Create(&eklaimProc)
-	}
-
-	// Copy ALL procedure orders (lab, radiology, surgery, consultation) using unified EKlaimRMOrder hierarchy
-	var allProcOrders []models.ProcedureOrder
-	database.DB.Where("source_visit_id = ? AND status = ?", *sep.VisitID, models.ProcedureOrderStatusCompleted).
-		Preload("Items.Procedure").
-		Preload("Items.Results.ProcedureParameter").
-		Preload("Consultation.Consultant").
-		Preload("SurgeonDoctor").
-		Order("order_type ASC, created_at ASC").
-		Find(&allProcOrders)
-
-	for orderSeq, order := range allProcOrders {
-		srcOrderID := order.ID
-		rmOrder := models.EKlaimRMOrder{
-			RMDuplicateID: rmDuplicate.ID,
-			OrderType:     order.OrderType,
-			SourceOrderID: &srcOrderID,
-			OrderNumber:   order.OrderNumber,
-			Priority:      order.Priority,
-			ClinicalNotes: order.ClinicalNotes,
-			Diagnosis:     order.Diagnosis,
-			Notes:         order.Notes,
-			ResultSummary: order.ResultSummary,
-			Conclusion:    order.Conclusion,
-			Suggestion:    order.Suggestion,
-			IsCritical:    order.IsCritical,
-			CriticalNotes: order.CriticalNotes,
-			Sequence:      orderSeq + 1,
-		}
-
-		// Surgery-specific
-		if order.OrderType == "surgery" {
-			if order.SurgeonDoctor != nil {
-				rmOrder.SurgeonName = order.SurgeonDoctor.NamaLengkap
-			}
-			rmOrder.ScheduledDate = order.ScheduledDate
-		}
-
-		// Consultation-specific (SOAP from Consultation model)
-		if order.OrderType == "consultation" && order.Consultation != nil {
-			if order.Consultation.Consultant != nil {
-				rmOrder.ConsultantName = order.Consultation.Consultant.NamaLengkap
-			}
-			rmOrder.Subjective = order.Consultation.Subjective
-			rmOrder.Objective = order.Consultation.Objective
-			rmOrder.Assessment = order.Consultation.Assessment
-			rmOrder.Plan = order.Consultation.Plan
-			rmOrder.Recommendation = order.Consultation.Recommendation
-		}
-
-		database.DB.Create(&rmOrder)
-
-		// Copy items (each item references a real Procedure from master table)
-		for itemSeq, item := range order.Items {
-			srcItemID := item.ID
-			procName := ""
-			if item.Procedure != nil {
-				procName = item.Procedure.Name
-			}
-			rmItem := models.EKlaimRMOrderItem{
-				EKlaimRMOrderID: rmOrder.ID,
-				ProcedureID:     item.ProcedureID,
-				ProcedureName:   procName,
-				SourceItemID:    &srcItemID,
-				Notes:           item.Notes,
-				Sequence:        itemSeq + 1,
-			}
-			database.DB.Create(&rmItem)
-
-			// Copy results (each result references a real ProcedureParameter from master table)
-			for resSeq, result := range item.Results {
-				srcResultID := result.ID
-				paramName := ""
-				if result.ProcedureParameter != nil {
-					paramName = result.ProcedureParameter.Name
-				}
-				database.DB.Create(&models.EKlaimRMOrderResult{
-					EKlaimRMOrderItemID:  rmItem.ID,
-					ProcedureParameterID: result.ProcedureParameterID,
-					ParameterName:        paramName,
-					SourceResultID:       &srcResultID,
-					Value:                result.Value,
-					NumericValue:         result.NumericValue,
-					IsNormal:             result.IsNormal,
-					IsLow:                result.IsLow,
-					IsHigh:               result.IsHigh,
-					IsCritical:           result.IsCritical,
-					Notes:                result.Notes,
-					Sequence:             resSeq + 1,
-				})
-			}
-		}
-	}
-
-	// Copy medicine orders from MedicineOrders
-	var medOrders []models.MedicineOrder
-	database.DB.Where("source_visit_id = ? AND status IN ?", *sep.VisitID, []string{models.OrderStatusDelivered, models.OrderStatusPartial}).
-		Preload("Items.Medicine").Find(&medOrders)
-	medSeq := 0
-	for _, order := range medOrders {
-		srcOrderID := order.ID
-		for _, item := range order.Items {
-			if item.DispensedQty <= 0 {
-				continue
-			}
-			medSeq++
-			medName := ""
-			var medID *uint
-			if item.Medicine != nil {
-				medName = item.Medicine.Name
-				medID = &item.MedicineID
-			}
-			srcItemID := item.ID
-			database.DB.Create(&models.EKlaimRMMedicineItem{
-				RMDuplicateID: rmDuplicate.ID,
-				MedicineID:    medID,
-				SourceOrderID: &srcOrderID,
-				SourceItemID:  &srcItemID,
-				OrderNumber:   order.OrderNumber,
-				MedicineName:  medName,
-				Dosage:        item.Dosage,
-				Frequency:     item.Frequency,
-				Route:         item.Route,
-				Quantity:      item.DispensedQty,
-				Unit:          item.Unit,
-				Duration:      item.Duration,
-				Instructions:  item.Instructions,
-				Notes:         item.Notes,
-				Sequence:      medSeq,
-			})
-		}
-	}
-
-	// Copy CPPT entries (inpatient)
-	var cpptEntries []models.CPPT
-	database.DB.Where("visit_id = ?", *sep.VisitID).Order("record_date ASC").Find(&cpptEntries)
-	for i, cppt := range cpptEntries {
-		recordDate := cppt.RecordDate.Format("2006-01-02 15:04:05")
-		cpptFormat := cppt.CPPTFormat
-		if cpptFormat == "" {
-			cpptFormat = models.CPPTFormatSOAP
-		}
-		database.DB.Create(&models.EKlaimRMCPPT{
-			RMDuplicateID:    rmDuplicate.ID,
-			RecordDate:       recordDate,
-			Profession:       cppt.Profession,
-			CPPTFormat:       cpptFormat,
-			Subjective:       cppt.Subjective,
-			Objective:        cppt.Objective,
-			Assessment:       cppt.Assessment,
-			Plan:             cppt.Plan,
-			Instruction:      cppt.Instruction,
-			BloodPressure:    cppt.BloodPressure,
-			HeartRate:        cppt.HeartRate,
-			RespiratoryRate:  cppt.RespiratoryRate,
-			Temperature:      cppt.Temperature,
-			OxygenSaturation: cppt.OxygenSaturation,
-			PainScale:        cppt.PainScale,
-			Sequence:         i + 1,
-		})
-	}
-
-	// Copy Nursing Care entries (inpatient)
-	var nursingEntries []models.NursingCare
-	database.DB.Where("visit_id = ?", *sep.VisitID).Preload("CreatedBy.Employee").Order("record_date ASC").Find(&nursingEntries)
-	for i, record := range nursingEntries {
-		recordDate := record.RecordDate.Format("2006-01-02 15:04:05")
-		implementationTime := ""
-		if !record.ImplementationTime.IsZero() {
-			implementationTime = record.ImplementationTime.Format("2006-01-02 15:04:05")
-		}
-		staffName := ""
-		if record.CreatedBy != nil && record.CreatedBy.Employee != nil {
-			staffName = record.CreatedBy.Employee.NamaLengkap
-		}
-		database.DB.Create(&models.EKlaimRMNursingCare{
-			RMDuplicateID:           rmDuplicate.ID,
-			RecordDate:              recordDate,
-			ShiftType:               record.ShiftType,
-			StaffName:               staffName,
-			ChiefComplaint:          record.ChiefComplaint,
-			PainAssessment:          record.PainAssessment,
-			PainScale:               record.PainScale,
-			ConsciousnessLevel:      record.ConsciousnessLevel,
-			FunctionalStatus:        record.FunctionalStatus,
-			FallRiskAssessment:      record.FallRiskAssessment,
-			FallRiskScore:           record.FallRiskScore,
-			NutritionAssessment:     record.NutritionAssessment,
-			SkinAssessment:          record.SkinAssessment,
-			PressureUlcerRisk:       record.PressureUlcerRisk,
-			BloodPressure:           record.BloodPressure,
-			HeartRate:               record.HeartRate,
-			RespiratoryRate:         record.RespiratoryRate,
-			Temperature:             record.Temperature,
-			OxygenSaturation:        record.OxygenSaturation,
-			NursingDiagnosis:        record.NursingDiagnosis,
-			NursingDiagnosisCode:    record.NursingDiagnosisCode,
-			ProblemEtiology:         record.ProblemEtiology,
-			SignsSymptoms:           record.SignsSymptoms,
-			NursingOutcome:          record.NursingOutcome,
-			NursingOutcomeCode:      record.NursingOutcomeCode,
-			OutcomeIndicators:       record.OutcomeIndicators,
-			OutcomeTarget:           record.OutcomeTarget,
-			NursingIntervention:     record.NursingIntervention,
-			NursingInterventionCode: record.NursingInterventionCode,
-			ObservationActions:      record.ObservationActions,
-			TherapeuticActions:      record.TherapeuticActions,
-			EducationActions:        record.EducationActions,
-			CollaborationActions:    record.CollaborationActions,
-			Implementation:          record.Implementation,
-			ImplementationTime:      implementationTime,
-			PatientResponse:         record.PatientResponse,
-			EvaluationSubjective:    record.EvaluationSubjective,
-			EvaluationObjective:     record.EvaluationObjective,
-			EvaluationAnalysis:      record.EvaluationAnalysis,
-			EvaluationPlanning:      record.EvaluationPlanning,
-			ProblemStatus:           record.ProblemStatus,
-			Notes:                   record.Notes,
-			Sequence:                i + 1,
-		})
-	}
-
-	// Copy Fluid Balance entries (inpatient)
-	var fbEntries []models.FluidBalance
-	database.DB.Where("visit_id = ?", *sep.VisitID).Order("record_date ASC, shift_type ASC").Find(&fbEntries)
-	for i, fb := range fbEntries {
-		recordDate := fb.RecordDate.Format("2006-01-02")
-		database.DB.Create(&models.EKlaimRMFluidBalance{
-			RMDuplicateID: rmDuplicate.ID,
-			RecordDate:    recordDate,
-			ShiftType:     fb.ShiftType,
-			OralDrink:     fb.OralDrink,
-			OralFood:      fb.OralFood,
-			OralMedicine:  fb.OralMedicine,
-			IVFluid:       fb.IVFluid,
-			IVMedicine:    fb.IVMedicine,
-			BloodProduct:  fb.BloodProduct,
-			EnteralFeed:   fb.EnteralFeed,
-			OtherIntake:   fb.OtherIntake,
-			UrineAmount:   fb.UrineAmount,
-			FecesAmount:   fb.FecesAmount,
-			VomitAmount:   fb.VomitAmount,
-			DrainAmount:   fb.DrainAmount,
-			BloodLoss:     fb.BloodLoss,
-			IWL:           fb.IWL,
-			OtherOutput:   fb.OtherOutput,
-			TotalIntake:   fb.TotalIntake,
-			TotalOutput:   fb.TotalOutput,
-			Balance:       fb.Balance,
-			Notes:         fb.Notes,
-			Sequence:      i + 1,
-		})
-	}
-
-	// Reload with relations
-	database.DB.Preload("Diagnoses").Preload("Procedures").
-		Preload("Orders.Items.Procedure.Parameters").Preload("Orders.Items.Results.ProcedureParameter").
-		Preload("MedicineItems.Medicine").
-		Preload("CPPTNotes").Preload("NursingCares").Preload("FluidBalances").
-		Preload("Billing.Items").
-		First(&rmDuplicate, rmDuplicate.ID)
-
 	c.JSON(http.StatusCreated, gin.H{
-		"message":      "Duplikasi RM berhasil dibuat",
+		"message":      "Duplikasi RM ke Casemix berhasil",
 		"eklaim_local": eklaimLocal,
-		"rm_duplicate": rmDuplicate,
+	})
+}
+
+// duplicateRMLogic copies original RM data to Casemix marked records
+func duplicateRMLogic(visitID uint, eklaimLocalID uint) error {
+	return database.DB.Transaction(func(tx *gorm.DB) error {
+		// 1. Delete old Casemix records
+		tables := []string{
+			"triages", "anamneses", "physical_examinations", "diagnoses",
+			"assessment_plans", "dispositions", "cppts", "fluid_balances",
+			"nursing_cares", "visit_procedures", "procedure_orders",
+			"medicine_orders",
+		}
+		for _, t := range tables {
+			if t == "procedure_orders" || t == "medicine_orders" {
+				tx.Exec(fmt.Sprintf("DELETE FROM %s WHERE source_visit_id = ? AND is_casemix = ?", t), visitID, true)
+			} else {
+				tx.Exec(fmt.Sprintf("DELETE FROM %s WHERE visit_id = ? AND is_casemix = ?", t), visitID, true)
+			}
+		}
+
+		// 2. Helper to duplicate
+		duplicateRecords := func(model interface{}, dest interface{}, visitColumn string) error {
+			if err := tx.Where(visitColumn+" = ? AND is_casemix = ?", visitID, false).Find(model).Error; err != nil {
+				return err
+			}
+
+			// Marshal and unmarshal to deep copy
+			data, _ := json.Marshal(model)
+			json.Unmarshal(data, dest)
+
+			return nil
+		}
+
+		// Diagnoses
+		var diags, newDiags []models.Diagnosis
+		duplicateRecords(&diags, &newDiags, "visit_id")
+		for i := range newDiags {
+			newDiags[i].ID = 0
+			newDiags[i].IsCasemix = true
+			newDiags[i].CasemixEklaimID = &eklaimLocalID
+			tx.Create(&newDiags[i])
+		}
+
+		// Anamnesis
+		var anm, newAnm []models.Anamnesis
+		duplicateRecords(&anm, &newAnm, "visit_id")
+		for i := range newAnm {
+			newAnm[i].ID = 0
+			newAnm[i].IsCasemix = true
+			newAnm[i].CasemixEklaimID = &eklaimLocalID
+			tx.Create(&newAnm[i])
+		}
+
+		// Triage
+		var trg, newTrg []models.Triage
+		duplicateRecords(&trg, &newTrg, "visit_id")
+		for i := range newTrg {
+			newTrg[i].ID = 0
+			newTrg[i].IsCasemix = true
+			newTrg[i].CasemixEklaimID = &eklaimLocalID
+			tx.Create(&newTrg[i])
+		}
+
+		// Physical Examination
+		var pe, newPe []models.PhysicalExamination
+		duplicateRecords(&pe, &newPe, "visit_id")
+		for i := range newPe {
+			newPe[i].ID = 0
+			newPe[i].IsCasemix = true
+			newPe[i].CasemixEklaimID = &eklaimLocalID
+			tx.Create(&newPe[i])
+		}
+
+		// Assessment Plan
+		var ap, newAp []models.AssessmentPlan
+		duplicateRecords(&ap, &newAp, "visit_id")
+		for i := range newAp {
+			newAp[i].ID = 0
+			newAp[i].IsCasemix = true
+			newAp[i].CasemixEklaimID = &eklaimLocalID
+			tx.Create(&newAp[i])
+		}
+
+		// Disposition
+		var disp, newDisp []models.Disposition
+		duplicateRecords(&disp, &newDisp, "visit_id")
+		for i := range newDisp {
+			newDisp[i].ID = 0
+			newDisp[i].IsCasemix = true
+			newDisp[i].CasemixEklaimID = &eklaimLocalID
+			tx.Create(&newDisp[i])
+		}
+
+		// Visit Procedures
+		var vp, newVp []models.VisitProcedure
+		duplicateRecords(&vp, &newVp, "visit_id")
+		for i := range newVp {
+			newVp[i].ID = 0
+			newVp[i].IsCasemix = true
+			newVp[i].CasemixEklaimID = &eklaimLocalID
+			tx.Create(&newVp[i])
+		}
+
+		// Medicine Orders
+		var mo []models.MedicineOrder
+		tx.Where("source_visit_id = ? AND is_casemix = ?", visitID, false).Preload("Items").Find(&mo)
+		for _, order := range mo {
+			newOrder := order
+			newOrder.ID = 0
+			newOrder.IsCasemix = true
+			newOrder.CasemixEklaimID = &eklaimLocalID
+			newOrder.Items = nil
+			tx.Create(&newOrder)
+
+			for _, item := range order.Items {
+				newItem := item
+				newItem.ID = 0
+				newItem.MedicineOrderID = newOrder.ID
+				tx.Create(&newItem)
+			}
+		}
+
+		// Procedure Orders
+		var po []models.ProcedureOrder
+		tx.Where("source_visit_id = ? AND is_casemix = ?", visitID, false).Preload("Items").Find(&po)
+		for _, order := range po {
+			newOrder := order
+			newOrder.ID = 0
+			newOrder.IsCasemix = true
+			newOrder.CasemixEklaimID = &eklaimLocalID
+			newOrder.Items = nil
+			tx.Create(&newOrder)
+
+			for _, item := range order.Items {
+				newItem := item
+				newItem.ID = 0
+				newItem.ProcedureOrderID = newOrder.ID
+				tx.Create(&newItem)
+			}
+		}
+
+		return nil
 	})
 }
 
@@ -742,343 +438,8 @@ func CreateClaimFromSEP(c *gin.Context) {
 		return
 	}
 
-	// Step 2: Create RMDuplicate if not exists
-	var rmDup models.EKlaimRMDuplicate
-	if database.DB.Where("e_klaim_local_id = ?", eklaimLocal.ID).First(&rmDup).Error == gorm.ErrRecordNotFound {
-		var diagnoses []models.Diagnosis
-		database.DB.Where("visit_id = ?", *sep.VisitID).Order("type ASC, created_at ASC").Find(&diagnoses)
-
-		var visitProcedures []models.VisitProcedure
-		database.DB.Where("visit_id = ?", *sep.VisitID).Preload("Procedure").Find(&visitProcedures)
-
-		// Load clinical data from original RM
-		var anm models.Anamnesis
-		database.DB.Where("visit_id = ?", *sep.VisitID).First(&anm)
-		var pe models.PhysicalExamination
-		database.DB.Where("visit_id = ?", *sep.VisitID).First(&pe)
-		var ap models.AssessmentPlan
-		database.DB.Where("visit_id = ?", *sep.VisitID).First(&ap)
-		var disp models.Disposition
-		database.DB.Where("visit_id = ?", *sep.VisitID).First(&disp)
-
-		origDiagJSON, _ := json.Marshal(diagnoses)
-		origProcJSON, _ := json.Marshal(visitProcedures)
-		origRMJSON, _ := json.Marshal(map[string]interface{}{
-			"anamnesis": anm, "physical_exam": pe, "assessment_plan": ap, "disposition": disp,
-		})
-
-		now := time.Now()
-		rmDup = models.EKlaimRMDuplicate{
-			EKlaimLocalID:          eklaimLocal.ID,
-			VisitID:                *sep.VisitID,
-			OriginalDiagnosesJSON:  string(origDiagJSON),
-			OriginalProceduresJSON: string(origProcJSON),
-			OriginalRMJSON:         string(origRMJSON),
-			DuplicatedAt:           &now,
-
-			// Copy Anamnesis
-			ChiefComplaint:          anm.ChiefComplaint,
-			HistoryOfPresentIllness: anm.HistoryOfPresentIllness,
-			PastMedicalHistory:      anm.PastMedicalHistory,
-			FamilyHistory:           anm.FamilyHistory,
-			SocialHistory:           anm.SocialHistory,
-			Allergies:               anm.Allergies,
-			CurrentMedications:      anm.CurrentMedications,
-			ReviewOfSystems:         anm.ReviewOfSystems,
-
-			// Copy Physical Exam
-			GeneralCondition:  pe.GeneralCondition,
-			Consciousness:     pe.Consciousness,
-			BloodPressure:     pe.BloodPressure,
-			Systolic:          pe.Systolic,
-			Diastolic:         pe.Diastolic,
-			HeartRate:         pe.HeartRate,
-			RespiratoryRate:   pe.RespiratoryRate,
-			Temperature:       pe.Temperature,
-			OxygenSaturation:  pe.OxygenSaturation,
-			Weight:            pe.Weight,
-			Height:            pe.Height,
-			BMI:               pe.BMI,
-			Waist:             pe.Waist,
-			HeadCircum:        pe.HeadCircum,
-			PainMethod:        pe.PainMethod,
-			PainScale:         pe.PainScale,
-			PainLocation:      pe.PainLocation,
-			HeadNeck:          pe.HeadNeck,
-			Eyes:              pe.Eyes,
-			ENT:               pe.ENT,
-			Thorax:            pe.Thorax,
-			Cardiac:           pe.Cardiac,
-			Pulmonary:         pe.Pulmonary,
-			Abdomen:           pe.Abdomen,
-			Extremities:       pe.Extremities,
-			Neurological:      pe.Neurological,
-			Skin:              pe.Skin,
-			Head:              pe.Head,
-			Ears:              pe.Ears,
-			Nose:              pe.Nose,
-			Throat:            pe.Throat,
-			Neck:              pe.Neck,
-			Chest:             pe.Chest,
-			Heart:             pe.Heart,
-			Lungs:             pe.Lungs,
-			Musculoskel:       pe.Musculoskel,
-			Genitourinary:     pe.Genitourinary,
-			OtherFindings:     pe.OtherFindings,
-			ECGPerformed:      pe.ECGPerformed,
-			ECGResult:         pe.ECGResult,
-			ECGInterpretation: pe.ECGInterpretation,
-			ECGNotes:          pe.ECGNotes,
-
-			// Copy Assessment & Plan
-			ClinicalAssessment: ap.ClinicalAssessment,
-			Prognosis:          ap.Prognosis,
-			TreatmentPlan:      ap.TreatmentPlan,
-			MedicationPlan:     ap.MedicationPlan,
-			DietPlan:           ap.DietPlan,
-			ActivityPlan:       ap.ActivityPlan,
-			EducationPlan:      ap.EducationPlan,
-			MonitoringPlan:     ap.MonitoringPlan,
-			ProcedurePlan:      ap.ProcedurePlan,
-			ConsultationPlan:   ap.ConsultationPlan,
-
-			// Copy Disposition
-			DispositionType:      disp.DispositionType,
-			DispositionNote:      disp.DispositionNote,
-			DischargeStatus:      disp.DischargeStatus,
-			DischargeCondition:   disp.DischargeCondition,
-			DischargeInstruction: disp.DischargeInstruction,
-			DischargeMedication:  disp.DischargeMedication,
-			FollowUpInstruction:  disp.FollowUpInstruction,
-			ReferralFacility:     disp.ReferralFacility,
-			ReferralReason:       disp.ReferralReason,
-			ReferralDiagnosis:    disp.ReferralDiagnosis,
-			ReferralTherapy:      disp.ReferralTherapy,
-			ReferralNotes:        disp.ReferralNotes,
-			DeathCause:           disp.DeathCause,
-		}
-		if disp.FollowUpDate != nil {
-			rmDup.FollowUpDate = disp.FollowUpDate.Format("2006-01-02")
-		}
-		if disp.DeathTime != nil {
-			rmDup.DeathTime = disp.DeathTime.Format("2006-01-02 15:04:05")
-		}
-		if userID > 0 {
-			rmDup.DuplicatedByID = &userID
-		}
-		if err := database.DB.Create(&rmDup).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat duplikasi RM: " + err.Error()})
-			return
-		}
-
-		for i, d := range diagnoses {
-			database.DB.Create(&models.EKlaimRMDiagnosis{
-				RMDuplicateID: rmDup.ID,
-				ICD10Code:     d.ICD10Code,
-				ICD10Name:     d.ICD10Name,
-				Type:          d.Type,
-				Sequence:      i + 1,
-			})
-		}
-		for i, vp := range visitProcedures {
-			var icd9Code, procName string
-			if vp.Procedure != nil {
-				icd9Code = vp.Procedure.ICD9CMCode
-				procName = vp.Procedure.Name
-			}
-			database.DB.Create(&models.EKlaimRMProcedure{
-				RMDuplicateID: rmDup.ID,
-				ICD9Code:      icd9Code,
-				Name:          procName,
-				Sequence:      i + 1,
-			})
-		}
-
-		// Copy procedure orders (lab, radiology, surgery, consultation)
-		var allProcOrders []models.ProcedureOrder
-		database.DB.Where("source_visit_id = ? AND status = ?", *sep.VisitID, models.ProcedureOrderStatusCompleted).
-			Preload("Items.Procedure").
-			Preload("Items.Results.ProcedureParameter").
-			Preload("Consultation.Consultant").
-			Preload("SurgeonDoctor").
-			Order("order_type ASC, created_at ASC").
-			Find(&allProcOrders)
-
-		for orderSeq, order := range allProcOrders {
-			srcOrderID := order.ID
-			rmOrder := models.EKlaimRMOrder{
-				RMDuplicateID: rmDup.ID,
-				OrderType:     order.OrderType,
-				SourceOrderID: &srcOrderID,
-				OrderNumber:   order.OrderNumber,
-				Priority:      order.Priority,
-				ClinicalNotes: order.ClinicalNotes,
-				Diagnosis:     order.Diagnosis,
-				Notes:         order.Notes,
-				ResultSummary: order.ResultSummary,
-				Conclusion:    order.Conclusion,
-				Suggestion:    order.Suggestion,
-				IsCritical:    order.IsCritical,
-				CriticalNotes: order.CriticalNotes,
-				Sequence:      orderSeq + 1,
-			}
-			if order.OrderType == "surgery" {
-				if order.SurgeonDoctor != nil {
-					rmOrder.SurgeonName = order.SurgeonDoctor.NamaLengkap
-				}
-				rmOrder.ScheduledDate = order.ScheduledDate
-			}
-			if order.OrderType == "consultation" && order.Consultation != nil {
-				if order.Consultation.Consultant != nil {
-					rmOrder.ConsultantName = order.Consultation.Consultant.NamaLengkap
-				}
-				rmOrder.Subjective = order.Consultation.Subjective
-				rmOrder.Objective = order.Consultation.Objective
-				rmOrder.Assessment = order.Consultation.Assessment
-				rmOrder.Plan = order.Consultation.Plan
-				rmOrder.Recommendation = order.Consultation.Recommendation
-			}
-			database.DB.Create(&rmOrder)
-
-			for itemSeq, item := range order.Items {
-				srcItemID := item.ID
-				procName := ""
-				if item.Procedure != nil {
-					procName = item.Procedure.Name
-				}
-				rmItem := models.EKlaimRMOrderItem{
-					EKlaimRMOrderID: rmOrder.ID,
-					ProcedureID:     item.ProcedureID,
-					ProcedureName:   procName,
-					SourceItemID:    &srcItemID,
-					Notes:           item.Notes,
-					Sequence:        itemSeq + 1,
-				}
-				database.DB.Create(&rmItem)
-
-				for resSeq, result := range item.Results {
-					srcResultID := result.ID
-					paramName := ""
-					if result.ProcedureParameter != nil {
-						paramName = result.ProcedureParameter.Name
-					}
-					database.DB.Create(&models.EKlaimRMOrderResult{
-						EKlaimRMOrderItemID:  rmItem.ID,
-						ProcedureParameterID: result.ProcedureParameterID,
-						ParameterName:        paramName,
-						SourceResultID:       &srcResultID,
-						Value:                result.Value,
-						NumericValue:         result.NumericValue,
-						IsNormal:             result.IsNormal,
-						IsLow:                result.IsLow,
-						IsHigh:               result.IsHigh,
-						IsCritical:           result.IsCritical,
-						Notes:                result.Notes,
-						Sequence:             resSeq + 1,
-					})
-				}
-			}
-		}
-
-		// Copy medicine orders
-		var medOrders []models.MedicineOrder
-		database.DB.Where("source_visit_id = ? AND status IN ?", *sep.VisitID, []string{models.OrderStatusDelivered, models.OrderStatusPartial}).Preload("Items.Medicine").Find(&medOrders)
-		medSeq := 0
-		for _, order := range medOrders {
-			srcOrderID := order.ID
-			for _, item := range order.Items {
-				if item.DispensedQty <= 0 {
-					continue
-				}
-				medSeq++
-				medName := ""
-				var medID *uint
-				if item.Medicine != nil {
-					medName = item.Medicine.Name
-					medID = &item.MedicineID
-				}
-				srcItemID := item.ID
-				database.DB.Create(&models.EKlaimRMMedicineItem{
-					RMDuplicateID: rmDup.ID,
-					MedicineID:    medID,
-					SourceOrderID: &srcOrderID,
-					SourceItemID:  &srcItemID,
-					OrderNumber:   order.OrderNumber,
-					MedicineName:  medName,
-					Dosage:        item.Dosage,
-					Frequency:     item.Frequency,
-					Route:         item.Route,
-					Quantity:      item.DispensedQty,
-					Unit:          item.Unit,
-					Duration:      item.Duration,
-					Instructions:  item.Instructions,
-					Notes:         item.Notes,
-					Sequence:      medSeq,
-				})
-			}
-		}
-
-		// Copy CPPT entries (inpatient)
-		var cpptEntries []models.CPPT
-		database.DB.Where("visit_id = ?", *sep.VisitID).Order("record_date ASC").Find(&cpptEntries)
-		for i, cppt := range cpptEntries {
-			recordDate := cppt.RecordDate.Format("2006-01-02 15:04:05")
-			cpptFormat := cppt.CPPTFormat
-			if cpptFormat == "" {
-				cpptFormat = models.CPPTFormatSOAP
-			}
-			database.DB.Create(&models.EKlaimRMCPPT{
-				RMDuplicateID:    rmDup.ID,
-				RecordDate:       recordDate,
-				Profession:       cppt.Profession,
-				CPPTFormat:       cpptFormat,
-				Subjective:       cppt.Subjective,
-				Objective:        cppt.Objective,
-				Assessment:       cppt.Assessment,
-				Plan:             cppt.Plan,
-				Instruction:      cppt.Instruction,
-				BloodPressure:    cppt.BloodPressure,
-				HeartRate:        cppt.HeartRate,
-				RespiratoryRate:  cppt.RespiratoryRate,
-				Temperature:      cppt.Temperature,
-				OxygenSaturation: cppt.OxygenSaturation,
-				PainScale:        cppt.PainScale,
-				Sequence:         i + 1,
-			})
-		}
-
-		// Copy Fluid Balance entries (inpatient)
-		var fbEntries []models.FluidBalance
-		database.DB.Where("visit_id = ?", *sep.VisitID).Order("record_date ASC, shift_type ASC").Find(&fbEntries)
-		for i, fb := range fbEntries {
-			recordDate := fb.RecordDate.Format("2006-01-02")
-			database.DB.Create(&models.EKlaimRMFluidBalance{
-				RMDuplicateID: rmDup.ID,
-				RecordDate:    recordDate,
-				ShiftType:     fb.ShiftType,
-				OralDrink:     fb.OralDrink,
-				OralFood:      fb.OralFood,
-				OralMedicine:  fb.OralMedicine,
-				IVFluid:       fb.IVFluid,
-				IVMedicine:    fb.IVMedicine,
-				BloodProduct:  fb.BloodProduct,
-				EnteralFeed:   fb.EnteralFeed,
-				OtherIntake:   fb.OtherIntake,
-				UrineAmount:   fb.UrineAmount,
-				FecesAmount:   fb.FecesAmount,
-				VomitAmount:   fb.VomitAmount,
-				DrainAmount:   fb.DrainAmount,
-				BloodLoss:     fb.BloodLoss,
-				IWL:           fb.IWL,
-				OtherOutput:   fb.OtherOutput,
-				TotalIntake:   fb.TotalIntake,
-				TotalOutput:   fb.TotalOutput,
-				Balance:       fb.Balance,
-				Notes:         fb.Notes,
-				Sequence:      i + 1,
-			})
-		}
-	}
+	// Step 2: Duplicate RM to Casemix
+	duplicateRMLogic(*sep.VisitID, eklaimLocal.ID)
 
 	// Step 3: Build new_claim data (use overrides if provided, else from SEP)
 	nomorKartu := sep.NoKartu
@@ -2205,6 +1566,29 @@ func UpdateRMDuplicateAnamnesis(c *gin.Context) {
 		"current_medications":        req.CurrentMedications,
 		"review_of_systems":          req.ReviewOfSystems,
 	}
+
+	// 1. Update CasemixDB (Clinical Isolation)
+	var anamnesis models.Anamnesis
+	if err := database.CasemixDB.Where("visit_id = ?", eklaimLocal.VisitID).First(&anamnesis).Error; err == nil {
+		database.CasemixDB.Model(&anamnesis).Updates(updates)
+	} else {
+		anamnesis = models.Anamnesis{
+			VisitID:                 eklaimLocal.VisitID,
+			AnamnesisSource:         req.AnamnesisSource,
+			FunctionalStatus:        req.FunctionalStatus,
+			ChiefComplaint:          req.ChiefComplaint,
+			HistoryOfPresentIllness: req.HistoryOfPresentIllness,
+			PastMedicalHistory:      req.PastMedicalHistory,
+			FamilyHistory:           req.FamilyHistory,
+			SocialHistory:           req.SocialHistory,
+			Allergies:               req.Allergies,
+			CurrentMedications:      req.CurrentMedications,
+			ReviewOfSystems:         req.ReviewOfSystems,
+		}
+		database.CasemixDB.Create(&anamnesis)
+	}
+
+	// 2. Update Legacy EKlaimRMDuplicate in Main DB (for backward compatibility)
 	if err := database.DB.Model(&models.EKlaimRMDuplicate{}).Where("id = ?", rmDupID).Updates(updates).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal update anamnesis RM Duplicate: " + err.Error()})
 		return
@@ -2219,6 +1603,157 @@ func UpdateRMDuplicateAnamnesis(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message":      "Anamnesis RM Duplicate berhasil diupdate",
 		"rm_duplicate": rmDup,
+	})
+}
+
+// UpdateRMDuplicateTriage updates only triage section in RM duplicate.
+// PUT /eklaim-local/:id/rm-duplicate/triage
+func UpdateRMDuplicateTriage(c *gin.Context) {
+	eklaimID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+		return
+	}
+
+	var eklaimLocal models.EKlaimLocal
+	if err := database.DB.First(&eklaimLocal, eklaimID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Eklaim local tidak ditemukan"})
+		return
+	}
+
+	var req struct {
+		ArrivalMode      string `json:"arrival_mode"`
+		TriageComplaint  string `json:"triage_complaint"`
+		TriageLevel      string `json:"triage_level"`
+		Airway           string `json:"airway"`
+		AirwayNote       string `json:"airway_note"`
+		Breathing        string `json:"breathing"`
+		BreathingNote    string `json:"breathing_note"`
+		BreathingRate    string `json:"breathing_rate"`
+		Circulation      string `json:"circulation"`
+		CirculationNote  string `json:"circulation_note"`
+		CRT              string `json:"crt"`
+		BloodPressure    string `json:"blood_pressure"`
+		HeartRate        string `json:"heart_rate"`
+		Temperature      string `json:"temperature"`
+		OxygenSaturation string `json:"oxygen_saturation"`
+		PainMethod       string `json:"pain_method"`
+		PainScale        int    `json:"pain_scale"`
+		PainLocation     string `json:"pain_location"`
+		Consciousness    string `json:"consciousness"`
+		GCSE             int    `json:"gcs_e"`
+		GCSV             int    `json:"gcs_v"`
+		GCSM             int    `json:"gcs_m"`
+		TriageAssessment string `json:"triage_assessment"`
+		ImmediateActions string `json:"immediate_actions"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request: " + err.Error()})
+		return
+	}
+
+	var rmDupID uint
+	row := database.DB.Raw(`
+		INSERT INTO eklaim_rm_duplicates (e_klaim_local_id, visit_id, created_at, updated_at, duplicated_at, deleted_at)
+		VALUES (?, ?, NOW(), NOW(), NOW(), NULL)
+		ON CONFLICT (e_klaim_local_id) DO UPDATE SET deleted_at = NULL, updated_at = NOW()
+		RETURNING id
+	`, eklaimLocal.ID, eklaimLocal.VisitID).Row()
+	if err := row.Scan(&rmDupID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat/menemukan RM Duplicate: " + err.Error()})
+		return
+	}
+
+	// 1. Update CasemixDB (Clinical Isolation)
+	var triage models.Triage
+	triageUpdates := map[string]interface{}{
+		"arrival_mode":      req.ArrivalMode,
+		"triage_complaint":  req.TriageComplaint,
+		"triage_level":      req.TriageLevel,
+		"airway":            req.Airway,
+		"airway_note":       req.AirwayNote,
+		"breathing":         req.Breathing,
+		"breathing_note":    req.BreathingNote,
+		"breathing_rate":    req.BreathingRate,
+		"circulation":       req.Circulation,
+		"circulation_note":  req.CirculationNote,
+		"crt":               req.CRT,
+		"blood_pressure":    req.BloodPressure,
+		"heart_rate":        req.HeartRate,
+		"temperature":       req.Temperature,
+		"oxygen_saturation": req.OxygenSaturation,
+		"pain_method":       req.PainMethod,
+		"pain_scale":        req.PainScale,
+		"pain_location":     req.PainLocation,
+		"consciousness":     req.Consciousness,
+		"gcs_e":             req.GCSE,
+		"gcs_v":             req.GCSV,
+		"gcs_m":             req.GCSM,
+		"triage_assessment": req.TriageAssessment,
+		"immediate_actions": req.ImmediateActions,
+	}
+
+	if err := database.CasemixDB.Where("visit_id = ?", eklaimLocal.VisitID).First(&triage).Error; err == nil {
+		database.CasemixDB.Model(&triage).Updates(triageUpdates)
+	} else {
+		triage = models.Triage{
+			VisitID:          eklaimLocal.VisitID,
+			ArrivalMode:      req.ArrivalMode,
+			TriageComplaint:  req.TriageComplaint,
+			TriageLevel:      req.TriageLevel,
+			Airway:           req.Airway,
+			AirwayNote:       req.AirwayNote,
+			Breathing:        req.Breathing,
+			BreathingNote:    req.BreathingNote,
+			BreathingRate:    req.BreathingRate,
+			Circulation:      req.Circulation,
+			CirculationNote:  req.CirculationNote,
+			CRT:              req.CRT,
+			BloodPressure:    req.BloodPressure,
+			HeartRate:        req.HeartRate,
+			Temperature:      req.Temperature,
+			OxygenSaturation: req.OxygenSaturation,
+			PainMethod:       req.PainMethod,
+			PainScale:        req.PainScale,
+			PainLocation:     req.PainLocation,
+			Consciousness:    req.Consciousness,
+			GCSE:             req.GCSE,
+			GCSV:             req.GCSV,
+			GCSM:             req.GCSM,
+			TriageAssessment: req.TriageAssessment,
+			ImmediateActions: req.ImmediateActions,
+		}
+		database.CasemixDB.Create(&triage)
+	}
+
+	// 2. Update Legacy EKlaimRMDuplicate in Main DB
+	legacyUpdates := map[string]interface{}{
+		"has_triage":              true,
+		"triage_arrival_mode":     req.ArrivalMode,
+		"triage_complaint":        req.TriageComplaint,
+		"triage_level":            req.TriageLevel,
+		"triage_airway":           req.Airway,
+		"triage_airway_note":      req.AirwayNote,
+		"triage_breathing":        req.Breathing,
+		"triage_breathing_note":   req.BreathingNote,
+		"triage_circulation":      req.Circulation,
+		"triage_circulation_note": req.CirculationNote,
+		"triage_blood_pressure":   req.BloodPressure,
+		"triage_heart_rate":       req.HeartRate,
+		"triage_respiratory_rate": req.BreathingRate,
+		"triage_temperature":      req.Temperature,
+		"triage_oxygen_sat":       req.OxygenSaturation,
+		"triage_pain_scale":       req.PainScale,
+		"triage_gcs_e":            req.GCSE,
+		"triage_gcs_v":            req.GCSV,
+		"triage_gcs_m":            req.GCSM,
+		"triage_assessment":       req.TriageAssessment,
+		"triage_immediate_action": req.ImmediateActions,
+	}
+	database.DB.Model(&models.EKlaimRMDuplicate{}).Where("id = ?", rmDupID).Updates(legacyUpdates)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Triage RM Duplicate berhasil diupdate",
 	})
 }
 

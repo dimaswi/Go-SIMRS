@@ -389,6 +389,127 @@ export const nursingCareApi = {
 };
 
 // ===========================================================================
+// FALL RISK ASSESSMENT TYPES & API
+// ===========================================================================
+
+export interface FallRiskAssessment {
+  id: number;
+  created_at: string;
+  updated_at: string;
+  visit_id: number;
+  record_date: string;
+  scale_type: string;
+  items_json: string;
+  total_score: number;
+  risk_level: string;
+  risk_action: string;
+  notes?: string;
+  assessed_by_id?: number;
+  assessed_by?: {
+    id: number;
+    nama_lengkap: string;
+  };
+}
+
+export interface CreateFallRiskAssessmentInput {
+  record_date: string;
+  scale_type: string;
+  items_json: string;
+  total_score: number;
+  risk_level: string;
+  risk_action?: string;
+  notes?: string;
+}
+
+export interface UpdateFallRiskAssessmentInput extends Partial<CreateFallRiskAssessmentInput> {}
+
+export const fallRiskApi = {
+  getAll: (visitId: number, params?: { scale_type?: string }) => 
+    api.get<{ data: FallRiskAssessment[] }>(`/visits/${visitId}/fall-risk`, { params }),
+  
+  getOne: (visitId: number, assessmentId: number) => 
+    api.get<{ data: FallRiskAssessment }>(`/visits/${visitId}/fall-risk/${assessmentId}`),
+  
+  create: (visitId: number, data: CreateFallRiskAssessmentInput) => 
+    api.post<{ data: FallRiskAssessment }>(`/visits/${visitId}/fall-risk`, data),
+  
+  update: (visitId: number, assessmentId: number, data: UpdateFallRiskAssessmentInput) => 
+    api.put<{ data: FallRiskAssessment }>(`/visits/${visitId}/fall-risk/${assessmentId}`, data),
+  
+  delete: (visitId: number, assessmentId: number) => 
+    api.delete(`/visits/${visitId}/fall-risk/${assessmentId}`),
+};
+
+// ===========================================================================
+// O2 USAGE (Penggunaan Oksigen)
+// ===========================================================================
+
+export interface O2UsageRecord {
+  id: number;
+  created_at: string;
+  updated_at: string;
+  visit_id: number;
+  tank_type: string;
+  flow_rate: number;
+  delivery_method: string;
+  started_at: string;
+  stopped_at: string | null;
+  duration_minutes: number;
+  base_price: number;
+  total_charge: number;
+  billed: boolean;
+  notes?: string;
+  created_by_id?: number;
+  created_by?: { id: number; full_name: string };
+  stopped_by_id?: number;
+  stopped_by?: { id: number; full_name: string };
+}
+
+export interface StartO2UsageInput {
+  tank_type: string;
+  flow_rate: number;
+  delivery_method: string;
+  started_at?: string;
+  base_price?: number;
+  notes?: string;
+}
+
+export interface StopO2UsageInput {
+  stopped_at?: string;
+  base_price?: number;
+}
+
+export interface UpdateO2UsageInput {
+  started_at?: string;
+  stopped_at?: string;
+  flow_rate?: number;
+  delivery_method?: string;
+  tank_type?: string;
+  base_price?: number;
+  notes?: string;
+}
+
+export const o2UsageApi = {
+  getAll: (visitId: number) =>
+    api.get<{ data: O2UsageRecord[] }>(`/visits/${visitId}/o2-usage`),
+
+  getOne: (visitId: number, recordId: number) =>
+    api.get<{ data: O2UsageRecord }>(`/visits/${visitId}/o2-usage/${recordId}`),
+
+  start: (visitId: number, data: StartO2UsageInput) =>
+    api.post<{ data: O2UsageRecord }>(`/visits/${visitId}/o2-usage`, data),
+
+  stop: (visitId: number, recordId: number, data: StopO2UsageInput) =>
+    api.put<{ data: O2UsageRecord }>(`/visits/${visitId}/o2-usage/${recordId}/stop`, data),
+
+  update: (visitId: number, recordId: number, data: UpdateO2UsageInput) =>
+    api.put<{ data: O2UsageRecord }>(`/visits/${visitId}/o2-usage/${recordId}`, data),
+
+  delete: (visitId: number, recordId: number) =>
+    api.delete(`/visits/${visitId}/o2-usage/${recordId}`),
+};
+
+// ===========================================================================
 // NURSING CARE CONSTANTS
 // ===========================================================================
 

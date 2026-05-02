@@ -29,6 +29,7 @@ import { roomsApi, schedulesApi, type Room } from "@/lib/api/rooms";
 import { admissionRequestApi } from "@/lib/api/admission-request";
 import { vclaimApi, type SEPLocal, type VClaimSPRIResponse, type SuratKontrolResponse } from "@/lib/api/vclaim";
 import { visitsApi } from "@/lib/api/visits";
+import { registrationApi } from "@/lib/api/queue";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import {
@@ -506,7 +507,6 @@ export function DispositionForm({
       if (visitData?.registration_id) {
         setRegistrationId(visitData.registration_id);
         try {
-          const { registrationApi } = await import("@/lib/api/queue");
           const regResponse = await registrationApi.getById(visitData.registration_id);
           const registration = regResponse.data?.data;
           
@@ -1097,7 +1097,6 @@ export function DispositionForm({
         }
         
         try {
-          const { registrationApi } = await import("@/lib/api/queue");
           const regResponse = await registrationApi.getById(response.data.follow_up_registration_id);
           if (regResponse.data.data) {
             const reg = regResponse.data.data;

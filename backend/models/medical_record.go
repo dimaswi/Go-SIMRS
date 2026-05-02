@@ -17,8 +17,12 @@ type Triage struct {
 	UpdatedAt time.Time      `json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 
-	VisitID uint   `gorm:"not null;uniqueIndex" json:"visit_id"` // One triage per visit
+	VisitID uint   `gorm:"not null;index" json:"visit_id"` // Changed from uniqueIndex to index since there can be Casemix duplicates
 	Visit   *Visit `gorm:"foreignKey:VisitID" json:"visit,omitempty"`
+
+	// Casemix Support
+	IsCasemix       bool  `gorm:"default:false;index" json:"is_casemix"`
+	CasemixEklaimID *uint `gorm:"index" json:"casemix_eklaim_id,omitempty"`
 
 	// Arrival Information
 	ArrivalMode     string `gorm:"size:50" json:"arrival_mode,omitempty"`       // ambulans, pribadi, polisi, dll
@@ -89,8 +93,12 @@ type Anamnesis struct {
 	UpdatedAt time.Time      `json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 
-	VisitID uint   `gorm:"not null;uniqueIndex" json:"visit_id"`
+	VisitID uint   `gorm:"not null;index" json:"visit_id"` // Changed from uniqueIndex to index
 	Visit   *Visit `gorm:"foreignKey:VisitID" json:"visit,omitempty"`
+
+	// Casemix Support
+	IsCasemix       bool  `gorm:"default:false;index" json:"is_casemix"`
+	CasemixEklaimID *uint `gorm:"index" json:"casemix_eklaim_id,omitempty"`
 
 	// Sumber Anamnesis
 	AnamnesisSource  string `gorm:"size:50" json:"anamnesis_source,omitempty"`   // autoanamnesis, alloanamnesis
@@ -136,8 +144,12 @@ type PhysicalExamination struct {
 	UpdatedAt time.Time      `json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 
-	VisitID uint   `gorm:"not null;uniqueIndex" json:"visit_id"`
+	VisitID uint   `gorm:"not null;index" json:"visit_id"` // Changed from uniqueIndex to index
 	Visit   *Visit `gorm:"foreignKey:VisitID" json:"visit,omitempty"`
+
+	// Casemix Support
+	IsCasemix       bool  `gorm:"default:false;index" json:"is_casemix"`
+	CasemixEklaimID *uint `gorm:"index" json:"casemix_eklaim_id,omitempty"`
 
 	// General
 	GeneralCondition string `gorm:"type:text" json:"general_condition,omitempty"` // Keadaan umum
@@ -234,6 +246,10 @@ type Diagnosis struct {
 	VisitID uint   `gorm:"not null;index" json:"visit_id"` // Multiple diagnoses per visit
 	Visit   *Visit `gorm:"foreignKey:VisitID" json:"visit,omitempty"`
 
+	// Casemix Support
+	IsCasemix       bool  `gorm:"default:false;index" json:"is_casemix"`
+	CasemixEklaimID *uint `gorm:"index" json:"casemix_eklaim_id,omitempty"`
+
 	// ICD-10 Code
 	ICD10Code string `gorm:"size:20;not null" json:"icd10_code"`
 	ICD10Name string `gorm:"size:500;not null" json:"icd10_name"`
@@ -273,8 +289,12 @@ type DiagnosisSummary struct {
 	UpdatedAt time.Time      `json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 
-	VisitID uint   `gorm:"not null;uniqueIndex" json:"visit_id"`
+	VisitID uint   `gorm:"not null;index" json:"visit_id"` // Changed from uniqueIndex
 	Visit   *Visit `gorm:"foreignKey:VisitID" json:"visit,omitempty"`
+
+	// Casemix Support
+	IsCasemix       bool  `gorm:"default:false;index" json:"is_casemix"`
+	CasemixEklaimID *uint `gorm:"index" json:"casemix_eklaim_id,omitempty"`
 
 	ClinicalImpression    string `gorm:"type:text" json:"clinical_impression,omitempty"`
 	DifferentialDiagnosis string `gorm:"type:text" json:"differential_diagnosis,omitempty"`
@@ -303,8 +323,12 @@ type AssessmentPlan struct {
 	UpdatedAt time.Time      `json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 
-	VisitID uint   `gorm:"not null;uniqueIndex" json:"visit_id"`
+	VisitID uint   `gorm:"not null;index" json:"visit_id"` // Changed from uniqueIndex
 	Visit   *Visit `gorm:"foreignKey:VisitID" json:"visit,omitempty"`
+
+	// Casemix Support
+	IsCasemix       bool  `gorm:"default:false;index" json:"is_casemix"`
+	CasemixEklaimID *uint `gorm:"index" json:"casemix_eklaim_id,omitempty"`
 
 	// Assessment
 	ClinicalAssessment string `gorm:"type:text" json:"clinical_assessment,omitempty"` // Kesan klinis
@@ -351,8 +375,12 @@ type Disposition struct {
 	UpdatedAt time.Time      `json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 
-	VisitID uint   `gorm:"not null;uniqueIndex" json:"visit_id"`
+	VisitID uint   `gorm:"not null;index" json:"visit_id"` // Changed from uniqueIndex
 	Visit   *Visit `gorm:"foreignKey:VisitID" json:"visit,omitempty"`
+
+	// Casemix Support
+	IsCasemix       bool  `gorm:"default:false;index" json:"is_casemix"`
+	CasemixEklaimID *uint `gorm:"index" json:"casemix_eklaim_id,omitempty"`
 
 	// Disposition Type
 	DispositionType    string `gorm:"size:50;not null" json:"disposition_type"` // pulang, rawat_inap, rawat_jalan, rujuk, meninggal, aps, dod
@@ -430,8 +458,12 @@ type DischargePlanning struct {
 	UpdatedAt time.Time      `json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 
-	VisitID uint   `gorm:"not null;uniqueIndex" json:"visit_id"`
+	VisitID uint   `gorm:"not null;index" json:"visit_id"` // Changed from uniqueIndex
 	Visit   *Visit `gorm:"foreignKey:VisitID" json:"visit,omitempty"`
+
+	// Casemix Support
+	IsCasemix       bool  `gorm:"default:false;index" json:"is_casemix"`
+	CasemixEklaimID *uint `gorm:"index" json:"casemix_eklaim_id,omitempty"`
 
 	ItemsJSON string `gorm:"type:text" json:"items_json,omitempty"`
 
@@ -450,8 +482,12 @@ type BodyMarker struct {
 	UpdatedAt time.Time      `json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 
-	VisitID uint   `gorm:"not null;uniqueIndex" json:"visit_id"`
+	VisitID uint   `gorm:"not null;index" json:"visit_id"` // Changed from uniqueIndex
 	Visit   *Visit `gorm:"foreignKey:VisitID" json:"visit,omitempty"`
+
+	// Casemix Support
+	IsCasemix       bool  `gorm:"default:false;index" json:"is_casemix"`
+	CasemixEklaimID *uint `gorm:"index" json:"casemix_eklaim_id,omitempty"`
 
 	ItemsJSON string `gorm:"type:text" json:"items_json,omitempty"`
 
@@ -476,6 +512,10 @@ type VitalSign struct {
 
 	VisitID uint   `gorm:"not null;index" json:"visit_id"` // Multiple readings per visit
 	Visit   *Visit `gorm:"foreignKey:VisitID" json:"visit,omitempty"`
+
+	// Casemix Support
+	IsCasemix       bool  `gorm:"default:false;index" json:"is_casemix"`
+	CasemixEklaimID *uint `gorm:"index" json:"casemix_eklaim_id,omitempty"`
 
 	// Vital Signs
 	BloodPressure    string `gorm:"size:20" json:"blood_pressure,omitempty"`

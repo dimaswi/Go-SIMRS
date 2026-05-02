@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { setCasemixContext, restoreCasemixContext } from "@/lib/api/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,7 +14,7 @@ import { usePermission } from "@/hooks/usePermission";
 import { setPageTitle } from "@/lib/page-title";
 import { Activity, CheckCircle2, History, Loader2, Save, X, XCircle } from "lucide-react";
 import { useBreadcrumb } from "@/contexts/breadcrumb-context";
-import { visitsApi, medicalRecordsApi, cpptApi, fluidBalanceApi, nursingCareApi, medicineOrdersApi, procedureOrdersApi, patientAllergyApi } from "@/lib/api";
+import { visitsApi, medicalRecordsApi, cpptApi, fluidBalanceApi, nursingCareApi, fallRiskApi, o2UsageApi, medicineOrdersApi, procedureOrdersApi, patientAllergyApi } from "@/lib/api";
 import { PatientInfo } from "@/components/medical-record/patient-info";
 import { MedicalRecordTabs } from "@/components/medical-record/medical-record-tabs";
 import { TriageForm } from "@/components/medical-record/triage-form";
@@ -34,10 +35,13 @@ import { PharmacyEditPrescription } from "@/components/medical-record/pharmacy-e
 import { PharmacyReview } from "@/components/medical-record/pharmacy-review";
 import { PharmacyDispense } from "@/components/medical-record/pharmacy-dispense";
 import { PharmacyReturn } from "@/components/medical-record/pharmacy-return";
+import { PharmacyApotekOnline } from "@/components/medical-record/pharmacy-apotek-online";
 import { ProcedureForm } from "@/components/medical-record/procedure-form";
 import { CPPTForm } from "@/components/medical-record/cppt-form";
 import { FluidBalanceForm } from "@/components/medical-record/fluid-balance-form";
 import { NursingCareForm } from "@/components/medical-record/nursing-care-form";
+import { FallRiskForm } from "@/components/medical-record/fall-risk-form";
+import { O2UsageForm } from "@/components/medical-record/o2-usage-form";
 import { DischargePlanningForm } from "@/components/medical-record/discharge-planning-form";
 import { BedTransferForm } from "@/components/medical-record/bed-transfer-form";
 import { UnitTransferForm } from "@/components/medical-record/unit-transfer-form";
@@ -129,6 +133,24 @@ export default function VisitShow() {
   const isEditTab = EDIT_TAB_IDS.has(activeTab);
   const isAdministrativeTab = ADMIN_TAB_IDS.has(activeTab);
   const isFooterActionHiddenTab = !shouldUseFooterActionForTab(activeTab);
+
+  // Casemix context
+  const [isCasemixMode, setIsCasemixMode] = useState(false);
+  const [casemixEklaimId, setCasemixEklaimId] = useState<number | null>(null);
+
+  useEffect(() => {
+    const ctx = restoreCasemixContext();
+    if (ctx.isCasemix && ctx.eklaimId) {
+      setIsCasemixMode(true);
+      setCasemixEklaimId(ctx.eklaimId);
+    }
+    return () => {
+      // Clear casemix context when leaving this page
+      if (restoreCasemixContext().isCasemix) {
+        setCasemixContext(false);
+      }
+    };
+  }, []);
 
   const getScrollTargets = (): HTMLElement[] => {
     const targets: (HTMLElement | null | undefined)[] = [
@@ -700,6 +722,8 @@ export default function VisitShow() {
     const listIndicators = [
       { key: "cppt", fetch: () => cpptApi.getAll(visitId) },
       { key: "nursing-care", fetch: () => nursingCareApi.getAll(visitId) },
+      { key: "fall-risk", fetch: () => fallRiskApi.getAll(visitId) },
+      { key: "o2-usage", fetch: () => o2UsageApi.getAll(visitId) },
       { key: "fluid-balance", fetch: () => fluidBalanceApi.getAll(visitId) },
     ];
     await Promise.allSettled(
@@ -708,6 +732,10 @@ export default function VisitShow() {
           const r = await fetch();
           const count = r.data?.data?.length ?? 0;
           emitMedicalRecordTabIndicator(key, `${count}`);
+          setTabIndicators((prev) => ({
+            ...prev,
+            [key]: `${count}`,
+          }));
         } catch {
           // ignore
         }
@@ -1179,6 +1207,25 @@ export default function VisitShow() {
           );
         }
         return <NursingCareForm key={`nursing-care-${visit.id}`} visitId={visit.id} readOnly={isPatientDischarged} />;
+      case "fall-risk":
+        if (!isInpatient) {
+          return renderWrongVisitTypeMessage("Rawat Inap");
+        }
+        if (!hasPermission("medical_records.fall_risk")) {
+          return (
+            <Card className="p-6">
+              <p className="text-center text-muted-foreground">
+                Anda tidak memiliki akses untuk Risiko Jatuh
+              </p>
+            </Card>
+          );
+        }
+        return <FallRiskForm key={`fall-risk-${visit.id}`} visitId={visit.id} />;
+      case "o2-usage":
+        if (!isInpatient) {
+          return renderWrongVisitTypeMessage("Rawat Inap");
+        }
+        return <O2UsageForm key={`o2-usage-${visit.id}`} visitId={visit.id} readOnly={isPatientDischarged} />;
       case "fluid-balance":
         // Fluid balance only for inpatient visits
         if (!isInpatient) {
@@ -1558,6 +1605,17 @@ export default function VisitShow() {
           );
         }
         return <PharmacyReturn key={`return-${visit.id}`} visitId={visit.id} readOnly={visit.status === "completed"} />;
+      case "apotek-online":
+        if (!hasPermission("pharmacy.dispense")) {
+          return (
+            <Card className="p-6">
+              <p className="text-center text-muted-foreground">
+                Anda tidak memiliki akses untuk Apotek Online
+              </p>
+            </Card>
+          );
+        }
+        return <PharmacyApotekOnline key={`apotek-online-${visit.id}`} visitId={visit.id} readOnly={visit.status === "completed"} />;
       
       case "pharmacy-final":
         if (!hasPermission("pharmacy.final")) {
@@ -1700,6 +1758,25 @@ export default function VisitShow() {
         <main className="mr-main flex min-h-0 min-w-0 flex-col overflow-hidden bg-card">
           <div className="mr-toolbar sticky top-0 z-20 shrink-0 border-b bg-background px-3 py-2 sm:px-4">
             <div className="flex items-center justify-end gap-2">
+              {/* Casemix Mode Banner */}
+              {isCasemixMode && (
+                <>
+                  <span className="text-xs font-semibold text-orange-600 bg-orange-50 border border-orange-200 px-2 py-1 rounded-none">
+                    MODE CASEMIX
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 rounded-none text-xs"
+                    onClick={() => {
+                      setCasemixContext(false);
+                      navigate(`/eklaim/data-klaim/${casemixEklaimId}`);
+                    }}
+                  >
+                    ← Kembali ke E-Klaim
+                  </Button>
+                </>
+              )}
               <TooltipProvider delayDuration={200}>
                 {showHeaderFinalAction && (
                   <Tooltip>

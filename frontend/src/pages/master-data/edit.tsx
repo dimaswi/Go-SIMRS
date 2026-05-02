@@ -29,6 +29,7 @@ const CATEGORY_NAMES: Record<string, string> = {
   specialization: 'Spesialisasi',
   body_marker_category: 'Kategori Marker Tubuh',
   body_marker_image: 'Gambar Marker Tubuh',
+  o2_type: 'Jenis Oksigen',
 };
 
 export default function EditMasterDataPage() {
@@ -42,6 +43,7 @@ export default function EditMasterDataPage() {
   const [data, setData] = useState<MasterData | null>(null);
   const [markerCategories, setMarkerCategories] = useState<MasterData[]>([]);
   const [bodyMarkerImageUrl, setBodyMarkerImageUrl] = useState('');
+  const [o2Price, setO2Price] = useState('');
   const [formData, setFormData] = useState<Partial<MasterDataRequest>>({
     code: '',
     name: '',
@@ -57,6 +59,7 @@ export default function EditMasterDataPage() {
   }, [id]);
 
   const isBodyMarkerImageCategory = data?.category === 'body_marker_image';
+  const isO2TypeCategory = data?.category === 'o2_type';
 
   useEffect(() => {
     if (!isBodyMarkerImageCategory) {
@@ -93,6 +96,19 @@ export default function EditMasterDataPage() {
       return '';
     } catch {
       return raw;
+    }
+  };
+
+  const parsePriceFromMetadata = (metadata?: string) => {
+    const raw = (metadata || '').trim();
+    if (!raw) return 0;
+    try {
+      const parsed = JSON.parse(raw);
+      if (typeof parsed?.price === 'number') return parsed.price;
+      if (typeof parsed?.price === 'string') return parseInt(parsed.price) || 0;
+      return 0;
+    } catch {
+      return 0;
     }
   };
 
@@ -136,6 +152,7 @@ export default function EditMasterDataPage() {
         metadata: masterData.metadata || '',
       });
       setBodyMarkerImageUrl(parseImageUrlFromMetadata(masterData.metadata));
+      setO2Price(String(parsePriceFromMetadata(masterData.metadata)));
     } catch (error) {
       toast({
         variant: "destructive",
@@ -186,6 +203,8 @@ export default function EditMasterDataPage() {
         ...formData,
         metadata: isBodyMarkerImageCategory
           ? JSON.stringify({ image_url: bodyMarkerImageUrl })
+          : isO2TypeCategory
+          ? JSON.stringify({ price: parseInt(o2Price) || 0 })
           : formData.metadata,
       };
 
@@ -341,6 +360,20 @@ export default function EditMasterDataPage() {
                     )}
                   </div>
                 </>
+              )}
+
+              {isO2TypeCategory && (
+                <div className="space-y-2">
+                  <Label htmlFor="o2-price">Harga per Liter (Rp) <span className="text-destructive">*</span></Label>
+                  <Input
+                    id="o2-price"
+                    type="number"
+                    min="0"
+                    value={o2Price}
+                    onChange={(e) => setO2Price(e.target.value)}
+                    placeholder="Contoh: 120000"
+                  />
+                </div>
               )}
 
               <div className="space-y-2">

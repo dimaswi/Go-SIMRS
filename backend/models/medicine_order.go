@@ -58,6 +58,10 @@ type MedicineOrder struct {
 	PharmacyVisitID *uint  `gorm:"index" json:"pharmacy_visit_id"`
 	PharmacyVisit   *Visit `gorm:"foreignKey:PharmacyVisitID" json:"pharmacy_visit,omitempty"`
 
+	// Casemix Support
+	IsCasemix       bool  `gorm:"default:false;index" json:"is_casemix"`
+	CasemixEklaimID *uint `gorm:"index" json:"casemix_eklaim_id,omitempty"`
+
 	// Source Room (where the order was created - poli, ugd, rawat inap)
 	SourceRoomID uint  `gorm:"not null;index" json:"source_room_id"`
 	SourceRoom   *Room `gorm:"foreignKey:SourceRoomID" json:"source_room,omitempty"`
@@ -117,6 +121,10 @@ type MedicineOrderItem struct {
 	// Order Reference
 	MedicineOrderID uint           `gorm:"not null;index" json:"medicine_order_id"`
 	MedicineOrder   *MedicineOrder `gorm:"foreignKey:MedicineOrderID" json:"medicine_order,omitempty"`
+
+	// Casemix Support
+	IsCasemix       bool  `gorm:"default:false;index" json:"is_casemix"`
+	CasemixEklaimID *uint `gorm:"index" json:"casemix_eklaim_id,omitempty"`
 
 	// Medicine
 	MedicineID uint      `gorm:"not null;index" json:"medicine_id"`

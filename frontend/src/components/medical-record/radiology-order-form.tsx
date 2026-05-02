@@ -74,10 +74,10 @@ function OrderCollapsible({ order, onCancel, canCancel }: { order: ProcedureOrde
   const [isOpen, setIsOpen] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
   const { toast } = useToast();
-  
+
   // Get patient info from registration or source_visit.registration
   const patient = order.registration?.patient || order.source_visit?.registration?.patient;
-  
+
   const handlePrintQueue = async () => {
     const queueId = order.target_visit?.room_queue?.id;
     if (!queueId) {
@@ -88,7 +88,7 @@ function OrderCollapsible({ order, onCancel, canCancel }: { order: ProcedureOrde
       });
       return;
     }
-    
+
     setIsPrinting(true);
     try {
       const url = await printApi.queueTicket(queueId);
@@ -162,7 +162,7 @@ function OrderCollapsible({ order, onCancel, canCancel }: { order: ProcedureOrde
         <CollapsibleContent>
           <div className="mt-3 ml-6 space-y-3">
             {/* Order Info Table */}
-            <div className="bg-muted/30 rounded-lg p-3">
+            <div className="bg-muted/30 border border-border/70 p-3">
               <table className="w-full min-w-[640px] text-sm">
                 <tbody>
                   <tr>
@@ -207,7 +207,7 @@ function OrderCollapsible({ order, onCancel, canCancel }: { order: ProcedureOrde
 
             {/* Order Items Table */}
             {order.items && order.items.length > 0 && (
-              <div className="border rounded-lg overflow-x-auto">
+              <div className="border border-border/70 overflow-x-auto">
                 <table className="w-full min-w-[640px] text-sm">
                   <thead className="bg-muted/50">
                     <tr>
@@ -238,12 +238,12 @@ function OrderCollapsible({ order, onCancel, canCancel }: { order: ProcedureOrde
 
             {/* Results if completed */}
             {order.status === "completed" && (
-              <div className="bg-muted/50 border rounded-lg p-3 space-y-2">
+              <div className="bg-muted/50 border border-border/70 p-3 space-y-2">
                 <p className="font-medium flex items-center gap-2">
                   <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
                   Hasil Pemeriksaan
                 </p>
-                
+
                 {/* Detail Results per Item */}
                 {order.items?.filter(item => item.status !== "cancelled").map((item) => (
                   <div key={item.id} className="mb-3 pb-3 border-b last:border-0">
@@ -264,7 +264,7 @@ function OrderCollapsible({ order, onCancel, canCancel }: { order: ProcedureOrde
                     )}
                   </div>
                 ))}
-                
+
                 {order.result_summary && (
                   <div>
                     <span className="text-xs font-medium">Hasil:</span>
@@ -342,7 +342,7 @@ export function RadiologyOrderForm({ visitId, readOnly = false }: RadiologyOrder
         procedureOrdersApi.getRadiologyRooms(),
       ]);
       const orders = ordersRes.data || [];
-      
+
       // Recalculate status for orders that might have inconsistent status
       for (const order of orders) {
         if (order.status !== "completed" && order.status !== "cancelled") {
@@ -353,7 +353,7 @@ export function RadiologyOrderForm({ visitId, readOnly = false }: RadiologyOrder
           }
         }
       }
-      
+
       // Reload orders after recalculation
       const updatedOrdersRes = await procedureOrdersApi.getBySourceVisit(visitId, "radiology");
       setExistingOrders(updatedOrdersRes.data || []);
@@ -430,7 +430,7 @@ export function RadiologyOrderForm({ visitId, readOnly = false }: RadiologyOrder
     const orderId = cancelConfirmOrderId;
     if (!orderId) return;
     setCancelConfirmOrderId(null);
-    
+
     try {
       await procedureOrdersApi.cancel(orderId, "Dibatalkan oleh dokter");
       toast({
@@ -497,7 +497,7 @@ export function RadiologyOrderForm({ visitId, readOnly = false }: RadiologyOrder
 
       // Reload orders
       loadData();
-      
+
       // Trigger refresh print options dan final visit
       window.dispatchEvent(new CustomEvent("refresh-print-options"));
       window.dispatchEvent(new CustomEvent("refresh-final-visit"));
@@ -530,285 +530,281 @@ export function RadiologyOrderForm({ visitId, readOnly = false }: RadiologyOrder
     <div>
       <div className="p-0">
         {/* Inline Tabs with Underline */}
-        <div className="border-b">
-          <div className="flex">
+        <div>
+          <div className="flex items-center gap-6 px-4">
             <button
               onClick={() => setActiveTab("form")}
               className={cn(
-                "px-4 py-2.5 text-sm font-medium transition-colors relative",
+                "py-3 text-sm font-medium transition-colors relative flex items-center gap-2",
                 activeTab === "form"
-                  ? "text-primary"
+                  ? "text-foreground"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
-              <span className="flex items-center gap-2">
-                <FileImage className="h-4 w-4" />
-                Order Baru
-              </span>
+              <FileImage className={cn("h-4 w-4", activeTab === "form" ? "text-primary" : "text-muted-foreground")} />
+              Order Baru
               {activeTab === "form" && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
+                <div className="absolute bottom-[-1px] left-0 right-0 h-[2px] bg-primary rounded-t-sm" />
               )}
             </button>
             <button
               onClick={() => setActiveTab("history")}
               className={cn(
-                "px-4 py-2.5 text-sm font-medium transition-colors relative",
+                "py-3 text-sm font-medium transition-colors relative flex items-center gap-2",
                 activeTab === "history"
-                  ? "text-primary"
+                  ? "text-foreground"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
-              <span className="flex items-center gap-2">
-                <Clock className="h-4 w-4" />
-                Riwayat Order
-                {existingOrders.length > 0 && (
-                  <Badge variant="secondary" className="ml-1 h-5 px-1.5">
-                    {existingOrders.length}
-                  </Badge>
-                )}
-              </span>
+              <Clock className={cn("h-4 w-4", activeTab === "history" ? "text-primary" : "text-muted-foreground")} />
+              Riwayat Order
+              {existingOrders.length > 0 && (
+                <Badge variant="secondary" className="ml-1 h-5 px-1.5 font-normal">
+                  {existingOrders.length}
+                </Badge>
+              )}
               {activeTab === "history" && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
+                <div className="absolute bottom-[-1px] left-0 right-0 h-[2px] bg-primary rounded-t-sm" />
               )}
             </button>
           </div>
         </div>
 
         <div className="p-4">
-            {/* Order Form Tab */}
-            {activeTab === "form" && canOrder && (
-              <div className="space-y-4">
-                <fieldset disabled={readOnly} className="space-y-4 [&_input]:h-10 [&_[role=combobox]]:h-10">
-            <div className="border border-border/70">
-              <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                Konfigurasi Order
-              </div>
-              <div className="space-y-4 p-3 sm:p-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Unit Radiologi Tujuan</Label>
-                <Select
-                  value={selectedRoom?.toString() || ""}
-                  onValueChange={(value) => setSelectedRoom(Number(value))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Pilih unit radiologi" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {radiologyRooms.map((room) => (
-                      <SelectItem key={room.id} value={room.id.toString()}>
-                        {room.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Prioritas</Label>
-                <Select value={priority} onValueChange={setPriority}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="normal">Normal</SelectItem>
-                    <SelectItem value="urgent">Urgent</SelectItem>
-                    <SelectItem value="cito">CITO</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Diagnosis</Label>
-              <Textarea
-                placeholder="Tulis diagnosis terkait pemeriksaan"
-                value={diagnosis}
-                onChange={(e) => setDiagnosis(e.target.value)}
-                rows={2}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Catatan Klinis / Indikasi</Label>
-              <Textarea
-                placeholder="Catatan klinis untuk petugas radiologi"
-                value={clinicalNotes}
-                onChange={(e) => setClinicalNotes(e.target.value)}
-                rows={2}
-              />
-            </div>
-              </div>
-            </div>
-
-            <div className="border border-border/70">
-              <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                Pemeriksaan
-              </div>
-              <div className="space-y-4 p-3 sm:p-4">
-
-            {/* Procedure Selection */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <Label className="text-base font-medium">Pilih Pemeriksaan</Label>
-                <Button
-                  type="button"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() => setShowAddDialog(true)}
-                  disabled={!selectedRoom || readOnly}
-                  aria-label="Tambah pemeriksaan"
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-
-            {orderItems.length > 0 ? (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <Label className="text-base font-medium">Pemeriksaan Dipilih</Label>
-                  <Badge variant="secondary">{orderItems.length} item</Badge>
-                </div>
-                <div className="border rounded-lg divide-y">
-                  {orderItems.map((item) => (
-                    <div key={item.procedure_id} className="p-3 flex items-center justify-between gap-3">
-                      <div className="flex-1">
-                        <p className="font-medium text-sm">{item.procedure_name}</p>
-                        <p className="text-xs text-muted-foreground">{item.procedure_code}</p>
+          {/* Order Form Tab */}
+          {activeTab === "form" && canOrder && (
+            <div className="space-y-4">
+              <fieldset disabled={readOnly} className="space-y-4 [&_input]:h-10 [&_[role=combobox]]:h-10">
+                <div className="border border-border/70">
+                  <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                    Konfigurasi Order
+                  </div>
+                  <div className="space-y-4 p-3 sm:p-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Unit Radiologi Tujuan</Label>
+                        <Select
+                          value={selectedRoom?.toString() || ""}
+                          onValueChange={(value) => setSelectedRoom(Number(value))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Pilih unit radiologi" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {radiologyRooms.map((room) => (
+                              <SelectItem key={room.id} value={room.id.toString()}>
+                                {room.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-destructive"
-                        onClick={() => handleRemoveItem(item.procedure_id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <div className="space-y-2">
+                        <Label>Prioritas</Label>
+                        <Select value={priority} onValueChange={setPriority}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="normal">Normal</SelectItem>
+                            <SelectItem value="urgent">Urgent</SelectItem>
+                            <SelectItem value="cito">CITO</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
+
+                    <div className="space-y-2">
+                      <Label>Diagnosis</Label>
+                      <Textarea
+                        placeholder="Tulis diagnosis terkait pemeriksaan"
+                        value={diagnosis}
+                        onChange={(e) => setDiagnosis(e.target.value)}
+                        rows={2}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Catatan Klinis / Indikasi</Label>
+                      <Textarea
+                        placeholder="Catatan klinis untuk petugas radiologi"
+                        value={clinicalNotes}
+                        onChange={(e) => setClinicalNotes(e.target.value)}
+                        rows={2}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border border-border/70">
+                  <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                    Pemeriksaan
+                  </div>
+                  <div className="space-y-4 p-3 sm:p-4">
+
+                    {/* Procedure Selection */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <Label className="text-base font-medium">Pilih Pemeriksaan</Label>
+                        <Button
+                          type="button"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => setShowAddDialog(true)}
+                          disabled={!selectedRoom || readOnly}
+                          aria-label="Tambah pemeriksaan"
+                        >
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    {orderItems.length > 0 ? (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between gap-2 border-b border-border/70 pb-2">
+                          <Label className="text-base font-medium">Pemeriksaan Dipilih</Label>
+                          <Badge variant="secondary">{orderItems.length} item</Badge>
+                        </div>
+                        <div className="border border-border/70 divide-y">
+                          {orderItems.map((item) => (
+                            <div key={item.procedure_id} className="p-3 flex items-center justify-between gap-3">
+                              <div className="flex-1">
+                                <p className="font-medium text-sm">{item.procedure_name}</p>
+                                <p className="text-xs text-muted-foreground">{item.procedure_code}</p>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-destructive"
+                                onClick={() => handleRemoveItem(item.procedure_id)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="border border-dashed border-border/70 p-8 text-center text-muted-foreground">
+                        <FileImage className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                        <p>Belum ada pemeriksaan dipilih</p>
+                        <p className="text-sm">Gunakan tombol + untuk menambah pemeriksaan.</p>
+                      </div>
+                    )}
+
+                    <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+                      <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+                        <DialogHeader>
+                          <DialogTitle>Pilih Pemeriksaan Radiologi</DialogTitle>
+                        </DialogHeader>
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            placeholder="Cari pemeriksaan..."
+                            className="pl-9"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                          />
+                        </div>
+                        <ScrollArea className="flex-1 max-h-[420px] border rounded-md">
+                          {!selectedRoom ? (
+                            <div className="text-center py-8 text-muted-foreground text-sm">Pilih unit radiologi terlebih dahulu.</div>
+                          ) : loadingProcedures ? (
+                            <div className="flex items-center justify-center py-8">
+                              <Loader2 className="h-6 w-6 animate-spin" />
+                            </div>
+                          ) : filteredProcedures.length === 0 ? (
+                            <div className="text-center py-8 text-muted-foreground text-sm">
+                              {searchTerm ? "Pemeriksaan tidak ditemukan" : "Tidak ada pemeriksaan tersedia"}
+                            </div>
+                          ) : (
+                            <div className="divide-y">
+                              {filteredProcedures.map((proc) => {
+                                const isSelected = orderItems.some((item) => item.procedure_id === proc.id);
+                                return (
+                                  <button
+                                    key={proc.id}
+                                    type="button"
+                                    className={cn(
+                                      "w-full p-3 text-left flex items-center gap-3 hover:bg-muted/50",
+                                      isSelected && "bg-primary/5"
+                                    )}
+                                    onClick={() => handleToggleProcedure(proc)}
+                                  >
+                                    <Checkbox checked={isSelected} />
+                                    <div className="flex-1">
+                                      <p className="font-medium text-sm">{proc.name}</p>
+                                      <p className="text-xs text-muted-foreground">
+                                        {proc.code}
+                                        {proc.description && ` • ${proc.description}`}
+                                      </p>
+                                    </div>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </ScrollArea>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                </div>
+
+                {/* Submit Button */}
+                <div className="flex justify-stretch sm:justify-end pt-2">
+                  <Button
+                    size="lg"
+                    className="w-full sm:w-auto"
+                    disabled={submitting || orderItems.length === 0 || readOnly}
+                    onClick={handleSubmitOrder}
+                  >
+                    {submitting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Mengirim...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="h-4 w-4 mr-2" />
+                        Kirim Order ke Radiologi
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </fieldset>
+            </div>
+          )}
+
+          {/* No permission notice for form tab */}
+          {activeTab === "form" && !canOrder && (
+            <div className="text-center py-12 text-muted-foreground">
+              <FileImage className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p>Anda tidak memiliki akses untuk membuat order radiologi</p>
+            </div>
+          )}
+
+          {/* History Tab */}
+          {activeTab === "history" && (
+            <div className="space-y-2">
+              {existingOrders.length > 0 ? (
+                <div className="divide-y border border-border/70">
+                  {existingOrders.map((order) => (
+                    <OrderCollapsible
+                      key={order.id}
+                      order={order}
+                      onCancel={handleCancelOrder}
+                      canCancel={canOrder}
+                    />
                   ))}
                 </div>
-              </div>
-            ) : (
-              <div className="border-2 border-dashed rounded-lg p-8 text-center text-muted-foreground">
-                <FileImage className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                <p>Belum ada pemeriksaan dipilih</p>
-                <p className="text-sm">Gunakan tombol + untuk menambah pemeriksaan.</p>
-              </div>
-            )}
-
-            <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-              <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
-                <DialogHeader>
-                  <DialogTitle>Pilih Pemeriksaan Radiologi</DialogTitle>
-                </DialogHeader>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Cari pemeriksaan..."
-                    className="pl-9"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p>Belum ada riwayat order radiologi</p>
                 </div>
-                <ScrollArea className="flex-1 max-h-[420px] border rounded-md">
-                  {!selectedRoom ? (
-                    <div className="text-center py-8 text-muted-foreground text-sm">Pilih unit radiologi terlebih dahulu.</div>
-                  ) : loadingProcedures ? (
-                    <div className="flex items-center justify-center py-8">
-                      <Loader2 className="h-6 w-6 animate-spin" />
-                    </div>
-                  ) : filteredProcedures.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground text-sm">
-                      {searchTerm ? "Pemeriksaan tidak ditemukan" : "Tidak ada pemeriksaan tersedia"}
-                    </div>
-                  ) : (
-                    <div className="divide-y">
-                      {filteredProcedures.map((proc) => {
-                        const isSelected = orderItems.some((item) => item.procedure_id === proc.id);
-                        return (
-                          <button
-                            key={proc.id}
-                            type="button"
-                            className={cn(
-                              "w-full p-3 text-left flex items-center gap-3 hover:bg-muted/50",
-                              isSelected && "bg-primary/5"
-                            )}
-                            onClick={() => handleToggleProcedure(proc)}
-                          >
-                            <Checkbox checked={isSelected} />
-                            <div className="flex-1">
-                              <p className="font-medium text-sm">{proc.name}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {proc.code}
-                                {proc.description && ` • ${proc.description}`}
-                              </p>
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </ScrollArea>
-              </DialogContent>
-            </Dialog>
-              </div>
+              )}
             </div>
-
-            {/* Submit Button */}
-            <div className="flex justify-stretch sm:justify-end pt-2">
-              <Button
-                size="lg"
-                className="w-full sm:w-auto"
-                disabled={submitting || orderItems.length === 0 || readOnly}
-                onClick={handleSubmitOrder}
-              >
-                {submitting ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Mengirim...
-                  </>
-                ) : (
-                  <>
-                    <Send className="h-4 w-4 mr-2" />
-                    Kirim Order ke Radiologi
-                  </>
-                )}
-              </Button>
-            </div>
-                </fieldset>
-              </div>
-            )}
-
-            {/* No permission notice for form tab */}
-            {activeTab === "form" && !canOrder && (
-              <div className="text-center py-12 text-muted-foreground">
-                <FileImage className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>Anda tidak memiliki akses untuk membuat order radiologi</p>
-              </div>
-            )}
-
-            {/* History Tab */}
-            {activeTab === "history" && (
-              <div className="space-y-2">
-                {existingOrders.length > 0 ? (
-                  <div className="divide-y border rounded-lg">
-                    {existingOrders.map((order) => (
-                      <OrderCollapsible 
-                        key={order.id} 
-                        order={order} 
-                        onCancel={handleCancelOrder}
-                        canCancel={canOrder}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                    <p>Belum ada riwayat order radiologi</p>
-                  </div>
-                )}
-              </div>
-            )}
+          )}
         </div>
       </div>
 

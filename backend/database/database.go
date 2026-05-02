@@ -15,48 +15,51 @@ import (
 )
 
 var DB *gorm.DB
+var CasemixDB *gorm.DB
 
-func Connect(dsn string) error {
+func Connect(dsn string, casemixDsn string) error {
 	var err error
 
 	// Configure GORM with performance optimizations
 	gormConfig := &gorm.Config{
-		// Disable default transaction for single operations (improves performance)
-		SkipDefaultTransaction: true,
-		// Prepare statements for faster repeated queries
-		PrepareStmt: true,
-		// Use silent logger in production (reduce overhead)
-		Logger: logger.Default.LogMode(logger.Silent),
-		// Disable FK constraint creation during AutoMigrate to prevent
-		// "violates foreign key constraint" errors from orphaned data.
-		// GORM handles relationships at the application level via struct tags.
+		SkipDefaultTransaction:                   true,
+		PrepareStmt:                              true,
+		Logger:                                   logger.Default.LogMode(logger.Silent),
 		DisableForeignKeyConstraintWhenMigrating: true,
 	}
 
+	// Main DB
 	DB, err = gorm.Open(postgres.Open(dsn), gormConfig)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to connect to main database: %w", err)
 	}
 
-	// Configure connection pool for better performance
-	sqlDB, err := DB.DB()
+	// Casemix DB
+	CasemixDB, err = gorm.Open(postgres.Open(casemixDsn), gormConfig)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to connect to casemix database: %w", err)
 	}
 
-	// Connection pool settings
-	sqlDB.SetMaxIdleConns(10)           // Minimum idle connections
-	sqlDB.SetMaxOpenConns(100)          // Maximum open connections
-	sqlDB.SetConnMaxLifetime(time.Hour) // Connection lifetime
+	// Configure connection pools
+	configurePool(DB)
+	configurePool(CasemixDB)
 
-	log.Println("Database connected successfully with connection pooling")
+	log.Println("Databases connected successfully with connection pooling")
 	return nil
 }
 
+func configurePool(db *gorm.DB) {
+	sqlDB, err := db.DB()
+	if err != nil {
+		return
+	}
+	sqlDB.SetMaxIdleConns(10)
+	sqlDB.SetMaxOpenConns(100)
+	sqlDB.SetConnMaxLifetime(time.Hour)
+}
+
 // dropAllForeignKeys drops ALL foreign key constraints from all tables in the database.
-// This allows AutoMigrate to run cleanly without FK violation errors from orphaned data.
-// AutoMigrate will recreate all FK constraints based on model struct tags.
-func dropAllForeignKeys() {
+func dropAllForeignKeys(db *gorm.DB) {
 	log.Println("Dropping all foreign key constraints before migration...")
 
 	var constraints []struct {
@@ -64,7 +67,7 @@ func dropAllForeignKeys() {
 		ConstraintName string
 	}
 
-	DB.Raw(`
+	db.Raw(`
 		SELECT tc.table_name, tc.constraint_name
 		FROM information_schema.table_constraints tc
 		WHERE tc.constraint_type = 'FOREIGN KEY'
@@ -73,22 +76,19 @@ func dropAllForeignKeys() {
 	`).Scan(&constraints)
 
 	for _, c := range constraints {
-		DB.Exec(fmt.Sprintf("ALTER TABLE %q DROP CONSTRAINT IF EXISTS %q", c.TableName, c.ConstraintName))
+		db.Exec(fmt.Sprintf("ALTER TABLE %q DROP CONSTRAINT IF EXISTS %q", c.TableName, c.ConstraintName))
 	}
 
 	log.Printf("Dropped %d foreign key constraints", len(constraints))
 }
 
 func Migrate() error {
+	var err error
 	// ==========================================
 	// STEP 1: Drop ALL existing foreign key constraints
-	// Clean up any FK constraints from previous migrations.
-	// With DisableForeignKeyConstraintWhenMigrating=true in GORM config,
-	// AutoMigrate will NOT recreate FK constraints — this is intentional
-	// to prevent "violates foreign key constraint" errors from orphaned data.
-	// GORM handles all relationships at the application level via struct tags.
 	// ==========================================
-	dropAllForeignKeys()
+	dropAllForeignKeys(DB)
+	dropAllForeignKeys(CasemixDB)
 
 	// ==========================================
 	// STEP 2: Handle legacy schema migrations
@@ -254,182 +254,82 @@ func Migrate() error {
 		}
 	}
 
-	err := DB.AutoMigrate(
-		&models.Role{},              // First, roles
-		&models.Permission{},        // Then permissions
-		&models.RolePermission{},    // Junction table
-		&models.Employee{},          // Employees (before users, as users may reference employees)
-		&models.User{},              // Then users (depends on roles and employees)
-		&models.UserTabPreference{}, // User tab preferences (per-user UI tab order)
-		&models.Setting{},           // Settings
-		// Region tables
-		&models.Province{}, // Provinces
-		&models.Regency{},  // Regencies/Cities
-		&models.District{}, // Districts
-		&models.Village{},  // Villages
-		// Master Data
-		&models.MasterData{}, // Master data for dropdown options
-		// Room Management
-		&models.Building{},          // Buildings (Gedung)
-		&models.Room{},              // Rooms (Ruangan/Bangsal)
-		&models.RoomUnit{},          // Room Units (Kamar)
-		&models.Bed{},               // Beds (Tempat Tidur)
-		&models.RoomStaff{},         // Room Staff assignments
-		&models.RoomTariff{},        // Room Tariffs (Tarif per Kelas Pasien untuk Rawat Inap)
-		&models.Schedule{},          // Room Schedules (Jadwal Poli)
-		&models.DoctorSchedule{},    // Doctor Schedules (Jadwal Dokter)
-		&models.ScheduleException{}, // Schedule Exceptions (Libur/Perubahan Jadwal)
-		// Procedure Management
-		&models.ProcedureCategory{},            // Procedure Categories
-		&models.Procedure{},                    // Procedures/Tindakan
-		&models.ProcedureTariff{},              // Procedure Tariffs (Tarif per Kelas Pasien)
-		&models.ProcedureParameter{},           // Procedure Parameters (Parameter Hasil Tindakan)
-		&models.RoomProcedure{},                // Room Procedures (Tindakan di Ruangan)
-		&models.ClinicalPackage{},              // Clinical Packages (Paket Klinis)
-		&models.ClinicalPackageProcedureItem{}, // Clinical Package Procedure Items
-		&models.ClinicalPackageMedicineItem{},  // Clinical Package Medicine Items
-		&models.RoomClinicalPackage{},          // Clinical Package assignment to room
-		// Patient Management
-		&models.Patient{}, // Patients (Pasien)
-		// Inventory Management
-		&models.Inventory{},            // Inventories (Master Barang)
-		&models.InventoryItem{},        // Inventory Items (Item per Unit)
-		&models.RoomInventory{},        // Room Inventories (Barang di Ruangan)
-		&models.InventoryTransaction{}, // Inventory Transactions (Mutasi Barang)
-		// Medicine/Pharmacy Management
-		&models.Medicine{},            // Medicines (Master Obat)
-		&models.MedicineBatch{},       // Medicine Batches (Batch Obat)
-		&models.RoomMedicine{},        // Room Medicines (Obat di Ruangan)
-		&models.MedicineTransaction{}, // Medicine Transactions (Mutasi Obat)
-		// Stock Request & Distribution
-		&models.Supplier{},              // Suppliers (Master Supplier)
-		&models.StockRequest{},          // Stock Requests (Permintaan Barang/Obat)
-		&models.StockRequestItem{},      // Stock Request Items
-		&models.StockDistribution{},     // Stock Distributions (Distribusi)
-		&models.StockDistributionItem{}, // Stock Distribution Items
-		&models.Purchase{},              // Purchases (Pembelian)
-		&models.PurchaseItem{},          // Purchase Items
-		&models.StockOpname{},           // Stock Opnames (Stok Opname)
-		&models.StockOpnameItem{},       // Stock Opname Items
-		// Queue & Registration
-		&models.Counter{},      // Counters (Loket Pendaftaran)
-		&models.Queue{},        // Patient Queue (Antrean)
-		&models.QueueCounter{}, // Queue Counter (Penomoran Antrean)
-		&models.Registration{}, // Patient Registration (Pendaftaran)
-		&models.Visit{},        // Patient Visits (Kunjungan)
-		&models.RoomQueue{},    // Room Queue (Antrean Ruangan)
-		// Medical Records (Separated Tables)
+	err = DB.AutoMigrate(
+		&models.User{}, &models.Role{}, &models.Permission{},
+		&models.Setting{}, &models.MasterData{}, &models.Counter{},
+		&models.Employee{}, &models.Province{}, &models.Regency{},
+		&models.District{}, &models.Village{},
+		&models.Building{}, &models.Room{},
+		&models.RoomUnit{}, &models.Bed{}, &models.RoomStaff{},
+		&models.Patient{}, &models.PatientAllergy{},
+		&models.Registration{}, &models.Visit{}, &models.Queue{},
+		&models.RoomQueue{}, &models.Schedule{},
+		&models.Procedure{}, &models.ProcedureParameter{},
+		&models.ICD10{}, &models.ICD9CM{}, &models.ICDOMorphology{},
+		&models.LoincMaster{}, &models.SnomedMaster{},
+		&models.Medicine{}, &models.MedicineBatch{}, &models.MedicineTransaction{},
+		&models.Inventory{}, &models.InventoryItem{}, &models.InventoryTransaction{},
+		&models.StockRequest{}, &models.StockRequestItem{},
+		&models.StockDistribution{}, &models.StockDistributionItem{},
+		&models.Purchase{}, &models.PurchaseItem{},
+		&models.StockOpname{}, &models.StockOpnameItem{}, &models.Supplier{},
+		&models.RoomMedicine{}, &models.RoomInventory{},
+		&models.MedicineOrder{}, &models.MedicineOrderItem{},
+		&models.ProcedureOrder{}, &models.ProcedureOrderItem{}, &models.ProcedureOrderResult{},
+		&models.Triage{}, &models.Anamnesis{}, &models.PhysicalExamination{},
+		&models.Diagnosis{}, &models.DiagnosisSummary{}, &models.AssessmentPlan{},
+		&models.Disposition{}, &models.DischargePlanning{}, &models.BodyMarker{},
+		&models.VitalSign{}, &models.CPPT{}, &models.FluidBalance{},
+		&models.NursingCare{}, &models.BedTransfer{},
+		&models.VisitProcedure{}, &models.VisitProcedureResult{},
+		&models.MedicalRecordEditLog{},
+		&models.FallRiskAssessment{}, // Resiko Jatuh
+		&models.O2UsageRecord{},     // Penggunaan Oksigen
+		&models.Notification{}, &models.UserTabPreference{},
+		&models.EKlaimLocalLog{},       // E-Klaim Local Communication Logs
+		// Digital Signatures & Audit Trail
+		&models.SignatureLog{},      // Signature Activity Logs
+		&models.DocumentSignature{}, // Document Signature Status
+		&models.DocumentPDFCache{},  // Cached PDF blobs for cetakan
+		// Nutrition/Gizi Management
+		&models.NutritionMenu{},        // Master Menu Makanan
+		&models.NutritionPackage{},     // Master Paket Makanan
+		&models.NutritionPackageItem{}, // Item Paket Makanan
+		&models.NutritionOrder{},       // Order Gizi Pasien
+		&models.NutritionOrderItem{},   // Item Order Gizi
+	)
+
+	if err != nil {
+		return err
+	}
+
+	// ==========================================
+	// STEP 4: Auto-migrate Casemix database (Mirrored RM tables)
+	// ==========================================
+	log.Println("Migrating Casemix database...")
+	err = CasemixDB.AutoMigrate(
 		&models.Triage{},              // Triage (UGD/IGD only)
 		&models.Anamnesis{},           // Anamnesis
 		&models.PhysicalExamination{}, // Physical Examination
 		&models.Diagnosis{},           // Diagnoses
-		&models.DiagnosisSummary{},    // Diagnosis Summary (Clinical Impression & Differential)
+		&models.DiagnosisSummary{},    // Diagnosis Summary
 		&models.AssessmentPlan{},      // Assessment & Plan
 		&models.Disposition{},         // Disposition/Discharge
 		&models.DischargePlanning{},   // Discharge Planning checklist
-		&models.BodyMarker{},          // Body marker images and points per visit
+		&models.BodyMarker{},          // Body marker images and points
 		&models.VitalSign{},           // Vital Signs History
-		// Medicine Orders (Resep Obat)
-		&models.MedicineOrder{},                   // Medicine Orders (Resep)
-		&models.MedicineOrderItem{},               // Medicine Order Items
-		&models.MedicineAdministrationTimesheet{}, // In-room medication timesheet per hour
-		&models.DoctorMedicineTemplate{},          // Doctor medicine templates (private per account)
-		&models.DoctorMedicineTemplateItem{},      // Doctor medicine template items
-		&models.PrescriptionReview{},              // Prescription Reviews (Telaah Resep)
-		&models.MedicineReturn{},                  // Medicine Returns (Pengembalian Obat)
-		// Procedure Orders (Radiologi & Laboratorium)
-		&models.ProcedureOrder{},       // Procedure Orders (Order Radiologi/Lab)
-		&models.ProcedureOrderItem{},   // Procedure Order Items
-		&models.ProcedureOrderResult{}, // Procedure Order Results (Hasil Pemeriksaan)
-		// Visit Procedures (Tindakan yang dilakukan langsung di ruangan)
-		&models.VisitProcedure{},       // Visit Procedures (Tindakan di Ruangan)
-		&models.VisitProcedureResult{}, // Visit Procedure Results (Hasil Tindakan)
-		&models.VisitMedicineItem{},    // Visit Medicine Items (Obat langsung dari stok ruangan)
-		// Inpatient Records (Rawat Inap)
-		&models.CPPT{},             // CPPT - Catatan Perkembangan Pasien Terintegrasi
-		&models.FluidBalance{},     // Fluid Balance - Balance Cairan
-		&models.NursingCare{},      // Nursing Care - Asuhan Keperawatan
-		&models.BedTransfer{},      // Bed Transfer - Mutasi Pasien (Pindah Kamar/Bed)
-		&models.UnitTransfer{},     // Unit Transfer - Mutasi Unit (Pindah Ruangan Rawat Jalan/UGD)
-		&models.AdmissionRequest{}, // Admission Request - Permintaan Rawat Inap
-		// Consultation (Jawaban Konsultasi)
-		&models.Consultation{}, // Consultation - Jawaban/Hasil Konsultasi
-		// Sick Letters (Surat Keterangan Sakit)
-		&models.SickLetter{}, // Sick Letter - Surat Keterangan Sakit
-		// Death Certificates (Surat Kematian)
-		&models.DeathCertificate{}, // Death Certificate - Surat Kematian
-		// Health Certificates (Surat Keterangan Sehat)
-		&models.HealthCertificate{},
-		// Birth Certificates (Surat Keterangan Kelahiran)
-		&models.BirthCertificate{},
-		// Leave Certificates (Surat Keterangan Cuti)
-		&models.LeaveCertificate{},
-		// MCU Certificates (Medical Check-Up)
-		&models.MCUCertificate{},
-		// Medical Record Edit Logs (Audit Trail for edits after discharge)
-		&models.MedicalRecordEditLog{}, // Medical Record Edit Log - Log Edit RM setelah pulang
-		// Billing & Payment
-		&models.RegistrationTariff{}, // Registration Tariffs (Tarif Pendaftaran)
-		&models.Billing{},            // Billings (Tagihan)
-		&models.BillingItem{},        // Billing Items (Detail Tagihan)
-		&models.BillingPayment{},     // Billing Payments (Pembayaran)
-		// ICD Code Systems (ICD-10, ICD-9-CM, ICD-O)
-		&models.ICD10{},          // ICD-10 Diagnosis Codes (Indonesia Modified)
-		&models.ICD9CM{},         // ICD-9-CM Procedure Codes (Indonesia Modified)
-		&models.ICDOMorphology{}, // ICD-O Morphology Codes (Tumor)
-		// Notifications
-		&models.Notification{},       // User Notifications
-		&models.UserRoomAssignment{}, // User Room Assignments (for targeted notifications)
-		// External System Integrations (BPJS, SatuSehat, etc)
-		&models.IntegrationConfig{},  // Integration Configuration (General)
-		&models.IntegrationSyncLog{}, // Integration Sync Logs (General)
-		// BPJS Bridging (BPJS-specific data)
-		&models.BPJSConfig{},        // BPJS Configuration (Legacy)
-		&models.BPJSQueue{},         // BPJS Online Queue
-		&models.BPJSSyncLog{},       // BPJS Sync Logs (Legacy)
-		&models.BPJSPoliMapping{},   // BPJS Poli Mapping
-		&models.BPJSDoctorMapping{}, // BPJS Doctor Mapping
-		// SEP (Surat Eligibilitas Peserta) untuk BPJS VClaim
-		&models.SEP{},          // SEP (Surat Eligibilitas Peserta)
-		&models.SPRI{},         // SPRI (Surat Perintah Rawat Inap)
-		&models.SuratKontrol{}, // Surat Kontrol (SKDP Rawat Jalan)
-		&models.BPJSReferral{}, // Rujukan BPJS VClaim (v1/v2/khusus)
-		&models.PPKMaster{},    // Master PPK tujuan rujukan
-		// KFA (Kode Farmasi Indonesia) for SatuSehat
-		&models.KFAMaster{},          // KFA Master Data (Katalog Obat SatuSehat)
-		&models.MedicineKFAMapping{}, // Medicine to KFA Code Mapping
-		// LOINC & SNOMED CT for SatuSehat ServiceRequest (Lab/Radiology)
-		&models.LoincMaster{},           // Table: loinc
-		&models.SnomedMaster{},          // Table: snomed_ct
-		&models.ProcedureLoincMapping{}, // Procedure to LOINC/SNOMED Mapping
-		// Patient Allergies (with SNOMED CT codes for SatuSehat AllergyIntolerance)
-		&models.PatientAllergy{}, // Patient Allergies with SNOMED CT codes
-		// Medical Record Archives (Arsip Rekam Medis)
-		&models.MedicalRecordArchive{},   // Archive Master
-		&models.ArchiveMovement{},        // Archive Movement History (Borrow/Return/Transfer)
-		&models.ArchiveDestruction{},     // Archive Destruction Batch
-		&models.ArchiveDestructionItem{}, // Archive Destruction Items
-		&models.ArchiveSetting{},         // Archive Settings
-		// E-Klaim (iDRG & INACBG Grouping per 25 Kriteria KEMENKES)
-		&models.EKlaim{},          // E-Klaim Master
-		&models.EKlaimDiagnosis{}, // E-Klaim Diagnoses (ICD-10)
-		&models.EKlaimProcedure{}, // E-Klaim Procedures (ICD-9-CM)
-		&models.EKlaimLog{},       // E-Klaim Activity Logs
-		// E-Klaim Local Server
-		&models.EKlaimLocal{},          // E-Klaim Local Claims
-		&models.EKlaimRMDuplicate{},    // E-Klaim RM Duplicate
-		&models.EKlaimRMDiagnosis{},    // E-Klaim RM Diagnosis
-		&models.EKlaimRMProcedure{},    // E-Klaim RM Procedure
-		&models.EKlaimRMOrder{},        // E-Klaim RM Order (unified: lab/rad/surgery/consult)
-		&models.EKlaimRMOrderItem{},    // E-Klaim RM Order Item (procedure reference)
-		&models.EKlaimRMOrderResult{},  // E-Klaim RM Order Result (parameter-based)
-		&models.EKlaimRMMedicineItem{}, // E-Klaim RM Medicine Items
-		&models.EKlaimRMCPPT{},         // E-Klaim RM CPPT
-		&models.EKlaimRMNursingCare{},  // E-Klaim RM Nursing Care
-		&models.EKlaimRMFluidBalance{}, // E-Klaim RM Fluid Balance
-		&models.EKlaimRMBilling{},      // E-Klaim RM Billing (duplicate)
-		&models.EKlaimRMBillingItem{},  // E-Klaim RM Billing Items
-		&models.EKlaimLocalLog{},       // E-Klaim Local Communication Logs
+		&models.MedicineOrder{},       // Medicine Orders
+		&models.MedicineOrderItem{},   // Medicine Order Items
+		&models.ProcedureOrder{},      // Procedure Orders
+		&models.ProcedureOrderItem{},  // Procedure Order Items
+		&models.ProcedureOrderResult{}, // Procedure Order Results
+		&models.VisitProcedure{},      // Visit Procedures
+		&models.VisitProcedureResult{}, // Visit Procedure Results
+		&models.CPPT{},                // CPPT
+		&models.FluidBalance{},        // Fluid Balance
+		&models.NursingCare{},         // Nursing Care
+		&models.FallRiskAssessment{},  // Fall Risk
+		&models.BedTransfer{},         // Bed Transfer/Mutation
 		// Digital Signatures & Audit Trail
 		&models.SignatureLog{},      // Signature Activity Logs
 		&models.DocumentSignature{}, // Document Signature Status
@@ -881,6 +781,7 @@ func SeedData() error {
 		{Name: "medical_records.inpatient", Module: "Medical Record Management", Category: "Medical", Description: "Manage inpatient records (CPPT, Fluid Balance)", Actions: `["create", "update", "delete"]`},
 		{Name: "medical_records.cppt", Module: "Medical Record Management", Category: "Medical", Description: "Create and manage CPPT records", Actions: `["create", "update", "delete"]`},
 		{Name: "medical_records.nursing_care", Module: "Medical Record Management", Category: "Medical", Description: "Create and manage nursing care (asuhan keperawatan) records", Actions: `["create", "update", "delete"]`},
+		{Name: "medical_records.fall_risk", Module: "Medical Record Management", Category: "Medical", Description: "Create and manage fall risk assessment records", Actions: `["create", "update", "delete"]`},
 		{Name: "medical_records.fluid_balance", Module: "Medical Record Management", Category: "Medical", Description: "Create and manage fluid balance records", Actions: `["create", "update", "delete"]`},
 		{Name: "medical_records.bed_transfer", Module: "Medical Record Management", Category: "Medical", Description: "Create and manage bed transfer (mutasi pasien) records", Actions: `["create", "update", "delete"]`},
 		{Name: "medical_records.nutrition_order", Module: "Medical Record Management", Category: "Medical", Description: "Create and manage nutrition orders for inpatient", Actions: `["create", "read", "delete"]`},

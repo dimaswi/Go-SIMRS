@@ -26,6 +26,10 @@ type VisitProcedure struct {
 	ProcedureID uint       `gorm:"not null;index" json:"procedure_id"`
 	Procedure   *Procedure `gorm:"foreignKey:ProcedureID" json:"procedure,omitempty"`
 
+	// Casemix Support
+	IsCasemix       bool  `gorm:"default:false;index" json:"is_casemix"`
+	CasemixEklaimID *uint `gorm:"index" json:"casemix_eklaim_id,omitempty"`
+
 	// Status
 	Status string `gorm:"size:30;default:'pending'" json:"status"` // pending, in_progress, completed, cancelled
 

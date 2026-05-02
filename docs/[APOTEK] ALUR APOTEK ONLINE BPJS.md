@@ -1,2 +1,3 @@
-# MASTER DATA UNTUK APOTEK
-1. Pada master obat berikan button diatas untuk singkron data obat yang bisa dikirim ke BPJS, dan akan ada status data obat sudah di singkronkan dengan BPJS, list dari master data ini ada di url INSERT OBAT NON RACIKAN, INSERT OBAT RACIKAN, UPDATE STOK OBAT
+## ALUR PENGIRIMAN APOTEK ONLINE
+### PADA PHARMACY-WORKSTATION
+1. Pada Pharmacy-Workstation tambahkan tabs baru untuk Apotik Online dimana nanti akan berisi form sesuai dengan URL yang sudah ada di file markdown [APOTEK] LIST URL APOTEK ONLINE BPJS.md 

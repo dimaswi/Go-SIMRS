@@ -399,6 +399,16 @@ export default function BPJSToolsPage() {
   const [apotekSEPResult, setApotekSEPResult] = useState<any>(null);
   const [apotekSpesialistikResult, setApotekSpesialistikResult] = useState<any>(null);
 
+  const [apotekKlaimBulan, setApotekKlaimBulan] = useState(() => String(new Date().getMonth() + 1));
+  const [apotekKlaimTahun, setApotekKlaimTahun] = useState(() => String(new Date().getFullYear()));
+  const [apotekKlaimJenisObat, setApotekKlaimJenisObat] = useState("0");
+  const [apotekKlaimStatus, setApotekKlaimStatus] = useState("1");
+  const [apotekKlaimResult, setApotekKlaimResult] = useState<any>(null);
+
+  const [apotekPrbTahun, setApotekPrbTahun] = useState(() => String(new Date().getFullYear()));
+  const [apotekPrbBulan, setApotekPrbBulan] = useState(() => String(new Date().getMonth() + 1));
+  const [apotekPrbResult, setApotekPrbResult] = useState<any>(null);
+
   const form = useForm<GetSEPForm>({
     resolver: zodResolver(getSEPSchema),
     defaultValues: { noSEP: "" },
@@ -733,6 +743,16 @@ export default function BPJSToolsPage() {
     if (data !== null) setApotekSpesialistikResult(data);
   };
 
+  const handleApotekKlaim = async () => {
+    const data = await runApotekQuery("apotek-klaim", () => bpjsApi.apotekGetDataKlaim(apotekKlaimBulan, apotekKlaimTahun, apotekKlaimJenisObat, apotekKlaimStatus));
+    if (data !== null) setApotekKlaimResult(data);
+  };
+
+  const handleApotekRekapPrb = async () => {
+    const data = await runApotekQuery("apotek-rekap-prb", () => bpjsApi.apotekGetRekapPesertaPRB(apotekPrbTahun, apotekPrbBulan));
+    if (data !== null) setApotekPrbResult(data);
+  };
+
   const handleSaveSEP = async () => {
     if (!sepData) return;
     setSaving(true);
@@ -807,6 +827,8 @@ export default function BPJSToolsPage() {
         { key: "apotek-poli", label: "Referensi Poli", icon: Filter },
         { key: "apotek-sep", label: "No Kunjungan / SEP", icon: Search },
         { key: "apotek-spesialistik", label: "Referensi Spesialis", icon: Stethoscope },
+        { key: "apotek-klaim", label: "Data Klaim", icon: FileText },
+        { key: "apotek-rekap-prb", label: "Rekap Peserta PRB", icon: ClipboardList },
       ],
     },
   ] as const;
@@ -1666,6 +1688,120 @@ export default function BPJSToolsPage() {
             resultTitle="Hasil referensi spesialis"
             resultDescription="Daftar spesialis akan ditampilkan dalam tabel yang seragam dengan modul lain."
             result={<FriendlyResult data={apotekSpesialistikResult} />}
+          />
+        )}
+
+        {activeTab === "apotek-klaim" && (
+          <ToolWorkspace
+            eyebrow="Apotek Online"
+            title="Data Klaim"
+            description="Laporan rekap data klaim apotek online BPJS."
+            formTitle="Parameter Laporan"
+            formDescription="Pilih bulan, tahun, jenis obat, dan status verifikasi."
+            form={
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label>Bulan</Label>
+                    <Select value={apotekKlaimBulan} onValueChange={setApotekKlaimBulan}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {Array.from({ length: 12 }).map((_, i) => (
+                          <SelectItem key={i + 1} value={String(i + 1)}>Bulan {i + 1}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Tahun</Label>
+                    <Select value={apotekKlaimTahun} onValueChange={setApotekKlaimTahun}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {Array.from({ length: 5 }).map((_, i) => {
+                          const year = new Date().getFullYear() - i;
+                          return <SelectItem key={year} value={String(year)}>{year}</SelectItem>;
+                        })}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div>
+                  <Label>Jenis Obat</Label>
+                  <Select value={apotekKlaimJenisObat} onValueChange={setApotekKlaimJenisObat}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="0">Semua</SelectItem>
+                      <SelectItem value="1">Obat PRB</SelectItem>
+                      <SelectItem value="2">Obat Kronis Blm Stabil</SelectItem>
+                      <SelectItem value="3">Obat Kemoterapi</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Status</Label>
+                  <Select value={apotekKlaimStatus} onValueChange={setApotekKlaimStatus}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">Belum diverifikasi</SelectItem>
+                      <SelectItem value="2">Sudah Verifikasi</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button onClick={handleApotekKlaim} className="w-full" disabled={apotekLoading === "apotek-klaim"}>
+                  {apotekLoading === "apotek-klaim" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+                  Tampilkan Data Klaim
+                </Button>
+              </div>
+            }
+            resultTitle="Hasil Laporan Klaim"
+            resultDescription="Menampilkan rekap jumlah data klaim dan daftar SEP beserta biayanya."
+            result={<FriendlyResult data={apotekKlaimResult} />}
+          />
+        )}
+
+        {activeTab === "apotek-rekap-prb" && (
+          <ToolWorkspace
+            eyebrow="Apotek Online"
+            title="Rekap Peserta PRB"
+            description="Daftar peserta PRB yang telah dilayani oleh Apotek pada bulan dan tahun tertentu."
+            formTitle="Parameter Laporan"
+            formDescription="Pilih tahun dan bulan laporan."
+            form={
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label>Bulan</Label>
+                    <Select value={apotekPrbBulan} onValueChange={setApotekPrbBulan}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {Array.from({ length: 12 }).map((_, i) => (
+                          <SelectItem key={i + 1} value={String(i + 1)}>Bulan {i + 1}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Tahun</Label>
+                    <Select value={apotekPrbTahun} onValueChange={setApotekPrbTahun}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {Array.from({ length: 5 }).map((_, i) => {
+                          const year = new Date().getFullYear() - i;
+                          return <SelectItem key={year} value={String(year)}>{year}</SelectItem>;
+                        })}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <Button onClick={handleApotekRekapPrb} className="w-full" disabled={apotekLoading === "apotek-rekap-prb"}>
+                  {apotekLoading === "apotek-rekap-prb" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+                  Tampilkan Rekap PRB
+                </Button>
+              </div>
+            }
+            resultTitle="Hasil Rekap Peserta PRB"
+            resultDescription="Daftar peserta PRB beserta informasi obat dan diagnosa."
+            result={<FriendlyResult data={apotekPrbResult} />}
           />
         )}
         </div>

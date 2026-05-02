@@ -4,7 +4,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Collapsible,
   CollapsibleContent,
@@ -60,6 +59,8 @@ import {
   ChevronDown,
   ChevronRight,
   Search,
+  FileText,
+  X,
 } from "lucide-react";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
@@ -694,11 +695,11 @@ export function CPPTForm({
             <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
               <div className="flex items-center justify-between">
                 <div>Catatan Perkembangan Pasien Terintegrasi (CPPT)</div>
-                  {canCreate && !readOnly && (
-                <Button onClick={handleOpenCreate} size="sm">
-                  <Plus className="h-4 w-4" />
-                </Button>
-              )}
+                {canCreate && !readOnly && (
+                  <Button onClick={handleOpenCreate} size="sm">
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
             </div>
             {cppts.length > 0 ? (
@@ -749,188 +750,211 @@ export function CPPTForm({
         </div>
       </div>
 
-      {/* Create/Edit Modal - Fullscreen */}
+      {/* Create/Edit Modal - Fullscreen Monolithic, No Scroll */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="max-w-full w-full h-screen max-h-screen flex flex-col p-0 gap-0 rounded-none">
-          <DialogHeader className="px-6 py-4 border-b bg-muted/50 shrink-0">
-            <DialogTitle className="flex items-center gap-2">
-              <ClipboardCheck className="h-5 w-5" />
-              {editingId ? "Edit CPPT" : "Tambah CPPT Baru"}
+        <DialogContent className="!max-w-[100vw] !w-[100vw] !h-[100dvh] !max-h-[100dvh] !rounded-none !border-none !p-0 !m-0 !fixed !top-0 !left-0 !translate-x-0 !translate-y-0 bg-background overflow-hidden flex flex-col [&>button]:hidden">
+          <DialogHeader className="px-4 py-3 border-b bg-muted/30 shrink-0 flex flex-row items-center justify-between">
+            <DialogTitle className="flex items-center gap-2 text-sm uppercase tracking-wider text-muted-foreground">
+              <ClipboardCheck className="h-4 w-4" />
+              {editingId ? "Edit Catatan CPPT" : "Tambah Catatan CPPT"}
             </DialogTitle>
+            <Button variant="ghost" size="icon" onClick={() => setIsModalOpen(false)} className="h-6 w-6 rounded-none text-muted-foreground hover:bg-muted/50">
+              <X className="h-4 w-4" />
+            </Button>
           </DialogHeader>
 
-          <ScrollArea className="flex-1 px-6 py-4">
-            <div className="grid gap-4 pb-4">
-              {/* Row 1 - Date, Profession, Format */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label>Tanggal & Waktu</Label>
-                  <Input
-                    type="datetime-local"
-                    value={formData.record_date}
-                    onChange={(e) => handleChange("record_date", e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Profesi</Label>
-                  <Select
-                    value={formData.profession}
-                    onValueChange={(v) => handleChange("profession", v)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Pilih profesi" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {CPPT_PROFESSIONS.map((p) => (
-                        <SelectItem key={p.value} value={p.value}>
-                          {p.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Format CPPT</Label>
-                  <Select
-                    value={normalizeCPPTFormat(formData.cppt_format)}
-                    onValueChange={(v) => handleChange("cppt_format", v as CPPTFormat)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Pilih format" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {CPPT_FORMATS.map((f) => (
-                        <SelectItem key={f.value} value={f.value}>
-                          {f.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+          <div className="flex-1 flex flex-col p-4 gap-4 overflow-y-auto">
+            {/* Row 1 - Date, Profession, Format */}
+            <div className="grid grid-cols-3 gap-4 shrink-0 border border-border/70 p-3 bg-muted/10">
+              <div className="space-y-1">
+                <Label className="text-xs uppercase tracking-wider text-muted-foreground">Tanggal & Waktu</Label>
+                <Input
+                  type="datetime-local"
+                  value={formData.record_date}
+                  onChange={(e) => handleChange("record_date", e.target.value)}
+                  className="rounded-none border-border/70 h-8 text-xs"
+                />
               </div>
+              <div className="space-y-1">
+                <Label className="text-xs uppercase tracking-wider text-muted-foreground">Profesi</Label>
+                <Select
+                  value={formData.profession}
+                  onValueChange={(v) => handleChange("profession", v)}
+                >
+                  <SelectTrigger className="rounded-none border-border/70 h-8 text-xs">
+                    <SelectValue placeholder="Pilih profesi" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-none">
+                    {CPPT_PROFESSIONS.map((p) => (
+                      <SelectItem key={p.value} value={p.value} className="text-xs">
+                        {p.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs uppercase tracking-wider text-muted-foreground">Format CPPT</Label>
+                <Select
+                  value={normalizeCPPTFormat(formData.cppt_format)}
+                  onValueChange={(v) => handleChange("cppt_format", v as CPPTFormat)}
+                >
+                  <SelectTrigger className="rounded-none border-border/70 h-8 text-xs">
+                    <SelectValue placeholder="Pilih format" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-none">
+                    {CPPT_FORMATS.map((f) => (
+                      <SelectItem key={f.value} value={f.value} className="text-xs">
+                        {f.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
 
-              {/* CPPT fields */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>{selectedFormatMeta.fieldLabel.subjective}</Label>
+            {/* CPPT fields - flexible height */}
+            <div className="flex-1 flex flex-col border border-border/70 overflow-hidden min-h-0">
+              <div className="bg-muted/30 px-3 py-1.5 border-b border-border/70 text-xs font-semibold uppercase tracking-widest text-muted-foreground flex items-center gap-2 shrink-0">
+                <FileText className="h-3 w-3" />
+                Rincian Catatan
+              </div>
+              <div className="flex-1 grid grid-cols-2 gap-px bg-border/70 overflow-hidden">
+                <div className="bg-background p-3 flex flex-col space-y-1.5">
+                  <Label className="text-xs shrink-0">{selectedFormatMeta.fieldLabel.subjective}</Label>
                   <Textarea
                     value={formData.subjective}
                     onChange={(e) => handleChange("subjective", e.target.value)}
                     placeholder={selectedFormatMeta.placeholder.subjective}
-                    rows={6}
+                    className="flex-1 rounded-none border-border/70 resize-none text-xs"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label>{selectedFormatMeta.fieldLabel.objective}</Label>
+                <div className="bg-background p-3 flex flex-col space-y-1.5">
+                  <Label className="text-xs shrink-0">{selectedFormatMeta.fieldLabel.objective}</Label>
                   <Textarea
                     value={formData.objective}
                     onChange={(e) => handleChange("objective", e.target.value)}
                     placeholder={selectedFormatMeta.placeholder.objective}
-                    rows={6}
+                    className="flex-1 rounded-none border-border/70 resize-none text-xs"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label>{selectedFormatMeta.fieldLabel.assessment}</Label>
+                <div className="bg-background p-3 flex flex-col space-y-1.5">
+                  <Label className="text-xs shrink-0">{selectedFormatMeta.fieldLabel.assessment}</Label>
                   <Textarea
                     value={formData.assessment}
                     onChange={(e) => handleChange("assessment", e.target.value)}
                     placeholder={selectedFormatMeta.placeholder.assessment}
-                    rows={6}
+                    className="flex-1 rounded-none border-border/70 resize-none text-xs"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label>{selectedFormatMeta.fieldLabel.plan}</Label>
+                <div className="bg-background p-3 flex flex-col space-y-1.5">
+                  <Label className="text-xs shrink-0">{selectedFormatMeta.fieldLabel.plan}</Label>
                   <Textarea
                     value={formData.plan}
                     onChange={(e) => handleChange("plan", e.target.value)}
                     placeholder={selectedFormatMeta.placeholder.plan}
-                    rows={6}
-                  />
-                </div>
-              </div>
-
-            {/* Vital Signs */}
-            <div className="border rounded-lg p-4 bg-muted/30">
-              <Label className="text-sm font-medium mb-3 block">Tanda Vital (Opsional)</Label>
-              <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-6 gap-3">
-                <div className="space-y-1">
-                  <Label className="text-xs">TD (mmHg)</Label>
-                  <Input
-                    value={formData.blood_pressure}
-                    onChange={(e) => handleChange("blood_pressure", e.target.value)}
-                    placeholder="120/80"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">HR (x/mnt)</Label>
-                  <Input
-                    type="number"
-                    value={formData.heart_rate || ""}
-                    onChange={(e) => handleChange("heart_rate", parseInt(e.target.value) || 0)}
-                    placeholder="80"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">RR (x/mnt)</Label>
-                  <Input
-                    type="number"
-                    value={formData.respiratory_rate || ""}
-                    onChange={(e) => handleChange("respiratory_rate", parseInt(e.target.value) || 0)}
-                    placeholder="18"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Suhu (°C)</Label>
-                  <Input
-                    value={formData.temperature}
-                    onChange={(e) => handleChange("temperature", e.target.value)}
-                    placeholder="36.5"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">SpO2 (%)</Label>
-                  <Input
-                    type="number"
-                    value={formData.oxygen_saturation || ""}
-                    onChange={(e) => handleChange("oxygen_saturation", parseInt(e.target.value) || 0)}
-                    placeholder="98"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Nyeri (0-10)</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    max={10}
-                    value={formData.pain_scale || ""}
-                    onChange={(e) => handleChange("pain_scale", parseInt(e.target.value) || 0)}
-                    placeholder="0"
+                    className="flex-1 rounded-none border-border/70 resize-none text-xs"
                   />
                 </div>
               </div>
             </div>
 
-            {/* Instruction */}
-            <div className="space-y-2">
-              <Label>Instruksi Khusus</Label>
-              <Textarea
-                value={formData.instruction}
-                onChange={(e) => handleChange("instruction", e.target.value)}
-                placeholder="Instruksi khusus untuk perawatan pasien..."
-                rows={2}
-              />
+            {/* Vital Signs & Instruction - Bottom fixed height */}
+            <div className="grid grid-cols-[2fr_1fr] gap-4 shrink-0">
+              <div className="border border-border/70">
+                <div className="bg-muted/30 px-3 py-1.5 border-b border-border/70 text-xs font-semibold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                  <Activity className="h-3 w-3" />
+                  Tanda Vital
+                </div>
+                <div className="p-3 grid grid-cols-6 gap-2 bg-muted/10">
+                  <div className="space-y-1">
+                    <Label className="text-[10px] text-muted-foreground uppercase">TD (mmHg)</Label>
+                    <Input
+                      value={formData.blood_pressure}
+                      onChange={(e) => handleChange("blood_pressure", e.target.value)}
+                      placeholder="120/80"
+                      className="rounded-none border-border/70 h-7 text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] text-muted-foreground uppercase">HR (x/mnt)</Label>
+                    <Input
+                      type="number"
+                      value={formData.heart_rate || ""}
+                      onChange={(e) => handleChange("heart_rate", parseInt(e.target.value) || 0)}
+                      placeholder="80"
+                      className="rounded-none border-border/70 h-7 text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] text-muted-foreground uppercase">RR (x/mnt)</Label>
+                    <Input
+                      type="number"
+                      value={formData.respiratory_rate || ""}
+                      onChange={(e) => handleChange("respiratory_rate", parseInt(e.target.value) || 0)}
+                      placeholder="18"
+                      className="rounded-none border-border/70 h-7 text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] text-muted-foreground uppercase">Suhu (°C)</Label>
+                    <Input
+                      value={formData.temperature}
+                      onChange={(e) => handleChange("temperature", e.target.value)}
+                      placeholder="36.5"
+                      className="rounded-none border-border/70 h-7 text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] text-muted-foreground uppercase">SpO2 (%)</Label>
+                    <Input
+                      type="number"
+                      value={formData.oxygen_saturation || ""}
+                      onChange={(e) => handleChange("oxygen_saturation", parseInt(e.target.value) || 0)}
+                      placeholder="98"
+                      className="rounded-none border-border/70 h-7 text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] text-muted-foreground uppercase">Nyeri (0-10)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={10}
+                      value={formData.pain_scale || ""}
+                      onChange={(e) => handleChange("pain_scale", parseInt(e.target.value) || 0)}
+                      placeholder="0"
+                      className="rounded-none border-border/70 h-7 text-xs"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="border border-border/70 flex flex-col">
+                <div className="bg-muted/30 px-3 py-1.5 border-b border-border/70 text-xs font-semibold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                  <ShieldCheck className="h-3 w-3" />
+                  Instruksi Khusus
+                </div>
+                <div className="p-3 flex-1 flex flex-col bg-muted/10">
+                  <Textarea
+                    value={formData.instruction}
+                    onChange={(e) => handleChange("instruction", e.target.value)}
+                    placeholder="Ketik instruksi khusus..."
+                    className="flex-1 rounded-none border-border/70 resize-none text-xs"
+                  />
+                </div>
+              </div>
             </div>
           </div>
-          </ScrollArea>
 
-          <DialogFooter className="px-6 py-4 border-t bg-muted/50 shrink-0">
-            <Button variant="outline" onClick={() => setIsModalOpen(false)}>
+          <DialogFooter className="px-4 py-3 border-t bg-muted/30 shrink-0">
+            <Button variant="outline" size="sm" onClick={() => setIsModalOpen(false)} className="rounded-none text-xs">
               Batal
             </Button>
-            <Button onClick={handleSave} disabled={saving}>
+            <Button onClick={handleSave} disabled={saving} size="sm" className="rounded-none text-xs">
               {saving ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Loader2 className="h-3 w-3 mr-2 animate-spin" />
                   Menyimpan...
                 </>
               ) : (

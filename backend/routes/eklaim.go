@@ -131,5 +131,19 @@ func RegisterEKlaimRoutes(r *gin.RouterGroup) {
 		// === Claim Send & Re-edit ===
 		eklaimLocal.POST("/:id/send-claim", middleware.RequirePermission("eklaim.send"), handlers.SendClaimSend)
 		eklaimLocal.POST("/:id/reedit-claim", middleware.RequirePermission("eklaim.edit"), handlers.SendClaimReeditLocal)
+
+		// === Casemix RM (Standalone Database) ===
+		eklaimLocal.GET("/casemix-rm/:visitId", middleware.RequirePermission("eklaim.view"), handlers.GetCasemixRM)
+		eklaimLocal.PUT("/casemix-rm/:visitId/anamnesis", middleware.RequirePermission("eklaim.edit"), handlers.UpdateCasemixAnamnesis)
+		eklaimLocal.PUT("/casemix-rm/:visitId/triage", middleware.RequirePermission("eklaim.edit"), handlers.UpdateCasemixTriage)
+		eklaimLocal.PUT("/casemix-rm/:visitId/physical-exam", middleware.RequirePermission("eklaim.edit"), handlers.UpdateCasemixPhysicalExam)
+		eklaimLocal.PUT("/casemix-rm/:visitId/assessment-plan", middleware.RequirePermission("eklaim.edit"), handlers.UpdateCasemixAssessmentPlan)
+		eklaimLocal.PUT("/casemix-rm/:visitId/disposition", middleware.RequirePermission("eklaim.edit"), handlers.UpdateCasemixDisposition)
+		eklaimLocal.POST("/casemix-rm/:visitId/diagnoses", handlers.AddCasemixDiagnosis)
+		eklaimLocal.PUT("/casemix-rm/:visitId/diagnoses", handlers.UpdateCasemixDiagnoses)
+		eklaimLocal.DELETE("/casemix-rm/:visitId/diagnoses/:diagId", handlers.RemoveCasemixDiagnosis)
+		eklaimLocal.POST("/casemix-rm/:visitId/procedures", handlers.AddCasemixProcedure)
+		eklaimLocal.PUT("/casemix-rm/:visitId/procedures", handlers.UpdateCasemixProcedures)
+		eklaimLocal.DELETE("/casemix-rm/:visitId/procedures/:procId", handlers.RemoveCasemixProcedure)
 	}
 }

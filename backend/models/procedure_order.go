@@ -43,6 +43,10 @@ type ProcedureOrder struct {
 	TargetVisitID *uint  `gorm:"index" json:"target_visit_id"`
 	TargetVisit   *Visit `gorm:"foreignKey:TargetVisitID" json:"target_visit,omitempty"`
 
+	// Casemix Support
+	IsCasemix       bool  `gorm:"default:false;index" json:"is_casemix"`
+	CasemixEklaimID *uint `gorm:"index" json:"casemix_eklaim_id,omitempty"`
+
 	// Source Room (where the order was created - poli, ugd, rawat inap)
 	SourceRoomID uint  `gorm:"not null;index" json:"source_room_id"`
 	SourceRoom   *Room `gorm:"foreignKey:SourceRoomID" json:"source_room,omitempty"`
@@ -115,6 +119,10 @@ type ProcedureOrderItem struct {
 	ProcedureOrderID uint            `gorm:"not null;index" json:"procedure_order_id"`
 	ProcedureOrder   *ProcedureOrder `gorm:"foreignKey:ProcedureOrderID" json:"procedure_order,omitempty"`
 
+	// Casemix Support
+	IsCasemix       bool  `gorm:"default:false;index" json:"is_casemix"`
+	CasemixEklaimID *uint `gorm:"index" json:"casemix_eklaim_id,omitempty"`
+
 	// Procedure
 	ProcedureID uint       `gorm:"not null;index" json:"procedure_id"`
 	Procedure   *Procedure `gorm:"foreignKey:ProcedureID" json:"procedure,omitempty"`
@@ -155,6 +163,10 @@ type ProcedureOrderResult struct {
 	// Item Reference
 	ProcedureOrderItemID uint                `gorm:"not null;index" json:"procedure_order_item_id"`
 	ProcedureOrderItem   *ProcedureOrderItem `gorm:"foreignKey:ProcedureOrderItemID" json:"procedure_order_item,omitempty"`
+
+	// Casemix Support
+	IsCasemix       bool  `gorm:"default:false;index" json:"is_casemix"`
+	CasemixEklaimID *uint `gorm:"index" json:"casemix_eklaim_id,omitempty"`
 
 	// Parameter Reference
 	ProcedureParameterID uint                `gorm:"not null;index" json:"procedure_parameter_id"`

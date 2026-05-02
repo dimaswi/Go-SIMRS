@@ -88,10 +88,10 @@ function OrderCollapsible({ order, onCancel, canCancel }: { order: ProcedureOrde
   const [isOpen, setIsOpen] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
   const { toast } = useToast();
-  
+
   // Get patient info from registration or source_visit.registration
   const patient = order.registration?.patient || order.source_visit?.registration?.patient;
-  
+
   const handlePrintQueue = async () => {
     const queueId = order.target_visit?.room_queue?.id;
     if (!queueId) {
@@ -102,7 +102,7 @@ function OrderCollapsible({ order, onCancel, canCancel }: { order: ProcedureOrde
       });
       return;
     }
-    
+
     setIsPrinting(true);
     try {
       const url = await printApi.queueTicket(queueId);
@@ -176,7 +176,7 @@ function OrderCollapsible({ order, onCancel, canCancel }: { order: ProcedureOrde
         <CollapsibleContent>
           <div className="mt-3 ml-6 space-y-3">
             {/* Order Info Table */}
-            <div className="bg-muted/30 rounded-lg p-3">
+            <div className="bg-muted/30 border border-border/70 p-3">
               <table className="w-full min-w-[640px] text-sm">
                 <tbody>
                   <tr>
@@ -223,7 +223,7 @@ function OrderCollapsible({ order, onCancel, canCancel }: { order: ProcedureOrde
 
             {/* Order Items Table */}
             {order.items && order.items.length > 0 && (
-              <div className="border rounded-lg overflow-x-auto">
+              <div className="border border-border/70 overflow-x-auto">
                 <table className="w-full min-w-[640px] text-sm">
                   <thead className="bg-muted/50">
                     <tr>
@@ -254,7 +254,7 @@ function OrderCollapsible({ order, onCancel, canCancel }: { order: ProcedureOrde
 
             {/* Results if completed */}
             {order.status === "completed" && (
-              <div className="bg-green-50 dark:bg-green-950 border border-green-200 rounded-lg p-3 space-y-3">
+              <div className="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 p-3 space-y-3">
                 <p className="font-medium text-green-700 dark:text-green-300 flex items-center gap-2">
                   <CheckCircle2 className="h-4 w-4" />
                   Hasil Konsultasi
@@ -364,8 +364,8 @@ export function ConsultationOrderForm({ visitId, sourceRoomId, readOnly = false 
       ]);
       setExistingOrders(ordersRes.data || []);
       // Handle nested data response
-      const roomsData = Array.isArray(roomsRes.data) 
-        ? roomsRes.data 
+      const roomsData = Array.isArray(roomsRes.data)
+        ? roomsRes.data
         : ((roomsRes.data as any)?.data || []);
       setConsultationRooms(roomsData);
 
@@ -399,8 +399,8 @@ export function ConsultationOrderForm({ visitId, sourceRoomId, readOnly = false 
     try {
       const res = await procedureOrdersApi.getConsultationProcedures(roomId);
       // Handle nested data response
-      const procedureData = Array.isArray(res.data) 
-        ? res.data 
+      const procedureData = Array.isArray(res.data)
+        ? res.data
         : ((res.data as any)?.data || []);
       setProcedures(procedureData);
     } catch (error) {
@@ -414,12 +414,12 @@ export function ConsultationOrderForm({ visitId, sourceRoomId, readOnly = false 
     setLoadingDoctors(true);
     try {
       const res = await procedureOrdersApi.getDoctorsByRoom(roomId);
-      
+
       // Handle nested data response
-      const doctorData = Array.isArray(res.data) 
-        ? res.data 
+      const doctorData = Array.isArray(res.data)
+        ? res.data
         : ((res.data as any)?.data || []);
-      
+
       setDoctors(doctorData);
     } catch (error) {
       console.error("Error loading doctors:", error);
@@ -457,7 +457,7 @@ export function ConsultationOrderForm({ visitId, sourceRoomId, readOnly = false 
     const orderId = cancelConfirmOrderId;
     if (!orderId) return;
     setCancelConfirmOrderId(null);
-    
+
     try {
       await procedureOrdersApi.cancel(orderId, "Dibatalkan oleh dokter");
       toast({
@@ -534,7 +534,7 @@ export function ConsultationOrderForm({ visitId, sourceRoomId, readOnly = false 
 
       // Reload orders
       loadData();
-      
+
       // Trigger refresh print options dan final visit
       window.dispatchEvent(new CustomEvent("refresh-print-options"));
       window.dispatchEvent(new CustomEvent("refresh-final-visit"));
@@ -567,387 +567,383 @@ export function ConsultationOrderForm({ visitId, sourceRoomId, readOnly = false 
     <div>
       <div className="p-0">
         {/* Inline Tabs with Underline */}
-        <div className="border-b">
-          <div className="flex">
+        <div>
+          <div className="flex items-center gap-6 px-4">
             <button
               onClick={() => setActiveTab("form")}
               className={cn(
-                "px-4 py-2.5 text-sm font-medium transition-colors relative",
+                "py-3 text-sm font-medium transition-colors relative flex items-center gap-2",
                 activeTab === "form"
-                  ? "text-primary"
+                  ? "text-foreground"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
-              <span className="flex items-center gap-2">
-                <Stethoscope className="h-4 w-4" />
-                Order Baru
-              </span>
+              <Stethoscope className={cn("h-4 w-4", activeTab === "form" ? "text-primary" : "text-muted-foreground")} />
+              Order Baru
               {activeTab === "form" && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
+                <div className="absolute bottom-[-1px] left-0 right-0 h-[2px] bg-primary rounded-t-sm" />
               )}
             </button>
             <button
               onClick={() => setActiveTab("history")}
               className={cn(
-                "px-4 py-2.5 text-sm font-medium transition-colors relative",
+                "py-3 text-sm font-medium transition-colors relative flex items-center gap-2",
                 activeTab === "history"
-                  ? "text-primary"
+                  ? "text-foreground"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
-              <span className="flex items-center gap-2">
-                <Clock className="h-4 w-4" />
-                Riwayat Order
-                {existingOrders.length > 0 && (
-                  <Badge variant="secondary" className="ml-1 h-5 px-1.5">
-                    {existingOrders.length}
-                  </Badge>
-                )}
-              </span>
+              <Clock className={cn("h-4 w-4", activeTab === "history" ? "text-primary" : "text-muted-foreground")} />
+              Riwayat Order
+              {existingOrders.length > 0 && (
+                <Badge variant="secondary" className="ml-1 h-5 px-1.5 font-normal">
+                  {existingOrders.length}
+                </Badge>
+              )}
               {activeTab === "history" && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
+                <div className="absolute bottom-[-1px] left-0 right-0 h-[2px] bg-primary rounded-t-sm" />
               )}
             </button>
           </div>
         </div>
 
         <div className="p-4">
-            {/* Order Form Tab */}
-            {activeTab === "form" && canOrder && (
-              <div className="space-y-4">
-                <fieldset disabled={readOnly} className="space-y-4 [&_input]:h-10 [&_[role=combobox]]:h-10">
-              <div className="border border-border/70">
-                <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                  Konfigurasi Order
-                </div>
-                <div className="space-y-4 p-3 sm:p-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Ruangan Tujuan Konsultasi</Label>
-                  <Popover open={openRoomCombo} onOpenChange={setOpenRoomCombo}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        role="combobox"
-                        aria-expanded={openRoomCombo}
-                        className="w-full justify-between"
-                      >
-                        {selectedRoom
-                          ? consultationRooms.find((room) => room.id === selectedRoom)?.name
-                          : "Pilih ruangan tujuan"}
-                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-full p-0" align="start">
-                      <Command>
-                        <CommandInput placeholder="Cari ruangan..." />
-                        <CommandEmpty>Ruangan tidak ditemukan.</CommandEmpty>
-                        <CommandGroup>
-                          <ScrollArea className="h-[200px]">
-                            {consultationRooms.map((room) => (
-                              <CommandItem
-                                key={room.id}
-                                value={`${room.name} ${room.code}`}
-                                onSelect={() => {
-                                  setSelectedRoom(room.id);
-                                  setSelectedDoctor(null);
-                                  setOrderItems([]);
-                                  setOpenRoomCombo(false);
-                                }}
-                              >
-                                <Check
-                                  className={cn(
-                                    "mr-2 h-4 w-4",
-                                    selectedRoom === room.id ? "opacity-100" : "opacity-0"
-                                  )}
-                                />
-                                {room.name}
-                              </CommandItem>
-                            ))}
-                          </ScrollArea>
-                        </CommandGroup>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
-                </div>
-                <div className="space-y-2">
-                  <Label>Dokter Tujuan (Opsional)</Label>
-                  <Popover open={openDoctorCombo} onOpenChange={setOpenDoctorCombo}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        role="combobox"
-                        aria-expanded={openDoctorCombo}
-                        className="w-full justify-between"
-                        disabled={!selectedRoom || loadingDoctors}
-                      >
-                        {loadingDoctors ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Memuat...
-                          </>
-                        ) : selectedDoctor ? (
-                          doctors.find((doc) => doc.id === selectedDoctor)?.nama_lengkap
-                        ) : (
-                          "Pilih dokter (opsional)"
-                        )}
-                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-full p-0" align="start">
-                      <Command>
-                        <CommandInput placeholder="Cari dokter..." />
-                        <CommandEmpty>Dokter tidak ditemukan.</CommandEmpty>
-                        <CommandGroup>
-                          <ScrollArea className="h-[200px]">
-                            <CommandItem
-                              value="semua-dokter"
-                              onSelect={() => {
-                                setSelectedDoctor(null);
-                                setOpenDoctorCombo(false);
-                              }}
-                            >
-                              <Check
-                                className={cn(
-                                  "mr-2 h-4 w-4",
-                                  selectedDoctor === null ? "opacity-100" : "opacity-0"
-                                )}
-                              />
-                              Semua Dokter
-                            </CommandItem>
-                            {doctors.map((doctor) => (
-                              <CommandItem
-                                key={doctor.id}
-                                value={doctor.nama_lengkap}
-                                onSelect={() => {
-                                  setSelectedDoctor(doctor.id);
-                                  setOpenDoctorCombo(false);
-                                }}
-                              >
-                                <Check
-                                  className={cn(
-                                    "mr-2 h-4 w-4",
-                                    selectedDoctor === doctor.id ? "opacity-100" : "opacity-0"
-                                  )}
-                                />
-                                {doctor.nama_lengkap}
-                              </CommandItem>
-                            ))}
-                          </ScrollArea>
-                        </CommandGroup>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                <div className="space-y-2">
-                  <Label>Prioritas</Label>
-                  <Select value={priority} onValueChange={setPriority}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="normal">Normal</SelectItem>
-                      <SelectItem value="urgent">Urgent</SelectItem>
-                      <SelectItem value="cito">CITO</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="space-y-2 mt-4">
-                <Label>Diagnosis Saat Ini</Label>
-                <Textarea
-                  placeholder="Tulis diagnosis saat ini"
-                  value={diagnosis}
-                  onChange={(e) => setDiagnosis(e.target.value)}
-                  rows={2}
-                />
-              </div>
-
-              <div className="space-y-2 mt-4">
-                <Label>Alasan / Indikasi Konsultasi <span className="text-red-500">*</span></Label>
-                <Textarea
-                  placeholder="Jelaskan alasan konsultasi dan apa yang ingin dikonsultasikan"
-                  value={clinicalNotes}
-                  onChange={(e) => setClinicalNotes(e.target.value)}
-                  rows={3}
-                />
-              </div>
-                </div>
-              </div>
-
-              <div className="border border-border/70">
-                <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                  Jenis Konsultasi
-                </div>
-                <div className="space-y-4 p-3 sm:p-4">
-
-              {/* Procedure Selection */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <Label className="text-base font-medium">Pilih Jenis Konsultasi</Label>
-                  <Button
-                    type="button"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => setShowAddDialog(true)}
-                    disabled={!selectedRoom || readOnly}
-                    aria-label="Tambah jenis konsultasi"
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-
-              {orderItems.length > 0 ? (
-                <div className="space-y-2 mt-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <Label className="text-base font-medium">Konsultasi Dipilih</Label>
-                    <Badge variant="secondary">{orderItems.length} item</Badge>
+          {/* Order Form Tab */}
+          {activeTab === "form" && canOrder && (
+            <div className="space-y-4">
+              <fieldset disabled={readOnly} className="space-y-4 [&_input]:h-10 [&_[role=combobox]]:h-10">
+                <div className="border border-border/70">
+                  <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                    Konfigurasi Order
                   </div>
-                  <div className="border rounded-lg divide-y">
-                    {orderItems.map((item) => (
-                      <div key={item.procedure_id} className="p-3 flex items-center justify-between gap-3">
-                        <div className="flex-1">
-                          <p className="font-medium text-sm">{item.procedure_name}</p>
-                          <p className="text-xs text-muted-foreground">{item.procedure_code}</p>
-                        </div>
+                  <div className="space-y-4 p-3 sm:p-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Ruangan Tujuan Konsultasi</Label>
+                        <Popover open={openRoomCombo} onOpenChange={setOpenRoomCombo}>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              role="combobox"
+                              aria-expanded={openRoomCombo}
+                              className="w-full justify-between"
+                            >
+                              {selectedRoom
+                                ? consultationRooms.find((room) => room.id === selectedRoom)?.name
+                                : "Pilih ruangan tujuan"}
+                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-full p-0" align="start">
+                            <Command>
+                              <CommandInput placeholder="Cari ruangan..." />
+                              <CommandEmpty>Ruangan tidak ditemukan.</CommandEmpty>
+                              <CommandGroup>
+                                <ScrollArea className="h-[200px]">
+                                  {consultationRooms.map((room) => (
+                                    <CommandItem
+                                      key={room.id}
+                                      value={`${room.name} ${room.code}`}
+                                      onSelect={() => {
+                                        setSelectedRoom(room.id);
+                                        setSelectedDoctor(null);
+                                        setOrderItems([]);
+                                        setOpenRoomCombo(false);
+                                      }}
+                                    >
+                                      <Check
+                                        className={cn(
+                                          "mr-2 h-4 w-4",
+                                          selectedRoom === room.id ? "opacity-100" : "opacity-0"
+                                        )}
+                                      />
+                                      {room.name}
+                                    </CommandItem>
+                                  ))}
+                                </ScrollArea>
+                              </CommandGroup>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Dokter Tujuan (Opsional)</Label>
+                        <Popover open={openDoctorCombo} onOpenChange={setOpenDoctorCombo}>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              role="combobox"
+                              aria-expanded={openDoctorCombo}
+                              className="w-full justify-between"
+                              disabled={!selectedRoom || loadingDoctors}
+                            >
+                              {loadingDoctors ? (
+                                <>
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  Memuat...
+                                </>
+                              ) : selectedDoctor ? (
+                                doctors.find((doc) => doc.id === selectedDoctor)?.nama_lengkap
+                              ) : (
+                                "Pilih dokter (opsional)"
+                              )}
+                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-full p-0" align="start">
+                            <Command>
+                              <CommandInput placeholder="Cari dokter..." />
+                              <CommandEmpty>Dokter tidak ditemukan.</CommandEmpty>
+                              <CommandGroup>
+                                <ScrollArea className="h-[200px]">
+                                  <CommandItem
+                                    value="semua-dokter"
+                                    onSelect={() => {
+                                      setSelectedDoctor(null);
+                                      setOpenDoctorCombo(false);
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        selectedDoctor === null ? "opacity-100" : "opacity-0"
+                                      )}
+                                    />
+                                    Semua Dokter
+                                  </CommandItem>
+                                  {doctors.map((doctor) => (
+                                    <CommandItem
+                                      key={doctor.id}
+                                      value={doctor.nama_lengkap}
+                                      onSelect={() => {
+                                        setSelectedDoctor(doctor.id);
+                                        setOpenDoctorCombo(false);
+                                      }}
+                                    >
+                                      <Check
+                                        className={cn(
+                                          "mr-2 h-4 w-4",
+                                          selectedDoctor === doctor.id ? "opacity-100" : "opacity-0"
+                                        )}
+                                      />
+                                      {doctor.nama_lengkap}
+                                    </CommandItem>
+                                  ))}
+                                </ScrollArea>
+                              </CommandGroup>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                      <div className="space-y-2">
+                        <Label>Prioritas</Label>
+                        <Select value={priority} onValueChange={setPriority}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="normal">Normal</SelectItem>
+                            <SelectItem value="urgent">Urgent</SelectItem>
+                            <SelectItem value="cito">CITO</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 mt-4">
+                      <Label>Diagnosis Saat Ini</Label>
+                      <Textarea
+                        placeholder="Tulis diagnosis saat ini"
+                        value={diagnosis}
+                        onChange={(e) => setDiagnosis(e.target.value)}
+                        rows={2}
+                      />
+                    </div>
+
+                    <div className="space-y-2 mt-4">
+                      <Label>Alasan / Indikasi Konsultasi <span className="text-red-500">*</span></Label>
+                      <Textarea
+                        placeholder="Jelaskan alasan konsultasi dan apa yang ingin dikonsultasikan"
+                        value={clinicalNotes}
+                        onChange={(e) => setClinicalNotes(e.target.value)}
+                        rows={3}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border border-border/70">
+                  <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                    Jenis Konsultasi
+                  </div>
+                  <div className="space-y-4 p-3 sm:p-4">
+
+                    {/* Procedure Selection */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <Label className="text-base font-medium">Pilih Jenis Konsultasi</Label>
                         <Button
-                          variant="ghost"
+                          type="button"
                           size="icon"
-                          className="h-8 w-8 text-destructive"
-                          onClick={() => handleRemoveItem(item.procedure_id)}
+                          className="h-8 w-8"
+                          onClick={() => setShowAddDialog(true)}
+                          disabled={!selectedRoom || readOnly}
+                          aria-label="Tambah jenis konsultasi"
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Plus className="h-4 w-4" />
                         </Button>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div className="border-2 border-dashed rounded-lg p-8 text-center text-muted-foreground">
-                  <UserRound className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p>Belum ada jenis konsultasi dipilih</p>
-                  <p className="text-sm">Gunakan tombol + untuk menambah jenis konsultasi.</p>
-                </div>
-              )}
+                    </div>
 
-              <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-                <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
-                  <DialogHeader>
-                    <DialogTitle>Pilih Jenis Konsultasi</DialogTitle>
-                  </DialogHeader>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Cari jenis konsultasi..."
-                      className="pl-9"
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                  </div>
-                  <ScrollArea className="flex-1 max-h-[420px] border rounded-md">
-                    {!selectedRoom ? (
-                      <div className="text-center py-8 text-muted-foreground text-sm">Pilih ruangan tujuan terlebih dahulu.</div>
-                    ) : loadingProcedures ? (
-                      <div className="flex items-center justify-center py-8">
-                        <Loader2 className="h-6 w-6 animate-spin" />
-                      </div>
-                    ) : filteredProcedures.length === 0 ? (
-                      <div className="text-center py-8 text-muted-foreground text-sm">
-                        {searchTerm ? "Jenis konsultasi tidak ditemukan" : "Tidak ada jenis konsultasi tersedia"}
+                    {orderItems.length > 0 ? (
+                      <div className="space-y-2 mt-4">
+                        <div className="flex items-center justify-between gap-2 border-b border-border/70 pb-2">
+                          <Label className="text-base font-medium">Konsultasi Dipilih</Label>
+                          <Badge variant="secondary">{orderItems.length} item</Badge>
+                        </div>
+                        <div className="border border-border/70 divide-y">
+                          {orderItems.map((item) => (
+                            <div key={item.procedure_id} className="p-3 flex items-center justify-between gap-3">
+                              <div className="flex-1">
+                                <p className="font-medium text-sm">{item.procedure_name}</p>
+                                <p className="text-xs text-muted-foreground">{item.procedure_code}</p>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-destructive"
+                                onClick={() => handleRemoveItem(item.procedure_id)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     ) : (
-                      <div className="divide-y">
-                        {filteredProcedures.map((proc) => {
-                          const isSelected = orderItems.some((item) => item.procedure_id === proc.id);
-                          return (
-                            <button
-                              key={proc.id}
-                              type="button"
-                              className={cn(
-                                "w-full p-3 text-left flex items-center gap-3 hover:bg-muted/50",
-                                isSelected && "bg-primary/5"
-                              )}
-                              onClick={() => handleToggleProcedure(proc)}
-                            >
-                              <Checkbox checked={isSelected} />
-                              <div className="flex-1">
-                                <p className="font-medium text-sm">{proc.name}</p>
-                                <p className="text-xs text-muted-foreground">
-                                  {proc.code}
-                                  {proc.description && ` • ${proc.description}`}
-                                </p>
-                              </div>
-                            </button>
-                          );
-                        })}
+                      <div className="border border-dashed border-border/70 p-8 text-center text-muted-foreground">
+                        <UserRound className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                        <p>Belum ada jenis konsultasi dipilih</p>
+                        <p className="text-sm">Gunakan tombol + untuk menambah jenis konsultasi.</p>
                       </div>
                     )}
-                  </ScrollArea>
-                </DialogContent>
-              </Dialog>
+
+                    <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+                      <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+                        <DialogHeader>
+                          <DialogTitle>Pilih Jenis Konsultasi</DialogTitle>
+                        </DialogHeader>
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            placeholder="Cari jenis konsultasi..."
+                            className="pl-9"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                          />
+                        </div>
+                        <ScrollArea className="flex-1 max-h-[420px] border rounded-md">
+                          {!selectedRoom ? (
+                            <div className="text-center py-8 text-muted-foreground text-sm">Pilih ruangan tujuan terlebih dahulu.</div>
+                          ) : loadingProcedures ? (
+                            <div className="flex items-center justify-center py-8">
+                              <Loader2 className="h-6 w-6 animate-spin" />
+                            </div>
+                          ) : filteredProcedures.length === 0 ? (
+                            <div className="text-center py-8 text-muted-foreground text-sm">
+                              {searchTerm ? "Jenis konsultasi tidak ditemukan" : "Tidak ada jenis konsultasi tersedia"}
+                            </div>
+                          ) : (
+                            <div className="divide-y">
+                              {filteredProcedures.map((proc) => {
+                                const isSelected = orderItems.some((item) => item.procedure_id === proc.id);
+                                return (
+                                  <button
+                                    key={proc.id}
+                                    type="button"
+                                    className={cn(
+                                      "w-full p-3 text-left flex items-center gap-3 hover:bg-muted/50",
+                                      isSelected && "bg-primary/5"
+                                    )}
+                                    onClick={() => handleToggleProcedure(proc)}
+                                  >
+                                    <Checkbox checked={isSelected} />
+                                    <div className="flex-1">
+                                      <p className="font-medium text-sm">{proc.name}</p>
+                                      <p className="text-xs text-muted-foreground">
+                                        {proc.code}
+                                        {proc.description && ` • ${proc.description}`}
+                                      </p>
+                                    </div>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </ScrollArea>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
                 </div>
-              </div>
 
-              {/* Submit Button */}
-              <div className="flex justify-stretch sm:justify-end pt-2">
-                <Button
-                  size="lg"
-                  className="w-full sm:w-auto"
-                  disabled={submitting || orderItems.length === 0 || !clinicalNotes.trim() || readOnly}
-                  onClick={handleSubmitOrder}
-                >
-                  {submitting ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Mengirim...
-                    </>
-                  ) : (
-                    <>
-                      <Send className="h-4 w-4 mr-2" />
-                      Kirim Order Konsultasi
-                    </>
-                  )}
-                </Button>
-              </div>
-                </fieldset>
-              </div>
-            )}
+                {/* Submit Button */}
+                <div className="flex justify-stretch sm:justify-end pt-2">
+                  <Button
+                    size="lg"
+                    className="w-full sm:w-auto"
+                    disabled={submitting || orderItems.length === 0 || !clinicalNotes.trim() || readOnly}
+                    onClick={handleSubmitOrder}
+                  >
+                    {submitting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Mengirim...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="h-4 w-4 mr-2" />
+                        Kirim Order Konsultasi
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </fieldset>
+            </div>
+          )}
 
-            {/* No permission notice for form tab */}
-            {activeTab === "form" && !canOrder && (
-              <div className="text-center py-12 text-muted-foreground">
-                <Stethoscope className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>Anda tidak memiliki akses untuk membuat order konsultasi</p>
-              </div>
-            )}
+          {/* No permission notice for form tab */}
+          {activeTab === "form" && !canOrder && (
+            <div className="text-center py-12 text-muted-foreground">
+              <Stethoscope className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p>Anda tidak memiliki akses untuk membuat order konsultasi</p>
+            </div>
+          )}
 
-            {/* History Tab */}
-            {activeTab === "history" && (
-              <div className="space-y-2">
-                {existingOrders.length > 0 ? (
-                  <div className="divide-y border rounded-lg">
-                    {existingOrders.map((order) => (
-                      <OrderCollapsible 
-                        key={order.id} 
-                        order={order} 
-                        onCancel={handleCancelOrder}
-                        canCancel={canOrder}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                    <p>Belum ada riwayat order konsultasi</p>
-                  </div>
-                )}
-              </div>
-            )}
+          {/* History Tab */}
+          {activeTab === "history" && (
+            <div className="space-y-2">
+              {existingOrders.length > 0 ? (
+                <div className="divide-y border border-border/70">
+                  {existingOrders.map((order) => (
+                    <OrderCollapsible
+                      key={order.id}
+                      order={order}
+                      onCancel={handleCancelOrder}
+                      canCancel={canOrder}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p>Belum ada riwayat order konsultasi</p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

@@ -1431,4 +1431,44 @@ export const eklaimLocalApi = {
     const response = await api.get('/eklaim-local/defaults');
     return response.data;
   },
+
+  // === Casemix RM Standalone ===
+  getCasemixRM: (visitId: number) =>
+    api.get(`/eklaim-local/casemix-rm/${visitId}`).then((res) => res.data),
+
+  updateCasemixAnamnesis: (visitId: number, data: any) =>
+    api.put(`/eklaim-local/casemix-rm/${visitId}/anamnesis`, data).then((res) => res.data),
+
+  updateCasemixTriage: (visitId: number, data: Record<string, unknown>) =>
+    api.put(`/eklaim-local/casemix-rm/${visitId}/triage`, data).then((res) => res.data),
+
+  updateCasemixPhysicalExam: (visitId: number, data: Record<string, unknown>) =>
+    api.put(`/eklaim-local/casemix-rm/${visitId}/physical-exam`, data).then((res) => res.data),
+
+  updateCasemixAssessmentPlan: (visitId: number, data: Record<string, unknown>) =>
+    api.put(`/eklaim-local/casemix-rm/${visitId}/assessment-plan`, data).then((res) => res.data),
+
+  updateCasemixDisposition: (visitId: number, data: Record<string, unknown>) =>
+    api.put(`/eklaim-local/casemix-rm/${visitId}/disposition`, data).then((res) => res.data),
+
+  // Diagnoses
+  addCasemixDiagnosis: (visitId: number, data: Record<string, unknown>) =>
+    api.post(`/eklaim-local/casemix-rm/${visitId}/diagnoses`, data).then((res) => res.data),
+
+  removeCasemixDiagnosis: (visitId: number, diagId: number) =>
+    api.delete(`/eklaim-local/casemix-rm/${visitId}/diagnoses/${diagId}`).then((res) => res.data),
+
+  updateCasemixDiagnoses: (visitId: number, diagnoses: Record<string, unknown>[]) =>
+    api.put(`/eklaim-local/casemix-rm/${visitId}/diagnoses`, diagnoses).then((res) => res.data),
+
+  // Procedures
+  addCasemixProcedure: (visitId: number, data: Record<string, unknown>) =>
+    api.post(`/eklaim-local/casemix-rm/${visitId}/procedures`, data).then((res) => res.data),
+
+  removeCasemixProcedure: (visitId: number, procId: number) =>
+    api.delete(`/eklaim-local/casemix-rm/${visitId}/procedures/${procId}`).then((res) => res.data),
+
+  updateCasemixProcedures: (visitId: number, procedures: Record<string, unknown>[]) =>
+    api.put(`/eklaim-local/casemix-rm/${visitId}/procedures`, procedures).then((res) => res.data),
 };
+

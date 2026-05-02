@@ -45,6 +45,13 @@ func GetProcedureOrders(c *gin.Context) {
 		query = query.Where("order_type = ?", orderType)
 	}
 
+	// ALWAYS filter out casemix orders from normal queue/listing unless explicitly requested
+	if c.Query("is_casemix") == "true" {
+		query = query.Where("is_casemix = ?", true)
+	} else {
+		query = query.Where("is_casemix = ?", false)
+	}
+
 	// Filter by source visit
 	if sourceVisitID := c.Query("source_visit_id"); sourceVisitID != "" {
 		query = query.Where("source_visit_id = ?", sourceVisitID)
@@ -403,6 +410,8 @@ func CreateProcedureOrder(c *gin.Context) {
 	// Create procedure order
 	order := models.ProcedureOrder{
 		OrderNumber:     orderNumber,
+		IsCasemix:       c.Query("is_casemix") == "true",
+		CasemixEklaimID: getCasemixEklaimID(c),
 		OrderType:       input.OrderType,
 		SourceVisitID:   input.SourceVisitID,
 		TargetVisitID:   &targetVisit.ID,
@@ -2064,3 +2073,4 @@ func DeleteProcedureOrderItem(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "Item berhasil dihapus"})
 }
+

@@ -18,7 +18,6 @@ import {
 import {
   Loader2,
   Package,
-  User,
   CheckCircle2,
   AlertCircle,
   Printer,
@@ -159,7 +158,7 @@ export function PharmacyDispense({
       setOrders(data);
       // Select first order that is reviewed/preparing/partial
       const preferredOrder = data.find((order) => order.id === options?.preferredOrderId);
-      const eligibleOrder = preferredOrder || data.find((o: MedicineOrder) => 
+      const eligibleOrder = preferredOrder || data.find((o: MedicineOrder) =>
         ["reviewed", "preparing", "partial"].includes(o.status)
       ) || data[0];
       if (eligibleOrder) {
@@ -345,7 +344,7 @@ export function PharmacyDispense({
 
   const handlePrintDeliveredMedicines = () => {
     if (!selectedOrder) return;
-    
+
     // Print all delivered items from the order
     const deliveredItems = (selectedOrder.items || []).filter(item => (item.dispensed_qty || 0) > 0);
     printMedicineReceipt(deliveredItems.map(item => ({
@@ -359,7 +358,7 @@ export function PharmacyDispense({
 
   const printMedicineReceipt = (items: { name: string; qty: number; unit: string; dosage?: string; frequency?: string }[]) => {
     if (!selectedOrder || items.length === 0) return;
-    
+
     const printWindow = window.open("", "_blank", "width=600,height=800");
     if (printWindow) {
       const itemsHtml = items.map(item => `
@@ -461,115 +460,116 @@ export function PharmacyDispense({
   return (
     <div className="pharmacy-no-sticky-head">
       <div className="space-y-4">
-      {/* Order Selection if multiple */}
-      {orders.length > 1 && (
-        <div className="border rounded-lg p-3 bg-muted/30">
-          <div className="grid grid-cols-1 gap-2 md:grid-cols-[120px_minmax(0,1fr)_auto] md:items-center">
-            <Label className="text-sm font-semibold">Pilih Order</Label>
-            <Select
-              value={selectedOrder?.id ? String(selectedOrder.id) : ""}
-              onValueChange={(value) => {
-                const nextOrder = orders.find((order) => String(order.id) === value);
-                if (nextOrder) setSelectedOrder(nextOrder);
-              }}
-            >
-              <SelectTrigger className="h-8">
-                <SelectValue placeholder="Pilih order" />
-              </SelectTrigger>
-              <SelectContent>
-                {orders.map((order) => (
-                  <SelectItem key={order.id} value={String(order.id)}>
-                    {order.order_number} - {ORDER_STATUS_LABELS[order.status]?.label || order.status}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {selectedOrder && (
-              <Badge variant={ORDER_STATUS_LABELS[selectedOrder.status]?.variant || "secondary"} className="w-fit">
-                {ORDER_STATUS_LABELS[selectedOrder.status]?.label || selectedOrder.status}
-              </Badge>
-            )}
+        {/* Order Selection if multiple */}
+        {orders.length > 1 && (
+          <div className="border border-border/70 bg-background mb-4">
+            <div className="p-3">
+              <div className="grid grid-cols-1 gap-2 md:grid-cols-[120px_minmax(0,1fr)_auto] md:items-center">
+                <Label className="text-sm font-semibold">Pilih Order</Label>
+                <Select
+                  value={selectedOrder?.id ? String(selectedOrder.id) : ""}
+                  onValueChange={(value) => {
+                    const nextOrder = orders.find((order) => String(order.id) === value);
+                    if (nextOrder) setSelectedOrder(nextOrder);
+                  }}
+                >
+                  <SelectTrigger className="h-8">
+                    <SelectValue placeholder="Pilih order" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {orders.map((order) => (
+                      <SelectItem key={order.id} value={String(order.id)}>
+                        {order.order_number} - {ORDER_STATUS_LABELS[order.status]?.label || order.status}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedOrder && (
+                  <Badge variant={ORDER_STATUS_LABELS[selectedOrder.status]?.variant || "secondary"} className="w-fit">
+                    {ORDER_STATUS_LABELS[selectedOrder.status]?.label || selectedOrder.status}
+                  </Badge>
+                )}
+              </div>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {selectedOrder && (
-        <>
-          {/* Patient & Order Info Table */}
-          <div className="border rounded-lg">
-            <div className="p-3 border-b bg-muted/30">
-              <div className="flex justify-between items-start">
-                <div>
-                  <div className="text-sm font-semibold flex items-center gap-2">
-                    <User className="h-4 w-4" />
-                    {patient?.nama_lengkap || "Pasien"}
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    No. RM: {patient?.no_rm} | Order: {selectedOrder.order_number}
-                  </p>
-                </div>
+        {selectedOrder && (
+          <>
+            {/* Patient & Order Info Table */}
+            <div className="border border-border/70 bg-background mb-4">
+              <div className="flex flex-wrap items-center justify-between border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                <span>Detail Order Farmasi</span>
                 <div className="flex items-center gap-2">
-                  {rmDuplicateMode && <Badge variant="outline">Mode RM Duplikat</Badge>}
-                  <Badge variant={ORDER_STATUS_LABELS[selectedOrder.status]?.variant || "secondary"}>
+                  {rmDuplicateMode && <Badge variant="outline" className="text-[10px] h-5 px-1.5 py-0">Mode RM Duplikat</Badge>}
+                  <Badge variant={ORDER_STATUS_LABELS[selectedOrder.status]?.variant || "secondary"} className="text-[10px] h-5 px-1.5 py-0">
                     {ORDER_STATUS_LABELS[selectedOrder.status]?.label || selectedOrder.status}
                   </Badge>
                 </div>
               </div>
-            </div>
-            <div className="p-3">
-              <table className="w-full table-fixed text-xs">
-                <tbody>
-                  <tr className="border-b">
-                    <td className="py-1.5 text-muted-foreground w-28 align-top">Diagnosis</td>
-                    <td className="py-1.5 font-medium break-words">{selectedOrder.diagnosis || "-"}</td>
-                  </tr>
-                  <tr className="border-b">
-                    <td className="py-1.5 text-muted-foreground align-top">Ruang Asal</td>
-                    <td className="py-1.5 font-medium break-words">{selectedOrder.source_room?.name || "-"}</td>
-                  </tr>
-                  <tr className="border-b">
-                    <td className="py-1.5 text-muted-foreground align-top">Petugas Order</td>
-                    <td className="py-1.5 font-medium break-words">{selectedOrder.prescriber?.nama_lengkap || "-"}</td>
-                  </tr>
-                  <tr className="border-b">
-                    <td className="py-1.5 text-muted-foreground align-top">Waktu Order</td>
-                    <td className="py-1.5 font-medium break-words">
-                      {selectedOrder.created_at ? new Date(selectedOrder.created_at).toLocaleString("id-ID") : "-"}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="py-1.5 text-muted-foreground align-top">Prioritas</td>
-                    <td className="py-1.5">
-                      <Badge variant={selectedOrder.priority === "urgent" ? "destructive" : "outline"}>
-                        {selectedOrder.priority === "urgent" ? "Urgent" : "Normal"}
-                      </Badge>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Status Warning */}
-          {!canDispense && !allDelivered && (
-            <div className="border border-yellow-200 bg-yellow-50 dark:bg-yellow-950 rounded-lg p-3">
-              <div className="flex items-center gap-2 text-yellow-700 dark:text-yellow-300">
-                <AlertCircle className="h-4 w-4" />
-                <p className="text-sm">
-                  Order ini belum ditelaah. Silakan lakukan telaah resep terlebih dahulu.
-                </p>
+              <div className="p-3 sm:p-4 space-y-4">
+                <table className="w-full table-fixed text-xs">
+                  <tbody>
+                    <tr className="border-b">
+                      <td className="py-1.5 text-muted-foreground w-28 align-top">Nama Pasien</td>
+                      <td className="py-1.5 font-medium break-words">{patient?.nama_lengkap || "-"}</td>
+                    </tr>
+                    <tr className="border-b">
+                      <td className="py-1.5 text-muted-foreground w-28 align-top">No. RM</td>
+                      <td className="py-1.5 font-medium break-words">{patient?.no_rm || "-"}</td>
+                    </tr>
+                    <tr className="border-b">
+                      <td className="py-1.5 text-muted-foreground w-28 align-top">Dokter</td>
+                      <td className="py-1.5 font-medium break-words">
+                        <span className="font-medium">{selectedOrder.prescriber?.nama_lengkap || "-"}</span>
+                      </td>
+                    </tr>
+                    <tr className="border-b">
+                      <td className="py-1.5 text-muted-foreground w-28 align-top">Diagnosis</td>
+                      <td className="py-1.5 font-medium break-words">{selectedOrder.diagnosis || "-"}</td>
+                    </tr>
+                    <tr className="border-b">
+                      <td className="py-1.5 text-muted-foreground align-top">Ruang Asal</td>
+                      <td className="py-1.5 font-medium break-words">{selectedOrder.source_room?.name || "-"}</td>
+                    </tr>
+                    <tr className="border-b">
+                      <td className="py-1.5 text-muted-foreground align-top">Waktu Order</td>
+                      <td className="py-1.5 font-medium break-words">
+                        {selectedOrder.created_at ? new Date(selectedOrder.created_at).toLocaleString("id-ID") : "-"}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="py-1.5 text-muted-foreground align-top">Prioritas</td>
+                      <td className="py-1.5">
+                        <Badge variant={selectedOrder.priority === "urgent" ? "destructive" : "outline"}>
+                          {selectedOrder.priority === "urgent" ? "Urgent" : "Normal"}
+                        </Badge>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
             </div>
-          )}
 
-          {/* Dispense Items */}
-          <div className="border rounded-lg">
-            <div className="p-3 border-b bg-muted/30">
-              <div className="flex justify-between items-center">
-                <Label className="text-sm font-semibold flex items-center gap-2">
-                  <Package className="h-4 w-4" />
+            {/* Status Warning */}
+            {!canDispense && !allDelivered && (
+              <div className="border border-yellow-200 bg-yellow-50 dark:bg-yellow-950 rounded-lg p-3">
+                <div className="flex items-center gap-2 text-yellow-700 dark:text-yellow-300">
+                  <AlertCircle className="h-4 w-4" />
+                  <p className="text-sm">
+                    Order ini belum ditelaah. Silakan lakukan telaah resep terlebih dahulu.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Dispense Items */}
+            <div className="border border-border/70 bg-background mb-4">
+              <div className="flex flex-wrap items-center justify-between border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                <span className="flex items-center gap-2">
+                  <Package className="h-3 w-3" />
                   Daftar Obat untuk Diserahkan
-                </Label>
+                </span>
                 <div className="flex items-center gap-3">
                   <div className="flex items-center gap-2">
                     <Checkbox
@@ -577,7 +577,7 @@ export function PharmacyDispense({
                       checked={showSelectedOnly}
                       onCheckedChange={(checked) => setShowSelectedOnly(checked === true)}
                     />
-                    <Label htmlFor="show_selected_only" className="text-xs text-muted-foreground">
+                    <Label htmlFor="show_selected_only" className="text-[10px] text-muted-foreground">
                       Hanya terpilih
                     </Label>
                   </div>
@@ -587,186 +587,185 @@ export function PharmacyDispense({
                       checked={showDeliveredRows}
                       onCheckedChange={(checked) => setShowDeliveredRows(checked === true)}
                     />
-                    <Label htmlFor="show_delivered_rows" className="text-xs text-muted-foreground">
+                    <Label htmlFor="show_delivered_rows" className="text-[10px] text-muted-foreground">
                       Tampilkan item selesai
                     </Label>
                   </div>
                   {canDispense && !allDelivered && (
                     <div className="flex items-center gap-2">
-                    <Checkbox
-                      id="select_all"
-                      checked={dispenseItems.filter((i) => i.remaining > 0).every((i) => i.selected)}
-                      onCheckedChange={(checked) => handleSelectAll(checked as boolean)}
-                    />
-                    <Label htmlFor="select_all" className="text-sm">
-                      Pilih Semua
-                    </Label>
-                  </div>
+                      <Checkbox
+                        id="select_all"
+                        checked={dispenseItems.filter((i) => i.remaining > 0).every((i) => i.selected)}
+                        onCheckedChange={(checked) => handleSelectAll(checked as boolean)}
+                      />
+                      <Label htmlFor="select_all" className="text-sm">
+                        Pilih Semua
+                      </Label>
+                    </div>
                   )}
                 </div>
               </div>
-            </div>
-            <div className="p-3">
-              <div className="mb-2 text-xs text-muted-foreground">
-                Menampilkan {visibleDispenseItems.length} dari {dispenseItems.length} item.
-              </div>
-              {allDelivered && (
-                <div className="flex items-center gap-2 text-green-600 dark:text-green-400 text-sm bg-green-50 dark:bg-green-950 p-3 rounded-lg mb-4 border border-green-200">
-                  <CheckCircle2 className="h-5 w-5" />
-                  <span className="font-medium">Semua obat sudah diserahkan kepada pasien</span>
+              <div className="p-3 pb-0">
+                <div className="mb-2 text-xs text-muted-foreground">
+                  Menampilkan {visibleDispenseItems.length} dari {dispenseItems.length} item.
                 </div>
-              )}
+                {allDelivered && (
+                  <div className="flex items-center gap-2 text-green-600 dark:text-green-400 text-sm bg-green-50 dark:bg-green-950 p-3 rounded mb-4 border border-green-200">
+                    <CheckCircle2 className="h-5 w-5" />
+                    <span className="font-medium">Semua obat sudah diserahkan kepada pasien</span>
+                  </div>
+                )}
+              </div>
               
-              <div className="border rounded-lg">
+              <div className="overflow-x-auto">
                 <table className="w-full table-fixed text-xs">
-                  <thead className="bg-muted/50 border-b">
-                    <tr>
-                      <th className="py-1.5 px-2 text-left font-medium w-[8%]">Pilih</th>
-                      <th className="py-1.5 px-2 text-left font-medium w-[34%]">Obat</th>
-                      <th className="py-1.5 px-2 text-left font-medium hidden xl:table-cell w-[14%]">Aturan</th>
-                      <th className="py-1.5 px-2 text-left font-medium w-[18%]">Qty</th>
-                      <th className="py-1.5 px-2 text-left font-medium w-[12%]">Qty Serah</th>
-                      <th className="py-1.5 px-2 text-right font-medium hidden lg:table-cell w-[8%]">Harga</th>
-                      <th className="py-1.5 px-2 text-right font-medium w-[10%]">Subtotal</th>
-                      <th className="py-1.5 px-2 text-left font-medium w-[10%]">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {visibleDispenseItems.map((dispenseItem) => {
-                      const { item, remaining, selected, dispensed_qty } = dispenseItem;
-                      const isDelivered = remaining === 0;
-                      const unitPrice = Number((item as any).unit_price ?? (item as any).price ?? (item.medicine as any)?.selling_price ?? 0);
-                      const orderedSubtotal = unitPrice * Number(item.quantity || 0);
+                  <thead className="bg-muted/50 border-y border-border/70">
+                      <tr>
+                        <th className="py-1.5 px-2 text-left font-medium w-[8%]">Pilih</th>
+                        <th className="py-1.5 px-2 text-left font-medium w-[34%]">Obat</th>
+                        <th className="py-1.5 px-2 text-left font-medium hidden xl:table-cell w-[14%]">Aturan</th>
+                        <th className="py-1.5 px-2 text-left font-medium w-[18%]">Qty</th>
+                        <th className="py-1.5 px-2 text-left font-medium w-[12%]">Qty Serah</th>
+                        <th className="py-1.5 px-2 text-right font-medium hidden lg:table-cell w-[8%]">Harga</th>
+                        <th className="py-1.5 px-2 text-right font-medium w-[10%]">Subtotal</th>
+                        <th className="py-1.5 px-2 text-left font-medium w-[10%]">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {visibleDispenseItems.map((dispenseItem) => {
+                        const { item, remaining, selected, dispensed_qty } = dispenseItem;
+                        const isDelivered = remaining === 0;
+                        const unitPrice = Number((item as any).unit_price ?? (item as any).price ?? (item.medicine as any)?.selling_price ?? 0);
+                        const orderedSubtotal = unitPrice * Number(item.quantity || 0);
 
-                      return (
-                        <tr
-                          key={item.id || dispenseItem.item_id}
-                          className={
-                            isDelivered
-                              ? "border-t bg-green-50/60 dark:bg-green-950/20"
-                              : selected
-                              ? "border-t bg-blue-50/60 dark:bg-blue-950/20"
-                              : "border-t"
-                          }
-                        >
-                          <td className="py-1.5 px-2 align-top">
-                            {!isDelivered && canDispense ? (
-                              <Checkbox
-                                checked={selected}
-                                onCheckedChange={(checked) => handleSelectItem(item.id!, checked as boolean)}
-                                disabled={readOnly}
-                              />
-                            ) : (
-                              <span className="text-xs text-muted-foreground">-</span>
-                            )}
-                          </td>
-                          <td className="py-1.5 px-2 align-top">
-                            <p className="font-medium leading-5 break-words">{item.medicine?.name || "Obat"}</p>
-                            <p className="text-[11px] text-muted-foreground break-words">{item.medicine?.generic_name || "-"}</p>
-                          </td>
-                          <td className="py-1.5 px-2 align-top hidden xl:table-cell">
-                            <p className="text-[11px] break-words">{item.dosage || "-"}</p>
-                            <p className="text-[11px] text-muted-foreground break-words">{item.frequency || "-"} / {item.route || "-"}</p>
-                          </td>
-                          <td className="py-1.5 px-2 align-top text-[11px]">
-                            <p>Dipesan: <span className="font-medium">{item.quantity} {item.unit}</span></p>
-                            <p>Diserah: <span className="font-medium">{item.dispensed_qty || 0} {item.unit}</span></p>
-                            <p className="text-muted-foreground">Sisa: {remaining} {item.unit}</p>
-                          </td>
-                          <td className="py-1.5 px-2 align-top">
-                            {remaining > 0 && canDispense ? (
-                              <div className="space-y-1">
-                                <Input
-                                  type="number"
-                                  min={1}
-                                  max={remaining}
-                                  value={dispensed_qty}
-                                  onChange={(e) => handleQuantityChange(item.id!, parseInt(e.target.value) || 0)}
-                                  className="h-7 w-16 text-xs"
-                                  disabled={readOnly || !selected}
+                        return (
+                          <tr
+                            key={item.id || dispenseItem.item_id}
+                            className={
+                              isDelivered
+                                ? "border-t bg-green-50/60 dark:bg-green-950/20"
+                                : selected
+                                  ? "border-t bg-blue-50/60 dark:bg-blue-950/20"
+                                  : "border-t"
+                            }
+                          >
+                            <td className="py-1.5 px-2 align-top">
+                              {!isDelivered && canDispense ? (
+                                <Checkbox
+                                  checked={selected}
+                                  onCheckedChange={(checked) => handleSelectItem(item.id!, checked as boolean)}
+                                  disabled={readOnly}
                                 />
-                                <span className="text-[11px] text-muted-foreground block">maks {remaining}</span>
-                              </div>
-                            ) : (
-                              <span className="text-[11px] text-muted-foreground">-</span>
-                            )}
-                          </td>
-                          <td className="py-1.5 px-2 text-right align-top font-medium whitespace-nowrap hidden lg:table-cell">{formatRupiah(unitPrice)}</td>
-                          <td className="py-1.5 px-2 text-right align-top font-medium whitespace-nowrap">{formatRupiah(orderedSubtotal)}</td>
-                          <td className="py-1.5 px-2 align-top">
-                            <Badge variant={ITEM_STATUS_LABELS[item.status]?.variant || "secondary"}>
-                              {ITEM_STATUS_LABELS[item.status]?.label || item.status}
-                            </Badge>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">-</span>
+                              )}
+                            </td>
+                            <td className="py-1.5 px-2 align-top">
+                              <p className="font-medium leading-5 break-words">{item.medicine?.name || "Obat"}</p>
+                              <p className="text-[11px] text-muted-foreground break-words">{item.medicine?.generic_name || "-"}</p>
+                            </td>
+                            <td className="py-1.5 px-2 align-top hidden xl:table-cell">
+                              <p className="text-[11px] break-words">{item.dosage || "-"}</p>
+                              <p className="text-[11px] text-muted-foreground break-words">{item.frequency || "-"} / {item.route || "-"}</p>
+                            </td>
+                            <td className="py-1.5 px-2 align-top text-[11px]">
+                              <p>Dipesan: <span className="font-medium">{item.quantity} {item.unit}</span></p>
+                              <p>Diserah: <span className="font-medium">{item.dispensed_qty || 0} {item.unit}</span></p>
+                              <p className="text-muted-foreground">Sisa: {remaining} {item.unit}</p>
+                            </td>
+                            <td className="py-1.5 px-2 align-top">
+                              {remaining > 0 && canDispense ? (
+                                <div className="space-y-1">
+                                  <Input
+                                    type="number"
+                                    min={1}
+                                    max={remaining}
+                                    value={dispensed_qty}
+                                    onChange={(e) => handleQuantityChange(item.id!, parseInt(e.target.value) || 0)}
+                                    className="h-7 w-16 text-xs"
+                                    disabled={readOnly || !selected}
+                                  />
+                                  <span className="text-[11px] text-muted-foreground block">maks {remaining}</span>
+                                </div>
+                              ) : (
+                                <span className="text-[11px] text-muted-foreground">-</span>
+                              )}
+                            </td>
+                            <td className="py-1.5 px-2 text-right align-top font-medium whitespace-nowrap hidden lg:table-cell">{formatRupiah(unitPrice)}</td>
+                            <td className="py-1.5 px-2 text-right align-top font-medium whitespace-nowrap">{formatRupiah(orderedSubtotal)}</td>
+                            <td className="py-1.5 px-2 align-top">
+                              <Badge variant={ITEM_STATUS_LABELS[item.status]?.variant || "secondary"}>
+                                {ITEM_STATUS_LABELS[item.status]?.label || item.status}
+                              </Badge>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {visibleDispenseItems.length === 0 && (
+                        <tr>
+                          <td colSpan={8} className="py-3 px-2 text-center text-xs text-muted-foreground">
+                            Tidak ada item aktif yang perlu diserahkan.
                           </td>
                         </tr>
-                      );
-                    })}
-                    {visibleDispenseItems.length === 0 && (
-                      <tr>
-                        <td colSpan={8} className="py-3 px-2 text-center text-xs text-muted-foreground">
-                          Tidak ada item aktif yang perlu diserahkan.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                  <tfoot>
-                    <tr className="border-t bg-muted/30">
-                      <td colSpan={6} className="py-2 px-2 text-right text-xs text-muted-foreground">Total Dipesan</td>
-                      <td className="py-2 px-2 text-right font-semibold whitespace-nowrap">{formatRupiah(orderedGrandTotal)}</td>
-                      <td className="py-2 px-2" />
-                    </tr>
-                    <tr className="border-t bg-muted/30">
-                      <td colSpan={6} className="py-2 px-2 text-right text-xs text-muted-foreground">Total Sudah Diserahkan</td>
-                      <td className="py-2 px-2 text-right font-semibold whitespace-nowrap">{formatRupiah(deliveredGrandTotal)}</td>
-                      <td className="py-2 px-2" />
-                    </tr>
-                    {canDispense && !allDelivered && (
-                      <tr className="border-t bg-primary/5">
-                        <td colSpan={6} className="py-2 px-2 text-right text-xs text-muted-foreground">Total Akan Diserahkan (Terpilih)</td>
-                        <td className="py-2 px-2 text-right font-semibold text-primary whitespace-nowrap">{formatRupiah(selectedDispenseGrandTotal)}</td>
+                      )}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t bg-muted/30">
+                        <td colSpan={6} className="py-2 px-2 text-right text-xs text-muted-foreground">Total Dipesan</td>
+                        <td className="py-2 px-2 text-right font-semibold whitespace-nowrap">{formatRupiah(orderedGrandTotal)}</td>
                         <td className="py-2 px-2" />
                       </tr>
-                    )}
-                  </tfoot>
-                </table>
+                      <tr className="border-t bg-muted/30">
+                        <td colSpan={6} className="py-2 px-2 text-right text-xs text-muted-foreground">Total Sudah Diserahkan</td>
+                        <td className="py-2 px-2 text-right font-semibold whitespace-nowrap">{formatRupiah(deliveredGrandTotal)}</td>
+                        <td className="py-2 px-2" />
+                      </tr>
+                      {canDispense && !allDelivered && (
+                        <tr className="border-t bg-primary/5">
+                          <td colSpan={6} className="py-2 px-2 text-right text-xs text-muted-foreground">Total Akan Diserahkan (Terpilih)</td>
+                          <td className="py-2 px-2 text-right font-semibold text-primary whitespace-nowrap">{formatRupiah(selectedDispenseGrandTotal)}</td>
+                          <td className="py-2 px-2" />
+                        </tr>
+                      )}
+                    </tfoot>
+                  </table>
               </div>
 
               {/* Action buttons */}
-              <div className="flex flex-wrap gap-2 mt-4">
-                {/* Print delivered medicines list */}
-                {(selectedOrder?.items || []).some(item => (item.dispensed_qty || 0) > 0) && (
-                  <Button
-                    variant="outline"
-                    onClick={handlePrintDeliveredMedicines}
-                  >
-                    <Printer className="h-4 w-4 mr-2" />
-                    Cetak Daftar Obat
-                  </Button>
-                )}
-
-                {/* Signature button - show when all delivered */}
-                {allDelivered && (
-                  signatureStatus?.is_signed ? (
-                    <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 dark:bg-green-950 p-3 rounded flex-1">
-                      <CheckCircle2 className="h-4 w-4" />
-                      <span className="font-medium">Ditandatangani: {signatureStatus.signer_name}</span>
-                    </div>
-                  ) : (
-                    <Button 
-                      onClick={() => setShowSignatureDialog(true)} 
-                      variant="outline" 
-                      className="flex-1"
+              <div className="flex flex-wrap gap-2 p-3 mt-4 border-t border-border/70">
+                  {/* Print delivered medicines list */}
+                  {(selectedOrder?.items || []).some(item => (item.dispensed_qty || 0) > 0) && (
+                    <Button
+                      variant="outline"
+                      onClick={handlePrintDeliveredMedicines}
                     >
-                      <ShieldCheck className="h-4 w-4 mr-2" />
-                      Tanda Tangani Serah Terima
+                      <Printer className="h-4 w-4 mr-2" />
+                      Cetak Daftar Obat
                     </Button>
-                  )
-                )}
+                  )}
+
+                  {/* Signature button - show when all delivered */}
+                  {allDelivered && (
+                    signatureStatus?.is_signed ? (
+                      <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 dark:bg-green-950 p-3 rounded flex-1">
+                        <CheckCircle2 className="h-4 w-4" />
+                        <span className="font-medium">Ditandatangani: {signatureStatus.signer_name}</span>
+                      </div>
+                    ) : (
+                      <Button
+                        onClick={() => setShowSignatureDialog(true)}
+                        variant="outline"
+                        className="flex-1"
+                      >
+                        <ShieldCheck className="h-4 w-4 mr-2" />
+                        Tanda Tangani Serah Terima
+                      </Button>
+                    )
+                  )}
               </div>
             </div>
-          </div>
-        </>
-      )}      </div>
+          </>
+        )}      </div>
 
       <PINVerificationDialog
         open={showPINDialog}

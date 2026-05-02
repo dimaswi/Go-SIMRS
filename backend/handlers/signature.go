@@ -17,6 +17,13 @@ import (
 	"gorm.io/gorm"
 )
 
+func getSignatureDB(docType string) *gorm.DB {
+	if strings.HasPrefix(docType, "rm_dup_") {
+		return database.CasemixDB
+	}
+	return database.DB
+}
+
 // ================= PIN Management =================
 
 // SetupPINRequest for setting up signature PIN
@@ -223,7 +230,8 @@ func SignDocument(c *gin.Context) {
 
 	// Check if document already has a signature record (will be updated if re-signing)
 	var existingSignature models.DocumentSignature
-	database.DB.Where("document_type = ? AND document_id = ?", req.DocumentType, req.DocumentID).First(&existingSignature)
+	sigDB := getSignatureDB(req.DocumentType)
+	sigDB.Where("document_type = ? AND document_id = ?", req.DocumentType, req.DocumentID).First(&existingSignature)
 
 	// Generate signature hash
 	signedAt := time.Now()
@@ -308,7 +316,7 @@ func SignDocument(c *gin.Context) {
 		Notes:            req.Notes,
 	}
 
-	if err := database.DB.Create(&signatureLog).Error; err != nil {
+	if err := sigDB.Create(&signatureLog).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan log tanda tangan"})
 		return
 	}
@@ -325,9 +333,9 @@ func SignDocument(c *gin.Context) {
 
 	if existingSignature.ID > 0 {
 		docSignature.ID = existingSignature.ID
-		database.DB.Save(&docSignature)
+		sigDB.Save(&docSignature)
 	} else {
-		database.DB.Create(&docSignature)
+		sigDB.Create(&docSignature)
 	}
 
 	// Invalidate cached PDF for this document (signature changes the rendered output)
@@ -433,8 +441,9 @@ func GetDocumentSignature(c *gin.Context) {
 		return
 	}
 
+	sigDB := getSignatureDB(docType)
 	var signature models.DocumentSignature
-	if err := database.DB.Preload("SignedBy").
+	if err := sigDB.Preload("SignedBy").
 		Where("document_type = ? AND document_id = ?", docType, docID).
 		First(&signature).Error; err != nil {
 		c.JSON(http.StatusOK, gin.H{
@@ -754,7 +763,8 @@ func RevokeDocumentSignature(c *gin.Context) {
 
 	// Check if document is signed
 	var docSignature models.DocumentSignature
-	if err := database.DB.Where("document_type = ? AND document_id = ?", req.DocumentType, req.DocumentID).
+	sigDB := getSignatureDB(req.DocumentType)
+	if err := sigDB.Where("document_type = ? AND document_id = ?", req.DocumentType, req.DocumentID).
 		First(&docSignature).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Tanda tangan tidak ditemukan"})
 		return
@@ -795,7 +805,7 @@ func RevokeDocumentSignature(c *gin.Context) {
 	// Get the original sign log to retrieve correct VisitID
 	var originalSignLog models.SignatureLog
 	var visitID *uint
-	if err := database.DB.Where("document_type = ? AND document_id = ? AND action = ?",
+	if err := sigDB.Where("document_type = ? AND document_id = ? AND action = ?",
 		req.DocumentType, req.DocumentID, models.SignActionSign).
 		Order("signed_at DESC").First(&originalSignLog).Error; err == nil {
 		visitID = originalSignLog.VisitID
@@ -821,7 +831,7 @@ func RevokeDocumentSignature(c *gin.Context) {
 		Notes:            notes,
 	}
 
-	if err := database.DB.Create(&revokeLog).Error; err != nil {
+	if err := sigDB.Create(&revokeLog).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan log pembatalan"})
 		return
 	}
@@ -831,7 +841,7 @@ func RevokeDocumentSignature(c *gin.Context) {
 	docSignature.SignedByID = nil
 	docSignature.SignatureHash = ""
 	docSignature.IsLocked = false
-	database.DB.Save(&docSignature)
+	sigDB.Save(&docSignature)
 
 	// Delete cached PDF blob — signature revoked, so cached signed PDF is stale
 	go invalidateAllPDFCachesForSignature(req.DocumentType, req.DocumentID)

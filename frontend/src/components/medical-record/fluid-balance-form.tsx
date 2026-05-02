@@ -4,7 +4,6 @@ import { useToast } from "@/hooks/use-toast";
 // import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
@@ -13,17 +12,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import { fluidBalanceApi, SHIFT_TYPES } from "@/lib/api";
-import type { FluidBalance, CreateFluidBalanceInput } from "@/lib/api";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { fluidBalanceApi, medicineOrdersApi, SHIFT_TYPES } from "@/lib/api";
+import type { FluidBalance, CreateFluidBalanceInput, MedicineOrder } from "@/lib/api";
 import { format } from "date-fns";
-import { Loader2, Plus, Droplets } from "lucide-react";
+import { Loader2, Plus, Droplets, X, Pencil, ChevronDown, ChevronRight } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { emitMedicalRecordTabIndicator } from "./tab-indicator";
 
 interface FluidBalanceFormProps {
   visitId: number;
@@ -34,6 +29,120 @@ interface FluidBalanceFormProps {
   onSetCreatedBy?: (id: number, name: string) => void;
   onSetApprovedBy?: (id: number, name: string) => void;
 }
+
+function FluidBalanceCollapsibleRow({
+  balance,
+  onEdit,
+  readOnly,
+}: {
+  balance: FluidBalance;
+  onEdit: (balance: FluidBalance) => void;
+  readOnly: boolean;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const intakeTotal = (balance.oral_drink || 0) + (balance.oral_food || 0) + (balance.oral_medicine || 0) + (balance.iv_fluid || 0) + (balance.iv_medicine || 0) + (balance.blood_product || 0) + (balance.enteral_feed || 0) + (balance.other_intake || 0);
+  const outputTotal = (balance.urine_amount || 0) + (balance.feces_amount || 0) + (balance.vomit_amount || 0) + (balance.drain_amount || 0) + (balance.blood_loss || 0) + (balance.iwl || 0) + (balance.other_output || 0);
+
+  const getParenteralLabel = () => {
+    if (!balance.other_intake_note) return "Parenteral";
+    const matched = balance.other_intake_note.split(", ").filter(s => s.startsWith("Parenteral - "));
+    if (matched.length > 0) return matched.join(", ");
+    if (balance.iv_fluid && !balance.other_intake_note.includes("Parenteral - ") && !balance.other_intake_note.includes("Intravena - ") && !balance.other_intake_note.includes("Darah - ")) {
+      return `Parenteral - ${balance.other_intake_note}`;
+    }
+    return "Parenteral";
+  };
+
+  const getIVLabel = () => {
+    if (!balance.other_intake_note) return "Obat Intravena";
+    const matched = balance.other_intake_note.split(", ").filter(s => s.startsWith("Intravena - "));
+    if (matched.length > 0) return matched.join(", ");
+    if (balance.iv_medicine && !balance.other_intake_note.includes("Parenteral - ") && !balance.other_intake_note.includes("Intravena - ") && !balance.other_intake_note.includes("Darah - ")) {
+      return `Intravena - ${balance.other_intake_note}`;
+    }
+    return "Obat Intravena";
+  };
+
+  const getBloodLabel = () => {
+    if (!balance.other_intake_note) return "Darah";
+    const matched = balance.other_intake_note.split(", ").filter(s => s.startsWith("Darah - "));
+    return matched.length > 0 ? matched.join(", ") : "Darah";
+  };
+
+  return (
+    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+      <div className="hover:bg-muted/10 border-b">
+        <div className="grid grid-cols-12 gap-2 px-4 py-3 text-xs items-center">
+          <div className="col-span-1">
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-6 w-6">
+                {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+              </Button>
+            </CollapsibleTrigger>
+          </div>
+          <div className="col-span-2">{format(new Date(balance.record_date), "dd/MM/yyyy")}</div>
+          <div className="col-span-2 capitalize">{balance.shift_type}</div>
+          <div className="col-span-2 font-mono font-semibold text-emerald-600">+{intakeTotal} ml</div>
+          <div className="col-span-2 font-mono font-semibold text-destructive">-{outputTotal} ml</div>
+          <div className="col-span-2 font-mono font-medium">
+            <span className={intakeTotal - outputTotal > 0 ? "text-emerald-600" : intakeTotal - outputTotal < 0 ? "text-destructive" : ""}>
+              {intakeTotal - outputTotal > 0 ? "+" : ""}{intakeTotal - outputTotal} ml
+            </span>
+          </div>
+          <div className="col-span-1 flex gap-2">
+            {!readOnly && (
+              <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground" onClick={() => onEdit(balance)}>
+                <Pencil className="h-3 w-3" />
+              </Button>
+            )}
+          </div>
+        </div>
+        <CollapsibleContent>
+          <div className="px-12 py-3 bg-muted/5 grid grid-cols-2 gap-8 text-xs border-t">
+            <div className="space-y-2">
+              <h4 className="font-semibold text-[10px] uppercase tracking-wider text-muted-foreground border-b pb-1">Detail Intake</h4>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                {(balance.oral_drink || 0) > 0 && <><span className="text-muted-foreground">Minuman</span><span className="font-mono text-right text-emerald-600">{balance.oral_drink} ml</span></>}
+                {(balance.oral_food || 0) > 0 && <><span className="text-muted-foreground">Makanan</span><span className="font-mono text-right text-emerald-600">{balance.oral_food} ml</span></>}
+                {(balance.oral_medicine || 0) > 0 && <><span className="text-muted-foreground">Obat Oral</span><span className="font-mono text-right text-emerald-600">{balance.oral_medicine} ml</span></>}
+                {(balance.iv_fluid || 0) > 0 && <><span className="text-muted-foreground">{getParenteralLabel()}</span><span className="font-mono text-right text-emerald-600">{balance.iv_fluid} ml</span></>}
+                {(balance.iv_medicine || 0) > 0 && <><span className="text-muted-foreground">{getIVLabel()}</span><span className="font-mono text-right text-emerald-600">{balance.iv_medicine} ml</span></>}
+                {(balance.blood_product || 0) > 0 && <><span className="text-muted-foreground">{getBloodLabel()}</span><span className="font-mono text-right text-emerald-600">{balance.blood_product} ml</span></>}
+                {(balance.enteral_feed || 0) > 0 && <><span className="text-muted-foreground">NGT</span><span className="font-mono text-right text-emerald-600">{balance.enteral_feed} ml</span></>}
+                {(balance.other_intake || 0) > 0 && <><span className="text-muted-foreground">Lainnya</span><span className="font-mono text-right text-emerald-600">{balance.other_intake} ml</span></>}
+              </div>
+              {balance.other_intake_note && (
+                <div className="pt-2">
+                  <span className="block text-[10px] text-muted-foreground uppercase">Catatan Intake</span>
+                  <span className="italic">{balance.other_intake_note}</span>
+                </div>
+              )}
+            </div>
+            <div className="space-y-2">
+              <h4 className="font-semibold text-[10px] uppercase tracking-wider text-muted-foreground border-b pb-1">Detail Output</h4>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                {(balance.urine_amount || 0) > 0 && <><span className="text-muted-foreground">Urine {balance.urine_color ? `(${balance.urine_color})` : ''} {balance.urine_catheter ? '[Catheter]' : ''}</span><span className="font-mono text-right text-destructive">{balance.urine_amount} ml</span></>}
+                {(balance.feces_amount || 0) > 0 && <><span className="text-muted-foreground">Feses {balance.feces_type ? `(${balance.feces_type})` : ''}</span><span className="font-mono text-right text-destructive">{balance.feces_amount} ml</span></>}
+                {(balance.vomit_amount || 0) > 0 && <><span className="text-muted-foreground">Muntah</span><span className="font-mono text-right text-destructive">{balance.vomit_amount} ml</span></>}
+                {(balance.drain_amount || 0) > 0 && <><span className="text-muted-foreground">Drain {balance.drain_type ? `(${balance.drain_type})` : ''}</span><span className="font-mono text-right text-destructive">{balance.drain_amount} ml</span></>}
+                {(balance.blood_loss || 0) > 0 && <><span className="text-muted-foreground">Perdarahan</span><span className="font-mono text-right text-destructive">{balance.blood_loss} ml</span></>}
+                {(balance.other_output || 0) > 0 && <><span className="text-muted-foreground">Lainnya (NGT)</span><span className="font-mono text-right text-destructive">{balance.other_output} ml</span></>}
+                {(balance.iwl || 0) > 0 && <><span className="text-muted-foreground">IWL</span><span className="font-mono text-right text-destructive">{balance.iwl} ml</span></>}
+              </div>
+            </div>
+          </div>
+          {balance.notes && (
+            <div className="px-12 pb-3 bg-muted/5 text-xs">
+              <span className="block text-[10px] text-muted-foreground uppercase mb-1">Catatan Keseluruhan</span>
+              <p className="bg-background p-2 border rounded-sm">{balance.notes}</p>
+            </div>
+          )}
+        </CollapsibleContent>
+      </div>
+    </Collapsible>
+  );
+}
+
 import { useState, useEffect, useCallback } from "react";
 import { useImmer } from "use-immer";
 import { Button } from "@/components/ui/button";
@@ -92,6 +201,9 @@ export function FluidBalanceForm({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [formData, setFormData] = useState<CreateFluidBalanceInput>(defaultFormData);
+  
+  // Pharmacy medicines ordered for this patient
+  const [orderedMedicines, setOrderedMedicines] = useState<{ id: string; name: string }[]>([]);
   // Intake/Output detail state for UI only (not persisted)
   // Use any[] for detail arrays to avoid TS union issues
   const [intakeDetails, updateIntakeDetails] = useImmer<any[]>([
@@ -120,13 +232,31 @@ export function FluidBalanceForm({
       return;
     }
     try {
-      const balanceRes = await fluidBalanceApi.getAll(visitId);
-      setBalances(balanceRes.data.data || []);
+      const [balanceRes, ordersRes] = await Promise.all([
+        fluidBalanceApi.getAll(visitId),
+        medicineOrdersApi.getAll({ source_visit_id: visitId })
+      ]);
+      const bData = balanceRes.data.data || [];
+      setBalances(bData);
+      emitMedicalRecordTabIndicator("fluid-balance", `${bData.length}`);
+      
+      const orders: MedicineOrder[] = ordersRes.data || [];
+      const meds: { id: string; name: string }[] = [];
+      orders.forEach(order => {
+        if (order.status !== "cancelled") {
+          order.items?.forEach(item => {
+            if (item.medicine?.name && !meds.some(m => m.name === item.medicine!.name)) {
+              meds.push({ id: item.id ? item.id.toString() : "", name: item.medicine.name });
+            }
+          });
+        }
+      });
+      setOrderedMedicines(meds);
     } catch (error) {
       toast({
         variant: "destructive",
         title: "Error!",
-        description: "Gagal memuat catatan balance cairan",
+        description: "Gagal memuat catatan balance cairan atau data obat",
       });
     } finally {
       setLoading(false);
@@ -142,10 +272,123 @@ export function FluidBalanceForm({
       ...defaultFormData,
       record_date: format(new Date(), "yyyy-MM-dd"),
     });
+    updateIntakeDetails(() => [
+      { type: "oral", label: "Oral", value: 0 },
+      { type: "ngt", label: "NGT", value: 0 },
+      { type: "makanan", jenis: "makanan", value: 0 },
+      { type: "parenteral", inputJenis: "", inputJumlah: 0, items: [] },
+      { type: "iv", inputJenis: "", inputJumlah: 0, items: [] },
+      { type: "darah", inputJenis: "", inputJumlah: 0, items: [] },
+    ]);
+    updateOutputDetails(() => [
+      { type: "muntah", label: "Oral (Muntah)", value: 0 },
+      { type: "ngt", label: "NGT", value: 0 },
+      { type: "drain", inputJenis: "", inputJumlah: 0, items: [] },
+      { type: "urine", warna: "", value: 0, catheter: false },
+      { type: "feses", tekstur: "", warna: "", value: 0 },
+      { type: "perdarahan", value: 0 },
+    ]);
+    setIwl({ hitung: false, value: 0 });
     setIsModalOpen(true);
   };
 
-  // handleOpenEdit removed (unused)
+  const handleOpenEdit = (balance: FluidBalance) => {
+    setEditingId(balance.id);
+    setFormData({
+      record_date: format(new Date(balance.record_date), "yyyy-MM-dd"),
+      shift_type: balance.shift_type || "pagi",
+      oral_drink: balance.oral_drink || 0,
+      oral_food: balance.oral_food || 0,
+      oral_medicine: balance.oral_medicine || 0,
+      iv_fluid: balance.iv_fluid || 0,
+      iv_medicine: balance.iv_medicine || 0,
+      blood_product: balance.blood_product || 0,
+      enteral_feed: balance.enteral_feed || 0,
+      other_intake: balance.other_intake || 0,
+      other_intake_note: balance.other_intake_note || "",
+      urine_amount: balance.urine_amount || 0,
+      urine_color: balance.urine_color || "",
+      urine_catheter: !!balance.urine_catheter,
+      feces_amount: balance.feces_amount || 0,
+      feces_freq: balance.feces_freq || 0,
+      feces_type: balance.feces_type || "",
+      vomit_amount: balance.vomit_amount || 0,
+      vomit_freq: balance.vomit_freq || 0,
+      drain_amount: balance.drain_amount || 0,
+      drain_type: balance.drain_type || "",
+      drain_color: balance.drain_color || "",
+      blood_loss: balance.blood_loss || 0,
+      blood_loss_note: balance.blood_loss_note || "",
+      iwl: balance.iwl || 0,
+      other_output: balance.other_output || 0,
+      other_output_note: balance.other_output_note || "",
+      notes: balance.notes || "",
+    });
+
+    const getParenteralEdit = () => {
+      if (!balance.other_intake_note) return "Parenteral";
+      const matched = balance.other_intake_note.split(", ").filter(s => s.startsWith("Parenteral - "));
+      if (matched.length > 0) return matched.join(", ");
+      if (balance.iv_fluid && !balance.other_intake_note.includes("Parenteral - ") && !balance.other_intake_note.includes("Intravena - ") && !balance.other_intake_note.includes("Darah - ")) {
+        return `Parenteral - ${balance.other_intake_note}`;
+      }
+      return "Parenteral";
+    };
+
+    const getIVEdit = () => {
+      if (!balance.other_intake_note) return "Obat Intravena";
+      const matched = balance.other_intake_note.split(", ").filter(s => s.startsWith("Intravena - "));
+      if (matched.length > 0) return matched.join(", ");
+      if (balance.iv_medicine && !balance.other_intake_note.includes("Parenteral - ") && !balance.other_intake_note.includes("Intravena - ") && !balance.other_intake_note.includes("Darah - ")) {
+        return `Intravena - ${balance.other_intake_note}`;
+      }
+      return "Obat Intravena";
+    };
+
+    const getBloodEdit = () => {
+      if (!balance.other_intake_note) return "Darah";
+      const matched = balance.other_intake_note.split(", ").filter(s => s.startsWith("Darah - "));
+      return matched.length > 0 ? matched.join(", ") : "Darah";
+    };
+
+    const parenteralItems = balance.iv_fluid ? [{ jenis: getParenteralEdit(), jumlah: balance.iv_fluid }] : [];
+    const ivItems = balance.iv_medicine ? [{ jenis: getIVEdit(), jumlah: balance.iv_medicine }] : [];
+    const darahItems = balance.blood_product ? [{ jenis: getBloodEdit(), jumlah: balance.blood_product }] : [];
+
+    updateIntakeDetails(() => [
+      { type: "oral", label: "Oral", value: balance.oral_drink || 0 },
+      { type: "ngt", label: "NGT", value: balance.enteral_feed || 0 },
+      { type: "makanan", jenis: (balance.oral_food || 0) > 0 ? "makanan" : "minuman", value: balance.oral_food || 0 },
+      { type: "parenteral", inputJenis: "", inputJumlah: 0, items: parenteralItems },
+      { type: "iv", inputJenis: "", inputJumlah: 0, items: ivItems },
+      { type: "darah", inputJenis: "", inputJumlah: 0, items: darahItems },
+    ]);
+
+    const drainItems = balance.drain_amount ? [{ jenis: balance.drain_type || "Drain", jumlah: balance.drain_amount }] : [];
+    
+    let fWarna = "";
+    let fTekstur = balance.feces_type || "";
+    const warnaOptions = ["kuning", "coklat", "hitam", "kemerahan", "pucat", "hijau"];
+    for (const w of warnaOptions) {
+      if (fTekstur.toLowerCase().startsWith(w)) {
+        fWarna = w;
+        fTekstur = fTekstur.substring(w.length).trim();
+        break;
+      }
+    }
+
+    updateOutputDetails(() => [
+      { type: "muntah", label: "Oral (Muntah)", value: balance.vomit_amount || 0 },
+      { type: "ngt", label: "NGT", value: balance.other_output || 0 },
+      { type: "drain", inputJenis: "", inputJumlah: 0, items: drainItems },
+      { type: "urine", warna: balance.urine_color || "", value: balance.urine_amount || 0, catheter: !!balance.urine_catheter },
+      { type: "feses", tekstur: fTekstur, warna: fWarna, value: balance.feces_amount || 0 },
+      { type: "perdarahan", value: balance.blood_loss || 0 },
+    ]);
+    
+    setIwl({ hitung: (balance.iwl || 0) > 0, value: balance.iwl || 0 });
+    setIsModalOpen(true);
+  };
 
   // Handle form change
   const handleChange = (field: keyof CreateFluidBalanceInput, value: any) => {
@@ -154,15 +397,61 @@ export function FluidBalanceForm({
 
   // Calculate totals for preview
   const calcIntake = () => {
-    return (formData.oral_drink || 0) + (formData.oral_food || 0) + (formData.oral_medicine || 0) +
-           (formData.iv_fluid || 0) + (formData.iv_medicine || 0) + (formData.blood_product || 0) +
-           (formData.enteral_feed || 0) + (formData.other_intake || 0);
+    let total = 0;
+    total += (intakeDetails[0]?.value || 0);
+    total += (intakeDetails[1]?.value || 0);
+    total += (intakeDetails[2]?.value || 0);
+    for (let i = 3; i <= 5; i++) {
+      if (intakeDetails[i]?.items) {
+        intakeDetails[i].items.forEach((item: any) => { total += (item.jumlah || 0); });
+      }
+    }
+    return total;
   };
 
   const calcOutput = () => {
-    return (formData.urine_amount || 0) + (formData.feces_amount || 0) + (formData.vomit_amount || 0) +
-           (formData.drain_amount || 0) + (formData.blood_loss || 0) + (formData.iwl || 0) +
-           (formData.other_output || 0);
+    let total = 0;
+    total += (outputDetails[0]?.value || 0);
+    total += (outputDetails[1]?.value || 0);
+    if (outputDetails[2]?.items) {
+      outputDetails[2].items.forEach((item: any) => { total += (item.jumlah || 0); });
+    }
+    total += (outputDetails[3]?.value || 0);
+    total += (outputDetails[4]?.value || 0);
+    total += (outputDetails[5]?.value || 0);
+    if (iwl.hitung) {
+      total += (iwl.value || 0);
+    }
+    return total;
+  };
+
+  const syncFormData = (): CreateFluidBalanceInput => {
+    const newData = { ...formData };
+    newData.oral_drink = (intakeDetails[0]?.value || 0) + (intakeDetails[2]?.jenis === "minuman" ? (intakeDetails[2]?.value || 0) : 0);
+    newData.oral_food = (intakeDetails[2]?.jenis === "makanan" ? (intakeDetails[2]?.value || 0) : 0);
+    newData.enteral_feed = intakeDetails[1]?.value || 0;
+    newData.iv_fluid = intakeDetails[3]?.items?.reduce((sum: number, i: any) => sum + (i.jumlah || 0), 0) || 0;
+    newData.iv_medicine = intakeDetails[4]?.items?.reduce((sum: number, i: any) => sum + (i.jumlah || 0), 0) || 0;
+    newData.blood_product = intakeDetails[5]?.items?.reduce((sum: number, i: any) => sum + (i.jumlah || 0), 0) || 0;
+    newData.other_intake_note = [
+      ...(intakeDetails[3]?.items?.map((i: any) => i.jenis) || []),
+      ...(intakeDetails[4]?.items?.map((i: any) => i.jenis) || []),
+      ...(intakeDetails[5]?.items?.map((i: any) => i.jenis) || [])
+    ].join(", ");
+
+    newData.vomit_amount = outputDetails[0]?.value || 0;
+    newData.other_output = outputDetails[1]?.value || 0;
+    newData.other_output_note = outputDetails[1]?.value > 0 ? "Output NGT" : "";
+    newData.drain_amount = outputDetails[2]?.items?.reduce((sum: number, i: any) => sum + (i.jumlah || 0), 0) || 0;
+    newData.drain_type = outputDetails[2]?.items?.map((i: any) => i.jenis).join(", ") || "";
+    newData.urine_amount = outputDetails[3]?.value || 0;
+    newData.urine_color = outputDetails[3]?.warna || "";
+    newData.urine_catheter = !!outputDetails[3]?.catheter;
+    newData.feces_amount = outputDetails[4]?.value || 0;
+    newData.feces_type = `${outputDetails[4]?.warna || ""} ${outputDetails[4]?.tekstur || ""}`.trim();
+    newData.blood_loss = outputDetails[5]?.value || 0;
+    newData.iwl = iwl.hitung ? (iwl.value || 0) : 0;
+    return newData;
   };
 
 
@@ -180,21 +469,23 @@ export function FluidBalanceForm({
     }
 
     setSaving(true);
+    const dataToSave = syncFormData();
     try {
       if (editingId) {
-        await fluidBalanceApi.update(visitId, editingId, formData);
+        await fluidBalanceApi.update(visitId, editingId, dataToSave);
         toast({
           title: "Berhasil",
           description: "Balance cairan berhasil diperbarui",
         });
       } else {
-        await fluidBalanceApi.create(visitId, formData);
+        await fluidBalanceApi.create(visitId, dataToSave);
         toast({
           title: "Berhasil",
           description: "Balance cairan berhasil ditambahkan",
         });
       }
       setIsModalOpen(false);
+      await loadData();
       // Trigger refresh print options dan final visit
       window.dispatchEvent(new CustomEvent("refresh-print-options"));
       window.dispatchEvent(new CustomEvent("refresh-final-visit"));
@@ -253,7 +544,16 @@ export function FluidBalanceForm({
                   <div className="col-span-2">Balance</div>
                   <div className="col-span-1">Aksi</div>
                 </div>
-                {/* Table rows removed for undefined FluidBalanceCollapsibleRow */}
+                <div className="flex flex-col">
+                  {balances.map((balance) => (
+                    <FluidBalanceCollapsibleRow
+                      key={balance.id}
+                      balance={balance}
+                      onEdit={handleOpenEdit}
+                      readOnly={readOnly}
+                    />
+                  ))}
+                </div>
               </div>
             ) : (
               <div className="py-12 text-center text-muted-foreground">
@@ -270,270 +570,312 @@ export function FluidBalanceForm({
         </div>
       </div>
 
-      {/* Create/Edit Modal - Fullscreen */}
+      {/* Create/Edit Modal - Fullscreen Monolithic, No Scroll */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="max-w-full w-full h-screen max-h-screen flex flex-col p-0 gap-0 rounded-none">
-          <DialogHeader className="px-6 py-4 border-b bg-muted/50 shrink-0">
-            <DialogTitle className="flex items-center gap-2">
-              <Droplets className="h-5 w-5" />
+        <DialogContent className="!max-w-[100vw] !w-[100vw] !h-[100dvh] !max-h-[100dvh] !rounded-none !border-none !p-0 !m-0 !fixed !top-0 !left-0 !translate-x-0 !translate-y-0 bg-background overflow-hidden flex flex-col [&>button]:hidden">
+          <DialogHeader className="px-4 py-3 border-b bg-muted/30 shrink-0 flex flex-row items-center justify-between">
+            <DialogTitle className="flex items-center gap-2 text-sm uppercase tracking-wider text-muted-foreground">
+              <Droplets className="h-4 w-4" />
               {editingId ? "Edit Balance Cairan" : "Tambah Balance Cairan"}
             </DialogTitle>
+            <Button variant="ghost" size="icon" onClick={() => setIsModalOpen(false)} className="h-6 w-6 rounded-none text-muted-foreground hover:bg-muted/50">
+              <X className="h-4 w-4" />
+            </Button>
           </DialogHeader>
 
-          <ScrollArea className="flex-1 px-6 py-4">
-            <div className="grid gap-4 pb-4">
-              {/* Date & Shift */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Tanggal</Label>
-                  <Input
-                    type="date"
-                    value={formData.record_date}
-                    onChange={(e) => handleChange("record_date", e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Shift</Label>
-                  <Select
-                    value={formData.shift_type}
-                    onValueChange={(v) => handleChange("shift_type", v)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Pilih shift" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {SHIFT_TYPES.map((s) => (
-                        <SelectItem key={s.value} value={s.value}>
-                          {s.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+          <div className="flex-1 flex flex-col p-4 gap-4 overflow-y-auto">
+            {/* Top Row: Date & Shift */}
+            <div className="flex items-center gap-4 bg-muted/10 border border-border/70 p-2 shrink-0">
+              <div className="flex items-center gap-2">
+                <Label className="text-[10px] uppercase text-muted-foreground font-bold w-16">Tanggal</Label>
+                <Input
+                  type="date"
+                  value={formData.record_date}
+                  onChange={(e) => handleChange("record_date", e.target.value)}
+                  className="rounded-none border-border/70 h-8 text-xs w-40"
+                />
               </div>
+              <div className="flex items-center gap-2">
+                <Label className="text-[10px] uppercase text-muted-foreground font-bold w-12">Shift</Label>
+                <Select
+                  value={formData.shift_type}
+                  onValueChange={(v) => handleChange("shift_type", v)}
+                >
+                  <SelectTrigger className="rounded-none border-border/70 h-8 text-xs w-48">
+                    <SelectValue placeholder="Pilih shift" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-none">
+                    {SHIFT_TYPES.map((s) => (
+                      <SelectItem key={s.value} value={s.value} className="text-xs">
+                        {s.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
 
-              {/* Intake Section - sesuai gambar */}
-              <div className="border rounded-lg p-4 bg-muted/50">
-                <Label className="font-semibold flex items-center gap-2 mb-3">
-                  INTAKE (Masukan)
-                </Label>
-                <div className="grid grid-cols-2 gap-4 mb-2">
-                  <div>
-                    <Label className="text-xs">Oral</Label>
-                    <Input type="number" value={intakeDetails[0].value} onChange={e=>updateIntakeDetails((d:any[])=>{(d[0] as any).value=+e.target.value||0})} />
-                  </div>
-                  <div>
-                    <Label className="text-xs">NGT</Label>
-                    <Input type="number" value={intakeDetails[1].value} onChange={e=>updateIntakeDetails((d:any[])=>{(d[1] as any).value=+e.target.value||0})} />
-                  </div>
+            {/* Middle Section: Intake & Output 2 Columns */}
+            <div className="flex-1 grid grid-cols-2 gap-4 min-h-0">
+              {/* Intake Column */}
+              <div className="flex flex-col border border-border/70 bg-background overflow-hidden">
+                <div className="bg-muted/30 px-3 py-1.5 border-b border-border/70 text-[10px] font-bold uppercase tracking-widest text-muted-foreground shrink-0 flex justify-between">
+                  <span>INTAKE (Masukan)</span>
+                  <span className="text-primary">Total: {calcIntake()} ml</span>
                 </div>
-                <div className="grid grid-cols-2 gap-4 mb-2">
-                  <div>
-                    <Label className="text-xs">Jenis Konsumsi</Label>
-                    <Select value={(intakeDetails[2] as any).jenis||""} onValueChange={(v: string)=>updateIntakeDetails((d:any[])=>{(d[2] as any).jenis=v})}>
-                      <SelectTrigger><SelectValue placeholder="Makanan" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="makanan">Makanan</SelectItem>
-                        <SelectItem value="suplemen">Suplemen</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label className="text-xs">Jumlah</Label>
-                    <Input type="number" value={(intakeDetails[2] as any).value||0} onChange={e=>updateIntakeDetails((d:any[])=>{(d[2] as any).value=+e.target.value||0})} />
-                  </div>
-                </div>
-                {/* Parenteral, IV, Darah: dynamic rows */}
-                {["parenteral","iv","darah"].map((type,idx)=>(
-                  <div key={type} className="grid grid-cols-2 gap-4 mb-2 items-end">
-                    <div>
-                      <Label className="text-xs">{type==="parenteral"?"Parenteral":type==="iv"?"Obat Intravena":"Transfusi Produk Darah"}</Label>
-                      <Input placeholder={`Jenis ${type}`} value={(intakeDetails[3+idx] as any).inputJenis||""} onChange={e=>updateIntakeDetails((d:any[])=>{(d[3+idx] as any).inputJenis=e.target.value})} />
+                <div className="flex-1 p-3 flex flex-col gap-3 min-h-0">
+                  <div className="grid grid-cols-2 gap-3 shrink-0">
+                    <div className="space-y-1">
+                      <Label className="text-[10px] uppercase text-muted-foreground">Oral</Label>
+                      <Input type="number" value={intakeDetails[0].value} onChange={e=>updateIntakeDetails((d:any[])=>{(d[0] as any).value=+e.target.value||0})} className="rounded-none border-border/70 h-7 text-xs" />
                     </div>
-                    <div className="flex gap-2">
-                      <Input type="number" placeholder="Jumlah" value={(intakeDetails[3+idx] as any).inputJumlah||""} onChange={e=>updateIntakeDetails((d:any[])=>{(d[3+idx] as any).inputJumlah=+e.target.value||0})} />
-                      <Button type="button" size="sm" onClick={()=>{
-                        updateIntakeDetails((d:any[])=>{
-                          const det = d[3+idx] as any;
-                          if(!det.items) det.items=[];
-                          if(det.inputJenis&&det.inputJumlah>0) det.items.push({jenis:det.inputJenis,jumlah:det.inputJumlah});
-                          det.inputJenis="";det.inputJumlah=0;
-                        });
-                      }}>+
-                      </Button>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] uppercase text-muted-foreground">NGT</Label>
+                      <Input type="number" value={intakeDetails[1].value} onChange={e=>updateIntakeDetails((d:any[])=>{(d[1] as any).value=+e.target.value||0})} className="rounded-none border-border/70 h-7 text-xs" />
                     </div>
-                    <div className="col-span-2">
-                      {((intakeDetails[3+idx] as any).items||[]).map((item: {jenis:string;jumlah:number},i:number)=>(
-                        <div key={i} className="flex gap-2 text-xs items-center mb-1">
-                          <span>{item.jenis}</span>
-                          <span>{item.jumlah} ml</span>
-                          <Button type="button" size="sm" variant="ghost" onClick={()=>updateIntakeDetails((d:any[])=>{((d[3+idx] as any).items as any[]).splice(i,1)})}>Hapus</Button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 shrink-0">
+                    <div className="space-y-1">
+                      <Label className="text-[10px] uppercase text-muted-foreground">Jenis Konsumsi</Label>
+                      <Select value={(intakeDetails[2] as any).jenis||""} onValueChange={(v: string)=>updateIntakeDetails((d:any[])=>{(d[2] as any).jenis=v})}>
+                        <SelectTrigger className="rounded-none border-border/70 h-7 text-xs"><SelectValue placeholder="Makanan/Minuman" /></SelectTrigger>
+                        <SelectContent className="rounded-none">
+                          <SelectItem value="makanan" className="text-xs">Makanan</SelectItem>
+                          <SelectItem value="minuman" className="text-xs">Minuman</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] uppercase text-muted-foreground">Jumlah</Label>
+                      <Input type="number" value={(intakeDetails[2] as any).value||0} onChange={e=>updateIntakeDetails((d:any[])=>{(d[2] as any).value=+e.target.value||0})} className="rounded-none border-border/70 h-7 text-xs" />
+                    </div>
+                  </div>
+                  
+                  {/* Dynamic Rows wrapped in flex-1 overflow-auto just in case there are many items, but keep it tight */}
+                  <div className="flex-1 flex flex-col gap-2 overflow-y-auto pr-1">
+                    {["parenteral","iv","darah"].map((type,idx)=>(
+                      <div key={type} className="bg-muted/5 border border-border/40 p-2 flex flex-col gap-2">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-[10px] font-bold text-muted-foreground uppercase">{type==="parenteral"?"Parenteral":type==="iv"?"Obat Intravena":"Transfusi Darah"}</Label>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-                <div className="mt-2 text-right text-sm font-semibold text-green-700">
-                  Total Intake: {/* TODO: sum all intakeDetails */}
-                </div>
-              </div>
-
-              {/* Output Section - sesuai gambar */}
-              <div className="border rounded-lg p-4 bg-muted/50">
-                <Label className="font-semibold flex items-center gap-2 mb-3">
-                  OUTPUT (Keluaran)
-                </Label>
-                <div className="grid grid-cols-2 gap-4 mb-2">
-                  <div>
-                    <Label className="text-xs">Oral (Muntah)</Label>
-                    <Input type="number" value={outputDetails[0].value} onChange={e=>updateOutputDetails((d:any[])=>{(d[0] as any).value=+e.target.value||0})} />
-                  </div>
-                  <div>
-                    <Label className="text-xs">NGT</Label>
-                    <Input type="number" value={outputDetails[1].value} onChange={e=>updateOutputDetails((d:any[])=>{(d[1] as any).value=+e.target.value||0})} />
-                  </div>
-                </div>
-                {/* Drain dynamic */}
-                <div className="grid grid-cols-2 gap-4 mb-2 items-end">
-                  <div>
-                    <Label className="text-xs">Input Jenis Drain</Label>
-                    <Input value={(outputDetails[2] as any).inputJenis||""} onChange={e=>updateOutputDetails((d:any[])=>{(d[2] as any).inputJenis=e.target.value})} />
-                  </div>
-                  <div className="flex gap-2">
-                    <Input type="number" placeholder="Jumlah" value={(outputDetails[2] as any).inputJumlah||""} onChange={e=>updateOutputDetails((d:any[])=>{(d[2] as any).inputJumlah=+e.target.value||0})} />
-                    <Button type="button" size="sm" onClick={()=>{
-                      updateOutputDetails((d:any[])=>{
-                        const det = d[2] as any;
-                        if(!det.items) det.items=[];
-                        if(det.inputJenis&&det.inputJumlah>0) det.items.push({jenis:det.inputJenis,jumlah:det.inputJumlah});
-                        det.inputJenis="";det.inputJumlah=0;
-                      });
-                    }}>+
-                    </Button>
-                  </div>
-                  <div className="col-span-2">
-                    {((outputDetails[2] as any).items||[]).map((item: {jenis:string;jumlah:number},i:number)=>(
-                      <div key={i} className="flex gap-2 text-xs items-center mb-1">
-                        <span>{item.jenis}</span>
-                        <span>{item.jumlah} ml</span>
-                          <Button type="button" size="sm" variant="ghost" onClick={()=>updateOutputDetails((d:any[])=>{((d[2] as any).items as any[]).splice(i,1)})}>Hapus</Button>
+                        <div className="flex gap-2">
+                          {(type === "parenteral" || type === "iv") ? (
+                            <Select value={(intakeDetails[3+idx] as any).inputJenis||""} onValueChange={(v)=>updateIntakeDetails((d:any[])=>{(d[3+idx] as any).inputJenis=v})}>
+                              <SelectTrigger className="flex-1 rounded-none border-border/70 h-7 text-xs">
+                                <SelectValue placeholder={`Pilih dari farmasi...`} />
+                              </SelectTrigger>
+                              <SelectContent className="rounded-none">
+                                {orderedMedicines.length === 0 && <SelectItem value="__empty" disabled className="text-xs">Tidak ada obat farmasi</SelectItem>}
+                                {orderedMedicines.map(m => (
+                                  <SelectItem key={m.id} value={m.name} className="text-xs">{m.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <Select value={(intakeDetails[3+idx] as any).inputJenis||""} onValueChange={(v)=>updateIntakeDetails((d:any[])=>{(d[3+idx] as any).inputJenis=v})}>
+                              <SelectTrigger className="flex-1 rounded-none border-border/70 h-7 text-xs">
+                                <SelectValue placeholder={`Pilih produk darah...`} />
+                              </SelectTrigger>
+                              <SelectContent className="rounded-none">
+                                <SelectItem value="Package Red Cell" className="text-xs">Package Red Cell</SelectItem>
+                                <SelectItem value="Whole Blood" className="text-xs">Whole Blood</SelectItem>
+                                <SelectItem value="Fresh Frozen Plasma" className="text-xs">Fresh Frozen Plasma</SelectItem>
+                                <SelectItem value="Trombosit Concentrate" className="text-xs">Trombosit Concentrate</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          )}
+                          <Input type="number" placeholder="ml" value={(intakeDetails[3+idx] as any).inputJumlah||""} onChange={e=>updateIntakeDetails((d:any[])=>{(d[3+idx] as any).inputJumlah=+e.target.value||0})} className="w-16 rounded-none border-border/70 h-7 text-xs" />
+                          <Button type="button" size="sm" className="rounded-none h-7 w-7 p-0" onClick={()=>{
+                            updateIntakeDetails((d:any[])=>{
+                              const det = d[3+idx] as any;
+                              if(!det.items) det.items=[];
+                              const prefix = type === "parenteral" ? "Parenteral - " : type === "iv" ? "Intravena - " : "Darah - ";
+                              if(det.inputJenis&&det.inputJumlah>0) det.items.push({jenis: `${prefix}${det.inputJenis}`, jumlah:det.inputJumlah});
+                              det.inputJenis="";det.inputJumlah=0;
+                            });
+                          }}>
+                            <Plus className="h-3 w-3" />
+                          </Button>
+                        </div>
+                        {((intakeDetails[3+idx] as any).items||[]).map((item: {jenis:string;jumlah:number},i:number)=>(
+                          <div key={i} className="flex gap-2 text-[10px] items-center bg-background border border-border/30 px-2 py-1">
+                            <span className="flex-1 truncate">{item.jenis}</span>
+                            <span className="font-mono w-12 text-right">{item.jumlah} ml</span>
+                            <Button type="button" variant="ghost" className="h-4 w-4 p-0 rounded-none text-destructive" onClick={()=>updateIntakeDetails((d:any[])=>{((d[3+idx] as any).items as any[]).splice(i,1)})}>✕</Button>
+                          </div>
+                        ))}
                       </div>
                     ))}
                   </div>
                 </div>
-                {/* Urine */}
-                <div className="grid grid-cols-2 gap-4 mb-2 items-end">
-                  <div>
-                    <Label className="text-xs">Warna Urine</Label>
-                    <Select value={(outputDetails[3] as any).warna||""} onValueChange={(v: string)=>updateOutputDetails((d:any[])=>{(d[3] as any).warna=v})}>
-                      <SelectTrigger><SelectValue placeholder="[ Warna ]" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="jernih">Jernih</SelectItem>
-                        <SelectItem value="kuning">Kuning</SelectItem>
-                        <SelectItem value="keruh">Keruh</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label className="text-xs">Jumlah Urine</Label>
-                    <Input type="number" value={(outputDetails[3] as any).value||0} onChange={e=>updateOutputDetails((d:any[])=>{(d[3] as any).value=+e.target.value||0})} />
-                  </div>
-                  <div className="col-span-2 flex items-center gap-2 mt-1">
-                    <Checkbox checked={(outputDetails[3] as any).catheter} onCheckedChange={(v: boolean)=>updateOutputDetails((d:any[])=>{(d[3] as any).catheter=!!v})} />
-                    <span className="text-xs">Spooling Catheter</span>
-                  </div>
-                </div>
-                {/* Feses */}
-                <div className="grid grid-cols-3 gap-4 mb-2 items-end">
-                  <div>
-                    <Label className="text-xs">Tekstur Feses</Label>
-                    <Select value={(outputDetails[4] as any).tekstur||""} onValueChange={(v: string)=>updateOutputDetails((d:any[])=>{(d[4] as any).tekstur=v})}>
-                      <SelectTrigger><SelectValue placeholder="[ Tekstur ]" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="padat">Padat</SelectItem>
-                        <SelectItem value="lunak">Lunak</SelectItem>
-                        <SelectItem value="cair">Cair</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label className="text-xs">Warna Feses</Label>
-                    <Select value={(outputDetails[4] as any).warna||""} onValueChange={(v: string)=>updateOutputDetails((d:any[])=>{(d[4] as any).warna=v})}>
-                      <SelectTrigger><SelectValue placeholder="[ Warna ]" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="kuning">Kuning</SelectItem>
-                        <SelectItem value="coklat">Coklat</SelectItem>
-                        <SelectItem value="hitam">Hitam</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label className="text-xs">Jumlah Feses</Label>
-                    <Input type="number" value={(outputDetails[4] as any).value||0} onChange={e=>updateOutputDetails((d:any[])=>{(d[4] as any).value=+e.target.value||0})} />
-                  </div>
-                </div>
-                {/* Perdarahan */}
-                <div className="grid grid-cols-1 gap-4 mb-2">
-                  <div>
-                    <Label className="text-xs">Perdarahan</Label>
-                    <Input type="number" value={(outputDetails[5] as any).value||0} onChange={e=>updateOutputDetails((d:any[])=>{(d[5] as any).value=+e.target.value||0})} />
-                  </div>
-                </div>
-                {/* IWL */}
-                <div className="flex items-center gap-6 border rounded-lg bg-gray-100 p-3 mt-2">
-                  <div className="flex-1">
-                    <div className="font-semibold text-center">Hitung IWL<br /><span className="text-xs">(Insensible Water Loss)</span></div>
-                    <div className="flex gap-6 justify-center mt-2">
-                      <label className="flex items-center gap-1"><input type="radio" checked={iwl.hitung} onChange={()=>setIwl({hitung:true,value:iwl.value})}/> YA</label>
-                      <label className="flex items-center gap-1"><input type="radio" checked={!iwl.hitung} onChange={()=>setIwl({hitung:false,value:0})}/> TIDAK</label>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="uppercase text-xs tracking-widest">VOLUME</div>
-                    <div className="text-3xl font-bold">{iwl.value}</div>
-                    <span className="text-xs">ml</span>
-                  </div>
-                </div>
-                <div className="mt-2 text-right text-sm font-semibold text-red-700">
-                  Total Output: {/* TODO: sum all outputDetails + iwl */}
-                </div>
               </div>
 
-              {/* Balance Preview */}
-              <div className={`border rounded-lg p-4 text-center ${
-                calcIntake() - calcOutput() > 0 ? "bg-green-100" : 
-                calcIntake() - calcOutput() < 0 ? "bg-red-100" : "bg-gray-100"
+              {/* Output Column */}
+              <div className="flex flex-col border border-border/70 bg-background overflow-hidden">
+                <div className="bg-muted/30 px-3 py-1.5 border-b border-border/70 text-[10px] font-bold uppercase tracking-widest text-muted-foreground shrink-0 flex justify-between">
+                  <span>OUTPUT (Keluaran)</span>
+                  <span className="text-destructive">Total: {calcOutput()} ml</span>
+                </div>
+                <div className="flex-1 p-3 flex flex-col gap-3 min-h-0 overflow-y-auto">
+                  <div className="grid grid-cols-2 gap-3 shrink-0">
+                    <div className="space-y-1">
+                      <Label className="text-[10px] uppercase text-muted-foreground">Oral (Muntah)</Label>
+                      <Input type="number" value={outputDetails[0].value} onChange={e=>updateOutputDetails((d:any[])=>{(d[0] as any).value=+e.target.value||0})} className="rounded-none border-border/70 h-7 text-xs" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] uppercase text-muted-foreground">NGT</Label>
+                      <Input type="number" value={outputDetails[1].value} onChange={e=>updateOutputDetails((d:any[])=>{(d[1] as any).value=+e.target.value||0})} className="rounded-none border-border/70 h-7 text-xs" />
+                    </div>
+                  </div>
+
+                  {/* Urine */}
+                  <div className="grid grid-cols-3 gap-3 shrink-0 items-end">
+                    <div className="space-y-1">
+                      <Label className="text-[10px] uppercase text-muted-foreground">Warna Urine</Label>
+                      <Select value={(outputDetails[3] as any).warna||""} onValueChange={(v: string)=>updateOutputDetails((d:any[])=>{(d[3] as any).warna=v})}>
+                        <SelectTrigger className="rounded-none border-border/70 h-7 text-xs px-2"><SelectValue placeholder="Warna" /></SelectTrigger>
+                        <SelectContent className="rounded-none">
+                          <SelectItem value="jernih" className="text-xs">Jernih (Clear)</SelectItem>
+                          <SelectItem value="kuning_muda" className="text-xs">Kuning Muda</SelectItem>
+                          <SelectItem value="kuning_pekat" className="text-xs">Kuning Pekat</SelectItem>
+                          <SelectItem value="kecoklatan" className="text-xs">Kuning Kecoklatan</SelectItem>
+                          <SelectItem value="kemerahan" className="text-xs">Kemerahan (Hematuria)</SelectItem>
+                          <SelectItem value="coklat" className="text-xs">Coklat Tua</SelectItem>
+                          <SelectItem value="keruh" className="text-xs">Keruh (Cloudy)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] uppercase text-muted-foreground">Jml Urine (ml)</Label>
+                      <Input type="number" value={(outputDetails[3] as any).value||0} onChange={e=>updateOutputDetails((d:any[])=>{(d[3] as any).value=+e.target.value||0})} className="rounded-none border-border/70 h-7 text-xs" />
+                    </div>
+                    <div className="flex items-center gap-2 h-7">
+                      <Checkbox checked={(outputDetails[3] as any).catheter} onCheckedChange={(v: boolean)=>updateOutputDetails((d:any[])=>{(d[3] as any).catheter=!!v})} className="rounded-none border-border/70" />
+                      <span className="text-[10px] font-medium leading-none">Catheter</span>
+                    </div>
+                  </div>
+
+                  {/* Feses & Perdarahan */}
+                  <div className="grid grid-cols-4 gap-3 shrink-0">
+                    <div className="space-y-1">
+                      <Label className="text-[10px] uppercase text-muted-foreground">Tekstur Feses</Label>
+                      <Select value={(outputDetails[4] as any).tekstur||""} onValueChange={(v: string)=>updateOutputDetails((d:any[])=>{(d[4] as any).tekstur=v})}>
+                        <SelectTrigger className="rounded-none border-border/70 h-7 text-xs px-2"><SelectValue placeholder="Tekstur" /></SelectTrigger>
+                        <SelectContent className="rounded-none">
+                          <SelectItem value="padat" className="text-xs">Padat</SelectItem>
+                          <SelectItem value="lunak" className="text-xs">Lunak</SelectItem>
+                          <SelectItem value="cair" className="text-xs">Cair</SelectItem>
+                          <SelectItem value="keras" className="text-xs">Keras</SelectItem>
+                          <SelectItem value="berlendir" className="text-xs">Berlendir</SelectItem>
+                          <SelectItem value="berdarah" className="text-xs">Berdarah</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] uppercase text-muted-foreground">Warna Feses</Label>
+                      <Select value={(outputDetails[4] as any).warna||""} onValueChange={(v: string)=>updateOutputDetails((d:any[])=>{(d[4] as any).warna=v})}>
+                        <SelectTrigger className="rounded-none border-border/70 h-7 text-xs px-2"><SelectValue placeholder="Warna" /></SelectTrigger>
+                        <SelectContent className="rounded-none">
+                          <SelectItem value="kuning" className="text-xs">Kuning</SelectItem>
+                          <SelectItem value="coklat" className="text-xs">Coklat</SelectItem>
+                          <SelectItem value="hitam" className="text-xs">Hitam (Melena)</SelectItem>
+                          <SelectItem value="kemerahan" className="text-xs">Kemerahan</SelectItem>
+                          <SelectItem value="pucat" className="text-xs">Pucat/Dempul</SelectItem>
+                          <SelectItem value="hijau" className="text-xs">Hijau</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] uppercase text-muted-foreground truncate">Jml Feses</Label>
+                      <Input type="number" value={(outputDetails[4] as any).value||0} onChange={e=>updateOutputDetails((d:any[])=>{(d[4] as any).value=+e.target.value||0})} className="rounded-none border-border/70 h-7 text-xs px-2" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] uppercase text-muted-foreground truncate">Perdarahan</Label>
+                      <Input type="number" value={(outputDetails[5] as any).value||0} onChange={e=>updateOutputDetails((d:any[])=>{(d[5] as any).value=+e.target.value||0})} className="rounded-none border-border/70 h-7 text-xs px-2" />
+                    </div>
+                  </div>
+
+                  {/* Drain (Dynamic) */}
+                  <div className="bg-muted/5 border border-border/40 p-2 flex flex-col gap-2 shrink-0">
+                    <Label className="text-[10px] font-bold text-muted-foreground uppercase">Jenis Drain</Label>
+                    <div className="flex gap-2">
+                      <Input placeholder="Jenis drain" value={(outputDetails[2] as any).inputJenis||""} onChange={e=>updateOutputDetails((d:any[])=>{(d[2] as any).inputJenis=e.target.value})} className="flex-1 rounded-none border-border/70 h-7 text-xs" />
+                      <Input type="number" placeholder="ml" value={(outputDetails[2] as any).inputJumlah||""} onChange={e=>updateOutputDetails((d:any[])=>{(d[2] as any).inputJumlah=+e.target.value||0})} className="w-16 rounded-none border-border/70 h-7 text-xs" />
+                      <Button type="button" size="sm" className="rounded-none h-7 w-7 p-0" onClick={()=>{
+                        updateOutputDetails((d:any[])=>{
+                          const det = d[2] as any;
+                          if(!det.items) det.items=[];
+                          if(det.inputJenis&&det.inputJumlah>0) det.items.push({jenis:det.inputJenis,jumlah:det.inputJumlah});
+                          det.inputJenis="";det.inputJumlah=0;
+                        });
+                      }}>
+                        <Plus className="h-3 w-3" />
+                      </Button>
+                    </div>
+                    {((outputDetails[2] as any).items||[]).map((item: {jenis:string;jumlah:number},i:number)=>(
+                      <div key={i} className="flex gap-2 text-[10px] items-center bg-background border border-border/30 px-2 py-1">
+                        <span className="flex-1 truncate">{item.jenis}</span>
+                        <span className="font-mono w-12 text-right">{item.jumlah} ml</span>
+                        <Button type="button" variant="ghost" className="h-4 w-4 p-0 rounded-none text-destructive" onClick={()=>updateOutputDetails((d:any[])=>{((d[2] as any).items as any[]).splice(i,1)})}>✕</Button>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* IWL */}
+                  <div className="flex items-center gap-4 bg-muted/10 border border-border/40 p-2 shrink-0 mt-auto">
+                    <div className="flex-1 space-y-1">
+                      <Label className="text-[10px] font-bold uppercase text-muted-foreground">Hitung IWL (Insensible Water Loss)</Label>
+                      <div className="flex items-center gap-4 text-xs">
+                        <label className="flex items-center gap-1 cursor-pointer"><input type="radio" checked={iwl.hitung} onChange={()=>setIwl({hitung:true,value:iwl.value})} className="accent-primary"/> Ya</label>
+                        <label className="flex items-center gap-1 cursor-pointer"><input type="radio" checked={!iwl.hitung} onChange={()=>setIwl({hitung:false,value:0})} className="accent-primary"/> Tidak</label>
+                      </div>
+                    </div>
+                    <div className="flex items-baseline gap-1 text-right">
+                      <span className="text-xl font-mono font-semibold">{iwl.value}</span>
+                      <span className="text-[10px] text-muted-foreground uppercase">ml</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom Row: Balance Preview & Notes */}
+            <div className="grid grid-cols-[1fr_2fr] gap-4 shrink-0 h-24">
+              <div className={`border border-border/70 flex flex-col items-center justify-center ${
+                calcIntake() - calcOutput() > 0 ? "bg-emerald-500/10" : 
+                calcIntake() - calcOutput() < 0 ? "bg-destructive/10" : "bg-muted/10"
               }`}>
-                <p className="text-sm font-medium">BALANCE</p>
-                <p className={`text-2xl font-bold ${
-                  calcIntake() - calcOutput() > 0 ? "text-green-700" : 
-                  calcIntake() - calcOutput() < 0 ? "text-red-700" : "text-gray-700"
+                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">BALANCE CAIRAN</p>
+                <p className={`text-3xl font-mono leading-none ${
+                  calcIntake() - calcOutput() > 0 ? "text-emerald-600" : 
+                  calcIntake() - calcOutput() < 0 ? "text-destructive" : "text-foreground"
                 }`}>
-                  {calcIntake() - calcOutput() > 0 ? "+" : ""}{calcIntake() - calcOutput()} ml
+                  {calcIntake() - calcOutput() > 0 ? "+" : ""}{calcIntake() - calcOutput()} <span className="text-sm">ml</span>
                 </p>
               </div>
 
-              {/* Notes */}
-              <div className="space-y-2">
-                <Label>Catatan</Label>
+              <div className="border border-border/70 flex flex-col bg-background overflow-hidden">
+                <div className="bg-muted/30 px-3 py-1 border-b border-border/70 text-[10px] font-bold uppercase tracking-widest text-muted-foreground shrink-0">
+                  Catatan Tambahan
+                </div>
                 <Textarea
                   value={formData.notes}
                   onChange={(e) => handleChange("notes", e.target.value)}
-                  placeholder="Catatan tambahan..."
-                  rows={2}
+                  placeholder="Ketik catatan tambahan di sini..."
+                  className="flex-1 rounded-none border-none resize-none text-xs focus-visible:ring-0"
                 />
               </div>
             </div>
-          </ScrollArea>
+          </div>
 
-          <DialogFooter className="px-6 py-4 border-t bg-muted/50 shrink-0">
-            <Button variant="outline" onClick={() => setIsModalOpen(false)}>
+          <DialogFooter className="px-4 py-3 border-t bg-muted/30 shrink-0">
+            <Button variant="outline" size="sm" onClick={() => setIsModalOpen(false)} className="rounded-none text-xs">
               Batal
             </Button>
-            <Button onClick={handleSave} disabled={saving}>
+            <Button onClick={handleSave} disabled={saving} size="sm" className="rounded-none text-xs">
               {saving ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Loader2 className="h-3 w-3 mr-2 animate-spin" />
                   Menyimpan...
                 </>
               ) : (

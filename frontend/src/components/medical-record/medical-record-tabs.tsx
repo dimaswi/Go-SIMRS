@@ -29,6 +29,8 @@ import {
   ChevronRight,
   Clock3,
   MapPin,
+  Cloud,
+  Wind,
 } from "lucide-react";
 
 interface Tab {
@@ -110,6 +112,13 @@ export function MedicalRecordTabs({
       label: "Return Obat",
       icon: <RotateCcw />,
       permission: "pharmacy.return",
+      section: "pharmacy",
+    },
+    {
+      id: "apotek-online",
+      label: "Apotek Online",
+      icon: <Cloud />,
+      permission: "pharmacy.dispense", // Adjust permission if needed
       section: "pharmacy",
     },
   ];
@@ -295,6 +304,22 @@ export function MedicalRecordTabs({
       id: "nursing-care",
       label: "Asuhan Keperawatan",
       icon: <HeartPulse />,
+      permission: "medical_records.nursing_care",
+      section: "care",
+    }] : []),
+    // Fall Risk tab - show for rawat_inap only
+    ...(isInpatient ? [{
+      id: "fall-risk",
+      label: "Risiko Jatuh",
+      icon: <AlertTriangle />,
+      permission: "medical_records.fall_risk",
+      section: "care",
+    }] : []),
+    // O2 Usage tab - show for rawat_inap only
+    ...(isInpatient ? [{
+      id: "o2-usage",
+      label: "Oksigen",
+      icon: <Wind />,
       permission: "medical_records.nursing_care",
       section: "care",
     }] : []),

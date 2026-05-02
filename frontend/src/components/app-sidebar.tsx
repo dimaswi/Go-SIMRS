@@ -86,6 +86,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { DASHBOARD_ACCESS_PERMISSIONS } from '@/pages/dashboard/config';
 
 interface MenuItem {
   path: string;
@@ -111,6 +112,16 @@ const menuItems: MenuItem[] = [
     ]
   },
   {
+    path: '/room-management',
+    label: 'Manajemen Ruangan',
+    icon: Hotel,
+    permission: 'rooms.view',
+    submenu: [
+      { path: '/bed-monitoring', label: 'Monitoring Bed', icon: Hotel, permission: 'rooms.view' },
+      { path: '/floor-plan', label: 'Floor Plan', icon: Map, permission: 'rooms.view' },
+    ]
+  },
+  {
     path: '/eklaim',
     label: 'E-Klaim',
     icon: FileCheck,
@@ -122,38 +133,18 @@ const menuItems: MenuItem[] = [
       { path: '/eklaim/log', label: 'Log', icon: ScrollText, permission: 'eklaim.view' },
     ]
   },
-  { path: '/bed-monitoring', label: 'Monitoring Bed', icon: Hotel, permission: 'rooms.view' },
-  { path: '/floor-plan', label: 'Floor Plan', icon: Map, permission: 'rooms.view' },
-  {
-    path: '/master',
-    label: 'Master Data',
-    icon: Building2,
-    submenu: [
-      { path: '/patients', label: 'Pasien', icon: UserRound, permission: 'patients.view' },
-      { path: '/employees', label: 'Pegawai', icon: UserCog, permission: 'employees.view' },
-      { path: '/rooms', label: 'Ruangan', icon: BedDouble, permission: 'rooms.view' },
-      { path: '/buildings', label: 'Gedung', icon: Building2, permission: 'rooms.view' },
-      { path: '/counters', label: 'Loket', icon: Monitor, permission: 'counters.view' },
-      { path: '/inventories', label: 'Inventaris', icon: Package, permission: 'inventories.view' },
-      { path: '/medicines', label: 'Obat', icon: Pill, permission: 'medicines.view' },
-      { path: '/ppk', label: 'Master PPK', icon: Building2, permission: 'master_data.view' },
-      { path: '/procedures', label: 'Tindakan', icon: Syringe, permission: 'procedures.view' },
-      { path: '/clinical-packages', label: 'Paket Klinis', icon: Package, permission: 'master_data.view' },
-      { path: '/icd', label: 'Kode ICD', icon: BookMarked },
-        { path: '/regions', label: 'Wilayah', icon: MapPin, permission: 'regions.view' },
-      { path: '/master-data', label: 'Referensi Data', icon: Database },
-    ]
-  },
   {
     path: '/logistics',
     label: 'Logistik',
     icon: Send,
     submenu: [
+      { path: '/medicines', label: 'Master Obat', icon: Pill, permission: 'medicines.view' },
+      { path: '/inventories', label: 'Master Inventaris', icon: Package, permission: 'inventories.view' },
+      { path: '/suppliers', label: 'Master Supplier', icon: Truck, permission: 'suppliers.view' },
       { path: '/stock-requests', label: 'Permintaan Stok', icon: FileText, permission: 'stock_requests.view' },
       { path: '/distributions', label: 'Distribusi', icon: Send, permission: 'distributions.view' },
       { path: '/purchases', label: 'Pembelian', icon: ShoppingCart, permission: 'purchases.view' },
       { path: '/stock-opname', label: 'Stock Opname', icon: ClipboardList, permission: 'stock_opname.view' },
-      { path: '/suppliers', label: 'Supplier', icon: Truck, permission: 'suppliers.view' },
       { path: '/room-stock/medicines', label: 'Stok Obat Ruangan', icon: Pill, permission: 'room-medicines.view' },
       { path: '/room-stock/inventories', label: 'Stok Inventaris Ruangan', icon: Package, permission: 'room-inventories.view' },
     ]
@@ -173,19 +164,23 @@ const menuItems: MenuItem[] = [
     label: 'Laporan',
     icon: BarChart3,
     permission: 'dashboard.view',
-    submenu: [
-      { path: '/reports', label: 'Semua Laporan', icon: BarChart3, permission: 'dashboard.view' },
-    ]
   },
   {
-    path: '/users',
-    label: 'User Management',
-    icon: Users,
-    permission: 'users.view',
+    path: '/master',
+    label: 'Master Data',
+    icon: Building2,
     submenu: [
-      { path: '/users', label: 'Users', icon: Users, permission: 'users.view' },
-      { path: '/roles', label: 'Roles', icon: Shield, permission: 'roles.view' },
-      { path: '/permissions', label: 'Permissions', icon: Lock, permission: 'permissions.view' },
+      { path: '/patients', label: 'Pasien', icon: UserRound, permission: 'patients.view' },
+      { path: '/employees', label: 'Pegawai', icon: UserCog, permission: 'employees.view' },
+      { path: '/rooms', label: 'Ruangan', icon: BedDouble, permission: 'rooms.view' },
+      { path: '/buildings', label: 'Gedung', icon: Building2, permission: 'rooms.view' },
+      { path: '/counters', label: 'Loket', icon: Monitor, permission: 'counters.view' },
+      { path: '/ppk', label: 'Master PPK', icon: Building2, permission: 'master_data.view' },
+      { path: '/procedures', label: 'Tindakan', icon: Syringe, permission: 'procedures.view' },
+      { path: '/clinical-packages', label: 'Paket Klinis', icon: Package, permission: 'master_data.view' },
+      { path: '/icd', label: 'Kode ICD', icon: BookMarked },
+      { path: '/regions', label: 'Wilayah', icon: MapPin, permission: 'regions.view' },
+      { path: '/master-data', label: 'Referensi Data', icon: Database },
     ]
   },
   {
@@ -210,10 +205,21 @@ const menuItems: MenuItem[] = [
     icon: Stethoscope,
     permission: 'integrations.view',
     submenu: [
-      { path: '/integrations/config', label: 'Konfigurasi', icon: Settings, permission: 'integrations.view' },
       { path: '/integrations/satusehat', label: 'Monitoring SatuSehat', icon: Activity, permission: 'integrations.view' },
       { path: '/integrations/satusehat/send', label: 'Kirim Data SatuSehat', icon: Send, permission: 'integrations.manage' },
       { path: '/integrations/satusehat/logs', label: 'Log SatuSehat', icon: FileSearch, permission: 'integrations.view' },
+    ]
+  },
+  {
+    path: '/settings',
+    label: 'Pengaturan',
+    icon: Settings,
+    permission: 'users.view',
+    submenu: [
+      { path: '/users', label: 'Users', icon: Users, permission: 'users.view' },
+      { path: '/roles', label: 'Roles', icon: Shield, permission: 'roles.view' },
+      { path: '/permissions', label: 'Permissions', icon: Lock, permission: 'permissions.view' },
+      { path: '/integrations/config', label: 'Konfigurasi Sistem', icon: Settings, permission: 'integrations.view' },
     ]
   },
 ];
@@ -248,6 +254,26 @@ function getRequiredPermissionForPath(pathname: string): string | null {
 
 function userHasPermission(user: SavedAuthAccount['user'], permission: string): boolean {
   return !!user.role?.permissions?.some((p) => p.name === permission);
+}
+
+function hasAnySavedUserPermission(user: SavedAuthAccount['user'], permissions: string[]): boolean {
+  return permissions.some((permission) => userHasPermission(user, permission));
+}
+
+function hasDashboardMenuAccess(hasPermission: (permission: string) => boolean): boolean {
+  return DASHBOARD_ACCESS_PERMISSIONS.some((permission) => hasPermission(permission));
+}
+
+function hasMenuItemAccess(item: MenuItem, hasPermission: (permission: string) => boolean): boolean {
+  if (item.path === '/dashboard') {
+    return hasDashboardMenuAccess(hasPermission);
+  }
+
+  if (!item.permission) {
+    return true;
+  }
+
+  return hasPermission(item.permission);
 }
 
 // Tree child item
@@ -320,8 +346,7 @@ function TreeParent({
   }, [isActive]);
 
   const visibleSubmenu = item.submenu?.filter(sub => {
-    if (!sub.permission) return true;
-    return hasPermission(sub.permission);
+    return hasMenuItemAccess(sub, hasPermission);
   }) ?? [];
 
   // Collapsed sidebar: icon with dropdown
@@ -491,7 +516,9 @@ export function AppSidebar() {
 
     setSwitchingAccountKey(account.key);
     const requiredPermission = getRequiredPermissionForPath(location.pathname);
-    const canStayOnCurrentPage = !requiredPermission || userHasPermission(account.user, requiredPermission);
+    const canStayOnCurrentPage = location.pathname === '/dashboard'
+      ? hasAnySavedUserPermission(account.user, DASHBOARD_ACCESS_PERMISSIONS)
+      : !requiredPermission || userHasPermission(account.user, requiredPermission);
 
     login(account.token, account.user);
     touchSavedAccount(account.key);
@@ -522,13 +549,9 @@ export function AppSidebar() {
 
   const visibleMenuItems = menuItems.filter(item => {
     if (item.submenu) {
-      return item.submenu.some(sub => {
-        if (!sub.permission) return true;
-        return hasPermission(sub.permission);
-      });
+      return item.submenu.some(sub => hasMenuItemAccess(sub, hasPermission));
     }
-    if (!item.permission) return true;
-    return hasPermission(item.permission);
+    return hasMenuItemAccess(item, hasPermission);
   });
 
   return (

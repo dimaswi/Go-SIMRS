@@ -19,7 +19,6 @@ import {
   Loader2,
   FileCheck,
   Pill,
-  User,
   AlertTriangle,
   CheckCircle2,
   Clock,
@@ -144,7 +143,7 @@ export function PharmacyReview({ visitId, readOnly = false }: PharmacyReviewProp
     try {
       const res = await medicineOrdersApi.getReview(orderId);
       const review = res.data;
-      
+
       // Check if review exists (has id) or is just empty placeholder
       if (review && review.id) {
         setExistingReview(review);
@@ -347,373 +346,373 @@ export function PharmacyReview({ visitId, readOnly = false }: PharmacyReviewProp
   const grandTotal = activeItems.reduce((total, item) => {
     return total + getUnitPrice(item) * Number(item.quantity || 0);
   }, 0);
-  
+
   return (
     <div className="pharmacy-no-sticky-head">
       <div className="space-y-4">
-      {/* Order Selection if multiple */}
-      {orders.length > 1 && (
-        <div className="border rounded-lg p-3 bg-muted/30">
-          <div className="grid grid-cols-1 gap-2 md:grid-cols-[120px_minmax(0,1fr)_auto] md:items-center">
-            <Label className="text-sm font-semibold">Pilih Order</Label>
-            <Select
-              value={selectedOrder?.id ? String(selectedOrder.id) : ""}
-              onValueChange={(value) => {
-                const nextOrder = orders.find((order) => String(order.id) === value);
-                if (nextOrder) setSelectedOrder(nextOrder);
-              }}
-            >
-              <SelectTrigger className="h-8">
-                <SelectValue placeholder="Pilih order" />
-              </SelectTrigger>
-              <SelectContent>
-                {orders.map((order) => (
-                  <SelectItem key={order.id} value={String(order.id)}>
-                    {order.order_number} - {ORDER_STATUS_LABELS[order.status]?.label || order.status}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {selectedOrder && (
-              <Badge variant={ORDER_STATUS_LABELS[selectedOrder.status]?.variant || "secondary"} className="w-fit">
-                {ORDER_STATUS_LABELS[selectedOrder.status]?.label || selectedOrder.status}
-              </Badge>
-            )}
+        {/* Order Selection if multiple */}
+        {orders.length > 1 && (
+          <div className="border border-border/70 bg-background mb-4">
+            <div className="p-3">
+              <div className="grid grid-cols-1 gap-2 md:grid-cols-[120px_minmax(0,1fr)_auto] md:items-center">
+                <Label className="text-sm font-semibold">Pilih Order</Label>
+                <Select
+                  value={selectedOrder?.id ? String(selectedOrder.id) : ""}
+                  onValueChange={(value) => {
+                    const nextOrder = orders.find((order) => String(order.id) === value);
+                    if (nextOrder) setSelectedOrder(nextOrder);
+                  }}
+                >
+                  <SelectTrigger className="h-8">
+                    <SelectValue placeholder="Pilih order" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {orders.map((order) => (
+                      <SelectItem key={order.id} value={String(order.id)}>
+                        {order.order_number} - {ORDER_STATUS_LABELS[order.status]?.label || order.status}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedOrder && (
+                  <Badge variant={ORDER_STATUS_LABELS[selectedOrder.status]?.variant || "secondary"} className="w-fit">
+                    {ORDER_STATUS_LABELS[selectedOrder.status]?.label || selectedOrder.status}
+                  </Badge>
+                )}
+              </div>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {selectedOrder && (
-        <>
-          {/* Patient & Order Info Table */}
-          <div className="border rounded-lg">
-            <div className="p-3 border-b bg-muted/30">
-              <div className="flex justify-between items-start">
-                <div>
-                  <div className="text-sm font-semibold flex items-center gap-2">
-                    <User className="h-4 w-4" />
-                    {patient?.nama_lengkap || "Pasien"}
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    No. RM: {patient?.no_rm} | Order: {selectedOrder.order_number}
-                  </p>
-                </div>
-                <Badge variant={ORDER_STATUS_LABELS[selectedOrder.status]?.variant || "secondary"}>
+        {selectedOrder && (
+          <>
+            {/* Patient & Order Info Table */}
+            <div className="border border-border/70 bg-background mb-4">
+              <div className="flex flex-wrap items-center justify-between border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                <span>Detail Order Farmasi</span>
+                <Badge variant={ORDER_STATUS_LABELS[selectedOrder.status]?.variant || "secondary"} className="text-[10px] h-5 px-1.5 py-0">
                   {ORDER_STATUS_LABELS[selectedOrder.status]?.label || selectedOrder.status}
                 </Badge>
               </div>
+              <div className="p-3 sm:p-4 space-y-4">
+                <table className="w-full table-fixed text-xs">
+                  <tbody>
+                    <tr className="border-b">
+                      <td className="py-1.5 text-muted-foreground w-28 align-top">Nama Pasien</td>
+                      <td className="py-1.5 font-medium break-words">{patient?.nama_lengkap || "-"}</td>
+                    </tr>
+                    <tr className="border-b">
+                      <td className="py-1.5 text-muted-foreground w-28 align-top">No. RM</td>
+                      <td className="py-1.5 font-medium break-words">{patient?.no_rm || "-"}</td>
+                    </tr>
+                    <tr className="border-b">
+                      <td className="py-1.5 text-muted-foreground w-28 align-top">Dokter</td>
+                      <td className="py-1.5 font-medium break-words">
+                        <span className="font-medium">{selectedOrder.prescriber?.nama_lengkap || "-"}</span>
+                      </td>
+                    </tr>
+                    <tr className="border-b">
+                      <td className="py-1.5 text-muted-foreground w-28 align-top">Diagnosis</td>
+                      <td className="py-1.5 font-medium break-words">{selectedOrder.diagnosis || "-"}</td>
+                    </tr>
+                    <tr className="border-b">
+                      <td className="py-1.5 text-muted-foreground align-top">Ruang Asal</td>
+                      <td className="py-1.5 font-medium break-words">{selectedOrder.source_room?.name || "-"}</td>
+                    </tr>
+                    <tr className="border-b">
+                      <td className="py-1.5 text-muted-foreground align-top">Waktu Order</td>
+                      <td className="py-1.5 font-medium break-words">
+                        {selectedOrder.created_at ? new Date(selectedOrder.created_at).toLocaleString("id-ID") : "-"}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="py-1.5 text-muted-foreground align-top">Prioritas</td>
+                      <td className="py-1.5">
+                        <Badge variant={selectedOrder.priority === "urgent" ? "destructive" : "outline"}>
+                          {selectedOrder.priority === "urgent" ? "Urgent" : "Normal"}
+                        </Badge>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
-            <div className="p-3">
-              <table className="w-full table-fixed text-xs">
-                <tbody>
-                  <tr className="border-b">
-                    <td className="py-1.5 text-muted-foreground w-28 align-top">Diagnosis</td>
-                    <td className="py-1.5 font-medium break-words">{selectedOrder.diagnosis || "-"}</td>
-                  </tr>
-                  <tr className="border-b">
-                    <td className="py-1.5 text-muted-foreground align-top">Ruang Asal</td>
-                    <td className="py-1.5 font-medium break-words">{selectedOrder.source_room?.name || "-"}</td>
-                  </tr>
-                  <tr className="border-b">
-                    <td className="py-1.5 text-muted-foreground align-top">Petugas Order</td>
-                    <td className="py-1.5 font-medium break-words">{selectedOrder.prescriber?.nama_lengkap || "-"}</td>
-                  </tr>
-                  <tr className="border-b">
-                    <td className="py-1.5 text-muted-foreground align-top">Waktu Order</td>
-                    <td className="py-1.5 font-medium break-words">
-                      {selectedOrder.created_at ? new Date(selectedOrder.created_at).toLocaleString("id-ID") : "-"}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="py-1.5 text-muted-foreground align-top">Prioritas</td>
-                    <td className="py-1.5">
-                      <Badge variant={selectedOrder.priority === "urgent" ? "destructive" : "outline"}>
-                        {selectedOrder.priority === "urgent" ? "Urgent" : "Normal"}
-                      </Badge>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
 
-          {/* Order Items Table */}
-          <div className="border rounded-lg">
-            <div className="p-3 border-b bg-muted/30">
-              <div className="flex items-center justify-between gap-2">
-                <Label className="text-sm font-semibold flex items-center gap-2">
-                  <Pill className="h-4 w-4" />
+            {/* Order Items Table */}
+            <div className="border border-border/70 bg-background mb-4">
+              <div className="flex flex-wrap items-center justify-between border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                <span className="flex items-center gap-2">
+                  <Pill className="h-3 w-3" />
                   Daftar Obat ({activeItems.length} item)
-                </Label>
+                </span>
                 {activeItems.length > 8 && (
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="h-7 px-2 text-xs"
+                    className="h-6 px-2 text-[10px] py-0"
                     onClick={() => setShowAllReviewItems((prev) => !prev)}
                   >
                     {showAllReviewItems ? "Ringkas" : `Lihat Semua (${activeItems.length})`}
                   </Button>
                 )}
               </div>
-            </div>
-            <div className="p-0">
-              <table className="w-full table-fixed text-xs">
-                <thead className="bg-muted/50">
-                  <tr>
-                    <th className="py-1.5 px-2 text-left font-medium w-[40%]">Obat</th>
-                    <th className="py-1.5 px-2 text-left font-medium hidden lg:table-cell w-[18%]">Aturan</th>
-                    <th className="py-1.5 px-2 text-left font-medium hidden md:table-cell w-[16%]">Cara Pakai</th>
-                    <th className="py-1.5 px-2 text-right font-medium w-[11%]">Jumlah</th>
-                    <th className="py-1.5 px-2 text-right font-medium hidden sm:table-cell w-[15%]">Harga</th>
-                    <th className="py-1.5 px-2 text-right font-medium w-[14%]">Subtotal</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {displayedReviewItems.map((item, index) => {
-                    const unitPrice = getUnitPrice(item);
-                    const subtotal = unitPrice * Number(item.quantity || 0);
+              <div className="p-0">
+                <table className="w-full table-fixed text-xs">
+                  <thead className="bg-muted/50">
+                    <tr>
+                      <th className="py-1.5 px-2 text-left font-medium w-[40%]">Obat</th>
+                      <th className="py-1.5 px-2 text-left font-medium hidden lg:table-cell w-[18%]">Aturan</th>
+                      <th className="py-1.5 px-2 text-left font-medium hidden md:table-cell w-[16%]">Cara Pakai</th>
+                      <th className="py-1.5 px-2 text-right font-medium w-[11%]">Jumlah</th>
+                      <th className="py-1.5 px-2 text-right font-medium hidden sm:table-cell w-[15%]">Harga</th>
+                      <th className="py-1.5 px-2 text-right font-medium w-[14%]">Subtotal</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {displayedReviewItems.map((item, index) => {
+                      const unitPrice = getUnitPrice(item);
+                      const subtotal = unitPrice * Number(item.quantity || 0);
 
-                    return (
-                      <tr key={item.id || index} className="border-b last:border-0 align-top">
-                        <td className="py-1.5 px-2">
-                          <p className="font-medium break-words">{item.medicine?.name || "Obat"}</p>
-                          <p className="text-[11px] text-muted-foreground break-words">{item.medicine?.generic_name || "-"}</p>
-                        </td>
-                        <td className="py-1.5 px-2 hidden lg:table-cell">
-                          <p className="text-[11px] break-words">{item.dosage || "-"}</p>
-                          <p className="text-[11px] text-muted-foreground break-words">{item.frequency || "-"} / {item.route || "-"} / {item.duration || "-"}</p>
-                        </td>
-                        <td className="py-1.5 px-2 hidden md:table-cell text-[11px] break-words">{item.instructions || item.notes || "-"}</td>
-                        <td className="py-1.5 px-2 text-right font-medium whitespace-nowrap">{item.quantity} {item.unit}</td>
-                        <td className="py-1.5 px-2 text-right font-medium hidden sm:table-cell whitespace-nowrap">{formatRupiah(unitPrice)}</td>
-                        <td className="py-1.5 px-2 text-right font-medium whitespace-nowrap">{formatRupiah(subtotal)}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-            <div className="border-t bg-primary/5 px-3 py-2 flex items-center justify-end">
-              <div className="text-right">
-                <p className="text-xs text-muted-foreground">Grand Total</p>
-                <p className="text-base font-semibold text-primary">{formatRupiah(grandTotal)}</p>
+                      return (
+                        <tr key={item.id || index} className="border-b last:border-0 align-top">
+                          <td className="py-1.5 px-2">
+                            <p className="font-medium break-words">{item.medicine?.name || "Obat"}</p>
+                            <p className="text-[11px] text-muted-foreground break-words">{item.medicine?.generic_name || "-"}</p>
+                          </td>
+                          <td className="py-1.5 px-2 hidden lg:table-cell">
+                            <p className="text-[11px] break-words">{item.dosage || "-"}</p>
+                            <p className="text-[11px] text-muted-foreground break-words">{item.frequency || "-"} / {item.route || "-"} / {item.duration || "-"}</p>
+                          </td>
+                          <td className="py-1.5 px-2 hidden md:table-cell text-[11px] break-words">{item.instructions || item.notes || "-"}</td>
+                          <td className="py-1.5 px-2 text-right font-medium whitespace-nowrap">{item.quantity} {item.unit}</td>
+                          <td className="py-1.5 px-2 text-right font-medium hidden sm:table-cell whitespace-nowrap">{formatRupiah(unitPrice)}</td>
+                          <td className="py-1.5 px-2 text-right font-medium whitespace-nowrap">{formatRupiah(subtotal)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <div className="border-t bg-primary/5 px-3 py-2 flex items-center justify-end">
+                <div className="text-right">
+                  <p className="text-xs text-muted-foreground">Grand Total</p>
+                  <p className="text-base font-semibold text-primary">{formatRupiah(grandTotal)}</p>
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Review Form */}
-          <div className="border rounded-lg">
-            <div className="p-3 border-b bg-muted/30">
-              <Label className="text-sm font-semibold flex items-center gap-2">
-                <FileCheck className="h-4 w-4" />
-                Formulir Telaah Resep
+            {/* Review Form */}
+            <div className="border border-border/70 bg-background mb-4">
+              <div className="flex flex-wrap items-center justify-between border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                <span className="flex items-center gap-2">
+                  <FileCheck className="h-3 w-3" />
+                  Formulir Telaah Resep
+                </span>
                 {existingReview && (
-                  <Badge variant="outline" className="ml-2">
+                  <Badge variant="outline" className="text-[10px] h-5 px-1.5 py-0">
                     <Clock className="h-3 w-3 mr-1" />
                     Sudah ditelaah
                   </Badge>
                 )}
-              </Label>
-            </div>
-            <div className="p-3 space-y-4">
-              {/* Checklist Items */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="drug_interaction"
-                    checked={reviewForm.drug_interaction_check}
-                    onCheckedChange={(checked) =>
-                      setReviewForm({ ...reviewForm, drug_interaction_check: checked as boolean })
-                    }
-                    disabled={readOnly || isAlreadyReviewed}
-                  />
-                  <Label htmlFor="drug_interaction" className="text-xs">
-                    Cek Interaksi Obat
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="dose_check"
-                    checked={reviewForm.dose_check}
-                    onCheckedChange={(checked) =>
-                      setReviewForm({ ...reviewForm, dose_check: checked as boolean })
-                    }
-                    disabled={readOnly || isAlreadyReviewed}
-                  />
-                  <Label htmlFor="dose_check" className="text-xs">
-                    Cek Dosis
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="duplication_check"
-                    checked={reviewForm.duplication_check}
-                    onCheckedChange={(checked) =>
-                      setReviewForm({ ...reviewForm, duplication_check: checked as boolean })
-                    }
-                    disabled={readOnly || isAlreadyReviewed}
-                  />
-                  <Label htmlFor="duplication_check" className="text-xs">
-                    Cek Duplikasi
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="allergy_check"
-                    checked={reviewForm.allergy_check}
-                    onCheckedChange={(checked) =>
-                      setReviewForm({ ...reviewForm, allergy_check: checked as boolean })
-                    }
-                    disabled={readOnly || isAlreadyReviewed}
-                  />
-                  <Label htmlFor="allergy_check" className="text-xs">
-                    Cek Alergi
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="contraindication_check"
-                    checked={reviewForm.contraindication_check}
-                    onCheckedChange={(checked) =>
-                      setReviewForm({ ...reviewForm, contraindication_check: checked as boolean })
-                    }
-                    disabled={readOnly || isAlreadyReviewed}
-                  />
-                  <Label htmlFor="contraindication_check" className="text-xs">
-                    Cek Kontraindikasi
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="indication_check"
-                    checked={reviewForm.indication_check}
-                    onCheckedChange={(checked) =>
-                      setReviewForm({ ...reviewForm, indication_check: checked as boolean })
-                    }
-                    disabled={readOnly || isAlreadyReviewed}
-                  />
-                  <Label htmlFor="indication_check" className="text-xs">
-                    Cek Indikasi
-                  </Label>
-                </div>
               </div>
-
-              <Separator />
-
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-                <div className="space-y-2">
-                <Label htmlFor="warnings" className="flex items-center gap-2">
-                  <AlertTriangle className="h-4 w-4 text-yellow-500" />
-                  Peringatan (jika ada)
-                </Label>
-                <Textarea
-                  id="warnings"
-                  placeholder="Catatan peringatan untuk pasien..."
-                  value={reviewForm.warnings}
-                  onChange={(e) => setReviewForm({ ...reviewForm, warnings: e.target.value })}
-                  rows={3}
-                  disabled={readOnly || isAlreadyReviewed}
-                />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="suggestion">Saran untuk Dokter (jika perlu)</Label>
-                <Textarea
-                  id="suggestion"
-                  placeholder="Saran perubahan resep untuk dokter..."
-                  value={reviewForm.suggestion}
-                  onChange={(e) => setReviewForm({ ...reviewForm, suggestion: e.target.value })}
-                  rows={3}
-                  disabled={readOnly || isAlreadyReviewed}
-                />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="notes">Catatan Tambahan</Label>
-                <Textarea
-                  id="notes"
-                  placeholder="Catatan lainnya..."
-                  value={reviewForm.notes}
-                  onChange={(e) => setReviewForm({ ...reviewForm, notes: e.target.value })}
-                  rows={3}
-                  disabled={readOnly || isAlreadyReviewed}
-                />
-                </div>
-              </div>
-
-              <Separator />
-
-              {/* Approval */}
-              <div className="space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="p-3 space-y-4">
+                {/* Checklist Items */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                   <div className="flex items-center space-x-2">
-                    <Switch
-                      id="requires_confirmation"
-                      checked={reviewForm.requires_doctor_confirmation}
+                    <Checkbox
+                      id="drug_interaction"
+                      checked={reviewForm.drug_interaction_check}
                       onCheckedChange={(checked) =>
-                        setReviewForm({ ...reviewForm, requires_doctor_confirmation: checked })
+                        setReviewForm({ ...reviewForm, drug_interaction_check: checked as boolean })
                       }
-                      disabled={!canReview}
+                      disabled={readOnly || isAlreadyReviewed}
                     />
-                    <Label htmlFor="requires_confirmation" className="text-sm">
-                      Perlu konfirmasi dokter
+                    <Label htmlFor="drug_interaction" className="text-xs">
+                      Cek Interaksi Obat
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="dose_check"
+                      checked={reviewForm.dose_check}
+                      onCheckedChange={(checked) =>
+                        setReviewForm({ ...reviewForm, dose_check: checked as boolean })
+                      }
+                      disabled={readOnly || isAlreadyReviewed}
+                    />
+                    <Label htmlFor="dose_check" className="text-xs">
+                      Cek Dosis
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="duplication_check"
+                      checked={reviewForm.duplication_check}
+                      onCheckedChange={(checked) =>
+                        setReviewForm({ ...reviewForm, duplication_check: checked as boolean })
+                      }
+                      disabled={readOnly || isAlreadyReviewed}
+                    />
+                    <Label htmlFor="duplication_check" className="text-xs">
+                      Cek Duplikasi
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="allergy_check"
+                      checked={reviewForm.allergy_check}
+                      onCheckedChange={(checked) =>
+                        setReviewForm({ ...reviewForm, allergy_check: checked as boolean })
+                      }
+                      disabled={readOnly || isAlreadyReviewed}
+                    />
+                    <Label htmlFor="allergy_check" className="text-xs">
+                      Cek Alergi
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="contraindication_check"
+                      checked={reviewForm.contraindication_check}
+                      onCheckedChange={(checked) =>
+                        setReviewForm({ ...reviewForm, contraindication_check: checked as boolean })
+                      }
+                      disabled={readOnly || isAlreadyReviewed}
+                    />
+                    <Label htmlFor="contraindication_check" className="text-xs">
+                      Cek Kontraindikasi
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="indication_check"
+                      checked={reviewForm.indication_check}
+                      onCheckedChange={(checked) =>
+                        setReviewForm({ ...reviewForm, indication_check: checked as boolean })
+                      }
+                      disabled={readOnly || isAlreadyReviewed}
+                    />
+                    <Label htmlFor="indication_check" className="text-xs">
+                      Cek Indikasi
                     </Label>
                   </div>
                 </div>
 
-                {!allChecklistCompleted && !isAlreadyReviewed && (
-                  <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 text-sm bg-amber-50 dark:bg-amber-950 p-2 rounded">
-                    <AlertTriangle className="h-4 w-4" />
-                    <span>Lengkapi semua checklist untuk dapat menyetujui resep</span>
-                  </div>
-                )}
+                <Separator />
 
-                {isAlreadyReviewed && (
-                  <div className="flex items-center gap-2 text-green-600 dark:text-green-400 text-sm bg-green-50 dark:bg-green-950 p-2 rounded">
-                    <CheckCircle2 className="h-4 w-4" />
-                    <span>Resep sudah ditelaah dan disetujui</span>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="warnings" className="flex items-center gap-2">
+                      <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                      Peringatan (jika ada)
+                    </Label>
+                    <Textarea
+                      id="warnings"
+                      placeholder="Catatan peringatan untuk pasien..."
+                      value={reviewForm.warnings}
+                      onChange={(e) => setReviewForm({ ...reviewForm, warnings: e.target.value })}
+                      rows={3}
+                      disabled={readOnly || isAlreadyReviewed}
+                    />
                   </div>
-                )}
-
-                {!hasDecided && allChecklistCompleted && !isAlreadyReviewed && !isAlreadyApproved && (
-                  <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 text-sm bg-blue-50 dark:bg-blue-950 p-2 rounded">
-                    <Clock className="h-4 w-4" />
-                    <span>Pilih keputusan, lalu tekan Simpan di footer</span>
+                  <div className="space-y-2">
+                    <Label htmlFor="suggestion">Saran untuk Dokter (jika perlu)</Label>
+                    <Textarea
+                      id="suggestion"
+                      placeholder="Saran perubahan resep untuk dokter..."
+                      value={reviewForm.suggestion}
+                      onChange={(e) => setReviewForm({ ...reviewForm, suggestion: e.target.value })}
+                      rows={3}
+                      disabled={readOnly || isAlreadyReviewed}
+                    />
                   </div>
-                )}
+                  <div className="space-y-2">
+                    <Label htmlFor="notes">Catatan Tambahan</Label>
+                    <Textarea
+                      id="notes"
+                      placeholder="Catatan lainnya..."
+                      value={reviewForm.notes}
+                      onChange={(e) => setReviewForm({ ...reviewForm, notes: e.target.value })}
+                      rows={3}
+                      disabled={readOnly || isAlreadyReviewed}
+                    />
+                  </div>
+                </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="review-decision">Keputusan Telaah</Label>
-                  <Select
-                    value={reviewDecision}
-                    onValueChange={(value) => {
-                      setHasDecided(true);
-                      setReviewForm((prev) => ({
-                        ...prev,
-                        is_approved: value === "approved",
-                      }));
-                    }}
-                    disabled={!canReview || isAlreadyReviewed || isAlreadyApproved || submitting || readOnly}
-                  >
-                    <SelectTrigger id="review-decision">
-                      <SelectValue placeholder="Pilih keputusan" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="approved" disabled={!allChecklistCompleted}>
-                        Setuju
-                      </SelectItem>
-                      <SelectItem value="rejected">Tidak Setuju</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    Gunakan tombol Simpan di footer untuk menyimpan telaah resep.
-                  </p>
+                <Separator />
+
+                {/* Approval */}
+                <div className="space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center space-x-2">
+                      <Switch
+                        id="requires_confirmation"
+                        checked={reviewForm.requires_doctor_confirmation}
+                        onCheckedChange={(checked) =>
+                          setReviewForm({ ...reviewForm, requires_doctor_confirmation: checked })
+                        }
+                        disabled={!canReview}
+                      />
+                      <Label htmlFor="requires_confirmation" className="text-sm">
+                        Perlu konfirmasi dokter
+                      </Label>
+                    </div>
+                  </div>
+
+                  {!allChecklistCompleted && !isAlreadyReviewed && (
+                    <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 text-sm bg-amber-50 dark:bg-amber-950 p-2 rounded">
+                      <AlertTriangle className="h-4 w-4" />
+                      <span>Lengkapi semua checklist untuk dapat menyetujui resep</span>
+                    </div>
+                  )}
+
+                  {isAlreadyReviewed && (
+                    <div className="flex items-center gap-2 text-green-600 dark:text-green-400 text-sm bg-green-50 dark:bg-green-950 p-2 rounded">
+                      <CheckCircle2 className="h-4 w-4" />
+                      <span>Resep sudah ditelaah dan disetujui</span>
+                    </div>
+                  )}
+
+                  {!hasDecided && allChecklistCompleted && !isAlreadyReviewed && !isAlreadyApproved && (
+                    <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 text-sm bg-blue-50 dark:bg-blue-950 p-2 rounded">
+                      <Clock className="h-4 w-4" />
+                      <span>Pilih keputusan, lalu tekan Simpan di footer</span>
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    <Label htmlFor="review-decision">Keputusan Telaah</Label>
+                    <Select
+                      value={reviewDecision}
+                      onValueChange={(value) => {
+                        setHasDecided(true);
+                        setReviewForm((prev) => ({
+                          ...prev,
+                          is_approved: value === "approved",
+                        }));
+                      }}
+                      disabled={!canReview || isAlreadyReviewed || isAlreadyApproved || submitting || readOnly}
+                    >
+                      <SelectTrigger id="review-decision">
+                        <SelectValue placeholder="Pilih keputusan" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="approved" disabled={!allChecklistCompleted}>
+                          Setuju
+                        </SelectItem>
+                        <SelectItem value="rejected">Tidak Setuju</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Gunakan tombol Simpan di footer untuk menyimpan telaah resep.
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        </>
-      )}      </div>
+          </>
+        )}      </div>
     </div>
   );
 }

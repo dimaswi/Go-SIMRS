@@ -13,6 +13,7 @@ import (
 	"gorm.io/gorm"
 )
 
+
 // ===========================================================================
 // MEDICINE ORDER HANDLERS
 // ===========================================================================
@@ -58,6 +59,13 @@ func GetMedicineOrders(c *gin.Context) {
 		Preload("DeliveredBy").
 		Preload("Items").
 		Preload("Items.Medicine")
+
+	// ALWAYS filter out casemix orders from normal queue/listing unless explicitly requested
+	if c.Query("is_casemix") == "true" {
+		query = query.Where("is_casemix = ?", true)
+	} else {
+		query = query.Where("is_casemix = ?", false)
+	}
 
 	// Filter by source visit
 	if sourceVisitID := c.Query("source_visit_id"); sourceVisitID != "" {
@@ -271,6 +279,8 @@ func CreateMedicineOrder(c *gin.Context) {
 
 	order := models.MedicineOrder{
 		OrderNumber:      orderNumber,
+		IsCasemix:        c.Query("is_casemix") == "true",
+		CasemixEklaimID:  getCasemixEklaimID(c),
 		SourceVisitID:    input.SourceVisitID,
 		SourceRoomID:     sourceVisit.RoomID,
 		PharmacyRoomID:   input.PharmacyRoomID,
@@ -334,6 +344,8 @@ func CreateMedicineOrder(c *gin.Context) {
 
 		orderItem := models.MedicineOrderItem{
 			MedicineOrderID: order.ID,
+			IsCasemix:        c.Query("is_casemix") == "true",
+			CasemixEklaimID:  getCasemixEklaimID(c),
 			MedicineID:      item.MedicineID,
 			ItemType:        itemType,
 			RacikanGroup:    racikanGroup,
@@ -1509,3 +1521,5 @@ func GetPharmacyRoomMedicines(c *gin.Context) {
 
 	c.JSON(http.StatusOK, roomMedicines)
 }
+
+

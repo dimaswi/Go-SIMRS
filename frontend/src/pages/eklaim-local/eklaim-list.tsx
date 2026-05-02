@@ -22,7 +22,7 @@ import { eklaimLocalApi, eklaimLocalStatusLabels, eklaimLocalStatusColors } from
 import type { EKlaimLocal, EKlaimLocalStatus } from '@/lib/api/eklaim-local';
 import { useToast } from '@/hooks/use-toast';
 import { setPageTitle } from '@/lib/page-title';
-import { Loader2, Eye, FilterX, SlidersHorizontal, Search } from 'lucide-react';
+import { Loader2, Eye, FilterX, SlidersHorizontal, Search, UserRoundPen, Printer } from 'lucide-react';
 import { format } from 'date-fns';
 import { id as localeId } from 'date-fns/locale';
 
@@ -198,19 +198,38 @@ export default function EklaimListPage() {
       },
     },
     {
-      id: 'actions',
-      header: '',
+      id: 'rm_actions',
+      header: 'Aksi Rekam Medis',
       cell: ({ row }) => (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => navigate(`/eklaim/data-klaim/${row.original.id}`)}
-        >
-          <Eye className="mr-1 h-4 w-4" />
-          Detail
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 px-2"
+            title="Edit Rekam Medis Casemix"
+            onClick={() => navigate(`/eklaim/data-klaim/${row.original.id}/rekam-medis`)}
+          >
+            <UserRoundPen className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 px-2"
+            title="Lihat Cetakan Berkas"
+            onClick={() => navigate(`/eklaim/data-klaim/${row.original.id}/cetakan`)}
+          >
+            <Printer className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 px-2"
+            onClick={() => navigate(`/eklaim/data-klaim/${row.original.id}`)}
+          >
+            <Eye className="h-3.5 w-3.5" />
+          </Button>
+        </div>
       ),
-      enableHiding: false,
     },
   ], [navigate]);
 

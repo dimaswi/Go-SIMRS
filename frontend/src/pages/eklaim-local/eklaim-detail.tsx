@@ -1,4 +1,4 @@
-﻿import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -39,7 +39,7 @@ import type {
   EKlaimLocalStatus,
   OriginalRM,
 } from '@/lib/api/eklaim-local';
-import RMDuplicateTab from './rm-duplicate-tab';
+import { RMDuplicateTab } from './rm-duplicate-tab';
 import CetakanTab from './cetakan-tab';
 import ClaimDataTab from './claim-data-tab';
 import IDRGCodingTab from './idrg-coding-tab';
@@ -67,7 +67,7 @@ import {
 import { format } from 'date-fns';
 import { id as localeId } from 'date-fns/locale';
 
-export default function EklaimDetailPage() {
+export default function EklaimDetailPage({ mode }: { mode?: 'rekam-medis' | 'cetakan' }) {
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -78,7 +78,6 @@ export default function EklaimDetailPage() {
   const [originalRM, setOriginalRM] = useState<OriginalRM>({});
   const hasSyncedClaimDataOnLoadRef = useRef(false);
   const mainStickyHeaderRef = useRef<HTMLDivElement | null>(null);
-  const [mainStickyHeaderHeight, setMainStickyHeaderHeight] = useState(0);
 
   // Claim form payload builder (provided by ClaimDataTab)
   const claimPayloadBuilderRef = useRef<(() => Record<string, any>) | null>(null);
@@ -86,9 +85,10 @@ export default function EklaimDetailPage() {
   // Active tab state - persisted in localStorage per claim
   const [activeTab, setActiveTabRaw] = useState(() => {
     try {
-      return localStorage.getItem(`eklaim-tab-${id}`) || 'rm-duplicate';
+      if (mode) return mode;
+      return localStorage.getItem(`eklaim-tab-${id}`) || 'claim-data';
     } catch {
-      return 'rm-duplicate';
+      return 'claim-data';
     }
   });
   const setActiveTab = useCallback((tab: string) => {
@@ -204,24 +204,7 @@ export default function EklaimDetailPage() {
     hasSyncedClaimDataOnLoadRef.current = false;
   }, [id]);
 
-  useEffect(() => {
-    const target = mainStickyHeaderRef.current;
-    if (!target) return;
 
-    const updateHeight = () => {
-      setMainStickyHeaderHeight(target.getBoundingClientRect().height);
-    };
-
-    updateHeight();
-    const observer = new ResizeObserver(updateHeight);
-    observer.observe(target);
-    window.addEventListener('resize', updateHeight);
-
-    return () => {
-      observer.disconnect();
-      window.removeEventListener('resize', updateHeight);
-    };
-  }, [detail, showHeaderPanels, activeTab]);
 
   // Guard: if stored tab is no longer valid, fall back
   useEffect(() => {
@@ -392,12 +375,26 @@ export default function EklaimDetailPage() {
 
   const status = detail.status as EKlaimLocalStatus;
 
+  // For rekam-medis mode: render the embedded RM tab
+  if (mode === 'rekam-medis') {
+    return (
+      <div className="flex flex-1 min-h-0">
+        <RMDuplicateTab
+          eklaimId={Number(id)}
+          visit={detail.visit}
+          onSaved={refreshData}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-1 flex-col px-4">
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <div
-          ref={mainStickyHeaderRef}
+        {!mode && (
+          <div
+            ref={mainStickyHeaderRef}
           className="sticky top-0 z-40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/85 space-y-2"
         >
           {/* Header */}
@@ -652,28 +649,27 @@ export default function EklaimDetailPage() {
       </div>
       )}
 
-        <TabsList className="bg-transparent border-b rounded-none w-full justify-start h-auto p-0 gap-0">
-          <TabsTrigger value="rm-duplicate" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5">Rekam Medis</TabsTrigger>
-          <TabsTrigger value="cetakan" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5">Cetakan</TabsTrigger>
-          <TabsTrigger value="claim-data" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5">Data Klaim</TabsTrigger>
-          <TabsTrigger value="idrg" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5">Coding iDRG</TabsTrigger>
-          {detail.idrg_final_success && (
-            <TabsTrigger value="inacbg" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5">Coding INACBG</TabsTrigger>
-          )}
-          <TabsTrigger value="status" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5">Status</TabsTrigger>
-        </TabsList>
+        {!mode && (
+          <TabsList className="bg-transparent border-b rounded-none w-full justify-start h-auto p-0 gap-0">
+            <TabsTrigger value="claim-data" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5">Data Klaim</TabsTrigger>
+            <TabsTrigger value="idrg" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5">Coding iDRG</TabsTrigger>
+            {detail.idrg_final_success && (
+              <TabsTrigger value="inacbg" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5">Coding INACBG</TabsTrigger>
+            )}
+            <TabsTrigger value="status" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5">Status</TabsTrigger>
+          </TabsList>
+        )}
         </div>
+        )}
 
-        {/* Tab: RM Duplicate */}
-        <TabsContent value="rm-duplicate" className="mt-0">
-          <RMDuplicateTab
-            eklaimId={Number(id)}
-            rmDuplicate={detail.rm_duplicate}
-            visit={detail.visit}
-            onSaved={refreshData}
-            stickyTopOffset={mainStickyHeaderHeight}
-          />
-        </TabsContent>
+
+
+        {/* Mode: Cetakan */}
+        {(mode === 'cetakan' || activeTab === 'cetakan') && (
+          <div className="py-6">
+            <CetakanTab detail={detail} originalRM={originalRM} />
+          </div>
+        )}
 
         {/* Tab: Claim Data */}
         <TabsContent value="claim-data" className="space-y-4">
@@ -971,3 +967,5 @@ export default function EklaimDetailPage() {
     </div>
   );
 }
+
+

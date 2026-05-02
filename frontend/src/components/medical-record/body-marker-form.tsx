@@ -1,16 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Loader2, Maximize2, Minimize2, Plus, Save, Trash2, ZoomIn, ZoomOut } from "lucide-react";
+import { Loader2, Plus, Save, Trash2, X, Eye, ChevronDown, ChevronRight, ImageIcon, ArrowLeft } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
+
 import { useToast } from "@/hooks/use-toast";
 import { emitMedicalRecordTabIndicator, emitMedicalRecordTabSaved } from "./tab-indicator";
 import { masterDataApi, medicalRecordsApi, type BodyMarkerItem, type BodyMarkerPoint, type MasterData } from "@/lib/api";
 import { resolveBackendFileUrl } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface BodyMarkerFormProps {
   visitId: number;
@@ -76,10 +78,6 @@ const toMarkerNumber = (value: string | undefined, fallback: number) => {
 
 const toMarkerLabel = (value: string | undefined, fallback: number) => String(toMarkerNumber(value, fallback));
 
-const MIN_ZOOM_LEVEL = 50;
-const MAX_ZOOM_LEVEL = 200;
-const ZOOM_STEP = 10;
-
 const mapBodyMarkerItems = (items: BodyMarkerItem[] | undefined): BodyMarkerItem[] => {
   if (!Array.isArray(items)) return [];
 
@@ -118,11 +116,14 @@ export function BodyMarkerForm({ visitId, readOnly = false, isPatientDischarged 
   const [activeItemId, setActiveItemId] = useState<string>("");
   const [selectedMarkerId, setSelectedMarkerId] = useState<string>("");
   const [imageLoadErrors, setImageLoadErrors] = useState<Record<string, boolean>>({});
-  const [isCanvasFullscreen, setIsCanvasFullscreen] = useState(false);
-  const [zoomLevel, setZoomLevel] = useState(100);
+
+  // Modal states
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editModalStep, setEditModalStep] = useState<"pick" | "canvas">("pick");
+  const [viewItemId, setViewItemId] = useState<string>("");
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
 
   const imageRef = useRef<HTMLImageElement | null>(null);
-  const canvasPanelRef = useRef<HTMLDivElement | null>(null);
 
   const isFormDisabled = readOnly || isPatientDischarged;
 
@@ -173,23 +174,7 @@ export function BodyMarkerForm({ visitId, readOnly = false, isPatientDischarged 
   }, [items, totalMarkers]);
 
   useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsCanvasFullscreen(document.fullscreenElement === canvasPanelRef.current);
-    };
-
-    document.addEventListener("fullscreenchange", handleFullscreenChange);
-    return () => {
-      document.removeEventListener("fullscreenchange", handleFullscreenChange);
-    };
-  }, []);
-
-  useEffect(() => {
-    setZoomLevel(100);
-  }, [activeItemId]);
-
-  useEffect(() => {
     let active = true;
-
     const loadData = async () => {
       setLoading(true);
       try {
@@ -198,88 +183,50 @@ export function BodyMarkerForm({ visitId, readOnly = false, isPatientDischarged 
           masterDataApi.getByCategory("body_marker_image", { include_inactive: true }),
           medicalRecordsApi.getBodyMarkers(visitId),
         ]);
-
         if (!active) return;
-
-        const categoryData = (categoryRes.data?.data || []).map((cat) => ({
-          id: cat.id,
-          code: cat.code,
-          name: cat.name,
-        }));
-        setCategories(categoryData);
-
+        setCategories((categoryRes.data?.data || []).map((cat) => ({ id: cat.id, code: cat.code, name: cat.name })));
         const imageData = (imageRes.data?.data || [])
           .map((img: MasterData) => {
             const metadata = parseImageMetadata(img.metadata);
-            return {
-              masterId: img.id,
-              code: img.code,
-              name: img.name,
-              imageUrl: metadata.imageUrl || "",
-              parentId: img.parent_id,
-              categoryCode: metadata.categoryCode || "",
-              categoryName: metadata.categoryName || "",
-            };
+            return { masterId: img.id, code: img.code, name: img.name, imageUrl: metadata.imageUrl || "", parentId: img.parent_id, categoryCode: metadata.categoryCode || "", categoryName: metadata.categoryName || "" };
           })
           .filter((img) => Boolean(img.imageUrl));
-
         setImages(imageData);
-
         const savedItems = mapBodyMarkerItems(markerRes.data?.items);
         setItems(savedItems);
-
-        if (savedItems.length > 0) {
-          setActiveItemId(String(savedItems[0].id || ""));
-        }
+        if (savedItems.length > 0) setActiveItemId(String(savedItems[0].id || ""));
       } catch {
         if (!active) return;
-        toast({
-          title: "Gagal",
-          description: "Data marker bagian tubuh tidak dapat dimuat.",
-          variant: "destructive",
-        });
+        toast({ title: "Gagal", description: "Data marker bagian tubuh tidak dapat dimuat.", variant: "destructive" });
       } finally {
-        if (active) {
-          setLoading(false);
-        }
+        if (active) setLoading(false);
       }
     };
-
     loadData();
-
-    return () => {
-      active = false;
-    };
+    return () => { active = false; };
   }, [visitId, toast]);
 
   const addImageToItems = () => {
     if (!selectedImageMasterId) return;
-
     const image = images.find((img) => img.masterId === Number(selectedImageMasterId));
     if (!image) return;
-
     const alreadyExists = items.some((item) => item.image_master_id === image.masterId);
     if (alreadyExists) {
-      setActiveItemId(String(items.find((item) => item.image_master_id === image.masterId)?.id || ""));
+      const existingId = String(items.find((item) => item.image_master_id === image.masterId)?.id || "");
+      setActiveItemId(existingId);
+      setEditModalStep("canvas");
       return;
     }
-
     const categoryFromParent = categories.find((cat) => cat.id === image.parentId);
-
     const newItem: BodyMarkerItem = {
-      id: `item-${Date.now()}`,
-      image_master_id: image.masterId,
-      image_code: image.code,
-      image_name: image.name,
-      image_url: image.imageUrl,
-      category_code: image.categoryCode || categoryFromParent?.code || "",
-      category_name: image.categoryName || categoryFromParent?.name || "",
-      markers: [],
+      id: `item-${Date.now()}`, image_master_id: image.masterId, image_code: image.code, image_name: image.name,
+      image_url: image.imageUrl, category_code: image.categoryCode || categoryFromParent?.code || "",
+      category_name: image.categoryName || categoryFromParent?.name || "", markers: [],
     };
-
     setItems((prev) => [...prev, newItem]);
     setActiveItemId(String(newItem.id || ""));
     setSelectedMarkerId("");
+    setEditModalStep("canvas");
     emitMedicalRecordTabSaved("body-marker", false);
   };
 
@@ -295,80 +242,36 @@ export function BodyMarkerForm({ visitId, readOnly = false, isPatientDischarged 
 
   const handleImageClick = (event: React.MouseEvent<HTMLImageElement>) => {
     if (isFormDisabled || !activeItem || !imageRef.current) return;
-
     const rect = imageRef.current.getBoundingClientRect();
     const x = asPercent(((event.clientX - rect.left) / rect.width) * 100);
     const y = asPercent(((event.clientY - rect.top) / rect.height) * 100);
-
     const markerCount = activeItem.markers.length;
-    const nextMarker: BodyMarkerPoint = {
-      id: `marker-${Date.now()}-${markerCount + 1}`,
-      x,
-      y,
-      label: String(markerCount + 1),
-      note: "",
-    };
-
-    setItems((prev) =>
-      prev.map((item) => {
-        if (String(item.id || "") !== String(activeItem.id || "")) return item;
-        return {
-          ...item,
-          markers: [...item.markers, nextMarker],
-        };
-      }),
-    );
-
+    const nextMarker: BodyMarkerPoint = { id: `marker-${Date.now()}-${markerCount + 1}`, x, y, label: String(markerCount + 1), note: "" };
+    setItems((prev) => prev.map((item) => {
+      if (String(item.id || "") !== String(activeItem.id || "")) return item;
+      return { ...item, markers: [...item.markers, nextMarker] };
+    }));
     setSelectedMarkerId(String(nextMarker.id || ""));
     emitMedicalRecordTabSaved("body-marker", false);
   };
 
   const removeMarker = (markerId: string) => {
     if (!activeItem) return;
-
-    setItems((prev) =>
-      prev.map((item) => {
-        if (String(item.id || "") !== String(activeItem.id || "")) return item;
-        const markers = item.markers
-          .filter((marker) => String(marker.id || "") !== markerId)
-          .map((marker, index) => ({
-            ...marker,
-            label: String(index + 1),
-          }));
-
-        return {
-          ...item,
-          markers,
-        };
-      }),
-    );
-
-    if (selectedMarkerId === markerId) {
-      setSelectedMarkerId("");
-    }
+    setItems((prev) => prev.map((item) => {
+      if (String(item.id || "") !== String(activeItem.id || "")) return item;
+      const markers = item.markers.filter((m) => String(m.id || "") !== markerId).map((m, i) => ({ ...m, label: String(i + 1) }));
+      return { ...item, markers };
+    }));
+    if (selectedMarkerId === markerId) setSelectedMarkerId("");
     emitMedicalRecordTabSaved("body-marker", false);
   };
 
   const updateMarkerNote = (markerId: string, note: string) => {
     if (!activeItem) return;
-
-    setItems((prev) =>
-      prev.map((item) => {
-        if (String(item.id || "") !== String(activeItem.id || "")) return item;
-        return {
-          ...item,
-          markers: item.markers.map((marker) =>
-            String(marker.id || "") === markerId
-              ? {
-                  ...marker,
-                  note,
-                }
-              : marker,
-          ),
-        };
-      }),
-    );
-
+    setItems((prev) => prev.map((item) => {
+      if (String(item.id || "") !== String(activeItem.id || "")) return item;
+      return { ...item, markers: item.markers.map((m) => String(m.id || "") === markerId ? { ...m, note } : m) };
+    }));
     emitMedicalRecordTabSaved("body-marker", false);
   };
 
@@ -376,66 +279,44 @@ export function BodyMarkerForm({ visitId, readOnly = false, isPatientDischarged 
     setSaving(true);
     try {
       const payload: BodyMarkerItem[] = items.map((item) => ({
-        id: item.id,
-        image_master_id: item.image_master_id,
-        image_code: item.image_code,
-        image_name: item.image_name,
-        image_url: item.image_url,
-        category_code: item.category_code,
+        id: item.id, image_master_id: item.image_master_id, image_code: item.image_code,
+        image_name: item.image_name, image_url: item.image_url, category_code: item.category_code,
         category_name: item.category_name,
-        markers: item.markers.map((marker, index) => ({
-          id: marker.id,
-          x: asPercent(marker.x),
-          y: asPercent(marker.y),
-          label: String(index + 1),
-          note: marker.note || "",
-        })),
+        markers: item.markers.map((marker, index) => ({ id: marker.id, x: asPercent(marker.x), y: asPercent(marker.y), label: String(index + 1), note: marker.note || "" })),
       }));
-
       await medicalRecordsApi.saveBodyMarkers(visitId, { items: payload });
-
       emitMedicalRecordTabSaved("body-marker", true);
-      toast({
-        title: "Berhasil",
-        description: "Marker bagian tubuh berhasil disimpan.",
-      });
+      toast({ title: "Berhasil", description: "Marker bagian tubuh berhasil disimpan." });
+      setIsEditModalOpen(false);
     } catch {
-      toast({
-        title: "Gagal",
-        description: "Marker bagian tubuh gagal disimpan.",
-        variant: "destructive",
-      });
+      toast({ title: "Gagal", description: "Marker bagian tubuh gagal disimpan.", variant: "destructive" });
     } finally {
       setSaving(false);
     }
   };
-
-  const toggleCanvasFullscreen = async () => {
-    const panel = canvasPanelRef.current;
-    if (!panel) return;
-
-    try {
-      if (document.fullscreenElement === panel) {
-        await document.exitFullscreen();
-      } else {
-        await panel.requestFullscreen();
-      }
-    } catch {
-      toast({
-        title: "Gagal",
-        description: "Mode layar penuh tidak dapat dibuka pada browser ini.",
-        variant: "destructive",
-      });
-    }
+  const openEditModal = () => {
+    setSelectedCategoryId("all");
+    setSelectedImageMasterId("");
+    setEditModalStep("pick");
+    setSelectedMarkerId("");
+    setIsEditModalOpen(true);
   };
 
-  const handleZoomOut = () => {
-    setZoomLevel((prev) => Math.max(MIN_ZOOM_LEVEL, prev - ZOOM_STEP));
+  const openViewModal = (itemId: string) => {
+    setViewItemId(itemId);
+    setSelectedMarkerId("");
+    setIsViewModalOpen(true);
   };
 
-  const handleZoomIn = () => {
-    setZoomLevel((prev) => Math.min(MAX_ZOOM_LEVEL, prev + ZOOM_STEP));
-  };
+  const viewItem = useMemo(
+    () => items.find((item) => String(item.id || "") === viewItemId) || null,
+    [items, viewItemId],
+  );
+
+  const viewItemImageUrl = useMemo(
+    () => resolveBackendFileUrl(viewItem?.image_url || ""),
+    [viewItem?.image_url],
+  );
 
   if (loading) {
     return (
@@ -445,295 +326,163 @@ export function BodyMarkerForm({ visitId, readOnly = false, isPatientDischarged 
     );
   }
 
+  const renderCanvas = (item: BodyMarkerItem, imgUrl: string, interactive: boolean) => (
+    <div className="h-full w-full flex items-center justify-center bg-muted/10 overflow-hidden">
+      <div className="relative inline-block max-w-full max-h-full">
+        <img ref={interactive ? imageRef : undefined} src={imgUrl} alt={item.image_name}
+          className={cn("block w-auto h-auto max-w-full max-h-[calc(100vh-200px)]", interactive && !isFormDisabled ? "cursor-crosshair" : "cursor-default")}
+          onClick={interactive ? handleImageClick : undefined}
+          onLoad={() => setImageLoadErrors((p) => ({ ...p, [String(item.id || "")]: false }))}
+          onError={() => setImageLoadErrors((p) => ({ ...p, [String(item.id || "")]: true }))}
+        />
+        {imageLoadErrors[String(item.id || "")] && (
+          <div className="absolute inset-0 flex items-center justify-center bg-background/90"><p className="text-xs text-muted-foreground">Gambar tidak dapat ditampilkan.</p></div>
+        )}
+        {item.markers.map((marker, index) => {
+          const mid = String(marker.id || "");
+          return (
+            <button key={mid} type="button"
+              className={cn("absolute -translate-x-1/2 -translate-y-1/2 flex h-6 w-6 items-center justify-center rounded-full border border-white bg-rose-600 text-[10px] font-semibold text-white shadow", selectedMarkerId === mid && "ring-2 ring-rose-200")}
+              style={{ left: `${asPercent(marker.x)}%`, top: `${asPercent(marker.y)}%` }}
+              onClick={(e) => { e.stopPropagation(); setSelectedMarkerId(mid); }}
+            >{toMarkerLabel(marker.label, index + 1)}</button>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  const renderMarkerTable = (item: BodyMarkerItem, editable: boolean) => (
+    <div className="rounded-md border">
+      <table className="w-full table-fixed text-xs">
+        <colgroup><col className="w-[60px]" /><col />{editable && <col className="w-[48px]" />}</colgroup>
+        <thead className="bg-muted/30"><tr className="border-b"><th className="px-2 py-2 text-left font-semibold">No</th><th className="px-2 py-2 text-left font-semibold">Catatan</th>{editable && <th className="px-2 py-2 text-center font-semibold">Aksi</th>}</tr></thead>
+        <tbody>
+          {item.markers.map((marker, index) => {
+            const mid = String(marker.id || "");
+            return (
+              <tr key={mid} className={cn("border-b last:border-0", selectedMarkerId === mid ? "bg-primary/5" : "bg-background")}>
+                <td className="px-2 py-2"><button type="button" className="font-semibold" onClick={() => setSelectedMarkerId(mid)}>{toMarkerLabel(marker.label, index + 1)}</button></td>
+                <td className="px-2 py-2 min-w-0">{editable ? <Input value={marker.note || ""} onChange={(e) => updateMarkerNote(mid, e.target.value)} placeholder="Catatan (opsional)" className="h-8 w-full text-xs" /> : <span className="text-xs text-muted-foreground">{marker.note || "-"}</span>}</td>
+                {editable && <td className="px-2 py-2 text-center"><Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeMarker(mid)}><Trash2 className="h-3.5 w-3.5" /></Button></td>}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+
   return (
-    <div className="space-y-6">
-      <div className="border border-border/70">
-        <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-          Marker Bagian Tubuh
-        </div>
-        <div className="space-y-5 p-3 sm:p-4 [&_label]:tracking-[0.01em]">
-        <div className="grid gap-3 md:grid-cols-[220px_1fr_auto]">
-            <div className="space-y-2">
-              <Label className="text-sm">Kategori Gambar</Label>
-              <Combobox
-                options={categoryOptions}
-                value={selectedCategoryId}
-                onValueChange={(value) => setSelectedCategoryId(value || "all")}
-                placeholder="Pilih kategori gambar"
-                searchPlaceholder="Cari kategori gambar..."
-                emptyText="Kategori tidak ditemukan"
-                className="h-11"
-              />
+    <>
+      <div className="space-y-3">
+        <div className="rounded-lg border border-border/70 bg-background overflow-hidden">
+          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            <div className="flex items-center justify-between">
+              <span>Marker Bagian Tubuh</span>
+              {!isFormDisabled && <Button onClick={openEditModal} size="sm" className="h-6 px-2 py-0 text-[10px]"><Plus className="h-3.5 w-3.5 mr-1" />Tambah</Button>}
             </div>
-
-            <div className="space-y-2">
-              <Label className="text-sm">Pilih Gambar</Label>
-              <Combobox
-                options={bodyPartOptions}
-                value={selectedImageMasterId}
-                onValueChange={(value) => setSelectedImageMasterId(value || "")}
-                placeholder="Pilih bagian tubuh"
-                searchPlaceholder="Cari bagian tubuh..."
-                emptyText="Bagian tubuh tidak ditemukan"
-                disabled={filteredImages.length === 0}
-                className="h-11"
-              />
-            </div>
-
-            <div className="flex items-end">
-              <Button type="button" className="h-11" onClick={addImageToItems} disabled={isFormDisabled || !selectedImageMasterId}>
-                <Plus className="mr-2 h-4 w-4" />
-                Tambah
-              </Button>
-            </div>
-        </div>
-
-        {images.length === 0 ? (
-          <div className="rounded-md border border-dashed bg-muted/20 p-4 text-sm text-muted-foreground">
-            Master gambar marker belum tersedia. Tambahkan data pada kategori body_marker_image di Master Data.
           </div>
-        ) : null}
-
-        {items.length > 0 ? (
-          <div className="flex flex-wrap gap-2">
-            {items.map((item) => {
-              const active = String(item.id || "") === activeItemId;
-              return (
-                <button
-                  key={String(item.id || "")}
-                  type="button"
-                  onClick={() => {
-                    setActiveItemId(String(item.id || ""));
-                    setSelectedMarkerId("");
-                  }}
-                  className={cn(
-                    "inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs",
-                    active ? "border-primary bg-primary/10 text-primary" : "hover:bg-muted",
-                  )}
-                >
-                  <span>{item.image_name}</span>
-                  <Badge variant="secondary">{item.markers.length}</Badge>
-                  {!isFormDisabled && (
-                    <span
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        removeImageFromItems(String(item.id || ""));
-                      }}
-                      className="inline-flex h-4 w-4 items-center justify-center rounded-full hover:bg-destructive/20"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        ) : null}
+          {items.length > 0 ? (
+            <div className="overflow-x-auto">
+              <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-muted/50 text-xs font-medium text-muted-foreground border-b">
+                <div className="col-span-1"></div><div className="col-span-4">Gambar</div><div className="col-span-2">Kategori</div><div className="col-span-2">Marker</div><div className="col-span-3 text-right">Aksi</div>
+              </div>
+              <div className="divide-y">
+                {items.map((item) => {
+                  const iid = String(item.id || "");
+                  return (
+                    <Collapsible key={iid} className="group">
+                      <div className="flex items-center gap-2 px-4 py-2 hover:bg-muted/30 transition-colors">
+                        <CollapsibleTrigger asChild><Button variant="ghost" size="sm" className="h-6 w-6 p-0 rounded-none shrink-0"><ChevronRight className="h-4 w-4 group-data-[state=open]:hidden" /><ChevronDown className="h-4 w-4 hidden group-data-[state=open]:block" /></Button></CollapsibleTrigger>
+                        <div className="flex-1 grid grid-cols-12 gap-2 items-center text-sm">
+                          <div className="col-span-4 text-xs font-medium truncate">{item.image_name}</div>
+                          <div className="col-span-2 text-xs text-muted-foreground truncate">{item.category_name || "-"}</div>
+                          <div className="col-span-2"><Badge variant="secondary" className="text-[10px]">{item.markers.length}</Badge></div>
+                          <div className="col-span-4 flex items-center justify-end gap-1">
+                            <Button variant="ghost" size="icon" className="h-6 w-6 rounded-none" onClick={() => openViewModal(iid)}><Eye className="h-3.5 w-3.5" /></Button>
+                            {!isFormDisabled && <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:bg-destructive/10 rounded-none" onClick={() => removeImageFromItems(iid)}><Trash2 className="h-3.5 w-3.5" /></Button>}
+                          </div>
+                        </div>
+                      </div>
+                      <CollapsibleContent>
+                        <div className="px-12 py-3 bg-muted/10 border-t border-border/50">
+                          {item.markers.length > 0 ? renderMarkerTable(item, false) : <p className="text-xs text-muted-foreground">Belum ada marker.</p>}
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <div className="py-12 text-center text-muted-foreground">
+              <ImageIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p className="font-medium text-sm">Belum ada marker tubuh</p>
+              <p className="text-xs mt-1">Klik "Tambah" untuk memulai.</p>
+            </div>
+          )}
         </div>
       </div>
 
-      {activeItem ? (
-        <div className="grid gap-4 xl:grid-cols-[1fr_minmax(320px,360px)]">
-          <div
-            ref={canvasPanelRef}
-            className={cn("border border-border/70 bg-background", isCanvasFullscreen && "h-full w-full")}
-          >
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Kanvas Marker</span>
-                <div className="flex items-center gap-1.5">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7"
-                    onClick={handleZoomOut}
-                    disabled={zoomLevel <= MIN_ZOOM_LEVEL}
-                    title="Zoom out"
-                  >
-                    <ZoomOut className="h-3.5 w-3.5" />
-                  </Button>
-
-                  <span className="min-w-[48px] text-center text-xs font-semibold text-foreground">{zoomLevel}%</span>
-
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7"
-                    onClick={handleZoomIn}
-                    disabled={zoomLevel >= MAX_ZOOM_LEVEL}
-                    title="Zoom in"
-                  >
-                    <ZoomIn className="h-3.5 w-3.5" />
-                  </Button>
-
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7"
-                    onClick={toggleCanvasFullscreen}
-                    title={isCanvasFullscreen ? "Keluar fullscreen" : "Masuk fullscreen"}
-                  >
-                    {isCanvasFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
-                  </Button>
-                </div>
+      {/* EDIT MODAL */}
+      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+        <DialogContent className="!max-w-[100vw] !w-[100vw] !h-[100dvh] !max-h-[100dvh] !rounded-none !border-none !p-0 !m-0 !fixed !top-0 !left-0 !translate-x-0 !translate-y-0 bg-background overflow-hidden flex flex-col [&>button]:hidden">
+          <DialogHeader className="px-4 py-3 border-b bg-muted/30 shrink-0 flex flex-row items-center justify-between">
+            <DialogTitle className="flex items-center gap-2 text-sm uppercase tracking-wider text-muted-foreground">
+              <ImageIcon className="h-4 w-4" />{editModalStep === "pick" ? "Pilih Gambar Tubuh" : activeItem?.image_name || "Marker"}
+            </DialogTitle>
+            <div className="flex items-center gap-2">
+              {editModalStep === "canvas" && <Button variant="outline" size="sm" className="rounded-none h-7 text-[10px]" onClick={() => setEditModalStep("pick")}><ArrowLeft className="h-3 w-3 mr-1" />Ganti Gambar</Button>}
+              <Button variant="ghost" size="icon" onClick={() => setIsEditModalOpen(false)} className="h-6 w-6 rounded-none"><X className="h-4 w-4" /></Button>
+            </div>
+          </DialogHeader>
+          {editModalStep === "pick" ? (
+            <div className="flex-1 flex items-center justify-center p-8">
+              <div className="w-full max-w-lg space-y-6">
+                <div className="space-y-2"><Label className="text-xs uppercase text-muted-foreground font-semibold">Kategori</Label><Combobox options={categoryOptions} value={selectedCategoryId} onValueChange={(v) => setSelectedCategoryId(v || "all")} placeholder="Semua kategori" searchPlaceholder="Cari..." emptyText="Tidak ditemukan" className="h-11" /></div>
+                <div className="space-y-2"><Label className="text-xs uppercase text-muted-foreground font-semibold">Gambar Tubuh</Label><Combobox options={bodyPartOptions} value={selectedImageMasterId} onValueChange={(v) => setSelectedImageMasterId(v || "")} placeholder="Pilih bagian tubuh" searchPlaceholder="Cari..." emptyText="Tidak ditemukan" disabled={filteredImages.length === 0} className="h-11" /></div>
+                <Button className="w-full h-11" onClick={addImageToItems} disabled={!selectedImageMasterId}><Plus className="mr-2 h-4 w-4" />Pilih & Lanjutkan</Button>
               </div>
             </div>
-            <div className="px-3 pt-3">
-              <p className="text-sm font-semibold">{activeItem.image_name}</p>
-              <p className="text-xs text-muted-foreground">
-                Klik area gambar untuk menambahkan marker. Total marker: {activeItem.markers.length}
-              </p>
-            </div>
-            <div className="p-3 sm:p-4">
-              <div className="rounded-md border bg-muted/20">
-                <div className={cn("min-h-[220px] overflow-auto p-2", isCanvasFullscreen ? "h-[calc(100vh-210px)]" : "max-h-[520px]")}>
-                  <div className="relative mx-auto min-w-[280px]" style={{ width: `${zoomLevel}%` }}>
-                    <img
-                      ref={imageRef}
-                      src={activeItemImageUrl}
-                      alt={activeItem.image_name}
-                      className={cn("block h-auto w-full object-contain", isFormDisabled ? "cursor-default" : "cursor-crosshair")}
-                      onClick={handleImageClick}
-                      onLoad={() => {
-                        const key = String(activeItem.id || "");
-                        setImageLoadErrors((prev) => ({
-                          ...prev,
-                          [key]: false,
-                        }));
-                      }}
-                      onError={() => {
-                        const key = String(activeItem.id || "");
-                        setImageLoadErrors((prev) => ({
-                          ...prev,
-                          [key]: true,
-                        }));
-                      }}
-                    />
-
-                    {imageLoadErrors[String(activeItem.id || "")] && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-background/90 p-4 text-center">
-                        <p className="text-xs text-muted-foreground">
-                          Gambar tidak dapat ditampilkan. Periksa URL gambar pada master data atau koneksi ke server backend.
-                        </p>
-                      </div>
-                    )}
-
-                    {activeItem.markers.map((marker, index) => {
-                      const markerId = String(marker.id || "");
-                      const selected = selectedMarkerId === markerId;
-                      const markerNumber = toMarkerLabel(marker.label, index + 1);
-                      return (
-                        <button
-                          key={markerId}
-                          type="button"
-                          className={cn(
-                            "absolute -translate-x-1/2 -translate-y-1/2 flex h-6 w-6 items-center justify-center rounded-full border border-white bg-rose-600 text-[10px] font-semibold text-white shadow",
-                            selected && "ring-2 ring-rose-200",
-                          )}
-                          style={{ left: `${asPercent(marker.x)}%`, top: `${asPercent(marker.y)}%` }}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            setSelectedMarkerId(markerId);
-                          }}
-                          title={marker.note || `Marker ${markerNumber}`}
-                        >
-                          {markerNumber}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
+          ) : activeItem ? (
+            <div className="flex-1 flex min-h-0">
+              <div className="flex-1 min-h-0 flex flex-col border-r border-border/70">
+                <div className="px-3 py-2 border-b border-border/70 bg-muted/20 text-xs text-muted-foreground shrink-0">Klik gambar untuk menambahkan marker. Total: <span className="font-semibold text-foreground">{activeItem.markers.length}</span></div>
+                <div className="flex-1 min-h-0 p-2">{renderCanvas(activeItem, activeItemImageUrl, true)}</div>
+              </div>
+              <div className="w-[400px] flex flex-col min-h-0 shrink-0">
+                <div className="px-3 py-2 border-b border-border/70 bg-muted/20 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground shrink-0">Daftar Marker</div>
+                <div className="flex-1 min-h-0 overflow-y-auto p-3">{activeItem.markers.length === 0 ? <p className="text-xs text-muted-foreground">Klik gambar di sebelah kiri.</p> : renderMarkerTable(activeItem, !isFormDisabled)}</div>
               </div>
             </div>
+          ) : null}
+          <div className="shrink-0 border-t bg-background p-3 flex items-center justify-end gap-2">
+            <Button variant="outline" className="rounded-none w-28 text-xs h-9" onClick={() => setIsEditModalOpen(false)}>Batal</Button>
+            <Button className="rounded-none w-28 text-xs h-9" onClick={handleSave} disabled={saving}>{saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}Simpan</Button>
           </div>
+        </DialogContent>
+      </Dialog>
 
-          <div className="border border-border/70">
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              Daftar Marker
+      {/* VIEW MODAL */}
+      <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
+        <DialogContent className="!max-w-[100vw] !w-[100vw] !h-[100dvh] !max-h-[100dvh] !rounded-none !border-none !p-0 !m-0 !fixed !top-0 !left-0 !translate-x-0 !translate-y-0 bg-background overflow-hidden flex flex-col [&>button]:hidden">
+          <DialogHeader className="px-4 py-3 border-b bg-muted/30 shrink-0 flex flex-row items-center justify-between">
+            <DialogTitle className="flex items-center gap-2 text-sm uppercase tracking-wider text-muted-foreground"><Eye className="h-4 w-4" />{viewItem?.image_name || "Detail"}</DialogTitle>
+            <Button variant="ghost" size="icon" onClick={() => setIsViewModalOpen(false)} className="h-6 w-6 rounded-none"><X className="h-4 w-4" /></Button>
+          </DialogHeader>
+          {viewItem && (
+            <div className="flex-1 flex min-h-0">
+              <div className="flex-1 min-h-0 p-2 border-r border-border/70">{renderCanvas(viewItem, viewItemImageUrl, false)}</div>
+              <div className="w-[400px] flex flex-col min-h-0 shrink-0">
+                <div className="px-3 py-2 border-b border-border/70 bg-muted/20 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground shrink-0">Daftar Marker ({viewItem.markers.length})</div>
+                <div className="flex-1 min-h-0 overflow-y-auto p-3">{viewItem.markers.length === 0 ? <p className="text-xs text-muted-foreground">Belum ada marker.</p> : renderMarkerTable(viewItem, false)}</div>
+              </div>
             </div>
-            <div className="p-3 sm:p-4 space-y-2">
-              <ScrollArea className="h-[340px]">
-                {activeItem.markers.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">Belum ada marker pada gambar ini.</p>
-                ) : (
-                  <div className="rounded-md border">
-                    <table className="w-full table-fixed text-xs">
-                      <colgroup>
-                        <col className="w-[80px]" />
-                        <col />
-                        {!isFormDisabled && <col className="w-[56px]" />}
-                      </colgroup>
-                      <thead className="bg-muted/30">
-                        <tr className="border-b">
-                          <th className="px-2 py-2 text-left font-semibold">Marker</th>
-                          <th className="px-2 py-2 text-left font-semibold">Catatan</th>
-                          {!isFormDisabled && <th className="px-2 py-2 text-center font-semibold">Aksi</th>}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {activeItem.markers.map((marker, index) => {
-                          const markerId = String(marker.id || "");
-                          const selected = markerId === selectedMarkerId;
-                          const markerNumber = toMarkerLabel(marker.label, index + 1);
-
-                          return (
-                            <tr
-                              key={markerId}
-                              className={cn("border-b last:border-0", selected ? "bg-primary/5" : "bg-background")}
-                            >
-                              <td className="px-2 py-2 align-top">
-                                <button
-                                  type="button"
-                                  className="font-semibold"
-                                  onClick={() => setSelectedMarkerId(markerId)}
-                                >
-                                  {markerNumber}
-                                </button>
-                              </td>
-                              <td className="px-2 py-2 min-w-0">
-                                <Input
-                                  value={marker.note || ""}
-                                  onChange={(event) => updateMarkerNote(markerId, event.target.value)}
-                                  placeholder="Catatan marker (opsional)"
-                                  disabled={isFormDisabled}
-                                  className="h-9 w-full min-w-0 text-xs"
-                                />
-                              </td>
-                              {!isFormDisabled && (
-                                <td className="px-2 py-2 text-center align-top">
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-7 w-7"
-                                    onClick={() => removeMarker(markerId)}
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </Button>
-                                </td>
-                              )}
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </ScrollArea>
-
-              <Button type="button" onClick={handleSave} disabled={saving || isFormDisabled} className="w-full h-11">
-                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                Simpan Marker
-              </Button>
-            </div>
-          </div>
-        </div>
-      ) : (
-       ""
-      )}
-    </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
+

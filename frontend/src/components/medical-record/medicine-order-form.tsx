@@ -290,12 +290,11 @@ function OrderCollapsible({ order }: { order: MedicineOrder }) {
                 </table>
               </div>
             </div>
-            
-            {/* Order Items Table */}
+
             {order.items && order.items.length > 0 && (
-              <div className="border rounded-lg overflow-x-auto">
+              <div className="border border-border/70 overflow-x-auto mt-3">
                 <table className="w-full min-w-[760px] text-sm">
-                  <thead className="bg-muted/50">
+                  <thead className="bg-muted/50 border-b border-border/70">
                     <tr>
                       <th className="py-2 px-3 text-left font-medium">Nama Item</th>
                       <th className="py-2 px-3 text-left font-medium">Detail</th>
@@ -391,7 +390,7 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
   const { hasPermission } = usePermission();
 
   const initialFulfillmentType: MedicineFulfillmentType = sourceServiceType === "rawat_inap" ? "in_room" : "take_home";
-  
+
   const [activeTab, setActiveTab] = useState<"form" | "history">("form");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -516,9 +515,9 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
   };
 
   // Only pharmacy rooms with service_type 'farmasi' (exclude depo_farmasi)
-  const isPharmacyRoom = (room: any) => 
-    room.service_type === 'farmasi' && 
-    room.room_type !== 'depo_farmasi' && 
+  const isPharmacyRoom = (room: any) =>
+    room.service_type === 'farmasi' &&
+    room.room_type !== 'depo_farmasi' &&
     room.is_active;
 
   useEffect(() => {
@@ -541,7 +540,7 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
       // Load existing orders for this visit
       const ordersRes = await medicineOrdersApi.getAll({ source_visit_id: visitId });
       const orders = ordersRes.data || [];
-      
+
       // Recalculate status for orders that might have inconsistent status
       // This ensures order status matches item statuses
       for (const order of orders) {
@@ -553,7 +552,7 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
           }
         }
       }
-      
+
       // Reload orders after recalculation
       const updatedOrdersRes = await medicineOrdersApi.getAll({ source_visit_id: visitId });
       setExistingOrders(updatedOrdersRes.data || []);
@@ -1292,7 +1291,7 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
 
       // Reload orders
       loadData();
-      
+
       // Trigger refresh print options dan final visit
       window.dispatchEvent(new CustomEvent("refresh-print-options"));
       window.dispatchEvent(new CustomEvent("refresh-final-visit"));
@@ -1319,45 +1318,41 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
     <div>
       <div className="p-0">
         {/* Inline Tabs with Underline */}
-        <div className="border-b">
-          <div className="flex">
+        <div>
+          <div className="flex items-center gap-6 px-4">
             <button
               onClick={() => setActiveTab("form")}
               className={cn(
-                "px-4 py-2.5 text-sm font-medium transition-colors relative",
+                "py-3 text-sm font-medium transition-colors relative flex items-center gap-2",
                 activeTab === "form"
-                  ? "text-primary"
+                  ? "text-foreground"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
-              <span className="flex items-center gap-2">
-                <Pill className="h-4 w-4" />
-                Order Baru
-              </span>
+              <Pill className={cn("h-4 w-4", activeTab === "form" ? "text-primary" : "text-muted-foreground")} />
+              Order Baru
               {activeTab === "form" && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
+                <div className="absolute bottom-[-1px] left-0 right-0 h-[2px] bg-primary rounded-t-sm" />
               )}
             </button>
             <button
               onClick={() => setActiveTab("history")}
               className={cn(
-                "px-4 py-2.5 text-sm font-medium transition-colors relative",
+                "py-3 text-sm font-medium transition-colors relative flex items-center gap-2",
                 activeTab === "history"
-                  ? "text-primary"
+                  ? "text-foreground"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
-              <span className="flex items-center gap-2">
-                <Clock className="h-4 w-4" />
-                Riwayat Order
-                {existingOrders.length > 0 && (
-                  <Badge variant="secondary" className="ml-1 h-5 px-1.5">
-                    {existingOrders.length}
-                  </Badge>
-                )}
-              </span>
+              <Clock className={cn("h-4 w-4", activeTab === "history" ? "text-primary" : "text-muted-foreground")} />
+              Riwayat Order
+              {existingOrders.length > 0 && (
+                <Badge variant="secondary" className="ml-1 h-5 px-1.5 font-normal">
+                  {existingOrders.length}
+                </Badge>
+              )}
               {activeTab === "history" && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
+                <div className="absolute bottom-[-1px] left-0 right-0 h-[2px] bg-primary rounded-t-sm" />
               )}
             </button>
           </div>
@@ -1369,1319 +1364,1319 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
             {activeTab === "form" && (
               <div className="space-y-4">
                 <fieldset disabled={readOnly} className="space-y-4 [&_input]:h-10 [&_[role=combobox]]:h-10">
-          <div className="border border-border/70">
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              Konfigurasi Order
-            </div>
-            <div className="space-y-4 p-3 sm:p-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label>Ruang Farmasi Tujuan</Label>
-                  <Select
-                    value={selectedPharmacyRoom?.toString() || ""}
-                    onValueChange={(value) => setSelectedPharmacyRoom(Number(value))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Pilih ruang farmasi" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {pharmacyRooms.map((room) => (
-                        <SelectItem key={room.id} value={room.id.toString()}>
-                          {room.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Prioritas</Label>
-                  <Select value={priority} onValueChange={setPriority}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="normal">Normal</SelectItem>
-                      <SelectItem value="urgent">Urgent</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Pemakaian Obat</Label>
-                  <Select value={fulfillmentType} onValueChange={(value) => setFulfillmentType(value as MedicineFulfillmentType)}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="in_room">Dipakai di Ruangan</SelectItem>
-                      <SelectItem value="take_home">Dibawa Pulang</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Diagnosis Terkait</Label>
-                <Input
-                  placeholder="Tulis diagnosis yang berkaitan dengan resep ini"
-                  value={diagnosis}
-                  onChange={(e) => setDiagnosis(e.target.value)}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Order Items */}
-          <div className="space-y-2 border border-border/70 p-3 sm:p-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <Label className="text-base font-medium">Daftar Obat</Label>
-                <Badge variant={groupedDraftOrderItems.length > 0 ? "default" : "outline"}>{groupedDraftOrderItems.length} entri</Badge>
-                <Badge variant={orderGrandTotal > 0 ? "secondary" : "outline"}>{formatRupiah(orderGrandTotal)}</Badge>
-              </div>
-              <div className="flex items-center gap-2">
-                <Dialog
-                  open={showRacikanDialog}
-                  onOpenChange={(open) => {
-                    setShowRacikanDialog(open);
-                    if (!open) {
-                      resetRacikanDraft();
-                    }
-                  }}
-                >
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        size="icon"
-                        variant="outline"
-                        className="h-8 w-8"
-                        title="Tambah Racikan"
-                        aria-label="Tambah racikan"
-                        disabled={!selectedPharmacyRoom || loadingMedicines || readOnly}
-                        onClick={() => setShowRacikanDialog(true)}
-                      >
-                        <Pill className="h-4 w-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top">Tambah racikan</TooltipContent>
-                  </Tooltip>
-                  <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
-                    <DialogHeader>
-                      <DialogTitle>Tambah Racikan</DialogTitle>
-                      <DialogDescription>
-                        Lengkapi jenis racikan, jumlah hasil racikan, dan komponen obat yang akan diracik.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="grid gap-4 overflow-y-auto pr-1">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <div className="space-y-1">
-                          <Label>Nama Racikan</Label>
-                          <Input
-                            value={racikanDraft.name}
-                            onChange={(e) => handleUpdateRacikanDraft("name", e.target.value)}
-                            placeholder="Contoh: Racikan Batuk Anak"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <Label>Jenis Racikan</Label>
-                          <Select value={racikanDraft.type} onValueChange={(value) => handleUpdateRacikanDraft("type", value)}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Pilih jenis racikan" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {RACIKAN_TYPE_OPTIONS.map((option) => (
-                                <SelectItem key={option} value={option}>{option}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                        <div className="space-y-1">
-                          <Label>Jumlah Hasil Racikan</Label>
-                          <Input
-                            type="number"
-                            min={1}
-                            value={racikanDraft.quantity}
-                            onChange={(e) => handleUpdateRacikanDraft("quantity", Number(e.target.value) || 1)}
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <Label>Satuan Hasil</Label>
-                          <Input
-                            value={racikanDraft.unit}
-                            onChange={(e) => handleUpdateRacikanDraft("unit", e.target.value)}
-                            placeholder="Contoh: bungkus"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <Label>Dosis</Label>
-                          <Input
-                            value={racikanDraft.dosage}
-                            onChange={(e) => handleUpdateRacikanDraft("dosage", e.target.value)}
-                            placeholder="Contoh: 3x1"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                        <div className="space-y-1">
-                          <Label>Frekuensi</Label>
-                          <Select value={racikanDraft.frequency} onValueChange={(value) => handleUpdateRacikanDraft("frequency", value)}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Pilih frekuensi" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {frequencyOptions.map((option) => (
-                                <SelectItem key={`racikan-freq-${option}`} value={option}>{option}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-1">
-                          <Label>Rute</Label>
-                          <Select value={racikanDraft.route} onValueChange={(value) => handleUpdateRacikanDraft("route", value)}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Pilih rute" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {routeOptions.map((option) => (
-                                <SelectItem key={`racikan-route-${option.value}`} value={option.value}>{option.label}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-1">
-                          <Label>Durasi</Label>
-                          <Input
-                            value={racikanDraft.duration}
-                            onChange={(e) => handleUpdateRacikanDraft("duration", e.target.value)}
-                            placeholder="Contoh: 7 hari"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <Label>Instruksi</Label>
-                          <Combobox
-                            options={instructionOptions}
-                            value={racikanDraft.instructions}
-                            onValueChange={(value) => handleUpdateRacikanDraft("instructions", value)}
-                            placeholder="Pilih instruksi"
-                            searchPlaceholder="Cari instruksi..."
-                            emptyText="Instruksi tidak ditemukan"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="space-y-2 border rounded-md p-3">
-                        <div className="flex items-center justify-between gap-2">
-                          <Label className="text-sm font-medium">Komponen Racikan</Label>
-                          <Badge variant="outline">{racikanItems.length} komponen</Badge>
-                        </div>
-                        <div className="relative">
-                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                          <Input
-                            placeholder="Cari obat untuk racikan..."
-                            className="pl-9"
-                            value={racikanSearchTerm}
-                            onChange={(e) => setRacikanSearchTerm(e.target.value)}
-                          />
-                        </div>
-                        <ScrollArea className="h-44 border rounded-md">
-                          <div className="divide-y">
-                            {filteredRacikanMedicines.length === 0 ? (
-                              <div className="text-center py-6 text-sm text-muted-foreground">
-                                {racikanSearchTerm ? "Obat tidak ditemukan" : "Semua obat sudah masuk ke racikan"}
-                              </div>
-                            ) : (
-                              filteredRacikanMedicines.map((pm) => (
-                                <button
-                                  key={`racikan-${pm.id}`}
-                                  type="button"
-                                  className="w-full p-2.5 hover:bg-muted/50 flex items-center justify-between text-left"
-                                  onClick={() => handleAddRacikanComponent(pm)}
-                                >
-                                  <div>
-                                    <p className="text-sm font-medium">{pm.medicine.name}</p>
-                                    <p className="text-xs text-muted-foreground">{pm.medicine.code} • Stok {pm.quantity}</p>
-                                  </div>
-                                  <Plus className="h-4 w-4 text-muted-foreground" />
-                                </button>
-                              ))
-                            )}
-                          </div>
-                        </ScrollArea>
-
-                        {racikanItems.length > 0 ? (
-                          <div className="border rounded-md overflow-x-auto">
-                            <table className="w-full text-xs min-w-[720px]">
-                              <thead className="bg-muted/50 border-b">
-                                <tr>
-                                  <th className="py-2 px-2 text-left">Obat</th>
-                                  <th className="py-2 px-2 text-left w-[100px]">Qty Bahan</th>
-                                  <th className="py-2 px-2 text-left w-[120px]">Stok</th>
-                                  <th className="py-2 px-2 text-left w-[52px]">Aksi</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {racikanItems.map((item, index) => (
-                                  <tr key={`racikan-item-${item.medicine_id}-${index}`} className="border-t align-top">
-                                    <td className="py-2 px-2">
-                                      <p className="font-medium">{item.medicine_name}</p>
-                                      <p className="text-[11px] text-muted-foreground">{item.medicine_code}</p>
-                                    </td>
-                                    <td className="py-2 px-2">
-                                      <Input
-                                        type="number"
-                                        min={1}
-                                        max={item.available_stock}
-                                        value={item.quantity}
-                                        onChange={(e) => handleUpdateRacikanItemQuantity(index, Number(e.target.value))}
-                                        className="h-7"
-                                      />
-                                    </td>
-                                    <td className="py-2 px-2 text-muted-foreground">{item.available_stock} {item.unit}</td>
-                                    <td className="py-2 px-2">
-                                      <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-7 w-7 text-destructive"
-                                        onClick={() => handleRemoveRacikanItem(index)}
-                                      >
-                                        <Trash2 className="h-4 w-4" />
-                                      </Button>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        ) : (
-                          <p className="text-xs text-muted-foreground">Belum ada komponen racikan. Tambahkan obat dari daftar di atas.</p>
-                        )}
-                      </div>
+                  <div className="border border-border/70">
+                    <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                      Konfigurasi Order
                     </div>
-                    <DialogFooter>
-                      <Button variant="outline" onClick={() => setShowRacikanDialog(false)}>
-                        Batal
-                      </Button>
-                      <Button onClick={handleSaveRacikan} disabled={racikanItems.length === 0}>
-                        Simpan Racikan
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-
-                <Dialog open={showTemplateDialog} onOpenChange={setShowTemplateDialog}>
-                  <DialogTrigger asChild>
-                    <Button
-                      size="icon"
-                      variant="outline"
-                      className="h-8 w-8"
-                      title="Tambah Template"
-                      aria-label="Tambah template"
-                      disabled={!selectedPharmacyRoom || loadingTemplates || readOnly}
-                    >
-                      <Package className="h-4 w-4" />
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
-                    <DialogHeader>
-                      <DialogTitle>Pilih Template Resep</DialogTitle>
-                      <DialogDescription>
-                        Template ini hanya milik akun dokter Anda. Pilih satu template untuk menambahkan obat otomatis.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        placeholder="Cari template..."
-                        className="pl-9"
-                        value={templateSearchTerm}
-                        onChange={(e) => setTemplateSearchTerm(e.target.value)}
-                      />
-                    </div>
-                    <ScrollArea className="flex-1 max-h-[400px] border rounded-md">
-                      <div className="divide-y">
-                        {loadingTemplates ? (
-                          <div className="flex items-center justify-center py-8">
-                            <Loader2 className="h-6 w-6 animate-spin" />
-                          </div>
-                        ) : filteredTemplates.length === 0 ? (
-                          <div className="text-center py-8 text-muted-foreground">
-                            {templateSearchTerm ? "Template tidak ditemukan" : "Belum ada template resep"}
-                          </div>
-                        ) : (
-                          filteredTemplates.map((template) => (
-                            <button
-                              key={template.id}
-                              type="button"
-                              className="w-full p-3 hover:bg-muted/50 flex items-center justify-between gap-3 text-left"
-                              onClick={() => handleApplyTemplate(template)}
-                            >
-                              <div>
-                                <p className="font-medium text-sm">{template.name}</p>
-                                <p className="text-xs text-muted-foreground">
-                                  {(template.items?.length || 0)} obat
-                                  {template.notes ? ` • ${template.notes}` : ""}
-                                  {template.dpjp_employee_id ? " • Scope: DPJP" : ""}
-                                </p>
-                              </div>
-                            </button>
-                          ))
-                        )}
+                    <div className="space-y-4 p-3 sm:p-4">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="space-y-2">
+                          <Label>Ruang Farmasi Tujuan</Label>
+                          <Select
+                            value={selectedPharmacyRoom?.toString() || ""}
+                            onValueChange={(value) => setSelectedPharmacyRoom(Number(value))}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Pilih ruang farmasi" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {pharmacyRooms.map((room) => (
+                                <SelectItem key={room.id} value={room.id.toString()}>
+                                  {room.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Prioritas</Label>
+                          <Select value={priority} onValueChange={setPriority}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="normal">Normal</SelectItem>
+                              <SelectItem value="urgent">Urgent</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Pemakaian Obat</Label>
+                          <Select value={fulfillmentType} onValueChange={(value) => setFulfillmentType(value as MedicineFulfillmentType)}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="in_room">Dipakai di Ruangan</SelectItem>
+                              <SelectItem value="take_home">Dibawa Pulang</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </div>
-                    </ScrollArea>
-                    <DialogFooter>
-                      <Button variant="outline" onClick={() => setShowTemplateDialog(false)}>
-                        Tutup
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
 
-                <Dialog open={showCreateTemplateDialog} onOpenChange={setShowCreateTemplateDialog}>
-                  <DialogTrigger asChild>
-                    <Button
-                      size="icon"
-                      variant="outline"
-                      className="h-8 w-8"
-                      title="Buat Template"
-                      aria-label="Buat template"
-                      disabled={readOnly}
-                      onClick={() => {
-                        setTemplateItems(orderItems.map((item) => ({ ...item })));
-                        setTemplateMedicineSearch("");
-                      }}
-                    >
-                      <BookmarkPlus className="h-4 w-4" />
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-4xl max-h-[85vh] overflow-hidden flex flex-col">
-                    <DialogHeader>
-                      <DialogTitle>Simpan Template Resep</DialogTitle>
-                      <DialogDescription>
-                        Simpan template resep pribadi dokter. Anda bisa ambil dari order saat ini, lalu tambah/ubah item di modal ini.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-3 overflow-y-auto pr-1">
-                      <div className="space-y-1">
-                        <Label>Nama Template</Label>
+                      <div className="space-y-2">
+                        <Label>Diagnosis Terkait</Label>
                         <Input
-                          value={templateName}
-                          onChange={(e) => setTemplateName(e.target.value)}
-                          placeholder="Contoh: Resep ISPA Dewasa"
+                          placeholder="Tulis diagnosis yang berkaitan dengan resep ini"
+                          value={diagnosis}
+                          onChange={(e) => setDiagnosis(e.target.value)}
                         />
                       </div>
-                      <div className="space-y-1">
-                        <Label>Catatan (opsional)</Label>
-                        <Textarea
-                          value={templateNotes}
-                          onChange={(e) => setTemplateNotes(e.target.value)}
-                          placeholder="Keterangan tambahan"
-                        />
-                      </div>
-                      <label className="flex items-center gap-2 text-sm">
-                        <input
-                          type="checkbox"
-                          checked={bindTemplateToDPJP}
-                          onChange={(e) => setBindTemplateToDPJP(e.target.checked)}
-                        />
-                        Scope hanya untuk DPJP pasien ini
-                      </label>
-
-                      <div className="space-y-2 border rounded-md p-3">
-                        <div className="flex items-center justify-between gap-2">
-                          <Label className="text-sm font-medium">Isi Obat Template</Label>
-                          <Badge variant="outline">{templateItems.length} obat</Badge>
-                        </div>
-
-                        <div className="relative">
-                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                          <Input
-                            placeholder="Cari obat untuk ditambahkan ke template..."
-                            className="pl-9"
-                            value={templateMedicineSearch}
-                            onChange={(e) => setTemplateMedicineSearch(e.target.value)}
-                          />
-                        </div>
-
-                        <ScrollArea className="h-44 border rounded-md">
-                          <div className="divide-y">
-                            {filteredTemplateMedicines.length === 0 ? (
-                              <div className="text-center py-6 text-sm text-muted-foreground">
-                                {templateMedicineSearch ? "Obat tidak ditemukan" : "Semua obat sudah masuk ke template"}
-                              </div>
-                            ) : (
-                              filteredTemplateMedicines.map((pm) => (
-                                <button
-                                  key={`template-${pm.id}`}
-                                  type="button"
-                                  className="w-full p-2.5 hover:bg-muted/50 flex items-center justify-between text-left"
-                                  onClick={() => handleAddTemplateItem(pm)}
-                                >
-                                  <div>
-                                    <p className="text-sm font-medium">{pm.medicine.name}</p>
-                                    <p className="text-xs text-muted-foreground">{pm.medicine.code} • Stok {pm.quantity}</p>
-                                  </div>
-                                  <Plus className="h-4 w-4 text-muted-foreground" />
-                                </button>
-                              ))
-                            )}
-                          </div>
-                        </ScrollArea>
-
-                        {templateItems.length > 0 ? (
-                          <div className="border rounded-md overflow-x-auto">
-                            <table className="w-full text-xs min-w-[900px]">
-                              <thead className="bg-muted/50 border-b">
-                                <tr>
-                                  <th className="py-2 px-2 text-left">Obat</th>
-                                  <th className="py-2 px-2 text-left w-[80px]">Qty</th>
-                                  <th className="py-2 px-2 text-left w-[120px]">Dosis</th>
-                                  <th className="py-2 px-2 text-left w-[130px]">Frekuensi</th>
-                                  <th className="py-2 px-2 text-left w-[140px]">Rute</th>
-                                  <th className="py-2 px-2 text-left w-[110px]">Durasi</th>
-                                  <th className="py-2 px-2 text-left">Instruksi</th>
-                                  <th className="py-2 px-2 text-left w-[52px]">Aksi</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {templateItems.map((item, index) => (
-                                  <tr key={`template-item-${item.medicine_id}-${index}`} className="border-t align-top">
-                                    <td className="py-2 px-2">
-                                      <p className="font-medium">{item.medicine_name}</p>
-                                      <p className="text-[11px] text-muted-foreground">{item.medicine_code}</p>
-                                    </td>
-                                    <td className="py-2 px-2">
-                                      <Input
-                                        type="number"
-                                        min={1}
-                                        max={item.available_stock}
-                                        value={item.quantity}
-                                        onChange={(e) => handleUpdateTemplateItemQuantity(index, Number(e.target.value))}
-                                        className="h-7"
-                                      />
-                                    </td>
-                                    <td className="py-2 px-2">
-                                      <Input
-                                        value={item.dosage}
-                                        onChange={(e) => handleUpdateTemplateItemField(index, "dosage", e.target.value)}
-                                        className="h-7"
-                                      />
-                                    </td>
-                                    <td className="py-2 px-2">
-                                      <Select
-                                        value={item.frequency}
-                                        onValueChange={(value) => handleUpdateTemplateItemField(index, "frequency", value)}
-                                      >
-                                        <SelectTrigger className="h-7"><SelectValue placeholder="Pilih" /></SelectTrigger>
-                                        <SelectContent>
-                                          {frequencyOptions.map((option) => (
-                                            <SelectItem key={`tmp-freq-${option}`} value={option}>{option}</SelectItem>
-                                          ))}
-                                        </SelectContent>
-                                      </Select>
-                                    </td>
-                                    <td className="py-2 px-2">
-                                      <Select
-                                        value={item.route}
-                                        onValueChange={(value) => handleUpdateTemplateItemField(index, "route", value)}
-                                      >
-                                        <SelectTrigger className="h-7"><SelectValue placeholder="Pilih" /></SelectTrigger>
-                                        <SelectContent>
-                                          {routeOptions.map((option) => (
-                                            <SelectItem key={`tmp-route-${option.value}`} value={option.value}>{option.label}</SelectItem>
-                                          ))}
-                                        </SelectContent>
-                                      </Select>
-                                    </td>
-                                    <td className="py-2 px-2">
-                                      <Input
-                                        value={item.duration}
-                                        onChange={(e) => handleUpdateTemplateItemField(index, "duration", e.target.value)}
-                                        className="h-7"
-                                      />
-                                    </td>
-                                    <td className="py-2 px-2">
-                                      <Combobox
-                                        options={instructionOptions}
-                                        value={item.instructions}
-                                        onValueChange={(value) => handleUpdateTemplateItemField(index, "instructions", value)}
-                                        placeholder="Pilih instruksi"
-                                        searchPlaceholder="Cari instruksi..."
-                                        emptyText="Instruksi tidak ditemukan"
-                                      />
-                                    </td>
-                                    <td className="py-2 px-2">
-                                      <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-7 w-7 text-destructive"
-                                        onClick={() => handleRemoveTemplateItem(index)}
-                                      >
-                                        <Trash2 className="h-4 w-4" />
-                                      </Button>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        ) : (
-                          <p className="text-xs text-muted-foreground">Belum ada obat pada template. Tambahkan obat dari daftar di atas.</p>
-                        )}
-                      </div>
                     </div>
-                    <DialogFooter>
-                      <Button variant="outline" onClick={() => setShowCreateTemplateDialog(false)}>
-                        Batal
-                      </Button>
-                      <Button onClick={handleCreateTemplate} disabled={templateSaving || templateItems.length === 0}>
-                        {templateSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-                        Simpan Template
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-
-                <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-                  <DialogTrigger asChild>
-                    <Button
-                      size="icon"
-                      className="h-8 w-8"
-                      title="Tambah Obat"
-                      aria-label="Tambah obat"
-                      disabled={!selectedPharmacyRoom || loadingMedicines || readOnly}
-                    >
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
-                    <DialogHeader>
-                      <DialogTitle>Pilih Obat</DialogTitle>
-                      <DialogDescription>
-                        Pilih obat, lalu lengkapi semua detail resep langsung di tabel order
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        placeholder="Cari obat..."
-                        className="pl-9"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                      />
-                    </div>
-                    <ScrollArea className="flex-1 max-h-[400px] border rounded-md">
-                      <div className="divide-y">
-                        {loadingMedicines ? (
-                          <div className="flex items-center justify-center py-8">
-                            <Loader2 className="h-6 w-6 animate-spin" />
-                          </div>
-                        ) : filteredMedicines.length === 0 ? (
-                          <div className="text-center py-8 text-muted-foreground">
-                            {searchTerm ? "Tidak ada obat yang sesuai" : "Semua obat yang tersedia sudah dipilih"}
-                          </div>
-                        ) : (
-                          filteredMedicines.map((pm) => (
-                            <button
-                              key={pm.id}
-                              type="button"
-                              className="w-full p-3 hover:bg-muted/50 flex items-center justify-between gap-3 text-left"
-                              onClick={() => handleAddItem(pm)}
-                            >
-                              <div>
-                                <p className="font-medium text-sm">{pm.medicine.name}</p>
-                                <p className="text-xs text-muted-foreground">
-                                  {pm.medicine.code} • {pm.medicine.form} • {pm.medicine.strength}
-                                </p>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Badge variant={pm.quantity > pm.min_quantity ? "default" : "destructive"}>
-                                  Stok: {pm.quantity}
-                                </Badge>
-                              </div>
-                            </button>
-                          ))
-                        )}
-                      </div>
-                    </ScrollArea>
-
-                    <DialogFooter>
-                      <Button variant="outline" onClick={() => setShowAddDialog(false)}>
-                        Tutup
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              </div>
-            </div>
-
-            {groupedDraftOrderItems.length === 0 ? (
-              <div className="border-2 border-dashed rounded-lg p-8 text-center text-muted-foreground">
-                <Pill className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                <p>Belum ada obat ditambahkan</p>
-                <p className="text-sm">Gunakan tombol aksi di kanan atas untuk mulai menambah item.</p>
-              </div>
-            ) : (
-              <>
-                <div className="space-y-3 md:hidden">
-                  {orderItems.map((item, index) => (
-                    <div key={index} className="rounded-lg border p-3 space-y-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <p className="font-medium text-sm leading-5">{item.medicine_name}</p>
-                          <p className="text-xs text-muted-foreground mt-0.5">{item.medicine_code} • Stok {item.available_stock} {item.unit}</p>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-destructive shrink-0"
-                          onClick={() => handleRemoveItem(index)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="space-y-1">
-                          <Label className="text-xs">Jumlah*</Label>
-                          <Input
-                            type="number"
-                            min={1}
-                            max={item.available_stock}
-                            value={item.quantity}
-                            onChange={(e) => handleUpdateItemQuantity(index, Number(e.target.value))}
-                            className={cn(plainFieldClass, itemErrors[index]?.length ? "border border-destructive bg-destructive/5" : "")}
-                          />
-                          <p className="text-[10px] text-muted-foreground">Maks {item.available_stock}</p>
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-xs">Dosis*</Label>
-                          <Input
-                            placeholder="Contoh: 3x1"
-                            value={item.dosage}
-                            onChange={(e) => handleUpdateItemField(index, "dosage", e.target.value)}
-                            className={cn(plainFieldClass, itemErrors[index]?.length ? "border border-destructive bg-destructive/5" : "")}
-                          />
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 gap-2">
-                        <div className="space-y-1">
-                          <Label className="text-xs">Frekuensi*</Label>
-                          <Select
-                            value={item.frequency}
-                            onValueChange={(value) => handleUpdateItemField(index, "frequency", value)}
-                          >
-                            <SelectTrigger className={cn(plainFieldClass, itemErrors[index]?.length ? "border border-destructive bg-destructive/5" : "")}> 
-                              <SelectValue placeholder="Pilih" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {frequencyOptions.map((option) => (
-                                <SelectItem key={option} value={option}>{option}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="space-y-1">
-                          <Label className="text-xs">Rute*</Label>
-                          <Select
-                            value={item.route}
-                            onValueChange={(value) => handleUpdateItemField(index, "route", value)}
-                          >
-                            <SelectTrigger className={cn(plainFieldClass, itemErrors[index]?.length ? "border border-destructive bg-destructive/5" : "")}> 
-                              <SelectValue placeholder="Pilih" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {routeOptions.map((option) => (
-                                <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="space-y-1">
-                          <Label className="text-xs">Durasi*</Label>
-                          <Input
-                            placeholder="Contoh: 7 hari"
-                            value={item.duration}
-                            onChange={(e) => handleUpdateItemField(index, "duration", e.target.value)}
-                            className={cn(plainFieldClass, itemErrors[index]?.length ? "border border-destructive bg-destructive/5" : "")}
-                          />
-                        </div>
-
-                        <div className="space-y-1">
-                          <Label className="text-xs">Instruksi*</Label>
-                          <Combobox
-                            options={instructionOptions}
-                            value={item.instructions}
-                            onValueChange={(value) => handleUpdateItemField(index, "instructions", value)}
-                            placeholder="Pilih instruksi"
-                            searchPlaceholder="Cari instruksi..."
-                            emptyText="Instruksi tidak ditemukan"
-                            className={cn("w-full", itemErrors[index]?.length ? "border border-destructive bg-destructive/5" : "")}
-                          />
-                          {itemErrors[index]?.length ? (
-                            <p className="text-[11px] text-destructive mt-1">{itemErrors[index][0]}</p>
-                          ) : null}
-                        </div>
-                      </div>
-
-                      <div className="rounded-md bg-primary/5 p-2 text-right">
-                        <p className="text-xs text-muted-foreground">@ {formatRupiah(item.unit_price)}</p>
-                        <p className="text-sm font-semibold leading-4">{formatRupiah(item.quantity * item.unit_price)}</p>
-                      </div>
-                    </div>
-                  ))}
-
-                  <div className="rounded-lg border bg-primary/5 p-3 text-right">
-                    <p className="text-sm font-medium text-muted-foreground">Grand Total</p>
-                    <p className="text-lg font-bold text-primary">{formatRupiah(orderGrandTotal)}</p>
                   </div>
-                </div>
 
-                <div className="hidden md:block border rounded-lg overflow-auto">
-                  <table className="w-full text-sm min-w-[980px]">
-                    <thead className="bg-muted/50 border-b">
-                      <tr>
-                        <th className="py-2 px-3 text-left font-medium">Nama Item</th>
-                        <th className="py-2 px-3 text-left font-medium">Detail Resep</th>
-                        <th className="py-2 px-3 text-left font-medium w-[140px]">Jumlah</th>
-                        <th className="py-2 px-3 text-right font-medium w-[170px]">Harga</th>
-                        <th className="py-2 px-3 text-left font-medium w-[140px]">Status</th>
-                        <th className="py-2 px-3 text-center font-medium w-[120px]">Aksi</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {groupedDraftOrderItems.map((group) => {
-                        const groupTotal = group.items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
+                  {/* Order Items */}
+                  <div className="space-y-2 border border-border/70 p-3 sm:p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Label className="text-base font-medium">Daftar Obat</Label>
+                        <Badge variant={groupedDraftOrderItems.length > 0 ? "default" : "outline"}>{groupedDraftOrderItems.length} entri</Badge>
+                        <Badge variant={orderGrandTotal > 0 ? "secondary" : "outline"}>{formatRupiah(orderGrandTotal)}</Badge>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Dialog
+                          open={showRacikanDialog}
+                          onOpenChange={(open) => {
+                            setShowRacikanDialog(open);
+                            if (!open) {
+                              resetRacikanDraft();
+                            }
+                          }}
+                        >
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                size="icon"
+                                variant="outline"
+                                className="h-8 w-8"
+                                title="Tambah Racikan"
+                                aria-label="Tambah racikan"
+                                disabled={!selectedPharmacyRoom || loadingMedicines || readOnly}
+                                onClick={() => setShowRacikanDialog(true)}
+                              >
+                                <Pill className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">Tambah racikan</TooltipContent>
+                          </Tooltip>
+                          <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+                            <DialogHeader>
+                              <DialogTitle>Tambah Racikan</DialogTitle>
+                              <DialogDescription>
+                                Lengkapi jenis racikan, jumlah hasil racikan, dan komponen obat yang akan diracik.
+                              </DialogDescription>
+                            </DialogHeader>
+                            <div className="grid gap-4 overflow-y-auto pr-1">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div className="space-y-1">
+                                  <Label>Nama Racikan</Label>
+                                  <Input
+                                    value={racikanDraft.name}
+                                    onChange={(e) => handleUpdateRacikanDraft("name", e.target.value)}
+                                    placeholder="Contoh: Racikan Batuk Anak"
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <Label>Jenis Racikan</Label>
+                                  <Select value={racikanDraft.type} onValueChange={(value) => handleUpdateRacikanDraft("type", value)}>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Pilih jenis racikan" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {RACIKAN_TYPE_OPTIONS.map((option) => (
+                                        <SelectItem key={option} value={option}>{option}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </div>
 
-                        if (group.type === "racikan") {
-                          const groupHasError = group.items.some((item) => {
-                            const itemIndex = orderItems.findIndex((candidate) => candidate === item);
-                            return itemErrors[itemIndex]?.length;
-                          });
-                          const groupKey = group.racikanGroup || group.key;
-                          const isExpanded = expandedRacikanGroups[groupKey] ?? groupHasError;
-                          const detailSummary = [
-                            group.sharedFields.dosage || "-",
-                            group.sharedFields.frequency || "-",
-                            getRouteLabel(group.sharedFields.route),
-                            group.sharedFields.duration || "-",
-                          ].join(" • ");
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                <div className="space-y-1">
+                                  <Label>Jumlah Hasil Racikan</Label>
+                                  <Input
+                                    type="number"
+                                    min={1}
+                                    value={racikanDraft.quantity}
+                                    onChange={(e) => handleUpdateRacikanDraft("quantity", Number(e.target.value) || 1)}
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <Label>Satuan Hasil</Label>
+                                  <Input
+                                    value={racikanDraft.unit}
+                                    onChange={(e) => handleUpdateRacikanDraft("unit", e.target.value)}
+                                    placeholder="Contoh: bungkus"
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <Label>Dosis</Label>
+                                  <Input
+                                    value={racikanDraft.dosage}
+                                    onChange={(e) => handleUpdateRacikanDraft("dosage", e.target.value)}
+                                    placeholder="Contoh: 3x1"
+                                  />
+                                </div>
+                              </div>
 
-                          return (
-                            <Fragment key={group.key}>
-                              <tr className="border-t align-top bg-muted/20">
-                                <td className="py-2 px-3">
-                                  <button
-                                    type="button"
-                                    className="flex w-full items-start gap-2 text-left"
-                                    onClick={() => toggleRacikanGroup(groupKey)}
-                                  >
-                                    <div className="min-w-0">
-                                      <div className="flex items-center gap-2 flex-wrap">
-                                        <span className="font-semibold truncate">{group.racikanName || "Racikan"}</span>
-                                        <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">Racikan</Badge>
+                              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                                <div className="space-y-1">
+                                  <Label>Frekuensi</Label>
+                                  <Select value={racikanDraft.frequency} onValueChange={(value) => handleUpdateRacikanDraft("frequency", value)}>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Pilih frekuensi" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {frequencyOptions.map((option) => (
+                                        <SelectItem key={`racikan-freq-${option}`} value={option}>{option}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <div className="space-y-1">
+                                  <Label>Rute</Label>
+                                  <Select value={racikanDraft.route} onValueChange={(value) => handleUpdateRacikanDraft("route", value)}>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Pilih rute" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {routeOptions.map((option) => (
+                                        <SelectItem key={`racikan-route-${option.value}`} value={option.value}>{option.label}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <div className="space-y-1">
+                                  <Label>Durasi</Label>
+                                  <Input
+                                    value={racikanDraft.duration}
+                                    onChange={(e) => handleUpdateRacikanDraft("duration", e.target.value)}
+                                    placeholder="Contoh: 7 hari"
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <Label>Instruksi</Label>
+                                  <Combobox
+                                    options={instructionOptions}
+                                    value={racikanDraft.instructions}
+                                    onValueChange={(value) => handleUpdateRacikanDraft("instructions", value)}
+                                    placeholder="Pilih instruksi"
+                                    searchPlaceholder="Cari instruksi..."
+                                    emptyText="Instruksi tidak ditemukan"
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="space-y-2 border rounded-md p-3">
+                                <div className="flex items-center justify-between gap-2">
+                                  <Label className="text-sm font-medium">Komponen Racikan</Label>
+                                  <Badge variant="outline">{racikanItems.length} komponen</Badge>
+                                </div>
+                                <div className="relative">
+                                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                  <Input
+                                    placeholder="Cari obat untuk racikan..."
+                                    className="pl-9"
+                                    value={racikanSearchTerm}
+                                    onChange={(e) => setRacikanSearchTerm(e.target.value)}
+                                  />
+                                </div>
+                                <ScrollArea className="h-44 border rounded-md">
+                                  <div className="divide-y">
+                                    {filteredRacikanMedicines.length === 0 ? (
+                                      <div className="text-center py-6 text-sm text-muted-foreground">
+                                        {racikanSearchTerm ? "Obat tidak ditemukan" : "Semua obat sudah masuk ke racikan"}
                                       </div>
-                                      <p className="text-xs text-muted-foreground truncate">
-                                        {group.racikanType || "Tanpa jenis"} • {group.items.length} komponen
-                                      </p>
-                                    </div>
-                                  </button>
-                                </td>
-                                <td className="py-2 px-3">
-                                  <p className="truncate">{detailSummary}</p>
-                                  <p className="text-xs text-muted-foreground truncate">Instruksi: {group.sharedFields.instructions || "-"}</p>
-                                </td>
-                                <td className="py-2 px-3 font-medium">{group.racikanQty || 1} {group.racikanUnit || "bungkus"}</td>
-                                <td className="py-2 px-3 text-right">
-                                  <p className="text-sm font-semibold leading-5">{formatRupiah(groupTotal)}</p>
-                                </td>
-                                <td className="py-2 px-3">
-                                  {groupHasError ? (
-                                    <Badge variant="destructive">Perlu Lengkapi</Badge>
-                                  ) : (
-                                    <Badge variant="outline">Siap</Badge>
-                                  )}
-                                </td>
-                                <td className="py-2 px-3">
-                                  <div className="flex items-center justify-center gap-1">
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-8 w-8"
-                                      title="Edit racikan"
-                                      onClick={() => openEditRacikanDialog(group)}
-                                    >
-                                      <Pencil className="h-4 w-4" />
-                                    </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-8 w-8 text-destructive"
-                                      title="Hapus racikan"
-                                      onClick={() => handleRemoveRacikanGroup(groupKey)}
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
+                                    ) : (
+                                      filteredRacikanMedicines.map((pm) => (
+                                        <button
+                                          key={`racikan-${pm.id}`}
+                                          type="button"
+                                          className="w-full p-2.5 hover:bg-muted/50 flex items-center justify-between text-left"
+                                          onClick={() => handleAddRacikanComponent(pm)}
+                                        >
+                                          <div>
+                                            <p className="text-sm font-medium">{pm.medicine.name}</p>
+                                            <p className="text-xs text-muted-foreground">{pm.medicine.code} • Stok {pm.quantity}</p>
+                                          </div>
+                                          <Plus className="h-4 w-4 text-muted-foreground" />
+                                        </button>
+                                      ))
+                                    )}
                                   </div>
-                                </td>
-                              </tr>
-                              {isExpanded &&
-                                group.items.map((item, componentIndex) => (
-                                  <tr key={`${group.key}-${item.medicine_id}-${componentIndex}`} className="border-t bg-background">
-                                    <td className="py-2 px-3 pl-11">
-                                      <div className="flex items-center gap-2 min-w-0">
-                                        <span className="h-px w-4 bg-border" />
-                                        <span className="truncate text-muted-foreground">{item.medicine_name}</span>
+                                </ScrollArea>
+
+                                {racikanItems.length > 0 ? (
+                                  <div className="border border-border/70 overflow-x-auto">
+                                    <table className="w-full text-xs min-w-[720px]">
+                                      <thead className="bg-muted/50 border-b border-border/70">
+                                        <tr>
+                                          <th className="py-2 px-2 text-left">Obat</th>
+                                          <th className="py-2 px-2 text-left w-[100px]">Qty Bahan</th>
+                                          <th className="py-2 px-2 text-left w-[120px]">Stok</th>
+                                          <th className="py-2 px-2 text-left w-[52px]">Aksi</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {racikanItems.map((item, index) => (
+                                          <tr key={`racikan-item-${item.medicine_id}-${index}`} className="border-t align-top">
+                                            <td className="py-2 px-2">
+                                              <p className="font-medium">{item.medicine_name}</p>
+                                              <p className="text-[11px] text-muted-foreground">{item.medicine_code}</p>
+                                            </td>
+                                            <td className="py-2 px-2">
+                                              <Input
+                                                type="number"
+                                                min={1}
+                                                max={item.available_stock}
+                                                value={item.quantity}
+                                                onChange={(e) => handleUpdateRacikanItemQuantity(index, Number(e.target.value))}
+                                                className="h-7"
+                                              />
+                                            </td>
+                                            <td className="py-2 px-2 text-muted-foreground">{item.available_stock} {item.unit}</td>
+                                            <td className="py-2 px-2">
+                                              <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-7 w-7 text-destructive"
+                                                onClick={() => handleRemoveRacikanItem(index)}
+                                              >
+                                                <Trash2 className="h-4 w-4" />
+                                              </Button>
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                ) : (
+                                  <p className="text-xs text-muted-foreground">Belum ada komponen racikan. Tambahkan obat dari daftar di atas.</p>
+                                )}
+                              </div>
+                            </div>
+                            <DialogFooter>
+                              <Button variant="outline" onClick={() => setShowRacikanDialog(false)}>
+                                Batal
+                              </Button>
+                              <Button onClick={handleSaveRacikan} disabled={racikanItems.length === 0}>
+                                Simpan Racikan
+                              </Button>
+                            </DialogFooter>
+                          </DialogContent>
+                        </Dialog>
+
+                        <Dialog open={showTemplateDialog} onOpenChange={setShowTemplateDialog}>
+                          <DialogTrigger asChild>
+                            <Button
+                              size="icon"
+                              variant="outline"
+                              className="h-8 w-8"
+                              title="Tambah Template"
+                              aria-label="Tambah template"
+                              disabled={!selectedPharmacyRoom || loadingTemplates || readOnly}
+                            >
+                              <Package className="h-4 w-4" />
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+                            <DialogHeader>
+                              <DialogTitle>Pilih Template Resep</DialogTitle>
+                              <DialogDescription>
+                                Template ini hanya milik akun dokter Anda. Pilih satu template untuk menambahkan obat otomatis.
+                              </DialogDescription>
+                            </DialogHeader>
+                            <div className="relative">
+                              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                              <Input
+                                placeholder="Cari template..."
+                                className="pl-9"
+                                value={templateSearchTerm}
+                                onChange={(e) => setTemplateSearchTerm(e.target.value)}
+                              />
+                            </div>
+                            <ScrollArea className="flex-1 max-h-[400px] border rounded-md">
+                              <div className="divide-y">
+                                {loadingTemplates ? (
+                                  <div className="flex items-center justify-center py-8">
+                                    <Loader2 className="h-6 w-6 animate-spin" />
+                                  </div>
+                                ) : filteredTemplates.length === 0 ? (
+                                  <div className="text-center py-8 text-muted-foreground">
+                                    {templateSearchTerm ? "Template tidak ditemukan" : "Belum ada template resep"}
+                                  </div>
+                                ) : (
+                                  filteredTemplates.map((template) => (
+                                    <button
+                                      key={template.id}
+                                      type="button"
+                                      className="w-full p-3 hover:bg-muted/50 flex items-center justify-between gap-3 text-left"
+                                      onClick={() => handleApplyTemplate(template)}
+                                    >
+                                      <div>
+                                        <p className="font-medium text-sm">{template.name}</p>
+                                        <p className="text-xs text-muted-foreground">
+                                          {(template.items?.length || 0)} obat
+                                          {template.notes ? ` • ${template.notes}` : ""}
+                                          {template.dpjp_employee_id ? " • Scope: DPJP" : ""}
+                                        </p>
                                       </div>
-                                      <p className="text-xs text-muted-foreground pl-6 truncate">{item.medicine_code}</p>
-                                    </td>
-                                    <td className="py-2 px-3 text-xs text-muted-foreground">Komponen racikan</td>
-                                    <td className="py-2 px-3">{item.quantity} {item.unit}</td>
-                                    <td className="py-2 px-3 text-right">{formatRupiah(item.quantity * item.unit_price)}</td>
-                                    <td className="py-2 px-3 text-xs text-muted-foreground">Komponen</td>
-                                    <td className="py-2 px-3 text-center text-muted-foreground">-</td>
-                                  </tr>
-                                ))}
-                            </Fragment>
-                          );
-                        }
+                                    </button>
+                                  ))
+                                )}
+                              </div>
+                            </ScrollArea>
+                            <DialogFooter>
+                              <Button variant="outline" onClick={() => setShowTemplateDialog(false)}>
+                                Tutup
+                              </Button>
+                            </DialogFooter>
+                          </DialogContent>
+                        </Dialog>
 
-                        const item = group.items[0];
-                        const index = orderItems.findIndex((candidate) => candidate === item);
-                        const detailSummary = [
-                          item.dosage || "-",
-                          item.frequency || "-",
-                          getRouteLabel(item.route),
-                          item.duration || "-",
-                        ].join(" • ");
-                        const hasError = Boolean(itemErrors[index]?.length);
+                        <Dialog open={showCreateTemplateDialog} onOpenChange={setShowCreateTemplateDialog}>
+                          <DialogTrigger asChild>
+                            <Button
+                              size="icon"
+                              variant="outline"
+                              className="h-8 w-8"
+                              title="Buat Template"
+                              aria-label="Buat template"
+                              disabled={readOnly}
+                              onClick={() => {
+                                setTemplateItems(orderItems.map((item) => ({ ...item })));
+                                setTemplateMedicineSearch("");
+                              }}
+                            >
+                              <BookmarkPlus className="h-4 w-4" />
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-4xl max-h-[85vh] overflow-hidden flex flex-col">
+                            <DialogHeader>
+                              <DialogTitle>Simpan Template Resep</DialogTitle>
+                              <DialogDescription>
+                                Simpan template resep pribadi dokter. Anda bisa ambil dari order saat ini, lalu tambah/ubah item di modal ini.
+                              </DialogDescription>
+                            </DialogHeader>
+                            <div className="space-y-3 overflow-y-auto pr-1">
+                              <div className="space-y-1">
+                                <Label>Nama Template</Label>
+                                <Input
+                                  value={templateName}
+                                  onChange={(e) => setTemplateName(e.target.value)}
+                                  placeholder="Contoh: Resep ISPA Dewasa"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label>Catatan (opsional)</Label>
+                                <Textarea
+                                  value={templateNotes}
+                                  onChange={(e) => setTemplateNotes(e.target.value)}
+                                  placeholder="Keterangan tambahan"
+                                />
+                              </div>
+                              <label className="flex items-center gap-2 text-sm">
+                                <input
+                                  type="checkbox"
+                                  checked={bindTemplateToDPJP}
+                                  onChange={(e) => setBindTemplateToDPJP(e.target.checked)}
+                                />
+                                Scope hanya untuk DPJP pasien ini
+                              </label>
 
-                        return (
-                          <tr key={group.key} className="border-t align-top">
-                            <td className="py-2 px-3">
-                              <p className="font-medium text-sm truncate">{item.medicine_name}</p>
-                              <p className="text-xs text-muted-foreground truncate">{item.medicine_code} • Stok {item.available_stock} {item.unit}</p>
-                            </td>
-                            <td className="py-2 px-3">
-                              <p className="truncate">{detailSummary}</p>
-                              <p className="text-xs text-muted-foreground truncate">Instruksi: {item.instructions || "-"}</p>
-                            </td>
-                            <td className="py-2 px-3 font-medium">{item.quantity} {item.unit}</td>
-                            <td className="py-2 px-3 text-right">
-                              <p className="text-xs text-muted-foreground">@ {formatRupiah(item.unit_price)}</p>
-                              <p className="text-sm font-semibold leading-4">{formatRupiah(item.quantity * item.unit_price)}</p>
-                            </td>
-                            <td className="py-2 px-3">
-                              {hasError ? (
-                                <Badge variant="destructive" title={itemErrors[index][0]}>Perlu Lengkapi</Badge>
-                              ) : (
-                                <Badge variant="outline">Siap</Badge>
-                              )}
-                            </td>
-                            <td className="py-2 px-3">
-                              <div className="flex items-center justify-center gap-1">
+                              <div className="space-y-2 border rounded-md p-3">
+                                <div className="flex items-center justify-between gap-2">
+                                  <Label className="text-sm font-medium">Isi Obat Template</Label>
+                                  <Badge variant="outline">{templateItems.length} obat</Badge>
+                                </div>
+
+                                <div className="relative">
+                                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                  <Input
+                                    placeholder="Cari obat untuk ditambahkan ke template..."
+                                    className="pl-9"
+                                    value={templateMedicineSearch}
+                                    onChange={(e) => setTemplateMedicineSearch(e.target.value)}
+                                  />
+                                </div>
+
+                                <ScrollArea className="h-44 border rounded-md">
+                                  <div className="divide-y">
+                                    {filteredTemplateMedicines.length === 0 ? (
+                                      <div className="text-center py-6 text-sm text-muted-foreground">
+                                        {templateMedicineSearch ? "Obat tidak ditemukan" : "Semua obat sudah masuk ke template"}
+                                      </div>
+                                    ) : (
+                                      filteredTemplateMedicines.map((pm) => (
+                                        <button
+                                          key={`template-${pm.id}`}
+                                          type="button"
+                                          className="w-full p-2.5 hover:bg-muted/50 flex items-center justify-between text-left"
+                                          onClick={() => handleAddTemplateItem(pm)}
+                                        >
+                                          <div>
+                                            <p className="text-sm font-medium">{pm.medicine.name}</p>
+                                            <p className="text-xs text-muted-foreground">{pm.medicine.code} • Stok {pm.quantity}</p>
+                                          </div>
+                                          <Plus className="h-4 w-4 text-muted-foreground" />
+                                        </button>
+                                      ))
+                                    )}
+                                  </div>
+                                </ScrollArea>
+
+                                {templateItems.length > 0 ? (
+                                  <div className="border border-border/70 overflow-x-auto">
+                                    <table className="w-full text-xs min-w-[900px]">
+                                      <thead className="bg-muted/50 border-b border-border/70">
+                                        <tr>
+                                          <th className="py-2 px-2 text-left">Obat</th>
+                                          <th className="py-2 px-2 text-left w-[80px]">Qty</th>
+                                          <th className="py-2 px-2 text-left w-[120px]">Dosis</th>
+                                          <th className="py-2 px-2 text-left w-[130px]">Frekuensi</th>
+                                          <th className="py-2 px-2 text-left w-[140px]">Rute</th>
+                                          <th className="py-2 px-2 text-left w-[110px]">Durasi</th>
+                                          <th className="py-2 px-2 text-left">Instruksi</th>
+                                          <th className="py-2 px-2 text-left w-[52px]">Aksi</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {templateItems.map((item, index) => (
+                                          <tr key={`template-item-${item.medicine_id}-${index}`} className="border-t align-top">
+                                            <td className="py-2 px-2">
+                                              <p className="font-medium">{item.medicine_name}</p>
+                                              <p className="text-[11px] text-muted-foreground">{item.medicine_code}</p>
+                                            </td>
+                                            <td className="py-2 px-2">
+                                              <Input
+                                                type="number"
+                                                min={1}
+                                                max={item.available_stock}
+                                                value={item.quantity}
+                                                onChange={(e) => handleUpdateTemplateItemQuantity(index, Number(e.target.value))}
+                                                className="h-7"
+                                              />
+                                            </td>
+                                            <td className="py-2 px-2">
+                                              <Input
+                                                value={item.dosage}
+                                                onChange={(e) => handleUpdateTemplateItemField(index, "dosage", e.target.value)}
+                                                className="h-7"
+                                              />
+                                            </td>
+                                            <td className="py-2 px-2">
+                                              <Select
+                                                value={item.frequency}
+                                                onValueChange={(value) => handleUpdateTemplateItemField(index, "frequency", value)}
+                                              >
+                                                <SelectTrigger className="h-7"><SelectValue placeholder="Pilih" /></SelectTrigger>
+                                                <SelectContent>
+                                                  {frequencyOptions.map((option) => (
+                                                    <SelectItem key={`tmp-freq-${option}`} value={option}>{option}</SelectItem>
+                                                  ))}
+                                                </SelectContent>
+                                              </Select>
+                                            </td>
+                                            <td className="py-2 px-2">
+                                              <Select
+                                                value={item.route}
+                                                onValueChange={(value) => handleUpdateTemplateItemField(index, "route", value)}
+                                              >
+                                                <SelectTrigger className="h-7"><SelectValue placeholder="Pilih" /></SelectTrigger>
+                                                <SelectContent>
+                                                  {routeOptions.map((option) => (
+                                                    <SelectItem key={`tmp-route-${option.value}`} value={option.value}>{option.label}</SelectItem>
+                                                  ))}
+                                                </SelectContent>
+                                              </Select>
+                                            </td>
+                                            <td className="py-2 px-2">
+                                              <Input
+                                                value={item.duration}
+                                                onChange={(e) => handleUpdateTemplateItemField(index, "duration", e.target.value)}
+                                                className="h-7"
+                                              />
+                                            </td>
+                                            <td className="py-2 px-2">
+                                              <Combobox
+                                                options={instructionOptions}
+                                                value={item.instructions}
+                                                onValueChange={(value) => handleUpdateTemplateItemField(index, "instructions", value)}
+                                                placeholder="Pilih instruksi"
+                                                searchPlaceholder="Cari instruksi..."
+                                                emptyText="Instruksi tidak ditemukan"
+                                              />
+                                            </td>
+                                            <td className="py-2 px-2">
+                                              <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-7 w-7 text-destructive"
+                                                onClick={() => handleRemoveTemplateItem(index)}
+                                              >
+                                                <Trash2 className="h-4 w-4" />
+                                              </Button>
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                ) : (
+                                  <p className="text-xs text-muted-foreground">Belum ada obat pada template. Tambahkan obat dari daftar di atas.</p>
+                                )}
+                              </div>
+                            </div>
+                            <DialogFooter>
+                              <Button variant="outline" onClick={() => setShowCreateTemplateDialog(false)}>
+                                Batal
+                              </Button>
+                              <Button onClick={handleCreateTemplate} disabled={templateSaving || templateItems.length === 0}>
+                                {templateSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                                Simpan Template
+                              </Button>
+                            </DialogFooter>
+                          </DialogContent>
+                        </Dialog>
+
+                        <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+                          <DialogTrigger asChild>
+                            <Button
+                              size="icon"
+                              className="h-8 w-8"
+                              title="Tambah Obat"
+                              aria-label="Tambah obat"
+                              disabled={!selectedPharmacyRoom || loadingMedicines || readOnly}
+                            >
+                              <Plus className="h-4 w-4" />
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+                            <DialogHeader>
+                              <DialogTitle>Pilih Obat</DialogTitle>
+                              <DialogDescription>
+                                Pilih obat, lalu lengkapi semua detail resep langsung di tabel order
+                              </DialogDescription>
+                            </DialogHeader>
+                            <div className="relative">
+                              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                              <Input
+                                placeholder="Cari obat..."
+                                className="pl-9"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                              />
+                            </div>
+                            <ScrollArea className="flex-1 max-h-[400px] border rounded-md">
+                              <div className="divide-y">
+                                {loadingMedicines ? (
+                                  <div className="flex items-center justify-center py-8">
+                                    <Loader2 className="h-6 w-6 animate-spin" />
+                                  </div>
+                                ) : filteredMedicines.length === 0 ? (
+                                  <div className="text-center py-8 text-muted-foreground">
+                                    {searchTerm ? "Tidak ada obat yang sesuai" : "Semua obat yang tersedia sudah dipilih"}
+                                  </div>
+                                ) : (
+                                  filteredMedicines.map((pm) => (
+                                    <button
+                                      key={pm.id}
+                                      type="button"
+                                      className="w-full p-3 hover:bg-muted/50 flex items-center justify-between gap-3 text-left"
+                                      onClick={() => handleAddItem(pm)}
+                                    >
+                                      <div>
+                                        <p className="font-medium text-sm">{pm.medicine.name}</p>
+                                        <p className="text-xs text-muted-foreground">
+                                          {pm.medicine.code} • {pm.medicine.form} • {pm.medicine.strength}
+                                        </p>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <Badge variant={pm.quantity > pm.min_quantity ? "default" : "destructive"}>
+                                          Stok: {pm.quantity}
+                                        </Badge>
+                                      </div>
+                                    </button>
+                                  ))
+                                )}
+                              </div>
+                            </ScrollArea>
+
+                            <DialogFooter>
+                              <Button variant="outline" onClick={() => setShowAddDialog(false)}>
+                                Tutup
+                              </Button>
+                            </DialogFooter>
+                          </DialogContent>
+                        </Dialog>
+                      </div>
+                    </div>
+
+                    {groupedDraftOrderItems.length === 0 ? (
+                      <div className="border-2 border-dashed rounded-lg p-8 text-center text-muted-foreground">
+                        <Pill className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                        <p>Belum ada obat ditambahkan</p>
+                        <p className="text-sm">Gunakan tombol aksi di kanan atas untuk mulai menambah item.</p>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="space-y-3 md:hidden">
+                          {orderItems.map((item, index) => (
+                            <div key={index} className="rounded-lg border p-3 space-y-3">
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <p className="font-medium text-sm leading-5">{item.medicine_name}</p>
+                                  <p className="text-xs text-muted-foreground mt-0.5">{item.medicine_code} • Stok {item.available_stock} {item.unit}</p>
+                                </div>
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  className="h-8 w-8"
-                                  title="Edit detail obat"
-                                  onClick={() => openEditItemDialog(index)}
-                                >
-                                  <Pencil className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 text-destructive"
-                                  title="Hapus obat"
+                                  className="h-8 w-8 text-destructive shrink-0"
                                   onClick={() => handleRemoveItem(index)}
                                 >
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
                               </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                    <tfoot>
-                      <tr className="border-t-2 bg-primary/5">
-                        <td colSpan={3} className="py-3 px-3 text-right">
-                          <span className="text-sm font-medium text-muted-foreground">Grand Total</span>
-                        </td>
-                        <td className="py-3 px-3 text-right">
-                          <span className="text-lg font-bold text-primary">{formatRupiah(orderGrandTotal)}</span>
-                        </td>
-                        <td colSpan={2} className="py-3 px-3" />
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              </>
-            )}
 
-            <Dialog
-              open={showEditItemDialog}
-              onOpenChange={(open) => {
-                setShowEditItemDialog(open);
-                if (!open) {
-                  setEditingItemIndex(null);
-                  setEditingItemDraft(null);
-                }
-              }}
-            >
-              <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Edit Detail Obat</DialogTitle>
-                  <DialogDescription>
-                    Ubah detail resep dari tombol aksi pada row.
-                  </DialogDescription>
-                </DialogHeader>
-
-                {editingItemDraft ? (
-                  <div className="space-y-4">
-                    <div className="rounded-md border bg-muted/20 px-3 py-2">
-                      <p className="font-medium">{editingItemDraft.medicine_name}</p>
-                      <p className="text-xs text-muted-foreground">{editingItemDraft.medicine_code}</p>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <Label>Jumlah</Label>
-                        <Input
-                          type="number"
-                          min={1}
-                          max={editingItemDraft.available_stock}
-                          value={editingItemDraft.quantity}
-                          onChange={(e) => setEditingItemDraft((prev) => prev ? ({ ...prev, quantity: Number(e.target.value) || 1 }) : prev)}
-                        />
-                        <p className="text-[11px] text-muted-foreground">Maks {editingItemDraft.available_stock}</p>
-                      </div>
-                      <div className="space-y-1">
-                        <Label>Dosis</Label>
-                        <Input
-                          value={editingItemDraft.dosage}
-                          onChange={(e) => setEditingItemDraft((prev) => prev ? ({ ...prev, dosage: e.target.value }) : prev)}
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label>Frekuensi</Label>
-                        <Select
-                          value={editingItemDraft.frequency}
-                          onValueChange={(value) => setEditingItemDraft((prev) => prev ? ({ ...prev, frequency: value }) : prev)}
-                        >
-                          <SelectTrigger><SelectValue placeholder="Pilih frekuensi" /></SelectTrigger>
-                          <SelectContent>
-                            {frequencyOptions.map((option) => (
-                              <SelectItem key={`edit-item-freq-${option}`} value={option}>{option}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-1">
-                        <Label>Rute</Label>
-                        <Select
-                          value={editingItemDraft.route}
-                          onValueChange={(value) => setEditingItemDraft((prev) => prev ? ({ ...prev, route: value }) : prev)}
-                        >
-                          <SelectTrigger><SelectValue placeholder="Pilih rute" /></SelectTrigger>
-                          <SelectContent>
-                            {routeOptions.map((option) => (
-                              <SelectItem key={`edit-item-route-${option.value}`} value={option.value}>{option.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-1 md:col-span-2">
-                        <Label>Durasi</Label>
-                        <Input
-                          value={editingItemDraft.duration}
-                          onChange={(e) => setEditingItemDraft((prev) => prev ? ({ ...prev, duration: e.target.value }) : prev)}
-                        />
-                      </div>
-                      <div className="space-y-1 md:col-span-2">
-                        <Label>Instruksi</Label>
-                        <Combobox
-                          options={instructionOptions}
-                          value={editingItemDraft.instructions}
-                          onValueChange={(value) => setEditingItemDraft((prev) => prev ? ({ ...prev, instructions: value }) : prev)}
-                          placeholder="Pilih instruksi"
-                          searchPlaceholder="Cari instruksi..."
-                          emptyText="Instruksi tidak ditemukan"
-                          className="w-full"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
-
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setShowEditItemDialog(false)}>
-                    Batal
-                  </Button>
-                  <Button onClick={handleSaveEditedItem} disabled={!editingItemDraft}>
-                    Simpan Perubahan
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-
-            <Dialog
-              open={showEditRacikanDialog}
-              onOpenChange={(open) => {
-                setShowEditRacikanDialog(open);
-                if (!open) {
-                  setEditingRacikanKey(null);
-                  setEditingRacikanComponents([]);
-                  setEditingRacikanSearch("");
-                }
-              }}
-            >
-              <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
-                <DialogHeader>
-                  <DialogTitle>Edit Racikan</DialogTitle>
-                  <DialogDescription>
-                    Ubah detail racikan dan komponen dari tombol aksi pada row racikan.
-                  </DialogDescription>
-                </DialogHeader>
-
-                <div className="space-y-3 overflow-y-auto pr-1">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <Label>Nama Racikan</Label>
-                      <Input
-                        value={editingRacikanMeta.name}
-                        onChange={(e) => setEditingRacikanMeta((prev) => ({ ...prev, name: e.target.value }))}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label>Jenis Racikan</Label>
-                      <Select
-                        value={editingRacikanMeta.type}
-                        onValueChange={(value) => setEditingRacikanMeta((prev) => ({ ...prev, type: value }))}
-                      >
-                        <SelectTrigger><SelectValue placeholder="Pilih jenis" /></SelectTrigger>
-                        <SelectContent>
-                          {RACIKAN_TYPE_OPTIONS.map((option) => (
-                            <SelectItem key={`edit-racikan-type-${option}`} value={option}>{option}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <div className="space-y-1">
-                      <Label>Jumlah Hasil</Label>
-                      <Input
-                        type="number"
-                        min={1}
-                        value={editingRacikanMeta.qty}
-                        onChange={(e) => setEditingRacikanMeta((prev) => ({ ...prev, qty: Number(e.target.value) || 1 }))}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label>Satuan Hasil</Label>
-                      <Input
-                        value={editingRacikanMeta.unit}
-                        onChange={(e) => setEditingRacikanMeta((prev) => ({ ...prev, unit: e.target.value }))}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label>Dosis</Label>
-                      <Input
-                        value={editingRacikanMeta.dosage}
-                        onChange={(e) => setEditingRacikanMeta((prev) => ({ ...prev, dosage: e.target.value }))}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                    <div className="space-y-1">
-                      <Label>Frekuensi</Label>
-                      <Select
-                        value={editingRacikanMeta.frequency}
-                        onValueChange={(value) => setEditingRacikanMeta((prev) => ({ ...prev, frequency: value }))}
-                      >
-                        <SelectTrigger><SelectValue placeholder="Pilih frekuensi" /></SelectTrigger>
-                        <SelectContent>
-                          {frequencyOptions.map((option) => (
-                            <SelectItem key={`edit-racikan-freq-${option}`} value={option}>{option}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1">
-                      <Label>Rute</Label>
-                      <Select
-                        value={editingRacikanMeta.route}
-                        onValueChange={(value) => setEditingRacikanMeta((prev) => ({ ...prev, route: value }))}
-                      >
-                        <SelectTrigger><SelectValue placeholder="Pilih rute" /></SelectTrigger>
-                        <SelectContent>
-                          {routeOptions.map((option) => (
-                            <SelectItem key={`edit-racikan-route-${option.value}`} value={option.value}>{option.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1">
-                      <Label>Durasi</Label>
-                      <Input
-                        value={editingRacikanMeta.duration}
-                        onChange={(e) => setEditingRacikanMeta((prev) => ({ ...prev, duration: e.target.value }))}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label>Instruksi</Label>
-                      <Combobox
-                        options={instructionOptions}
-                        value={editingRacikanMeta.instructions}
-                        onValueChange={(value) => setEditingRacikanMeta((prev) => ({ ...prev, instructions: value }))}
-                        placeholder="Pilih instruksi"
-                        searchPlaceholder="Cari instruksi..."
-                        emptyText="Instruksi tidak ditemukan"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2 border rounded-md p-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <Label className="text-sm font-medium">Komponen Racikan</Label>
-                      <Badge variant="outline">{editingRacikanComponents.length} komponen</Badge>
-                    </div>
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        placeholder="Cari obat untuk ditambahkan..."
-                        className="pl-9"
-                        value={editingRacikanSearch}
-                        onChange={(e) => setEditingRacikanSearch(e.target.value)}
-                      />
-                    </div>
-                    <ScrollArea className="h-36 border rounded-md">
-                      <div className="divide-y">
-                        {filteredEditingRacikanMedicines.length === 0 ? (
-                          <div className="text-center py-6 text-sm text-muted-foreground">
-                            {editingRacikanSearch ? "Obat tidak ditemukan" : "Semua obat sudah menjadi komponen"}
-                          </div>
-                        ) : (
-                          filteredEditingRacikanMedicines.map((pm) => (
-                            <button
-                              key={`edit-racikan-add-${pm.id}`}
-                              type="button"
-                              className="w-full p-2.5 hover:bg-muted/50 flex items-center justify-between text-left"
-                              onClick={() => handleAddEditingRacikanComponent(pm)}
-                            >
-                              <div>
-                                <p className="text-sm font-medium">{pm.medicine.name}</p>
-                                <p className="text-xs text-muted-foreground">{pm.medicine.code} • Stok {pm.quantity}</p>
+                              <div className="grid grid-cols-2 gap-2">
+                                <div className="space-y-1">
+                                  <Label className="text-xs">Jumlah*</Label>
+                                  <Input
+                                    type="number"
+                                    min={1}
+                                    max={item.available_stock}
+                                    value={item.quantity}
+                                    onChange={(e) => handleUpdateItemQuantity(index, Number(e.target.value))}
+                                    className={cn(plainFieldClass, itemErrors[index]?.length ? "border border-destructive bg-destructive/5" : "")}
+                                  />
+                                  <p className="text-[10px] text-muted-foreground">Maks {item.available_stock}</p>
+                                </div>
+                                <div className="space-y-1">
+                                  <Label className="text-xs">Dosis*</Label>
+                                  <Input
+                                    placeholder="Contoh: 3x1"
+                                    value={item.dosage}
+                                    onChange={(e) => handleUpdateItemField(index, "dosage", e.target.value)}
+                                    className={cn(plainFieldClass, itemErrors[index]?.length ? "border border-destructive bg-destructive/5" : "")}
+                                  />
+                                </div>
                               </div>
-                              <Plus className="h-4 w-4 text-muted-foreground" />
-                            </button>
-                          ))
-                        )}
-                      </div>
-                    </ScrollArea>
 
-                    <div className="border rounded-md overflow-x-auto">
-                      <table className="w-full text-sm min-w-[680px]">
-                        <thead className="bg-muted/50 border-b">
-                          <tr>
-                            <th className="py-2 px-2 text-left">Obat</th>
-                            <th className="py-2 px-2 text-left w-[120px]">Qty Bahan</th>
-                            <th className="py-2 px-2 text-left w-[120px]">Stok</th>
-                            <th className="py-2 px-2 text-right w-[140px]">Subtotal</th>
-                            <th className="py-2 px-2 text-left w-[56px]">Aksi</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {editingRacikanComponents.map((item, index) => (
-                            <tr key={`edit-racikan-comp-${item.medicine_id}-${index}`} className="border-t">
-                              <td className="py-2 px-2">
-                                <p className="font-medium">{item.medicine_name}</p>
-                                <p className="text-xs text-muted-foreground">{item.medicine_code}</p>
-                              </td>
-                              <td className="py-2 px-2">
+                              <div className="grid grid-cols-1 gap-2">
+                                <div className="space-y-1">
+                                  <Label className="text-xs">Frekuensi*</Label>
+                                  <Select
+                                    value={item.frequency}
+                                    onValueChange={(value) => handleUpdateItemField(index, "frequency", value)}
+                                  >
+                                    <SelectTrigger className={cn(plainFieldClass, itemErrors[index]?.length ? "border border-destructive bg-destructive/5" : "")}>
+                                      <SelectValue placeholder="Pilih" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {frequencyOptions.map((option) => (
+                                        <SelectItem key={option} value={option}>{option}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+
+                                <div className="space-y-1">
+                                  <Label className="text-xs">Rute*</Label>
+                                  <Select
+                                    value={item.route}
+                                    onValueChange={(value) => handleUpdateItemField(index, "route", value)}
+                                  >
+                                    <SelectTrigger className={cn(plainFieldClass, itemErrors[index]?.length ? "border border-destructive bg-destructive/5" : "")}>
+                                      <SelectValue placeholder="Pilih" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {routeOptions.map((option) => (
+                                        <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+
+                                <div className="space-y-1">
+                                  <Label className="text-xs">Durasi*</Label>
+                                  <Input
+                                    placeholder="Contoh: 7 hari"
+                                    value={item.duration}
+                                    onChange={(e) => handleUpdateItemField(index, "duration", e.target.value)}
+                                    className={cn(plainFieldClass, itemErrors[index]?.length ? "border border-destructive bg-destructive/5" : "")}
+                                  />
+                                </div>
+
+                                <div className="space-y-1">
+                                  <Label className="text-xs">Instruksi*</Label>
+                                  <Combobox
+                                    options={instructionOptions}
+                                    value={item.instructions}
+                                    onValueChange={(value) => handleUpdateItemField(index, "instructions", value)}
+                                    placeholder="Pilih instruksi"
+                                    searchPlaceholder="Cari instruksi..."
+                                    emptyText="Instruksi tidak ditemukan"
+                                    className={cn("w-full", itemErrors[index]?.length ? "border border-destructive bg-destructive/5" : "")}
+                                  />
+                                  {itemErrors[index]?.length ? (
+                                    <p className="text-[11px] text-destructive mt-1">{itemErrors[index][0]}</p>
+                                  ) : null}
+                                </div>
+                              </div>
+
+                              <div className="rounded-md bg-primary/5 p-2 text-right">
+                                <p className="text-xs text-muted-foreground">@ {formatRupiah(item.unit_price)}</p>
+                                <p className="text-sm font-semibold leading-4">{formatRupiah(item.quantity * item.unit_price)}</p>
+                              </div>
+                            </div>
+                          ))}
+
+                          <div className="rounded-lg border bg-primary/5 p-3 text-right">
+                            <p className="text-sm font-medium text-muted-foreground">Grand Total</p>
+                            <p className="text-lg font-bold text-primary">{formatRupiah(orderGrandTotal)}</p>
+                          </div>
+                        </div>
+
+                        <div className="hidden md:block border border-border/70 overflow-x-auto">
+                          <table className="w-full text-sm min-w-[980px]">
+                            <thead className="bg-muted/50 border-b border-border/70">
+                              <tr>
+                                <th className="py-2 px-3 text-left font-medium">Nama Item</th>
+                                <th className="py-2 px-3 text-left font-medium">Detail Resep</th>
+                                <th className="py-2 px-3 text-left font-medium w-[140px]">Jumlah</th>
+                                <th className="py-2 px-3 text-right font-medium w-[170px]">Harga</th>
+                                <th className="py-2 px-3 text-left font-medium w-[140px]">Status</th>
+                                <th className="py-2 px-3 text-center font-medium w-[120px]">Aksi</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {groupedDraftOrderItems.map((group) => {
+                                const groupTotal = group.items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
+
+                                if (group.type === "racikan") {
+                                  const groupHasError = group.items.some((item) => {
+                                    const itemIndex = orderItems.findIndex((candidate) => candidate === item);
+                                    return itemErrors[itemIndex]?.length;
+                                  });
+                                  const groupKey = group.racikanGroup || group.key;
+                                  const isExpanded = expandedRacikanGroups[groupKey] ?? groupHasError;
+                                  const detailSummary = [
+                                    group.sharedFields.dosage || "-",
+                                    group.sharedFields.frequency || "-",
+                                    getRouteLabel(group.sharedFields.route),
+                                    group.sharedFields.duration || "-",
+                                  ].join(" • ");
+
+                                  return (
+                                    <Fragment key={group.key}>
+                                      <tr className="border-t align-top bg-muted/20">
+                                        <td className="py-2 px-3">
+                                          <button
+                                            type="button"
+                                            className="flex w-full items-start gap-2 text-left"
+                                            onClick={() => toggleRacikanGroup(groupKey)}
+                                          >
+                                            <div className="min-w-0">
+                                              <div className="flex items-center gap-2 flex-wrap">
+                                                <span className="font-semibold truncate">{group.racikanName || "Racikan"}</span>
+                                                <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">Racikan</Badge>
+                                              </div>
+                                              <p className="text-xs text-muted-foreground truncate">
+                                                {group.racikanType || "Tanpa jenis"} • {group.items.length} komponen
+                                              </p>
+                                            </div>
+                                          </button>
+                                        </td>
+                                        <td className="py-2 px-3">
+                                          <p className="truncate">{detailSummary}</p>
+                                          <p className="text-xs text-muted-foreground truncate">Instruksi: {group.sharedFields.instructions || "-"}</p>
+                                        </td>
+                                        <td className="py-2 px-3 font-medium">{group.racikanQty || 1} {group.racikanUnit || "bungkus"}</td>
+                                        <td className="py-2 px-3 text-right">
+                                          <p className="text-sm font-semibold leading-5">{formatRupiah(groupTotal)}</p>
+                                        </td>
+                                        <td className="py-2 px-3">
+                                          {groupHasError ? (
+                                            <Badge variant="destructive">Perlu Lengkapi</Badge>
+                                          ) : (
+                                            <Badge variant="outline">Siap</Badge>
+                                          )}
+                                        </td>
+                                        <td className="py-2 px-3">
+                                          <div className="flex items-center justify-center gap-1">
+                                            <Button
+                                              variant="ghost"
+                                              size="icon"
+                                              className="h-8 w-8"
+                                              title="Edit racikan"
+                                              onClick={() => openEditRacikanDialog(group)}
+                                            >
+                                              <Pencil className="h-4 w-4" />
+                                            </Button>
+                                            <Button
+                                              variant="ghost"
+                                              size="icon"
+                                              className="h-8 w-8 text-destructive"
+                                              title="Hapus racikan"
+                                              onClick={() => handleRemoveRacikanGroup(groupKey)}
+                                            >
+                                              <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                          </div>
+                                        </td>
+                                      </tr>
+                                      {isExpanded &&
+                                        group.items.map((item, componentIndex) => (
+                                          <tr key={`${group.key}-${item.medicine_id}-${componentIndex}`} className="border-t bg-background">
+                                            <td className="py-2 px-3 pl-11">
+                                              <div className="flex items-center gap-2 min-w-0">
+                                                <span className="h-px w-4 bg-border" />
+                                                <span className="truncate text-muted-foreground">{item.medicine_name}</span>
+                                              </div>
+                                              <p className="text-xs text-muted-foreground pl-6 truncate">{item.medicine_code}</p>
+                                            </td>
+                                            <td className="py-2 px-3 text-xs text-muted-foreground">Komponen racikan</td>
+                                            <td className="py-2 px-3">{item.quantity} {item.unit}</td>
+                                            <td className="py-2 px-3 text-right">{formatRupiah(item.quantity * item.unit_price)}</td>
+                                            <td className="py-2 px-3 text-xs text-muted-foreground">Komponen</td>
+                                            <td className="py-2 px-3 text-center text-muted-foreground">-</td>
+                                          </tr>
+                                        ))}
+                                    </Fragment>
+                                  );
+                                }
+
+                                const item = group.items[0];
+                                const index = orderItems.findIndex((candidate) => candidate === item);
+                                const detailSummary = [
+                                  item.dosage || "-",
+                                  item.frequency || "-",
+                                  getRouteLabel(item.route),
+                                  item.duration || "-",
+                                ].join(" • ");
+                                const hasError = Boolean(itemErrors[index]?.length);
+
+                                return (
+                                  <tr key={group.key} className="border-t align-top">
+                                    <td className="py-2 px-3">
+                                      <p className="font-medium text-sm truncate">{item.medicine_name}</p>
+                                      <p className="text-xs text-muted-foreground truncate">{item.medicine_code} • Stok {item.available_stock} {item.unit}</p>
+                                    </td>
+                                    <td className="py-2 px-3">
+                                      <p className="truncate">{detailSummary}</p>
+                                      <p className="text-xs text-muted-foreground truncate">Instruksi: {item.instructions || "-"}</p>
+                                    </td>
+                                    <td className="py-2 px-3 font-medium">{item.quantity} {item.unit}</td>
+                                    <td className="py-2 px-3 text-right">
+                                      <p className="text-xs text-muted-foreground">@ {formatRupiah(item.unit_price)}</p>
+                                      <p className="text-sm font-semibold leading-4">{formatRupiah(item.quantity * item.unit_price)}</p>
+                                    </td>
+                                    <td className="py-2 px-3">
+                                      {hasError ? (
+                                        <Badge variant="destructive" title={itemErrors[index][0]}>Perlu Lengkapi</Badge>
+                                      ) : (
+                                        <Badge variant="outline">Siap</Badge>
+                                      )}
+                                    </td>
+                                    <td className="py-2 px-3">
+                                      <div className="flex items-center justify-center gap-1">
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-8 w-8"
+                                          title="Edit detail obat"
+                                          onClick={() => openEditItemDialog(index)}
+                                        >
+                                          <Pencil className="h-4 w-4" />
+                                        </Button>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-8 w-8 text-destructive"
+                                          title="Hapus obat"
+                                          onClick={() => handleRemoveItem(index)}
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                            <tfoot>
+                              <tr className="border-t-2 bg-primary/5">
+                                <td colSpan={3} className="py-3 px-3 text-right">
+                                  <span className="text-sm font-medium text-muted-foreground">Grand Total</span>
+                                </td>
+                                <td className="py-3 px-3 text-right">
+                                  <span className="text-lg font-bold text-primary">{formatRupiah(orderGrandTotal)}</span>
+                                </td>
+                                <td colSpan={2} className="py-3 px-3" />
+                              </tr>
+                            </tfoot>
+                          </table>
+                        </div>
+                      </>
+                    )}
+
+                    <Dialog
+                      open={showEditItemDialog}
+                      onOpenChange={(open) => {
+                        setShowEditItemDialog(open);
+                        if (!open) {
+                          setEditingItemIndex(null);
+                          setEditingItemDraft(null);
+                        }
+                      }}
+                    >
+                      <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+                        <DialogHeader>
+                          <DialogTitle>Edit Detail Obat</DialogTitle>
+                          <DialogDescription>
+                            Ubah detail resep dari tombol aksi pada row.
+                          </DialogDescription>
+                        </DialogHeader>
+
+                        {editingItemDraft ? (
+                          <div className="space-y-4">
+                            <div className="rounded-md border bg-muted/20 px-3 py-2">
+                              <p className="font-medium">{editingItemDraft.medicine_name}</p>
+                              <p className="text-xs text-muted-foreground">{editingItemDraft.medicine_code}</p>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              <div className="space-y-1">
+                                <Label>Jumlah</Label>
                                 <Input
                                   type="number"
                                   min={1}
-                                  max={item.available_stock}
-                                  value={item.quantity}
-                                  onChange={(e) => handleEditRacikanComponentQuantity(index, Number(e.target.value))}
-                                  className="h-8"
+                                  max={editingItemDraft.available_stock}
+                                  value={editingItemDraft.quantity}
+                                  onChange={(e) => setEditingItemDraft((prev) => prev ? ({ ...prev, quantity: Number(e.target.value) || 1 }) : prev)}
                                 />
-                              </td>
-                              <td className="py-2 px-2 text-muted-foreground">{item.available_stock} {item.unit}</td>
-                              <td className="py-2 px-2 text-right font-medium">{formatRupiah(item.quantity * item.unit_price)}</td>
-                              <td className="py-2 px-2">
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 text-destructive"
-                                  onClick={() => handleRemoveEditingRacikanComponent(index)}
+                                <p className="text-[11px] text-muted-foreground">Maks {editingItemDraft.available_stock}</p>
+                              </div>
+                              <div className="space-y-1">
+                                <Label>Dosis</Label>
+                                <Input
+                                  value={editingItemDraft.dosage}
+                                  onChange={(e) => setEditingItemDraft((prev) => prev ? ({ ...prev, dosage: e.target.value }) : prev)}
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label>Frekuensi</Label>
+                                <Select
+                                  value={editingItemDraft.frequency}
+                                  onValueChange={(value) => setEditingItemDraft((prev) => prev ? ({ ...prev, frequency: value }) : prev)}
                                 >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                                  <SelectTrigger><SelectValue placeholder="Pilih frekuensi" /></SelectTrigger>
+                                  <SelectContent>
+                                    {frequencyOptions.map((option) => (
+                                      <SelectItem key={`edit-item-freq-${option}`} value={option}>{option}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="space-y-1">
+                                <Label>Rute</Label>
+                                <Select
+                                  value={editingItemDraft.route}
+                                  onValueChange={(value) => setEditingItemDraft((prev) => prev ? ({ ...prev, route: value }) : prev)}
+                                >
+                                  <SelectTrigger><SelectValue placeholder="Pilih rute" /></SelectTrigger>
+                                  <SelectContent>
+                                    {routeOptions.map((option) => (
+                                      <SelectItem key={`edit-item-route-${option.value}`} value={option.value}>{option.label}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="space-y-1 md:col-span-2">
+                                <Label>Durasi</Label>
+                                <Input
+                                  value={editingItemDraft.duration}
+                                  onChange={(e) => setEditingItemDraft((prev) => prev ? ({ ...prev, duration: e.target.value }) : prev)}
+                                />
+                              </div>
+                              <div className="space-y-1 md:col-span-2">
+                                <Label>Instruksi</Label>
+                                <Combobox
+                                  options={instructionOptions}
+                                  value={editingItemDraft.instructions}
+                                  onValueChange={(value) => setEditingItemDraft((prev) => prev ? ({ ...prev, instructions: value }) : prev)}
+                                  placeholder="Pilih instruksi"
+                                  searchPlaceholder="Cari instruksi..."
+                                  emptyText="Instruksi tidak ditemukan"
+                                  className="w-full"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        ) : null}
+
+                        <DialogFooter>
+                          <Button variant="outline" onClick={() => setShowEditItemDialog(false)}>
+                            Batal
+                          </Button>
+                          <Button onClick={handleSaveEditedItem} disabled={!editingItemDraft}>
+                            Simpan Perubahan
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+
+                    <Dialog
+                      open={showEditRacikanDialog}
+                      onOpenChange={(open) => {
+                        setShowEditRacikanDialog(open);
+                        if (!open) {
+                          setEditingRacikanKey(null);
+                          setEditingRacikanComponents([]);
+                          setEditingRacikanSearch("");
+                        }
+                      }}
+                    >
+                      <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+                        <DialogHeader>
+                          <DialogTitle>Edit Racikan</DialogTitle>
+                          <DialogDescription>
+                            Ubah detail racikan dan komponen dari tombol aksi pada row racikan.
+                          </DialogDescription>
+                        </DialogHeader>
+
+                        <div className="space-y-3 overflow-y-auto pr-1">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <Label>Nama Racikan</Label>
+                              <Input
+                                value={editingRacikanMeta.name}
+                                onChange={(e) => setEditingRacikanMeta((prev) => ({ ...prev, name: e.target.value }))}
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label>Jenis Racikan</Label>
+                              <Select
+                                value={editingRacikanMeta.type}
+                                onValueChange={(value) => setEditingRacikanMeta((prev) => ({ ...prev, type: value }))}
+                              >
+                                <SelectTrigger><SelectValue placeholder="Pilih jenis" /></SelectTrigger>
+                                <SelectContent>
+                                  {RACIKAN_TYPE_OPTIONS.map((option) => (
+                                    <SelectItem key={`edit-racikan-type-${option}`} value={option}>{option}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div className="space-y-1">
+                              <Label>Jumlah Hasil</Label>
+                              <Input
+                                type="number"
+                                min={1}
+                                value={editingRacikanMeta.qty}
+                                onChange={(e) => setEditingRacikanMeta((prev) => ({ ...prev, qty: Number(e.target.value) || 1 }))}
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label>Satuan Hasil</Label>
+                              <Input
+                                value={editingRacikanMeta.unit}
+                                onChange={(e) => setEditingRacikanMeta((prev) => ({ ...prev, unit: e.target.value }))}
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label>Dosis</Label>
+                              <Input
+                                value={editingRacikanMeta.dosage}
+                                onChange={(e) => setEditingRacikanMeta((prev) => ({ ...prev, dosage: e.target.value }))}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                            <div className="space-y-1">
+                              <Label>Frekuensi</Label>
+                              <Select
+                                value={editingRacikanMeta.frequency}
+                                onValueChange={(value) => setEditingRacikanMeta((prev) => ({ ...prev, frequency: value }))}
+                              >
+                                <SelectTrigger><SelectValue placeholder="Pilih frekuensi" /></SelectTrigger>
+                                <SelectContent>
+                                  {frequencyOptions.map((option) => (
+                                    <SelectItem key={`edit-racikan-freq-${option}`} value={option}>{option}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="space-y-1">
+                              <Label>Rute</Label>
+                              <Select
+                                value={editingRacikanMeta.route}
+                                onValueChange={(value) => setEditingRacikanMeta((prev) => ({ ...prev, route: value }))}
+                              >
+                                <SelectTrigger><SelectValue placeholder="Pilih rute" /></SelectTrigger>
+                                <SelectContent>
+                                  {routeOptions.map((option) => (
+                                    <SelectItem key={`edit-racikan-route-${option.value}`} value={option.value}>{option.label}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="space-y-1">
+                              <Label>Durasi</Label>
+                              <Input
+                                value={editingRacikanMeta.duration}
+                                onChange={(e) => setEditingRacikanMeta((prev) => ({ ...prev, duration: e.target.value }))}
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label>Instruksi</Label>
+                              <Combobox
+                                options={instructionOptions}
+                                value={editingRacikanMeta.instructions}
+                                onValueChange={(value) => setEditingRacikanMeta((prev) => ({ ...prev, instructions: value }))}
+                                placeholder="Pilih instruksi"
+                                searchPlaceholder="Cari instruksi..."
+                                emptyText="Instruksi tidak ditemukan"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="space-y-2 border rounded-md p-3">
+                            <div className="flex items-center justify-between gap-2">
+                              <Label className="text-sm font-medium">Komponen Racikan</Label>
+                              <Badge variant="outline">{editingRacikanComponents.length} komponen</Badge>
+                            </div>
+                            <div className="relative">
+                              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                              <Input
+                                placeholder="Cari obat untuk ditambahkan..."
+                                className="pl-9"
+                                value={editingRacikanSearch}
+                                onChange={(e) => setEditingRacikanSearch(e.target.value)}
+                              />
+                            </div>
+                            <ScrollArea className="h-36 border rounded-md">
+                              <div className="divide-y">
+                                {filteredEditingRacikanMedicines.length === 0 ? (
+                                  <div className="text-center py-6 text-sm text-muted-foreground">
+                                    {editingRacikanSearch ? "Obat tidak ditemukan" : "Semua obat sudah menjadi komponen"}
+                                  </div>
+                                ) : (
+                                  filteredEditingRacikanMedicines.map((pm) => (
+                                    <button
+                                      key={`edit-racikan-add-${pm.id}`}
+                                      type="button"
+                                      className="w-full p-2.5 hover:bg-muted/50 flex items-center justify-between text-left"
+                                      onClick={() => handleAddEditingRacikanComponent(pm)}
+                                    >
+                                      <div>
+                                        <p className="text-sm font-medium">{pm.medicine.name}</p>
+                                        <p className="text-xs text-muted-foreground">{pm.medicine.code} • Stok {pm.quantity}</p>
+                                      </div>
+                                      <Plus className="h-4 w-4 text-muted-foreground" />
+                                    </button>
+                                  ))
+                                )}
+                              </div>
+                            </ScrollArea>
+
+                            <div className="border border-border/70 overflow-x-auto mt-2">
+                              <table className="w-full text-sm min-w-[680px]">
+                                <thead className="bg-muted/50 border-b border-border/70">
+                                  <tr>
+                                    <th className="py-2 px-3 text-left">Obat</th>
+                                    <th className="py-2 px-3 text-left w-[120px]">Qty Bahan</th>
+                                    <th className="py-2 px-3 text-left w-[120px]">Stok</th>
+                                    <th className="py-2 px-3 text-right w-[140px]">Subtotal</th>
+                                    <th className="py-2 px-3 text-left w-[56px]">Aksi</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {editingRacikanComponents.map((item, index) => (
+                                    <tr key={`edit-racikan-comp-${item.medicine_id}-${index}`} className="border-t">
+                                      <td className="py-2 px-2">
+                                        <p className="font-medium">{item.medicine_name}</p>
+                                        <p className="text-xs text-muted-foreground">{item.medicine_code}</p>
+                                      </td>
+                                      <td className="py-2 px-2">
+                                        <Input
+                                          type="number"
+                                          min={1}
+                                          max={item.available_stock}
+                                          value={item.quantity}
+                                          onChange={(e) => handleEditRacikanComponentQuantity(index, Number(e.target.value))}
+                                          className="h-8"
+                                        />
+                                      </td>
+                                      <td className="py-2 px-2 text-muted-foreground">{item.available_stock} {item.unit}</td>
+                                      <td className="py-2 px-2 text-right font-medium">{formatRupiah(item.quantity * item.unit_price)}</td>
+                                      <td className="py-2 px-2">
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-8 w-8 text-destructive"
+                                          onClick={() => handleRemoveEditingRacikanComponent(index)}
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        </div>
+
+                        <DialogFooter>
+                          <Button variant="outline" onClick={() => setShowEditRacikanDialog(false)}>
+                            Batal
+                          </Button>
+                          <Button onClick={handleSaveEditedRacikan} disabled={editingRacikanComponents.length === 0}>
+                            Simpan Racikan
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
                   </div>
-                </div>
 
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setShowEditRacikanDialog(false)}>
-                    Batal
-                  </Button>
-                  <Button onClick={handleSaveEditedRacikan} disabled={editingRacikanComponents.length === 0}>
-                    Simpan Racikan
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </div>
+                  <div className="space-y-2">
+                    <Label>Catatan untuk Farmasi</Label>
+                    <Textarea
+                      placeholder="Catatan tambahan untuk apoteker"
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                    />
+                  </div>
 
-          <div className="space-y-2">
-            <Label>Catatan untuk Farmasi</Label>
-            <Textarea
-              placeholder="Catatan tambahan untuk apoteker"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-            />
-          </div>
-
-          {/* Submit Button */}
-          <div className="flex justify-stretch sm:justify-end pt-4">
-            <Button
-              size="lg"
-              className="w-full sm:w-auto"
-              disabled={submitting || orderItems.length === 0 || !hasPermission('medicine_orders.create') || readOnly}
-              onClick={handleSubmitOrder}
-            >
-              {submitting ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Mengirim...
-                </>
-              ) : (
-                <>
-                  <Send className="h-4 w-4 mr-2" />
-                  Kirim Order ke Farmasi
-                </>
-              )}
-            </Button>
-          </div>
+                  {/* Submit Button */}
+                  <div className="flex justify-stretch sm:justify-end pt-4">
+                    <Button
+                      size="lg"
+                      className="w-full sm:w-auto"
+                      disabled={submitting || orderItems.length === 0 || !hasPermission('medicine_orders.create') || readOnly}
+                      onClick={handleSubmitOrder}
+                    >
+                      {submitting ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Mengirim...
+                        </>
+                      ) : (
+                        <>
+                          <Send className="h-4 w-4 mr-2" />
+                          Kirim Order ke Farmasi
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 </fieldset>
               </div>
             )}

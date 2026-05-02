@@ -9,6 +9,7 @@ import (
 
 type Config struct {
 	DatabaseDSN        string
+	CasemixDatabaseDSN string
 	JWTSecret          string
 	ServerPort         string
 	Environment        string
@@ -35,10 +36,12 @@ func Load() *Config {
 	// Database DSN - wajib diset di production
 	if env == "production" {
 		config.DatabaseDSN = getEnvRequired("DATABASE_DSN")
+		config.CasemixDatabaseDSN = getEnvRequired("CASEMIX_DATABASE_DSN")
 		config.JWTSecret = getEnvRequired("JWT_SECRET")
 	} else {
 		// Development defaults
 		config.DatabaseDSN = getEnv("DATABASE_DSN", "host=localhost user=starter password=starter123 dbname=starter port=5434 sslmode=disable")
+		config.CasemixDatabaseDSN = getEnv("CASEMIX_DATABASE_DSN", "host=localhost user=starter password=starter123 dbname=starter_casemix port=5434 sslmode=disable")
 		config.JWTSecret = getEnv("JWT_SECRET", "dev-secret-key-not-for-production")
 	}
 

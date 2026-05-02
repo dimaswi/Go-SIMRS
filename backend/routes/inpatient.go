@@ -45,6 +45,16 @@ func RegisterInpatientRoutes(r *gin.RouterGroup) {
 			nursing.DELETE("/:nursingId", handlers.DeleteNursingCare)
 		}
 
+		// Fall Risk Routes - Pengkajian Risiko Jatuh
+		fallRisk := inpatient.Group("/fall-risk")
+		{
+			fallRisk.GET("", handlers.GetFallRiskAssessments)
+			fallRisk.GET("/:assessmentId", handlers.GetFallRiskAssessment)
+			fallRisk.POST("", handlers.CreateFallRiskAssessment)
+			fallRisk.PUT("/:assessmentId", handlers.UpdateFallRiskAssessment)
+			fallRisk.DELETE("/:assessmentId", handlers.DeleteFallRiskAssessment)
+		}
+
 		// Bed Transfer Routes - Mutasi Pasien
 		transfer := inpatient.Group("/bed-transfer")
 		{
@@ -58,6 +68,17 @@ func RegisterInpatientRoutes(r *gin.RouterGroup) {
 		{
 			unitTransfer.GET("", handlers.GetUnitTransfers)
 			unitTransfer.POST("", handlers.CreateUnitTransfer)
+		}
+
+		// O2 Usage Routes - Penggunaan Oksigen
+		o2 := inpatient.Group("/o2-usage")
+		{
+			o2.GET("", handlers.GetO2UsageRecords)
+			o2.GET("/:recordId", handlers.GetO2UsageRecord)
+			o2.POST("", handlers.StartO2Usage)
+			o2.PUT("/:recordId", handlers.UpdateO2Usage)
+			o2.PUT("/:recordId/stop", handlers.StopO2Usage)
+			o2.DELETE("/:recordId", handlers.DeleteO2Usage)
 		}
 	}
 }

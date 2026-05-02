@@ -71,6 +71,7 @@ const (
 	CategoryDischargeCondition MasterDataCategory = "discharge_condition"  // Kondisi Keluar Pasien
 	CategoryBodyMarkerCategory MasterDataCategory = "body_marker_category" // Kategori Gambar Marker Tubuh
 	CategoryBodyMarkerImage    MasterDataCategory = "body_marker_image"    // Master Gambar Marker Tubuh
+	CategoryO2Type             MasterDataCategory = "o2_type"              // Jenis Oksigen dan Harga
 )
 
 // MasterData represents a master data entry
@@ -148,6 +149,7 @@ func GetCategoryLabel(category MasterDataCategory) string {
 		CategoryDischargeCondition: "Kondisi Keluar",
 		CategoryBodyMarkerCategory: "Kategori Marker Tubuh",
 		CategoryBodyMarkerImage:    "Gambar Marker Tubuh",
+		CategoryO2Type:             "Jenis Oksigen",
 	}
 	if label, ok := labels[category]; ok {
 		return label
@@ -206,6 +208,7 @@ func GetCategoryDescription(category MasterDataCategory) string {
 		CategoryDischargeCondition: "Kondisi fisik/medis pasien saat keluar",
 		CategoryBodyMarkerCategory: "Kategori kelompok gambar untuk marker tubuh (misalnya anterior, posterior, pediatrik)",
 		CategoryBodyMarkerImage:    "Master gambar anatomi tubuh yang dipilih pada tab marker rekam medis",
+		CategoryO2Type:             "Daftar jenis/tabung oksigen beserta harga per tabung untuk billing",
 	}
 	if desc, ok := descriptions[category]; ok {
 		return desc
@@ -257,6 +260,7 @@ func GetAllCategories() []map[string]string {
 		CategoryDispositionType,
 		CategoryBodyMarkerCategory,
 		CategoryBodyMarkerImage,
+		CategoryO2Type,
 	}
 
 	result := make([]map[string]string, len(categories))
@@ -313,6 +317,7 @@ func GetAllCategoriesInfo() []map[string]string {
 		CategoryDispositionType,
 		CategoryBodyMarkerCategory,
 		CategoryBodyMarkerImage,
+		CategoryO2Type,
 	}
 
 	result := make([]map[string]string, len(categories))

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -90,6 +90,20 @@ const getStatusColor = (status: 'success' | 'warning' | 'danger') => {
     case 'danger': return 'text-red-600 bg-red-100';
   }
 };
+
+const STRIP_CLASS = 'border border-border/70 bg-background';
+
+function SectionStrip({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
+  return (
+    <section className="space-y-3">
+      <div className="border-l-4 border-l-primary pl-3">
+        <h2 className="text-sm font-semibold uppercase tracking-[0.2em]">{title}</h2>
+        {description ? <p className="text-xs text-muted-foreground">{description}</p> : null}
+      </div>
+      {children}
+    </section>
+  );
+}
 
 export default function EKlaimDashboard() {
   const navigate = useNavigate();
@@ -227,25 +241,27 @@ export default function EKlaimDashboard() {
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
+    <div className="flex flex-1 flex-col px-4 pb-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="border border-border/70 bg-gradient-to-r from-cyan-50 via-background to-emerald-50 px-4 py-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-lg font-semibold flex items-center gap-2">
+          <h1 className="text-lg font-semibold flex items-center gap-2 uppercase tracking-[0.08em]">
             <LayoutDashboard className="h-5 w-5" />
             Dashboard E-Klaim
           </h1>
-          <p className="text-sm text-muted-foreground">Ringkasan dan monitoring klaim BPJS</p>
+          <p className="text-sm text-muted-foreground">Ringkasan klaim, kendali mutu, dan analisis biaya BPJS</p>
         </div>
-        <div className="flex items-center gap-0.5">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={prevMonth}>
+        <div className="flex items-center gap-1 border border-border/70 bg-background/80 px-1 py-1">
+          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-none" onClick={prevMonth}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <span className="text-sm font-medium min-w-[120px] text-center capitalize">{bulanLabel()}</span>
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={nextMonth}>
+          <span className="text-sm font-medium min-w-[140px] text-center capitalize">{bulanLabel()}</span>
+          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-none" onClick={nextMonth}>
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
+      </div>
       </div>
 
       {loading ? (
@@ -254,50 +270,51 @@ export default function EKlaimDashboard() {
         </div>
       ) : data ? (
         <>
-          {/* Financial Summary */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 rounded-lg border p-4">
-            <div>
-              <p className="text-xs text-muted-foreground">Jumlah Klaim</p>
-              <p className="text-xl font-bold mt-0.5">{data.total_claims}</p>
+          <SectionStrip title="" description="">
+            <div className={`${STRIP_CLASS} grid grid-cols-2 lg:grid-cols-4 divide-x divide-border/60`}>
+              <div className="p-4">
+                <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Jumlah Klaim</p>
+                <p className="text-2xl font-bold mt-1">{data.total_claims}</p>
+              </div>
+              <div className="p-4">
+                <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Tarif INACBG</p>
+                <p className="text-base font-semibold text-blue-600 font-mono mt-1">{fmtCurrency(data.financial.total_inacbg_tariff)}</p>
+                <p className="text-[11px] text-muted-foreground font-mono mt-1">Avg {fmtCurrency(data.financial.avg_inacbg_tariff)}</p>
+              </div>
+              <div className="p-4">
+                <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Tarif RS</p>
+                <p className="text-base font-semibold text-green-600 font-mono mt-1">{fmtCurrency(data.financial.total_tarif_rs)}</p>
+                <p className="text-[11px] text-muted-foreground font-mono mt-1">Avg {fmtCurrency(data.financial.avg_tarif_rs)}</p>
+              </div>
+              <div className="p-4">
+                <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Selisih RS - INACBG</p>
+                <p className={`text-base font-semibold font-mono mt-1 ${selisih > 0 ? 'text-red-600' : selisih < 0 ? 'text-emerald-600' : ''}`}>
+                  {selisih !== 0 ? (selisih > 0 ? '+' : '') + fmtNum(selisih) : '-'}
+                </p>
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  {selisih > 0 ? 'Tarif RS lebih tinggi' : selisih < 0 ? 'Tarif INACBG lebih tinggi' : 'Seimbang'}
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Tarif INACBG</p>
-              <p className="text-base font-semibold text-blue-600 font-mono mt-0.5">{fmtCurrency(data.financial.total_inacbg_tariff)}</p>
-              <p className="text-[11px] text-muted-foreground font-mono">Avg {fmtCurrency(data.financial.avg_inacbg_tariff)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Tarif RS</p>
-              <p className="text-base font-semibold text-green-600 font-mono mt-0.5">{fmtCurrency(data.financial.total_tarif_rs)}</p>
-              <p className="text-[11px] text-muted-foreground font-mono">Avg {fmtCurrency(data.financial.avg_tarif_rs)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Selisih (RS - INACBG)</p>
-              <p className={`text-base font-semibold font-mono mt-0.5 ${selisih > 0 ? 'text-red-600' : selisih < 0 ? 'text-emerald-600' : ''}`}>
-                {selisih !== 0 ? (selisih > 0 ? '+' : '') + fmtNum(selisih) : '-'}
-              </p>
-              <p className="text-[11px] text-muted-foreground">
-                {selisih > 0 ? 'RS lebih tinggi' : selisih < 0 ? 'INACBG lebih tinggi' : ''}
-              </p>
-            </div>
-          </div>
+          </SectionStrip>
 
           {/* Tabs: Klaim + Kendali Mutu + Analisis Biaya */}
           <Tabs value={activeTab} onValueChange={setActiveTab} variant="inline" className="w-full">
-            <TabsList>
-              <TabsTrigger value="klaim">
+            <TabsList className="rounded-none border border-border/70 bg-background p-1">
+              <TabsTrigger value="klaim" className="rounded-none data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
                 <LayoutDashboard className="mr-2 h-4 w-4" />
                 Klaim
                 {totalPending > 0 && (
-                  <Badge variant="destructive" className="ml-2 h-5 min-w-5 px-1">
+                  <Badge variant="destructive" className="ml-2 h-5 min-w-5 rounded-none px-1">
                     {totalPending}
                   </Badge>
                 )}
               </TabsTrigger>
-              <TabsTrigger value="kendali-mutu">
+              <TabsTrigger value="kendali-mutu" className="rounded-none data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
                 <Activity className="mr-2 h-4 w-4" />
                 Kendali Mutu
               </TabsTrigger>
-              <TabsTrigger value="analisis-biaya">
+              <TabsTrigger value="analisis-biaya" className="rounded-none data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
                 <DollarSign className="mr-2 h-4 w-4" />
                 Analisis Biaya
               </TabsTrigger>
@@ -342,7 +359,7 @@ export default function EKlaimDashboard() {
                 {/* Chart + Status + Breakdown */}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
                   {/* Daily Tariff Chart */}
-                  <div className="lg:col-span-5 rounded-lg border p-4">
+                  <div className="lg:col-span-5 border border-border/70 bg-background p-4">
                     <div className="flex items-center justify-between mb-3">
                       <h3 className="text-sm font-medium">Tarif Harian</h3>
                       <div className="flex items-center gap-3 text-[10px]">
@@ -373,7 +390,7 @@ export default function EKlaimDashboard() {
                   </div>
 
                   {/* Status Distribution */}
-                  <div className="lg:col-span-4 rounded-lg border p-4">
+                  <div className="lg:col-span-4 border border-border/70 bg-background p-4">
                     <h3 className="text-sm font-medium mb-3">Distribusi Status</h3>
                     {data.status_counts?.length > 0 ? (
                       <div className="space-y-1.5">
@@ -384,8 +401,8 @@ export default function EKlaimDashboard() {
                               <Badge className={`${eklaimLocalStatusColors[s.status] || ''} text-[10px] min-w-[90px] justify-center h-5`}>
                                 {eklaimLocalStatusLabels[s.status] || s.status}
                               </Badge>
-                              <div className="flex-1 h-3 bg-muted rounded-full overflow-hidden">
-                                <div className="h-full bg-primary/60 rounded-full" style={{ width: `${Math.max(pct, 3)}%` }} />
+                              <div className="flex-1 h-3 bg-muted rounded-none overflow-hidden">
+                                <div className="h-full bg-primary/60 rounded-none" style={{ width: `${Math.max(pct, 3)}%` }} />
                               </div>
                               <span className="text-xs font-mono w-6 text-right">{s.count}</span>
                             </div>
@@ -398,7 +415,7 @@ export default function EKlaimDashboard() {
                   </div>
 
                   {/* Jenis & Kelas Rawat */}
-                  <div className="lg:col-span-3 rounded-lg border p-4 space-y-4">
+                  <div className="lg:col-span-3 border border-border/70 bg-background p-4 space-y-4">
                     <div>
                       <h3 className="text-sm font-medium mb-2">Jenis Rawat</h3>
                       {data.jenis_rawat_counts?.length > 0 ? (
@@ -432,7 +449,7 @@ export default function EKlaimDashboard() {
                 {/* Bottom: Top CBG + Recent Claims */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   {/* Top CBG */}
-                  <div className="rounded-lg border p-4">
+                  <div className="border border-border/70 bg-background p-4">
                     <h3 className="text-sm font-medium mb-3">Top Kode INACBG</h3>
                     {data.top_cbg?.length > 0 ? (
                       <table className="w-full text-sm">
@@ -463,7 +480,7 @@ export default function EKlaimDashboard() {
                   </div>
 
                   {/* Recent Claims */}
-                  <div className="rounded-lg border p-4">
+                  <div className="border border-border/70 bg-background p-4">
                     <div className="flex items-center justify-between mb-3">
                       <h3 className="text-sm font-medium">Klaim Terbaru</h3>
                       <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => navigate('/eklaim/data-klaim')}>
@@ -519,9 +536,9 @@ export default function EKlaimDashboard() {
                   <>
                     {/* Quick Stats */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div className="rounded-lg border p-4">
+                      <div className="border border-border/70 bg-background p-4">
                           <div className="flex items-center gap-3">
-                            <div className={cn("p-2.5 rounded-xl",
+                            <div className={cn("p-2.5 rounded-none",
                               (costSummary?.cost_recovery_rate || 0) >= 100 ? "bg-green-100" : "bg-red-100"
                             )}>
                               <DollarSign className={cn("h-5 w-5",
@@ -535,9 +552,9 @@ export default function EKlaimDashboard() {
                           </div>
                       </div>
 
-                      <div className="rounded-lg border p-4">
+                      <div className="border border-border/70 bg-background p-4">
                           <div className="flex items-center gap-3">
-                            <div className={cn("p-2.5 rounded-xl",
+                            <div className={cn("p-2.5 rounded-none",
                               (costSummary?.net_balance || 0) >= 0 ? "bg-green-100" : "bg-red-100"
                             )}>
                               {(costSummary?.net_balance || 0) >= 0 ? (
@@ -557,9 +574,9 @@ export default function EKlaimDashboard() {
                           </div>
                       </div>
 
-                      <div className="rounded-lg border p-4">
+                      <div className="border border-border/70 bg-background p-4">
                           <div className="flex items-center gap-3">
-                            <div className={cn("p-2.5 rounded-xl",
+                            <div className={cn("p-2.5 rounded-none",
                               getStatusColor(getIndicatorStatus(indicators?.bor || 0, standards?.bor_min, standards?.bor_max))
                             )}>
                               <Bed className="h-5 w-5" />
@@ -571,9 +588,9 @@ export default function EKlaimDashboard() {
                           </div>
                       </div>
 
-                      <div className="rounded-lg border p-4">
+                      <div className="border border-border/70 bg-background p-4">
                           <div className="flex items-center gap-3">
-                            <div className={cn("p-2.5 rounded-xl",
+                            <div className={cn("p-2.5 rounded-none",
                               getStatusColor(getIndicatorStatus(indicators?.alos || 0, standards?.alos_min, standards?.alos_max))
                             )}>
                               <Clock className="h-5 w-5" />
@@ -589,7 +606,7 @@ export default function EKlaimDashboard() {
 
                     {/* Indicator Cards */}
                     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                      <div className="rounded-lg border">
+                      <div className="border border-border/70 bg-background">
                         <div className="p-4 pb-2">
                           <div className="flex items-center justify-between">
                             <h4 className="text-sm font-medium">BOR (Bed Occupancy Rate)</h4>
@@ -609,7 +626,7 @@ export default function EKlaimDashboard() {
                         </div>
                       </div>
 
-                      <div className="rounded-lg border">
+                      <div className="border border-border/70 bg-background">
                         <div className="p-4 pb-2">
                           <div className="flex items-center justify-between">
                             <h4 className="text-sm font-medium">ALOS (Average Length of Stay)</h4>
@@ -629,7 +646,7 @@ export default function EKlaimDashboard() {
                         </div>
                       </div>
 
-                      <div className="rounded-lg border">
+                      <div className="border border-border/70 bg-background">
                         <div className="p-4 pb-2">
                           <div className="flex items-center justify-between">
                             <h4 className="text-sm font-medium">TOI (Turn Over Interval)</h4>
@@ -649,7 +666,7 @@ export default function EKlaimDashboard() {
                         </div>
                       </div>
 
-                      <div className="rounded-lg border">
+                      <div className="border border-border/70 bg-background">
                         <div className="p-4 pb-2">
                           <div className="flex items-center justify-between">
                             <h4 className="text-sm font-medium">BTO (Bed Turn Over)</h4>
@@ -669,7 +686,7 @@ export default function EKlaimDashboard() {
                         </div>
                       </div>
 
-                      <div className="rounded-lg border">
+                      <div className="border border-border/70 bg-background">
                         <div className="p-4 pb-2">
                           <div className="flex items-center justify-between">
                             <h4 className="text-sm font-medium">NDR (Net Death Rate)</h4>
@@ -688,7 +705,7 @@ export default function EKlaimDashboard() {
                         </div>
                       </div>
 
-                      <div className="rounded-lg border">
+                      <div className="border border-border/70 bg-background">
                         <div className="p-4 pb-2">
                           <div className="flex items-center justify-between">
                             <h4 className="text-sm font-medium">GDR (Gross Death Rate)</h4>
@@ -709,7 +726,7 @@ export default function EKlaimDashboard() {
                     </div>
 
                     {/* Quality Trends Chart */}
-                    <div className="rounded-lg border">
+                    <div className="border border-border/70 bg-background">
                       <div className="p-6 pb-2">
                         <h3 className="text-base font-semibold">Tren Indikator Mutu</h3>
                         <p className="text-sm text-muted-foreground">Perkembangan BOR dan ALOS bulanan</p>
@@ -730,25 +747,25 @@ export default function EKlaimDashboard() {
                     </div>
 
                     {/* Statistics Summary */}
-                    <div className="rounded-lg border">
+                    <div className="border border-border/70 bg-background">
                       <div className="p-6 pb-2">
                         <h3 className="text-base font-semibold">Data Statistik Periode</h3>
                       </div>
                       <div className="p-6 pt-0">
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                          <div className="text-center p-4 bg-muted/50 rounded-lg">
+                          <div className="text-center p-4 bg-muted/40 border border-border/60">
                             <p className="text-2xl font-bold">{qualityMetrics?.total_beds || 0}</p>
                             <p className="text-sm text-muted-foreground">Total Tempat Tidur</p>
                           </div>
-                          <div className="text-center p-4 bg-muted/50 rounded-lg">
+                          <div className="text-center p-4 bg-muted/40 border border-border/60">
                             <p className="text-2xl font-bold">{qualityMetrics?.total_discharges || 0}</p>
                             <p className="text-sm text-muted-foreground">Total Pasien Keluar</p>
                           </div>
-                          <div className="text-center p-4 bg-muted/50 rounded-lg">
+                          <div className="text-center p-4 bg-muted/40 border border-border/60">
                             <p className="text-2xl font-bold">{qualityMetrics?.total_patient_days || 0}</p>
                             <p className="text-sm text-muted-foreground">Hari Perawatan</p>
                           </div>
-                          <div className="text-center p-4 bg-muted/50 rounded-lg">
+                          <div className="text-center p-4 bg-muted/40 border border-border/60">
                             <p className="text-2xl font-bold">{qualityMetrics?.total_deaths || 0}</p>
                             <p className="text-sm text-muted-foreground">Total Kematian</p>
                           </div>
@@ -769,7 +786,7 @@ export default function EKlaimDashboard() {
                   <>
                     {/* Charts Row */}
                     <div className="grid gap-6 lg:grid-cols-2">
-                      <div className="rounded-lg border">
+                      <div className="border border-border/70 bg-background">
                         <div className="p-4 pb-2">
                           <h3 className="text-base font-semibold">Perbandingan Biaya vs Klaim</h3>
                           <p className="text-sm text-muted-foreground">Total biaya aktual vs klaim BPJS</p>
@@ -790,7 +807,7 @@ export default function EKlaimDashboard() {
                         </div>
                       </div>
 
-                      <div className="rounded-lg border">
+                      <div className="border border-border/70 bg-background">
                         <div className="p-4 pb-2">
                           <h3 className="text-base font-semibold">Distribusi Biaya</h3>
                           <p className="text-sm text-muted-foreground">Breakdown biaya per kategori</p>
@@ -823,7 +840,7 @@ export default function EKlaimDashboard() {
 
                     {/* Summary Cards */}
                     <div className="grid gap-4 md:grid-cols-3">
-                      <div className="rounded-lg border">
+                      <div className="border border-border/70 bg-background">
                         <div className="p-4 pb-2">
                           <h4 className="text-sm font-medium">Kasus Surplus vs Defisit</h4>
                         </div>
@@ -861,7 +878,7 @@ export default function EKlaimDashboard() {
                         </div>
                       </div>
 
-                      <div className="rounded-lg border">
+                      <div className="border border-border/70 bg-background">
                         <div className="p-4 pb-2">
                           <h4 className="text-sm font-medium">Klaim Tertunda</h4>
                         </div>
@@ -883,7 +900,7 @@ export default function EKlaimDashboard() {
                         </div>
                       </div>
 
-                      <div className="rounded-lg border">
+                      <div className="border border-border/70 bg-background">
                         <div className="p-4 pb-2">
                           <h4 className="text-sm font-medium">Rasio Biaya Obat</h4>
                         </div>
@@ -899,7 +916,7 @@ export default function EKlaimDashboard() {
                     </div>
 
                     {/* Top Loss Cases */}
-                    <div className="rounded-lg border">
+                    <div className="border border-border/70 bg-background">
                       <div className="p-6 pb-2">
                         <h3 className="text-base font-semibold flex items-center gap-2">
                           <AlertTriangle className="h-5 w-5 text-red-500" />
@@ -960,7 +977,7 @@ export default function EKlaimDashboard() {
                     </div>
 
                     {/* All Cases Table */}
-                    <div className="rounded-lg border">
+                    <div className="border border-border/70 bg-background">
                       <div className="p-6 pb-2">
                         <h3 className="text-base font-semibold">Daftar Semua Kasus</h3>
                         <p className="text-sm text-muted-foreground">Analisis biaya per kasus (diurutkan dari defisit terbesar)</p>
@@ -1030,3 +1047,5 @@ export default function EKlaimDashboard() {
     </div>
   );
 }
+
+

@@ -20,7 +20,7 @@ const routeLabels: Record<string, string> = {
   'users': 'Users',
   'roles': 'Roles',
   'permissions': 'Permissions',
-  'settings': 'Settings',
+  'settings': 'Pengaturan',
   'account': 'Account',
   'employees': 'Pegawai',
   'regions': 'Wilayah',
@@ -35,6 +35,19 @@ const routeLabels: Record<string, string> = {
   'medical-records': 'Rekam Medis',
   'create': 'Tambah',
   'edit': 'Edit',
+  'room-management': 'Manajemen Ruangan',
+  'bed-monitoring': 'Monitoring Bed',
+  'floor-plan': 'Floor Plan',
+  'logistics': 'Logistik',
+  'medicines': 'Obat',
+  'inventories': 'Inventaris',
+  'suppliers': 'Supplier',
+  'front-office': 'Front Office',
+  'eklaim': 'E-Klaim',
+  'master': 'Master Data',
+  'bpjs': 'BPJS',
+  'integrations': 'Integrasi',
+  'reports': 'Laporan',
 };
 
 // Check if segment looks like an ID (numeric or uuid-like)

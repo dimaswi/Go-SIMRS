@@ -39,7 +39,7 @@ func main() {
 	middleware.SetJWTSecret(cfg.JWTSecret)
 
 	// Connect to database
-	if err := database.Connect(cfg.DatabaseDSN); err != nil {
+	if err := database.Connect(cfg.DatabaseDSN, cfg.CasemixDatabaseDSN); err != nil {
 		log.Fatal("Failed to connect to database:", err)
 	}
 

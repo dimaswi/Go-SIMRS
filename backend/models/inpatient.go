@@ -22,6 +22,10 @@ type CPPT struct {
 	VisitID uint   `gorm:"not null;index" json:"visit_id"`
 	Visit   *Visit `gorm:"foreignKey:VisitID" json:"visit,omitempty"`
 
+	// Casemix Support
+	IsCasemix       bool  `gorm:"default:false;index" json:"is_casemix"`
+	CasemixEklaimID *uint `gorm:"index" json:"casemix_eklaim_id,omitempty"`
+
 	// Record Date/Time - Waktu pencatatan (bisa berbeda dari created_at)
 	RecordDate time.Time `gorm:"not null" json:"record_date"`
 
@@ -96,6 +100,10 @@ type FluidBalance struct {
 
 	VisitID uint   `gorm:"not null;index" json:"visit_id"`
 	Visit   *Visit `gorm:"foreignKey:VisitID" json:"visit,omitempty"`
+
+	// Casemix Support
+	IsCasemix       bool  `gorm:"default:false;index" json:"is_casemix"`
+	CasemixEklaimID *uint `gorm:"index" json:"casemix_eklaim_id,omitempty"`
 
 	// Record Period
 	RecordDate time.Time `gorm:"not null;index" json:"record_date"`  // Tanggal pencatatan
@@ -203,6 +211,10 @@ type NursingCare struct {
 
 	VisitID uint   `gorm:"not null;index" json:"visit_id"` // Multiple entries per visit
 	Visit   *Visit `gorm:"foreignKey:VisitID" json:"visit,omitempty"`
+
+	// Casemix Support
+	IsCasemix       bool  `gorm:"default:false;index" json:"is_casemix"`
+	CasemixEklaimID *uint `gorm:"index" json:"casemix_eklaim_id,omitempty"`
 
 	// Record Date/Time
 	RecordDate time.Time `gorm:"not null" json:"record_date"`

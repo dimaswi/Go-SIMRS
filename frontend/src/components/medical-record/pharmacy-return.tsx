@@ -25,7 +25,6 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Loader2,
   RotateCcw,
-  User,
   Package,
   AlertCircle,
   History,
@@ -123,7 +122,7 @@ export function PharmacyReturn({ visitId, readOnly = false }: PharmacyReturnProp
       setOrders(data);
       // Select first order that has delivered items
       const preferredOrder = data.find((order) => order.id === options?.preferredOrderId);
-      const eligibleOrder = preferredOrder || data.find((o: MedicineOrder) => 
+      const eligibleOrder = preferredOrder || data.find((o: MedicineOrder) =>
         o.items?.some((i: MedicineOrderItem) => (i.dispensed_qty || 0) > 0)
       ) || data[0];
       if (eligibleOrder) {
@@ -254,231 +253,227 @@ export function PharmacyReturn({ visitId, readOnly = false }: PharmacyReturnProp
   return (
     <div className="pharmacy-no-sticky-head">
       <div className="space-y-4">
-      {/* Order Selection if multiple */}
-      {orders.length > 1 && (
-        <div className="border rounded-lg p-3 bg-muted/30">
-          <div className="grid grid-cols-1 gap-2 md:grid-cols-[120px_minmax(0,1fr)_auto] md:items-center">
-            <Label className="text-sm font-semibold">Pilih Order</Label>
-            <Select
-              value={selectedOrder?.id ? String(selectedOrder.id) : ""}
-              onValueChange={(value) => {
-                const nextOrder = orders.find((order) => String(order.id) === value);
-                if (nextOrder) setSelectedOrder(nextOrder);
-              }}
-            >
-              <SelectTrigger className="h-8">
-                <SelectValue placeholder="Pilih order" />
-              </SelectTrigger>
-              <SelectContent>
-                {orders.map((order) => (
-                  <SelectItem key={order.id} value={String(order.id)}>
-                    {order.order_number} - {ORDER_STATUS_LABELS[order.status]?.label || order.status}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {selectedOrder && (
-              <Badge variant={ORDER_STATUS_LABELS[selectedOrder.status]?.variant || "secondary"} className="w-fit">
-                {ORDER_STATUS_LABELS[selectedOrder.status]?.label || selectedOrder.status}
-              </Badge>
-            )}
+        {/* Order Selection if multiple */}
+        {orders.length > 1 && (
+          <div className="border border-border/70 bg-background mb-4">
+            <div className="p-3">
+              <div className="grid grid-cols-1 gap-2 md:grid-cols-[120px_minmax(0,1fr)_auto] md:items-center">
+                <Label className="text-sm font-semibold">Pilih Order</Label>
+                <Select
+                  value={selectedOrder?.id ? String(selectedOrder.id) : ""}
+                  onValueChange={(value) => {
+                    const nextOrder = orders.find((order) => String(order.id) === value);
+                    if (nextOrder) setSelectedOrder(nextOrder);
+                  }}
+                >
+                  <SelectTrigger className="h-8">
+                    <SelectValue placeholder="Pilih order" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {orders.map((order) => (
+                      <SelectItem key={order.id} value={String(order.id)}>
+                        {order.order_number} - {ORDER_STATUS_LABELS[order.status]?.label || order.status}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedOrder && (
+                  <Badge variant={ORDER_STATUS_LABELS[selectedOrder.status]?.variant || "secondary"} className="w-fit">
+                    {ORDER_STATUS_LABELS[selectedOrder.status]?.label || selectedOrder.status}
+                  </Badge>
+                )}
+              </div>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {selectedOrder && (
-        <>
-          {/* Patient & Order Info Table */}
-          <div className="border rounded-lg">
-            <div className="p-3 border-b bg-muted/30">
-              <div className="flex justify-between items-start">
-                <div>
-                  <div className="text-sm font-semibold flex items-center gap-2">
-                    <User className="h-4 w-4" />
-                    {patient?.nama_lengkap || "Pasien"}
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    No. RM: {patient?.no_rm} | Order: {selectedOrder.order_number}
-                  </p>
-                </div>
-                <Badge variant={ORDER_STATUS_LABELS[selectedOrder.status]?.variant || "secondary"}>
+        {selectedOrder && (
+          <>
+            {/* Patient & Order Info Table */}
+            <div className="border border-border/70 bg-background mb-4">
+              <div className="flex flex-wrap items-center justify-between border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                <span>Detail Order Farmasi</span>
+                <Badge variant={ORDER_STATUS_LABELS[selectedOrder.status]?.variant || "secondary"} className="text-[10px] h-5 px-1.5 py-0">
                   {ORDER_STATUS_LABELS[selectedOrder.status]?.label || selectedOrder.status}
                 </Badge>
               </div>
+              <div className="p-3 sm:p-4 space-y-4">
+                <table className="w-full table-fixed text-xs">
+                  <tbody>
+                    <tr className="border-b">
+                      <td className="py-1.5 text-muted-foreground w-28 align-top">Nama Pasien</td>
+                      <td className="py-1.5 font-medium break-words">{patient?.nama_lengkap || "-"}</td>
+                    </tr>
+                    <tr className="border-b">
+                      <td className="py-1.5 text-muted-foreground w-28 align-top">No. RM</td>
+                      <td className="py-1.5 font-medium break-words">{patient?.no_rm || "-"}</td>
+                    </tr>
+                    <tr className="border-b">
+                      <td className="py-1.5 text-muted-foreground w-28 align-top">Dokter</td>
+                      <td className="py-1.5 font-medium break-words">
+                        <span className="font-medium">{selectedOrder.prescriber?.nama_lengkap || "-"}</span>
+                      </td>
+                    </tr>
+                    <tr className="border-b">
+                      <td className="py-1.5 text-muted-foreground w-28 align-top">Diagnosis</td>
+                      <td className="py-1.5 font-medium break-words">{selectedOrder.diagnosis || "-"}</td>
+                    </tr>
+                    <tr className="border-b">
+                      <td className="py-1.5 text-muted-foreground align-top">Ruang Asal</td>
+                      <td className="py-1.5 font-medium break-words">{selectedOrder.source_room?.name || "-"}</td>
+                    </tr>
+                    <tr className="border-b">
+                      <td className="py-1.5 text-muted-foreground align-top">Waktu Order</td>
+                      <td className="py-1.5 font-medium break-words">
+                        {selectedOrder.created_at ? new Date(selectedOrder.created_at).toLocaleString("id-ID") : "-"}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="py-1.5 text-muted-foreground align-top">Prioritas</td>
+                      <td className="py-1.5">
+                        <Badge variant={selectedOrder.priority === "urgent" ? "destructive" : "outline"}>
+                          {selectedOrder.priority === "urgent" ? "Urgent" : "Normal"}
+                        </Badge>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
-            <div className="p-3">
-              <table className="w-full table-fixed text-xs">
-                <tbody>
-                  <tr className="border-b">
-                    <td className="py-1.5 text-muted-foreground w-28 align-top">Diagnosis</td>
-                    <td className="py-1.5 font-medium break-words">{selectedOrder.diagnosis || "-"}</td>
-                  </tr>
-                  <tr className="border-b">
-                    <td className="py-1.5 text-muted-foreground align-top">Ruang Asal</td>
-                    <td className="py-1.5 font-medium break-words">{selectedOrder.source_room?.name || "-"}</td>
-                  </tr>
-                  <tr className="border-b">
-                    <td className="py-1.5 text-muted-foreground align-top">Petugas Order</td>
-                    <td className="py-1.5 font-medium break-words">{selectedOrder.prescriber?.nama_lengkap || "-"}</td>
-                  </tr>
-                  <tr className="border-b">
-                    <td className="py-1.5 text-muted-foreground align-top">Waktu Order</td>
-                    <td className="py-1.5 font-medium break-words">
-                      {selectedOrder.created_at ? new Date(selectedOrder.created_at).toLocaleString("id-ID") : "-"}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="py-1.5 text-muted-foreground align-top">Prioritas</td>
-                    <td className="py-1.5">
-                      <Badge variant={selectedOrder.priority === "urgent" ? "destructive" : "outline"}>
-                        {selectedOrder.priority === "urgent" ? "Urgent" : "Normal"}
-                      </Badge>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
 
-          {/* Return History */}
-          {returns.length > 0 && (
-            <div className="border rounded-lg">
-              <div className="p-3 border-b bg-muted/30">
-                <div className="flex items-center justify-between gap-2">
-                  <Label className="text-sm font-semibold flex items-center gap-2">
-                    <History className="h-4 w-4" />
+            {/* Return History */}
+            {returns.length > 0 && (
+              <div className="border border-border/70 bg-background mb-4">
+                <div className="flex flex-wrap items-center justify-between border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  <span className="flex items-center gap-2">
+                    <History className="h-3 w-3" />
                     Riwayat Pengembalian
-                  </Label>
+                  </span>
                   {returns.length > 5 && (
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-7 px-2 text-xs"
+                      className="h-6 px-2 text-[10px] py-0"
                       onClick={() => setShowAllReturns((prev) => !prev)}
                     >
                       {showAllReturns ? "Ringkas" : `Lihat Semua (${returns.length})`}
                     </Button>
                   )}
                 </div>
-              </div>
-              <div className="p-0">
-                <table className="w-full table-fixed text-xs">
-                  <thead className="bg-muted/50">
-                    <tr>
-                      <th className="py-1.5 px-2 text-left font-medium w-[34%]">Obat</th>
-                      <th className="py-1.5 px-2 text-left font-medium w-[10%]">Qty</th>
-                      <th className="py-1.5 px-2 text-left font-medium hidden sm:table-cell w-[12%]">Kondisi</th>
-                      <th className="py-1.5 px-2 text-left font-medium w-[24%]">Alasan</th>
-                      <th className="py-1.5 px-2 text-left font-medium hidden md:table-cell w-[10%]">Restock</th>
-                      <th className="py-1.5 px-2 text-left font-medium hidden lg:table-cell w-[20%]">Waktu</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {displayedReturns.map((ret) => (
-                      <tr key={ret.id} className="border-b last:border-0 align-top">
-                        <td className="py-1.5 px-2">
-                          <p className="font-medium break-words">{ret.medicine?.name || "Obat"}</p>
-                        </td>
-                        <td className="py-1.5 px-2 font-medium">{ret.quantity}</td>
-                        <td className="py-1.5 px-2 hidden sm:table-cell break-words">{ret.condition}</td>
-                        <td className="py-1.5 px-2 text-[11px] break-words">{ret.return_reason}</td>
-                        <td className="py-1.5 px-2 hidden md:table-cell">
-                          <Badge variant={ret.is_restocked ? "default" : "outline"}>
-                            {ret.is_restocked ? "Ya" : "Tidak"}
-                          </Badge>
-                        </td>
-                        <td className="py-1.5 px-2 text-[11px] hidden lg:table-cell">
-                          {ret.created_at && new Date(ret.created_at).toLocaleString("id-ID")}
-                        </td>
+                <div className="p-0">
+                  <table className="w-full table-fixed text-xs">
+                    <thead className="bg-muted/50">
+                      <tr>
+                        <th className="py-1.5 px-2 text-left font-medium w-[34%]">Obat</th>
+                        <th className="py-1.5 px-2 text-left font-medium w-[10%]">Qty</th>
+                        <th className="py-1.5 px-2 text-left font-medium hidden sm:table-cell w-[12%]">Kondisi</th>
+                        <th className="py-1.5 px-2 text-left font-medium w-[24%]">Alasan</th>
+                        <th className="py-1.5 px-2 text-left font-medium hidden md:table-cell w-[10%]">Restock</th>
+                        <th className="py-1.5 px-2 text-left font-medium hidden lg:table-cell w-[20%]">Waktu</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {displayedReturns.map((ret) => (
+                        <tr key={ret.id} className="border-b last:border-0 align-top">
+                          <td className="py-1.5 px-2">
+                            <p className="font-medium break-words">{ret.medicine?.name || "Obat"}</p>
+                          </td>
+                          <td className="py-1.5 px-2 font-medium">{ret.quantity}</td>
+                          <td className="py-1.5 px-2 hidden sm:table-cell break-words">{ret.condition}</td>
+                          <td className="py-1.5 px-2 text-[11px] break-words">{ret.return_reason}</td>
+                          <td className="py-1.5 px-2 hidden md:table-cell">
+                            <Badge variant={ret.is_restocked ? "default" : "outline"}>
+                              {ret.is_restocked ? "Ya" : "Tidak"}
+                            </Badge>
+                          </td>
+                          <td className="py-1.5 px-2 text-[11px] hidden lg:table-cell">
+                            {ret.created_at && new Date(ret.created_at).toLocaleString("id-ID")}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Delivered Items for Return */}
-          <div className="border rounded-lg">
-            <div className="p-3 border-b bg-muted/30">
-              <div className="flex items-center justify-between gap-2">
-                <Label className="text-sm font-semibold flex items-center gap-2">
-                  <Package className="h-4 w-4" />
+            {/* Delivered Items for Return */}
+            <div className="border border-border/70 bg-background mb-4">
+              <div className="flex flex-wrap items-center justify-between border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                <span className="flex items-center gap-2">
+                  <Package className="h-3 w-3" />
                   Obat yang Sudah Diserahkan
-                </Label>
+                </span>
                 {deliveredItems.length > 8 && (
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-7 px-2 text-xs"
+                    className="h-6 px-2 text-[10px] py-0"
                     onClick={() => setShowAllDeliveredItems((prev) => !prev)}
                   >
                     {showAllDeliveredItems ? "Ringkas" : `Lihat Semua (${deliveredItems.length})`}
                   </Button>
                 )}
               </div>
-            </div>
-            <div className="p-3">
-              {deliveredItems.length === 0 ? (
-                <div className="text-center py-6 text-muted-foreground">
-                  <AlertCircle className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p>Belum ada obat yang diserahkan</p>
-                </div>
-              ) : (
-                <div className="border rounded-lg">
+              <div className="p-0">
+                {deliveredItems.length === 0 ? (
+                  <div className="text-center py-6 text-muted-foreground">
+                    <AlertCircle className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p>Belum ada obat yang diserahkan</p>
+                  </div>
+                ) : (
                   <table className="w-full table-fixed text-xs">
-                    <thead className="bg-muted/50">
-                      <tr>
-                        <th className="py-1.5 px-2 text-left font-medium w-[36%]">Obat</th>
-                        <th className="py-1.5 px-2 text-left font-medium w-[26%]">Qty</th>
-                        <th className="py-1.5 px-2 text-right font-medium hidden sm:table-cell w-[12%]">Harga</th>
-                        <th className="py-1.5 px-2 text-right font-medium w-[14%]">Subtotal Return</th>
-                        <th className="py-1.5 px-2 text-right font-medium w-[12%]">Aksi</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {displayedDeliveredItems.map((item) => {
-                        const returnableQty = (item.dispensed_qty || 0) - (item.returned_qty || 0);
-                        const unitPrice = getUnitPrice(item);
-                        const returnableSubtotal = unitPrice * Number(returnableQty || 0);
+                    <thead className="bg-muted/50 border-b border-border/70">
+                        <tr>
+                          <th className="py-1.5 px-2 text-left font-medium w-[36%]">Obat</th>
+                          <th className="py-1.5 px-2 text-left font-medium w-[26%]">Qty</th>
+                          <th className="py-1.5 px-2 text-right font-medium hidden sm:table-cell w-[12%]">Harga</th>
+                          <th className="py-1.5 px-2 text-right font-medium w-[14%]">Subtotal Return</th>
+                          <th className="py-1.5 px-2 text-right font-medium w-[12%]">Aksi</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {displayedDeliveredItems.map((item) => {
+                          const returnableQty = (item.dispensed_qty || 0) - (item.returned_qty || 0);
+                          const unitPrice = getUnitPrice(item);
+                          const returnableSubtotal = unitPrice * Number(returnableQty || 0);
 
-                        return (
-                          <tr key={item.id} className="border-b last:border-0 align-top">
-                            <td className="py-1.5 px-2">
-                              <p className="font-medium break-words">{item.medicine?.name || "Obat"}</p>
-                              <p className="text-[11px] text-muted-foreground break-words">{item.medicine?.generic_name || "-"}</p>
-                            </td>
-                            <td className="py-1.5 px-2">
-                              <p className="text-[11px]">Dipesan: <span className="font-medium">{item.quantity}</span></p>
-                              <p className="text-[11px]">Diserahkan: <span className="font-medium">{item.dispensed_qty || 0}</span></p>
-                              <p className="text-[11px]">Dikembalikan: <span className="font-medium">{item.returned_qty || 0}</span></p>
-                              <p className="text-[11px] text-muted-foreground">Sisa return: {returnableQty}</p>
-                            </td>
-                            <td className="py-1.5 px-2 text-right font-medium whitespace-nowrap hidden sm:table-cell">{formatRupiah(unitPrice)}</td>
-                            <td className="py-1.5 px-2 text-right font-medium whitespace-nowrap">{formatRupiah(returnableSubtotal)}</td>
-                            <td className="py-1.5 px-2 text-right">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-7 px-2 text-xs"
-                                onClick={() => handleOpenReturnDialog(item)}
-                                disabled={returnableQty <= 0 || !canReturn || readOnly}
-                              >
-                                <RotateCcw className="h-4 w-4 mr-1" />
-                                Return
-                              </Button>
-                            </td>
-                          </tr>
-                        );
-                      })}
+                          return (
+                            <tr key={item.id} className="border-b last:border-0 align-top">
+                              <td className="py-1.5 px-2">
+                                <p className="font-medium break-words">{item.medicine?.name || "Obat"}</p>
+                                <p className="text-[11px] text-muted-foreground break-words">{item.medicine?.generic_name || "-"}</p>
+                              </td>
+                              <td className="py-1.5 px-2">
+                                <p className="text-[11px]">Dipesan: <span className="font-medium">{item.quantity}</span></p>
+                                <p className="text-[11px]">Diserahkan: <span className="font-medium">{item.dispensed_qty || 0}</span></p>
+                                <p className="text-[11px]">Dikembalikan: <span className="font-medium">{item.returned_qty || 0}</span></p>
+                                <p className="text-[11px] text-muted-foreground">Sisa return: {returnableQty}</p>
+                              </td>
+                              <td className="py-1.5 px-2 text-right font-medium whitespace-nowrap hidden sm:table-cell">{formatRupiah(unitPrice)}</td>
+                              <td className="py-1.5 px-2 text-right font-medium whitespace-nowrap">{formatRupiah(returnableSubtotal)}</td>
+                              <td className="py-1.5 px-2 text-right">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 px-2 text-xs"
+                                  onClick={() => handleOpenReturnDialog(item)}
+                                  disabled={returnableQty <= 0 || !canReturn || readOnly}
+                                >
+                                  <RotateCcw className="h-4 w-4 mr-1" />
+                                  Return
+                                </Button>
+                              </td>
+                            </tr>
+                          );
+                        })}
                     </tbody>
                   </table>
-                </div>
-              )}
+                )}
+              </div>
             </div>
-          </div>
-        </>
-      )}      </div>
+          </>
+        )}      </div>
 
       {/* Return Dialog */}
       <Dialog open={showReturnDialog} onOpenChange={setShowReturnDialog}>
