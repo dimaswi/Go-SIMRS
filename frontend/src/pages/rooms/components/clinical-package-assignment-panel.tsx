@@ -234,14 +234,13 @@ export function ClinicalPackageAssignmentPanel({
             </div>
           </div>
           <div className="rounded-lg border p-4">
-            <DataTable
-              columns={availableColumns}
-              data={availablePackages}
-              searchPlaceholder="Cari kode atau nama paket..."
-              pageSize={8}
-              showColumnVisibility={false}
-              tableId={`room_clinical_packages_available_${roomId}`}
-            />
+              <DataTable
+                columns={availableColumns}
+                data={availablePackages}
+                searchPlaceholder="Cari kode atau nama paket..."
+                pageSize={8}
+                tableId={`room_clinical_packages_available_${roomId}`}
+              />
           </div>
         </div>
 
@@ -261,7 +260,6 @@ export function ClinicalPackageAssignmentPanel({
               data={assignments}
               searchPlaceholder="Cari paket yang sudah ditugaskan..."
               pageSize={8}
-              showColumnVisibility={false}
               tableId={`room_clinical_packages_assigned_${roomId}`}
             />
           </div>

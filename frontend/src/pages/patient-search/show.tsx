@@ -534,30 +534,7 @@ export default function PatientSearchShow() {
     });
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const toggleRmVisitSelection = (visit: Visit, visitIdx: number, docs: DocItem[]) => {
-    const allSelected = docs.length > 0 && docs.every((d) => rmSelectedDocs.has(d.id));
-    setRmSelectedDocs((prev) => {
-      const next = new Map(prev);
-      if (allSelected) {
-        docs.forEach((d) => next.delete(d.id));
-      } else {
-        docs.forEach((d, docIdx) => {
-          next.set(d.id, { docItem: d, visitId: visit.id, visitIndex: visitIdx, docIndex: docIdx });
-        });
-      }
-      return next;
-    });
-  };
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const getRmVisitCheckboxState = (docs: DocItem[]): boolean | "indeterminate" => {
-    if (docs.length === 0) return false;
-    const count = docs.filter((d) => rmSelectedDocs.has(d.id)).length;
-    if (count === 0) return false;
-    if (count === docs.length) return true;
-    return "indeterminate";
-  };
 
   const getRmRegCheckboxState = (regVisits: Visit[]): boolean | "indeterminate" => {
     let totalDocs = 0;
@@ -895,13 +872,6 @@ export default function PatientSearchShow() {
     catch (error: any) { toast({ variant: "destructive", title: "Error", description: "Gagal mencetak label" }); }
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const handlePrintInformedConsent = async () => {
-    if (!patient) return;
-    try { await printApi.informedConsent(patient.id); }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars
-    catch (error: any) { toast({ variant: "destructive", title: "Error", description: "Gagal mencetak informed consent" }); }
-  };
 
   const handleViewSep = (sep: SEPLocal) => {
     setSelectedSep(sep);
