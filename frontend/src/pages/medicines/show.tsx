@@ -2,7 +2,6 @@
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import {
   medicinesApi,
   type Medicine,
@@ -17,7 +16,6 @@ import { useToast } from "@/hooks/use-toast";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { setPageTitle } from "@/lib/page-title";
 import {
-  ArrowLeft,
   Loader2,
   Pencil,
   Trash2,
@@ -57,7 +55,7 @@ export default function MedicineShow() {
   const navigate = useNavigate();
   const { hasPermission } = usePermission();
   const { toast } = useToast();
-  
+
   const [loading, setLoading] = useState(true);
   const [medicine, setMedicine] = useState<Medicine | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -122,246 +120,235 @@ export default function MedicineShow() {
 
   return (
     <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => window.history.back()}
-                  className="h-9 w-9"
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                </Button>
-                <div>
-                    <div className="flex items-center gap-2">
-                      <h1 className="text-lg font-semibold">
-                        {medicine.name}
-                      </h1>
-                      <Badge variant={medicine.is_active ? "default" : "secondary"}>
-                        {medicine.is_active ? "Aktif" : "Nonaktif"}
-                      </Badge>
-                    </div>
-                    <p className="text-sm text-muted-foreground flex items-center gap-2">
-                      <span className="font-mono">{medicine.code}</span>
-                      {medicine.generic_name && (
-                        <>
-                          <span>/</span>
-                          <span>{medicine.generic_name}</span>
-                        </>
-                      )}
-                    </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                {hasPermission("medicines.update") && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => navigate(`/medicines/${medicine.id}/edit`)}
-                  >
-                    <Pencil className="mr-2 h-4 w-4" />
-                    Edit
-                  </Button>
-                )}
-                {hasPermission("medicines.delete") && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setDeleteDialogOpen(true)}
-                    className="text-red-600 hover:text-red-600"
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Hapus
-                  </Button>
+
+      <div className="flex-1 space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11">
+        {/* Basic Info */}
+        <div className="border border-border/70">
+          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+            <Info className="h-3 w-3" />
+            Informasi Dasar
+          </div>
+          <div className="p-3 sm:p-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="md:col-span-2">
+                <p className="text-xs text-muted-foreground">Nama Obat</p>
+                <p className="text-sm font-medium">{medicine.name}</p>
+                {medicine.generic_name && (
+                  <p className="text-xs text-muted-foreground mt-0.5">Generik: {medicine.generic_name}</p>
                 )}
               </div>
-      </div>
-      <div className="rounded-lg border p-6">
-            <div className="grid gap-6">
-              {/* Basic Info */}
-              <div className="space-y-4">
-                <h3 className="text-sm font-medium text-muted-foreground border-b pb-2 flex items-center gap-2">
-                  <Info className="h-4 w-4" />
-                  Informasi Dasar
-                </h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div>
-                    <p className="text-xs text-muted-foreground">Kategori</p>
-                    <Badge className={categoryColors[medicine.category]}>
-                      {medicineCategoryLabels[medicine.category]}
-                    </Badge>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Golongan</p>
-                    <Badge variant="outline" className={typeColors[medicine.type]}>
-                      {medicineTypeLabels[medicine.type]}
-                    </Badge>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Bentuk Sediaan</p>
-                    <p className="text-sm font-medium">
-                      {medicineFormLabels[medicine.form]}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Kekuatan</p>
-                    <p className="text-sm font-medium">
-                      {medicine.strength || "-"}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Satuan</p>
-                    <p className="text-sm font-medium">{medicine.unit}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Produsen</p>
-                    <p className="text-sm font-medium">
-                      {medicine.manufacturer || "-"}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Butuh Resep</p>
-                    <Badge variant={medicine.require_recipe ? "destructive" : "secondary"}>
-                      {medicine.require_recipe ? "Ya" : "Tidak"}
-                    </Badge>
-                  </div>
-                </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Kode Obat</p>
+                <p className="text-sm font-medium font-mono">{medicine.code}</p>
               </div>
-
-              <Separator />
-
-              <div className="space-y-4">
-                <h3 className="text-sm font-medium text-muted-foreground border-b pb-2 flex items-center gap-2">
-                  <Database className="h-4 w-4" />
-                  Mapping BPJS DPHO
-                </h3>
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                  <div>
-                    <p className="text-xs text-muted-foreground">Kode Obat DPHO</p>
-                    <p className="text-sm font-medium font-mono">{medicine.dpho_kode_obat || "-"}</p>
-                  </div>
-                  <div className="md:col-span-2">
-                    <p className="text-xs text-muted-foreground">Nama Obat DPHO</p>
-                    <p className="text-sm font-medium">{medicine.dpho_nama_obat || "Belum dipetakan ke DPHO"}</p>
-                  </div>
-                </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Status</p>
+                <Badge variant={medicine.is_active ? "default" : "secondary"}>
+                  {medicine.is_active ? "Aktif" : "Nonaktif"}
+                </Badge>
               </div>
-
-              <Separator />
-
-              {/* Price & Stock Info */}
-              <div className="space-y-4">
-                <h3 className="text-sm font-medium text-muted-foreground border-b pb-2 flex items-center gap-2">
-                  <DollarSign className="h-4 w-4" />
-                  Harga & Batas Stok
-                </h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div>
-                    <p className="text-xs text-muted-foreground">Harga Beli (HNA)</p>
-                    <p className="text-sm font-medium">
-                      {formatCurrency(medicine.purchase_price)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Harga Jual (HET)</p>
-                    <p className="text-sm font-medium">
-                      {formatCurrency(medicine.selling_price)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Stok Minimum</p>
-                    <p className="text-sm font-medium">{medicine.min_stock}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Stok Maksimum</p>
-                    <p className="text-sm font-medium">{medicine.max_stock}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Stok Saat Ini</p>
-                    <p className="text-sm font-medium">{currentStock} {medicine.unit}</p>
-                  </div>
-                </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Kategori</p>
+                <Badge className={categoryColors[medicine.category]}>
+                  {medicineCategoryLabels[medicine.category]}
+                </Badge>
               </div>
-
-              <Separator />
-
-              {/* Medical Info */}
-              <div className="space-y-4">
-                <h3 className="text-sm font-medium text-muted-foreground border-b pb-2 flex items-center gap-2">
-                  <AlertTriangle className="h-4 w-4" />
-                  Informasi Medis
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-xs text-muted-foreground">Indikasi</p>
-                    <p className="text-sm whitespace-pre-wrap">
-                      {medicine.indication || "-"}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Kontraindikasi</p>
-                    <p className="text-sm whitespace-pre-wrap">
-                      {medicine.contraindication || "-"}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Dosis</p>
-                    <p className="text-sm whitespace-pre-wrap">
-                      {medicine.dosage || "-"}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Efek Samping</p>
-                    <p className="text-sm whitespace-pre-wrap">
-                      {medicine.side_effects || "-"}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Interaksi Obat</p>
-                    <p className="text-sm whitespace-pre-wrap">
-                      {medicine.interaction || "-"}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Penyimpanan</p>
-                    <p className="text-sm whitespace-pre-wrap">
-                      {medicine.storage_info || "-"}
-                    </p>
-                  </div>
-                </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Golongan</p>
+                <Badge variant="outline" className={typeColors[medicine.type]}>
+                  {medicineTypeLabels[medicine.type]}
+                </Badge>
               </div>
-
-              {(medicine.description || medicine.notes) && (
-                <>
-                  <Separator />
-                  {/* Additional Info */}
-                  <div className="space-y-4">
-                    <h3 className="text-sm font-medium text-muted-foreground border-b pb-2 flex items-center gap-2">
-                      <FileText className="h-4 w-4" />
-                      Informasi Tambahan
-                    </h3>
-                    <div className="grid grid-cols-1 gap-4">
-                      {medicine.description && (
-                        <div>
-                          <p className="text-xs text-muted-foreground">Deskripsi</p>
-                          <p className="text-sm whitespace-pre-wrap">
-                            {medicine.description}
-                          </p>
-                        </div>
-                      )}
-                      {medicine.notes && (
-                        <div>
-                          <p className="text-xs text-muted-foreground">Catatan</p>
-                          <p className="text-sm whitespace-pre-wrap">
-                            {medicine.notes}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </>
-              )}
+              <div>
+                <p className="text-xs text-muted-foreground">Bentuk Sediaan</p>
+                <p className="text-sm font-medium">
+                  {medicineFormLabels[medicine.form]}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Kekuatan</p>
+                <p className="text-sm font-medium">
+                  {medicine.strength || "-"}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Satuan</p>
+                <p className="text-sm font-medium">{medicine.unit}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Produsen</p>
+                <p className="text-sm font-medium">
+                  {medicine.manufacturer || "-"}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Butuh Resep</p>
+                <Badge variant={medicine.require_recipe ? "destructive" : "secondary"}>
+                  {medicine.require_recipe ? "Ya" : "Tidak"}
+                </Badge>
+              </div>
             </div>
+          </div>
+        </div>
+
+        <div className="border border-border/70">
+          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+            <Database className="h-3 w-3" />
+            Mapping BPJS DPHO
+          </div>
+          <div className="p-3 sm:p-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div>
+                <p className="text-xs text-muted-foreground">Kode Obat DPHO</p>
+                <p className="text-sm font-medium font-mono">{medicine.dpho_kode_obat || "-"}</p>
+              </div>
+              <div className="md:col-span-2">
+                <p className="text-xs text-muted-foreground">Nama Obat DPHO</p>
+                <p className="text-sm font-medium">{medicine.dpho_nama_obat || "Belum dipetakan ke DPHO"}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Price & Stock Info */}
+        <div className="border border-border/70">
+          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+            <DollarSign className="h-3 w-3" />
+            Harga & Batas Stok
+          </div>
+          <div className="p-3 sm:p-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div>
+                <p className="text-xs text-muted-foreground">Harga Beli (HNA)</p>
+                <p className="text-sm font-medium">
+                  {formatCurrency(medicine.purchase_price)}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Harga Jual (HET)</p>
+                <p className="text-sm font-medium">
+                  {formatCurrency(medicine.selling_price)}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Stok Minimum</p>
+                <p className="text-sm font-medium">{medicine.min_stock}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Stok Maksimum</p>
+                <p className="text-sm font-medium">{medicine.max_stock}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Stok Saat Ini</p>
+                <p className="text-sm font-medium">{currentStock} {medicine.unit}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Medical Info */}
+        <div className="border border-border/70">
+          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+            <AlertTriangle className="h-3 w-3" />
+            Informasi Medis
+          </div>
+          <div className="p-3 sm:p-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <p className="text-xs text-muted-foreground">Indikasi</p>
+                <p className="text-sm whitespace-pre-wrap">
+                  {medicine.indication || "-"}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Kontraindikasi</p>
+                <p className="text-sm whitespace-pre-wrap">
+                  {medicine.contraindication || "-"}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Dosis</p>
+                <p className="text-sm whitespace-pre-wrap">
+                  {medicine.dosage || "-"}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Efek Samping</p>
+                <p className="text-sm whitespace-pre-wrap">
+                  {medicine.side_effects || "-"}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Interaksi Obat</p>
+                <p className="text-sm whitespace-pre-wrap">
+                  {medicine.interaction || "-"}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Penyimpanan</p>
+                <p className="text-sm whitespace-pre-wrap">
+                  {medicine.storage_info || "-"}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {(medicine.description || medicine.notes) && (
+          <div className="border border-border/70">
+            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+              <FileText className="h-3 w-3" />
+              Informasi Tambahan
+            </div>
+            <div className="p-3 sm:p-4">
+              <div className="grid grid-cols-1 gap-4">
+                {medicine.description && (
+                  <div>
+                    <p className="text-xs text-muted-foreground">Deskripsi</p>
+                    <p className="text-sm whitespace-pre-wrap">
+                      {medicine.description}
+                    </p>
+                  </div>
+                )}
+                {medicine.notes && (
+                  <div>
+                    <p className="text-xs text-muted-foreground">Catatan</p>
+                    <p className="text-sm whitespace-pre-wrap">
+                      {medicine.notes}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Sticky Footer Actions */}
+      <div className="shrink-0 sticky bottom-0 z-10 py-3 mt-4 flex items-center justify-between border-t bg-background">
+        <Button variant="outline" onClick={() => navigate("/medicines")}>
+          Kembali
+        </Button>
+        <div className="flex gap-2">
+          {hasPermission("medicines.update") && (
+            <Button
+              variant="outline"
+              onClick={() => navigate(`/medicines/${medicine.id}/edit`)}
+            >
+              <Pencil className="mr-2 h-4 w-4" />
+              Edit
+            </Button>
+          )}
+          {hasPermission("medicines.delete") && (
+            <Button
+              variant="destructive"
+              onClick={() => setDeleteDialogOpen(true)}
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Hapus
+            </Button>
+          )}
+        </div>
       </div>
 
       <ConfirmDialog

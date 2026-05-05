@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { PageShell, PageHeader, PageContent } from '@/components/layout/page-shell';
 import { setPageTitle } from '@/lib/page-title';
 import { Button } from '@/components/ui/button';
-
 import { DataTable } from '@/components/ui/data-table';
 import { createPermissionColumns } from './columns';
 import { permissionsApi, type Permission } from '@/lib/api';
@@ -96,26 +96,29 @@ export default function PermissionsPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold">Permissions</h1>
-          <p className="text-sm text-muted-foreground">Manage system permissions</p>
-        </div>
-        {hasPermission('permissions.create') && (
-          <Button onClick={() => navigate('/permissions/create')} size="sm">
-            <Plus className="mr-2 h-4 w-4" />
-            Add Permission
-          </Button>
-        )}
-      </div>
-      <DataTable
-        columns={columns}
-        data={permissions}
-        searchPlaceholder="Search permissions by name or description..."
-        pageSize={10}
-        tableId="permissions"
+    <PageShell>
+      <PageHeader
+        title="Permissions"
+        description="Manage system permissions"
+        count={permissions.length}
+        actions={
+          hasPermission('permissions.create') ? (
+            <Button onClick={() => navigate('/permissions/create')} size="sm">
+              <Plus className="h-4 w-4" />
+              Add Permission
+            </Button>
+          ) : undefined
+        }
       />
+      <PageContent>
+        <DataTable
+          columns={columns}
+          data={permissions}
+          searchPlaceholder="Search permissions by name or description..."
+          pageSize={10}
+          tableId="permissions"
+        />
+      </PageContent>
 
       <ConfirmDialog
         open={deleteDialogOpen}
@@ -127,6 +130,6 @@ export default function PermissionsPage() {
         cancelText="Cancel"
         variant="destructive"
       />
-    </div>
+    </PageShell>
   );
 }

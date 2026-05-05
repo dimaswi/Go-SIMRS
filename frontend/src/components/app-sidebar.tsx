@@ -32,7 +32,6 @@ import {
   Hotel,
   QrCode,
   Stethoscope,
-  Circle,
   Map,
   UtensilsCrossed,
   ChefHat,
@@ -279,7 +278,6 @@ function hasMenuItemAccess(item: MenuItem, hasPermission: (permission: string) =
 // Tree child item
 function TreeChild({
   item,
-  isLast,
   isActive,
 }: {
   item: MenuItem;
@@ -287,34 +285,16 @@ function TreeChild({
   isActive: boolean;
 }) {
   return (
-    <li className="relative flex items-stretch">
-      {/* Tree connector lines */}
-      <div className="relative flex w-6 shrink-0 items-center justify-center">
-        {/* Vertical line */}
-        <div className={cn(
-          "absolute left-[11px] top-0 w-px bg-sidebar-border",
-          isLast ? "h-1/2" : "h-full"
-        )} />
-        {/* Horizontal line */}
-        <div className="absolute left-[11px] top-1/2 h-px w-[13px] bg-sidebar-border" />
-      </div>
-
-      {/* Menu item */}
+    <li>
       <Link
         to={item.path}
         className={cn(
-          "group/child flex flex-1 items-center gap-2.5 rounded-md py-1.5 px-2 text-[13px] transition-all",
+          "group/child flex items-center gap-2.5 rounded-md py-1.5 pl-4 pr-2 text-[13px] transition-all",
           isActive
-            ? "bg-foreground text-background font-medium shadow-sm"
-            : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+            ? "bg-primary/10 text-primary font-medium border-l-2 border-primary"
+            : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground border-l-2 border-transparent"
         )}
       >
-        <Circle className={cn(
-          "size-[5px] shrink-0 transition-colors",
-          isActive
-            ? "fill-background text-background"
-            : "fill-sidebar-foreground/30 text-sidebar-foreground/30 group-hover/child:fill-sidebar-foreground/60 group-hover/child:text-sidebar-foreground/60"
-        )} />
         <span className="truncate">{item.label}</span>
       </Link>
     </li>
@@ -361,7 +341,7 @@ function TreeParent({
                   className={cn(
                     "flex size-8 items-center justify-center rounded-md transition-colors",
                     isActive
-                      ? "bg-foreground text-background shadow-sm"
+                      ? "bg-primary/15 text-primary shadow-sm"
                       : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                   )}
                 >
@@ -372,13 +352,18 @@ function TreeParent({
             <TooltipContent side="right">{item.label}</TooltipContent>
           </Tooltip>
         </TooltipProvider>
-        <DropdownMenuContent side="right" align="start" className="min-w-[200px]">
+        <DropdownMenuContent side="right" align="start" className="min-w-[210px] p-1.5">
           {/* Group header */}
-          <div className="flex items-center gap-2 px-2 py-2">
-            <Icon className="size-4 text-muted-foreground" />
+          <div className="flex items-center gap-2 px-2.5 py-2 mb-1">
+            <div className={cn(
+              "flex size-6 items-center justify-center rounded-md",
+              isActive ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"
+            )}>
+              <Icon className="size-3.5" />
+            </div>
             <span className="text-sm font-semibold">{item.label}</span>
           </div>
-          <div className="-mx-1 mb-1 h-px bg-border" />
+          <div className="-mx-1.5 mb-1.5 h-px bg-border" />
           {/* Submenu items */}
           {visibleSubmenu.map(subItem => {
             const SubIcon = subItem.icon;
@@ -388,17 +373,18 @@ function TreeParent({
                 <Link
                   to={subItem.path}
                   className={cn(
-                    "flex w-full items-center gap-2.5 rounded-sm px-2 py-2 text-sm",
+                    "flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-sm transition-colors",
                     isSubActive
-                      ? "bg-accent font-medium text-accent-foreground"
-                      : "text-foreground/80"
+                      ? "bg-primary/10 text-primary font-medium"
+                      : "text-foreground/80 hover:bg-accent hover:text-accent-foreground"
                   )}
                 >
                   <SubIcon className={cn(
                     "size-4 shrink-0",
-                    isSubActive ? "text-foreground" : "text-muted-foreground"
+                    isSubActive ? "text-primary" : "text-muted-foreground"
                   )} />
                   <span>{subItem.label}</span>
+                  {isSubActive && <div className="ml-auto size-1.5 rounded-full bg-primary" />}
                 </Link>
               </DropdownMenuItem>
             );
@@ -416,14 +402,19 @@ function TreeParent({
         className={cn(
           "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-all",
           "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-          isActive && "font-semibold text-sidebar-accent-foreground"
+          isActive && "text-primary font-semibold"
         )}
       >
-        <Icon className="size-4 shrink-0" />
+        <div className={cn(
+          "flex size-6 items-center justify-center rounded-md shrink-0 transition-colors",
+          isActive ? "bg-primary/15 text-primary" : "text-sidebar-foreground/70"
+        )}>
+          <Icon className="size-3.5" />
+        </div>
         <span className="flex-1 truncate text-left">{item.label}</span>
         <ChevronDown
           className={cn(
-            "size-4 shrink-0 text-sidebar-foreground/60 transition-transform duration-200",
+            "size-3.5 shrink-0 text-sidebar-foreground/40 transition-transform duration-200",
             !expanded && "-rotate-90"
           )}
         />
@@ -434,7 +425,7 @@ function TreeParent({
         "grid transition-[grid-template-rows] duration-200 ease-in-out",
         expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
       )}>
-        <ul className="overflow-hidden pl-2">
+        <ul className="overflow-hidden pl-2 pt-0.5 pb-1">
           {visibleSubmenu.map((subItem, idx) => (
             <TreeChild
               key={subItem.path}
@@ -636,8 +627,8 @@ export function AppSidebar() {
         ) : (
           /* Expanded: tree view */
           <div className="px-3 py-2">
-            <p className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
-              Menu
+            <p className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-widest text-sidebar-foreground/30">
+              Navigasi
             </p>
             <ul className="flex flex-col gap-0.5">
               {visibleMenuItems.map(item => {
@@ -665,11 +656,16 @@ export function AppSidebar() {
                       className={cn(
                         "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-all",
                         isActive
-                          ? "bg-foreground text-background font-semibold shadow-sm"
+                          ? "bg-primary/10 text-primary font-semibold border-l-2 border-primary pl-[7px]"
                           : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                       )}
                     >
-                      <Icon className="size-4 shrink-0" />
+                      <div className={cn(
+                        "flex size-6 items-center justify-center rounded-md shrink-0 transition-colors",
+                        isActive ? "bg-primary/15 text-primary" : "text-sidebar-foreground/70"
+                      )}>
+                        <Icon className="size-3.5" />
+                      </div>
                       <span className="truncate">{item.label}</span>
                     </Link>
                   </li>
@@ -685,33 +681,39 @@ export function AppSidebar() {
           <SidebarMenuItem>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <SidebarMenuButton size="lg">
-                  <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                    {user?.full_name?.charAt(0) || 'U'}
+                <SidebarMenuButton size="lg" className="hover:bg-sidebar-accent/80">
+                  <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary/80 to-primary text-primary-foreground font-semibold text-sm shadow-sm">
+                    {user?.full_name?.charAt(0).toUpperCase() || 'U'}
                   </div>
-                  <div className="flex flex-col gap-0.5 leading-none">
-                    <span className="font-medium">{user?.full_name}</span>
-                    <span className="text-xs text-muted-foreground">{user?.email}</span>
+                  <div className="flex flex-col gap-0.5 leading-none overflow-hidden">
+                    <span className="font-semibold text-sm truncate">{user?.full_name}</span>
+                    <span className="text-[11px] text-muted-foreground truncate">{user?.role?.name || user?.email}</span>
                   </div>
-                  <ChevronUp className="ml-auto" />
+                  <ChevronUp className="ml-auto size-4 text-muted-foreground" />
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
-              <DropdownMenuContent side="top" className="w-[--radix-popper-anchor-width]">
+              <DropdownMenuContent side="top" className="w-[--radix-popper-anchor-width] p-1.5">
+                <div className="px-2 py-1.5 mb-1">
+                  <p className="text-sm font-semibold truncate">{user?.full_name}</p>
+                  <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+                </div>
+                <div className="-mx-1.5 mb-1 h-px bg-border" />
                 <DropdownMenuItem asChild>
-                  <Link to="/account">
-                    <Shield className="mr-2 h-4 w-4" />
-                    <span>Account</span>
+                  <Link to="/account" className="gap-2.5">
+                    <Shield className="h-4 w-4 text-muted-foreground" />
+                    <span>Profil Akun</span>
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <Link to="/settings">
-                    <Settings className="mr-2 h-4 w-4" />
-                    <span>Settings</span>
+                  <Link to="/settings" className="gap-2.5">
+                    <Settings className="h-4 w-4 text-muted-foreground" />
+                    <span>Pengaturan</span>
                   </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleLogout} className="text-destructive">
-                  <LogOut className="mr-2 h-4 w-4" />
-                  <span>Logout</span>
+                <div className="-mx-1.5 my-1 h-px bg-border" />
+                <DropdownMenuItem onClick={handleLogout} className="text-destructive gap-2.5 focus:text-destructive focus:bg-destructive/10">
+                  <LogOut className="h-4 w-4" />
+                  <span>Keluar</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

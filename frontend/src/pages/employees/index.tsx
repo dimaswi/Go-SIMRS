@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { PageShell, PageHeader, PageContent } from '@/components/layout/page-shell';
 
 import { DataTable } from '@/components/ui/data-table';
 import { createEmployeeColumns } from './columns';
@@ -100,25 +101,28 @@ export default function EmployeesPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold">Pegawai</h1>
-          <p className="text-sm text-muted-foreground">Kelola data pegawai rumah sakit</p>
-        </div>
-        {hasPermission('employees.create') && (
-          <Button onClick={() => navigate('/employees/create')} size="sm">
-            <Plus className="mr-2 h-4 w-4" />
-            Tambah Pegawai
-          </Button>
-        )}
-      </div>
-      <DataTable
-        columns={columns}
-        data={employees}
-        searchPlaceholder="Cari pegawai berdasarkan nama, NIK, atau NIP..."
-        pageSize={10}
+    <PageShell>
+      <PageHeader
+        title="Pegawai"
+        description="Kelola data pegawai rumah sakit"
+        count={employees.length}
+        actions={
+          hasPermission('employees.create') ? (
+            <Button onClick={() => navigate('/employees/create')} size="sm">
+              <Plus className="h-4 w-4" />
+              Tambah Pegawai
+            </Button>
+          ) : undefined
+        }
       />
+      <PageContent>
+        <DataTable
+          columns={columns}
+          data={employees}
+          searchPlaceholder="Cari pegawai berdasarkan nama, NIK, atau NIP..."
+          pageSize={10}
+        />
+      </PageContent>
 
       <ConfirmDialog
         open={deleteDialogOpen}
@@ -130,6 +134,6 @@ export default function EmployeesPage() {
         cancelText="Batal"
         variant="destructive"
       />
-    </div>
+    </PageShell>
   );
 }

@@ -4,7 +4,6 @@ import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import {
-  ArrowLeft,
   PackageCheck,
   CheckCheck,
   Pill,
@@ -28,7 +27,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { setPageTitle } from "@/lib/page-title";
 import { cn } from "@/lib/utils";
@@ -279,189 +277,187 @@ export default function PurchaseReceive() {
     <div className="flex flex-1 flex-col px-4">
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                onClick={() => window.history.back()}
-                className="h-9 w-9"
-              >
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-              <div className="space-y-1">
-                <h1 className="text-lg font-semibold">
-                  Terima Barang
-                </h1>
-                <p className="text-sm text-muted-foreground">
-                  Pembelian: {purchase.purchase_number} â€¢{" "}
-                  {purchase.supplier_name}
-                </p>
+          <div className="flex-1 space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11">
+            {/* Purchase Info */}
+            <div className="border border-border/70">
+              <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex justify-between items-center">
+                <span>Informasi Pembelian</span>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="h-5 text-[10px]">
+                    {completedItems} / {totalItems} Lengkap
+                  </Badge>
+                  {selectedCount > 0 && (
+                    <Badge className="bg-primary h-5 text-[10px]">
+                      {selectedCount} dipilih
+                    </Badge>
+                  )}
+                </div>
+              </div>
+              <div className="p-3 sm:p-4">
+                <div className="flex items-center gap-6">
+                  <div>
+                    <p className="text-xs text-muted-foreground">No. Pembelian</p>
+                    <p className="text-sm font-medium font-mono">{purchase.purchase_number}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Supplier</p>
+                    <p className="text-sm font-medium">{purchase.supplier_name}</p>
+                  </div>
+                </div>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Badge variant="outline">
-                {completedItems} / {totalItems} Lengkap
-              </Badge>
-              {selectedCount > 0 && (
-                <Badge className="bg-primary">
-                  {selectedCount} dipilih
-                </Badge>
+
+            <div className="border border-border/70">
+              <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                Informasi Penerimaan
+              </div>
+              <div className="p-3 sm:p-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <FormField
+                    control={form.control}
+                    name="receive_date"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Tanggal Penerimaan *</FormLabel>
+                        <FormControl>
+                          <Input type="date" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="notes"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Catatan</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="Catatan penerimaan (opsional)"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Bulk Actions Card */}
+            <div className="border border-border/70">
+              <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                Aksi Massal
+              </div>
+              <div className="p-3 sm:p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleSelectAll}
+                    >
+                      <CheckCheck className="h-4 w-4 mr-1" />
+                      {selectedCount === itemsWithRemaining
+                        ? "Batal Pilih Semua"
+                        : "Pilih Semua"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleFillAll}
+                      disabled={selectedCount === 0}
+                    >
+                      <PackageCheck className="h-4 w-4 mr-1" />
+                      Isi Sisa ke Terpilih
+                    </Button>
+                  </div>
+                </div>
+              </div>
+              {selectedMedicines > 0 && (
+                <div className="px-6 pb-6">
+                  <Alert>
+                    <Info className="h-4 w-4" />
+                    <AlertDescription>
+                      <strong>{selectedMedicines} obat</strong> terpilih. Anda
+                      dapat mengisi batch number dan tanggal kadaluarsa secara
+                      massal.
+                    </AlertDescription>
+                  </Alert>
+                  <div className="grid gap-4 md:grid-cols-2 mt-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">
+                        Batch Number untuk Semua Obat Terpilih
+                      </label>
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="Masukkan batch number..."
+                          id="bulk-batch"
+                        />
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => {
+                            const input = document.getElementById(
+                              "bulk-batch"
+                            ) as HTMLInputElement;
+                            if (input?.value) {
+                              handleApplyBatchToSelected(input.value);
+                              toast({
+                                title: "Berhasil",
+                                description: `Batch number diterapkan ke ${selectedMedicines} obat.`,
+                              });
+                            }
+                          }}
+                        >
+                          Terapkan
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">
+                        Tanggal Kadaluarsa untuk Semua Obat Terpilih
+                      </label>
+                      <div className="flex gap-2">
+                        <Input type="date" id="bulk-expiry" />
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => {
+                            const input = document.getElementById(
+                              "bulk-expiry"
+                            ) as HTMLInputElement;
+                            if (input?.value) {
+                              handleApplyExpiryToSelected(input.value);
+                              toast({
+                                title: "Berhasil",
+                                description: `Tanggal kadaluarsa diterapkan ke ${selectedMedicines} obat.`,
+                              });
+                            }
+                          }}
+                        >
+                          Terapkan
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
           </div>
 
-          <div className="rounded-lg border p-6 space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
-                <FormField
-                  control={form.control}
-                  name="receive_date"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Tanggal Penerimaan *</FormLabel>
-                      <FormControl>
-                        <Input type="date" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="notes"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Catatan</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="Catatan penerimaan (opsional)"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-          </div>
-
-          {/* Bulk Actions Card */}
-          <div className="rounded-lg border">
-            <div className="flex items-center justify-between px-6 py-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-medium">
-                  Aksi Massal
-                </h3>
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={handleSelectAll}
-                  >
-                    <CheckCheck className="h-4 w-4 mr-1" />
-                    {selectedCount === itemsWithRemaining
-                      ? "Batal Pilih Semua"
-                      : "Pilih Semua"}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={handleFillAll}
-                    disabled={selectedCount === 0}
-                  >
-                    <PackageCheck className="h-4 w-4 mr-1" />
-                    Isi Sisa ke Terpilih
-                  </Button>
-                </div>
-              </div>
-            </div>
-            {selectedMedicines > 0 && (
-              <div className="px-6 pb-6">
-                <Alert>
-                  <Info className="h-4 w-4" />
-                  <AlertDescription>
-                    <strong>{selectedMedicines} obat</strong> terpilih. Anda
-                    dapat mengisi batch number dan tanggal kadaluarsa secara
-                    massal.
-                  </AlertDescription>
-                </Alert>
-                <div className="grid gap-4 md:grid-cols-2 mt-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">
-                      Batch Number untuk Semua Obat Terpilih
-                    </label>
-                    <div className="flex gap-2">
-                      <Input
-                        placeholder="Masukkan batch number..."
-                        id="bulk-batch"
-                      />
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => {
-                          const input = document.getElementById(
-                            "bulk-batch"
-                          ) as HTMLInputElement;
-                          if (input?.value) {
-                            handleApplyBatchToSelected(input.value);
-                            toast({
-                              title: "Berhasil",
-                              description: `Batch number diterapkan ke ${selectedMedicines} obat.`,
-                            });
-                          }
-                        }}
-                      >
-                        Terapkan
-                      </Button>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">
-                      Tanggal Kadaluarsa untuk Semua Obat Terpilih
-                    </label>
-                    <div className="flex gap-2">
-                      <Input type="date" id="bulk-expiry" />
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => {
-                          const input = document.getElementById(
-                            "bulk-expiry"
-                          ) as HTMLInputElement;
-                          if (input?.value) {
-                            handleApplyExpiryToSelected(input.value);
-                            toast({
-                              title: "Berhasil",
-                              description: `Tanggal kadaluarsa diterapkan ke ${selectedMedicines} obat.`,
-                            });
-                          }
-                        }}
-                      >
-                        Terapkan
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
           {/* Items Card */}
-          <div className="rounded-lg border">
-            <div className="px-6 py-4">
-              <h3 className="text-sm font-medium">
-                Daftar Item ({totalItems})
-              </h3>
-              <p className="text-sm text-muted-foreground">
-                Centang item yang akan diterima, lalu masukkan jumlah
-              </p>
+          <div className="border border-border/70">
+            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              Daftar Item ({totalItems})
             </div>
-            <div className="p-0">
+            <div className="px-4 py-3">
               <ScrollArea className="h-[500px]">
                 <div className="divide-y">
                   {fields.map((field, index) => {
@@ -506,8 +502,8 @@ export default function PurchaseReceive() {
                               isComplete
                                 ? "bg-green-100"
                                 : isMedicine
-                                ? "bg-blue-100"
-                                : "bg-purple-100"
+                                  ? "bg-blue-100"
+                                  : "bg-purple-100"
                             )}
                           >
                             {isComplete ? (
@@ -659,9 +655,8 @@ export default function PurchaseReceive() {
             </div>
           </div>
 
-          {/* Actions */}
-          <Separator />
-          <div className="flex justify-between items-center">
+          {/* Sticky Footer Actions */}
+          <div className="shrink-0 sticky bottom-0 z-10 py-3 mt-4 flex items-center justify-between border-t bg-background">
             <p className="text-sm text-muted-foreground">
               {selectedCount} item akan diterima
             </p>

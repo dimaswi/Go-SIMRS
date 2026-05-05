@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { ColumnDef } from '@tanstack/react-table';
+import { PageShell, PageHeader, PageContent } from '@/components/layout/page-shell';
 import { DataTable } from '@/components/ui/data-table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -15,6 +16,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -74,11 +76,17 @@ export default function AllEklaimLogsPage() {
   const [page, setPage] = useState(Number(searchParams.get('page')) || 1);
   const [perPage, setPerPage] = useState(Number(searchParams.get('per_page')) || 20);
   const [selectedLog, setSelectedLog] = useState<LogEntry | null>(null);
+  const [filterDialogOpen, setFilterDialogOpen] = useState(false);
 
   // Filters
   const [search, setSearch] = useState(searchParams.get('search') || '');
   const [method, setMethod] = useState(searchParams.get('method') || '');
   const [status, setStatus] = useState(searchParams.get('status') || '');
+  const [draftSearch, setDraftSearch] = useState(searchParams.get('search') || '');
+  const [draftMethod, setDraftMethod] = useState(searchParams.get('method') || '');
+  const [draftStatus, setDraftStatus] = useState(searchParams.get('status') || '');
+
+  const hasActiveFilters = search !== '' || method !== '' || status !== '';
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -115,10 +123,13 @@ export default function AllEklaimLogsPage() {
     setSearchParams(params, { replace: true });
   }, [page, perPage, method, status, search, setSearchParams]);
 
-  const handleSearch = () => {
-    setPage(1);
-    loadData();
-  };
+  useEffect(() => {
+    if (!filterDialogOpen) return;
+
+    setDraftSearch(search);
+    setDraftMethod(method);
+    setDraftStatus(status);
+  }, [filterDialogOpen, search, method, status]);
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return '-';
@@ -237,118 +248,189 @@ export default function AllEklaimLogsPage() {
   const totalPages = Math.ceil(total / perPage);
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <h1 className="text-lg font-semibold">Log E-Klaim</h1>
-          <div>
-          </div>
-        </div>
-        <Button variant="outline" size="sm" onClick={loadData}>
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Refresh
-        </Button>
-      </div>
-
-      {/* Filters */}
-      <div className="flex flex-wrap gap-3 items-end">
-        <div className="flex-1 min-w-[200px] max-w-[300px]">
-          <div className="flex gap-1">
-            <Input
-              placeholder="Cari..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-              className="h-9"
-            />
-            <Button variant="outline" size="sm" className="h-9" onClick={handleSearch}>
-              <Search className="h-4 w-4" />
+    <PageShell>
+      <PageHeader
+        title="Log E-Klaim"
+        description="Riwayat request dan response seluruh integrasi e-klaim lokal"
+        count={total}
+        actions={
+          <div className="flex items-center gap-2">
+            {hasActiveFilters && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-9 text-muted-foreground"
+                onClick={() => {
+                  setSearch('');
+                  setMethod('');
+                  setStatus('');
+                  setPage(1);
+                }}
+              >
+                Reset
+              </Button>
+            )}
+            <Button variant={filterDialogOpen ? 'secondary' : 'outline'} size="sm" className="h-9" onClick={() => setFilterDialogOpen(true)}>
+              <Search className="mr-2 h-4 w-4" />
+              Filter
+              {hasActiveFilters && <span className="ml-2 h-1.5 w-1.5 rounded-full bg-primary" />}
+            </Button>
+            <Button variant="outline" size="sm" onClick={loadData}>
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Refresh
             </Button>
           </div>
-        </div>
-        <div className="w-[180px]">
-          <Select value={method || '_all'} onValueChange={(v) => { setMethod(v === '_all' ? '' : v); setPage(1); }}>
-            <SelectTrigger className="h-9">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {methodOptions.map((opt) => (
-                <SelectItem key={opt.value || '_all'} value={opt.value || '_all'}>
-                  {opt.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="w-[140px]">
-          <Select value={status || '_all'} onValueChange={(v) => { setStatus(v === '_all' ? '' : v); setPage(1); }}>
-            <SelectTrigger className="h-9">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {statusOptions.map((opt) => (
-                <SelectItem key={opt.value || '_all'} value={opt.value || '_all'}>
-                  {opt.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+        }
+      />
 
-      {/* Table */}
-      {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-      ) : (
-        <>
-          <DataTable
-            columns={columns}
-            data={logs}
-            pageSize={perPage}
-            showPagination={false}
-            showSearch={false}
-            showColumnVisibility={false}
-          />
-          {/* Server-side Pagination */}
-          <div className="flex items-center justify-between space-x-2 py-4">
-            <div className="flex items-center space-x-2">
-              <p className="text-sm text-muted-foreground">Baris per halaman</p>
-              <Select value={String(perPage)} onValueChange={(v) => { setPerPage(Number(v)); setPage(1); }}>
-                <SelectTrigger className="h-8 w-[70px]">
+      <Dialog open={filterDialogOpen} onOpenChange={setFilterDialogOpen}>
+        <DialogContent className="max-w-2xl p-0">
+          <DialogHeader>
+            <div className="border-b border-border bg-muted/20 px-4 py-4">
+              <DialogTitle>Filter Log E-Klaim</DialogTitle>
+              <DialogDescription className="mt-1">
+                Saring log berdasarkan kata kunci, method request, dan status hasil integrasi.
+              </DialogDescription>
+            </div>
+          </DialogHeader>
+
+          <div className="divide-y divide-border">
+            <div className="grid gap-3 px-4 py-3 md:grid-cols-[170px_minmax(0,1fr)] md:items-start">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Pencarian</p>
+              </div>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Cari no. SEP, pasien, atau error..."
+                  value={draftSearch}
+                  onChange={(e) => setDraftSearch(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-3 px-4 py-3 md:grid-cols-[170px_minmax(0,1fr)] md:items-start">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Method</p>
+              </div>
+              <Select value={draftMethod || '_all'} onValueChange={(v) => setDraftMethod(v === '_all' ? '' : v)}>
+                <SelectTrigger className="h-9">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent side="top">
-                  {[10, 20, 30, 50, 100].map((size) => (
-                    <SelectItem key={size} value={String(size)}>{size}</SelectItem>
+                <SelectContent>
+                  {methodOptions.map((opt) => (
+                    <SelectItem key={opt.value || '_all'} value={opt.value || '_all'}>
+                      {opt.label}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex items-center space-x-6 lg:space-x-8">
-              <div className="flex w-[100px] items-center justify-center text-sm text-muted-foreground">
-                Halaman {page} dari {Math.max(1, totalPages)}
+
+            <div className="grid gap-3 px-4 py-3 md:grid-cols-[170px_minmax(0,1fr)] md:items-start">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Status</p>
               </div>
-              <div className="flex items-center space-x-2">
-                <Button variant="outline" className="hidden h-8 w-8 p-0 lg:flex" onClick={() => setPage(1)} disabled={page <= 1}>
-                  <ChevronsLeft className="h-4 w-4" />
-                </Button>
-                <Button variant="outline" className="h-8 w-8 p-0" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <Button variant="outline" className="h-8 w-8 p-0" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages}>
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-                <Button variant="outline" className="hidden h-8 w-8 p-0 lg:flex" onClick={() => setPage(totalPages)} disabled={page >= totalPages}>
-                  <ChevronsRight className="h-4 w-4" />
-                </Button>
-              </div>
+              <Select value={draftStatus || '_all'} onValueChange={(v) => setDraftStatus(v === '_all' ? '' : v)}>
+                <SelectTrigger className="h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {statusOptions.map((opt) => (
+                    <SelectItem key={opt.value || '_all'} value={opt.value || '_all'}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
-        </>
-      )}
+
+          <div className="flex items-center justify-end gap-2 border-t border-border px-4 py-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 px-2 text-xs"
+              onClick={() => {
+                setDraftSearch('');
+                setDraftMethod('');
+                setDraftStatus('');
+              }}
+            >
+              Reset
+            </Button>
+            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setFilterDialogOpen(false)}>
+              Batal
+            </Button>
+            <Button
+              size="sm"
+              className="h-8 text-xs"
+              onClick={() => {
+                setSearch(draftSearch);
+                setMethod(draftMethod);
+                setStatus(draftStatus);
+                setPage(1);
+                setFilterDialogOpen(false);
+              }}
+            >
+              Terapkan
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <PageContent noPadding className="px-4 pb-4 pt-3">
+        {loading ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        ) : (
+          <>
+            <DataTable
+              columns={columns}
+              data={logs}
+              pageSize={perPage}
+              showPagination={false}
+              showSearch={false}
+            />
+            <div className="flex items-center justify-between space-x-2 py-4">
+              <div className="flex items-center space-x-2">
+                <p className="text-sm text-muted-foreground">Baris per halaman</p>
+                <Select value={String(perPage)} onValueChange={(v) => { setPerPage(Number(v)); setPage(1); }}>
+                  <SelectTrigger className="h-8 w-[70px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent side="top">
+                    {[10, 20, 30, 50, 100].map((size) => (
+                      <SelectItem key={size} value={String(size)}>{size}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center space-x-6 lg:space-x-8">
+                <div className="flex w-[100px] items-center justify-center text-sm text-muted-foreground">
+                  Halaman {page} dari {Math.max(1, totalPages)}
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Button variant="outline" className="hidden h-8 w-8 p-0 lg:flex" onClick={() => setPage(1)} disabled={page <= 1}>
+                    <ChevronsLeft className="h-4 w-4" />
+                  </Button>
+                  <Button variant="outline" className="h-8 w-8 p-0" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Button variant="outline" className="h-8 w-8 p-0" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages}>
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                  <Button variant="outline" className="hidden h-8 w-8 p-0 lg:flex" onClick={() => setPage(totalPages)} disabled={page >= totalPages}>
+                    <ChevronsRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+      </PageContent>
 
       {/* Detail Dialog */}
       <Dialog open={!!selectedLog} onOpenChange={(o) => !o && setSelectedLog(null)}>
@@ -400,6 +482,6 @@ export default function AllEklaimLogsPage() {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }

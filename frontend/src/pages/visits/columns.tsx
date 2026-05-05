@@ -213,17 +213,14 @@ export const createVisitColumns = ({
       cell: ({ row }) => {
         const queue = row.original.room_queue;
         if (!queue?.queue_number) return <span className="text-muted-foreground text-xs">-</span>;
+        
+        const isUrgent = queue.priority && queue.priority !== "normal";
+        
         return (
           <div className="flex flex-col gap-0.5">
-            <span className="font-bold text-lg">{queue.queue_number}</span>
-            {queue.priority && queue.priority !== "normal" && (
-              <Badge
-                variant={queue.priority === "emergency" ? "destructive" : "default"}
-                className="text-[10px] px-1 py-0 w-fit"
-              >
-                {queue.priority === "emergency" ? "Darurat" : "Mendesak"}
-              </Badge>
-            )}
+            <span className={`font-bold text-lg ${isUrgent ? 'text-destructive' : ''}`}>
+              {queue.queue_number}
+            </span>
           </div>
         );
       },
@@ -270,12 +267,10 @@ export const createVisitColumns = ({
         const visit = row.original;
         const isInpatient = visit.room?.service_type === "rawat_inap" || visit.visit_type === "inpatient";
         return (
-          <div className="flex flex-col gap-0.5">
+          <div className="gap-0.5">
             <span className="text-sm">{visit.room?.name || "-"}</span>
             {isInpatient && visit.bed && (
-              <Badge variant="outline" className="text-[10px] px-1 py-0 w-fit bg-green-50 text-green-700 border-green-200">
-                🛏️ {visit.bed.bed_number}
-              </Badge>
+              <span className="text-sm">{' / ' + visit.bed.bed_number}</span>
             )}
           </div>
         );
@@ -414,8 +409,7 @@ export const createVisitColumns = ({
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <>
-                    <PhoneCall className="h-4 w-4 mr-1" />
-                    Panggil
+                    <PhoneCall className="h-4 w-4" />
                   </>
                 )}
               </Button>
@@ -431,8 +425,7 @@ export const createVisitColumns = ({
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <>
-                    <PhoneCall className="h-4 w-4 mr-1" />
-                    Panggil Ulang
+                    <PhoneCall className="h-4 w-4" />
                   </>
                 )}
               </Button>
@@ -449,8 +442,7 @@ export const createVisitColumns = ({
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <>
-                    <UserCheck className="h-4 w-4 mr-1" />
-                    Terima
+                    <UserCheck className="h-4 w-4" />
                   </>
                 )}
               </Button>
@@ -461,8 +453,7 @@ export const createVisitColumns = ({
                 size="sm"
                 onClick={() => onViewDetail(visit.id)}
               >
-                <Eye className="h-4 w-4 mr-1" />
-                Detail
+                <Eye className="h-4 w-4" />
               </Button>
             )}
             {canCancel && (
@@ -476,8 +467,7 @@ export const createVisitColumns = ({
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <>
-                    <XCircle className="h-4 w-4 mr-1" />
-                    Batalkan
+                    <XCircle className="h-4 w-4" />
                   </>
                 )}
               </Button>

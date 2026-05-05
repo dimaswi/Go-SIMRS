@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
@@ -20,7 +20,7 @@ import {
   distributionsApi,
   type StockDistribution,
 } from "@/lib/api/stock-requests";
-import { ArrowLeft, Loader2, Package, Pill } from "lucide-react";
+import { Loader2, Package, Pill } from "lucide-react";
 
 interface EditItem {
   id: number;
@@ -167,24 +167,19 @@ export default function DistributionEdit() {
 
   return (
     <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center gap-4">
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => window.history.back()}
-          className="h-9 w-9"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div>
-          <h1 className="text-lg font-semibold">Edit Distribusi</h1>
-          <p className="text-sm text-muted-foreground">{distribution.distribution_number}</p>
-        </div>
-      </div>
-      <div className="rounded-lg border p-6 space-y-6">
-          {/* Info */}
-          <div className="bg-muted/50 rounded-lg p-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+      <div className="flex-1 space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11">
+        {/* Info */}
+        <div className="border border-border/70">
+          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            Informasi Distribusi
+          </div>
+          <div className="p-3 sm:p-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div>
+                <p className="text-sm text-muted-foreground">No. Distribusi</p>
+                <p className="font-medium font-mono">{distribution.distribution_number}</p>
+              </div>
               <div>
                 <p className="text-sm text-muted-foreground">Dari Ruangan</p>
                 <p className="font-medium">{distribution.from_room?.name}</p>
@@ -198,113 +193,117 @@ export default function DistributionEdit() {
                 <Badge variant="outline">{distribution.status}</Badge>
               </div>
             </div>
+            
+            {/* Notes */}
+            <div className="border-t border-border/70 mt-4 pt-4">
+              <Label className="text-xs text-muted-foreground mb-2 block">Catatan</Label>
+              <Textarea
+                placeholder="Catatan tambahan..."
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+              />
+            </div>
           </div>
+        </div>
 
-          {/* Notes */}
-          <div className="space-y-2">
-            <Label>Catatan</Label>
-            <Textarea
-              placeholder="Catatan tambahan..."
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-            />
-          </div>
-
-          {/* Items */}
-          <div className="space-y-4">
-            <Label className="text-base font-semibold">Daftar Item</Label>
-
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Kode</TableHead>
-                  <TableHead>Nama</TableHead>
-                  <TableHead className="text-center">Qty</TableHead>
-                  <TableHead>Batch</TableHead>
-                  <TableHead>Exp. Date</TableHead>
-                  <TableHead>Satuan</TableHead>
-                  <TableHead>Catatan</TableHead>
+        {/* Items */}
+        <div className="border border-border/70">
+        <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+          Daftar Item
+        </div>
+        <div className="p-3 sm:p-4 space-y-4">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Kode</TableHead>
+                <TableHead>Nama</TableHead>
+                <TableHead className="text-center">Qty</TableHead>
+                <TableHead>Batch</TableHead>
+                <TableHead>Exp. Date</TableHead>
+                <TableHead>Satuan</TableHead>
+                <TableHead>Catatan</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {items.map((item) => (
+                <TableRow key={item.id}>
+                  <TableCell className="font-mono">{item.code}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      {item.inventory_id ? (
+                        <Package className="h-4 w-4 text-blue-500" />
+                      ) : (
+                        <Pill className="h-4 w-4 text-green-500" />
+                      )}
+                      {item.name}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={item.quantity}
+                      onChange={(e) =>
+                        handleItemChange(
+                          item.id,
+                          "quantity",
+                          parseInt(e.target.value) || 0
+                        )
+                      }
+                      className="w-20 text-center"
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Input
+                      placeholder="Batch..."
+                      value={item.batch_number}
+                      onChange={(e) =>
+                        handleItemChange(item.id, "batch_number", e.target.value)
+                      }
+                      className="w-24"
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Input
+                      type="date"
+                      value={item.expiry_date}
+                      onChange={(e) =>
+                        handleItemChange(item.id, "expiry_date", e.target.value)
+                      }
+                      className="w-36"
+                    />
+                  </TableCell>
+                  <TableCell>{item.unit}</TableCell>
+                  <TableCell>
+                    <Input
+                      placeholder="Catatan..."
+                      value={item.notes}
+                      onChange={(e) =>
+                        handleItemChange(item.id, "notes", e.target.value)
+                      }
+                      className="w-32"
+                    />
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {items.map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell className="font-mono">{item.code}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        {item.inventory_id ? (
-                          <Package className="h-4 w-4 text-blue-500" />
-                        ) : (
-                          <Pill className="h-4 w-4 text-green-500" />
-                        )}
-                        {item.name}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Input
-                        type="number"
-                        min={1}
-                        value={item.quantity}
-                        onChange={(e) =>
-                          handleItemChange(
-                            item.id,
-                            "quantity",
-                            parseInt(e.target.value) || 0
-                          )
-                        }
-                        className="w-20 text-center"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Input
-                        placeholder="Batch..."
-                        value={item.batch_number}
-                        onChange={(e) =>
-                          handleItemChange(item.id, "batch_number", e.target.value)
-                        }
-                        className="w-24"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Input
-                        type="date"
-                        value={item.expiry_date}
-                        onChange={(e) =>
-                          handleItemChange(item.id, "expiry_date", e.target.value)
-                        }
-                        className="w-36"
-                      />
-                    </TableCell>
-                    <TableCell>{item.unit}</TableCell>
-                    <TableCell>
-                      <Input
-                        placeholder="Catatan..."
-                        value={item.notes}
-                        onChange={(e) =>
-                          handleItemChange(item.id, "notes", e.target.value)
-                        }
-                        className="w-32"
-                      />
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
 
-          {/* Actions */}
-          <div className="flex justify-end gap-4 pt-4 border-t">
-            <Button
-              variant="outline"
-              onClick={() => navigate(`/distributions/${id}`)}
-            >
-              Batal
-            </Button>
-            <Button onClick={handleSubmit} disabled={submitting}>
-              {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Simpan Perubahan
-            </Button>
-          </div>
+      {/* Sticky Footer Actions */}
+      <div className="shrink-0 sticky bottom-0 z-10 py-3 mt-4 flex items-center justify-end gap-4 border-t bg-background">
+        <Button
+          variant="outline"
+          onClick={() => navigate(`/distributions/${id}`)}
+        >
+          Batal
+        </Button>
+        <Button onClick={handleSubmit} disabled={submitting}>
+          {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          Simpan Perubahan
+        </Button>
+      </div>
       </div>
     </div>
   );

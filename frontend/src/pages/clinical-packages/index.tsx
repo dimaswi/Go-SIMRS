@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { PageShell, PageHeader, PageContent } from '@/components/layout/page-shell';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DataTable } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
@@ -59,31 +60,33 @@ export default function ClinicalPackagesIndex() {
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold">Master Paket Klinis</h1>
-          <p className="text-sm text-muted-foreground">Kelola template tindakan dan obat yang dapat di-assign ke ruangan.</p>
-        </div>
-        <Button size="sm" onClick={() => navigate('/clinical-packages/create')}>
-          <Plus className="mr-2 h-4 w-4" /> Tambah Paket Klinis
-        </Button>
-      </div>
-
-      <DataTable
-        columns={createClinicalPackageColumns({
-          onView: (id) => navigate(`/clinical-packages/${id}`),
-          onEdit: (id) => navigate(`/clinical-packages/${id}/edit`),
-          onDelete: (id) => {
-            setSelectedId(id);
-            setDeleteDialogOpen(true);
-          },
-        })}
-        data={packages}
-        searchPlaceholder="Cari paket klinis berdasarkan kode atau nama..."
-        pageSize={10}
-        tableId="clinical-packages"
+    <PageShell>
+      <PageHeader
+        title="Master Paket Klinis"
+        description="Kelola template tindakan dan obat yang dapat di-assign ke ruangan"
+        count={packages.length}
+        actions={
+          <Button size="sm" onClick={() => navigate('/clinical-packages/create')}>
+            <Plus className="h-4 w-4" /> Tambah Paket Klinis
+          </Button>
+        }
       />
+      <PageContent>
+        <DataTable
+          columns={createClinicalPackageColumns({
+            onView: (id) => navigate(`/clinical-packages/${id}`),
+            onEdit: (id) => navigate(`/clinical-packages/${id}/edit`),
+            onDelete: (id) => {
+              setSelectedId(id);
+              setDeleteDialogOpen(true);
+            },
+          })}
+          data={packages}
+          searchPlaceholder="Cari paket klinis berdasarkan kode atau nama..."
+          pageSize={10}
+          tableId="clinical-packages"
+        />
+      </PageContent>
 
       <ConfirmDialog
         open={deleteDialogOpen}
@@ -95,6 +98,6 @@ export default function ClinicalPackagesIndex() {
         cancelText="Batal"
         variant="destructive"
       />
-    </div>
+    </PageShell>
   );
 }

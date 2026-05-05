@@ -1,10 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Loader2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PageShell, PageHeader, FilterBar, FilterPill, PageContent } from "@/components/layout/page-shell";
 
 import { DataTable } from "@/components/ui/data-table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { usePermission } from "@/hooks/usePermission";
 import { setPageTitle } from "@/lib/page-title";
@@ -41,7 +41,7 @@ export default function StockRequestsIndex() {
   const [requests, setRequests] = useState<StockRequest[]>([]);
   const [myRequests, setMyRequests] = useState<StockRequest[]>([]);
   const [pendingApprovals, setPendingApprovals] = useState<StockRequest[]>([]);
-  const [activeTab, setActiveTab] = useState("all");
+  const [activeView, setActiveView] = useState<"all" | "my" | "pending">("all");
   const [deleteId, setDeleteId] = useState<number | null>(null);
 
   const loadData = async () => {
@@ -120,6 +120,14 @@ export default function StockRequestsIndex() {
     }
   };
 
+  const displayData = useMemo(() => {
+    if (activeView === "my") return myRequests;
+    if (activeView === "pending") return pendingApprovals;
+    return requests;
+  }, [activeView, requests, myRequests, pendingApprovals]);
+
+  const tableId = activeView === "my" ? "stock_requests_my" : activeView === "pending" ? "stock_requests_pending" : "stock_requests_all";
+
   const columns = createStockRequestColumns({
     onView: handleView,
     onEdit: handleEdit,
@@ -141,72 +149,55 @@ export default function StockRequestsIndex() {
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold">Permintaan Stok</h1>
-          <p className="text-sm text-muted-foreground">Kelola permintaan barang dan obat antar ruangan</p>
-        </div>
-        {hasPermission("stock_requests.create") && (
-          <Button onClick={() => navigate("/stock-requests/create")} size="sm">
-            <Plus className="mr-2 h-4 w-4" />
-            Buat Permintaan
-          </Button>
-        )}
-      </div>
-      <Tabs value={activeTab} onValueChange={setActiveTab} variant="inline">
-        <TabsList>
-          <TabsTrigger value="all">
-            Semua ({requests.length})
-          </TabsTrigger>
-          <TabsTrigger value="my">
-            Permintaan Saya ({myRequests.length})
-          </TabsTrigger>
-          <TabsTrigger value="pending">
-            Perlu Persetujuan ({pendingApprovals.length})
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="all" className="mt-4">
-          <DataTable
-            columns={columns}
-            data={requests}
-            searchPlaceholder="Cari nomor permintaan..."
-            pageSize={10}
-            tableId="stock_requests_all"
-          />
-        </TabsContent>
-
-        <TabsContent value="my" className="mt-4">
-          <DataTable
-            columns={columns}
-            data={myRequests}
-            searchPlaceholder="Cari nomor permintaan..."
-            pageSize={10}
-            tableId="stock_requests_my"
-          />
-        </TabsContent>
-
-        <TabsContent value="pending" className="mt-4">
-          <DataTable
-            columns={columns}
-            data={pendingApprovals}
-            searchPlaceholder="Cari nomor permintaan..."
-            pageSize={10}
-            tableId="stock_requests_pending"
-          />
-        </TabsContent>
-      </Tabs>
-
-      <ConfirmDialog
-        open={deleteId !== null}
-        onOpenChange={(open) => !open && setDeleteId(null)}
-        title="Hapus Permintaan Stok"
-        description="Apakah Anda yakin ingin menghapus permintaan stok ini? Tindakan ini tidak dapat dibatalkan."
-        onConfirm={handleDelete}
-        confirmText="Hapus"
-        variant="destructive"
+    <PageShell>
+      <PageHeader
+        title="Permintaan Stok"
+        description="Kelola permintaan barang dan obat antar ruangan"
+        count={displayData.length}
+        actions={
+          hasPermission("stock_requests.create") ? (
+            <Button onClick={() => navigate("/stock-requests/create")} size="sm">
+              <Plus className="h-4 w-4" />
+              Buat Permintaan
+            </Button>
+          ) : undefined
+        }
       />
-    </div>
+      <PageContent>
+        <FilterBar>
+          <FilterPill active={activeView === "all"} onClick={() => setActiveView("all")} count={requests.length}>
+            Semua
+          </FilterPill>
+          <FilterPill active={activeView === "my"} onClick={() => setActiveView("my")} count={myRequests.length}>
+            Permintaan Saya
+          </FilterPill>
+          <FilterPill active={activeView === "pending"} onClick={() => setActiveView("pending")} count={pendingApprovals.length}>
+            Perlu Persetujuan
+          </FilterPill>
+        </FilterBar>
+
+        <DataTable
+          columns={columns}
+          data={displayData}
+          searchPlaceholder="Cari nomor permintaan..."
+          pageSize={10}
+          tableId={tableId}
+        />
+
+        <ConfirmDialog
+          open={deleteId !== null}
+          onOpenChange={(open) => {
+            if (!open) setDeleteId(null);
+          }}
+          onConfirm={handleDelete}
+          title="Hapus Permintaan Stok?"
+          description="Permintaan stok yang dihapus tidak dapat dikembalikan."
+          confirmText="Hapus"
+          cancelText="Batal"
+          variant="destructive"
+        />
+      </PageContent>
+    </PageShell>
   );
 }
+

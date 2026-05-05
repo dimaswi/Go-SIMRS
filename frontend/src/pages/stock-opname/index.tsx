@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Loader2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 
 import { DataTable } from "@/components/ui/data-table";
 import { useToast } from "@/hooks/use-toast";
@@ -116,26 +117,29 @@ export default function StockOpnameIndex() {
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold">Stock Opname</h1>
-          <p className="text-sm text-muted-foreground">Pengecekan dan penyesuaian stok fisik</p>
-        </div>
-        {hasPermission("stock_opname.create") && (
-          <Button onClick={() => navigate("/stock-opname/create")} size="sm">
-            <Plus className="mr-2 h-4 w-4" />
-            Buat Stock Opname
-          </Button>
-        )}
-      </div>
-      <DataTable
-        columns={columns}
-        data={stockOpnames}
-        searchPlaceholder="Cari nomor opname..."
-        pageSize={10}
-        tableId="stock_opname"
+    <PageShell>
+      <PageHeader
+        title="Stock Opname"
+        description="Pengecekan dan penyesuaian stok fisik"
+        count={stockOpnames.length}
+        actions={
+          hasPermission("stock_opname.create") ? (
+            <Button onClick={() => navigate("/stock-opname/create")} size="sm">
+              <Plus className="h-4 w-4" />
+              Buat Stock Opname
+            </Button>
+          ) : undefined
+        }
       />
+      <PageContent>
+        <DataTable
+          columns={columns}
+          data={stockOpnames}
+          searchPlaceholder="Cari nomor opname..."
+          pageSize={10}
+          tableId="stock_opname"
+        />
+      </PageContent>
 
       <ConfirmDialog
         open={deleteId !== null}
@@ -146,6 +150,6 @@ export default function StockOpnameIndex() {
         confirmText="Hapus"
         variant="destructive"
       />
-    </div>
+    </PageShell>
   );
 }

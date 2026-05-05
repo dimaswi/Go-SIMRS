@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Link } from "react-router-dom";
-import { useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 
 import { DataTable } from "@/components/ui/data-table";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -27,10 +27,10 @@ import {
   RefreshCcw,
   Check,
   ChevronsUpDown,
-  SlidersHorizontal,
   CalendarClock,
   Clock,
   Eye,
+  SlidersHorizontal,
   XCircle,
   ArrowRight,
   ExternalLink,
@@ -38,19 +38,16 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Collapsible,
+  CollapsibleContent,
+} from "@/components/ui/collapsible";
 import {
   Command,
   CommandEmpty,
@@ -80,15 +77,51 @@ interface Room {
 
 // ── Tab definitions ─────────────────────────────────────────────────────────
 interface RegTab {
-  key: string;          // service_type value sent to API ("" = all)
+  key: string;
   label: string;        // displayed label
   serviceTypes: string[]; // service_type values used to filter room dropdown
   mode?: "registrations" | "admission_requests";
 }
 
+const REGISTRATION_STATUS_OPTIONS = [
+  { value: "all", label: "Semua" },
+  { value: "scheduled", label: "Terjadwal" },
+  { value: "registered", label: "Terdaftar" },
+  { value: "in_queue", label: "Dalam Antrean" },
+  { value: "in_progress", label: "Diproses" },
+  { value: "completed", label: "Selesai" },
+  { value: "discharged", label: "Pulang" },
+  { value: "cancelled", label: "Dibatalkan" },
+];
+
+const ADMISSION_STATUS_OPTIONS = [
+  { value: "all", label: "Semua" },
+  { value: "pending", label: "Menunggu" },
+  { value: "approved", label: "Disetujui" },
+  { value: "rejected", label: "Ditolak" },
+  { value: "cancelled", label: "Dibatalkan" },
+];
+
+const REG_TAB_ALL = "__all__";
+
+const normalizeRegTabKey = (value: string | null | undefined) => {
+  if (!value) return REG_TAB_ALL;
+  return REG_TABS.some((tab) => tab.key === value) ? value : REG_TAB_ALL;
+};
+
+const normalizeRegistrationStatus = (value: string | null | undefined) => {
+  if (!value) return "all";
+  return REGISTRATION_STATUS_OPTIONS.some((option) => option.value === value) ? value : "all";
+};
+
+const normalizeAdmissionStatus = (value: string | null | undefined) => {
+  if (!value) return "all";
+  return ADMISSION_STATUS_OPTIONS.some((option) => option.value === value) ? value : "all";
+};
+
 const REG_TABS: RegTab[] = [
   {
-    key: "",
+    key: REG_TAB_ALL,
     label: "Semua",
     serviceTypes: [],
   },
@@ -133,38 +166,18 @@ export default function RegistrationIndex() {
   const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [allRegistrations, setAllRegistrations] = useState<Registration[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filterOpen, setFilterOpen] = useState(false);
   const [rooms, setRooms] = useState<Room[]>([]);
-  const [activeTab, setActiveTab] = useState<string>(() => {
-    try {
-      const queryTab = new URLSearchParams(window.location.search).get("tab");
-      if (queryTab && REG_TABS.some((tab) => tab.key === queryTab)) {
-        return queryTab;
-      }
-      return localStorage.getItem("reg_filter_tab") || "";
-    } catch {
-      return "";
-    }
-  });
-  const [tabRooms, setTabRooms] = useState<Record<string, string>>(() => {
-    try {
-      const saved = localStorage.getItem("reg_tab_rooms");
-      return saved ? JSON.parse(saved) : {};
-    } catch {
-      return {};
-    }
-  });
-  const selectedRoom = tabRooms[activeTab] || "";
-  const setSelectedRoom = (roomId: string) => {
-    setTabRooms((prev) => {
-      const next = { ...prev, [activeTab]: roomId };
-      try { localStorage.setItem("reg_tab_rooms", JSON.stringify(next)); } catch { }
-      return next;
-    });
-  };
-  const [selectedStatus, setSelectedStatus] = useState<string>("all");
-  const [selectedAdmissionStatus, setSelectedAdmissionStatus] = useState<string>("pending");
-  const [selectedDate, setSelectedDate] = useState<string>(""); // Empty = show all data
+  const [activeTab, setActiveTab] = useState<string>(() => normalizeRegTabKey(searchParams.get("tab") || sessionStorage.getItem("reg_tab")));
+  const [selectedRoom, setSelectedRoom] = useState<string>(() => searchParams.get("room") || sessionStorage.getItem("reg_room") || "");
+  const [selectedStatus, setSelectedStatus] = useState<string>(() => normalizeRegistrationStatus(searchParams.get("status") || sessionStorage.getItem("reg_status")));
+  const [selectedAdmissionStatus, setSelectedAdmissionStatus] = useState<string>(() => normalizeAdmissionStatus(searchParams.get("admissionStatus") || sessionStorage.getItem("reg_admission_status")));
+  const [selectedDate, setSelectedDate] = useState<string>(() => searchParams.get("date") || sessionStorage.getItem("reg_date") || ""); // Empty = show all data
+  const [filterDialogOpen, setFilterDialogOpen] = useState(false);
+  const [serviceTypeOpen, setServiceTypeOpen] = useState(false);
+  const [draftSelectedRoom, setDraftSelectedRoom] = useState<string>("");
+  const [draftSelectedStatus, setDraftSelectedStatus] = useState<string>("all");
+  const [draftSelectedAdmissionStatus, setDraftSelectedAdmissionStatus] = useState<string>("all");
+  const [draftSelectedDate, setDraftSelectedDate] = useState<string>("");
   const [cancelId, setCancelId] = useState<number | null>(null);
   const [cancelMjknId, setCancelMjknId] = useState<number | null>(null);
   const [printingType, setPrintingType] = useState<{ regId: number; type: 'queue' | 'label' } | null>(null);
@@ -197,21 +210,63 @@ export default function RegistrationIndex() {
   const isAdmissionRequestTab = currentTab.mode === "admission_requests";
 
   useEffect(() => {
-    const queryTab = searchParams.get("tab") || "";
-    const normalizedTab = REG_TABS.some((tab) => tab.key === queryTab) ? queryTab : "";
+    const nextTab = normalizeRegTabKey(searchParams.get("tab") || sessionStorage.getItem("reg_tab"));
+    const nextRoom = searchParams.get("room") || sessionStorage.getItem("reg_room") || "";
+    const nextStatus = normalizeRegistrationStatus(searchParams.get("status") || sessionStorage.getItem("reg_status"));
+    const nextAdmissionStatus = normalizeAdmissionStatus(searchParams.get("admissionStatus") || sessionStorage.getItem("reg_admission_status"));
+    const nextDate = searchParams.get("date") || sessionStorage.getItem("reg_date") || "";
 
-    setActiveTab((prev) => (prev === normalizedTab ? prev : normalizedTab));
+    setActiveTab((prev) => (prev === nextTab ? prev : nextTab));
+    setSelectedRoom((prev) => (prev === nextRoom ? prev : nextRoom));
+    setSelectedStatus((prev) => (prev === nextStatus ? prev : nextStatus));
+    setSelectedAdmissionStatus((prev) => (prev === nextAdmissionStatus ? prev : nextAdmissionStatus));
+    setSelectedDate((prev) => (prev === nextDate ? prev : nextDate));
   }, [searchParams]);
+
+  useEffect(() => {
+    const nextParams = new URLSearchParams(searchParams);
+
+    if (activeTab !== REG_TAB_ALL) nextParams.set("tab", activeTab);
+    else nextParams.delete("tab");
+
+    if (selectedRoom) nextParams.set("room", selectedRoom);
+    else nextParams.delete("room");
+
+    if (selectedStatus !== "all") nextParams.set("status", selectedStatus);
+    else nextParams.delete("status");
+
+    if (selectedAdmissionStatus !== "all") nextParams.set("admissionStatus", selectedAdmissionStatus);
+    else nextParams.delete("admissionStatus");
+
+    if (selectedDate) nextParams.set("date", selectedDate);
+    else nextParams.delete("date");
+
+    if (nextParams.toString() !== searchParams.toString()) {
+      setSearchParams(nextParams, { replace: true });
+    }
+
+    sessionStorage.setItem("reg_tab", activeTab);
+    sessionStorage.setItem("reg_room", selectedRoom);
+    sessionStorage.setItem("reg_status", selectedStatus);
+    sessionStorage.setItem("reg_admission_status", selectedAdmissionStatus);
+    sessionStorage.setItem("reg_date", selectedDate);
+  }, [activeTab, searchParams, selectedAdmissionStatus, selectedDate, selectedRoom, selectedStatus, setSearchParams]);
+
+  useEffect(() => {
+    if (!filterDialogOpen) {
+      setRoomPopoverOpen(false);
+      return;
+    }
+
+    setDraftSelectedDate(selectedDate);
+    setDraftSelectedRoom(selectedRoom);
+    setDraftSelectedStatus(selectedStatus);
+    setDraftSelectedAdmissionStatus(selectedAdmissionStatus);
+  }, [filterDialogOpen, selectedDate, selectedRoom, selectedStatus, selectedAdmissionStatus]);
 
   const handleTabChange = (tabKey: string) => {
     setActiveTab(tabKey);
-    const nextParams = new URLSearchParams(searchParams);
-    if (tabKey) {
-      nextParams.set("tab", tabKey);
-    } else {
-      nextParams.delete("tab");
-    }
-    setSearchParams(nextParams, { replace: true });
+    setSelectedRoom("");
     setRoomPopoverOpen(false);
   };
 
@@ -236,7 +291,7 @@ export default function RegistrationIndex() {
         counts[tab.key] = pendingAdmissionCount;
         continue;
       }
-      if (tab.key === "") {
+      if (tab.key === REG_TAB_ALL) {
         // "Semua" tab: count all active
         counts[tab.key] = allRegistrations.filter((r) =>
           activeStatuses.includes(r.status)
@@ -257,12 +312,25 @@ export default function RegistrationIndex() {
     return counts;
   }, [allRegistrations, pendingAdmissionCount]);
 
-  // Persist active tab
+  const totalServiceTypeCount = useMemo(
+    () => Object.values(tabBadgeCounts).reduce((sum, count) => sum + count, 0),
+    [tabBadgeCounts],
+  );
+
   useEffect(() => {
     try {
-      localStorage.setItem("reg_filter_tab", activeTab);
-    } catch { }
-  }, [activeTab]);
+      [
+        "reg_filter_tab",
+        "reg_tab_rooms",
+        "dt_search_registrations",
+        "dt_page_registrations",
+        "dt_size_registrations",
+        "dt_search_admission-requests-in-registrations",
+        "dt_page_admission-requests-in-registrations",
+        "dt_size_admission-requests-in-registrations",
+      ].forEach((key) => localStorage.removeItem(key));
+    } catch {}
+  }, []);
 
   const loadScheduledCount = useCallback(async () => {
     try {
@@ -378,7 +446,7 @@ export default function RegistrationIndex() {
       }
 
       // Filter by room service_type (tab)
-      if (activeTab) {
+      if (activeTab !== REG_TAB_ALL) {
         const serviceTypeMap: Record<string, string> = {
           laboratory: "penunjang_medis",
           radiology: "penunjang_medis",
@@ -954,7 +1022,10 @@ export default function RegistrationIndex() {
     );
   }
 
-  const roomFilterSlot = (
+  const renderRoomFilterSlot = (
+    roomValue: string,
+    onRoomChange: (roomId: string) => void,
+  ) => (
     <div className="flex items-center gap-2">
       <Popover open={roomPopoverOpen} onOpenChange={setRoomPopoverOpen}>
         <PopoverTrigger asChild>
@@ -963,13 +1034,13 @@ export default function RegistrationIndex() {
             role="combobox"
             className={cn(
               "h-9 w-[220px] justify-between font-normal",
-              !selectedRoom && "text-muted-foreground"
+              !roomValue && "text-muted-foreground"
             )}
           >
             <span className="truncate">
-              {selectedRoom
+              {roomValue
                 ? (() => {
-                  const r = rooms.find((r) => r.id.toString() === selectedRoom);
+                  const r = rooms.find((r) => r.id.toString() === roomValue);
                   return r ? `${r.code} - ${r.name}` : "Semua Ruangan";
                 })()
                 : "Semua Ruangan"}
@@ -985,18 +1056,18 @@ export default function RegistrationIndex() {
               <CommandGroup>
                 <CommandItem
                   value="Semua Ruangan"
-                  onSelect={() => { setSelectedRoom(""); setRoomPopoverOpen(false); }}
+                  onSelect={() => { onRoomChange(""); setRoomPopoverOpen(false); }}
                 >
-                  <Check className={cn("mr-2 h-4 w-4", !selectedRoom ? "opacity-100" : "opacity-0")} />
+                  <Check className={cn("mr-2 h-4 w-4", !roomValue ? "opacity-100" : "opacity-0")} />
                   Semua Ruangan
                 </CommandItem>
                 {(tabRoomOptions.length > 0 ? tabRoomOptions : rooms).map((room) => (
                   <CommandItem
                     key={room.id}
                     value={`${room.code} ${room.name}`}
-                    onSelect={() => { setSelectedRoom(room.id.toString()); setRoomPopoverOpen(false); }}
+                    onSelect={() => { onRoomChange(room.id.toString()); setRoomPopoverOpen(false); }}
                   >
-                    <Check className={cn("mr-2 h-4 w-4", selectedRoom === room.id.toString() ? "opacity-100" : "opacity-0")} />
+                    <Check className={cn("mr-2 h-4 w-4", roomValue === room.id.toString() ? "opacity-100" : "opacity-0")} />
                     {room.code} - {room.name}
                   </CommandItem>
                 ))}
@@ -1006,12 +1077,12 @@ export default function RegistrationIndex() {
         </PopoverContent>
       </Popover>
 
-      {selectedRoom && (
+      {roomValue && (
         <Button
           variant="ghost"
           size="icon"
           className="h-9 w-9 text-muted-foreground hover:text-foreground"
-          onClick={() => setSelectedRoom("")}
+          onClick={() => onRoomChange("")}
         >
           <RefreshCcw className="h-3.5 w-3.5" />
         </Button>
@@ -1020,171 +1091,298 @@ export default function RegistrationIndex() {
     </div>
   );
 
+  const hasActiveFilters =
+    selectedDate !== "" ||
+    selectedRoom !== "" ||
+    (!isAdmissionRequestTab && selectedStatus !== "all") ||
+    (isAdmissionRequestTab && selectedAdmissionStatus !== "all");
+
   return (
-    <div className="flex flex-1 flex-col px-4">
-      {/* ── Header ────────────────────────────────────────────────── */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-lg font-semibold">Pendaftaran Pasien</h1>
-          <p className="text-sm text-muted-foreground">
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => navigate("/registrations/scheduled")}
-            className="relative h-8 text-xs"
-          >
-            <CalendarClock className="mr-1.5 h-3.5 w-3.5" />
-            Jadwal Kontrol
-            {scheduledTodayCount > 0 && (
-              <Badge className="ml-1.5 h-5 min-w-5 px-1.5 text-[10px] font-semibold bg-blue-500 hover:bg-blue-500 text-white rounded-full">
-                {scheduledTodayCount}
-              </Badge>
-            )}
-          </Button>
-          {hasPermission("registrations.create") && (
+    <PageShell>
+      <PageHeader
+        title="Pendaftaran Pasien"
+        description="Kelola registrasi pasien dan permintaan rawat inap"
+        count={isAdmissionRequestTab ? admissionRequests.length : registrations.length}
+        actions={
+          <div className="flex items-center gap-1.5">
             <Button
-              onClick={() => navigate("/registrations/create")}
+              variant={serviceTypeOpen ? "secondary" : "outline"}
+              size="sm"
+              className="h-8 gap-2 text-xs"
+              onClick={() => setServiceTypeOpen((prev) => !prev)}
+            >
+              <span className="max-w-[140px] truncate font-medium text-foreground">{currentTab.label}</span>
+              {totalServiceTypeCount > 0 && (
+                <Badge className="h-5 rounded-full bg-red-600 px-1.5 text-[10px] font-semibold text-white hover:bg-red-600">
+                  {totalServiceTypeCount}
+                </Badge>
+              )}
+              <ChevronsUpDown className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform", serviceTypeOpen && "rotate-180")} />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate("/registrations/scheduled")}
+              className="relative h-8 text-xs"
+            >
+              <CalendarClock className="mr-1.5 h-3.5 w-3.5" />
+              Jadwal Kontrol
+              {scheduledTodayCount > 0 && (
+                <Badge className="ml-1.5 h-5 min-w-5 rounded-full bg-blue-500 px-1.5 text-[10px] font-semibold text-white hover:bg-blue-500">
+                  {scheduledTodayCount}
+                </Badge>
+              )}
+            </Button>
+            {hasPermission("registrations.create") && (
+              <Button onClick={() => navigate("/registrations/create")} size="sm" className="h-8 text-xs">
+                <Plus className="mr-1.5 h-3.5 w-3.5" />
+                Tambah Pendaftaran
+              </Button>
+            )}
+            <Button
+              variant={filterDialogOpen ? "secondary" : "outline"}
               size="sm"
               className="h-8 text-xs"
+              onClick={() => setFilterDialogOpen(true)}
             >
-              <Plus className="mr-1.5 h-3.5 w-3.5" />
-              Tambah Pendaftaran
+              <SlidersHorizontal className="mr-1.5 h-3.5 w-3.5" />
+              Filter
+              {hasActiveFilters && <span className="ml-1.5 h-1.5 w-1.5 rounded-full bg-primary" />}
             </Button>
-          )}
-          <Button
-            variant={filterOpen ? "secondary" : "outline"}
-            size="sm"
-            className="h-8 text-xs"
-            onClick={() => setFilterOpen(!filterOpen)}
-          >
-            <SlidersHorizontal className="h-3.5 w-3.5 mr-1.5" />
-            Filter
-            {(selectedDate || selectedStatus !== "all" || selectedAdmissionStatus !== "all") && (
-              <span className="ml-1.5 h-1.5 w-1.5 rounded-full bg-primary inline-block" />
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => {
+                if (isAdmissionRequestTab) {
+                  loadAdmissionRequests();
+                } else {
+                  loadData();
+                }
+                loadAllRegistrations();
+                loadPendingAdmissionCount();
+              }}
+            >
+              <RefreshCcw className="h-4 w-4" />
+            </Button>
+          </div>
+        }
+      />
+
+      <Collapsible open={serviceTypeOpen} onOpenChange={setServiceTypeOpen}>
+        <CollapsibleContent>
+          <div className=" border-border bg-muted/15 px-6 py-2">
+            <div className="flex min-w-0 overflow-x-auto border-y border-border bg-background">
+              {REG_TABS.map((tab) => {
+                const isActive = activeTab === tab.key;
+                const tabCount = tabBadgeCounts[tab.key] ?? 0;
+
+                return (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => handleTabChange(tab.key)}
+                    className={cn(
+                      "min-w-[148px] border-r border-border px-3 py-2 text-left transition-colors last:border-r-0",
+                      isActive ? "bg-background text-foreground" : "text-muted-foreground hover:bg-background/70 hover:text-foreground",
+                    )}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Layanan</span>
+                      {tabCount > 0 ? (
+                        <Badge className="h-5 rounded-full bg-red-600 px-1.5 text-[10px] font-semibold text-white hover:bg-red-600">
+                          {tabCount}
+                        </Badge>
+                      ) : (
+                        <span className="text-[11px] tabular-nums text-muted-foreground">0</span>
+                      )}
+                    </div>
+                    <div className={cn("mt-1 text-sm font-medium", isActive && "text-foreground")}>{tab.label}</div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {hasActiveFilters && (
+              <div className="pt-2 text-[11px] text-muted-foreground">Filter aktif</div>
             )}
-          </Button>
-        </div>
-      </div>
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
 
-      {/* ── Filter Panel ─────────────────────────────────────────── */}
-      {filterOpen && (
-        <div className="flex items-center gap-2 flex-wrap p-3 border rounded-lg bg-muted/30">
-          <Input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            className="h-8 w-36 text-xs"
+      <Dialog open={filterDialogOpen} onOpenChange={setFilterDialogOpen}>
+        <DialogContent className="max-w-2xl p-0">
+          <DialogHeader>
+            <div className="border-b border-border bg-muted/20 px-4 py-4">
+              <DialogTitle>Filter Pendaftaran</DialogTitle>
+              <DialogDescription>
+                Fokus pada parameter operasional. Jenis layanan tetap dipilih dari strip utama di halaman.
+              </DialogDescription>
+            </div>
+          </DialogHeader>
+
+          <div className="divide-y divide-border">
+            <div className="grid gap-3 px-4 py-2 md:grid-cols-[170px_minmax(0,1fr)] md:items-start">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Tanggal</p>
+              </div>
+              <div className="space-y-3">
+                <Input
+                  type="date"
+                  value={draftSelectedDate}
+                  onChange={(e) => setDraftSelectedDate(e.target.value)}
+                  className="h-9 w-full text-sm"
+                />
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-xs"
+                    onClick={() => setDraftSelectedDate(new Date().toISOString().split("T")[0])}
+                  >
+                    Hari Ini
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 text-xs"
+                    onClick={() => setDraftSelectedDate("")}
+                  >
+                    Kosongkan Tanggal
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {isAdmissionRequestTab ? (
+              <div className="grid gap-3 px-4 py-2 md:grid-cols-[170px_minmax(0,1fr)] md:items-start">
+                <div>
+                  <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Status Permintaan</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Opsi utama ditampilkan langsung agar lebih cepat dibaca dan dipilih.</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {ADMISSION_STATUS_OPTIONS.map((option) => {
+                    const isActive = draftSelectedAdmissionStatus === option.value;
+
+                    return (
+                      <Button
+                        key={option.value}
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className={cn(
+                          "h-8 border px-3 text-xs",
+                          isActive
+                            ? "border-foreground bg-foreground text-background hover:bg-foreground hover:text-background"
+                            : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground",
+                        )}
+                        onClick={() => setDraftSelectedAdmissionStatus(option.value)}
+                      >
+                        {option.label}
+                      </Button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="grid gap-3 px-4 py-2 md:grid-cols-[170px_minmax(0,1fr)] md:items-start">
+                  <div>
+                    <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Ruangan</p>
+                  </div>
+                  <div className="space-y-2">
+                    {renderRoomFilterSlot(draftSelectedRoom, setDraftSelectedRoom)}
+                    <p className="text-[11px] text-muted-foreground">Biarkan kosong bila ingin melihat semua ruangan pada layanan ini.</p>
+                  </div>
+                </div>
+
+                <div className="grid gap-3 px-4 py-2 md:grid-cols-[170px_minmax(0,1fr)] md:items-start">
+                  <div>
+                    <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Status</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {REGISTRATION_STATUS_OPTIONS.map((option) => {
+                      const isActive = draftSelectedStatus === option.value;
+
+                      return (
+                        <Button
+                          key={option.value}
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className={cn(
+                            "h-8 border px-3 text-xs",
+                            isActive
+                              ? "border-foreground bg-foreground text-background hover:bg-foreground hover:text-background"
+                              : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground",
+                          )}
+                          onClick={() => setDraftSelectedStatus(option.value)}
+                        >
+                          {option.label}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
+          <div className="flex items-center justify-end gap-2 border-t border-border px-4 py-2">
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 px-2 text-xs"
+                onClick={() => {
+                  setDraftSelectedDate("");
+                  setDraftSelectedRoom("");
+                  setDraftSelectedStatus("all");
+                  setDraftSelectedAdmissionStatus("all");
+                }}
+              >
+                Reset
+              </Button>
+              <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setFilterDialogOpen(false)}>
+                Batal
+              </Button>
+              <Button
+                size="sm"
+                className="h-8 text-xs"
+                onClick={() => {
+                  setSelectedDate(draftSelectedDate);
+                  setSelectedRoom(draftSelectedRoom);
+                  setSelectedStatus(draftSelectedStatus);
+                  setSelectedAdmissionStatus(draftSelectedAdmissionStatus);
+                  setFilterDialogOpen(false);
+                }}
+              >
+                Terapkan
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <PageContent>
+        {isAdmissionRequestTab ? (
+          <DataTable
+            columns={admissionColumns}
+            data={admissionRequests}
+            searchPlaceholder="Cari no. request, nama pasien, atau RM..."
+            pageSize={10}
           />
-          {selectedDate && (
-            <Button variant="ghost" size="sm" onClick={() => setSelectedDate("")} className="h-8 px-2 text-xs">
-              ✕ Reset Tgl
-            </Button>
-          )}
-          <div className="h-5 border-r" />
-          {isAdmissionRequestTab ? (
-            <Select
-              value={selectedAdmissionStatus}
-              onValueChange={setSelectedAdmissionStatus}
-            >
-              <SelectTrigger className="h-8 w-[170px] text-xs">
-                <SelectValue placeholder="Status Permintaan" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Semua Status</SelectItem>
-                <SelectItem value="pending">Menunggu</SelectItem>
-                <SelectItem value="approved">Disetujui</SelectItem>
-                <SelectItem value="rejected">Ditolak</SelectItem>
-                <SelectItem value="cancelled">Dibatalkan</SelectItem>
-              </SelectContent>
-            </Select>
-          ) : (
-            <Select
-              value={selectedStatus}
-              onValueChange={setSelectedStatus}
-            >
-              <SelectTrigger className="h-8 w-[155px] text-xs">
-                <SelectValue placeholder="Semua Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Semua Status</SelectItem>
-                <SelectItem value="scheduled">Terjadwal (MJKN)</SelectItem>
-                <SelectItem value="registered">Terdaftar</SelectItem>
-                <SelectItem value="in_queue">Dalam Antrean</SelectItem>
-                <SelectItem value="in_progress">Sedang Diproses</SelectItem>
-                <SelectItem value="completed">Selesai</SelectItem>
-                <SelectItem value="discharged">Sudah Pulang</SelectItem>
-                <SelectItem value="cancelled">Dibatalkan</SelectItem>
-              </SelectContent>
-            </Select>
-          )}
-          <Button
-            variant="outline"
-            size="icon"
-            className="h-8 w-8"
-            onClick={() => {
-              if (isAdmissionRequestTab) {
-                loadAdmissionRequests();
-              } else {
-                loadData();
-              }
-              loadAllRegistrations();
-              loadPendingAdmissionCount();
-            }}
-          >
-            <RefreshCcw className="h-3.5 w-3.5" />
-          </Button>
-        </div>
-      )}
-
-      {/* ── Tabs ─────────────────────────────────────────────────── */}
-      <div className="flex items-end gap-0 border-b overflow-x-auto">
-        {REG_TABS.map((tab) => {
-          const count = tabBadgeCounts[tab.key] ?? 0;
-          const isActive = activeTab === tab.key;
-          return (
-            <button
-              key={tab.key}
-              onClick={() => handleTabChange(tab.key)}
-              className={cn(
-                "relative flex shrink-0 items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px",
-                isActive
-                  ? "border-primary text-primary"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
-              )}
-            >
-              {tab.label}
-              {count > 0 && (
-                <span className="inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-[10px] font-semibold rounded-full bg-destructive text-destructive-foreground">
-                  {count}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* ── Data Table ───────────────────────────────────────────── */}
-      {isAdmissionRequestTab ? (
-        <DataTable
-          columns={admissionColumns}
-          data={admissionRequests}
-          searchPlaceholder="Cari no. request, nama pasien, atau RM..."
-          pageSize={10}
-          tableId="admission-requests-in-registrations"
-        />
-      ) : (
-        <DataTable
-          columns={columns}
-          data={registrations}
-          searchPlaceholder="Cari no. registrasi, nama pasien, atau no. RM..."
-          pageSize={10}
-          tableId="registrations"
-          searchSlot={roomFilterSlot}
-        />
-      )}
+        ) : (
+          <DataTable
+            columns={columns}
+            data={registrations}
+            searchPlaceholder="Cari no. registrasi, nama pasien, atau no. RM..."
+            pageSize={10}
+          />
+        )}
+      </PageContent>
 
       {/* Confirm dialog for regular registration cancellation */}
       <ConfirmDialog
@@ -1417,6 +1615,6 @@ export default function RegistrationIndex() {
           }}
         />
       )}
-    </div>
+    </PageShell>
   );
 }

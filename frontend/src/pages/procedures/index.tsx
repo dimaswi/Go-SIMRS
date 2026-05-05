@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { PageShell, PageHeader, PageContent } from '@/components/layout/page-shell';
 
 import { DataTable } from '@/components/ui/data-table';
 import { createProcedureColumns } from './columns';
@@ -88,32 +89,35 @@ export default function ProceduresPage() {
   });
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold">Tindakan</h1>
-          <p className="text-sm text-muted-foreground">Kelola data tindakan medis, radiologi, dan laboratorium</p>
-        </div>
-        {hasPermission('procedures.create') && (
-          <Button onClick={() => navigate('/procedures/create')} size="sm">
-            <Plus className="mr-2 h-4 w-4" />
-            Tambah Tindakan
-          </Button>
+    <PageShell>
+      <PageHeader
+        title="Tindakan"
+        description="Kelola data tindakan medis, radiologi, dan laboratorium"
+        count={procedures.length}
+        actions={
+          hasPermission('procedures.create') ? (
+            <Button onClick={() => navigate('/procedures/create')} size="sm">
+              <Plus className="h-4 w-4" />
+              Tambah Tindakan
+            </Button>
+          ) : undefined
+        }
+      />
+      <PageContent>
+        {loading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        ) : (
+          <DataTable
+            columns={columns}
+            data={procedures}
+            searchPlaceholder="Cari tindakan berdasarkan kode atau nama..."
+            pageSize={10}
+            tableId="procedures"
+          />
         )}
-      </div>
-      {loading ? (
-        <div className="flex items-center justify-center py-8">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-      ) : (
-        <DataTable
-          columns={columns}
-          data={procedures}
-          searchPlaceholder="Cari tindakan berdasarkan kode atau nama..."
-          pageSize={10}
-          tableId="procedures"
-        />
-      )}
+      </PageContent>
 
       <ConfirmDialog
         open={deleteDialogOpen}
@@ -125,6 +129,6 @@ export default function ProceduresPage() {
         cancelText="Batal"
         variant="destructive"
       />
-    </div>
+    </PageShell>
   );
 }

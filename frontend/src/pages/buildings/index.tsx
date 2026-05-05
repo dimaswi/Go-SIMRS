@@ -29,6 +29,7 @@ import {
   MapPin,
   LayoutGrid,
 } from "lucide-react";
+import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 
 const DEFAULT_COLORS = [
   "#e3f2fd", "#e8f5e9", "#fff3e0", "#fce4ec", "#f3e5f5",
@@ -167,45 +168,43 @@ export default function BuildingsPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold">Gedung</h1>
-          <p className="text-sm text-muted-foreground">
-            Kelola data gedung rumah sakit untuk Floor Plan
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => navigate("/floor-plan")}>
-            <LayoutGrid className="mr-2 h-4 w-4" />
-            Lihat Floor Plan
-          </Button>
-          {hasPermission("rooms.create") && (
-            <Button size="sm" onClick={openCreate}>
-              <Plus className="mr-2 h-4 w-4" />
-              Tambah Gedung
+    <PageShell>
+      <PageHeader
+        title="Gedung"
+        description="Kelola data gedung rumah sakit untuk Floor Plan"
+        count={buildings.length}
+        actions={
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => navigate("/floor-plan")}>
+              <LayoutGrid className="h-4 w-4" />
+              Floor Plan
             </Button>
-          )}
-        </div>
-      </div>
-
-      {/* Building cards */}
-      {buildings.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-          <Building2 className="h-16 w-16 mb-4" />
-          <p className="text-lg font-medium mb-1">Belum ada gedung</p>
-          <p className="text-sm mb-4">Tambahkan gedung pertama untuk mulai mengatur floor plan</p>
-          {hasPermission("rooms.create") && (
-            <Button onClick={openCreate}>
-              <Plus className="mr-2 h-4 w-4" />
-              Tambah Gedung
-            </Button>
-          )}
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {buildings.map((b) => (
+            {hasPermission("rooms.create") && (
+              <Button size="sm" onClick={openCreate}>
+                <Plus className="h-4 w-4" />
+                Tambah Gedung
+              </Button>
+            )}
+          </div>
+        }
+      />
+      <PageContent>
+        {/* Building cards */}
+        {buildings.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+            <Building2 className="h-16 w-16 mb-4" />
+            <p className="text-lg font-medium mb-1">Belum ada gedung</p>
+            <p className="text-sm mb-4">Tambahkan gedung pertama untuk mulai mengatur floor plan</p>
+            {hasPermission("rooms.create") && (
+              <Button onClick={openCreate}>
+                <Plus className="mr-2 h-4 w-4" />
+                Tambah Gedung
+              </Button>
+            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 py-4">
+            {buildings.map((b) => (
             <Card
               key={b.id}
               className="overflow-hidden"
@@ -287,8 +286,9 @@ export default function BuildingsPage() {
               </CardContent>
             </Card>
           ))}
-        </div>
-      )}
+          </div>
+        )}
+      </PageContent>
 
       {/* Create/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -404,6 +404,6 @@ export default function BuildingsPage() {
         cancelText="Batal"
         variant="destructive"
       />
-    </div>
+    </PageShell>
   );
 }

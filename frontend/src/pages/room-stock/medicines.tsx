@@ -7,6 +7,7 @@ import { roomsApi } from '@/lib/api/rooms';
 import { usePermission } from '@/hooks/usePermission';
 import { useToast } from '@/hooks/use-toast';
 import { ConfirmDialog } from '@/components/confirm-dialog';
+import { PageShell, PageHeader, PageContent } from '@/components/layout/page-shell';
 import { setPageTitle } from '@/lib/page-title';
 import { Loader2, Pill } from 'lucide-react';
 import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
@@ -137,32 +138,27 @@ export default function RoomMedicinePage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-            <Pill className="h-5 w-5 text-primary" />
+    <PageShell>
+      <PageHeader
+        title="Stok Obat Ruangan"
+        description="Kelola stok obat per ruangan"
+        count={roomMedicines.length}
+        icon={Pill}
+        actions={
+          <div className="w-full sm:w-[250px]">
+            <Combobox
+              options={roomOptions}
+              value={selectedRoom}
+              onValueChange={setSelectedRoom}
+              placeholder="Pilih Ruangan"
+              searchPlaceholder="Cari ruangan..."
+              emptyText="Tidak ada ruangan"
+              className="w-full"
+            />
           </div>
-          <div>
-            <h1 className="text-lg font-semibold">Stok Obat Ruangan</h1>
-            <p className="text-sm text-muted-foreground">
-              Kelola stok obat per ruangan
-            </p>
-          </div>
-        </div>
-        <div className="flex gap-2 w-full sm:w-auto">
-          <Combobox
-            options={roomOptions}
-            value={selectedRoom}
-            onValueChange={setSelectedRoom}
-            placeholder="Pilih Ruangan"
-            searchPlaceholder="Cari ruangan..."
-            emptyText="Tidak ada ruangan"
-            className="w-full sm:w-[250px]"
-          />
-        </div>
-      </div>
-      <div className="rounded-lg border p-6">
+        }
+      />
+      <PageContent>
         {loading ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -170,7 +166,7 @@ export default function RoomMedicinePage() {
         ) : (
           <DataTable columns={columns} data={roomMedicines} tableId="room_medicines" />
         )}
-      </div>
+      </PageContent>
 
       <ConfirmDialog
         open={deleteDialogOpen}
@@ -179,6 +175,6 @@ export default function RoomMedicinePage() {
         description="Apakah Anda yakin ingin menghapus stok obat ini? Tindakan ini tidak dapat dibatalkan."
         onConfirm={confirmDelete}
       />
-    </div>
+    </PageShell>
   );
 }

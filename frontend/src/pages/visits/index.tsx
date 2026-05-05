@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -13,13 +13,6 @@ import {
 } from "@/components/ui/alert-dialog";
 
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Command,
   CommandEmpty,
   CommandGroup,
@@ -32,6 +25,19 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+import {
+  Collapsible,
+  CollapsibleContent,
+} from "@/components/ui/collapsible";
+import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 import { DataTable } from "@/components/ui/data-table";
 import { Input } from "@/components/ui/input";
 import { createVisitColumns } from "./columns";
@@ -43,8 +49,8 @@ import {
   RefreshCcw,
   Check,
   ChevronsUpDown,
-  Tv,
   SlidersHorizontal,
+  Tv,
   ExternalLink,
   Volume2,
   ScreenShare,
@@ -106,6 +112,19 @@ const VISIT_TABS: VisitTab[] = [
   },
 ];
 
+const VISIT_DEFAULT_TAB = VISIT_TABS[0].key;
+const VISIT_DEFAULT_STATUS = "active";
+
+const normalizeVisitTab = (value: string | null | undefined) => {
+  if (!value) return VISIT_DEFAULT_TAB;
+  return VISIT_TABS.some((tab) => tab.key === value) ? value : VISIT_DEFAULT_TAB;
+};
+
+const normalizeVisitStatus = (value: string | null | undefined) => {
+  if (!value) return VISIT_DEFAULT_STATUS;
+  return VISIT_STATUS_OPTIONS.some((option) => option.value === value) ? value : VISIT_DEFAULT_STATUS;
+};
+
 interface Visit {
   id: number;
   visit_number: string;
@@ -146,21 +165,21 @@ interface Visit {
   };
 }
 
+const VISIT_STATUS_OPTIONS = [
+  { value: "active", label: "Aktif" },
+  { value: "all", label: "Semua" },
+  { value: "waiting", label: "Menunggu" },
+  { value: "in_queue", label: "Dalam Antrian" },
+  { value: "in_progress", label: "Dilayani" },
+  { value: "completed", label: "Selesai" },
+];
+
 export default function VisitsIndex() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
   const { hasPermission } = usePermission();
   const { user } = useAuthStore();
-
-  // Load saved filters from localStorage
-  const getSavedFilter = (key: string, defaultValue: string) => {
-    try {
-      const saved = localStorage.getItem(`visits_filter_${key}`);
-      return saved !== null ? saved : defaultValue;
-    } catch {
-      return defaultValue;
-    }
-  };
 
   // ── All visits (no visit_type filter) used for badge counts ──
   const [allVisits, setAllVisits] = useState<Visit[]>([]);
@@ -169,39 +188,23 @@ export default function VisitsIndex() {
   const [rooms, setRooms] = useState<Room[]>([]);
 
   // Active tab (visit_type key)
-  const [activeTab, setActiveTab] = useState<string>(() =>
-    getSavedFilter("tab", VISIT_TABS[0].key)
-  );
-  // Per-tab room selection map: { [tab_key]: room_id_string }
-  const [tabRooms, setTabRooms] = useState<Record<string, string>>(() => {
-    try {
-      const saved = localStorage.getItem("visits_tab_rooms");
-      return saved ? JSON.parse(saved) : {};
-    } catch {
-      return {};
-    }
-  });
-  const selectedRoom = tabRooms[activeTab] || "";
-  const setSelectedRoom = (roomId: string) => {
-    setTabRooms((prev) => {
-      const next = { ...prev, [activeTab]: roomId };
-      try { localStorage.setItem("visits_tab_rooms", JSON.stringify(next)); } catch { }
-      return next;
-    });
-  };
+  const [activeTab, setActiveTab] = useState<string>(() => normalizeVisitTab(searchParams.get("tab") || sessionStorage.getItem("visits_tab")));
+  const [selectedRoom, setSelectedRoom] = useState<string>(() => searchParams.get("room") || sessionStorage.getItem("visits_room") || "");
 
-  const [selectedStatus, setSelectedStatus] = useState<string>(() =>
-    getSavedFilter("status", "active")
-  );
-  const [selectedDate, setSelectedDate] = useState<string>(""); // Empty = show all data
+  const [selectedStatus, setSelectedStatus] = useState<string>(() => normalizeVisitStatus(searchParams.get("status") || sessionStorage.getItem("visits_status")));
+  const [selectedDate, setSelectedDate] = useState<string>(() => searchParams.get("date") || sessionStorage.getItem("visits_date") || ""); // Empty = show all data
   const [loading, setLoading] = useState(false);
-  const [filterOpen, setFilterOpen] = useState(false);
   const [callingId, setCallingId] = useState<number | null>(null);
   const [recallingId, setRecallingId] = useState<number | null>(null);
   const [acceptingId, setAcceptingId] = useState<number | null>(null);
   const [cancellingId, setCancellingId] = useState<number | null>(null);
   const [roomPopoverOpen, setRoomPopoverOpen] = useState(false);
   const [displayPanelOpen, setDisplayPanelOpen] = useState(false);
+  const [filterDialogOpen, setFilterDialogOpen] = useState(false);
+  const [visitTypeOpen, setVisitTypeOpen] = useState(false);
+  const [draftSelectedRoom, setDraftSelectedRoom] = useState<string>("");
+  const [draftSelectedStatus, setDraftSelectedStatus] = useState<string>("active");
+  const [draftSelectedDate, setDraftSelectedDate] = useState<string>("");
   const [cancelConfirmVisit, setCancelConfirmVisit] = useState<Visit | null>(null);
 
   // Check if user is admin
@@ -237,13 +240,71 @@ export default function VisitsIndex() {
     return counts;
   }, [allVisits]);
 
-  // Save tab & status to localStorage
+  const totalVisitTypeCount = useMemo(
+    () => Object.values(tabBadgeCounts).reduce((sum, count) => sum + count, 0),
+    [tabBadgeCounts],
+  );
+
   useEffect(() => {
     try {
-      localStorage.setItem("visits_filter_tab", activeTab);
-      localStorage.setItem("visits_filter_status", selectedStatus);
-    } catch { }
-  }, [activeTab, selectedStatus]);
+      [
+        "visits_filter_tab",
+        "visits_filter_status",
+        "visits_tab_rooms",
+        "dt_search_visits",
+        "dt_page_visits",
+        "dt_size_visits",
+      ].forEach((key) => localStorage.removeItem(key));
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    const nextTab = normalizeVisitTab(searchParams.get("tab") || sessionStorage.getItem("visits_tab"));
+    const nextRoom = searchParams.get("room") || sessionStorage.getItem("visits_room") || "";
+    const nextStatus = normalizeVisitStatus(searchParams.get("status") || sessionStorage.getItem("visits_status"));
+    const nextDate = searchParams.get("date") || sessionStorage.getItem("visits_date") || "";
+
+    setActiveTab((prev) => (prev === nextTab ? prev : nextTab));
+    setSelectedRoom((prev) => (prev === nextRoom ? prev : nextRoom));
+    setSelectedStatus((prev) => (prev === nextStatus ? prev : nextStatus));
+    setSelectedDate((prev) => (prev === nextDate ? prev : nextDate));
+  }, [searchParams]);
+
+  useEffect(() => {
+    const nextParams = new URLSearchParams(searchParams);
+
+    if (activeTab !== VISIT_DEFAULT_TAB) nextParams.set("tab", activeTab);
+    else nextParams.delete("tab");
+
+    if (selectedRoom) nextParams.set("room", selectedRoom);
+    else nextParams.delete("room");
+
+    if (selectedStatus !== VISIT_DEFAULT_STATUS) nextParams.set("status", selectedStatus);
+    else nextParams.delete("status");
+
+    if (selectedDate) nextParams.set("date", selectedDate);
+    else nextParams.delete("date");
+
+    if (nextParams.toString() !== searchParams.toString()) {
+      setSearchParams(nextParams, { replace: true });
+    }
+
+    sessionStorage.setItem("visits_tab", activeTab);
+    sessionStorage.setItem("visits_room", selectedRoom);
+    sessionStorage.setItem("visits_status", selectedStatus);
+    sessionStorage.setItem("visits_date", selectedDate);
+  }, [activeTab, searchParams, selectedDate, selectedRoom, selectedStatus, setSearchParams]);
+
+  useEffect(() => {
+    if (!filterDialogOpen) {
+      setRoomPopoverOpen(false);
+      return;
+    }
+
+    setDraftSelectedDate(selectedDate);
+    setDraftSelectedRoom(selectedRoom);
+    setDraftSelectedStatus(selectedStatus);
+  }, [filterDialogOpen, selectedDate, selectedRoom, selectedStatus]);
 
   useEffect(() => {
     setPageTitle("Kunjungan");
@@ -493,7 +554,10 @@ export default function VisitsIndex() {
     );
   }
 
-  const roomFilterSlot = (
+  const renderRoomFilterSlot = (
+    roomValue: string,
+    onRoomChange: (roomId: string) => void,
+  ) => (
     <div className="flex items-center gap-2">
       <Popover open={roomPopoverOpen} onOpenChange={setRoomPopoverOpen}>
         <PopoverTrigger asChild>
@@ -501,14 +565,14 @@ export default function VisitsIndex() {
             variant="outline"
             role="combobox"
             className={cn(
-              "h-9 w-[220px] justify-between font-normal",
-              !selectedRoom && "text-muted-foreground"
+              "h-8 w-[220px] justify-between font-normal text-xs",
+              !roomValue && "text-muted-foreground"
             )}
           >
             <span className="truncate">
-              {selectedRoom
+              {roomValue
                 ? (() => {
-                  const r = rooms.find((r) => r.id.toString() === selectedRoom);
+                  const r = rooms.find((r) => r.id.toString() === roomValue);
                   return r ? `${r.code} - ${r.name}` : `Semua ${currentTab.label}`;
                 })()
                 : `Semua ${currentTab.label}`}
@@ -524,18 +588,18 @@ export default function VisitsIndex() {
               <CommandGroup>
                 <CommandItem
                   value="Semua Ruangan"
-                  onSelect={() => { setSelectedRoom(""); setRoomPopoverOpen(false); }}
+                  onSelect={() => { onRoomChange(""); setRoomPopoverOpen(false); }}
                 >
-                  <Check className={cn("mr-2 h-4 w-4", !selectedRoom ? "opacity-100" : "opacity-0")} />
+                  <Check className={cn("mr-2 h-4 w-4", !roomValue ? "opacity-100" : "opacity-0")} />
                   Semua {currentTab.label}
                 </CommandItem>
                 {(tabRoomOptions.length > 0 ? tabRoomOptions : rooms).map((room) => (
                   <CommandItem
                     key={room.id}
                     value={`${room.code} ${room.name}`}
-                    onSelect={() => { setSelectedRoom(room.id.toString()); setRoomPopoverOpen(false); }}
+                    onSelect={() => { onRoomChange(room.id.toString()); setRoomPopoverOpen(false); }}
                   >
-                    <Check className={cn("mr-2 h-4 w-4", selectedRoom === room.id.toString() ? "opacity-100" : "opacity-0")} />
+                    <Check className={cn("mr-2 h-4 w-4", roomValue === room.id.toString() ? "opacity-100" : "opacity-0")} />
                     {room.code} - {room.name}
                   </CommandItem>
                 ))}
@@ -545,12 +609,12 @@ export default function VisitsIndex() {
         </PopoverContent>
       </Popover>
 
-      {selectedRoom && (
+      {roomValue && (
         <Button
           variant="ghost"
           size="icon"
-          className="h-9 w-9 text-muted-foreground hover:text-foreground"
-          onClick={() => setSelectedRoom("")}
+          className="h-8 w-8 text-muted-foreground hover:text-foreground"
+          onClick={() => onRoomChange("")}
         >
           <RefreshCcw className="h-3.5 w-3.5" />
         </Button>
@@ -559,101 +623,254 @@ export default function VisitsIndex() {
     </div>
   );
 
-  return (
-    <div className="flex flex-1 flex-col px-4">
+  const hasActiveFilters =
+    selectedDate !== "" ||
+    selectedRoom !== "" ||
+    selectedStatus !== "active";
 
-      {/* ── Header ────────────────────────────────────────────────── */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-lg font-semibold">Kunjungan Pasien</h1>
-        </div>
-        <div className="flex items-center gap-2">
-          {selectedRoom && (
+  const handleVisitTabChange = (tabKey: string) => {
+    setActiveTab(tabKey);
+    setSelectedRoom("");
+    setRoomPopoverOpen(false);
+  };
+
+  return (
+    <PageShell>
+      <PageHeader
+        title="Kunjungan Pasien"
+        description="Kelola antrean dan pelayanan kunjungan per unit"
+        count={visits.length}
+        actions={
+          <div className="flex items-center gap-1.5">
             <Button
-              variant="outline"
+              variant={visitTypeOpen ? "secondary" : "outline"}
+              size="sm"
+              className="h-8 gap-2 text-xs"
+              onClick={() => setVisitTypeOpen((prev) => !prev)}
+            >
+              <span className="max-w-[140px] truncate font-medium text-foreground">{currentTab.label}</span>
+              {totalVisitTypeCount > 0 && (
+                <Badge className="h-5 rounded-full bg-red-600 px-1.5 text-[10px] font-semibold text-white hover:bg-red-600">
+                  {totalVisitTypeCount}
+                </Badge>
+              )}
+              <ChevronsUpDown className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform", visitTypeOpen && "rotate-180")} />
+            </Button>
+            {selectedRoom && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs"
+                onClick={() => window.open(`/room-queue/display/${selectedRoom}`, "_blank")}
+              >
+                <Tv className="mr-1.5 h-3.5 w-3.5" />
+                Display Ruangan
+              </Button>
+            )}
+            <Button
+              variant={filterDialogOpen ? "secondary" : "outline"}
               size="sm"
               className="h-8 text-xs"
-              onClick={() => window.open(`/room-queue/display/${selectedRoom}`, "_blank")}
+              onClick={() => setFilterDialogOpen(true)}
             >
-              <Tv className="h-3.5 w-3.5 mr-1.5" />
-              Display Ruangan
+              <SlidersHorizontal className="mr-1.5 h-3.5 w-3.5" />
+              Filter
+              {hasActiveFilters && <span className="ml-1.5 h-1.5 w-1.5 rounded-full bg-primary" />}
             </Button>
-          )}
-          <Button
-            variant={displayPanelOpen ? "secondary" : "outline"}
-            size="sm"
-            className="h-8 text-xs"
-            onClick={() => setDisplayPanelOpen(!displayPanelOpen)}
-          >
-            <ScreenShare className="h-3.5 w-3.5 mr-1.5" />
-            Display
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 text-xs"
-            onClick={() => setFilterOpen(!filterOpen)}
-          >
-            <SlidersHorizontal className="h-3.5 w-3.5 mr-1.5" />
-            Filter
-            {(selectedDate || selectedStatus !== "active") && (
-              <span className="ml-1.5 h-1.5 w-1.5 rounded-full bg-primary inline-block" />
+            <Button
+              variant={displayPanelOpen ? "secondary" : "outline"}
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setDisplayPanelOpen(!displayPanelOpen)}
+            >
+              <ScreenShare className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => {
+                loadVisits();
+                loadAllVisits();
+              }}
+            >
+              <RefreshCcw className={cn("h-4 w-4", loading && "animate-spin")} />
+            </Button>
+          </div>
+        }
+      />
+
+      <Collapsible open={visitTypeOpen} onOpenChange={setVisitTypeOpen}>
+        <CollapsibleContent>
+          <div className=" border-border bg-muted/15 px-6 py-2">
+            <div className="flex min-w-0 overflow-x-auto border-y border-border bg-background">
+              {VISIT_TABS.map((tab) => {
+                const isActive = activeTab === tab.key;
+                const tabCount = tabBadgeCounts[tab.key] ?? 0;
+
+                return (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => handleVisitTabChange(tab.key)}
+                    className={cn(
+                      "min-w-[148px] border-r border-border px-3 py-2 text-left transition-colors last:border-r-0",
+                      isActive ? "bg-background text-foreground" : "text-muted-foreground hover:bg-background/70 hover:text-foreground",
+                    )}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Kunjungan</span>
+                      {tabCount > 0 ? (
+                        <Badge className="h-5 rounded-full bg-red-600 px-1.5 text-[10px] font-semibold text-white hover:bg-red-600">
+                          {tabCount}
+                        </Badge>
+                      ) : (
+                        <span className="text-[11px] tabular-nums text-muted-foreground">0</span>
+                      )}
+                    </div>
+                    <div className={cn("mt-1 text-sm font-medium", isActive && "text-foreground")}>{tab.label}</div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {hasActiveFilters && (
+              <div className="pt-2 text-[11px] text-muted-foreground">Filter aktif</div>
             )}
-          </Button>
-        </div>
-      </div>
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
 
-      {/* ── Filter Panel ─────────────────────────────────────────── */}
-      {filterOpen && (
-        <div className="flex items-center gap-2 flex-wrap p-3 border rounded-lg bg-muted/30">
-          <Input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            className="h-8 w-36 text-xs"
-          />
-          {selectedDate && (
-            <Button variant="ghost" size="sm" onClick={() => setSelectedDate("")} className="h-8 px-2 text-xs">
-              ✕ Reset Tgl
-            </Button>
-          )}
-          <div className="h-5 border-r" />
-          <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-            <SelectTrigger className="h-8 w-[155px] text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="active">Aktif (Belum Selesai)</SelectItem>
-              <SelectItem value="all">Semua Status</SelectItem>
-              <SelectItem value="waiting">Menunggu</SelectItem>
-              <SelectItem value="in_queue">Dalam Antrian</SelectItem>
-              <SelectItem value="in_progress">Sedang Dilayani</SelectItem>
-              <SelectItem value="completed">Selesai</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button
-            variant="outline"
-            size="icon"
-            className="h-8 w-8"
-            onClick={() => { loadVisits(); loadAllVisits(); }}
-          >
-            <RefreshCcw className="h-3.5 w-3.5" />
-          </Button>
-        </div>
-      )}
+      <Dialog open={filterDialogOpen} onOpenChange={setFilterDialogOpen}>
+        <DialogContent className="max-w-2xl p-0">
+          <DialogHeader>
+            <div className="border-b border-border bg-muted/20 px-4 py-4">
+              <DialogTitle>Filter Kunjungan</DialogTitle>
+              <DialogDescription className="mt-1">
+                Jenis kunjungan tetap dipilih dari strip utama. Modal ini khusus untuk penyaringan operasional.
+              </DialogDescription>
+            </div>
+          </DialogHeader>
 
-      {/* ── Display Per Ruangan Panel ─────────────────────────────── */}
+          <div className="divide-y divide-border">
+            <div className="grid gap-3 px-4 py-2 md:grid-cols-[170px_minmax(0,1fr)] md:items-start">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Tanggal</p>
+              </div>
+              <div className="space-y-3">
+                <Input
+                  type="date"
+                  value={draftSelectedDate}
+                  onChange={(e) => setDraftSelectedDate(e.target.value)}
+                  className="h-9 w-full text-sm"
+                />
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-xs"
+                    onClick={() => setDraftSelectedDate(new Date().toISOString().split("T")[0])}
+                  >
+                    Hari Ini
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 text-xs"
+                    onClick={() => setDraftSelectedDate("")}
+                  >
+                    Kosongkan Tanggal
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-3 px-4 py-2 md:grid-cols-[170px_minmax(0,1fr)] md:items-start">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Ruangan</p>
+              </div>
+              <div className="space-y-2">
+                {renderRoomFilterSlot(draftSelectedRoom, setDraftSelectedRoom)}
+              </div>
+            </div>
+
+            <div className="grid gap-3 px-4 py-2 md:grid-cols-[170px_minmax(0,1fr)] md:items-start">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Status</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {VISIT_STATUS_OPTIONS.map((option) => {
+                  const isActive = draftSelectedStatus === option.value;
+
+                  return (
+                    <Button
+                      key={option.value}
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className={cn(
+                        "h-8 border px-3 text-xs",
+                        isActive
+                          ? "border-foreground bg-foreground text-background hover:bg-foreground hover:text-background"
+                          : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground",
+                      )}
+                      onClick={() => setDraftSelectedStatus(option.value)}
+                    >
+                      {option.label}
+                    </Button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 border-t border-border px-4 py-2">
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 px-2 text-xs"
+                onClick={() => {
+                  setDraftSelectedDate("");
+                  setDraftSelectedRoom("");
+                  setDraftSelectedStatus("active");
+                }}
+              >
+                Reset
+              </Button>
+              <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setFilterDialogOpen(false)}>
+                Batal
+              </Button>
+              <Button
+                size="sm"
+                className="h-8 text-xs"
+                onClick={() => {
+                  setSelectedDate(draftSelectedDate);
+                  setSelectedRoom(draftSelectedRoom);
+                  setSelectedStatus(draftSelectedStatus);
+                  setFilterDialogOpen(false);
+                }}
+              >
+                Terapkan
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {displayPanelOpen && (
-        <div className="border rounded-lg p-4 bg-muted/30">
-          <div className="flex items-center justify-between mb-3">
+        <div className="border-b border-border px-4 py-2">
+          <div className="mb-3 flex items-center justify-between">
             <div>
-              <h3 className="font-semibold text-sm">Display Per Ruangan</h3>
+              <h3 className="text-sm font-semibold">Display Per Ruangan</h3>
               <p className="text-xs text-muted-foreground">Buka display antrean per ruangan dengan suara pengumuman</p>
             </div>
-            <Button variant="outline" size="sm" onClick={() => window.open("/queue-display", "_blank")}>
-              <Tv className="h-3 w-3 mr-1" />
+            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => window.open("/queue-display", "_blank")}>
+              <Tv className="mr-1 h-3 w-3" />
               Pengaturan Display
-              <ExternalLink className="h-3 w-3 ml-1 text-muted-foreground" />
+              <ExternalLink className="ml-1 h-3 w-3 text-muted-foreground" />
             </Button>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -668,9 +885,9 @@ export default function VisitsIndex() {
                   className="h-8 text-xs"
                   onClick={() => window.open(`/room-queue/display/${room.id}`, "_blank")}
                 >
-                  <Volume2 className="h-3 w-3 mr-1.5" />
+                  <Volume2 className="mr-1.5 h-3 w-3" />
                   {room.queue_code || room.code} - {room.name}
-                  <ExternalLink className="h-2.5 w-2.5 ml-1.5 text-muted-foreground" />
+                  <ExternalLink className="ml-1.5 h-2.5 w-2.5 text-muted-foreground" />
                 </Button>
               ))
             )}
@@ -678,44 +895,21 @@ export default function VisitsIndex() {
         </div>
       )}
 
-      {/* ── Tabs ─────────────────────────────────────────────────── */}
-      <div className="flex items-end gap-0 border-b overflow-x-auto">
-        {VISIT_TABS.map((tab) => {
-          const count = tabBadgeCounts[tab.key] ?? 0;
-          const isActive = activeTab === tab.key;
-          return (
-            <button
-              key={tab.key}
-              onClick={() => { setActiveTab(tab.key); setRoomPopoverOpen(false); }}
-              className={cn(
-                "relative flex shrink-0 items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px",
-                isActive
-                  ? "border-primary text-primary"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
-              )}
-            >
-              {tab.label}
-              {count > 0 && (
-                <span className="inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-[10px] font-semibold rounded-full bg-destructive text-destructive-foreground">
-                  {count}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
+      <PageContent>
+        {loading && visits.length === 0 ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        ) : (
+          <DataTable
+            columns={columns}
+            data={visits}
+            searchPlaceholder="Cari nomor RM, nama pasien, nomor kunjungan..."
+            pageSize={10}
+          />
+        )}
+      </PageContent>
 
-      {/* ── Data Table ───────────────────────────────────────────── */}
-      <DataTable
-        columns={columns}
-        data={visits}
-        searchPlaceholder="Cari nomor RM, nama pasien, nomor kunjungan..."
-        pageSize={10}
-        tableId="visits"
-        searchSlot={roomFilterSlot}
-      />
-
-      {/* ── Cancel Visit Confirmation Dialog ──────────────────────── */}
       <AlertDialog
         open={!!cancelConfirmVisit}
         onOpenChange={(open) => !open && setCancelConfirmVisit(null)}
@@ -756,6 +950,6 @@ export default function VisitsIndex() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </PageShell>
   );
 }

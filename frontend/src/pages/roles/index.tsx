@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { PageShell, PageHeader, PageContent } from '@/components/layout/page-shell';
 import { setPageTitle } from '@/lib/page-title';
 import { Button } from '@/components/ui/button';
 
@@ -96,26 +97,29 @@ export default function RolesPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold">Roles</h1>
-          <p className="text-sm text-muted-foreground">Manage roles and permissions</p>
-        </div>
-        {hasPermission('roles.create') && (
-          <Button onClick={() => navigate('/roles/create')} size="sm">
-            <Plus className="mr-2 h-4 w-4" />
-            Add Role
-          </Button>
-        )}
-      </div>
-      <DataTable
-        columns={columns}
-        data={roles}
-        searchPlaceholder="Search roles by name or description..."
-        pageSize={10}
-        tableId="roles"
+    <PageShell>
+      <PageHeader
+        title="Roles"
+        description="Manage roles and permissions"
+        count={roles.length}
+        actions={
+          hasPermission('roles.create') ? (
+            <Button onClick={() => navigate('/roles/create')} size="sm">
+              <Plus className="h-4 w-4" />
+              Add Role
+            </Button>
+          ) : undefined
+        }
       />
+      <PageContent>
+        <DataTable
+          columns={columns}
+          data={roles}
+          searchPlaceholder="Search roles by name or description..."
+          pageSize={10}
+          tableId="roles"
+        />
+      </PageContent>
 
       <ConfirmDialog
         open={deleteDialogOpen}
@@ -127,6 +131,6 @@ export default function RolesPage() {
         cancelText="Cancel"
         variant="destructive"
       />
-    </div>
+    </PageShell>
   );
 }

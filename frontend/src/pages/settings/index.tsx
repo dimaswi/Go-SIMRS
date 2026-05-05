@@ -7,9 +7,24 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, Building2, Save, Loader2, Upload, Image, FileImage, Hospital, Phone, Mail, Globe, ShieldCheck, FileEdit, ExternalLink, QrCode } from "lucide-react";
+import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
+import {
+  Building2,
+  Save,
+  Loader2,
+  Upload,
+  Image,
+  FileImage,
+  Hospital,
+  ShieldCheck,
+  FileEdit,
+  ExternalLink,
+  QrCode,
+  ArrowLeft
+} from "lucide-react";
 import { settingsApi } from "@/lib/api";
 import { QRCodeSVG } from "qrcode.react";
+import { Badge } from "@/components/ui/badge";
 
 // Get base URL without /api suffix
 const getBaseUrl = () => {
@@ -41,11 +56,11 @@ export default function SettingsPage() {
   const [uploadingFavicon, setUploadingFavicon] = useState(false);
   const [uploadingBpjsLogo, setUploadingBpjsLogo] = useState(false);
   const [fetching, setFetching] = useState(true);
-  
+
   // Digital Signature settings
   const [signaturePinRequired, setSignaturePinRequired] = useState(true);
   const [savingSignature, setSavingSignature] = useState(false);
-  
+
   const logoInputRef = useRef<HTMLInputElement>(null);
   const faviconInputRef = useRef<HTMLInputElement>(null);
   const bpjsLogoInputRef = useRef<HTMLInputElement>(null);
@@ -63,7 +78,6 @@ export default function SettingsPage() {
 
   const loadSettings = async () => {
     try {
-      // Load from API
       const response = await settingsApi.getAll();
       const settings = response.data.data;
 
@@ -87,7 +101,6 @@ export default function SettingsPage() {
       if (settings.bpjs_logo) {
         setBpjsLogo(settings.bpjs_logo);
       }
-      // Hospital info
       if (settings.hospital_name) setHospitalName(settings.hospital_name);
       if (settings.hospital_address) setHospitalAddress(settings.hospital_address);
       if (settings.hospital_city) setHospitalCity(settings.hospital_city);
@@ -95,7 +108,6 @@ export default function SettingsPage() {
       if (settings.hospital_fax) setHospitalFax(settings.hospital_fax);
       if (settings.hospital_email) setHospitalEmail(settings.hospital_email);
       if (settings.hospital_website) setHospitalWebsite(settings.hospital_website);
-      // Digital Signature settings
       if (settings.signature_pin_required !== undefined) {
         setSignaturePinRequired(settings.signature_pin_required === "true" || settings.signature_pin_required === true);
       }
@@ -128,7 +140,7 @@ export default function SettingsPage() {
       setAppLogo(url);
       localStorage.setItem("appLogo", url);
       window.dispatchEvent(new Event("storage"));
-      
+
       toast({
         variant: "success",
         title: "Success!",
@@ -156,7 +168,7 @@ export default function SettingsPage() {
       setAppFavicon(url);
       localStorage.setItem("appFavicon", url);
       updateFavicon(url);
-      
+
       toast({
         variant: "success",
         title: "Success!",
@@ -182,7 +194,7 @@ export default function SettingsPage() {
       const response = await settingsApi.uploadLogo(file, 'bpjs_logo');
       const url = response.data.url;
       setBpjsLogo(url);
-      
+
       toast({
         variant: "success",
         title: "Berhasil!",
@@ -202,17 +214,13 @@ export default function SettingsPage() {
   const handleSaveAppSettings = async () => {
     setLoading(true);
     try {
-      // Save to API
       await settingsApi.update({
         app_name: appName,
         app_subtitle: appSubtitle,
       });
 
-      // Save to localStorage
       localStorage.setItem("appName", appName);
       localStorage.setItem("appSubtitle", appSubtitle);
-
-      // Trigger storage event to update sidebar immediately
       window.dispatchEvent(new Event("storage"));
 
       toast({
@@ -269,12 +277,11 @@ export default function SettingsPage() {
       toast({
         variant: value ? "success" : "default",
         title: value ? "Diaktifkan" : "Dinonaktifkan",
-        description: value 
-          ? "PIN tanda tangan sekarang wajib untuk menandatangani dokumen" 
+        description: value
+          ? "PIN tanda tangan sekarang wajib untuk menandatangani dokumen"
           : "PIN tanda tangan tidak lagi diwajibkan",
       });
     } catch {
-      // Revert on error
       setSignaturePinRequired(!value);
       toast({
         variant: "destructive",
@@ -287,587 +294,312 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="flex flex-1 flex-col px-4 max-w-full">
-      <div className="flex items-center gap-4">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => navigate(-1)}
-          className="h-9 w-9"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
-          <p className="text-sm text-muted-foreground">
-            Manage application preferences
-          </p>
-        </div>
-      </div>
+    <PageShell>
+      <PageHeader
+        title="Pengaturan Sistem"
+        description="Kelola preferensi aplikasi, branding, dan informasi rumah sakit"
+        actions={
+          <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="h-8">
+            <ArrowLeft className="h-3.5 w-3.5 mr-1.5" />
+            Kembali
+          </Button>
+        }
+      />
 
-      <div className="space-y-4 max-w-full">
-        {fetching ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          </div>
-        ) : (
-          <>
-            {/* Application Settings */}
-            <div className="rounded-lg border">
-              <div className="flex items-center gap-2 px-6 py-4">
-                <h3 className="text-sm font-medium">
-                  Application
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                  Customize application name and branding
-                </p>
-              </div>
-              <div className="px-6 pb-6">
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label
-                      htmlFor="appName"
-                      className="text-xs font-medium flex items-center gap-2"
-                    >
-                      <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
-                      Application Name
-                    </Label>
-                    <Input
-                      id="appName"
-                      value={appName}
-                      onChange={(e) => setAppName(e.target.value)}
-                      placeholder="StarterKits"
-                      className="max-w-md"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      This name will appear in the sidebar and page titles
-                    </p>
+      <PageContent className="max-w-full">
+        <div className="space-y-6">
+          {fetching ? (
+            <div className="flex flex-col items-center justify-center py-20">
+              <Loader2 className="h-8 w-8 animate-spin text-primary mb-2" />
+              <p className="text-sm text-muted-foreground font-medium">Memuat pengaturan...</p>
+            </div>
+          ) : (
+            <>
+              {/* Application Settings Card */}
+              <div className=" border bg-card shadow-sm overflow-hidden">
+                <div className="px-6 py-4 border-b bg-muted/30">
+                  <h3 className="text-sm font-semibold flex items-center gap-2">
+                    <Building2 className="h-4 w-4 text-primary" />
+                    Identitas Aplikasi
+                  </h3>
+                </div>
+                <div className="p-6 space-y-5">
+                  <div className="grid gap-5 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="appName" className="text-xs font-medium">Nama Aplikasi</Label>
+                      <Input
+                        id="appName"
+                        value={appName}
+                        onChange={(e) => setAppName(e.target.value)}
+                        placeholder="StarterKits"
+                      />
+                      <p className="text-[10px] text-muted-foreground">Muncul di sidebar dan judul halaman</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="appSubtitle" className="text-xs font-medium">Sub-judul Aplikasi</Label>
+                      <Input
+                        id="appSubtitle"
+                        value={appSubtitle}
+                        onChange={(e) => setAppSubtitle(e.target.value)}
+                        placeholder="Hospital System"
+                      />
+                      <p className="text-[10px] text-muted-foreground">Teks kecil di bawah nama aplikasi</p>
+                    </div>
                   </div>
-
-                  <div className="space-y-2">
-                    <Label
-                      htmlFor="appSubtitle"
-                      className="text-xs font-medium flex items-center gap-2"
-                    >
-                      <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
-                      Application Subtitle
-                    </Label>
-                    <Input
-                      id="appSubtitle"
-                      value={appSubtitle}
-                      onChange={(e) => setAppSubtitle(e.target.value)}
-                      placeholder="Hospital System"
-                      className="max-w-md"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Subtitle text shown below the application name
-                    </p>
-                  </div>
-
                   <Button
                     onClick={handleSaveAppSettings}
-                    className="mt-2"
                     disabled={loading}
+                    size="sm"
+                    className="h-8"
                   >
                     {loading ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Saving...
-                      </>
+                      <><Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" />Menyimpan...</>
                     ) : (
-                      <>
-                        <Save className="h-4 w-4 mr-2" />
-                        Save Changes
-                      </>
+                      <><Save className="h-3.5 w-3.5 mr-2" />Simpan Perubahan</>
                     )}
                   </Button>
                 </div>
               </div>
-            </div>
 
-            {/* Branding Settings */}
-            <div className="rounded-lg border">
-              <div className="flex items-center gap-2 px-6 py-4">
-                <h3 className="text-sm font-medium">
-                  Branding
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                  Upload application logo and favicon
-                </p>
-              </div>
-              <div className="px-6 pb-6">
-                <div className="grid gap-6 md:grid-cols-2">
-                  {/* Logo Upload */}
-                  <div className="space-y-3">
-                    <Label className="text-xs font-medium flex items-center gap-2">
-                      <Image className="h-3.5 w-3.5 text-muted-foreground" />
-                      Application Logo
-                    </Label>
-                    <div className="flex items-center gap-4">
-                      <div className="w-20 h-20 border rounded-lg flex items-center justify-center bg-muted/30 overflow-hidden">
-                        {appLogo ? (
-                          <img 
-                            src={`${BASE_URL}${appLogo}`} 
-                            alt="Logo" 
-                            className="w-full h-full object-contain"
-                          />
-                        ) : (
-                          <Image className="h-8 w-8 text-muted-foreground" />
-                        )}
-                      </div>
-                      <div className="flex-1 space-y-2">
-                        <input
-                          ref={logoInputRef}
-                          type="file"
-                          accept="image/png,image/jpeg,image/jpg,image/svg+xml"
-                          onChange={handleUploadLogo}
-                          className="hidden"
-                        />
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => logoInputRef.current?.click()}
-                          disabled={uploadingLogo}
-                        >
-                          {uploadingLogo ? (
-                            <>
-                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                              Uploading...
-                            </>
+              {/* Branding Settings Card */}
+              <div className=" border bg-card shadow-sm overflow-hidden">
+                <div className="px-6 py-4 border-b bg-muted/30">
+                  <h3 className="text-sm font-semibold flex items-center gap-2">
+                    <Image className="h-4 w-4 text-primary" />
+                    Visual & Branding
+                  </h3>
+                </div>
+                <div className="p-6">
+                  <div className="grid gap-8 md:grid-cols-2">
+                    {/* Logo Upload */}
+                    <div className="space-y-3">
+                      <Label className="text-xs font-medium">Logo Aplikasi</Label>
+                      <div className="flex items-start gap-4">
+                        <div className="w-20 h-20 border rounded-lg flex items-center justify-center bg-muted/20 overflow-hidden shrink-0">
+                          {appLogo ? (
+                            <img src={`${BASE_URL}${appLogo}`} alt="Logo" className="w-full h-full object-contain" />
                           ) : (
-                            <>
-                              <Upload className="h-4 w-4 mr-2" />
-                              Upload Logo
-                            </>
+                            <Image className="h-8 w-8 text-muted-foreground/40" />
                           )}
-                        </Button>
-                        <p className="text-xs text-muted-foreground">
-                          PNG, JPG, or SVG. Max 2MB.
-                        </p>
+                        </div>
+                        <div className="space-y-2 flex-1 min-w-0">
+                          <input ref={logoInputRef} type="file" accept="image/*" onChange={handleUploadLogo} className="hidden" />
+                          <Button variant="outline" size="sm" onClick={() => logoInputRef.current?.click()} disabled={uploadingLogo} className="h-8 w-full justify-start px-3">
+                            {uploadingLogo ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-2" /> : <Upload className="h-3.5 w-3.5 mr-2" />}
+                            Ganti Logo
+                          </Button>
+                          <p className="text-[10px] text-muted-foreground">PNG, JPG, atau SVG. Max 2MB.</p>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Favicon Upload */}
-                  <div className="space-y-3">
-                    <Label className="text-xs font-medium flex items-center gap-2">
-                      <FileImage className="h-3.5 w-3.5 text-muted-foreground" />
-                      Favicon
-                    </Label>
-                    <div className="flex items-center gap-4">
-                      <div className="w-20 h-20 border rounded-lg flex items-center justify-center bg-muted/30 overflow-hidden">
-                        {appFavicon ? (
-                          <img 
-                            src={`${BASE_URL}${appFavicon}`} 
-                            alt="Favicon" 
-                            className="w-full h-full object-contain"
-                          />
-                        ) : (
-                          <FileImage className="h-8 w-8 text-muted-foreground" />
-                        )}
-                      </div>
-                      <div className="flex-1 space-y-2">
-                        <input
-                          ref={faviconInputRef}
-                          type="file"
-                          accept="image/png,image/jpeg,image/jpg,image/x-icon,image/ico"
-                          onChange={handleUploadFavicon}
-                          className="hidden"
-                        />
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => faviconInputRef.current?.click()}
-                          disabled={uploadingFavicon}
-                        >
-                          {uploadingFavicon ? (
-                            <>
-                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                              Uploading...
-                            </>
+                    {/* Favicon Upload */}
+                    <div className="space-y-3">
+                      <Label className="text-xs font-medium">Favicon</Label>
+                      <div className="flex items-start gap-4">
+                        <div className="w-20 h-20 border rounded-lg flex items-center justify-center bg-muted/20 overflow-hidden shrink-0">
+                          {appFavicon ? (
+                            <img src={`${BASE_URL}${appFavicon}`} alt="Favicon" className="w-full h-full object-contain" />
                           ) : (
-                            <>
-                              <Upload className="h-4 w-4 mr-2" />
-                              Upload Favicon
-                            </>
+                            <FileImage className="h-8 w-8 text-muted-foreground/40" />
                           )}
-                        </Button>
-                        <p className="text-xs text-muted-foreground">
-                          ICO, PNG, or JPG. 32x32 or 64x64 recommended.
-                        </p>
+                        </div>
+                        <div className="space-y-2 flex-1 min-w-0">
+                          <input ref={faviconInputRef} type="file" accept="image/*" onChange={handleUploadFavicon} className="hidden" />
+                          <Button variant="outline" size="sm" onClick={() => faviconInputRef.current?.click()} disabled={uploadingFavicon} className="h-8 w-full justify-start px-3">
+                            {uploadingFavicon ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-2" /> : <Upload className="h-3.5 w-3.5 mr-2" />}
+                            Ganti Favicon
+                          </Button>
+                          <p className="text-[10px] text-muted-foreground">ICO, PNG, atau JPG. Disarankan 32x32.</p>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* BPJS Logo Upload */}
-                  <div className="space-y-3 pt-4">
-                    <Label className="text-xs font-medium flex items-center gap-2">
-                      <Image className="h-3.5 w-3.5 text-muted-foreground" />
-                      Logo BPJS
-                    </Label>
-                    <div className="flex items-center gap-4">
-                      <div className="w-20 h-20 border rounded-lg flex items-center justify-center bg-muted/30 overflow-hidden">
-                        {bpjsLogo ? (
-                          <img 
-                            src={`${BASE_URL}${bpjsLogo}`} 
-                            alt="Logo BPJS" 
-                            className="w-full h-full object-contain"
-                          />
-                        ) : (
-                          <Image className="h-8 w-8 text-muted-foreground" />
-                        )}
-                      </div>
-                      <div className="flex-1 space-y-2">
-                        <input
-                          ref={bpjsLogoInputRef}
-                          type="file"
-                          accept="image/png,image/jpeg,image/jpg"
-                          onChange={handleUploadBpjsLogo}
-                          className="hidden"
-                        />
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => bpjsLogoInputRef.current?.click()}
-                          disabled={uploadingBpjsLogo}
-                        >
-                          {uploadingBpjsLogo ? (
-                            <>
-                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                              Mengunggah...
-                            </>
+                    {/* BPJS Logo Upload */}
+                    <div className="space-y-3 md:col-span-2 pt-2 border-t">
+                      <Label className="text-xs font-medium">Logo BPJS (Untuk SEP)</Label>
+                      <div className="flex items-start gap-4">
+                        <div className="w-20 h-14 border rounded-lg flex items-center justify-center bg-muted/20 overflow-hidden shrink-0">
+                          {bpjsLogo ? (
+                            <img src={`${BASE_URL}${bpjsLogo}`} alt="Logo BPJS" className="w-full h-full object-contain" />
                           ) : (
-                            <>
-                              <Upload className="h-4 w-4 mr-2" />
-                              Upload Logo BPJS
-                            </>
+                            <Image className="h-6 w-6 text-muted-foreground/40" />
                           )}
-                        </Button>
-                        <p className="text-xs text-muted-foreground">
-                          Logo BPJS untuk cetakan SEP. PNG atau JPG. Max 2MB.
-                        </p>
+                        </div>
+                        <div className="space-y-2 flex-1 min-w-0">
+                          <input ref={bpjsLogoInputRef} type="file" accept="image/*" onChange={handleUploadBpjsLogo} className="hidden" />
+                          <Button variant="outline" size="sm" onClick={() => bpjsLogoInputRef.current?.click()} disabled={uploadingBpjsLogo} className="h-8 px-3">
+                            {uploadingBpjsLogo ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-2" /> : <Upload className="h-3.5 w-3.5 mr-2" />}
+                            Upload Logo BPJS
+                          </Button>
+                          <p className="text-[10px] text-muted-foreground">Digunakan pada header cetakan SEP BPJS.</p>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
-            {/* Hospital Info Settings (Kop Cetakan) */}
-            <div className="rounded-lg border">
-              <div className="flex items-center gap-2 px-6 py-4">
-                <h3 className="text-sm font-medium flex items-center gap-2">
-                  <Hospital className="h-4 w-4" />
-                  Data Rumah Sakit
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                  Informasi rumah sakit yang akan tampil pada kop cetakan / header dokumen
-                </p>
-              </div>
-              <div className="px-6 pb-6">
-                <div className="space-y-4">
-                  {/* Preview Kop - A4 Paper (scaled 60%) */}
-                  <div className="flex justify-center bg-muted/30 rounded-lg py-4 px-2 overflow-auto">
-                    <div
-                      className="bg-white shadow-lg border origin-top"
-                      style={{
-                        width: "210mm",
-                        minHeight: "297mm",
-                        padding: "10mm 12mm",
-                        fontFamily: "Arial, Helvetica, sans-serif",
-                        transform: "scale(0.6)",
-                        transformOrigin: "top center",
-                        marginBottom: "-118mm",
-                      }}
-                    >
-                      {/* Kop Surat */}
-                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                        {appLogo && (
-                          <div style={{ width: "56px", height: "56px", flexShrink: 0 }}>
-                            <img
-                              src={`${BASE_URL}${appLogo}`}
-                              alt="Logo"
-                              style={{ width: "100%", height: "100%", objectFit: "contain" }}
-                            />
-                          </div>
-                        )}
-                        <div style={{ flex: 1, textAlign: "center" }}>
-                          <div style={{ fontSize: "16px", fontWeight: "bold", textTransform: "uppercase", letterSpacing: "0.5px", color: "#000" }}>
-                            {hospitalName || "Nama Rumah Sakit"}
-                          </div>
-                          <div style={{ fontSize: "9px", color: "#444", marginTop: "1px" }}>
-                            {hospitalAddress || "Jl. Contoh No. 123"}{hospitalCity ? `, ${hospitalCity}` : ""}
-                          </div>
-                          <div style={{ fontSize: "8px", color: "#555" }}>
-                            {[
-                              hospitalPhone ? `Telp: ${hospitalPhone}` : "",
-                              hospitalFax ? `Fax: ${hospitalFax}` : "",
-                              hospitalEmail || "",
-                            ].filter(Boolean).join("  |  ")}
-                          </div>
-                          {(hospitalWebsite || "www.rscontoh.co.id") && (
-                            <div style={{ fontSize: "8px", color: "#555" }}>
-                              {hospitalWebsite || "www.rscontoh.co.id"}
+
+              {/* Hospital Info Card */}
+              <div className=" border bg-card shadow-sm overflow-hidden">
+                <div className="px-6 py-4 border-b bg-muted/30">
+                  <h3 className="text-sm font-semibold flex items-center gap-2">
+                    <Hospital className="h-4 w-4 text-primary" />
+                    Profil Rumah Sakit & Kop Cetakan
+                  </h3>
+                </div>
+                <div className="p-6 space-y-6">
+                  {/* Kop Preview Box */}
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Preview Header Dokumen</Label>
+                    <div className="bg-muted/30  p-4 border border-dashed flex justify-center overflow-hidden">
+                      <div className="bg-white shadow-md border w-full max-w-[600px] p-6 origin-top" style={{ transform: "scale(0.85)", transformOrigin: "top", marginBottom: "-40px" }}>
+                        <div className="flex items-center gap-3">
+                          {appLogo && (
+                            <div className="w-14 h-14 shrink-0">
+                              <img src={`${BASE_URL}${appLogo}`} alt="Logo" className="w-full h-full object-contain" />
                             </div>
                           )}
+                          <div className="flex-1 text-center">
+                            <div className="text-base font-bold uppercase tracking-wide text-black leading-tight">
+                              {hospitalName || "NAMA RUMAH SAKIT"}
+                            </div>
+                            <div className="text-[9px] text-gray-700 mt-0.5">
+                              {hospitalAddress || "Alamat Rumah Sakit No. 123"}{hospitalCity ? `, ${hospitalCity}` : ""}
+                            </div>
+                            <div className="text-[8px] text-gray-600">
+                              {[hospitalPhone && `Telp: ${hospitalPhone}`, hospitalFax && `Fax: ${hospitalFax}`, hospitalEmail].filter(Boolean).join(" | ")}
+                            </div>
+                            {hospitalWebsite && <div className="text-[8px] text-gray-600">{hospitalWebsite}</div>}
+                          </div>
+                          {appLogo && <div className="w-14 shrink-0" />}
                         </div>
-                        {appLogo && <div style={{ width: "56px", flexShrink: 0 }} />}
-                      </div>
-                      <div style={{ marginTop: "4px", borderTop: "3px double #000" }} />
-
-                      {/* Placeholder document content */}
-                      <div style={{ textAlign: "center", marginTop: "10px" }}>
-                        <div style={{ fontSize: "13px", fontWeight: "bold", textTransform: "uppercase", textDecoration: "underline" }}>
-                          Judul Dokumen
-                        </div>
-                        <div style={{ fontSize: "10px", color: "#444", marginTop: "1px" }}>
-                          No. Dokumen: XXX/XX/2026
-                        </div>
-                      </div>
-
-                      <div style={{ marginTop: "14px" }}>
-                        {[...Array(10)].map((_, i) => (
-                          <div key={i} style={{ height: "1px", background: "#e5e5e5", margin: "8px 0" }} />
-                        ))}
-                      </div>
-
-                      {/* Placeholder signature */}
-                      <div style={{ display: "flex", justifyContent: "space-between", marginTop: "40px" }}>
-                        <div style={{ textAlign: "center", width: "160px" }}>
-                          <div style={{ fontSize: "9px", color: "#999" }}>Mengetahui,</div>
-                          <div style={{ borderBottom: "1px solid #ccc", marginTop: "40px", marginBottom: "3px" }} />
-                          <div style={{ fontSize: "9px", color: "#999" }}>NIP. _______________</div>
-                        </div>
-                        <div style={{ textAlign: "center", width: "160px" }}>
-                          <div style={{ fontSize: "9px", color: "#999" }}>Penanggung Jawab,</div>
-                          <div style={{ borderBottom: "1px solid #ccc", marginTop: "40px", marginBottom: "3px" }} />
-                          <div style={{ fontSize: "9px", color: "#999" }}>NIP. _______________</div>
+                        <div className="mt-2 border-t-2 border-double border-black" />
+                        <div className="mt-2 text-center">
+                          <div className="text-[11px] font-bold underline uppercase">Judul Dokumen</div>
+                          <div className="text-[9px] text-gray-500 mt-0.5">No. Dokumen: 000/XXX/2026</div>
                         </div>
                       </div>
                     </div>
                   </div>
-                  <p className="text-xs text-muted-foreground text-center italic">Preview kop cetakan (skala kertas A4)</p>
 
                   <Separator />
 
-                  {/* Form Fields */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2 md:col-span-2">
-                      <Label htmlFor="hospitalName" className="text-xs font-medium flex items-center gap-2">
-                        <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
-                        Nama Rumah Sakit
-                      </Label>
-                      <Input
-                        id="hospitalName"
-                        value={hospitalName}
-                        onChange={(e) => setHospitalName(e.target.value)}
-                        placeholder="RS Contoh Sejahtera"
-                      />
+                  <div className="grid gap-5 md:grid-cols-2">
+                    <div className="md:col-span-2 space-y-2">
+                      <Label htmlFor="h-name" className="text-xs font-medium">Nama Rumah Sakit</Label>
+                      <Input id="h-name" value={hospitalName} onChange={(e) => setHospitalName(e.target.value)} placeholder="RS Contoh Sejahtera" />
                     </div>
-
+                    <div className="md:col-span-2 space-y-2">
+                      <Label htmlFor="h-address" className="text-xs font-medium">Alamat</Label>
+                      <Input id="h-address" value={hospitalAddress} onChange={(e) => setHospitalAddress(e.target.value)} placeholder="Jl. Raya No. 123" />
+                    </div>
                     <div className="space-y-2">
-                      <Label htmlFor="hospitalPhone" className="text-xs font-medium flex items-center gap-2">
-                        <Phone className="h-3.5 w-3.5 text-muted-foreground" />
-                        Telepon
-                      </Label>
-                      <Input
-                        id="hospitalPhone"
-                        value={hospitalPhone}
-                        onChange={(e) => setHospitalPhone(e.target.value)}
-                        placeholder="(021) 1234567"
-                      />
+                      <Label htmlFor="h-city" className="text-xs font-medium">Kota / Kode Pos</Label>
+                      <Input id="h-city" value={hospitalCity} onChange={(e) => setHospitalCity(e.target.value)} placeholder="Kota, Provinsi, 12345" />
                     </div>
-
-                    <div className="space-y-2 md:col-span-2">
-                      <Label htmlFor="hospitalAddress" className="text-xs font-medium">
-                        Alamat
-                      </Label>
-                      <Input
-                        id="hospitalAddress"
-                        value={hospitalAddress}
-                        onChange={(e) => setHospitalAddress(e.target.value)}
-                        placeholder="Jl. Kesehatan No. 123"
-                      />
-                    </div>
-
                     <div className="space-y-2">
-                      <Label htmlFor="hospitalCity" className="text-xs font-medium">
-                        Kota / Kode Pos
-                      </Label>
-                      <Input
-                        id="hospitalCity"
-                        value={hospitalCity}
-                        onChange={(e) => setHospitalCity(e.target.value)}
-                        placeholder="Kota Contoh, Jawa Tengah 12345"
-                      />
+                      <Label htmlFor="h-phone" className="text-xs font-medium">Telepon</Label>
+                      <Input id="h-phone" value={hospitalPhone} onChange={(e) => setHospitalPhone(e.target.value)} placeholder="(021) 1234567" />
                     </div>
-
                     <div className="space-y-2">
-                      <Label htmlFor="hospitalFax" className="text-xs font-medium">
-                        Fax
-                      </Label>
-                      <Input
-                        id="hospitalFax"
-                        value={hospitalFax}
-                        onChange={(e) => setHospitalFax(e.target.value)}
-                        placeholder="(021) 1234568"
-                      />
+                      <Label htmlFor="h-email" className="text-xs font-medium">Email</Label>
+                      <Input id="h-email" value={hospitalEmail} onChange={(e) => setHospitalEmail(e.target.value)} placeholder="info@rs.co.id" />
                     </div>
-
                     <div className="space-y-2">
-                      <Label htmlFor="hospitalEmail" className="text-xs font-medium flex items-center gap-2">
-                        <Mail className="h-3.5 w-3.5 text-muted-foreground" />
-                        Email
-                      </Label>
-                      <Input
-                        id="hospitalEmail"
-                        value={hospitalEmail}
-                        onChange={(e) => setHospitalEmail(e.target.value)}
-                        placeholder="info@rscontoh.co.id"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="hospitalWebsite" className="text-xs font-medium flex items-center gap-2">
-                        <Globe className="h-3.5 w-3.5 text-muted-foreground" />
-                        Website
-                      </Label>
-                      <Input
-                        id="hospitalWebsite"
-                        value={hospitalWebsite}
-                        onChange={(e) => setHospitalWebsite(e.target.value)}
-                        placeholder="www.rscontoh.co.id"
-                      />
+                      <Label htmlFor="h-web" className="text-xs font-medium">Website</Label>
+                      <Input id="h-web" value={hospitalWebsite} onChange={(e) => setHospitalWebsite(e.target.value)} placeholder="www.rs.co.id" />
                     </div>
                   </div>
 
-                  <Button
-                    onClick={handleSaveHospitalSettings}
-                    disabled={savingHospital}
-                  >
-                    {savingHospital ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Menyimpan...
-                      </>
-                    ) : (
-                      <>
-                        <Save className="h-4 w-4 mr-2" />
-                        Simpan Data Rumah Sakit
-                      </>
-                    )}
+                  <Button onClick={handleSaveHospitalSettings} disabled={savingHospital} size="sm" className="h-8 px-6">
+                    {savingHospital ? <Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" /> : <Save className="h-3.5 w-3.5 mr-2" />}
+                    Simpan Data Rumah Sakit
                   </Button>
                 </div>
               </div>
-            </div>
 
-            {/* Digital Signature Settings */}
-            <div className="rounded-lg border">
-              <div className="flex items-center gap-2 px-6 py-4">
-                <h3 className="text-sm font-medium">
-                  Tanda Tangan Digital
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                  Pengaturan tanda tangan digital dan audit log
-                </p>
-              </div>
-              <div className="px-6 pb-6">
-                <div className="space-y-6">
-                  {/* PIN Required Toggle */}
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <div className="flex items-center gap-2">
-                        <ShieldCheck className="h-4 w-4 text-muted-foreground" />
-                        <Label className="text-sm font-medium">Wajib PIN Tanda Tangan</Label>
-                        {signaturePinRequired ? (
-                          <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
-                            Aktif
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
-                            Nonaktif
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        Jika diaktifkan, user harus memasukkan PIN 6 digit untuk menandatangani dokumen
-                      </p>
+              {/* Security & Features Card */}
+              <div className=" border bg-card shadow-sm overflow-hidden">
+                <div className="px-6 py-4 border-b bg-muted/30">
+                  <h3 className="text-sm font-semibold flex items-center gap-2">
+                    <ShieldCheck className="h-4 w-4 text-primary" />
+                    Keamanan & Tanda Tangan Digital
+                  </h3>
+                </div>
+                <div className="p-6 space-y-8">
+                  {/* Signature Toggle */}
+                  <div className="flex items-start justify-between">
+                    <div className="space-y-1">
+                      <Label className="text-sm font-medium flex items-center gap-2">
+                        Wajib PIN Tanda Tangan
+                        <Badge variant={signaturePinRequired ? "default" : "secondary"} className="h-4 text-[9px] px-1.5 uppercase tracking-wider">
+                          {signaturePinRequired ? "Aktif" : "Off"}
+                        </Badge>
+                      </Label>
+                      <p className="text-xs text-muted-foreground leading-relaxed">User wajib memasukkan 6 digit PIN untuk menandatangani dokumen secara digital.</p>
                     </div>
-                    <Switch
-                      checked={signaturePinRequired}
-                      onCheckedChange={handleSaveSignatureSettings}
-                      disabled={savingSignature}
-                    />
+                    <Switch checked={signaturePinRequired} onCheckedChange={handleSaveSignatureSettings} disabled={savingSignature} />
                   </div>
 
                   <Separator />
 
-                  {/* QR Code Preview with Logo */}
-                  <div className="space-y-3">
-                    <div className="space-y-0.5">
-                      <div className="flex items-center gap-2">
-                        <QrCode className="h-4 w-4 text-muted-foreground" />
-                        <Label className="text-sm font-medium">QR Code Verifikasi</Label>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        QR code ini akan muncul pada cetakan dokumen yang sudah ditandatangani digital. Logo rumah sakit otomatis ditampilkan di tengah QR code.
-                      </p>
+                  {/* QR Preview */}
+                  <div className="flex flex-col md:flex-row items-center gap-8">
+                    <div className="shrink-0 bg-white p-3  border-2 border-primary/10 shadow-sm">
+                      <QRCodeSVG
+                        value={`${window.location.origin}/verify/example-hash`}
+                        size={110}
+                        level="M"
+                        imageSettings={appLogo ? {
+                          src: `${BASE_URL}${appLogo}`,
+                          height: 22,
+                          width: 22,
+                          excavate: true,
+                        } : undefined}
+                      />
                     </div>
-                    <div className="flex items-center gap-6">
-                      <div className="border rounded-lg p-3 bg-white">
-                        <QRCodeSVG
-                          value={`${window.location.origin}/verify/example-hash`}
-                          size={120}
-                          level="M"
-                          imageSettings={appLogo ? {
-                            src: `${BASE_URL}${appLogo}`,
-                            height: 24,
-                            width: 24,
-                            excavate: true,
-                          } : undefined}
-                        />
+                    <div className="space-y-3 flex-1 min-w-0">
+                      <div className="flex items-center gap-2 text-sm font-medium">
+                        <QrCode className="h-4 w-4 text-primary" />
+                        Preview QR Verifikasi
                       </div>
-                      <div className="space-y-1.5 text-xs text-muted-foreground">
-                        <p>Preview QR code pada cetakan PDF:</p>
-                        <ul className="list-disc list-inside space-y-0.5">
-                          <li>Logo RS otomatis diambil dari Application Logo</li>
-                          <li>QR mengarah ke halaman verifikasi tanda tangan</li>
-                          <li>Tampil hanya pada dokumen yang sudah ditandatangani</li>
-                        </ul>
-                        {!appLogo && (
-                          <p className="text-amber-600 font-medium mt-2">
-                            Upload logo aplikasi terlebih dahulu untuk menampilkan logo di QR code
-                          </p>
-                        )}
-                      </div>
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        QR code verifikasi akan muncul otomatis pada dokumen yang sudah ditandatangani. Logo RS akan disematkan di tengah QR code.
+                      </p>
+                      <ul className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px] text-muted-foreground">
+                        <li className="flex items-center gap-2"><div className="w-1 h-1 rounded-full bg-primary" />Logo dari Identitas Aplikasi</li>
+                        <li className="flex items-center gap-2"><div className="w-1 h-1 rounded-full bg-primary" />Level redundansi medium (M)</li>
+                        <li className="flex items-center gap-2"><div className="w-1 h-1 rounded-full bg-primary" />Link ke halaman verifikasi</li>
+                        <li className="flex items-center gap-2"><div className="w-1 h-1 rounded-full bg-primary" />Excavate logo mode</li>
+                      </ul>
                     </div>
                   </div>
 
                   <Separator />
 
-                  {/* Links */}
-                  <div className="space-y-3">
-                    <Link 
-                      to="/settings/audit-log"
-                      className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors"
-                    >
-                      <div className="flex items-center gap-3">
-                        <FileEdit className="h-5 w-5 text-muted-foreground" />
-                        <div>
-                          <p className="text-sm font-medium">Audit Log</p>
-                          <p className="text-xs text-muted-foreground">
-                            Pantau aktivitas tanda tangan dan perubahan rekam medis
-                          </p>
-                        </div>
+                  {/* Links/Audit Log */}
+                  <Link
+                    to="/settings/audit-log"
+                    className="flex items-center justify-between p-4  border bg-muted/20 hover:bg-muted/40 transition-all group"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                        <FileEdit className="h-5 w-5 text-primary" />
                       </div>
-                      <ExternalLink className="h-4 w-4 text-muted-foreground" />
-                    </Link>
-                  </div>
+                      <div>
+                        <p className="text-sm font-semibold">Audit Log Aktivitas</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">Pantau riwayat tanda tangan digital dan perubahan dokumen rekam medis.</p>
+                      </div>
+                    </div>
+                    <ExternalLink className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                  </Link>
                 </div>
               </div>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
+            </>
+          )}
+        </div>
+      </PageContent>
+    </PageShell>
   );
 }

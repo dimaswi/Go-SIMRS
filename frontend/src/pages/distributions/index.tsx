@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Loader2, Plus } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Loader2, Plus } from "lucide-react";import { PageShell, PageHeader, PageContent } from '@/components/layout/page-shell';import { Button } from "@/components/ui/button";
 
 import { DataTable } from "@/components/ui/data-table";
 import { useToast } from "@/hooks/use-toast";
@@ -86,26 +85,29 @@ export default function DistributionsIndex() {
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold">Distribusi Stok</h1>
-          <p className="text-sm text-muted-foreground">Kelola distribusi barang dan obat antar ruangan</p>
-        </div>
-        {hasPermission("distributions.create") && (
-          <Button onClick={() => navigate("/distributions/create")} size="sm">
-            <Plus className="mr-2 h-4 w-4" />
-            Buat Distribusi
-          </Button>
-        )}
-      </div>
-      <DataTable
-        columns={columns}
-        data={distributions}
-        searchPlaceholder="Cari nomor distribusi..."
-        pageSize={10}
-        tableId="distributions"
+    <PageShell>
+      <PageHeader
+        title="Distribusi Stok"
+        description="Kelola distribusi barang dan obat antar ruangan"
+        count={distributions.length}
+        actions={
+          hasPermission("distributions.create") ? (
+            <Button onClick={() => navigate("/distributions/create")} size="sm">
+              <Plus className="h-4 w-4" />
+              Buat Distribusi
+            </Button>
+          ) : undefined
+        }
       />
-    </div>
+      <PageContent>
+        <DataTable
+          columns={columns}
+          data={distributions}
+          searchPlaceholder="Cari nomor distribusi..."
+          pageSize={10}
+          tableId="distributions"
+        />
+      </PageContent>
+    </PageShell>
   );
 }

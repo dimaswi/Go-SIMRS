@@ -1,3 +1,4 @@
+import { PageShell, PageHeader, PageToolbar, PageContent } from "@/components/layout/page-shell";
 import { useEffect, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,20 +20,13 @@ import { setPageTitle } from "@/lib/page-title";
 import {
   Loader2,
   RefreshCcw,
-  SlidersHorizontal,
   Monitor,
   Tv,
   ExternalLink,
   DoorOpen,
   DoorClosed,
   ScreenShare,
-  Volume2,
 } from "lucide-react";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
@@ -45,7 +39,6 @@ export default function QueueIndex() {
   const [counters, setCounters] = useState<Counter[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingCounters, setLoadingCounters] = useState(true);
-  const [filterOpen, setFilterOpen] = useState(false);
   const [selectedCounter, setSelectedCounter] = useState<string>("all");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
   const [selectedDate, setSelectedDate] = useState<string>(""); // Empty = show all data
@@ -252,186 +245,148 @@ export default function QueueIndex() {
     hasRegisterPermission: hasPermission("registrations.create"),
   });
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <Collapsible open={filterOpen} onOpenChange={setFilterOpen}>
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-semibold">Antrean Pasien</h1>
-            <p className="text-sm text-muted-foreground">
-              Kelola antrean pasien untuk pendaftaran -{" "}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            {/* Quick Access Buttons */}
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-9"
-              onClick={() => window.open("/kiosk", "_blank")}
-            >
-              <Monitor className="h-4 w-4 mr-2" />
+    <PageShell>
+      <PageHeader
+        title="Antrean Pasien"
+        description="Kelola antrean pasien untuk pendaftaran"
+        count={queues.length}
+        actions={
+          <div className="flex items-center gap-1.5">
+            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => window.open("/kiosk", "_blank")}>
+              <Monitor className="mr-1 h-3.5 w-3.5" />
               KIOSK
-              <ExternalLink className="h-3 w-3 ml-1 text-muted-foreground" />
+              <ExternalLink className="ml-1 h-3 w-3 text-muted-foreground" />
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-9"
-              onClick={() => window.open("/queue-display", "_blank")}
-            >
-              <Tv className="h-4 w-4 mr-2" />
+            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => window.open("/queue-display", "_blank")}>
+              <Tv className="mr-1 h-3.5 w-3.5" />
               Display
-              <ExternalLink className="h-3 w-3 ml-1 text-muted-foreground" />
+              <ExternalLink className="ml-1 h-3 w-3 text-muted-foreground" />
             </Button>
             <Button
-              variant={counterPanelOpen ? "default" : "outline"}
-              size="sm"
-              className="h-9"
-              onClick={() => setCounterPanelOpen(!counterPanelOpen)}
+              variant={counterPanelOpen ? "secondary" : "outline"}
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setCounterPanelOpen((value) => !value)}
+              title="Panel Loket"
             >
-              {counterPanelOpen ? <DoorOpen className="h-4 w-4 mr-2" /> : <DoorClosed className="h-4 w-4 mr-2" />}
-              Buka/Tutup Loket
+              {counterPanelOpen ? <DoorOpen className="h-4 w-4" /> : <DoorClosed className="h-4 w-4" />}
             </Button>
             <Button
-              variant={displayPanelOpen ? "default" : "outline"}
-              size="sm"
-              className="h-9"
-              onClick={() => setDisplayPanelOpen(!displayPanelOpen)}
+              variant={displayPanelOpen ? "secondary" : "outline"}
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setDisplayPanelOpen((value) => !value)}
+              title="Panel Display"
             >
-              <ScreenShare className="h-4 w-4 mr-2" />
-              Display Antrean
+              <ScreenShare className="h-4 w-4" />
             </Button>
-            <CollapsibleTrigger asChild>
-              <Button variant="outline" size="sm" className="h-9">
-                <SlidersHorizontal className="h-4 w-4 mr-2" />
-                Filter
-              </Button>
-            </CollapsibleTrigger>
-          </div>
-        </div>
-        <CollapsibleContent>
-          <div className="flex items-center gap-2 flex-wrap pt-4">
-            <Input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="h-9 w-48"
-            />
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setSelectedDate("")}
-              className="h-9"
-            >
-              Semua Data
-            </Button>
-            <Select
-              value={selectedCounter}
-              onValueChange={setSelectedCounter}
-            >
-              <SelectTrigger className="h-9 w-[150px]">
-                <SelectValue placeholder="Pilih Loket" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Semua Loket</SelectItem>
-                {loadingCounters ? (
-                  <SelectItem value="loading" disabled>
-                    <Loader2 className="h-3 w-3 animate-spin mr-2 inline" />
-                    Memuat...
-                  </SelectItem>
-                ) : (
-                  counters.map((counter) => (
-                    <SelectItem
-                      key={counter.id}
-                      value={counter.id.toString()}
-                    >
-                      {counter.name}
-                    </SelectItem>
-                  ))
-                )}
-              </SelectContent>
-            </Select>
-            <Select
-              value={selectedStatus}
-              onValueChange={setSelectedStatus}
-            >
-              <SelectTrigger className="h-9 w-[150px]">
-                <SelectValue placeholder="Semua Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Semua Status</SelectItem>
-                <SelectItem value="waiting">Menunggu</SelectItem>
-                <SelectItem value="called">Dipanggil</SelectItem>
-                <SelectItem value="serving">Dilayani</SelectItem>
-                <SelectItem value="completed">Selesai</SelectItem>
-                <SelectItem value="skipped">Dilewati</SelectItem>
-                <SelectItem value="cancelled">Dibatalkan</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button variant="outline" size="icon" className="h-9 w-9" onClick={loadData}>
-              <RefreshCcw className="h-4 w-4" />
+            <Button variant="outline" size="icon" className="h-8 w-8" onClick={loadData} title="Refresh">
+              <RefreshCcw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             </Button>
           </div>
-        </CollapsibleContent>
-      </Collapsible>
+        }
+      />
 
-      {/* Counter Open/Close Panel */}
+      <PageToolbar className="gap-2 py-2">
+        <Input
+          type="date"
+          value={selectedDate}
+          onChange={(event) => setSelectedDate(event.target.value)}
+          className="h-8 w-36 text-xs"
+        />
+        <Select value={selectedCounter} onValueChange={setSelectedCounter}>
+          <SelectTrigger className="h-8 w-[150px] text-xs">
+            <SelectValue placeholder="Semua Loket" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Semua Loket</SelectItem>
+            {loadingCounters ? (
+              <SelectItem value="loading" disabled>
+                Memuat...
+              </SelectItem>
+            ) : (
+              counters.map((counter) => (
+                <SelectItem key={counter.id} value={counter.id.toString()}>
+                  {counter.name}
+                </SelectItem>
+              ))
+            )}
+          </SelectContent>
+        </Select>
+        <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+          <SelectTrigger className="h-8 w-[150px] text-xs">
+            <SelectValue placeholder="Semua Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Semua Status</SelectItem>
+            <SelectItem value="waiting">Menunggu</SelectItem>
+            <SelectItem value="called">Dipanggil</SelectItem>
+            <SelectItem value="serving">Dilayani</SelectItem>
+            <SelectItem value="completed">Selesai</SelectItem>
+            <SelectItem value="skipped">Dilewati</SelectItem>
+            <SelectItem value="cancelled">Dibatalkan</SelectItem>
+          </SelectContent>
+        </Select>
+        {(selectedDate || selectedCounter !== "all" || selectedStatus !== "all") && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 px-2 text-xs"
+            onClick={() => {
+              setSelectedDate("");
+              setSelectedCounter("all");
+              setSelectedStatus("all");
+            }}
+          >
+            Reset
+          </Button>
+        )}
+      </PageToolbar>
+
       {counterPanelOpen && (
-        <div className="border rounded-lg p-4 bg-muted/30">
-          <div className="flex items-center justify-between mb-3">
+        <div className="border-b border-border px-6 py-3">
+          <div className="mb-2 flex items-center justify-between">
             <div>
-              <h3 className="font-semibold text-sm">Status Buka/Tutup Loket</h3>
-              <p className="text-xs text-muted-foreground">
-                Loket yang dibuka akan tampil di KIOSK untuk pasien mengambil nomor antrean
-              </p>
+              <h3 className="text-sm font-semibold">Status Loket</h3>
+              <p className="text-xs text-muted-foreground">Buka atau tutup loket aktif.</p>
             </div>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={handleOpenAll}>
-                <DoorOpen className="h-3 w-3 mr-1" />
+            <div className="flex items-center gap-1.5">
+              <Button variant="outline" size="sm" className="h-8 text-xs" onClick={handleOpenAll}>
+                <DoorOpen className="mr-1 h-3 w-3" />
                 Buka Semua
               </Button>
-              <Button variant="outline" size="sm" onClick={handleCloseAll}>
-                <DoorClosed className="h-3 w-3 mr-1" />
+              <Button variant="outline" size="sm" className="h-8 text-xs" onClick={handleCloseAll}>
+                <DoorClosed className="mr-1 h-3 w-3" />
                 Tutup Semua
               </Button>
             </div>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
             {loadingCounters ? (
-              <div className="col-span-full flex items-center justify-center py-4">
-                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                <span className="ml-2 text-sm text-muted-foreground">Memuat loket...</span>
+              <div className="col-span-full flex items-center justify-center py-4 text-sm text-muted-foreground">
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Memuat loket...
               </div>
             ) : counters.length === 0 ? (
-              <div className="col-span-full text-center py-4 text-sm text-muted-foreground">
+              <div className="col-span-full py-4 text-center text-sm text-muted-foreground">
                 Tidak ada loket aktif
               </div>
             ) : (
               counters.map((counter) => (
                 <div
                   key={counter.id}
-                  className={`flex items-center justify-between border rounded-md p-3 transition-colors ${counter.is_open
-                      ? "bg-green-50 border-green-200 dark:bg-green-950/20 dark:border-green-800"
-                      : "bg-background border-border"
-                    }`}
+                  className={
+                    counter.is_open
+                      ? "flex items-center justify-between rounded-md border border-green-200 bg-green-50 p-3"
+                      : "flex items-center justify-between rounded-md border border-border bg-background p-3"
+                  }
                 >
-                  <div className="flex-1 min-w-0 mr-2">
-                    <div className="font-medium text-sm truncate">{counter.name}</div>
+                  <div className="mr-2 min-w-0 flex-1">
+                    <div className="truncate text-sm font-medium">{counter.name}</div>
                     <Badge
                       variant={counter.is_open ? "default" : "secondary"}
-                      className={`text-[10px] px-1.5 py-0 ${counter.is_open
-                          ? "bg-green-600 hover:bg-green-600"
-                          : ""
-                        }`}
+                      className={counter.is_open ? "mt-1 bg-green-600 text-[10px] hover:bg-green-600" : "mt-1 text-[10px]"}
                     >
                       {counter.is_open ? "Buka" : "Tutup"}
                     </Badge>
@@ -448,62 +403,47 @@ export default function QueueIndex() {
         </div>
       )}
 
-      {/* Display Switcher Panel */}
       {displayPanelOpen && (
-        <div className="border rounded-lg p-4 bg-muted/30">
-          <div className="flex items-center justify-between mb-3">
+        <div className="border-b border-border px-6 py-3">
+          <div className="mb-3 flex items-center justify-between">
             <div>
-              <h3 className="font-semibold text-sm">Display Antrean</h3>
-              <p className="text-xs text-muted-foreground">
-                Buka display untuk ditampilkan di layar TV / monitor
-              </p>
+              <h3 className="text-sm font-semibold">Display Antrean</h3>
+              <p className="text-xs text-muted-foreground">Buka display utama atau per loket.</p>
             </div>
-            <Button variant="outline" size="sm" onClick={() => window.open("/queue-display", "_blank")}>
-              <Tv className="h-3 w-3 mr-1" />
+            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => window.open("/queue-display", "_blank")}>
+              <Tv className="mr-1 h-3 w-3" />
               Pengaturan Lengkap
-              <ExternalLink className="h-3 w-3 ml-1 text-muted-foreground" />
+              <ExternalLink className="ml-1 h-3 w-3 text-muted-foreground" />
             </Button>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {/* Main Display */}
-            <div className="border rounded-md p-3 bg-background">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded bg-gray-900 flex items-center justify-center">
-                    <Tv className="h-4 w-4 text-white" />
-                  </div>
-                  <div>
-                    <div className="font-medium text-sm">Display Utama (Lobby)</div>
-                    <div className="text-xs text-muted-foreground">Menampilkan semua ruangan &amp; loket</div>
-                  </div>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div className="rounded-md border border-border bg-background p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-medium">Display Utama</div>
+                  <div className="text-xs text-muted-foreground">Menampilkan seluruh ruangan dan loket.</div>
                 </div>
-                <Button size="sm" variant="outline" onClick={() => {
-                  localStorage.setItem("queueDisplay_selectedRooms", JSON.stringify([]));
-                  localStorage.setItem("queueDisplay_selectedCounters", JSON.stringify([]));
-                  window.open("/queue-display/main", "_blank");
-                }}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-xs"
+                  onClick={() => {
+                    localStorage.setItem("queueDisplay_selectedRooms", JSON.stringify([]));
+                    localStorage.setItem("queueDisplay_selectedCounters", JSON.stringify([]));
+                    window.open("/queue-display/main", "_blank");
+                  }}
+                >
                   Buka
-                  <ExternalLink className="h-3 w-3 ml-1" />
                 </Button>
               </div>
             </div>
-
-            {/* Per-Counter Display */}
-            <div className="border rounded-md p-3 bg-background">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-8 h-8 rounded bg-emerald-600 flex items-center justify-center">
-                  <Volume2 className="h-4 w-4 text-white" />
-                </div>
-                <div>
-                  <div className="font-medium text-sm">Display Per Loket</div>
-                  <div className="text-xs text-muted-foreground">Dengan suara pengumuman</div>
-                </div>
-              </div>
+            <div className="rounded-md border border-border bg-background p-3">
+              <div className="mb-2 text-sm font-medium">Display Per Loket</div>
               <div className="flex flex-wrap gap-1.5">
                 {loadingCounters ? (
-                  <div className="flex items-center py-1">
-                    <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
-                    <span className="ml-1 text-xs text-muted-foreground">Memuat...</span>
+                  <div className="flex items-center py-1 text-xs text-muted-foreground">
+                    <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                    Memuat...
                   </div>
                 ) : counters.length === 0 ? (
                   <span className="text-xs text-muted-foreground">Tidak ada loket</span>
@@ -513,11 +453,11 @@ export default function QueueIndex() {
                       key={counter.id}
                       variant="outline"
                       size="sm"
-                      className="h-7 text-xs px-2"
+                      className="h-7 px-2 text-xs"
                       onClick={() => window.open(`/queue-display/counter/${counter.id}`, "_blank")}
                     >
                       {counter.code}
-                      <ExternalLink className="h-2.5 w-2.5 ml-1" />
+                      <ExternalLink className="ml-1 h-2.5 w-2.5" />
                     </Button>
                   ))
                 )}
@@ -527,13 +467,21 @@ export default function QueueIndex() {
         </div>
       )}
 
-      <DataTable
-        columns={columns}
-        data={queues}
-        searchPlaceholder="Cari nomor antrean atau nama pasien..."
-        pageSize={10}
-        tableId="queues"
-      />
+      <PageContent>
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        ) : (
+          <DataTable
+            columns={columns}
+            data={queues}
+            searchPlaceholder="Cari nomor antrean atau nama pasien..."
+            pageSize={10}
+            tableId="queues"
+          />
+        )}
+      </PageContent>
 
       <ConfirmDialog
         open={skipId !== null}
@@ -566,6 +514,6 @@ export default function QueueIndex() {
           loadData();
         }}
       />
-    </div>
+    </PageShell>
   );
 }

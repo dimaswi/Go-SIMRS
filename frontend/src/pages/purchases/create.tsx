@@ -1,6 +1,6 @@
-﻿import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Plus, ShoppingCart } from "lucide-react";
+import { Plus, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -236,42 +236,30 @@ export default function PurchaseCreate() {
 
   return (
     <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center gap-4">
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          onClick={() => window.history.back()}
-          className="h-9 w-9"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div>
-          <h1 className="text-lg font-semibold">Buat Pembelian</h1>
-          <p className="text-sm text-muted-foreground">Buat order pembelian baru ke supplier</p>
-        </div>
-      </div>
-      <div className="rounded-lg border p-6 space-y-6">
-          {/* Supplier Selection */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-4">
-              <span className="text-sm font-medium">Pilih Supplier</span>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setUseManualSupplier(!useManualSupplier);
-                  if (!useManualSupplier) {
-                    setFormData({ ...formData, supplier_id: 0 });
-                  } else {
-                    setFormData({ ...formData, supplier_name: "", supplier_contact: "" });
-                  }
-                }}
-              >
-                {useManualSupplier ? "Pilih dari Daftar" : "Input Manual"}
-              </Button>
-            </div>
+
+      <div className="flex-1 space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11">
+        {/* Supplier Selection */}
+        <div className="border border-border/70">
+          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center justify-between">
+            <span>Pemilihan Supplier</span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setUseManualSupplier(!useManualSupplier);
+                if (!useManualSupplier) {
+                  setFormData({ ...formData, supplier_id: 0 });
+                } else {
+                  setFormData({ ...formData, supplier_name: "", supplier_contact: "" });
+                }
+              }}
+              className="h-6 px-2 text-[10px]"
+            >
+              {useManualSupplier ? "Pilih dari Daftar" : "Input Manual"}
+            </Button>
+          </div>
+          <div className="p-3 sm:p-4">
 
             {!useManualSupplier ? (
               <div className="space-y-2">
@@ -313,9 +301,14 @@ export default function PurchaseCreate() {
               </div>
             )}
           </div>
+        </div>
 
-          {/* Room Selection */}
-          <div className="grid gap-4 md:grid-cols-2">
+        {/* Room Selection */}
+        <div className="border border-border/70">
+          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            Tujuan Pembelian
+          </div>
+          <div className="p-3 sm:p-4 grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label>Ruangan Tujuan (Depo/Gudang) *</Label>
               <Combobox
@@ -336,21 +329,17 @@ export default function PurchaseCreate() {
               />
             </div>
           </div>
+        </div>
 
-          {/* Items Section */}
-          <div className="pt-4 border-t space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-base font-semibold">Daftar Item</h3>
-                <p className="text-sm text-muted-foreground">
-                  Pilih item yang akan dibeli dari supplier
-                </p>
-              </div>
-              <Button onClick={() => setPickerOpen(true)}>
-                <Plus className="mr-2 h-4 w-4" />
-                Pilih Item
-              </Button>
-            </div>
+        {/* Items Section */}
+        <div className="border border-border/70">
+          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center justify-between">
+            <span>Daftar Item</span>
+            <Button variant="ghost" size="sm" onClick={() => setPickerOpen(true)} className="h-6 px-2 text-[10px]">
+              <Plus className="mr-1 h-3 w-3" /> Pilih Item
+            </Button>
+          </div>
+          <div className="p-3 sm:p-4 space-y-4">
 
             <SelectedItemsTable
               items={selectedItems}
@@ -361,10 +350,11 @@ export default function PurchaseCreate() {
               emptyMessage="Klik 'Pilih Item' untuk menambahkan item pembelian"
             />
           </div>
+        </div>
       </div>
 
-      {/* Actions */}
-      <div className="flex justify-end gap-2">
+      {/* Sticky Footer Actions */}
+      <div className="shrink-0 sticky bottom-0 z-10 py-3 mt-4 flex items-center justify-end gap-2 border-t bg-background">
         <Button type="button" variant="outline" onClick={() => navigate("/purchases")}>
           Batal
         </Button>

@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
+import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -37,13 +38,7 @@ import {
   XCircle,
   UserCheck,
   AlertTriangle,
-  SlidersHorizontal,
 } from "lucide-react";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
 import { format, parseISO, isToday, isBefore, startOfDay } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import { formatPatientName } from "@/lib/print-utils";
@@ -59,7 +54,6 @@ export default function ScheduledRegistrationsPage() {
   const { toast } = useToast();
   const [registrations, setRegistrations] = useState<ScheduledRegistration[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filterOpen, setFilterOpen] = useState(false);
 
   // Filters
   const [selectedDate, setSelectedDate] = useState<string>(getTodayString());
@@ -378,46 +372,30 @@ export default function ScheduledRegistrationsPage() {
     },
   ];
 
-  if (loading && registrations.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <Collapsible open={filterOpen} onOpenChange={setFilterOpen}>
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-semibold">Jadwal Kontrol Pasien</h1>
-          </div>
-          <CollapsibleTrigger asChild>
-            <Button variant="outline" size="sm" className="h-9">
-              <SlidersHorizontal className="h-4 w-4 mr-2" />
-              Filter
-            </Button>
-          </CollapsibleTrigger>
-        </div>
-        <CollapsibleContent>
-          <div className="flex items-center gap-2 flex-wrap pt-4">
+    <PageShell>
+      <PageHeader
+        title="Jadwal Kontrol Pasien"
+        description="Daftar jadwal kontrol dan kunjungan ulang pasien"
+        count={registrations.length}
+        actions={
+          <div className="flex items-center gap-1.5">
             <Input
               type="date"
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
-              className="h-9 w-48"
+              className="h-8 w-40 text-xs"
             />
             <Button
               variant="outline"
               size="sm"
               onClick={() => setSelectedDate("")}
-              className="h-9"
+              className="h-8 text-xs"
             >
               Semua Data
             </Button>
             <Select value={selectedRoom} onValueChange={setSelectedRoom}>
-              <SelectTrigger className="h-9 w-[200px]">
+              <SelectTrigger className="h-8 w-[180px] text-xs">
                 <SelectValue placeholder="Semua Ruangan" />
               </SelectTrigger>
               <SelectContent>
@@ -430,7 +408,7 @@ export default function ScheduledRegistrationsPage() {
               </SelectContent>
             </Select>
             <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-              <SelectTrigger className="h-9 w-[150px]">
+              <SelectTrigger className="h-8 w-[140px] text-xs">
                 <SelectValue placeholder="Semua Status" />
               </SelectTrigger>
               <SelectContent>
@@ -439,20 +417,27 @@ export default function ScheduledRegistrationsPage() {
                 <SelectItem value="no_show">Tidak Datang</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline" size="icon" className="h-9 w-9" onClick={loadData}>
-              <RefreshCcw className="h-4 w-4" />
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={loadData}
+            >
+              <RefreshCcw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             </Button>
           </div>
-        </CollapsibleContent>
-      </Collapsible>
-
-      <DataTable
-        columns={columns}
-        data={registrations}
-        searchPlaceholder="Cari nama pasien, No. RM..."
-        pageSize={10}
-        tableId="scheduled-registrations"
+        }
       />
+
+      <PageContent>
+        <DataTable
+          columns={columns}
+          data={registrations}
+          searchPlaceholder="Cari nama pasien, No. RM..."
+          pageSize={10}
+          tableId="scheduled-registrations"
+        />
+      </PageContent>
 
       {/* Cancel Confirmation Dialog */}
       <ConfirmDialog
@@ -545,6 +530,6 @@ export default function ScheduledRegistrationsPage() {
         registrationId={checkInId}
         onSuccess={handleCheckInSuccess}
       />
-    </div>
+    </PageShell>
   );
 }

@@ -13,6 +13,7 @@ import { ConfirmDialog } from '@/components/confirm-dialog';
 import { setPageTitle } from '@/lib/page-title';
 import { useToast } from '@/hooks/use-toast';
 import { usePermission } from '@/hooks/usePermission';
+import { PageShell, PageHeader, PageContent } from '@/components/layout/page-shell';
 import { ppkApi, type PPKMaster, type PPKMasterRequest } from '@/lib/api/ppk';
 
 export default function PPKIndexPage() {
@@ -228,32 +229,34 @@ export default function PPKIndexPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold">Master PPK</h1>
-          <p className="text-sm text-muted-foreground">Kelola data PPK untuk rujukan BPJS</p>
-        </div>
-        {canCreate && (
-          <Button onClick={openCreate}>
-            <Plus className="mr-2 h-4 w-4" />
-            Tambah PPK
-          </Button>
-        )}
-      </div>
-
-      <DataTable
-        tableId="master-ppk"
-        columns={columns}
-        data={rows}
-        searchPlaceholder="Cari kode/nama PPK..."
-        searchSlot={
-          <div className="flex items-center gap-2 pl-2">
-            <Label className="text-xs text-muted-foreground">Tampilkan nonaktif</Label>
-            <Switch checked={showInactive} onCheckedChange={setShowInactive} />
-          </div>
+    <PageShell>
+      <PageHeader
+        title="Master PPK"
+        description="Kelola data PPK untuk rujukan BPJS"
+        count={rows.length}
+        actions={
+          canCreate ? (
+            <Button onClick={openCreate} size="sm">
+              <Plus className="h-4 w-4" />
+              Tambah PPK
+            </Button>
+          ) : undefined
         }
       />
+      <PageContent>
+        <DataTable
+          tableId="master-ppk"
+          columns={columns}
+          data={rows}
+          searchPlaceholder="Cari kode/nama PPK..."
+          searchSlot={
+            <div className="flex items-center gap-2 pl-2">
+              <Label className="text-xs text-muted-foreground">Tampilkan nonaktif</Label>
+              <Switch checked={showInactive} onCheckedChange={setShowInactive} />
+            </div>
+          }
+        />
+      </PageContent>
 
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
         <DialogContent className="sm:max-w-2xl">
@@ -324,6 +327,6 @@ export default function PPKIndexPage() {
         title="Hapus PPK"
         description="Apakah Anda yakin ingin menghapus data PPK ini?"
       />
-    </div>
+    </PageShell>
   );
 }

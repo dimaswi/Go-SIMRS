@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { inventoriesApi, type InventoryCategory } from "@/lib/api/inventories";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Loader2, Package, Tag, DollarSign, FileText, Layers, Hash, Box } from "lucide-react";
+import { Loader2, Package, Tag, DollarSign, FileText, Layers, Hash, Box } from "lucide-react";
 import { setPageTitle } from "@/lib/page-title";
 
 export default function InventoryCreate() {
@@ -49,14 +49,14 @@ export default function InventoryCreate() {
         inventoriesApi.getCategories(),
         inventoriesApi.getUnits(),
       ]);
-      
+
       setCategoryOptions(
         (categoriesRes.data.data || []).map((item: { code: string; name: string }) => ({
           value: item.code,
           label: item.name,
         }))
       );
-      
+
       setUnitOptions(
         (unitsRes.data.data || []).map((item: { code: string; name: string }) => ({
           value: item.code,
@@ -70,7 +70,7 @@ export default function InventoryCreate() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.category) {
       toast({
         variant: "destructive",
@@ -122,375 +122,369 @@ export default function InventoryCreate() {
 
   return (
     <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center gap-4">
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => window.history.back()}
-          className="h-9 w-9"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div>
-          <h1 className="text-lg font-semibold">Tambah Inventaris</h1>
-          <p className="text-sm text-muted-foreground">Masukkan detail informasi inventaris baru</p>
-        </div>
-      </div>
-      <div className="rounded-lg border p-6">
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Basic Info */}
-              <div className="space-y-4">
-                <h3 className="text-sm font-medium text-muted-foreground border-b pb-2">Informasi Dasar</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                  <div className="space-y-2">
-                    <Label
-                      htmlFor="code"
-                      className="text-xs font-medium flex items-center gap-2"
-                    >
-                      <Tag className="h-3.5 w-3.5 text-muted-foreground" />
-                      Kode Inventaris *
-                    </Label>
-                    <Input
-                      id="code"
-                      required
-                      placeholder="Contoh: INV-001"
-                      value={formData.code}
-                      onChange={(e) =>
-                        setFormData({ ...formData, code: e.target.value.toUpperCase() })
-                      }
-                      className="h-9 text-sm"
-                    />
-                  </div>
-                  <div className="space-y-2 md:col-span-2">
-                    <Label
-                      htmlFor="name"
-                      className="text-xs font-medium flex items-center gap-2"
-                    >
-                      <Package className="h-3.5 w-3.5 text-muted-foreground" />
-                      Nama Inventaris *
-                    </Label>
-                    <Input
-                      id="name"
-                      required
-                      placeholder="Contoh: Stetoskop Digital"
-                      value={formData.name}
-                      onChange={(e) =>
-                        setFormData({ ...formData, name: e.target.value })
-                      }
-                      className="h-9 text-sm"
-                    />
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                  <div className="space-y-2">
-                    <Label className="text-xs font-medium flex items-center gap-2">
-                      <Layers className="h-3.5 w-3.5 text-muted-foreground" />
-                      Kategori *
-                    </Label>
-                    <Combobox
-                      options={categoryOptions}
-                      value={formData.category}
-                      onValueChange={(value) =>
-                        setFormData({ ...formData, category: value as InventoryCategory })
-                      }
-                      placeholder="Pilih kategori"
-                      searchPlaceholder="Cari kategori..."
-                      emptyText="Kategori tidak ditemukan"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label
-                      htmlFor="unit"
-                      className="text-xs font-medium flex items-center gap-2"
-                    >
-                      <Box className="h-3.5 w-3.5 text-muted-foreground" />
-                      Satuan *
-                    </Label>
-                    <Combobox
-                      options={unitOptions}
-                      value={formData.unit}
-                      onValueChange={(value) =>
-                        setFormData({ ...formData, unit: value })
-                      }
-                      placeholder="Pilih satuan..."
-                      searchPlaceholder="Cari satuan..."
-                      emptyText="Satuan tidak ditemukan"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label
-                      htmlFor="price"
-                      className="text-xs font-medium flex items-center gap-2"
-                    >
-                      <DollarSign className="h-3.5 w-3.5 text-muted-foreground" />
-                      Harga Satuan (Rp)
-                    </Label>
-                    <Input
-                      id="price"
-                      type="number"
-                      min={0}
-                      placeholder="0"
-                      value={formData.price || ""}
-                      onChange={(e) =>
-                        setFormData({ ...formData, price: parseInt(e.target.value) || 0 })
-                      }
-                      className="h-9 text-sm"
-                    />
-                  </div>
-                </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <div className="space-y-2">
-                    <Label
-                      htmlFor="brand"
-                      className="text-xs font-medium flex items-center gap-2"
-                    >
-                      Merek
-                    </Label>
-                    <Input
-                      id="brand"
-                      placeholder="Contoh: Philips"
-                      value={formData.brand}
-                      onChange={(e) =>
-                        setFormData({ ...formData, brand: e.target.value })
-                      }
-                      className="h-9 text-sm"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label
-                      htmlFor="model"
-                      className="text-xs font-medium flex items-center gap-2"
-                    >
-                      Model
-                    </Label>
-                    <Input
-                      id="model"
-                      placeholder="Contoh: HD-200"
-                      value={formData.model}
-                      onChange={(e) =>
-                        setFormData({ ...formData, model: e.target.value })
-                      }
-                      className="h-9 text-sm"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Stock Info */}
-              <div className="space-y-4">
-                <h3 className="text-sm font-medium text-muted-foreground border-b pb-2">Informasi Stok</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                  <div className="space-y-2">
-                    <Label
-                      htmlFor="current_stock"
-                      className="text-xs font-medium flex items-center gap-2"
-                    >
-                      <Hash className="h-3.5 w-3.5 text-muted-foreground" />
-                      Stok Awal
-                    </Label>
-                    <Input
-                      id="current_stock"
-                      type="number"
-                      min={0}
-                      placeholder="0"
-                      value={formData.current_stock || ""}
-                      onChange={(e) =>
-                        setFormData({ ...formData, current_stock: parseInt(e.target.value) || 0 })
-                      }
-                      className="h-9 text-sm"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label
-                      htmlFor="min_stock"
-                      className="text-xs font-medium flex items-center gap-2"
-                    >
-                      Stok Minimum
-                    </Label>
-                    <Input
-                      id="min_stock"
-                      type="number"
-                      min={0}
-                      placeholder="0"
-                      value={formData.min_stock || ""}
-                      onChange={(e) =>
-                        setFormData({ ...formData, min_stock: parseInt(e.target.value) || 0 })
-                      }
-                      className="h-9 text-sm"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label
-                      htmlFor="max_stock"
-                      className="text-xs font-medium flex items-center gap-2"
-                    >
-                      Stok Maksimum
-                    </Label>
-                    <Input
-                      id="max_stock"
-                      type="number"
-                      min={0}
-                      placeholder="100"
-                      value={formData.max_stock || ""}
-                      onChange={(e) =>
-                        setFormData({ ...formData, max_stock: parseInt(e.target.value) || 0 })
-                      }
-                      className="h-9 text-sm"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Properties */}
-              <div className="space-y-4">
-                <h3 className="text-sm font-medium text-muted-foreground border-b pb-2">Properti</h3>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
-                  <div className="flex items-center justify-between rounded-lg border p-3">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="is_consumable" className="text-xs font-medium">
-                        Habis Pakai
-                      </Label>
-                      <p className="text-xs text-muted-foreground">
-                        Barang sekali pakai
-                      </p>
-                    </div>
-                    <Switch
-                      id="is_consumable"
-                      checked={formData.is_consumable}
-                      onCheckedChange={(checked) =>
-                        setFormData({ ...formData, is_consumable: checked })
-                      }
-                    />
-                  </div>
-                  <div className="flex items-center justify-between rounded-lg border p-3">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="is_reusable" className="text-xs font-medium">
-                        Dapat Dipakai Ulang
-                      </Label>
-                      <p className="text-xs text-muted-foreground">
-                        Barang bisa digunakan berulang
-                      </p>
-                    </div>
-                    <Switch
-                      id="is_reusable"
-                      checked={formData.is_reusable}
-                      onCheckedChange={(checked) =>
-                        setFormData({ ...formData, is_reusable: checked })
-                      }
-                    />
-                  </div>
-                  <div className="flex items-center justify-between rounded-lg border p-3">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="require_serial" className="text-xs font-medium">
-                        Wajib Serial Number
-                      </Label>
-                      <p className="text-xs text-muted-foreground">
-                        Setiap item perlu SN
-                      </p>
-                    </div>
-                    <Switch
-                      id="require_serial"
-                      checked={formData.require_serial}
-                      onCheckedChange={(checked) =>
-                        setFormData({ ...formData, require_serial: checked })
-                      }
-                    />
-                  </div>
-                  <div className="flex items-center justify-between rounded-lg border p-3">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="is_active" className="text-xs font-medium">
-                        Aktif
-                      </Label>
-                      <p className="text-xs text-muted-foreground">
-                        Status inventaris aktif
-                      </p>
-                    </div>
-                    <Switch
-                      id="is_active"
-                      checked={formData.is_active}
-                      onCheckedChange={(checked) =>
-                        setFormData({ ...formData, is_active: checked })
-                      }
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Additional Info */}
-              <div className="space-y-4">
-                <h3 className="text-sm font-medium text-muted-foreground border-b pb-2">Informasi Tambahan</h3>
+      <div className="flex-1 space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11">
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Basic Info */}
+          <div className="border border-border/70">
+            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Informasi Dasar</div>
+            <div className="p-3 sm:p-4 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                 <div className="space-y-2">
                   <Label
-                    htmlFor="description"
+                    htmlFor="code"
                     className="text-xs font-medium flex items-center gap-2"
                   >
-                    <FileText className="h-3.5 w-3.5 text-muted-foreground" />
-                    Deskripsi
+                    <Tag className="h-3.5 w-3.5 text-muted-foreground" />
+                    Kode Inventaris *
                   </Label>
-                  <Textarea
-                    id="description"
-                    placeholder="Deskripsi inventaris..."
-                    value={formData.description}
+                  <Input
+                    id="code"
+                    required
+                    placeholder="Contoh: INV-001"
+                    value={formData.code}
                     onChange={(e) =>
-                      setFormData({ ...formData, description: e.target.value })
+                      setFormData({ ...formData, code: e.target.value.toUpperCase() })
                     }
-                    className="min-h-[80px] text-sm"
+                    className="h-9 text-sm"
                   />
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-2 md:col-span-2">
                   <Label
-                    htmlFor="specifications"
+                    htmlFor="name"
                     className="text-xs font-medium flex items-center gap-2"
                   >
-                    Spesifikasi
+                    <Package className="h-3.5 w-3.5 text-muted-foreground" />
+                    Nama Inventaris *
                   </Label>
-                  <Textarea
-                    id="specifications"
-                    placeholder="Spesifikasi teknis inventaris..."
-                    value={formData.specifications}
+                  <Input
+                    id="name"
+                    required
+                    placeholder="Contoh: Stetoskop Digital"
+                    value={formData.name}
                     onChange={(e) =>
-                      setFormData({ ...formData, specifications: e.target.value })
+                      setFormData({ ...formData, name: e.target.value })
                     }
-                    className="min-h-[80px] text-sm"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label
-                    htmlFor="notes"
-                    className="text-xs font-medium flex items-center gap-2"
-                  >
-                    Catatan
-                  </Label>
-                  <Textarea
-                    id="notes"
-                    placeholder="Catatan tambahan..."
-                    value={formData.notes}
-                    onChange={(e) =>
-                      setFormData({ ...formData, notes: e.target.value })
-                    }
-                    className="min-h-[60px] text-sm"
+                    className="h-9 text-sm"
                   />
                 </div>
               </div>
 
-              {/* Actions */}
-              <div className="flex gap-3 pt-4 border-t justify-end">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => navigate("/inventories")}
-                  size="sm"
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium flex items-center gap-2">
+                    <Layers className="h-3.5 w-3.5 text-muted-foreground" />
+                    Kategori *
+                  </Label>
+                  <Combobox
+                    options={categoryOptions}
+                    value={formData.category}
+                    onValueChange={(value) =>
+                      setFormData({ ...formData, category: value as InventoryCategory })
+                    }
+                    placeholder="Pilih kategori"
+                    searchPlaceholder="Cari kategori..."
+                    emptyText="Kategori tidak ditemukan"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label
+                    htmlFor="unit"
+                    className="text-xs font-medium flex items-center gap-2"
+                  >
+                    <Box className="h-3.5 w-3.5 text-muted-foreground" />
+                    Satuan *
+                  </Label>
+                  <Combobox
+                    options={unitOptions}
+                    value={formData.unit}
+                    onValueChange={(value) =>
+                      setFormData({ ...formData, unit: value })
+                    }
+                    placeholder="Pilih satuan..."
+                    searchPlaceholder="Cari satuan..."
+                    emptyText="Satuan tidak ditemukan"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label
+                    htmlFor="price"
+                    className="text-xs font-medium flex items-center gap-2"
+                  >
+                    <DollarSign className="h-3.5 w-3.5 text-muted-foreground" />
+                    Harga Satuan (Rp)
+                  </Label>
+                  <Input
+                    id="price"
+                    type="number"
+                    min={0}
+                    placeholder="0"
+                    value={formData.price || ""}
+                    onChange={(e) =>
+                      setFormData({ ...formData, price: parseInt(e.target.value) || 0 })
+                    }
+                    className="h-9 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div className="space-y-2">
+                  <Label
+                    htmlFor="brand"
+                    className="text-xs font-medium flex items-center gap-2"
+                  >
+                    Merek
+                  </Label>
+                  <Input
+                    id="brand"
+                    placeholder="Contoh: Philips"
+                    value={formData.brand}
+                    onChange={(e) =>
+                      setFormData({ ...formData, brand: e.target.value })
+                    }
+                    className="h-9 text-sm"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label
+                    htmlFor="model"
+                    className="text-xs font-medium flex items-center gap-2"
+                  >
+                    Model
+                  </Label>
+                  <Input
+                    id="model"
+                    placeholder="Contoh: HD-200"
+                    value={formData.model}
+                    onChange={(e) =>
+                      setFormData({ ...formData, model: e.target.value })
+                    }
+                    className="h-9 text-sm"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Stock Info */}
+          <div className="border border-border/70">
+            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Informasi Stok</div>
+            <div className="p-3 sm:p-4 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                <div className="space-y-2">
+                  <Label
+                    htmlFor="current_stock"
+                    className="text-xs font-medium flex items-center gap-2"
+                  >
+                    <Hash className="h-3.5 w-3.5 text-muted-foreground" />
+                    Stok Awal
+                  </Label>
+                  <Input
+                    id="current_stock"
+                    type="number"
+                    min={0}
+                    placeholder="0"
+                    value={formData.current_stock || ""}
+                    onChange={(e) =>
+                      setFormData({ ...formData, current_stock: parseInt(e.target.value) || 0 })
+                    }
+                    className="h-9 text-sm"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label
+                    htmlFor="min_stock"
+                    className="text-xs font-medium flex items-center gap-2"
+                  >
+                    Stok Minimum
+                  </Label>
+                  <Input
+                    id="min_stock"
+                    type="number"
+                    min={0}
+                    placeholder="0"
+                    value={formData.min_stock || ""}
+                    onChange={(e) =>
+                      setFormData({ ...formData, min_stock: parseInt(e.target.value) || 0 })
+                    }
+                    className="h-9 text-sm"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label
+                    htmlFor="max_stock"
+                    className="text-xs font-medium flex items-center gap-2"
+                  >
+                    Stok Maksimum
+                  </Label>
+                  <Input
+                    id="max_stock"
+                    type="number"
+                    min={0}
+                    placeholder="100"
+                    value={formData.max_stock || ""}
+                    onChange={(e) =>
+                      setFormData({ ...formData, max_stock: parseInt(e.target.value) || 0 })
+                    }
+                    className="h-9 text-sm"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Properties */}
+          <div className="border border-border/70">
+            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Properti</div>
+            <div className="p-3 sm:p-4 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="is_consumable" className="text-xs font-medium">
+                      Habis Pakai
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Barang sekali pakai
+                    </p>
+                  </div>
+                  <Switch
+                    id="is_consumable"
+                    checked={formData.is_consumable}
+                    onCheckedChange={(checked) =>
+                      setFormData({ ...formData, is_consumable: checked })
+                    }
+                  />
+                </div>
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="is_reusable" className="text-xs font-medium">
+                      Dapat Dipakai Ulang
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Barang bisa digunakan berulang
+                    </p>
+                  </div>
+                  <Switch
+                    id="is_reusable"
+                    checked={formData.is_reusable}
+                    onCheckedChange={(checked) =>
+                      setFormData({ ...formData, is_reusable: checked })
+                    }
+                  />
+                </div>
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="require_serial" className="text-xs font-medium">
+                      Wajib Serial Number
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Setiap item perlu SN
+                    </p>
+                  </div>
+                  <Switch
+                    id="require_serial"
+                    checked={formData.require_serial}
+                    onCheckedChange={(checked) =>
+                      setFormData({ ...formData, require_serial: checked })
+                    }
+                  />
+                </div>
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="is_active" className="text-xs font-medium">
+                      Aktif
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Status inventaris aktif
+                    </p>
+                  </div>
+                  <Switch
+                    id="is_active"
+                    checked={formData.is_active}
+                    onCheckedChange={(checked) =>
+                      setFormData({ ...formData, is_active: checked })
+                    }
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Additional Info */}
+          <div className="border border-border/70">
+            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Informasi Tambahan</div>
+            <div className="p-3 sm:p-4 space-y-4">
+              <div className="space-y-2">
+                <Label
+                  htmlFor="description"
+                  className="text-xs font-medium flex items-center gap-2"
                 >
-                  Batal
-                </Button>
-                <Button type="submit" disabled={loading} size="sm">
-                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Simpan
-                </Button>
+                  <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                  Deskripsi
+                </Label>
+                <Textarea
+                  id="description"
+                  placeholder="Deskripsi inventaris..."
+                  value={formData.description}
+                  onChange={(e) =>
+                    setFormData({ ...formData, description: e.target.value })
+                  }
+                  className="min-h-[80px] text-sm"
+                />
               </div>
-            </form>
+              <div className="space-y-2">
+                <Label
+                  htmlFor="specifications"
+                  className="text-xs font-medium flex items-center gap-2"
+                >
+                  Spesifikasi
+                </Label>
+                <Textarea
+                  id="specifications"
+                  placeholder="Spesifikasi teknis inventaris..."
+                  value={formData.specifications}
+                  onChange={(e) =>
+                    setFormData({ ...formData, specifications: e.target.value })
+                  }
+                  className="min-h-[80px] text-sm"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label
+                  htmlFor="notes"
+                  className="text-xs font-medium flex items-center gap-2"
+                >
+                  Catatan
+                </Label>
+                <Textarea
+                  id="notes"
+                  placeholder="Catatan tambahan..."
+                  value={formData.notes}
+                  onChange={(e) =>
+                    setFormData({ ...formData, notes: e.target.value })
+                  }
+                  className="min-h-[60px] text-sm"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Sticky Footer Actions */}
+          <div className="shrink-0 sticky bottom-0 z-10 py-3 mt-4 flex items-center justify-end gap-2 border-t bg-background">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => navigate("/inventories")}
+            >
+              Batal
+            </Button>
+            <Button type="submit" disabled={loading}>
+              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Simpan
+            </Button>
+          </div>
+        </form>
       </div>
     </div>
   );

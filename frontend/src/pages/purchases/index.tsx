@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Loader2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 
 import { DataTable } from "@/components/ui/data-table";
 import { useToast } from "@/hooks/use-toast";
@@ -104,26 +105,29 @@ export default function PurchasesIndex() {
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold">Pembelian</h1>
-          <p className="text-sm text-muted-foreground">Kelola pembelian barang dan obat dari supplier</p>
-        </div>
-        {hasPermission("purchases.create") && (
-          <Button onClick={() => navigate("/purchases/create")} size="sm">
-            <Plus className="mr-2 h-4 w-4" />
-            Buat Pembelian
-          </Button>
-        )}
-      </div>
-      <DataTable
-        columns={columns}
-        data={purchases}
-        searchPlaceholder="Cari nomor pembelian atau supplier..."
-        pageSize={10}
-        tableId="purchases"
+    <PageShell>
+      <PageHeader
+        title="Pembelian"
+        description="Kelola pembelian barang dan obat dari supplier"
+        count={purchases.length}
+        actions={
+          hasPermission("purchases.create") ? (
+            <Button onClick={() => navigate("/purchases/create")} size="sm">
+              <Plus className="h-4 w-4" />
+              Buat Pembelian
+            </Button>
+          ) : undefined
+        }
       />
+      <PageContent>
+        <DataTable
+          columns={columns}
+          data={purchases}
+          searchPlaceholder="Cari nomor pembelian atau supplier..."
+          pageSize={10}
+          tableId="purchases"
+        />
+      </PageContent>
 
       <ConfirmDialog
         open={deleteId !== null}
@@ -134,6 +138,6 @@ export default function PurchasesIndex() {
         confirmText="Hapus"
         variant="destructive"
       />
-    </div>
+    </PageShell>
   );
 }

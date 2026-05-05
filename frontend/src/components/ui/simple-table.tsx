@@ -53,11 +53,11 @@ export function SimpleTable<T>({
             return parsed
           }
         }
-      } catch {}
+      } catch { }
     }
     return 0
   })
-  
+
   const [pageSize, setPageSize] = React.useState(() => {
     if (storageKey) {
       try {
@@ -68,17 +68,17 @@ export function SimpleTable<T>({
             return parsed
           }
         }
-      } catch {}
+      } catch { }
     }
     return initialPageSize
   })
-  
+
   const [searchTerm, setSearchTerm] = React.useState("")
 
   // Filter data based on search
   const filteredData = React.useMemo(() => {
     if (!searchTerm.trim()) return data
-    
+
     const lowerSearch = searchTerm.toLowerCase()
     return data.filter((row) => {
       // Search through all searchable columns
@@ -100,7 +100,7 @@ export function SimpleTable<T>({
   // Calculate pagination
   const totalPages = Math.ceil(filteredData.length / pageSize)
   const validCurrentPage = Math.min(currentPage, Math.max(0, totalPages - 1))
-  
+
   // Update if page is out of bounds
   React.useEffect(() => {
     if (currentPage !== validCurrentPage && validCurrentPage >= 0) {
@@ -118,7 +118,7 @@ export function SimpleTable<T>({
     if (storageKey) {
       try {
         localStorage.setItem(`${storageKey}_page`, String(newPage))
-      } catch {}
+      } catch { }
     }
   }
 
@@ -130,7 +130,7 @@ export function SimpleTable<T>({
       try {
         localStorage.setItem(`${storageKey}_size`, newSize)
         localStorage.setItem(`${storageKey}_page`, '0')
-      } catch {}
+      } catch { }
     }
   }
 
@@ -141,25 +141,25 @@ export function SimpleTable<T>({
       if (storageKey) {
         try {
           localStorage.setItem(`${storageKey}_page`, '0')
-        } catch {}
+        } catch { }
       }
     }
   }, [searchTerm, storageKey])
 
   return (
-    <div className="w-full space-y-4">
+    <div className="w-full flex flex-col gap-0">
       {/* Search */}
-      <div className="flex items-center">
+      <div className="flex items-center py-3">
         <Input
           placeholder={searchPlaceholder}
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="max-w-sm"
+          className="max-w-sm h-8 text-sm"
         />
       </div>
 
       {/* Table */}
-      <div className="rounded-md border">
+      <div>
         <Table>
           <TableHeader>
             <TableRow>
@@ -179,8 +179,8 @@ export function SimpleTable<T>({
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={columns.length} className="h-24 text-center">
-                  Tidak ada data.
+                <TableCell colSpan={columns.length} className="h-32 text-center text-sm text-muted-foreground">
+                  Tidak ada data yang ditemukan.
                 </TableCell>
               </TableRow>
             )}
@@ -189,64 +189,66 @@ export function SimpleTable<T>({
       </div>
 
       {/* Pagination */}
-      <div className="flex items-center justify-between px-2">
-        <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-          <span>Menampilkan</span>
+      <div className="sticky bottom-0 z-10 flex items-center justify-between gap-3 bg-background py-1.5">
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">Baris/hal</span>
           <Select value={String(pageSize)} onValueChange={handlePageSizeChange}>
-            <SelectTrigger className="h-8 w-[70px]">
+            <SelectTrigger className="h-7 w-[60px] text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="5">5</SelectItem>
-              <SelectItem value="10">10</SelectItem>
-              <SelectItem value="20">20</SelectItem>
-              <SelectItem value="50">50</SelectItem>
-              <SelectItem value="100">100</SelectItem>
+              <SelectItem value="5" className="text-xs">5</SelectItem>
+              <SelectItem value="10" className="text-xs">10</SelectItem>
+              <SelectItem value="20" className="text-xs">20</SelectItem>
+              <SelectItem value="50" className="text-xs">50</SelectItem>
+              <SelectItem value="100" className="text-xs">100</SelectItem>
             </SelectContent>
           </Select>
-          <span>dari {filteredData.length} data</span>
-        </div>
-        
-        <div className="flex items-center space-x-2">
-          <span className="text-sm text-muted-foreground">
-            Halaman {validCurrentPage + 1} dari {Math.max(1, totalPages)}
+          <span className="text-xs text-muted-foreground">
+            Total {filteredData.length.toLocaleString("id-ID")} baris
           </span>
-          <div className="flex items-center space-x-1">
+        </div>
+
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-muted-foreground hidden sm:inline">
+            Hal. {validCurrentPage + 1} / {Math.max(1, totalPages)}
+          </span>
+          <div className="flex items-center gap-1">
             <Button
               variant="outline"
               size="icon"
-              className="h-8 w-8"
+              className="h-7 w-7"
               onClick={() => handlePageChange(0)}
               disabled={validCurrentPage === 0}
             >
-              <ChevronsLeft className="h-4 w-4" />
+              <ChevronsLeft className="h-3.5 w-3.5" />
             </Button>
             <Button
               variant="outline"
               size="icon"
-              className="h-8 w-8"
+              className="h-7 w-7"
               onClick={() => handlePageChange(validCurrentPage - 1)}
               disabled={validCurrentPage === 0}
             >
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeft className="h-3.5 w-3.5" />
             </Button>
             <Button
               variant="outline"
               size="icon"
-              className="h-8 w-8"
+              className="h-7 w-7"
               onClick={() => handlePageChange(validCurrentPage + 1)}
               disabled={validCurrentPage >= totalPages - 1}
             >
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="h-3.5 w-3.5" />
             </Button>
             <Button
               variant="outline"
               size="icon"
-              className="h-8 w-8"
+              className="h-7 w-7"
               onClick={() => handlePageChange(totalPages - 1)}
               disabled={validCurrentPage >= totalPages - 1}
             >
-              <ChevronsRight className="h-4 w-4" />
+              <ChevronsRight className="h-3.5 w-3.5" />
             </Button>
           </div>
         </div>

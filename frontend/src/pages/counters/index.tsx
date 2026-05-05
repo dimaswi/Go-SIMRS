@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 
-import { DataTable } from "@/components/ui/data-table";
+import { DataTable } from "@/components/ui/data-table"
 import { createCounterColumns } from "./columns";
 import { counterApi, type Counter } from "@/lib/api/counters";
 import { usePermission } from "@/hooks/usePermission";
@@ -74,22 +75,25 @@ export default function CounterIndex() {
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold">Master Loket</h1>
-          <p className="text-sm text-muted-foreground">Kelola data loket pelayanan</p>
-        </div>
-        {hasCreatePermission && (
-          <Link to="/counters/create">
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Tambah Loket
-            </Button>
-          </Link>
-        )}
-      </div>
-      <DataTable columns={columns} data={counters} />
+    <PageShell>
+      <PageHeader
+        title="Master Loket"
+        description="Kelola data loket pelayanan"
+        count={counters.length}
+        actions={
+          hasCreatePermission ? (
+            <Link to="/counters/create">
+              <Button size="sm">
+                <Plus className="h-4 w-4" />
+                Tambah Loket
+              </Button>
+            </Link>
+          ) : undefined
+        }
+      />
+      <PageContent>
+        <DataTable columns={columns} data={counters} />
+      </PageContent>
 
       <ConfirmDialog
         open={deleteId !== null}
@@ -98,6 +102,6 @@ export default function CounterIndex() {
         title="Hapus Loket"
         description="Apakah Anda yakin ingin menghapus loket ini? Tindakan ini tidak dapat dibatalkan."
       />
-    </div>
+    </PageShell>
   );
 }

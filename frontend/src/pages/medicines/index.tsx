@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { PageShell, PageHeader, PageContent } from '@/components/layout/page-shell';
 
 import { DataTable } from '@/components/ui/data-table';
 import { createMedicineColumns } from './columns';
@@ -94,26 +95,29 @@ export default function MedicinesPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold">Master Obat</h1>
-          <p className="text-sm text-muted-foreground">Kelola data obat dan farmasi rumah sakit</p>
-        </div>
-        {hasPermission('medicines.create') && (
-          <Button onClick={() => navigate('/medicines/create')} size="sm">
-            <Plus className="mr-2 h-4 w-4" />
-            Tambah Obat
-          </Button>
-        )}
-      </div>
-      <DataTable
-        columns={columns}
-        data={medicines}
-        searchPlaceholder="Cari obat berdasarkan kode, nama, atau nama generik..."
-        pageSize={10}
-        tableId="medicines"
+    <PageShell>
+      <PageHeader
+        title="Master Obat"
+        description="Kelola data obat dan farmasi rumah sakit"
+        count={medicines.length}
+        actions={
+          hasPermission('medicines.create') ? (
+            <Button onClick={() => navigate('/medicines/create')} size="sm">
+              <Plus className="h-4 w-4" />
+              Tambah Obat
+            </Button>
+          ) : undefined
+        }
       />
+      <PageContent>
+        <DataTable
+          columns={columns}
+          data={medicines}
+          searchPlaceholder="Cari obat berdasarkan kode, nama, atau nama generik..."
+          pageSize={10}
+          tableId="medicines"
+        />
+      </PageContent>
 
       <ConfirmDialog
         open={deleteDialogOpen}
@@ -125,6 +129,6 @@ export default function MedicinesPage() {
         cancelText="Batal"
         variant="destructive"
       />
-    </div>
+    </PageShell>
   );
 }

@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { PageShell, PageHeader, PageContent } from '@/components/layout/page-shell';
 
 import { DataTable } from '@/components/ui/data-table';
 import { createPatientColumns } from './columns';
@@ -95,27 +96,30 @@ export default function PatientsPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold">Master Pasien</h1>
-          <p className="text-sm text-muted-foreground">Kelola data pasien rumah sakit</p>
-        </div>
-        {hasPermission('patients.create') && (
-          <Button onClick={() => navigate('/patients/create')} size="sm">
-            <Plus className="mr-2 h-4 w-4" />
-            Registrasi Pasien
-          </Button>
-        )}
-      </div>
-      <DataTable
-        columns={columns}
-        data={patients}
-        searchPlaceholder="Cari nama, No. RM, NIK, atau No. BPJS..."
-        pageSize={10}
-        tableId="patients"
-        meta={{ onView: handleView }}
+    <PageShell>
+      <PageHeader
+        title="Master Pasien"
+        description="Kelola data pasien rumah sakit"
+        count={patients.length}
+        actions={
+          hasPermission('patients.create') ? (
+            <Button onClick={() => navigate('/patients/create')} size="sm">
+              <Plus className="h-4 w-4" />
+              Registrasi Pasien
+            </Button>
+          ) : undefined
+        }
       />
+      <PageContent>
+        <DataTable
+          columns={columns}
+          data={patients}
+          searchPlaceholder="Cari nama, No. RM, NIK, atau No. BPJS..."
+          pageSize={10}
+          tableId="patients"
+          meta={{ onView: handleView }}
+        />
+      </PageContent>
 
       <ConfirmDialog
         open={deleteDialogOpen}
@@ -127,6 +131,6 @@ export default function PatientsPage() {
         cancelText="Batal"
         variant="destructive"
       />
-    </div>
+    </PageShell>
   );
 }

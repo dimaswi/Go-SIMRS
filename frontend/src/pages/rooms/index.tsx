@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { PageShell, PageHeader, PageContent } from '@/components/layout/page-shell';
 
 import { DataTable } from '@/components/ui/data-table';
 import { createRoomColumns } from './columns';
@@ -117,26 +118,29 @@ export default function RoomsPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold">Ruangan</h1>
-          <p className="text-sm text-muted-foreground">Kelola data ruangan rumah sakit</p>
-        </div>
-        {hasPermission('rooms.create') && (
-          <Button onClick={() => navigate('/rooms/create')} size="sm">
-            <Plus className="mr-2 h-4 w-4" />
-            Tambah Ruangan
-          </Button>
-        )}
-      </div>
-      <DataTable
-        columns={columns}
-        data={rooms}
-        searchPlaceholder="Cari ruangan berdasarkan kode atau nama..."
-        pageSize={10}
-        tableId="rooms"
+    <PageShell>
+      <PageHeader
+        title="Ruangan"
+        description="Kelola data ruangan rumah sakit"
+        count={rooms.length}
+        actions={
+          hasPermission('rooms.create') ? (
+            <Button onClick={() => navigate('/rooms/create')} size="sm">
+              <Plus className="h-4 w-4" />
+              Tambah Ruangan
+            </Button>
+          ) : undefined
+        }
       />
+      <PageContent>
+        <DataTable
+          columns={columns}
+          data={rooms}
+          searchPlaceholder="Cari ruangan berdasarkan kode atau nama..."
+          pageSize={10}
+          tableId="rooms"
+        />
+      </PageContent>
 
       <ConfirmDialog
         open={deleteDialogOpen}
@@ -148,6 +152,6 @@ export default function RoomsPage() {
         cancelText="Batal"
         variant="destructive"
       />
-    </div>
+    </PageShell>
   );
 }

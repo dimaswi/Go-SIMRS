@@ -181,6 +181,9 @@ type Patient struct {
 	// Status Perkawinan
 	StatusPerkawinan string `gorm:"size:20" json:"status_perkawinan"`
 
+	// Nama Suami/Istri
+	NamaSuamiIstri string `gorm:"size:150" json:"nama_suami_istri,omitempty"`
+
 	// Pendidikan Terakhir
 	PendidikanTerakhir string `gorm:"size:50" json:"pendidikan_terakhir"`
 

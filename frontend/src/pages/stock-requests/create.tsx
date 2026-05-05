@@ -11,7 +11,7 @@ import { stockRequestsApi } from "@/lib/api/stock-requests";
 import { roomsApi } from "@/lib/api/rooms";
 import { roomInventoriesApi } from "@/lib/api/inventories";
 import { roomMedicinesApi } from "@/lib/api/medicines";
-import { ArrowLeft, Loader2, Plus, Send } from "lucide-react";
+import { Loader2, Plus, Send } from "lucide-react";
 import {
   ItemPickerDialog,
   SelectedItemsTable,
@@ -153,7 +153,7 @@ export default function StockRequestCreate() {
       const roomsRes = await roomsApi.getAll({ limit: 100 });
 
       const allRooms = roomsRes.data.data || [];
-      
+
       // All rooms for "from" selection
       setRooms(allRooms.map((r: any) => ({
         value: r.id.toString(),
@@ -261,116 +261,110 @@ export default function StockRequestCreate() {
 
   return (
     <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center gap-4">
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => window.history.back()}
-          className="h-9 w-9"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div>
-          <h1 className="text-lg font-semibold">Buat Permintaan Stok</h1>
-          <p className="text-sm text-muted-foreground">Ajukan permintaan barang atau obat dari depo farmasi</p>
-        </div>
-      </div>
 
-      <div className="rounded-lg border p-6 space-y-6">
-          {/* Form Fields */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <Label>Tipe Permintaan *</Label>
-              <Combobox
-                options={requestTypeOptions}
-                value={formData.request_type}
-                onValueChange={(value) => {
-                  setFormData({ ...formData, request_type: value as any });
-                  setSelectedItems([]); // Clear items when switching type
-                }}
-                placeholder="Pilih tipe"
-              />
-            </div>
 
-            <div className="space-y-2">
-              <Label>Prioritas</Label>
-              <Combobox
-                options={priorityOptions}
-                value={formData.priority}
-                onValueChange={(value) => setFormData({ ...formData, priority: value })}
-                placeholder="Pilih prioritas"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Ruangan Pemohon *</Label>
-              <Combobox
-                options={rooms}
-                value={formData.from_room_id.toString()}
-                onValueChange={(value) => setFormData({ ...formData, from_room_id: parseInt(value) })}
-                placeholder="Pilih ruangan"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Depo/Gudang Tujuan *</Label>
-              <Combobox
-                options={depoRooms}
-                value={formData.to_room_id.toString()}
-                onValueChange={(value) => setFormData({ ...formData, to_room_id: parseInt(value) })}
-                placeholder="Pilih depo/gudang"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Tanggal Dibutuhkan</Label>
-              <Input
-                type="date"
-                value={formData.required_date}
-                onChange={(e) => setFormData({ ...formData, required_date: e.target.value })}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Alasan Permintaan</Label>
-              <Input
-                placeholder="Alasan permintaan..."
-                value={formData.reason}
-                onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
-              />
-            </div>
+      <div className="flex-1 space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11">
+        {/* Form Fields */}
+        <div className="border border-border/70">
+          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            Informasi Permintaan
           </div>
-
-          <div className="space-y-2">
-            <Label>Catatan</Label>
-            <Textarea
-              placeholder="Catatan tambahan..."
-              value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-            />
-          </div>
-
-          {/* Items Section */}
-          <div className="pt-4 border-t space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-base font-semibold">Daftar Item</h3>
-                <p className="text-sm text-muted-foreground">
-                  Pilih item {formData.request_type === "inventory" ? "inventaris" : "obat"} yang diminta
-                </p>
+          <div className="p-3 sm:p-4 space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold">Tipe Permintaan <span className="text-destructive">*</span></Label>
+                <Combobox
+                  options={requestTypeOptions}
+                  value={formData.request_type}
+                  onValueChange={(value) => {
+                    setFormData({ ...formData, request_type: value as any });
+                    setSelectedItems([]); // Clear items when switching type
+                  }}
+                  placeholder="Pilih tipe"
+                />
               </div>
-              <Button 
-                onClick={() => setPickerOpen(true)} 
-                disabled={formData.to_room_id === 0 || loadingItems}
-              >
-                {loadingItems ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Plus className="mr-2 h-4 w-4" />
-                )}
-                Pilih Item
-              </Button>
+
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold">Prioritas</Label>
+                <Combobox
+                  options={priorityOptions}
+                  value={formData.priority}
+                  onValueChange={(value) => setFormData({ ...formData, priority: value })}
+                  placeholder="Pilih prioritas"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold">Ruangan Pemohon <span className="text-destructive">*</span></Label>
+                <Combobox
+                  options={rooms}
+                  value={formData.from_room_id.toString()}
+                  onValueChange={(value) => setFormData({ ...formData, from_room_id: parseInt(value) })}
+                  placeholder="Pilih ruangan"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold">Depo/Gudang Tujuan <span className="text-destructive">*</span></Label>
+                <Combobox
+                  options={depoRooms}
+                  value={formData.to_room_id.toString()}
+                  onValueChange={(value) => setFormData({ ...formData, to_room_id: parseInt(value) })}
+                  placeholder="Pilih depo/gudang"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold">Tanggal Dibutuhkan</Label>
+                <Input
+                  type="date"
+                  value={formData.required_date}
+                  onChange={(e) => setFormData({ ...formData, required_date: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold">Alasan Permintaan</Label>
+                <Input
+                  placeholder="Alasan permintaan..."
+                  value={formData.reason}
+                  onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
+                />
+              </div>
             </div>
+
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold">Catatan</Label>
+              <Textarea
+                placeholder="Catatan tambahan..."
+                value={formData.notes}
+                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                className="min-h-[80px]"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Items Section */}
+        <div className="border border-border/70">
+          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center justify-between">
+            <span>Daftar Item</span>
+            <Button
+              onClick={() => setPickerOpen(true)}
+              disabled={formData.to_room_id === 0 || loadingItems}
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-[10px]"
+            >
+              {loadingItems ? (
+                <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+              ) : (
+                <Plus className="mr-1 h-3 w-3" />
+              )}
+              Pilih Item
+            </Button>
+          </div>
+          <div className="p-3 sm:p-4 space-y-4">
 
             {formData.to_room_id === 0 ? (
               <div className="text-center py-12 border rounded-md text-muted-foreground">
@@ -395,24 +389,25 @@ export default function StockRequestCreate() {
               />
             )}
           </div>
+        </div>
 
-          {/* Actions */}
-          <div className="flex justify-end gap-4 pt-4 border-t">
-            <Button
-              variant="outline"
-              onClick={() => navigate("/stock-requests")}
-            >
-              Batal
-            </Button>
-            <Button onClick={handleSubmit} disabled={submitting}>
-              {submitting ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Send className="mr-2 h-4 w-4" />
-              )}
-              Kirim Permintaan
-            </Button>
-          </div>
+        {/* Sticky Footer Actions */}
+        <div className="shrink-0 sticky bottom-0 z-10 py-3 mt-4 flex items-center justify-end gap-2 border-t bg-background">
+          <Button
+            variant="outline"
+            onClick={() => navigate("/stock-requests")}
+          >
+            Batal
+          </Button>
+          <Button onClick={handleSubmit} disabled={submitting}>
+            {submitting ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Send className="mr-2 h-4 w-4" />
+            )}
+            Kirim Permintaan
+          </Button>
+        </div>
       </div>
 
       {/* Item Picker Dialog */}

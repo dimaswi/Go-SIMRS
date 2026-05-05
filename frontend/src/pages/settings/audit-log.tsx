@@ -23,37 +23,40 @@ import { Badge } from "@/components/ui/badge";
 import {
   Collapsible,
   CollapsibleContent,
-  CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { useToast } from "@/hooks/use-toast";
 import { usersApi, signatureApi, DOCUMENT_TYPE_LABELS, type SignatureLog, type MedicalRecordEditLog } from "@/lib/api";
-import { Loader2, ShieldCheck, FileEdit, SlidersHorizontal, RefreshCw } from "lucide-react";
+import { Loader2, ShieldCheck, FileEdit, SlidersHorizontal, RefreshCw, ArrowLeft } from "lucide-react";
+import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
+import { useNavigate } from "react-router-dom";
+import { Label } from "@/components/ui/label";
 
 export default function AuditLogPage() {
+  const navigate = useNavigate();
   const { toast } = useToast();
   const [filterOpen, setFilterOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("signature");
-  
+
   // Common filters
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [selectedUserId, setSelectedUserId] = useState<string>("");
   const [users, setUsers] = useState<{ id: number; full_name: string; email: string }[]>([]);
-  
+
   // Signature logs
   const [signatureLogs, setSignatureLogs] = useState<SignatureLog[]>([]);
   const [signatureLoading, setSignatureLoading] = useState(false);
   const [signaturePage, setSignaturePage] = useState(1);
   const [signatureTotal, setSignatureTotal] = useState(0);
   const [signatureDocType, setSignatureDocType] = useState<string>("");
-  
+
   // Medical record edit logs
   const [editLogs, setEditLogs] = useState<MedicalRecordEditLog[]>([]);
   const [editLoading, setEditLoading] = useState(false);
   const [editPage, setEditPage] = useState(1);
   const [editTotal, setEditTotal] = useState(0);
   const [recordType, setRecordType] = useState<string>("");
-  
+
   const pageSize = 20;
 
   useEffect(() => {
@@ -156,7 +159,7 @@ export default function AuditLogPage() {
       create: "default",
       delete: "destructive",
     };
-    return <Badge variant={variants[action] || "secondary"}>{action}</Badge>;
+    return <Badge variant={variants[action] || "secondary"} className="text-[10px] uppercase font-normal">{action}</Badge>;
   };
 
   const recordTypeLabels: Record<string, string> = {
@@ -171,317 +174,336 @@ export default function AuditLogPage() {
     prescription: "Resep",
   };
 
-  const hasActiveFilters = startDate || endDate || selectedUserId || signatureDocType || recordType;
+  const hasActiveFilters = !!(startDate || endDate || selectedUserId || signatureDocType || recordType);
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <Collapsible open={filterOpen} onOpenChange={setFilterOpen}>
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-semibold">Audit Log</h1>
-            <p className="text-sm text-muted-foreground">
-              Pantau aktivitas tanda tangan digital dan perubahan rekam medis
-            </p>
-          </div>
+    <PageShell>
+      <PageHeader
+        title="Audit Log Sistem"
+        description="Pantau riwayat aktivitas tanda tangan digital dan perubahan data rekam medis"
+        actions={
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={handleSearch}>
-              <RefreshCw className="h-4 w-4 mr-2" />
+            <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="h-8">
+              <ArrowLeft className="h-3.5 w-3.5 mr-1.5" />
+              Kembali
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleSearch} className="h-8">
+              <RefreshCw className={cn("h-3.5 w-3.5 mr-1.5", (signatureLoading || editLoading) && "animate-spin")} />
               Refresh
             </Button>
-            <CollapsibleTrigger asChild>
-              <Button variant="outline" size="sm" className="h-9">
-                <SlidersHorizontal className="h-4 w-4 mr-2" />
-                Filter
-                {hasActiveFilters && (
-                  <Badge variant="secondary" className="ml-2 h-5 px-1.5">
-                    {[startDate, endDate, selectedUserId, signatureDocType, recordType].filter(Boolean).length}
-                  </Badge>
-                )}
-              </Button>
-            </CollapsibleTrigger>
-          </div>
-        </div>
-
-        {/* Collapsible Filter */}
-        <CollapsibleContent>
-          <div className="flex items-center gap-2 flex-wrap pt-4">
-            <Input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="h-9 w-40"
-              placeholder="Tanggal Mulai"
-            />
-            <span className="text-muted-foreground">-</span>
-            <Input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="h-9 w-40"
-              placeholder="Tanggal Akhir"
-            />
-            <Select value={selectedUserId || "all"} onValueChange={(v) => setSelectedUserId(v === "all" ? "" : v)}>
-              <SelectTrigger className="h-9 w-48">
-                <SelectValue placeholder="Semua User" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Semua User</SelectItem>
-                {users.map((user) => (
-                  <SelectItem key={user.id} value={user.id.toString()}>
-                    {user.full_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {activeTab === "signature" && (
-              <Select value={signatureDocType || "all"} onValueChange={(v) => setSignatureDocType(v === "all" ? "" : v)}>
-                <SelectTrigger className="h-9 w-48">
-                  <SelectValue placeholder="Jenis Dokumen" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Semua Dokumen</SelectItem>
-                  {Object.entries(DOCUMENT_TYPE_LABELS).map(([value, label]) => (
-                    <SelectItem key={value} value={value}>{label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-            {activeTab === "edit" && (
-              <Select value={recordType || "all"} onValueChange={(v) => setRecordType(v === "all" ? "" : v)}>
-                <SelectTrigger className="h-9 w-48">
-                  <SelectValue placeholder="Jenis Record" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Semua Record</SelectItem>
-                  {Object.entries(recordTypeLabels).map(([value, label]) => (
-                    <SelectItem key={value} value={value}>{label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-            <Button size="sm" onClick={handleSearch} className="h-9">
-              Terapkan
-            </Button>
-            <Button variant="ghost" size="sm" onClick={handleReset} className="h-9">
-              Reset
+            <Button
+              variant={filterOpen ? "default" : "outline"}
+              size="sm"
+              onClick={() => setFilterOpen(!filterOpen)}
+              className="h-8"
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5 mr-1.5" />
+              Filter
+              {hasActiveFilters && (
+                <span className="ml-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary-foreground text-[10px] text-primary">
+                  !
+                </span>
+              )}
             </Button>
           </div>
-        </CollapsibleContent>
-      </Collapsible>
+        }
+      />
 
-      {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} variant="inline" className="w-full">
-        <TabsList>
-          <TabsTrigger value="signature">
-            <ShieldCheck className="h-4 w-4 mr-2" />
-            Tanda Tangan ({signatureTotal})
-          </TabsTrigger>
-          <TabsTrigger value="edit">
-            <FileEdit className="h-4 w-4 mr-2" />
-            Perubahan RM ({editTotal})
-          </TabsTrigger>
-        </TabsList>
+      <PageContent>
+        <div className="space-y-4">
+          <Collapsible open={filterOpen} onOpenChange={setFilterOpen}>
+            <CollapsibleContent>
+              <div className="rounded-lg border bg-card p-4 shadow-sm mb-4">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <div className="space-y-1">
+                    <Label className="text-[10px] uppercase text-muted-foreground ml-1">Dari Tanggal</Label>
+                    <Input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      className="h-8 w-40 text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] uppercase text-muted-foreground ml-1">Sampai Tanggal</Label>
+                    <Input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      className="h-8 w-40 text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] uppercase text-muted-foreground ml-1">User</Label>
+                    <Select value={selectedUserId || "all"} onValueChange={(v) => setSelectedUserId(v === "all" ? "" : v)}>
+                      <SelectTrigger className="h-8 w-48 text-xs">
+                        <SelectValue placeholder="Semua User" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Semua User</SelectItem>
+                        {users.map((user) => (
+                          <SelectItem key={user.id} value={user.id.toString()} className="text-xs">
+                            {user.full_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {activeTab === "signature" && (
+                    <div className="space-y-1">
+                      <Label className="text-[10px] uppercase text-muted-foreground ml-1">Dokumen</Label>
+                      <Select value={signatureDocType || "all"} onValueChange={(v) => setSignatureDocType(v === "all" ? "" : v)}>
+                        <SelectTrigger className="h-8 w-48 text-xs">
+                          <SelectValue placeholder="Jenis Dokumen" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Semua Dokumen</SelectItem>
+                          {Object.entries(DOCUMENT_TYPE_LABELS).map(([value, label]) => (
+                            <SelectItem key={value} value={value} className="text-xs">{label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  {activeTab === "edit" && (
+                    <div className="space-y-1">
+                      <Label className="text-[10px] uppercase text-muted-foreground ml-1">Record</Label>
+                      <Select value={recordType || "all"} onValueChange={(v) => setRecordType(v === "all" ? "" : v)}>
+                        <SelectTrigger className="h-8 w-48 text-xs">
+                          <SelectValue placeholder="Jenis Record" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Semua Record</SelectItem>
+                          {Object.entries(recordTypeLabels).map(([value, label]) => (
+                            <SelectItem key={value} value={value} className="text-xs">{label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  <div className="flex items-end gap-2 pt-5">
+                    <Button size="sm" onClick={handleSearch} className="h-8 text-xs px-4">
+                      Terapkan
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={handleReset} className="h-8 text-xs">
+                      Reset
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
 
-        {/* Signature Logs Tab */}
-        <TabsContent value="signature" className="mt-4">
-          {signatureLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <Tabs value={activeTab} onValueChange={setActiveTab} variant="inline" className="w-full">
+            <div className="bg-card rounded-xl border shadow-sm p-1 inline-flex mb-4">
+              <TabsList className="bg-transparent h-8">
+                <TabsTrigger value="signature" className="h-7 text-xs gap-2">
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  Log Tanda Tangan
+                  <Badge variant="secondary" className="h-4 px-1.5 text-[9px] bg-muted">{signatureTotal}</Badge>
+                </TabsTrigger>
+                <TabsTrigger value="edit" className="h-7 text-xs gap-2">
+                  <FileEdit className="h-3.5 w-3.5" />
+                  Perubahan Rekam Medis
+                  <Badge variant="secondary" className="h-4 px-1.5 text-[9px] bg-muted">{editTotal}</Badge>
+                </TabsTrigger>
+              </TabsList>
             </div>
-          ) : signatureLogs.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              <ShieldCheck className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>Tidak ada data log tanda tangan</p>
-            </div>
-          ) : (
-            <>
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Waktu</TableHead>
-                      <TableHead>User</TableHead>
-                      <TableHead>Jenis Dokumen</TableHead>
-                      <TableHead>Pasien</TableHead>
-                      <TableHead>Aksi</TableHead>
-                      <TableHead>IP Address</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {signatureLogs.map((log) => (
-                      <TableRow key={log.id}>
-                        <TableCell className="whitespace-nowrap text-sm">
-                          {formatDateTime(log.signed_at)}
-                        </TableCell>
-                        <TableCell>
-                          <div>
-                            <p className="font-medium text-sm">{log.signer_name}</p>
-                            {log.signer_nip && (
-                              <p className="text-xs text-muted-foreground">NIP: {log.signer_nip}</p>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-sm">
-                          {DOCUMENT_TYPE_LABELS[log.document_type] || log.document_type}
-                        </TableCell>
-                        <TableCell>
-                          {log.visit?.registration?.patient ? (
-                            <div>
-                              <p className="font-medium text-sm">{log.visit.registration.patient.nama_lengkap}</p>
-                              <p className="text-xs text-muted-foreground">
-                                RM: {log.visit.registration.patient.no_rm}
-                              </p>
-                              {log.visit.visit_number && (
-                                <p className="text-xs text-muted-foreground">
-                                  {log.visit.visit_number}
-                                </p>
+
+            <div className="bg-card rounded-xl border shadow-sm overflow-hidden">
+              <TabsContent value="signature" className="m-0 border-0">
+                {signatureLoading ? (
+                  <div className="flex flex-col items-center justify-center py-20">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary/40 mb-2" />
+                    <p className="text-xs text-muted-foreground">Memuat data log...</p>
+                  </div>
+                ) : signatureLogs.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
+                    <ShieldCheck className="h-12 w-12 opacity-10 mb-3" />
+                    <p className="text-sm font-medium">Tidak ada log tanda tangan ditemukan</p>
+                  </div>
+                ) : (
+                  <>
+                    <Table>
+                      <TableHeader className="bg-muted/40">
+                        <TableRow className="hover:bg-transparent">
+                          <TableHead className="text-[10px] uppercase font-bold tracking-wider py-3">Waktu</TableHead>
+                          <TableHead className="text-[10px] uppercase font-bold tracking-wider py-3">User / Penandatangan</TableHead>
+                          <TableHead className="text-[10px] uppercase font-bold tracking-wider py-3">Dokumen</TableHead>
+                          <TableHead className="text-[10px] uppercase font-bold tracking-wider py-3">Pasien</TableHead>
+                          <TableHead className="text-[10px] uppercase font-bold tracking-wider py-3">Aksi</TableHead>
+                          <TableHead className="text-[10px] uppercase font-bold tracking-wider py-3">IP Address</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {signatureLogs.map((log) => (
+                          <TableRow key={log.id} className="group transition-colors">
+                            <TableCell className="whitespace-nowrap text-xs font-mono text-muted-foreground">
+                              {formatDateTime(log.signed_at)}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex flex-col min-w-0">
+                                <span className="text-sm font-semibold text-foreground leading-tight">{log.signer_name}</span>
+                                {log.signer_nip && (
+                                  <span className="text-[10px] text-muted-foreground mt-0.5">NIP: {log.signer_nip}</span>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-xs font-medium">
+                              {DOCUMENT_TYPE_LABELS[log.document_type] || log.document_type}
+                            </TableCell>
+                            <TableCell>
+                              {log.visit?.registration?.patient ? (
+                                <div className="flex flex-col">
+                                  <span className="text-xs font-medium">{log.visit.registration.patient.nama_lengkap}</span>
+                                  <span className="text-[10px] text-muted-foreground">RM: {log.visit.registration.patient.no_rm}</span>
+                                </div>
+                              ) : (
+                                <span className="text-muted-foreground text-xs italic">N/A</span>
                               )}
-                            </div>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell>{getActionBadge(log.action)}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
-                          {log.ip_address || "-"}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+                            </TableCell>
+                            <TableCell>{getActionBadge(log.action)}</TableCell>
+                            <TableCell className="text-[10px] font-mono text-muted-foreground">
+                              {log.ip_address || "-"}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
 
-              {/* Pagination */}
-              {signatureTotal > pageSize && (
-                <div className="flex justify-between items-center mt-4">
-                  <p className="text-sm text-muted-foreground">
-                    Menampilkan {(signaturePage - 1) * pageSize + 1} - {Math.min(signaturePage * pageSize, signatureTotal)} dari {signatureTotal}
-                  </p>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={signaturePage === 1}
-                      onClick={() => loadSignatureLogs(signaturePage - 1)}
-                    >
-                      Sebelumnya
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={signaturePage >= Math.ceil(signatureTotal / pageSize)}
-                      onClick={() => loadSignatureLogs(signaturePage + 1)}
-                    >
-                      Selanjutnya
-                    </Button>
+                    {/* Pagination */}
+                    {signatureTotal > pageSize && (
+                      <div className="flex items-center justify-between px-4 py-3 border-t bg-muted/10">
+                        <p className="text-[11px] text-muted-foreground">
+                          Menampilkan <span className="font-semibold">{(signaturePage - 1) * pageSize + 1} - {Math.min(signaturePage * pageSize, signatureTotal)}</span> dari <span className="font-semibold">{signatureTotal}</span> data
+                        </p>
+                        <div className="flex gap-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={signaturePage === 1}
+                            onClick={() => loadSignatureLogs(signaturePage - 1)}
+                            className="h-7 text-[10px]"
+                          >
+                            Sebelumnya
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={signaturePage >= Math.ceil(signatureTotal / pageSize)}
+                            onClick={() => loadSignatureLogs(signaturePage + 1)}
+                            className="h-7 text-[10px]"
+                          >
+                            Selanjutnya
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </TabsContent>
+
+              <TabsContent value="edit" className="m-0 border-0">
+                {editLoading ? (
+                  <div className="flex flex-col items-center justify-center py-20">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary/40 mb-2" />
+                    <p className="text-xs text-muted-foreground">Memuat data log...</p>
                   </div>
-                </div>
-              )}
-            </>
-          )}
-        </TabsContent>
-
-        {/* Edit Logs Tab */}
-        <TabsContent value="edit" className="mt-4">
-          {editLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-          ) : editLogs.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              <FileEdit className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>Tidak ada data log perubahan rekam medis</p>
-            </div>
-          ) : (
-            <>
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Waktu</TableHead>
-                      <TableHead>User</TableHead>
-                      <TableHead>Jenis Record</TableHead>
-                      <TableHead>Pasien</TableHead>
-                      <TableHead>No. Kunjungan</TableHead>
-                      <TableHead>Aksi</TableHead>
-                      <TableHead>Alasan</TableHead>
-                      <TableHead>IP Address</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {editLogs.map((log) => (
-                      <TableRow key={log.id}>
-                        <TableCell className="whitespace-nowrap text-sm">
-                          {formatDateTime(log.edited_at)}
-                        </TableCell>
-                        <TableCell>
-                          <div>
-                            <p className="font-medium text-sm">{log.edited_by?.full_name || "-"}</p>
-                            <p className="text-xs text-muted-foreground">{log.edited_by?.email}</p>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-sm">
-                          {recordTypeLabels[log.record_type] || log.record_type}
-                        </TableCell>
-                        <TableCell>
-                          {log.visit?.registration?.patient ? (
-                            <div>
-                              <p className="font-medium text-sm">{log.visit.registration.patient.nama_lengkap}</p>
-                              <p className="text-xs text-muted-foreground">
-                                RM: {log.visit.registration.patient.no_rm}
-                              </p>
-                            </div>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="font-mono text-sm">
-                          {log.visit?.visit_number || "-"}
-                        </TableCell>
-                        <TableCell>{getActionBadge(log.action)}</TableCell>
-                        <TableCell className="max-w-[200px] truncate text-sm" title={log.reason}>
-                          {log.reason || "-"}
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
-                          {log.ip_address || "-"}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-
-              {/* Pagination */}
-              {editTotal > pageSize && (
-                <div className="flex justify-between items-center mt-4">
-                  <p className="text-sm text-muted-foreground">
-                    Menampilkan {(editPage - 1) * pageSize + 1} - {Math.min(editPage * pageSize, editTotal)} dari {editTotal}
-                  </p>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={editPage === 1}
-                      onClick={() => loadEditLogs(editPage - 1)}
-                    >
-                      Sebelumnya
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={editPage >= Math.ceil(editTotal / pageSize)}
-                      onClick={() => loadEditLogs(editPage + 1)}
-                    >
-                      Selanjutnya
-                    </Button>
+                ) : editLogs.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
+                    <FileEdit className="h-12 w-12 opacity-10 mb-3" />
+                    <p className="text-sm font-medium">Tidak ada log perubahan rekam medis ditemukan</p>
                   </div>
-                </div>
-              )}
-            </>
-          )}
-        </TabsContent>
-      </Tabs>
-    </div>
+                ) : (
+                  <>
+                    <Table>
+                      <TableHeader className="bg-muted/40">
+                        <TableRow className="hover:bg-transparent">
+                          <TableHead className="text-[10px] uppercase font-bold tracking-wider py-3">Waktu</TableHead>
+                          <TableHead className="text-[10px] uppercase font-bold tracking-wider py-3">User</TableHead>
+                          <TableHead className="text-[10px] uppercase font-bold tracking-wider py-3">Record</TableHead>
+                          <TableHead className="text-[10px] uppercase font-bold tracking-wider py-3">Pasien</TableHead>
+                          <TableHead className="text-[10px] uppercase font-bold tracking-wider py-3">Aksi</TableHead>
+                          <TableHead className="text-[10px] uppercase font-bold tracking-wider py-3">Alasan</TableHead>
+                          <TableHead className="text-[10px] uppercase font-bold tracking-wider py-3">IP Address</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {editLogs.map((log) => (
+                          <TableRow key={log.id} className="group">
+                            <TableCell className="whitespace-nowrap text-xs font-mono text-muted-foreground">
+                              {formatDateTime(log.edited_at)}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex flex-col">
+                                <span className="text-sm font-semibold">{log.edited_by?.full_name || "-"}</span>
+                                <span className="text-[10px] text-muted-foreground">{log.edited_by?.email}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-xs font-medium">
+                              {recordTypeLabels[log.record_type] || log.record_type}
+                            </TableCell>
+                            <TableCell>
+                              {log.visit?.registration?.patient ? (
+                                <div className="flex flex-col">
+                                  <span className="text-xs font-medium">{log.visit.registration.patient.nama_lengkap}</span>
+                                  <span className="text-[10px] text-muted-foreground font-mono">RM: {log.visit.registration.patient.no_rm}</span>
+                                </div>
+                              ) : (
+                                <span className="text-muted-foreground text-xs italic">N/A</span>
+                              )}
+                            </TableCell>
+                            <TableCell>{getActionBadge(log.action)}</TableCell>
+                            <TableCell className="max-w-[180px] text-xs text-muted-foreground italic leading-tight" title={log.reason}>
+                              {log.reason || "-"}
+                            </TableCell>
+                            <TableCell className="text-[10px] font-mono text-muted-foreground">
+                              {log.ip_address || "-"}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+
+                    {/* Pagination */}
+                    {editTotal > pageSize && (
+                      <div className="flex items-center justify-between px-4 py-3 border-t bg-muted/10">
+                        <p className="text-[11px] text-muted-foreground">
+                          Menampilkan <span className="font-semibold">{(editPage - 1) * pageSize + 1} - {Math.min(editPage * pageSize, editTotal)}</span> dari <span className="font-semibold">{editTotal}</span> data
+                        </p>
+                        <div className="flex gap-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={editPage === 1}
+                            onClick={() => loadEditLogs(editPage - 1)}
+                            className="h-7 text-[10px]"
+                          >
+                            Sebelumnya
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={editPage >= Math.ceil(editTotal / pageSize)}
+                            onClick={() => loadEditLogs(editPage + 1)}
+                            className="h-7 text-[10px]"
+                          >
+                            Selanjutnya
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </TabsContent>
+            </div>
+          </Tabs>
+        </div>
+      </PageContent>
+    </PageShell>
   );
+}
+
+function cn(...inputs: any[]) {
+  return inputs.filter(Boolean).join(" ");
 }

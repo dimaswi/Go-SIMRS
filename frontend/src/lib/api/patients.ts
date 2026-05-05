@@ -30,6 +30,7 @@ export interface Patient {
   rhesus?: RhesusType;
   agama?: string;
   status_perkawinan?: string;
+  nama_suami_istri?: string;
   pendidikan_terakhir?: string;
   pekerjaan?: string;
   kewarganegaraan?: string;
@@ -68,6 +69,11 @@ export interface Patient {
   nik_penanggung_jawab?: string;
   alamat_penanggung_jawab?: string;
   telepon_penanggung_jawab?: string;
+  
+  // Aliases for shorter usage
+  nama_pj?: string;
+  hubungan_pj?: string;
+  no_telepon_pj?: string;
 
   // Data Orang Tua (untuk anak)
   nama_ayah?: string;

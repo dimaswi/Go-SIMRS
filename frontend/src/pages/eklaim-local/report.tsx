@@ -1,9 +1,17 @@
 import { useEffect, useState } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
+import { PageShell, PageHeader, PageContent } from '@/components/layout/page-shell';
 import { DataTable } from '@/components/ui/data-table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -12,7 +20,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { eklaimLocalApi, eklaimLocalStatusLabels, eklaimLocalStatusColors, jenisRawatOptions } from '@/lib/api/eklaim-local';
 import type { EKlaimLocalStatus } from '@/lib/api/eklaim-local';
 import { useToast } from '@/hooks/use-toast';
@@ -33,56 +40,71 @@ interface ClaimStatusItem {
   diagnosa: string;
   procedure: string;
   nama_dokter: string;
-  // iDRG
   idrg_code: string;
   idrg_description: string;
   idrg_cost_weight: string;
-  // INACBG
   inacbg_cbg_code: string;
   inacbg_cbg_description: string;
   inacbg_tariff: string;
-  // Tarif RS
   tarif_rs: number;
   los: number;
 }
 
 export default function EklaimReportPage() {
   const { toast } = useToast();
-  const [loading, setLoading] = useState(false);
-  const [data, setData] = useState<ClaimStatusItem[]>([]);
-  const [filtersOpen, setFiltersOpen] = useState(false);
-
-  // Filters
-  const [tglFrom, setTglFrom] = useState(() => {
+  const initialTglFrom = (() => {
     const d = new Date();
     d.setDate(1);
     return d.toISOString().split('T')[0];
-  });
-  const [tglTo, setTglTo] = useState(() => new Date().toISOString().split('T')[0]);
+  })();
+  const initialTglTo = new Date().toISOString().split('T')[0];
+
+  const [loading, setLoading] = useState(false);
+  const [data, setData] = useState<ClaimStatusItem[]>([]);
+  const [filterDialogOpen, setFilterDialogOpen] = useState(false);
+
+  const [tglFrom, setTglFrom] = useState(initialTglFrom);
+  const [tglTo, setTglTo] = useState(initialTglTo);
   const [jenisRawat, setJenisRawat] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
 
-  useEffect(() => {
-    setPageTitle('Laporan E-Klaim');
-    handleSearch();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const [draftTglFrom, setDraftTglFrom] = useState(initialTglFrom);
+  const [draftTglTo, setDraftTglTo] = useState(initialTglTo);
+  const [draftJenisRawat, setDraftJenisRawat] = useState('all');
+  const [draftStatusFilter, setDraftStatusFilter] = useState('all');
 
-  const handleSearch = async () => {
-    if (!tglFrom || !tglTo) {
+  const hasActiveFilters =
+    tglFrom !== initialTglFrom ||
+    tglTo !== initialTglTo ||
+    jenisRawat !== 'all' ||
+    statusFilter !== 'all';
+
+  const handleSearch = async (overrides?: {
+    tglFrom?: string;
+    tglTo?: string;
+    jenisRawat?: string;
+    statusFilter?: string;
+  }) => {
+    const nextTglFrom = overrides?.tglFrom ?? tglFrom;
+    const nextTglTo = overrides?.tglTo ?? tglTo;
+    const nextJenisRawat = overrides?.jenisRawat ?? jenisRawat;
+    const nextStatusFilter = overrides?.statusFilter ?? statusFilter;
+
+    if (!nextTglFrom || !nextTglTo) {
       toast({ variant: 'destructive', title: 'Error!', description: 'Tanggal harus diisi.' });
       return;
     }
+
     setLoading(true);
     try {
       const params: Record<string, any> = {
-        tgl_masuk_from: tglFrom,
-        tgl_masuk_to: tglTo,
+        tgl_masuk_from: nextTglFrom,
+        tgl_masuk_to: nextTglTo,
       };
-      if (jenisRawat && jenisRawat !== 'all') params.jenis_rawat = jenisRawat;
-      if (statusFilter && statusFilter !== 'all') params.status = statusFilter;
+      if (nextJenisRawat !== 'all') params.jenis_rawat = nextJenisRawat;
+      if (nextStatusFilter !== 'all') params.status = nextStatusFilter;
 
-      const response = await eklaimLocalApi.getClaimStatus(params as any);
+      const response = await eklaimLocalApi.getClaimStatus(params as never);
       setData(response.data || []);
     } catch {
       toast({ variant: 'destructive', title: 'Error!', description: 'Gagal memuat laporan.' });
@@ -90,6 +112,21 @@ export default function EklaimReportPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    setPageTitle('Laporan E-Klaim');
+    void handleSearch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!filterDialogOpen) return;
+
+    setDraftTglFrom(tglFrom);
+    setDraftTglTo(tglTo);
+    setDraftJenisRawat(jenisRawat);
+    setDraftStatusFilter(statusFilter);
+  }, [filterDialogOpen, tglFrom, tglTo, jenisRawat, statusFilter]);
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return '-';
@@ -184,7 +221,7 @@ export default function EklaimReportPage() {
       accessorKey: 'diagnosa',
       header: 'Diagnosa',
       cell: ({ row }) => (
-        <span className="font-mono text-xs truncate max-w-[120px] block" title={row.original.diagnosa}>
+        <span className="block max-w-[120px] truncate font-mono text-xs" title={row.original.diagnosa}>
           {row.original.diagnosa || '-'}
         </span>
       ),
@@ -193,13 +230,14 @@ export default function EklaimReportPage() {
       id: 'idrg',
       header: 'iDRG',
       cell: ({ row }) => {
-        const d = row.original;
-        if (!d.idrg_code) return <span className="text-muted-foreground">-</span>;
+        const item = row.original;
+        if (!item.idrg_code) return <span className="text-muted-foreground">-</span>;
+
         return (
           <div>
-            <p className="font-mono text-xs font-medium">{d.idrg_code}</p>
-            <p className="text-xs text-muted-foreground truncate max-w-[150px]">{d.idrg_description}</p>
-            <p className="text-xs text-muted-foreground">CW: {d.idrg_cost_weight}</p>
+            <p className="font-mono text-xs font-medium">{item.idrg_code}</p>
+            <p className="max-w-[150px] truncate text-xs text-muted-foreground">{item.idrg_description}</p>
+            <p className="text-xs text-muted-foreground">CW: {item.idrg_cost_weight}</p>
           </div>
         );
       },
@@ -208,12 +246,13 @@ export default function EklaimReportPage() {
       id: 'inacbg',
       header: 'INACBG',
       cell: ({ row }) => {
-        const d = row.original;
-        if (!d.inacbg_cbg_code) return <span className="text-muted-foreground">-</span>;
+        const item = row.original;
+        if (!item.inacbg_cbg_code) return <span className="text-muted-foreground">-</span>;
+
         return (
           <div>
-            <p className="font-mono text-xs font-medium">{d.inacbg_cbg_code}</p>
-            <p className="text-xs text-muted-foreground truncate max-w-[150px]">{d.inacbg_cbg_description}</p>
+            <p className="font-mono text-xs font-medium">{item.inacbg_cbg_code}</p>
+            <p className="max-w-[150px] truncate text-xs text-muted-foreground">{item.inacbg_cbg_description}</p>
           </div>
         );
       },
@@ -222,8 +261,8 @@ export default function EklaimReportPage() {
       id: 'inacbg_tariff',
       header: 'Tarif INACBG',
       cell: ({ row }) => {
-        const val = row.original.inacbg_tariff ? Number(row.original.inacbg_tariff) : 0;
-        return <span className="font-mono text-sm">{val ? formatCurrency(val) : '-'}</span>;
+        const value = row.original.inacbg_tariff ? Number(row.original.inacbg_tariff) : 0;
+        return <span className="font-mono text-sm">{value ? formatCurrency(value) : '-'}</span>;
       },
     },
     {
@@ -235,64 +274,95 @@ export default function EklaimReportPage() {
     },
   ];
 
-  // Summary
-  const totalINACBG = data.reduce((sum, d) => sum + (d.inacbg_tariff ? Number(d.inacbg_tariff) : 0), 0);
-  const totalRS = data.reduce((sum, d) => sum + (d.tarif_rs || 0), 0);
+  const totalINACBG = data.reduce((sum, item) => sum + (item.inacbg_tariff ? Number(item.inacbg_tariff) : 0), 0);
+  const totalRS = data.reduce((sum, item) => sum + (item.tarif_rs || 0), 0);
+
+  const resetFilters = () => {
+    setTglFrom(initialTglFrom);
+    setTglTo(initialTglTo);
+    setJenisRawat('all');
+    setStatusFilter('all');
+    void handleSearch({
+      tglFrom: initialTglFrom,
+      tglTo: initialTglTo,
+      jenisRawat: 'all',
+      statusFilter: 'all',
+    });
+  };
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-semibold flex items-center gap-2">
-              Report E-Klaim
-            </h1>
-          </div>
-          <CollapsibleTrigger asChild>
-            <Button variant="outline" size="sm" className="h-9">
-              <SlidersHorizontal className="h-4 w-4 mr-2" />
+    <PageShell>
+      <PageHeader
+        title="Laporan E-Klaim"
+        description="Rekap status klaim berdasarkan periode rawat dan hasil grouper"
+        count={data.length}
+        actions={
+          <div className="flex items-center gap-2">
+            {hasActiveFilters && (
+              <Button variant="ghost" size="sm" className="h-9 text-muted-foreground" onClick={resetFilters}>
+                Reset
+              </Button>
+            )}
+            <Button variant={filterDialogOpen ? 'secondary' : 'outline'} size="sm" className="h-9" onClick={() => setFilterDialogOpen(true)}>
+              <SlidersHorizontal className="mr-2 h-4 w-4" />
               Filter
+              {hasActiveFilters && <span className="ml-2 h-1.5 w-1.5 rounded-full bg-primary" />}
             </Button>
-          </CollapsibleTrigger>
-        </div>
-        <CollapsibleContent>
-          <div className="flex flex-wrap items-end gap-3 pt-4">
-            <div className="space-y-1.5">
-              <Label className="text-xs">Tgl Masuk Dari</Label>
-              <Input
-                type="date"
-                value={tglFrom}
-                onChange={(e) => setTglFrom(e.target.value)}
-                className="w-[160px]"
-              />
+          </div>
+        }
+      />
+
+      <Dialog open={filterDialogOpen} onOpenChange={setFilterDialogOpen}>
+        <DialogContent className="max-w-2xl p-0">
+          <DialogHeader>
+            <div className="border-b border-border bg-muted/20 px-4 py-4">
+              <DialogTitle>Filter Laporan E-Klaim</DialogTitle>
+              <DialogDescription className="mt-1">
+                Atur periode rawat, jenis rawat, dan status klaim sebelum mengambil rekap laporan.
+              </DialogDescription>
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Tgl Masuk Sampai</Label>
-              <Input
-                type="date"
-                value={tglTo}
-                onChange={(e) => setTglTo(e.target.value)}
-                className="w-[160px]"
-              />
+          </DialogHeader>
+
+          <div className="divide-y divide-border">
+            <div className="grid gap-3 px-4 py-3 md:grid-cols-[170px_minmax(0,1fr)] md:items-start">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Tanggal Masuk</p>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Dari</Label>
+                  <Input type="date" value={draftTglFrom} onChange={(e) => setDraftTglFrom(e.target.value)} className="h-9" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Sampai</Label>
+                  <Input type="date" value={draftTglTo} onChange={(e) => setDraftTglTo(e.target.value)} className="h-9" />
+                </div>
+              </div>
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Jenis Rawat</Label>
-              <Select value={jenisRawat} onValueChange={setJenisRawat}>
-                <SelectTrigger className="w-[150px]">
+
+            <div className="grid gap-3 px-4 py-3 md:grid-cols-[170px_minmax(0,1fr)] md:items-start">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Jenis Rawat</p>
+              </div>
+              <Select value={draftJenisRawat} onValueChange={setDraftJenisRawat}>
+                <SelectTrigger className="h-9">
                   <SelectValue placeholder="Semua" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Semua</SelectItem>
-                  {jenisRawatOptions.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  {jenisRawatOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Status</Label>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[150px]">
+
+            <div className="grid gap-3 px-4 py-3 md:grid-cols-[170px_minmax(0,1fr)] md:items-start">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Status</p>
+              </div>
+              <Select value={draftStatusFilter} onValueChange={setDraftStatusFilter}>
+                <SelectTrigger className="h-9">
                   <SelectValue placeholder="Semua" />
                 </SelectTrigger>
                 <SelectContent>
@@ -307,41 +377,76 @@ export default function EklaimReportPage() {
                 </SelectContent>
               </Select>
             </div>
-            <Button onClick={handleSearch} disabled={loading}>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 border-t border-border px-4 py-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 px-2 text-xs"
+              onClick={() => {
+                setDraftTglFrom(initialTglFrom);
+                setDraftTglTo(initialTglTo);
+                setDraftJenisRawat('all');
+                setDraftStatusFilter('all');
+              }}
+            >
+              Reset
+            </Button>
+            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setFilterDialogOpen(false)}>
+              Batal
+            </Button>
+            <Button
+              size="sm"
+              className="h-8 text-xs"
+              onClick={() => {
+                setTglFrom(draftTglFrom);
+                setTglTo(draftTglTo);
+                setJenisRawat(draftJenisRawat);
+                setStatusFilter(draftStatusFilter);
+                void handleSearch({
+                  tglFrom: draftTglFrom,
+                  tglTo: draftTglTo,
+                  jenisRawat: draftJenisRawat,
+                  statusFilter: draftStatusFilter,
+                });
+                setFilterDialogOpen(false);
+              }}
+            >
               {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
-              Cari
+              Terapkan
             </Button>
           </div>
-        </CollapsibleContent>
-      </Collapsible>
+        </DialogContent>
+      </Dialog>
 
-      {/* Summary */}
-      {data.length > 0 && (
-        <div className="flex flex-wrap gap-4 text-sm">
-          <span className="text-muted-foreground">
-            Total Klaim: <span className="font-medium text-foreground">{data.length}</span>
-          </span>
-          <span className="text-muted-foreground">
-            Total Tarif INACBG: <span className="font-mono font-medium text-foreground">{formatCurrency(totalINACBG)}</span>
-          </span>
-          <span className="text-muted-foreground">
-            Total Tarif RS: <span className="font-mono font-medium text-foreground">{formatCurrency(totalRS)}</span>
-          </span>
-        </div>
-      )}
+      <PageContent noPadding className="px-4 pb-4 pt-3">
+        {data.length > 0 && (
+          <div className="mb-3 flex flex-wrap gap-4 border border-border/70 bg-background px-4 py-3 text-sm">
+            <span className="text-muted-foreground">
+              Total Klaim: <span className="font-medium text-foreground">{data.length}</span>
+            </span>
+            <span className="text-muted-foreground">
+              Total Tarif INACBG: <span className="font-mono font-medium text-foreground">{formatCurrency(totalINACBG)}</span>
+            </span>
+            <span className="text-muted-foreground">
+              Total Tarif RS: <span className="font-mono font-medium text-foreground">{formatCurrency(totalRS)}</span>
+            </span>
+          </div>
+        )}
 
-      {/* Table */}
-      {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-      ) : (
-        <DataTable
-          columns={columns}
-          data={data}
-          searchPlaceholder="Cari klaim..."
-        />
-      )}
-    </div>
+        {loading ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        ) : (
+          <DataTable
+            columns={columns}
+            data={data}
+            searchPlaceholder="Cari klaim..."
+          />
+        )}
+      </PageContent>
+    </PageShell>
   );
 }

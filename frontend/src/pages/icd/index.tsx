@@ -1,9 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-
 import { DataTable } from "@/components/ui/data-table";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { icd10Api, icd9cmApi, type ICD10, type ICD9CM } from "@/lib/api/icd";
 import { usePermission } from "@/hooks/usePermission";
 import { useToast } from "@/hooks/use-toast";
@@ -11,6 +9,7 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 import { setPageTitle } from "@/lib/page-title";
 import { Loader2, Plus, Stethoscope, Syringe } from "lucide-react";
 import { createColumns } from "./columns";
+import { PageShell, PageHeader, FilterBar, FilterPill, PageContent } from "@/components/layout/page-shell";
 
 type ICDType = "icd10" | "icd9cm";
 
@@ -110,52 +109,51 @@ export default function ICDIndexPage() {
   );
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold">
-            {activeTab === "icd10" ? "ICD-10 Indonesia Modified" : "ICD-9-CM Indonesia Modified"}
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {activeTab === "icd10"
-              ? "Kode diagnosis berdasarkan ICD-10 versi Indonesia"
-              : "Kode prosedur/tindakan berdasarkan ICD-9-CM versi Indonesia"}
-          </p>
-        </div>
-        <div className="flex items-center gap-4">
-          <Tabs value={activeTab} onValueChange={handleTabChange} variant="inline">
-            <TabsList>
-              <TabsTrigger value="icd10" className="gap-2">
-                <Stethoscope className="h-4 w-4" />
-                ICD-10
-              </TabsTrigger>
-              <TabsTrigger value="icd9cm" className="gap-2">
-                <Syringe className="h-4 w-4" />
-                ICD-9-CM
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-          {hasPermission("icd.create") && (
+    <PageShell>
+      <PageHeader
+        title={activeTab === "icd10" ? "ICD-10 Indonesia Modified" : "ICD-9-CM Indonesia Modified"}
+        description={
+          activeTab === "icd10"
+            ? "Kode diagnosis berdasarkan ICD-10 versi Indonesia"
+            : "Kode prosedur/tindakan berdasarkan ICD-9-CM versi Indonesia"
+        }
+        count={data.length}
+        actions={
+          hasPermission("icd.create") ? (
             <Button onClick={() => navigate(`/icd/${activeTab}/create`)} size="sm">
-              <Plus className="mr-2 h-4 w-4" />
+              <Plus className="h-4 w-4" />
               Tambah
             </Button>
-          )}
-        </div>
-      </div>
-      {loading ? (
-        <div className="flex items-center justify-center py-8">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-      ) : (
-        <DataTable
-          columns={columns}
-          data={data}
-          searchPlaceholder="Cari kode atau nama..."
-          pageSize={15}
-          tableId={`icd_${activeTab}`}
-        />
-      )}
+          ) : undefined
+        }
+      />
+
+      <FilterBar>
+        <FilterPill active={activeTab === "icd10"} onClick={() => handleTabChange("icd10")}>
+          <Stethoscope className="h-3.5 w-3.5" />
+          ICD-10
+        </FilterPill>
+        <FilterPill active={activeTab === "icd9cm"} onClick={() => handleTabChange("icd9cm")}>
+          <Syringe className="h-3.5 w-3.5" />
+          ICD-9-CM
+        </FilterPill>
+      </FilterBar>
+
+      <PageContent>
+        {loading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        ) : (
+          <DataTable
+            columns={columns}
+            data={data}
+            searchPlaceholder="Cari kode atau nama..."
+            pageSize={15}
+            tableId={`icd_${activeTab}`}
+          />
+        )}
+      </PageContent>
 
       <ConfirmDialog
         open={deleteDialogOpen}
@@ -167,6 +165,6 @@ export default function ICDIndexPage() {
         cancelText="Batal"
         variant="destructive"
       />
-    </div>
+    </PageShell>
   );
 }

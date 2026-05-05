@@ -41,7 +41,6 @@ import { useToast } from "@/hooks/use-toast";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { setPageTitle } from "@/lib/page-title";
 import {
-  ArrowLeft,
   Loader2,
   Pencil,
   Plus,
@@ -107,12 +106,12 @@ export default function InventoryShow() {
   const navigate = useNavigate();
   const { hasPermission } = usePermission();
   const { toast } = useToast();
-  
+
   const [loading, setLoading] = useState(true);
   const [inventory, setInventory] = useState<Inventory | null>(null);
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [transactions, setTransactions] = useState<InventoryTransaction[]>([]);
-  
+
   // Item Dialog
   const [itemDialogOpen, setItemDialogOpen] = useState(false);
   const [itemLoading, setItemLoading] = useState(false);
@@ -138,7 +137,7 @@ export default function InventoryShow() {
         inventoriesApi.getItems(Number(id)),
         inventoriesApi.getTransactions(Number(id)),
       ]);
-      
+
       setInventory(inventoryRes.data.data);
       setItems(itemsRes.data.data || []);
       setTransactions(transactionsRes.data.data || []);
@@ -193,7 +192,7 @@ export default function InventoryShow() {
 
   const handleDeleteItem = async () => {
     if (!itemToDelete) return;
-    
+
     try {
       await inventoriesApi.deleteItem(Number(id), itemToDelete);
       toast({
@@ -288,207 +287,197 @@ export default function InventoryShow() {
 
   return (
     <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => window.history.back()}
-            className="h-9 w-9"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div>
-            <h1 className="text-lg font-semibold">
-              {inventory.name}
-            </h1>
-            <p className="text-sm text-muted-foreground flex items-center gap-2">
-              <span className="font-mono">{inventory.code}</span>
-              <Badge className={categoryColors[inventory.category]}>
-                {inventoryCategoryLabels[inventory.category]}
-              </Badge>
-              <Badge variant={inventory.is_active ? "default" : "secondary"}>
-                {inventory.is_active ? "Aktif" : "Tidak Aktif"}
-              </Badge>
-            </p>
-          </div>
-        </div>
-        {hasPermission("inventories.update") && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => navigate(`/inventories/${id}/edit`)}
-          >
-            <Pencil className="mr-2 h-4 w-4" />
-            Edit
-          </Button>
-        )}
-      </div>
 
-      <div className="rounded-lg border p-6">
-          <Tabs defaultValue="detail" variant="inline">
-            <TabsList>
-              <TabsTrigger value="detail">Detail</TabsTrigger>
-              <TabsTrigger value="items">
-                Item ({items.length})
-              </TabsTrigger>
-              <TabsTrigger value="transactions">
-                Transaksi ({transactions.length})
-              </TabsTrigger>
-            </TabsList>
+      <div className="flex-1 space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11">
+        <Tabs defaultValue="detail" variant="inline">
+          <TabsList>
+            <TabsTrigger value="detail">Detail</TabsTrigger>
+            <TabsTrigger value="items">
+              Item ({items.length})
+            </TabsTrigger>
+            <TabsTrigger value="transactions">
+              Transaksi ({transactions.length})
+            </TabsTrigger>
+          </TabsList>
 
-            {/* Detail Tab */}
-            <TabsContent value="detail" className="space-y-6 pt-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Informasi Umum */}
-                <div className="space-y-4">
-                  <h3 className="text-sm font-semibold text-muted-foreground">
-                    Informasi Umum
-                  </h3>
-                  <div className="space-y-3">
-                    <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">Merek</span>
-                      <span className="text-sm font-medium">
-                        {inventory.brand || "-"}
-                      </span>
-                    </div>
-                    <Separator />
-                    <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">Model</span>
-                      <span className="text-sm font-medium">
-                        {inventory.model || "-"}
-                      </span>
-                    </div>
-                    <Separator />
-                    <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">Satuan</span>
-                      <span className="text-sm font-medium">{inventory.unit}</span>
-                    </div>
-                    <Separator />
-                    <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">
-                        Harga Satuan
-                      </span>
-                      <span className="text-sm font-medium">
-                        {formatCurrency(inventory.price)}
-                      </span>
+          {/* Detail Tab */}
+          <TabsContent value="detail" className="space-y-6 pt-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Informasi Umum */}
+              <div className="border border-border/70">
+                <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  Informasi Umum
+                </div>
+                <div className="p-3 sm:p-4 space-y-3">
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Nama Inventaris</span>
+                    <span className="text-sm font-medium">{inventory.name}</span>
+                  </div>
+                  <Separator />
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Kode</span>
+                    <span className="text-sm font-medium font-mono">{inventory.code}</span>
+                  </div>
+                  <Separator />
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Kategori & Status</span>
+                    <div className="flex gap-2">
+                      <Badge className={categoryColors[inventory.category]}>
+                        {inventoryCategoryLabels[inventory.category]}
+                      </Badge>
+                      <Badge variant={inventory.is_active ? "default" : "secondary"}>
+                        {inventory.is_active ? "Aktif" : "Tidak Aktif"}
+                      </Badge>
                     </div>
                   </div>
+                  <Separator />
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Merek</span>
+                    <span className="text-sm font-medium">
+                      {inventory.brand || "-"}
+                    </span>
+                  </div>
+                  <Separator />
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Model</span>
+                    <span className="text-sm font-medium">
+                      {inventory.model || "-"}
+                    </span>
+                  </div>
+                  <Separator />
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">Satuan</span>
+                    <span className="text-sm font-medium">{inventory.unit}</span>
+                  </div>
+                  <Separator />
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">
+                      Harga Satuan
+                    </span>
+                    <span className="text-sm font-medium">
+                      {formatCurrency(inventory.price)}
+                    </span>
+                  </div>
                 </div>
+              </div>
 
-                {/* Informasi Stok */}
-                <div className="space-y-4">
-                  <h3 className="text-sm font-semibold text-muted-foreground">
-                    Informasi Stok
-                  </h3>
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-muted-foreground">
-                        Stok Saat Ini
-                      </span>
-                      <span
-                        className={`text-lg font-bold ${
-                          inventory.current_stock <= inventory.min_stock
-                            ? "text-red-600"
-                            : "text-green-600"
+              {/* Informasi Stok */}
+              <div className="border border-border/70">
+                <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  Informasi Stok
+                </div>
+                <div className="p-3 sm:p-4 space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">
+                      Stok Saat Ini
+                    </span>
+                    <span
+                      className={`text-lg font-bold ${inventory.current_stock <= inventory.min_stock
+                          ? "text-red-600"
+                          : "text-green-600"
                         }`}
-                      >
-                        {inventory.current_stock}
-                      </span>
-                    </div>
-                    <Separator />
-                    <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">
-                        Stok Minimum
-                      </span>
-                      <span className="text-sm font-medium">
-                        {inventory.min_stock}
-                      </span>
-                    </div>
-                    <Separator />
-                    <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">
-                        Stok Maksimum
-                      </span>
-                      <span className="text-sm font-medium">
-                        {inventory.max_stock}
-                      </span>
-                    </div>
-                    <Separator />
-                    <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">
-                        Total Nilai
-                      </span>
-                      <span className="text-sm font-medium">
-                        {formatCurrency(inventory.total_value)}
-                      </span>
-                    </div>
+                    >
+                      {inventory.current_stock}
+                    </span>
+                  </div>
+                  <Separator />
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">
+                      Stok Minimum
+                    </span>
+                    <span className="text-sm font-medium">
+                      {inventory.min_stock}
+                    </span>
+                  </div>
+                  <Separator />
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">
+                      Stok Maksimum
+                    </span>
+                    <span className="text-sm font-medium">
+                      {inventory.max_stock}
+                    </span>
+                  </div>
+                  <Separator />
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">
+                      Total Nilai
+                    </span>
+                    <span className="text-sm font-medium">
+                      {formatCurrency(inventory.total_value)}
+                    </span>
                   </div>
                 </div>
               </div>
+            </div>
 
-              {/* Properti */}
-              <div className="space-y-4">
-                <h3 className="text-sm font-semibold text-muted-foreground">
-                  Properti
-                </h3>
-                <div className="flex flex-wrap gap-4">
-                  <div className="flex items-center gap-2 text-sm">
-                    {inventory.is_consumable ? (
-                      <Check className="h-4 w-4 text-green-600" />
-                    ) : (
-                      <X className="h-4 w-4 text-gray-400" />
-                    )}
-                    <span>Habis Pakai</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    {inventory.is_reusable ? (
-                      <Check className="h-4 w-4 text-green-600" />
-                    ) : (
-                      <X className="h-4 w-4 text-gray-400" />
-                    )}
-                    <span>Dapat Dipakai Ulang</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    {inventory.require_serial ? (
-                      <Check className="h-4 w-4 text-green-600" />
-                    ) : (
-                      <X className="h-4 w-4 text-gray-400" />
-                    )}
-                    <span>Wajib Serial Number</span>
-                  </div>
+            {/* Properti */}
+            <div className="border border-border/70">
+              <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                Properti
+              </div>
+              <div className="p-3 sm:p-4 flex flex-wrap gap-4">
+                <div className="flex items-center gap-2 text-sm">
+                  {inventory.is_consumable ? (
+                    <Check className="h-4 w-4 text-green-600" />
+                  ) : (
+                    <X className="h-4 w-4 text-gray-400" />
+                  )}
+                  <span>Habis Pakai</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  {inventory.is_reusable ? (
+                    <Check className="h-4 w-4 text-green-600" />
+                  ) : (
+                    <X className="h-4 w-4 text-gray-400" />
+                  )}
+                  <span>Dapat Dipakai Ulang</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  {inventory.require_serial ? (
+                    <Check className="h-4 w-4 text-green-600" />
+                  ) : (
+                    <X className="h-4 w-4 text-gray-400" />
+                  )}
+                  <span>Wajib Serial Number</span>
                 </div>
               </div>
+            </div>
 
-              {/* Deskripsi & Spesifikasi */}
-              {(inventory.description || inventory.specifications) && (
-                <div className="space-y-4">
-                  {inventory.description && (
-                    <div>
-                      <h3 className="text-sm font-semibold text-muted-foreground mb-2">
-                        Deskripsi
-                      </h3>
+            {/* Deskripsi & Spesifikasi */}
+            {(inventory.description || inventory.specifications) && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {inventory.description && (
+                  <div className="border border-border/70">
+                    <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                      Deskripsi
+                    </div>
+                    <div className="p-3 sm:p-4">
                       <p className="text-sm">{inventory.description}</p>
                     </div>
-                  )}
-                  {inventory.specifications && (
-                    <div>
-                      <h3 className="text-sm font-semibold text-muted-foreground mb-2">
-                        Spesifikasi
-                      </h3>
+                  </div>
+                )}
+                {inventory.specifications && (
+                  <div className="border border-border/70">
+                    <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                      Spesifikasi
+                    </div>
+                    <div className="p-3 sm:p-4">
                       <p className="text-sm whitespace-pre-wrap">
                         {inventory.specifications}
                       </p>
                     </div>
-                  )}
-                </div>
-              )}
-            </TabsContent>
+                  </div>
+                )}
+              </div>
+            )}
+          </TabsContent>
 
-            {/* Items Tab */}
-            <TabsContent value="items" className="pt-4">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-sm font-semibold">Daftar Item</h3>
+          {/* Items Tab */}
+          <TabsContent value="items" className="pt-4">
+            <div className="border border-border/70">
+              <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex justify-between items-center">
+                <span>Daftar Item</span>
                 {hasPermission("inventories.create") && (
                   <Button size="sm" onClick={() => setItemDialogOpen(true)}>
                     <Plus className="mr-2 h-4 w-4" />
@@ -552,12 +541,14 @@ export default function InventoryShow() {
                   </TableBody>
                 </Table>
               )}
-            </TabsContent>
+            </div>
+          </TabsContent>
 
-            {/* Transactions Tab */}
-            <TabsContent value="transactions" className="pt-4">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-sm font-semibold">Riwayat Transaksi</h3>
+          {/* Transactions Tab */}
+          <TabsContent value="transactions" className="pt-4">
+            <div className="border border-border/70">
+              <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex justify-between items-center">
+                <span>Riwayat Transaksi</span>
               </div>
 
               {transactions.length === 0 ? (
@@ -590,16 +581,15 @@ export default function InventoryShow() {
                           </div>
                         </TableCell>
                         <TableCell
-                          className={`text-right font-medium ${
-                            ["in", "purchase"].includes(tx.transaction_type)
+                          className={`text-right font-medium ${["in", "purchase"].includes(tx.transaction_type)
                               ? "text-green-600"
                               : ["out", "distribution", "disposal"].includes(tx.transaction_type)
-                              ? "text-red-600"
-                              : ""
-                          }`}
+                                ? "text-red-600"
+                                : ""
+                            }`}
                         >
-                          {["in", "purchase"].includes(tx.transaction_type) ? "+" : 
-                           ["out", "distribution", "disposal"].includes(tx.transaction_type) ? "-" : ""}
+                          {["in", "purchase"].includes(tx.transaction_type) ? "+" :
+                            ["out", "distribution", "disposal"].includes(tx.transaction_type) ? "-" : ""}
                           {tx.quantity}
                         </TableCell>
                         <TableCell className="text-right">
@@ -615,8 +605,9 @@ export default function InventoryShow() {
                   </TableBody>
                 </Table>
               )}
-            </TabsContent>
-          </Tabs>
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
 
       {/* Item Dialog */}
@@ -762,6 +753,23 @@ export default function InventoryShow() {
         cancelText="Batal"
         variant="destructive"
       />
+      {/* Sticky Footer Actions */}
+      <div className="shrink-0 sticky bottom-0 z-10 py-3 mt-4 flex items-center justify-between border-t bg-background">
+        <Button variant="outline" onClick={() => navigate("/inventories")}>
+          Kembali
+        </Button>
+        <div className="flex gap-2">
+          {hasPermission("inventories.update") && (
+            <Button
+              variant="outline"
+              onClick={() => navigate(`/inventories/${id}/edit`)}
+            >
+              <Pencil className="mr-2 h-4 w-4" />
+              Edit
+            </Button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

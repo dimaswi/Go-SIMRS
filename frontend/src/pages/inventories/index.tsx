@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { PageShell, PageHeader, PageContent } from '@/components/layout/page-shell';
 
 import { DataTable } from '@/components/ui/data-table';
 import { createInventoryColumns } from './columns';
@@ -94,26 +95,29 @@ export default function InventoriesPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold">Inventaris</h1>
-          <p className="text-sm text-muted-foreground">Kelola data inventaris dan barang rumah sakit</p>
-        </div>
-        {hasPermission('inventories.create') && (
-          <Button onClick={() => navigate('/inventories/create')} size="sm">
-            <Plus className="mr-2 h-4 w-4" />
-            Tambah Inventaris
-          </Button>
-        )}
-      </div>
-      <DataTable
-        columns={columns}
-        data={inventories}
-        searchPlaceholder="Cari inventaris berdasarkan kode atau nama..."
-        pageSize={10}
-        tableId="inventories"
+    <PageShell>
+      <PageHeader
+        title="Inventaris"
+        description="Kelola data inventaris dan barang rumah sakit"
+        count={inventories.length}
+        actions={
+          hasPermission('inventories.create') ? (
+            <Button onClick={() => navigate('/inventories/create')} size="sm">
+              <Plus className="h-4 w-4" />
+              Tambah Inventaris
+            </Button>
+          ) : undefined
+        }
       />
+      <PageContent>
+        <DataTable
+          columns={columns}
+          data={inventories}
+          searchPlaceholder="Cari inventaris berdasarkan kode atau nama..."
+          pageSize={10}
+          tableId="inventories"
+        />
+      </PageContent>
 
       <ConfirmDialog
         open={deleteDialogOpen}
@@ -125,6 +129,6 @@ export default function InventoriesPage() {
         cancelText="Batal"
         variant="destructive"
       />
-    </div>
+    </PageShell>
   );
 }

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 import { DataTable } from "@/components/ui/data-table";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { nutritionPackageApi, type NutritionPackage } from "@/lib/api/nutrition";
@@ -65,24 +66,27 @@ export default function NutritionMealPackagesIndex() {
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold">Master Paket Makanan</h1>
-          <p className="text-sm text-muted-foreground">Kelola data paket makanan untuk layanan gizi</p>
-        </div>
-        <Button size="sm" onClick={() => navigate("/nutrition/meal-packages/create")}>
-          <Plus className="mr-2 h-4 w-4" /> Tambah Paket Makanan
-        </Button>
-      </div>
-
-      <DataTable
-        columns={columns}
-        data={packages}
-        searchPlaceholder="Cari paket berdasarkan kode atau nama..."
-        pageSize={10}
-        tableId="nutrition-meal-packages"
+    <PageShell>
+      <PageHeader
+        title="Master Paket Makanan"
+        description="Kelola data paket makanan untuk layanan gizi"
+        count={packages.length}
+        actions={
+          <Button size="sm" onClick={() => navigate("/nutrition/meal-packages/create")}>
+            <Plus className="h-4 w-4" />
+            Tambah Paket Makanan
+          </Button>
+        }
       />
+      <PageContent>
+        <DataTable
+          columns={columns}
+          data={packages}
+          searchPlaceholder="Cari paket berdasarkan kode atau nama..."
+          pageSize={10}
+          tableId="nutrition-meal-packages"
+        />
+      </PageContent>
 
       <ConfirmDialog
         open={deleteDialogOpen}
@@ -94,6 +98,6 @@ export default function NutritionMealPackagesIndex() {
         cancelText="Batal"
         variant="destructive"
       />
-    </div>
+    </PageShell>
   );
 }

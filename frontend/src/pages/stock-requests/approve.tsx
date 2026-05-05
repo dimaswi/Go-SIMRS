@@ -1,6 +1,5 @@
 ﻿import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -33,7 +32,6 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { setPageTitle } from "@/lib/page-title";
 import {
-  ArrowLeft,
   Loader2,
   Package,
   Pill,
@@ -43,15 +41,6 @@ import {
   AlertTriangle,
   FileText,
 } from "lucide-react";
-
-const statusColors: Record<string, string> = {
-  pending: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
-  approved: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
-  rejected: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
-  partial: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
-  completed: "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200",
-  cancelled: "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400",
-};
 
 const priorityColors: Record<string, string> = {
   low: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300",
@@ -264,190 +253,194 @@ export default function StockRequestApprove() {
 
   return (
     <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center gap-4">
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => window.history.back()}
-          className="h-9 w-9"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div className="space-y-1">
-          <div className="flex items-center gap-3">
-            <h1 className="text-lg font-semibold">
-              Proses Persetujuan
-            </h1>
-            <Badge className={statusColors[request.status]}>
-              {stockRequestStatusLabels[request.status]}
-            </Badge>
+
+
+      <div className="flex-1 space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11">
+        <div className="border border-border/70">
+          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            Informasi Permintaan
           </div>
-          <p className="text-sm text-muted-foreground">
-            {request.request_number} â€¢ {requestTypeLabels[request.request_type]} â€¢{" "}
-            <Badge variant="outline" className={priorityColors[request.priority]}>
-              Prioritas: {priorityLabels[request.priority]}
-            </Badge>
-          </p>
-        </div>
-      </div>
-
-      <div className="rounded-lg border p-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* From Room */}
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Building className="h-4 w-4" />
-                Dari Ruangan
+          <div className="p-3 sm:p-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+              <div className="space-y-1 lg:col-span-2">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <AlertTriangle className="h-4 w-4" />
+                  No. Permintaan & Prioritas
+                </div>
+                <div className="flex items-center gap-2 mt-1">
+                  <p className="font-medium font-mono text-base">{request.request_number}</p>
+                  <Badge variant="outline" className={priorityColors[request.priority]}>
+                    Prioritas: {priorityLabels[request.priority]}
+                  </Badge>
+                </div>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {requestTypeLabels[request.request_type]}
+                </p>
               </div>
-              <p className="font-medium">
-                {request.from_room?.code} - {request.from_room?.name}
-              </p>
-            </div>
-
-            {/* To Room */}
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Building className="h-4 w-4" />
-                Ke Ruangan (Anda)
-              </div>
-              <p className="font-medium">
-                {request.to_room?.code} - {request.to_room?.name}
-              </p>
-            </div>
-
-            {/* Requested By */}
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <FileText className="h-4 w-4" />
-                Diminta Oleh
-              </div>
-              <p className="font-medium">{request.requested_by?.full_name || "-"}</p>
-            </div>
-          </div>
-
-          {request.reason && (
-            <>
-              <Separator className="my-4" />
+              {/* From Room */}
               <div className="space-y-1">
-                <div className="text-sm text-muted-foreground">Alasan Permintaan</div>
-                <p className="text-sm">{request.reason}</p>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Building className="h-4 w-4" />
+                  Dari Ruangan
+                </div>
+                <p className="font-medium">
+                  {request.from_room?.code} - {request.from_room?.name}
+                </p>
               </div>
-            </>
-          )}
-      </div>
 
-      {/* Items Approval Card */}
-      <div className="rounded-lg border">
-        <div className="flex items-center justify-between px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="space-y-1">
-              <h3 className="text-sm font-medium">Daftar Item</h3>
-              <p className="text-sm text-muted-foreground">Tentukan jumlah yang disetujui untuk setiap item</p>
+              {/* To Room */}
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Building className="h-4 w-4" />
+                  Ke Ruangan (Anda)
+                </div>
+                <p className="font-medium">
+                  {request.to_room?.code} - {request.to_room?.name}
+                </p>
+              </div>
+
+              {/* Requested By */}
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <FileText className="h-4 w-4" />
+                  Diminta Oleh
+                </div>
+                <p className="font-medium">{request.requested_by?.full_name || "-"}</p>
+              </div>
             </div>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={handleApproveAll}>
-                Setujui Semua
-              </Button>
-              <Button variant="outline" size="sm" onClick={handleClearAll}>
-                Reset
-              </Button>
-            </div>
+
+            {request.reason && (
+              <>
+                <Separator className="my-4" />
+                <div className="space-y-1">
+                  <div className="text-sm text-muted-foreground">Alasan Permintaan</div>
+                  <p className="text-sm">{request.reason}</p>
+                </div>
+              </>
+            )}
           </div>
         </div>
-        <div className="px-6 pb-6">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>No</TableHead>
-                <TableHead>Kode</TableHead>
-                <TableHead>Nama Item</TableHead>
-                <TableHead className="text-center">Stok Tersedia</TableHead>
-                <TableHead className="text-center">Qty Diminta</TableHead>
-                <TableHead className="text-center">Qty Disetujui</TableHead>
-                <TableHead>Satuan</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {items.map((item, index) => (
-                <TableRow key={item.id}>
-                  <TableCell>{index + 1}</TableCell>
-                  <TableCell className="font-mono text-sm">{item.code}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      {item.inventory_id ? (
-                        <Package className="h-4 w-4 text-blue-500" />
-                      ) : (
-                        <Pill className="h-4 w-4 text-green-500" />
-                      )}
-                      {item.name}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <Badge
-                      variant={
-                        item.current_stock >= item.quantity_requested
-                          ? "default"
-                          : "destructive"
-                      }
-                    >
-                      {item.current_stock}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-center font-medium">
-                    {item.quantity_requested}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex justify-center">
-                      <Input
-                        type="number"
-                        min={0}
-                        max={Math.min(item.quantity_requested, item.current_stock)}
-                        value={item.quantity_approved}
-                        onChange={(e) =>
-                          handleItemChange(item.id, parseInt(e.target.value) || 0)
-                        }
-                        className="w-24 text-center"
-                      />
-                    </div>
-                  </TableCell>
-                  <TableCell>{item.unit}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
 
-          <Separator className="my-6" />
-
-          {/* Notes */}
-          <div className="space-y-2">
-            <Label>Catatan Persetujuan</Label>
-            <Textarea
-              placeholder="Catatan tambahan untuk persetujuan ini..."
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-            />
+        {/* Items Approval Card */}
+        <div className="border border-border/70">
+          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            Daftar Item
           </div>
+          <div className="flex items-center justify-between px-4 py-3">
+            <div className="flex items-center justify-between flex-1">
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Tentukan jumlah yang disetujui untuk setiap item</p>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={handleApproveAll}>
+                  Setujui Semua
+                </Button>
+                <Button variant="outline" size="sm" onClick={handleClearAll}>
+                  Reset
+                </Button>
+              </div>
+            </div>
+          </div>
+          <div className="px-4 pb-4">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>No</TableHead>
+                  <TableHead>Kode</TableHead>
+                  <TableHead>Nama Item</TableHead>
+                  <TableHead className="text-center">Stok Tersedia</TableHead>
+                  <TableHead className="text-center">Qty Diminta</TableHead>
+                  <TableHead className="text-center">Qty Disetujui</TableHead>
+                  <TableHead>Satuan</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {items.map((item, index) => (
+                  <TableRow key={item.id}>
+                    <TableCell>{index + 1}</TableCell>
+                    <TableCell className="font-mono text-sm">{item.code}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        {item.inventory_id ? (
+                          <Package className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <Pill className="h-4 w-4 text-green-500" />
+                        )}
+                        {item.name}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Badge
+                        variant={
+                          item.current_stock >= item.quantity_requested
+                            ? "default"
+                            : "destructive"
+                        }
+                      >
+                        {item.current_stock}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-center font-medium">
+                      {item.quantity_requested}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex justify-center">
+                        <Input
+                          type="number"
+                          min={0}
+                          max={Math.min(item.quantity_requested, item.current_stock)}
+                          value={item.quantity_approved}
+                          onChange={(e) =>
+                            handleItemChange(item.id, parseInt(e.target.value) || 0)
+                          }
+                          className="w-24 text-center"
+                        />
+                      </div>
+                    </TableCell>
+                    <TableCell>{item.unit}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
 
-          {/* Actions */}
-          <div className="flex justify-end gap-4 mt-6 pt-4 border-t">
-            <Button
-              variant="outline"
-              onClick={() => navigate(`/stock-requests/${id}`)}
-            >
-              Batal
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => setRejectDialogOpen(true)}
-            >
-              <XCircle className="mr-2 h-4 w-4" />
-              Tolak
-            </Button>
-            <Button onClick={handleApprove} disabled={submitting}>
-              {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              <CheckCircle className="mr-2 h-4 w-4" />
-              Setujui
-            </Button>
+        <div className="border border-border/70">
+          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            Persetujuan
+          </div>
+          <div className="p-3 sm:p-4">
+            {/* Notes */}
+            <div className="space-y-2">
+              <Label>Catatan Persetujuan</Label>
+              <Textarea
+                placeholder="Catatan tambahan untuk persetujuan ini..."
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+              />
+            </div>
+
+            {/* Sticky Footer Actions */}
+            <div className="shrink-0 sticky bottom-0 z-10 py-3 mt-4 flex items-center justify-end gap-4 border-t bg-background">
+              <Button
+                variant="outline"
+                onClick={() => navigate(`/stock-requests/${id}`)}
+              >
+                Batal
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => setRejectDialogOpen(true)}
+              >
+                <XCircle className="mr-2 h-4 w-4" />
+                Tolak
+              </Button>
+              <Button onClick={handleApprove} disabled={submitting}>
+                {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                <CheckCircle className="mr-2 h-4 w-4" />
+                Setujui
+              </Button>
+            </div>
           </div>
         </div>
       </div>

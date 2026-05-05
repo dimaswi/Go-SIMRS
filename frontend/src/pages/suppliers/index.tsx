@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-
+import { Button } from "@/components/ui/button";import { PageShell, PageHeader, PageContent } from '@/components/layout/page-shell';
 import { DataTable } from "@/components/ui/data-table";
 import { createSupplierColumns } from "./columns";
 import { suppliersApi, type Supplier } from "@/lib/api/suppliers";
@@ -94,26 +93,29 @@ export default function SuppliersIndex() {
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold">Master Supplier</h1>
-          <p className="text-sm text-muted-foreground">Kelola data supplier untuk pembelian barang dan obat</p>
-        </div>
-        {hasPermission("suppliers.create") && (
-          <Button onClick={() => navigate("/suppliers/create")} size="sm">
-            <Plus className="mr-2 h-4 w-4" />
-            Tambah Supplier
-          </Button>
-        )}
-      </div>
-      <DataTable
-        columns={columns}
-        data={suppliers}
-        searchPlaceholder="Cari supplier berdasarkan kode atau nama..."
-        pageSize={10}
-        tableId="suppliers"
+    <PageShell>
+      <PageHeader
+        title="Master Supplier"
+        description="Kelola data supplier untuk pembelian barang dan obat"
+        count={suppliers.length}
+        actions={
+          hasPermission("suppliers.create") ? (
+            <Button onClick={() => navigate("/suppliers/create")} size="sm">
+              <Plus className="h-4 w-4" />
+              Tambah Supplier
+            </Button>
+          ) : undefined
+        }
       />
+      <PageContent>
+        <DataTable
+          columns={columns}
+          data={suppliers}
+          searchPlaceholder="Cari supplier berdasarkan kode atau nama..."
+          pageSize={10}
+          tableId="suppliers"
+        />
+      </PageContent>
 
       <ConfirmDialog
         open={deleteDialogOpen}
@@ -125,6 +127,6 @@ export default function SuppliersIndex() {
         cancelText="Batal"
         variant="destructive"
       />
-    </div>
+    </PageShell>
   );
 }

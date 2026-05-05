@@ -1,8 +1,7 @@
-﻿import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import {
   Table,
   TableBody,
@@ -20,7 +19,6 @@ import { useToast } from "@/hooks/use-toast";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { setPageTitle } from "@/lib/page-title";
 import {
-  ArrowLeft,
   Loader2,
   Package,
   Pill,
@@ -129,126 +127,125 @@ export default function DistributionShow() {
     );
   }
 
-  const canReceive = hasPermission("distributions.receive") && 
+  const canReceive = hasPermission("distributions.receive") &&
     (distribution.status === "pending" || distribution.status === "delivered");
 
   return (
     <div className="flex flex-1 flex-col px-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => window.history.back()}
-            className="h-9 w-9"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div className="space-y-1">
-            <div className="flex items-center gap-3">
-              <h1 className="text-lg font-semibold">
-                {distribution.distribution_number}
-              </h1>
-              <Badge className={statusColors[distribution.status]}>
-                {statusLabels[distribution.status]}
-              </Badge>
-            </div>
-            <p className="text-sm text-muted-foreground">Dibuat {formatDate(distribution.created_at)}</p>
+
+
+      <div className="flex-1 space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11">
+        <div className="border border-border/70">
+          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+            <Package className="h-3 w-3" />
+            Informasi Distribusi
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {canReceive && (
-            <Button size="sm" onClick={() => setReceiveDialogOpen(true)}>
-              <CheckCircle className="mr-2 h-4 w-4" />
-              Terima Distribusi
-            </Button>
-          )}
-        </div>
-      </div>
-
-      <div className="rounded-lg border p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {/* From Room */}
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Building className="h-4 w-4" />
-                Dari Ruangan
-              </div>
-              <p className="font-medium">
-                {distribution.from_room?.code} - {distribution.from_room?.name}
-              </p>
-            </div>
-
-            {/* To Room */}
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Building className="h-4 w-4" />
-                Ke Ruangan
-              </div>
-              <p className="font-medium">
-                {distribution.to_room?.code} - {distribution.to_room?.name}
-              </p>
-            </div>
-
-            {/* Distribution Date */}
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Calendar className="h-4 w-4" />
-                Tanggal Distribusi
-              </div>
-              <p className="font-medium">{formatDate(distribution.distribution_date)}</p>
-            </div>
-
-            {/* Request Number */}
-            {distribution.stock_request && (
+          <div className="p-3 sm:p-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
               <div className="space-y-1">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <FileText className="h-4 w-4" />
-                  No. Permintaan
+                  <Package className="h-4 w-4" />
+                  No. Distribusi & Status
                 </div>
-                <Button
-                  variant="link"
-                  className="p-0 h-auto font-medium"
-                  onClick={() => navigate(`/stock-requests/${distribution.stock_request_id}`)}
-                >
-                  {distribution.stock_request.request_number}
-                </Button>
+                <div className="flex items-center gap-2 mt-1">
+                  <p className="font-medium font-mono text-base">{distribution.distribution_number}</p>
+                  <Badge className={statusColors[distribution.status]}>
+                    {statusLabels[distribution.status]}
+                  </Badge>
+                </div>
               </div>
-            )}
-          </div>
-
-          <Separator className="my-6" />
-
-          {/* People Info */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Distributed By */}
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <User className="h-4 w-4" />
-                Dikirim Oleh
-              </div>
-              <p className="font-medium">{distribution.distributed_by?.full_name || "-"}</p>
-              <p className="text-xs text-muted-foreground">{formatDate(distribution.distribution_date)}</p>
-            </div>
-
-            {/* Received By */}
-            {distribution.received_by && (
+              {/* From Room */}
               <div className="space-y-1">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <CheckCircle className="h-4 w-4" />
-                  Diterima Oleh
+                  <Building className="h-4 w-4" />
+                  Dari Ruangan
                 </div>
-                <p className="font-medium">{distribution.received_by?.full_name || "-"}</p>
-                <p className="text-xs text-muted-foreground">{formatDate(distribution.received_date)}</p>
+                <p className="font-medium">
+                  {distribution.from_room?.code} - {distribution.from_room?.name}
+                </p>
               </div>
-            )}
-          </div>
 
-          {/* Notes */}
-          {distribution.notes && (
-            <>
-              <Separator className="my-6" />
+              {/* To Room */}
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Building className="h-4 w-4" />
+                  Ke Ruangan
+                </div>
+                <p className="font-medium">
+                  {distribution.to_room?.code} - {distribution.to_room?.name}
+                </p>
+              </div>
+
+              {/* Distribution Date */}
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Calendar className="h-4 w-4" />
+                  Tanggal Distribusi
+                </div>
+                <p className="font-medium">{formatDate(distribution.distribution_date)}</p>
+              </div>
+
+              {/* Request Number */}
+              {distribution.stock_request && (
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <FileText className="h-4 w-4" />
+                    No. Permintaan
+                  </div>
+                  <Button
+                    variant="link"
+                    className="p-0 h-auto font-medium"
+                    onClick={() => navigate(`/stock-requests/${distribution.stock_request_id}`)}
+                  >
+                    {distribution.stock_request.request_number}
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* People Info */}
+        <div className="border border-border/70">
+          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+            <User className="h-3 w-3" />
+            Informasi Pihak Terlibat
+          </div>
+          <div className="p-3 sm:p-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Distributed By */}
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <User className="h-4 w-4" />
+                  Dikirim Oleh
+                </div>
+                <p className="font-medium">{distribution.distributed_by?.full_name || "-"}</p>
+                <p className="text-xs text-muted-foreground">{formatDate(distribution.distribution_date)}</p>
+              </div>
+
+              {/* Received By */}
+              {distribution.received_by && (
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <CheckCircle className="h-4 w-4" />
+                    Diterima Oleh
+                  </div>
+                  <p className="font-medium">{distribution.received_by?.full_name || "-"}</p>
+                  <p className="text-xs text-muted-foreground">{formatDate(distribution.received_date)}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Notes */}
+        {distribution.notes && (
+          <div className="border border-border/70">
+            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+              <FileText className="h-3 w-3" />
+              Catatan
+            </div>
+            <div className="p-3 sm:p-4">
               <div className="space-y-1">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <FileText className="h-4 w-4" />
@@ -256,81 +253,83 @@ export default function DistributionShow() {
                 </div>
                 <p className="text-sm">{distribution.notes}</p>
               </div>
-            </>
-          )}
+            </div>
+          </div>
+        )}
 
-          <Separator className="my-6" />
-
-          {/* Items Table */}
-          <div className="space-y-4">
-            <h3 className="text-base font-semibold">
-              Daftar Item ({distribution.items?.length || 0} item)
-            </h3>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>No</TableHead>
-                <TableHead>Kode</TableHead>
-                <TableHead>Nama Item</TableHead>
-                <TableHead>Batch</TableHead>
-                <TableHead>Exp. Date</TableHead>
-                <TableHead className="text-center">Qty</TableHead>
-                <TableHead>Satuan</TableHead>
-                <TableHead>Catatan</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {distribution.items && distribution.items.length > 0 ? (
-                distribution.items.map((item, index) => {
-                  const itemData = item.inventory || item.medicine;
-                  return (
-                    <TableRow key={item.id}>
-                      <TableCell>{index + 1}</TableCell>
-                      <TableCell className="font-mono text-sm">
-                        {itemData?.code || "-"}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          {item.inventory_id ? (
-                            <Package className="h-4 w-4 text-blue-500" />
-                          ) : (
-                            <Pill className="h-4 w-4 text-green-500" />
-                          )}
-                          {itemData?.name || "-"}
-                        </div>
-                      </TableCell>
-                      <TableCell className="font-mono text-sm">
-                        {item.batch_number || "-"}
-                      </TableCell>
-                      <TableCell>
-                        {item.expiry_date
-                          ? new Date(item.expiry_date).toLocaleDateString("id-ID", {
+        {/* Items Table */}
+        <div className="border border-border/70">
+          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+            <Package className="h-3 w-3" />
+            Daftar Item ({distribution.items?.length || 0} item)
+          </div>
+          <div className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>No</TableHead>
+                  <TableHead>Kode</TableHead>
+                  <TableHead>Nama Item</TableHead>
+                  <TableHead>Batch</TableHead>
+                  <TableHead>Exp. Date</TableHead>
+                  <TableHead className="text-center">Qty</TableHead>
+                  <TableHead>Satuan</TableHead>
+                  <TableHead>Catatan</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {distribution.items && distribution.items.length > 0 ? (
+                  distribution.items.map((item, index) => {
+                    const itemData = item.inventory || item.medicine;
+                    return (
+                      <TableRow key={item.id}>
+                        <TableCell>{index + 1}</TableCell>
+                        <TableCell className="font-mono text-sm">
+                          {itemData?.code || "-"}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            {item.inventory_id ? (
+                              <Package className="h-4 w-4 text-blue-500" />
+                            ) : (
+                              <Pill className="h-4 w-4 text-green-500" />
+                            )}
+                            {itemData?.name || "-"}
+                          </div>
+                        </TableCell>
+                        <TableCell className="font-mono text-sm">
+                          {item.batch_number || "-"}
+                        </TableCell>
+                        <TableCell>
+                          {item.expiry_date
+                            ? new Date(item.expiry_date).toLocaleDateString("id-ID", {
                               day: "2-digit",
                               month: "short",
                               year: "numeric",
                             })
-                          : "-"}
-                      </TableCell>
-                      <TableCell className="text-center font-medium">
-                        {item.quantity}
-                      </TableCell>
-                      <TableCell>{item.unit || itemData?.unit || "-"}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {item.notes || "-"}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                    Tidak ada item
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+                            : "-"}
+                        </TableCell>
+                        <TableCell className="text-center font-medium">
+                          {item.quantity}
+                        </TableCell>
+                        <TableCell>{item.unit || itemData?.unit || "-"}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {item.notes || "-"}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                      Tidak ada item
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
           </div>
+        </div>
       </div>
 
       {/* Receive Confirmation Dialog */}
@@ -343,6 +342,21 @@ export default function DistributionShow() {
         cancelText="Batal"
         onConfirm={handleReceive}
       />
+
+      {/* Sticky Footer Actions */}
+      <div className="shrink-0 sticky bottom-0 z-10 py-3 mt-4 flex items-center justify-between border-t bg-background">
+        <Button variant="outline" onClick={() => navigate("/distributions")}>
+          Kembali
+        </Button>
+        <div className="flex gap-2">
+          {canReceive && (
+            <Button onClick={() => setReceiveDialogOpen(true)}>
+              <CheckCircle className="mr-2 h-4 w-4" />
+              Terima Distribusi
+            </Button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

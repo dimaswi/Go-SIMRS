@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { PageShell, PageHeader, PageContent } from '@/components/layout/page-shell';
 
 import { DataTable } from '@/components/ui/data-table';
 import { createProvinceColumns } from './columns';
@@ -55,28 +56,26 @@ export default function RegionsPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold">Daftar Provinsi</h1>
-          <p className="text-sm text-muted-foreground">Data wilayah administratif Indonesia</p>
-        </div>
-        <div className="flex gap-2">
-          <Button 
-            size="sm"
-            onClick={() => navigate('/regions/provinces/create')}
-          >
-            <Plus className="mr-2 h-4 w-4" />
+    <PageShell>
+      <PageHeader
+        title="Daftar Provinsi"
+        description="Data wilayah administratif Indonesia"
+        count={provinces.length}
+        actions={
+          <Button size="sm" onClick={() => navigate('/regions/provinces/create')}>
+            <Plus className="h-4 w-4" />
             Tambah Provinsi
           </Button>
-        </div>
-      </div>
-      <DataTable
-        columns={columns}
-        data={provinces}
-        searchPlaceholder="Cari provinsi..."
-        tableId="regions"
+        }
       />
-    </div>
+      <PageContent>
+        <DataTable
+          columns={columns}
+          data={provinces}
+          searchPlaceholder="Cari provinsi..."
+          tableId="regions"
+        />
+      </PageContent>
+    </PageShell>
   );
 }

@@ -1,10 +1,18 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { ColumnDef } from '@tanstack/react-table';
+import { PageShell, PageHeader, PageContent } from '@/components/layout/page-shell';
 import { DataTable } from '@/components/ui/data-table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -13,11 +21,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible';
 import { eklaimLocalApi, eklaimLocalStatusLabels, eklaimLocalStatusColors } from '@/lib/api/eklaim-local';
 import type { EKlaimLocal, EKlaimLocalStatus } from '@/lib/api/eklaim-local';
 import { useToast } from '@/hooks/use-toast';
@@ -33,9 +36,9 @@ export default function EklaimListPage() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<EKlaimLocal[]>([]);
-  const [filterOpen, setFilterOpen] = useState(false);
+  const [filterDialogOpen, setFilterDialogOpen] = useState(false);
   const [page, setPage] = useState(1);
-  const [_total, setTotal] = useState(0);
+  const [total, setTotal] = useState(0);
 
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
@@ -47,9 +50,27 @@ export default function EklaimListPage() {
   const [tglFrom, setTglFrom] = useState('');
   const [tglTo, setTglTo] = useState('');
 
+  const [draftSearchTerm, setDraftSearchTerm] = useState('');
+  const [draftStatusFilter, setDraftStatusFilter] = useState<string>(ALL);
+  const [draftJenisRawatFilter, setDraftJenisRawatFilter] = useState<string>(ALL);
+  const [draftKelasRawatFilter, setDraftKelasRawatFilter] = useState<string>(ALL);
+  const [draftTglFrom, setDraftTglFrom] = useState('');
+  const [draftTglTo, setDraftTglTo] = useState('');
+
   useEffect(() => {
     try { localStorage.setItem('eklaim_list_status', statusFilter); } catch { /* ignore */ }
   }, [statusFilter]);
+
+  useEffect(() => {
+    if (!filterDialogOpen) return;
+
+    setDraftSearchTerm(searchTerm);
+    setDraftStatusFilter(statusFilter);
+    setDraftJenisRawatFilter(jenisRawatFilter);
+    setDraftKelasRawatFilter(kelasRawatFilter);
+    setDraftTglFrom(tglFrom);
+    setDraftTglTo(tglTo);
+  }, [filterDialogOpen, searchTerm, statusFilter, jenisRawatFilter, kelasRawatFilter, tglFrom, tglTo]);
 
   const hasActiveFilters = statusFilter !== ALL || jenisRawatFilter !== ALL || kelasRawatFilter !== ALL || tglFrom !== '' || tglTo !== '' || searchTerm !== '';
 
@@ -234,122 +255,180 @@ export default function EklaimListPage() {
   ], [navigate]);
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <Collapsible open={filterOpen} onOpenChange={setFilterOpen}>
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-semibold flex items-center gap-2">
-              Data Klaim
-            </h1>
-          </div>
+    <PageShell>
+      <PageHeader
+        title="Data Klaim"
+        description="Daftar klaim lokal BPJS beserta hasil grouper dan tarif"
+        count={total}
+        actions={
           <div className="flex items-center gap-2">
             {hasActiveFilters && (
               <Button variant="ghost" size="sm" className="h-9 text-muted-foreground" onClick={resetFilters}>
-                <FilterX className="h-4 w-4 mr-1" /> Reset
+                <FilterX className="mr-1 h-4 w-4" /> Reset
               </Button>
             )}
-            <CollapsibleTrigger asChild>
-              <Button variant="outline" size="sm" className="h-9">
-                <SlidersHorizontal className="h-4 w-4 mr-2" />
-                Filter
-                {hasActiveFilters && <Badge variant="secondary" className="ml-2 h-5 px-1.5 text-[10px]">aktif</Badge>}
-              </Button>
-            </CollapsibleTrigger>
+            <Button variant={filterDialogOpen ? 'secondary' : 'outline'} size="sm" className="h-9" onClick={() => setFilterDialogOpen(true)}>
+              <SlidersHorizontal className="mr-2 h-4 w-4" />
+              Filter
+              {hasActiveFilters && <span className="ml-2 h-1.5 w-1.5 rounded-full bg-primary" />}
+            </Button>
           </div>
-        </div>
-        <CollapsibleContent>
-          <div className="space-y-3 pt-4">
-            {/* Row 1: Search */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Cari No. SEP, nama pasien, no. BPJS, kode CBG/iDRG..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && loadData()}
-                className="pl-9"
-              />
-            </div>
-            {/* Row 2: Filters */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Status</Label>
-                <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1); }}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="Semua" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={ALL}>Semua Status</SelectItem>
-                    <SelectItem value="draft">Draft</SelectItem>
-                    <SelectItem value="new_claim">New Claim</SelectItem>
-                    <SelectItem value="set_claim_data">Data Terisi</SelectItem>
-                    <SelectItem value="grouped">Grouped</SelectItem>
-                    <SelectItem value="finalized">Final</SelectItem>
-                    <SelectItem value="sent">Terkirim</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Jenis Rawat</Label>
-                <Select value={jenisRawatFilter} onValueChange={(v) => { setJenisRawatFilter(v); setPage(1); }}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="Semua" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={ALL}>Semua</SelectItem>
-                    <SelectItem value="1">Rawat Inap</SelectItem>
-                    <SelectItem value="2">Rawat Jalan</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Kelas Rawat</Label>
-                <Select value={kelasRawatFilter} onValueChange={(v) => { setKelasRawatFilter(v); setPage(1); }}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="Semua" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={ALL}>Semua</SelectItem>
-                    <SelectItem value="1">Kelas 1</SelectItem>
-                    <SelectItem value="2">Kelas 2</SelectItem>
-                    <SelectItem value="3">Kelas 3</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Tgl Masuk Dari</Label>
-                <Input type="date" className="h-9" value={tglFrom} onChange={(e) => { setTglFrom(e.target.value); setPage(1); }} />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Tgl Masuk Sampai</Label>
-                <Input type="date" className="h-9" value={tglTo} onChange={(e) => { setTglTo(e.target.value); setPage(1); }} />
-              </div>
-              <div className="space-y-1 flex items-end">
-                <Button className="h-9 w-full" size="sm" onClick={loadData}>
-                  <Search className="h-4 w-4 mr-1" /> Cari
-                </Button>
-              </div>
-            </div>
-          </div>
-        </CollapsibleContent>
-      </Collapsible>
+        }
+      />
 
-      {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-      ) : (
-        <DataTable
-          columns={columns}
-          data={data}
-          searchPlaceholder="Cari No. SEP, nama pasien, kode..."
-          pageSize={20}
-          tableId="eklaim-local-list"
-          showSearch={false}
-          showPagination={true}
-          showColumnVisibility={true}
-        />
-      )}
-    </div>
+      <Dialog open={filterDialogOpen} onOpenChange={setFilterDialogOpen}>
+        <DialogContent className="max-w-2xl p-0">
+          <DialogHeader>
+            <div className="border-b border-border bg-muted/20 px-4 py-4">
+              <DialogTitle>Filter Data Klaim</DialogTitle>
+              <DialogDescription className="mt-1">
+                Saring data klaim berdasarkan pencarian, status, jenis rawat, kelas rawat, dan tanggal masuk.
+              </DialogDescription>
+            </div>
+          </DialogHeader>
+
+          <div className="divide-y divide-border">
+            <div className="grid gap-3 px-4 py-3 md:grid-cols-[170px_minmax(0,1fr)] md:items-start">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Pencarian</p>
+              </div>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Cari No. SEP, nama pasien, no. BPJS, kode CBG/iDRG..."
+                  value={draftSearchTerm}
+                  onChange={(e) => setDraftSearchTerm(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-3 px-4 py-3 md:grid-cols-[170px_minmax(0,1fr)] md:items-start">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Status</p>
+              </div>
+              <Select value={draftStatusFilter} onValueChange={setDraftStatusFilter}>
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Semua" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>Semua Status</SelectItem>
+                  <SelectItem value="draft">Draft</SelectItem>
+                  <SelectItem value="new_claim">New Claim</SelectItem>
+                  <SelectItem value="set_claim_data">Data Terisi</SelectItem>
+                  <SelectItem value="grouped">Grouped</SelectItem>
+                  <SelectItem value="finalized">Final</SelectItem>
+                  <SelectItem value="sent">Terkirim</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid gap-3 px-4 py-3 md:grid-cols-[170px_minmax(0,1fr)] md:items-start">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Jenis Rawat</p>
+              </div>
+              <Select value={draftJenisRawatFilter} onValueChange={setDraftJenisRawatFilter}>
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Semua" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>Semua</SelectItem>
+                  <SelectItem value="1">Rawat Inap</SelectItem>
+                  <SelectItem value="2">Rawat Jalan</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid gap-3 px-4 py-3 md:grid-cols-[170px_minmax(0,1fr)] md:items-start">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Kelas Rawat</p>
+              </div>
+              <Select value={draftKelasRawatFilter} onValueChange={setDraftKelasRawatFilter}>
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Semua" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>Semua</SelectItem>
+                  <SelectItem value="1">Kelas 1</SelectItem>
+                  <SelectItem value="2">Kelas 2</SelectItem>
+                  <SelectItem value="3">Kelas 3</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid gap-3 px-4 py-3 md:grid-cols-[170px_minmax(0,1fr)] md:items-start">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Tanggal Masuk</p>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Dari</Label>
+                  <Input type="date" className="h-9" value={draftTglFrom} onChange={(e) => setDraftTglFrom(e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Sampai</Label>
+                  <Input type="date" className="h-9" value={draftTglTo} onChange={(e) => setDraftTglTo(e.target.value)} />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 border-t border-border px-4 py-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 px-2 text-xs"
+              onClick={() => {
+                setDraftSearchTerm('');
+                setDraftStatusFilter(ALL);
+                setDraftJenisRawatFilter(ALL);
+                setDraftKelasRawatFilter(ALL);
+                setDraftTglFrom('');
+                setDraftTglTo('');
+              }}
+            >
+              Reset
+            </Button>
+            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setFilterDialogOpen(false)}>
+              Batal
+            </Button>
+            <Button
+              size="sm"
+              className="h-8 text-xs"
+              onClick={() => {
+                setSearchTerm(draftSearchTerm);
+                setStatusFilter(draftStatusFilter);
+                setJenisRawatFilter(draftJenisRawatFilter);
+                setKelasRawatFilter(draftKelasRawatFilter);
+                setTglFrom(draftTglFrom);
+                setTglTo(draftTglTo);
+                setPage(1);
+                setFilterDialogOpen(false);
+              }}
+            >
+              Terapkan
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <PageContent noPadding className="px-4 pb-4 pt-3">
+        {loading ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        ) : (
+          <DataTable
+            columns={columns}
+            data={data}
+            searchPlaceholder="Cari No. SEP, nama pasien, kode..."
+            pageSize={20}
+            tableId="eklaim-local-list"
+            showSearch={false}
+            showPagination={true}
+          />
+        )}
+      </PageContent>
+    </PageShell>
   );
 }

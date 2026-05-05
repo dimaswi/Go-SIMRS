@@ -25,7 +25,6 @@ import {
 } from "@/lib/api/stock-requests";
 import { roomsApi } from "@/lib/api/rooms";
 import {
-  ArrowLeft,
   Loader2,
   Package,
   Pill,
@@ -83,7 +82,7 @@ export default function StockRequestEdit() {
       ]);
 
       const requestData = requestRes.data.data as StockRequest;
-      
+
       // Check if editable (only draft or pending status)
       if (requestData.status !== "draft" && requestData.status !== "pending") {
         toast({
@@ -235,112 +234,116 @@ export default function StockRequestEdit() {
 
   return (
     <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center gap-4">
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => window.history.back()}
-          className="h-9 w-9"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div className="space-y-1">
-          <div className="flex items-center gap-3">
-            <h1 className="text-lg font-semibold">Edit Permintaan Stok</h1>
-            <Badge className="bg-yellow-100 text-yellow-800">
-              {stockRequestStatusLabels[request.status]}
-            </Badge>
+
+
+      <div className="flex-1 space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11">
+        {/* Info Box */}
+        <div className="border border-border/70">
+          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            Informasi Dasar
           </div>
-          <p className="text-sm text-muted-foreground">
-            {request.request_number} â€¢ {requestTypeLabels[request.request_type]}
-          </p>
+          <div className="p-3 sm:p-4 space-y-6">
+            <div className="flex items-center gap-6">
+              <div>
+                <p className="text-xs text-muted-foreground">No. Permintaan</p>
+                <p className="text-sm font-medium font-mono">{request.request_number}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Tipe Permintaan</p>
+                <p className="text-sm font-medium">{requestTypeLabels[request.request_type]}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Status</p>
+                <Badge className="bg-yellow-100 text-yellow-800 mt-0.5">
+                  {stockRequestStatusLabels[request.status]}
+                </Badge>
+              </div>
+            </div>
+            <div className="bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500 p-4">
+              <p className="text-sm text-blue-700 dark:text-blue-300">
+                <strong>Catatan:</strong> Anda hanya dapat mengubah prioritas, tanggal dibutuhkan, alasan, dan catatan.
+                Untuk mengubah item, Anda perlu membatalkan permintaan ini dan membuat yang baru.
+              </p>
+            </div>
+
+            {/* Form Fields */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <Label>Ruangan Pemohon</Label>
+                <Combobox
+                  options={rooms}
+                  value={formData.from_room_id.toString()}
+                  onValueChange={() => { }}
+                  placeholder="Pilih ruangan"
+                  disabled
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Depo/Gudang Tujuan</Label>
+                <Combobox
+                  options={depoRooms}
+                  value={formData.to_room_id.toString()}
+                  onValueChange={() => { }}
+                  placeholder="Pilih depo/gudang"
+                  disabled
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Prioritas</Label>
+                <Combobox
+                  options={priorityOptions}
+                  value={formData.priority}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, priority: value })
+                  }
+                  placeholder="Pilih prioritas"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Tanggal Dibutuhkan</Label>
+                <Input
+                  type="date"
+                  value={formData.required_date}
+                  onChange={(e) =>
+                    setFormData({ ...formData, required_date: e.target.value })
+                  }
+                />
+              </div>
+
+              <div className="space-y-2 md:col-span-2">
+                <Label>Alasan Permintaan</Label>
+                <Input
+                  placeholder="Alasan permintaan..."
+                  value={formData.reason}
+                  onChange={(e) =>
+                    setFormData({ ...formData, reason: e.target.value })
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Catatan</Label>
+              <Textarea
+                placeholder="Catatan tambahan..."
+                value={formData.notes}
+                onChange={(e) =>
+                  setFormData({ ...formData, notes: e.target.value })
+                }
+              />
+            </div>
+          </div>
         </div>
-      </div>
 
-      <div className="rounded-lg border p-6 space-y-6">
-          {/* Info Box */}
-          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-            <p className="text-sm text-blue-700 dark:text-blue-300">
-              <strong>Catatan:</strong> Anda hanya dapat mengubah prioritas, tanggal dibutuhkan, alasan, dan catatan.
-              Untuk mengubah item, Anda perlu membatalkan permintaan ini dan membuat yang baru.
-            </p>
+        {/* Items Section (Read Only) */}
+        <div className="border border-border/70">
+          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            Daftar Item (Read Only)
           </div>
-
-          {/* Form Fields */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <Label>Ruangan Pemohon</Label>
-              <Combobox
-                options={rooms}
-                value={formData.from_room_id.toString()}
-                onValueChange={() => {}}
-                placeholder="Pilih ruangan"
-                disabled
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Depo/Gudang Tujuan</Label>
-              <Combobox
-                options={depoRooms}
-                value={formData.to_room_id.toString()}
-                onValueChange={() => {}}
-                placeholder="Pilih depo/gudang"
-                disabled
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Prioritas</Label>
-              <Combobox
-                options={priorityOptions}
-                value={formData.priority}
-                onValueChange={(value) =>
-                  setFormData({ ...formData, priority: value })
-                }
-                placeholder="Pilih prioritas"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Tanggal Dibutuhkan</Label>
-              <Input
-                type="date"
-                value={formData.required_date}
-                onChange={(e) =>
-                  setFormData({ ...formData, required_date: e.target.value })
-                }
-              />
-            </div>
-
-            <div className="space-y-2 md:col-span-2">
-              <Label>Alasan Permintaan</Label>
-              <Input
-                placeholder="Alasan permintaan..."
-                value={formData.reason}
-                onChange={(e) =>
-                  setFormData({ ...formData, reason: e.target.value })
-                }
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Catatan</Label>
-            <Textarea
-              placeholder="Catatan tambahan..."
-              value={formData.notes}
-              onChange={(e) =>
-                setFormData({ ...formData, notes: e.target.value })
-              }
-            />
-          </div>
-
-          {/* Items Section (Read Only) */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <Label className="text-base font-semibold">Daftar Item (Tidak dapat diubah)</Label>
-            </div>
+          <div className="p-3 sm:p-4 space-y-4">
 
             <Table>
               <TableHeader>
@@ -378,20 +381,21 @@ export default function StockRequestEdit() {
               </TableBody>
             </Table>
           </div>
+        </div>
 
-          {/* Actions */}
-          <div className="flex justify-end gap-4 pt-4 border-t">
-            <Button
-              variant="outline"
-              onClick={() => navigate(`/stock-requests/${id}`)}
-            >
-              Batal
-            </Button>
-            <Button onClick={handleSubmit} disabled={submitting}>
-              {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Simpan Perubahan
-            </Button>
-          </div>
+        {/* Sticky Footer Actions */}
+        <div className="shrink-0 sticky bottom-0 z-10 py-3 mt-4 flex items-center justify-end gap-4 border-t bg-background">
+          <Button
+            variant="outline"
+            onClick={() => navigate(`/stock-requests/${id}`)}
+          >
+            Batal
+          </Button>
+          <Button onClick={handleSubmit} disabled={submitting}>
+            {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Simpan Perubahan
+          </Button>
+        </div>
       </div>
     </div>
   );

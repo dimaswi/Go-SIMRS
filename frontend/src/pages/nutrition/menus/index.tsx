@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { PageShell, PageHeader, PageContent } from '@/components/layout/page-shell';
 import { DataTable } from '@/components/ui/data-table';
 import { createNutritionMenuColumns } from './columns';
 import { nutritionMenuApi, type NutritionMenu } from '@/lib/api/nutrition';
@@ -81,24 +82,27 @@ export default function NutritionMenusPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold">Master Menu Makanan</h1>
-          <p className="text-sm text-muted-foreground">Kelola data menu makanan untuk layanan gizi</p>
-        </div>
-        <Button onClick={() => navigate('/nutrition/menus/create')} size="sm">
-          <Plus className="mr-2 h-4 w-4" />
-          Tambah Menu
-        </Button>
-      </div>
-      <DataTable
-        columns={columns}
-        data={menus}
-        searchPlaceholder="Cari menu berdasarkan kode atau nama..."
-        pageSize={10}
-        tableId="nutrition-menus"
+    <PageShell>
+      <PageHeader
+        title="Master Menu Makanan"
+        description="Kelola data menu makanan untuk layanan gizi"
+        count={menus.length}
+        actions={
+          <Button onClick={() => navigate('/nutrition/menus/create')} size="sm">
+            <Plus className="h-4 w-4" />
+            Tambah Menu
+          </Button>
+        }
       />
+      <PageContent>
+        <DataTable
+          columns={columns}
+          data={menus}
+          searchPlaceholder="Cari menu berdasarkan kode atau nama..."
+          pageSize={10}
+          tableId="nutrition-menus"
+        />
+      </PageContent>
       <ConfirmDialog
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}
@@ -109,6 +113,6 @@ export default function NutritionMenusPage() {
         cancelText="Batal"
         variant="destructive"
       />
-    </div>
+    </PageShell>
   );
 }

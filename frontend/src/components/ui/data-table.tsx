@@ -1,12 +1,12 @@
-"use client"
+"use client";
 
-import * as React from "react"
+import * as React from "react";
 import type {
   ColumnDef,
   ColumnFiltersState,
   SortingState,
   VisibilityState,
-} from "@tanstack/react-table"
+} from "@tanstack/react-table";
 import {
   flexRender,
   getCoreRowModel,
@@ -14,11 +14,25 @@ import {
   getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
-} from "@tanstack/react-table"
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search } from "lucide-react"
+} from "@tanstack/react-table";
+import {
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Search,
+  X,
+} from "lucide-react";
 
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -26,77 +40,72 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+} from "@/components/ui/table";
+import { cn } from "@/lib/utils";
 
-// Helper untuk baca pageIndex dari localStorage
 function getStoredPageIndex(tableId: string): number {
-  if (!tableId) return 0
+  if (!tableId) return 0;
+
   try {
-    const stored = localStorage.getItem(`dt_page_${tableId}`)
+    const stored = localStorage.getItem(`dt_page_${tableId}`);
     if (stored) {
-      const parsed = parseInt(stored, 10)
-      if (!isNaN(parsed) && parsed >= 0) return parsed
+      const parsed = Number.parseInt(stored, 10);
+      if (!Number.isNaN(parsed) && parsed >= 0) {
+        return parsed;
+      }
     }
   } catch { }
-  return 0
+
+  return 0;
 }
 
-// Helper untuk simpan pageIndex ke localStorage
 function setStoredPageIndex(tableId: string, pageIndex: number) {
-  if (!tableId) return
+  if (!tableId) return;
+
   try {
-    localStorage.setItem(`dt_page_${tableId}`, String(pageIndex))
+    localStorage.setItem(`dt_page_${tableId}`, String(pageIndex));
   } catch { }
 }
 
-// Helper untuk baca pageSize dari localStorage
 function getStoredPageSize(tableId: string, defaultSize: number): number {
-  if (!tableId) return defaultSize
+  if (!tableId) return defaultSize;
+
   try {
-    const stored = localStorage.getItem(`dt_size_${tableId}`)
+    const stored = localStorage.getItem(`dt_size_${tableId}`);
     if (stored) {
-      const parsed = parseInt(stored, 10)
-      if (!isNaN(parsed) && parsed > 0) return parsed
+      const parsed = Number.parseInt(stored, 10);
+      if (!Number.isNaN(parsed) && parsed > 0) {
+        return parsed;
+      }
     }
   } catch { }
-  return defaultSize
+
+  return defaultSize;
 }
 
-// Helper untuk simpan pageSize ke localStorage
 function setStoredPageSize(tableId: string, pageSize: number) {
-  if (!tableId) return
+  if (!tableId) return;
+
   try {
-    localStorage.setItem(`dt_size_${tableId}`, String(pageSize))
+    localStorage.setItem(`dt_size_${tableId}`, String(pageSize));
   } catch { }
 }
 
 interface DataTableProps<TData, TValue> {
-  columns: ColumnDef<TData, TValue>[]
-  data: TData[]
-  searchPlaceholder?: string
-  showColumnVisibility?: boolean
-  showPagination?: boolean
-  showSearch?: boolean
-  pageSize?: number
-  meta?: Record<string, unknown>
-  // ID untuk persist pagination - jika diberikan, pagination akan disimpan ke localStorage
-  tableId?: string
-  // Initial sorting state
-  initialSorting?: SortingState
-  // Initial column visibility
-  initialColumnVisibility?: VisibilityState
-  // Legacy props untuk backward compatibility
-  pageIndex?: number
-  onPageIndexChange?: (pageIndex: number) => void
-  // Extra element rendered inline with the search input (e.g. room filter)
-  searchSlot?: React.ReactNode
+  columns: ColumnDef<TData, TValue>[];
+  data: TData[];
+  searchPlaceholder?: string;
+  showPagination?: boolean;
+  showSearch?: boolean;
+  pageSize?: number;
+  meta?: Record<string, unknown>;
+  tableId?: string;
+  initialSorting?: SortingState;
+  initialColumnVisibility?: VisibilityState;
+  pageIndex?: number;
+  onPageIndexChange?: (pageIndex: number) => void;
+  searchSlot?: React.ReactNode;
+  className?: string;
 }
 
 export function DataTable<TData, TValue>({
@@ -113,80 +122,78 @@ export function DataTable<TData, TValue>({
   pageIndex: controlledPageIndex,
   onPageIndexChange,
   searchSlot,
+  className,
 }: DataTableProps<TData, TValue>) {
-  const [sorting, setSorting] = React.useState<SortingState>(initialSorting)
-  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
-  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>(initialColumnVisibility)
-  const [rowSelection, setRowSelection] = React.useState({})
-
-  // State untuk globalFilter - initialize dari localStorage jika ada tableId
+  const [sorting, setSorting] = React.useState<SortingState>(initialSorting);
+  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
+  const [columnVisibility, setColumnVisibility] =
+    React.useState<VisibilityState>(initialColumnVisibility);
+  const [rowSelection, setRowSelection] = React.useState({});
   const [globalFilter, setGlobalFilter] = React.useState<string>(() => {
-    if (tableId) {
-      try {
-        const stored = localStorage.getItem(`dt_search_${tableId}`)
-        return stored || ""
-      } catch { }
-    }
-    return ""
-  })
+    if (!tableId) return "";
 
-  // State untuk pageSize - initialize dari localStorage jika ada tableId
+    try {
+      return localStorage.getItem(`dt_search_${tableId}`) || "";
+    } catch {
+      return "";
+    }
+  });
   const [pageSize, setPageSize] = React.useState(() => {
-    if (tableId) {
-      return getStoredPageSize(tableId, defaultPageSize)
-    }
-    return defaultPageSize
-  })
-
-  // State untuk pageIndex - initialize dari localStorage jika ada tableId
+    return tableId
+      ? getStoredPageSize(tableId, defaultPageSize)
+      : defaultPageSize;
+  });
   const [internalPageIndex, setInternalPageIndex] = React.useState(() => {
-    if (tableId) {
-      return getStoredPageIndex(tableId)
-    }
-    return 0
-  })
+    return tableId ? getStoredPageIndex(tableId) : 0;
+  });
 
-  // Save search filter to localStorage when it changes
   React.useEffect(() => {
-    if (tableId) {
-      try {
-        localStorage.setItem(`dt_search_${tableId}`, globalFilter)
-      } catch { }
-    }
-  }, [globalFilter, tableId])
+    if (!tableId) return;
 
-  // Determine the actual pageIndex to use
-  const rawPageIndex = controlledPageIndex ?? internalPageIndex
+    try {
+      localStorage.setItem(`dt_search_${tableId}`, globalFilter);
+    } catch { }
+  }, [globalFilter, tableId]);
 
-  // Validate pageIndex doesn't exceed available pages
-  // Only validate if we have data - don't reset to 0 when data is empty (loading state)
-  const totalPages = Math.ceil(data.length / pageSize)
-  const maxPage = Math.max(0, totalPages - 1)
-  const pageIndex = data.length > 0 ? Math.min(rawPageIndex, maxPage) : rawPageIndex
+  const handlePageChange = React.useCallback(
+    (newPageIndex: number) => {
+      const nextPageIndex = Math.max(0, newPageIndex);
 
-  // Handle page change
-  const handlePageChange = React.useCallback((newPageIndex: number) => {
-    // Simpan ke localStorage jika ada tableId
-    if (tableId) {
-      setStoredPageIndex(tableId, newPageIndex)
-    }
+      if (tableId) {
+        setStoredPageIndex(tableId, nextPageIndex);
+      }
 
-    // Update state
-    if (onPageIndexChange) {
-      onPageIndexChange(newPageIndex)
-    } else {
-      setInternalPageIndex(newPageIndex)
-    }
-  }, [tableId, onPageIndexChange])
+      if (onPageIndexChange) {
+        onPageIndexChange(nextPageIndex);
+      } else {
+        setInternalPageIndex(nextPageIndex);
+      }
+    },
+    [onPageIndexChange, tableId],
+  );
 
-  // Handle page size change - reset to page 0 and persist
-  const handlePageSizeChange = React.useCallback((newSize: number) => {
-    setPageSize(newSize)
-    if (tableId) {
-      setStoredPageSize(tableId, newSize)
-    }
-    handlePageChange(0)
-  }, [handlePageChange, tableId])
+  const handlePageSizeChange = React.useCallback(
+    (newSize: number) => {
+      setPageSize(newSize);
+
+      if (tableId) {
+        setStoredPageSize(tableId, newSize);
+      }
+
+      handlePageChange(0);
+    },
+    [handlePageChange, tableId],
+  );
+
+  const handleSearchChange = React.useCallback(
+    (value: string) => {
+      setGlobalFilter(value);
+      handlePageChange(0);
+    },
+    [handlePageChange],
+  );
+
+  const pageIndex = controlledPageIndex ?? internalPageIndex;
 
   const table = useReactTable({
     data,
@@ -200,7 +207,21 @@ export function DataTable<TData, TValue>({
     onColumnVisibilityChange: setColumnVisibility,
     onRowSelectionChange: setRowSelection,
     onGlobalFilterChange: setGlobalFilter,
-    globalFilterFn: "includesString",
+    globalFilterFn: (row, _columnId, filterValue: string) => {
+      if (!filterValue) return true;
+      const q = filterValue.toLowerCase().trim();
+      if (!q) return true;
+      // Recursively flatten all string values from the row's original data
+      const extractStrings = (obj: unknown): string => {
+        if (obj === null || obj === undefined) return "";
+        if (typeof obj === "string") return obj.toLowerCase();
+        if (typeof obj === "number" || typeof obj === "boolean") return String(obj).toLowerCase();
+        if (Array.isArray(obj)) return obj.map(extractStrings).join(" ");
+        if (typeof obj === "object") return Object.values(obj).map(extractStrings).join(" ");
+        return "";
+      };
+      return extractStrings(row.original).includes(q);
+    },
     meta,
     state: {
       sorting,
@@ -210,157 +231,192 @@ export function DataTable<TData, TValue>({
       globalFilter,
       pagination: { pageIndex, pageSize },
     },
-  })
+  });
+
+  const filteredCount = table.getFilteredRowModel().rows.length;
+  const totalCount = data.length;
+  const totalPages = Math.max(1, Math.ceil(filteredCount / pageSize));
+  const maxPage = Math.max(0, totalPages - 1);
+
+  React.useEffect(() => {
+    if (pageIndex > maxPage) {
+      handlePageChange(maxPage);
+    }
+  }, [handlePageChange, maxPage, pageIndex]);
 
   return (
-    <div className="flex flex-col flex-1 w-full bg-background">
-      {/* Search and Controls Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 px-0 py-3 bg-card">
-        <div className="flex items-center gap-2 flex-1">
+    <div className={cn("flex w-full flex-col", className)}>
+      {(showSearch || searchSlot) && (
+        <div className="flex flex-wrap items-center gap-1.5 py-2">
           {showSearch && (
-            <div className="relative w-full max-w-sm">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <div className="relative w-full max-w-[240px] min-w-0">
+              <Search className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder={searchPlaceholder}
-                value={globalFilter ?? ""}
-                onChange={(event) => setGlobalFilter(event.target.value)}
-                className="pl-9 h-9 w-full bg-background transition-colors focus-visible:ring-1"
+                value={globalFilter}
+                onChange={(event) => handleSearchChange(event.target.value)}
+                className="h-7 w-full bg-background pl-7 pr-7 text-xs"
               />
+              {globalFilter && (
+                <button
+                  type="button"
+                  onClick={() => handleSearchChange("")}
+                  className="absolute right-1 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  aria-label="Hapus pencarian"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
             </div>
           )}
+
           {searchSlot}
+
+          <span className="ml-auto whitespace-nowrap text-[11px] tabular-nums text-muted-foreground">
+            {filteredCount.toLocaleString("id-ID")}
+            {filteredCount !== totalCount && (
+              <span className="text-muted-foreground/60">
+                {" "}
+                / {totalCount.toLocaleString("id-ID")}
+              </span>
+            )}{" "}
+            baris
+          </span>
         </div>
-      </div>
+      )}
 
-      {/* Table Area */}
-      <div className="w-full overflow-auto" style={{ maxHeight: 'calc(100vh - 280px)' }}>
-        <Table>
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id} className="hover:bg-transparent">
-                {headerGroup.headers.map((header) => {
-                  return (
-                    <TableHead
-                      key={header.id}
-                      className="sticky top-0 bg-slate-50 dark:bg-slate-900/95 z-10 shadow-[0_1px_0_0_hsl(var(--border))]"
-                    >
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(
-                          header.column.columnDef.header,
-                          header.getContext()
-                        )}
-                    </TableHead>
-                  )
-                })}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows?.length ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  data-state={row.getIsSelected() && "selected"}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext()
-                      )}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell
-                  colSpan={columns.length}
-                  className="h-24 text-center text-muted-foreground"
-                >
-                  Tidak ada data.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
+      <Table>
+        <TableHeader>
+          {table.getHeaderGroups().map((headerGroup) => (
+            <TableRow
+              key={headerGroup.id}
+              className="even:bg-transparent odd:bg-transparent hover:bg-transparent"
+            >
+              {headerGroup.headers.map((header) => (
+                <TableHead key={header.id}>
+                  {header.isPlaceholder
+                    ? null
+                    : flexRender(
+                      header.column.columnDef.header,
+                      header.getContext(),
+                    )}
+                </TableHead>
+              ))}
+            </TableRow>
+          ))}
+        </TableHeader>
+        <TableBody>
+          {table.getRowModel().rows.length ? (
+            table.getRowModel().rows.map((row) => {
+              const subRowRenderer = (meta as Record<string, unknown>)?.renderSubRow as ((data: TData) => React.ReactNode) | undefined;
+              return (
+                <React.Fragment key={row.id}>
+                  <TableRow
+                    data-state={row.getIsSelected() && "selected"}
+                  >
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell key={cell.id}>
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                  {subRowRenderer && subRowRenderer(row.original)}
+                </React.Fragment>
+              );
+            })
+          ) : (
+            <TableRow className="even:bg-transparent odd:bg-transparent hover:bg-transparent">
+              <TableCell
+                colSpan={columns.length}
+                className="h-32 text-center text-sm text-muted-foreground"
+              >
+                Tidak ada data yang ditemukan.
+              </TableCell>
+            </TableRow>
+          )}
+        </TableBody>
+      </Table>
 
-      {/* Pagination */}
       {showPagination && (
-        <div className="flex items-center justify-between px-0 py-3 bg-background">
-          <div className="flex items-center space-x-2">
-            <p className="text-sm text-muted-foreground">Baris per halaman</p>
+        <div className="sticky bottom-0 z-10 flex items-center justify-between gap-3 bg-background py-1.5">
+          <div className="flex items-center gap-1.5">
+            <span className="whitespace-nowrap text-[11px] text-muted-foreground">
+              Baris/hal
+            </span>
             <Select
               value={String(pageSize)}
               onValueChange={(value) => handlePageSizeChange(Number(value))}
             >
-              <SelectTrigger className="h-8 w-[70px] bg-background">
-                <SelectValue placeholder={String(pageSize)} />
+              <SelectTrigger className="h-7 w-[56px] bg-background text-[11px]">
+                <SelectValue />
               </SelectTrigger>
               <SelectContent side="top">
-                {[5, 10, 20, 30, 50, 100].map((size) => (
-                  <SelectItem key={size} value={String(size)}>
+                {[10, 20, 30, 50, 100].map((size) => (
+                  <SelectItem
+                    key={size}
+                    value={String(size)}
+                    className="text-[11px]"
+                  >
                     {size}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
-          <div className="flex items-center space-x-4 lg:space-x-6">
-            <div className="flex items-center justify-center text-sm font-medium text-muted-foreground">
-              Total {data.length} baris
-            </div>
-            <div className="flex items-center justify-center text-sm font-medium text-muted-foreground hidden sm:flex">
-              Halaman {pageIndex + 1} dari {Math.max(1, totalPages)}
-            </div>
-            <div className="flex items-center space-x-2">
+
+          <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-0.5">
               <Button
                 variant="outline"
-                className="hidden h-8 w-8 p-0 lg:flex bg-background"
+                size="icon"
+                className="h-6 w-6"
                 onClick={() => handlePageChange(0)}
-                disabled={pageIndex === 0}
+                disabled={pageIndex <= 0}
               >
-                <span className="sr-only">Go to first page</span>
-                <ChevronsLeft className="h-4 w-4" />
+                <span className="sr-only">Halaman pertama</span>
+                <ChevronsLeft className="h-3 w-3" />
               </Button>
               <Button
                 variant="outline"
-                className="h-8 w-8 p-0 bg-background"
+                size="icon"
+                className="h-6 w-6"
                 onClick={() => handlePageChange(pageIndex - 1)}
-                disabled={pageIndex === 0}
+                disabled={pageIndex <= 0}
               >
-                <span className="sr-only">Go to previous page</span>
-                <ChevronLeft className="h-4 w-4" />
+                <span className="sr-only">Halaman sebelumnya</span>
+                <ChevronLeft className="h-3 w-3" />
               </Button>
+              <span className="whitespace-nowrap px-1.5 text-[11px] tabular-nums text-muted-foreground">
+                {Math.min(pageIndex + 1, totalPages)} / {totalPages}
+              </span>
               <Button
                 variant="outline"
-                className="h-8 w-8 p-0 bg-background"
+                size="icon"
+                className="h-6 w-6"
                 onClick={() => handlePageChange(pageIndex + 1)}
                 disabled={pageIndex >= maxPage}
               >
-                <span className="sr-only">Go to next page</span>
-                <ChevronRight className="h-4 w-4" />
+                <span className="sr-only">Halaman berikutnya</span>
+                <ChevronRight className="h-3 w-3" />
               </Button>
               <Button
                 variant="outline"
-                className="hidden h-8 w-8 p-0 lg:flex bg-background"
+                size="icon"
+                className="h-6 w-6"
                 onClick={() => handlePageChange(maxPage)}
                 disabled={pageIndex >= maxPage}
               >
-                <span className="sr-only">Go to last page</span>
-                <ChevronsRight className="h-4 w-4" />
+                <span className="sr-only">Halaman terakhir</span>
+                <ChevronsRight className="h-3 w-3" />
               </Button>
             </div>
           </div>
         </div>
       )}
     </div>
-  )
+  );
 }
 
-// Helper function untuk membuat select column (checkbox)
 export function createSelectColumn<TData>(): ColumnDef<TData> {
   return {
     id: "select",
@@ -382,7 +438,7 @@ export function createSelectColumn<TData>(): ColumnDef<TData> {
     ),
     enableSorting: false,
     enableHiding: false,
-  }
+  };
 }
 
-export { type ColumnDef } from "@tanstack/react-table"
+export { type ColumnDef } from "@tanstack/react-table";

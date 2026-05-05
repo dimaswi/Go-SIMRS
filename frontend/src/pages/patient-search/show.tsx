@@ -1,26 +1,20 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
-// Card imports removed - header flattened
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { DataTable, type ColumnDef } from "@/components/ui/data-table";
+import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import { patientsApi, registrationApi, type Patient, type Registration, medicineOrdersApi } from "@/lib/api";
+  patientsApi,
+  registrationApi,
+  type Patient,
+  type Registration,
+  api
+} from "@/lib/api";
+import { medicineOrdersApi } from "@/lib/api/medicine-orders";
 import { visitsApi, type Visit } from "@/lib/api/visits";
 import { billingApi, type Billing } from "@/lib/api/billing";
 import { vclaimApi, type SEPLocal } from "@/lib/api/vclaim";
@@ -38,7 +32,6 @@ import {
   Loader2,
   MapPin,
   Phone,
-  Users,
   Shield,
   Heart,
   ChevronDown,
@@ -57,11 +50,7 @@ import {
   Trash2,
   MoreHorizontal,
   BedDouble,
-  Clock,
-  CheckCircle,
-  XCircle,
   ArrowRight,
-  ExternalLink,
   Stethoscope,
   Activity,
   Droplets,
@@ -72,26 +61,22 @@ import {
   ListChecks,
   Merge,
   X,
-  CalendarDays,
+
   FolderOpen,
+  ArrowLeft,
+  Briefcase,
+  Dna,
+
 } from "lucide-react";
 import { format, parseISO, differenceInYears } from "date-fns";
 import { id } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
-import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { formatPatientName } from "@/lib/print-utils";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -104,49 +89,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
-// === Rekam Medis Types & Helpers ===
 
-interface DocItem {
-  id: string;
-  label: string;
-  icon: React.ReactNode;
-  fetchBlob: () => Promise<Blob>;
-  docKey?: string;
-}
-
-interface SelectedDoc {
-  docItem: DocItem;
-  visitId: number;
-  visitIndex: number;
-  docIndex: number;
-}
-
-interface VisitOrders {
-  medicineOrders: MedicineOrder[];
-  procedureOrders: ProcedureOrder[];
-  loaded: boolean;
-}
-
-interface RegistrationGroup {
-  registrationId: number;
-  registrationNumber: string;
-  registrationDate: string;
-  registrationType: string;
-  visits: Visit[];
-}
-
-function getRmVisitTypeLabel(type: string): string {
-  const labels: Record<string, string> = {
-    outpatient: "Rawat Jalan",
-    inpatient: "Rawat Inap",
-    emergency: "UGD",
-    consultation: "Konsultasi",
-    surgery: "Bedah",
-  };
-  return labels[type] || type;
-}
-
+// === Helpers ===
 function getRmVisitTypeBadgeColor(type: string): string {
   const colors: Record<string, string> = {
     outpatient: "bg-blue-100 text-blue-800",
@@ -174,6 +122,36 @@ function getRegTypeBadgeColor(type: string): string {
     emergency: "bg-red-50 text-red-700 border-red-200",
   };
   return colors[type] || "bg-gray-50 text-gray-700 border-gray-200";
+}
+
+// === Types ===
+interface DocItem {
+  id: string;
+  label: string;
+  icon: React.ReactNode;
+  fetchBlob: () => Promise<Blob>;
+  docKey?: string;
+}
+
+interface SelectedDoc {
+  docItem: DocItem;
+  visitId: number;
+  visitIndex: number;
+  docIndex: number;
+}
+
+interface VisitOrders {
+  medicineOrders: MedicineOrder[];
+  procedureOrders: ProcedureOrder[];
+  loaded: boolean;
+}
+
+interface RegistrationGroup {
+  registrationId: number;
+  registrationNumber: string;
+  registrationDate: string;
+  registrationType: string;
+  visits: Visit[];
 }
 
 function getBaseDocsForVisit(visit: Visit): DocItem[] {
@@ -347,6 +325,8 @@ export default function PatientSearchShow() {
   const [loadingBillings, setLoadingBillings] = useState(false);
   const [loadingRegistrations, setLoadingRegistrations] = useState(false);
   const [loadingSeps, setLoadingSeps] = useState(false);
+  const [expandedRegistrations, setExpandedRegistrations] = useState<Set<number>>(new Set());
+
   const [admissionRequests, setAdmissionRequests] = useState<AdmissionRequest[]>([]);
   const [loadingAdmissionRequests, setLoadingAdmissionRequests] = useState(false);
   const [registrationSheetOpen, setRegistrationSheetOpen] = useState(false);
@@ -354,8 +334,6 @@ export default function PatientSearchShow() {
   const [deletingSep, setDeletingSep] = useState(false);
   const [selectedSep, setSelectedSep] = useState<SEPLocal | null>(null);
   const [sepDetailOpen, setSepDetailOpen] = useState(false);
-  const [expandedRegistrations, setExpandedRegistrations] = useState<Set<number>>(new Set());
-
   // === Rekam Medis State ===
   const [rmVisits, setRmVisits] = useState<Visit[]>([]);
   const [loadingRm, setLoadingRm] = useState(false);
@@ -443,14 +421,12 @@ export default function PatientSearchShow() {
     }
   }, [patientId, rmLoaded, toast]);
 
-  // Load rekam medis data when tab is activated
   useEffect(() => {
     if (activeTab === "rekam-medis") {
       loadRmVisits();
     }
   }, [activeTab, loadRmVisits]);
 
-  // Cleanup PDF URL
   useEffect(() => {
     return () => {
       if (rmPdfUrl) window.URL.revokeObjectURL(rmPdfUrl);
@@ -500,6 +476,7 @@ export default function PatientSearchShow() {
       const blob = await doc.fetchBlob();
       const url = window.URL.createObjectURL(blob);
       setRmPdfUrl(url);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       const status = err?.response?.status;
       if (status === 404) {
@@ -548,7 +525,6 @@ export default function PatientSearchShow() {
     return filteredBaseDocs;
   };
 
-  // Bundle helpers
   const toggleRmDocSelection = (doc: DocItem, visitId: number, visitIdx: number, docIdx: number) => {
     setRmSelectedDocs((prev) => {
       const next = new Map(prev);
@@ -558,6 +534,7 @@ export default function PatientSearchShow() {
     });
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const toggleRmVisitSelection = (visit: Visit, visitIdx: number, docs: DocItem[]) => {
     const allSelected = docs.length > 0 && docs.every((d) => rmSelectedDocs.has(d.id));
     setRmSelectedDocs((prev) => {
@@ -573,6 +550,7 @@ export default function PatientSearchShow() {
     });
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const getRmVisitCheckboxState = (docs: DocItem[]): boolean | "indeterminate" => {
     if (docs.length === 0) return false;
     const count = docs.filter((d) => rmSelectedDocs.has(d.id)).length;
@@ -673,20 +651,14 @@ export default function PatientSearchShow() {
     }
   };
 
-  useEffect(() => {
-    setPageTitle("Detail Pasien");
-    loadPatient();
-  }, [patientId]);
-
-  const loadPatient = async () => {
+  // === Data Loading ===
+  const loadPatient = useCallback(async () => {
     if (!patientId) return;
-
     setLoading(true);
     try {
       const response = await patientsApi.getById(Number(patientId));
       const patientData = response.data;
       setPatient(patientData);
-      // Load visits and billings after patient is loaded
       loadVisits(Number(patientId));
       loadRegistrations(Number(patientId));
       loadSeps(Number(patientId));
@@ -699,17 +671,14 @@ export default function PatientSearchShow() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [patientId]);
 
-  const loadVisits = async (patientIdNum: number) => {
+  const loadVisits = async (pId: number) => {
     setLoadingVisits(true);
     try {
-      const response = await visitsApi.getAll({ patient_id: patientIdNum });
-      // Axios returns { data: Visit[] }, so response.data is the array
-      const visitsData = response?.data || [];
-      setVisits(Array.isArray(visitsData) ? visitsData : []);
-    } catch (error) {
-      console.error("Error loading visits:", error);
+      const res = await visitsApi.getAll({ patient_id: pId });
+      setVisits(res?.data || []);
+    } catch {
       setVisits([]);
     } finally {
       setLoadingVisits(false);
@@ -719,69 +688,63 @@ export default function PatientSearchShow() {
   const loadBillings = async (noRm: string) => {
     setLoadingBillings(true);
     try {
-      // Use no_rm to search for billings
-      const response = await billingApi.getAll({ search: noRm, limit: 100 });
-      // Response from axios: { data: { data: Billing[], meta: {...} } }
-      // billingApi.getAll returns the axios response, so response.data is the backend response body
-      const backendResponse = response?.data;
-      const billingsData = backendResponse?.data || [];
-      setBillings(Array.isArray(billingsData) ? billingsData : []);
-    } catch (error) {
-      console.error("Error loading billings:", error);
+      const res = await billingApi.getAll({ search: noRm, limit: 100 });
+      setBillings(res?.data?.data || []);
+    } catch {
       setBillings([]);
     } finally {
       setLoadingBillings(false);
     }
   };
 
-  const loadRegistrations = async (patientIdNum: number) => {
+  const loadRegistrations = async (pId: number) => {
     setLoadingRegistrations(true);
     try {
-      const response = await registrationApi.getAll({ patient_id: patientIdNum, limit: 100 });
-      const registrationsData = response?.data?.data || [];
-      setRegistrations(Array.isArray(registrationsData) ? registrationsData : []);
-    } catch (error) {
-      console.error("Error loading registrations:", error);
+      const res = await registrationApi.getAll({ patient_id: pId, limit: 100 });
+      setRegistrations(res?.data?.data || []);
+    } catch {
       setRegistrations([]);
     } finally {
       setLoadingRegistrations(false);
     }
   };
 
-  const loadSeps = async (patientIdNum: number) => {
+  const loadSeps = async (pId: number) => {
     setLoadingSeps(true);
     try {
-      const response = await vclaimApi.getSEPList({ patient_id: patientIdNum, limit: 100 });
-      const sepsData = response?.data?.data || [];
-      setSeps(Array.isArray(sepsData) ? sepsData : []);
-    } catch (error) {
-      console.error("Error loading SEPs:", error);
+      const res = await vclaimApi.getSEPList({ patient_id: pId, limit: 100 });
+      // vclaimApi returns { data: SEPLocal[] } directly in the response body if unintercepted
+      // However, to be safe against both AxiosResponse and direct body, we handle both:
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const data = res?.data as any;
+      setSeps(Array.isArray(data) ? data : (data?.data || []));
+    } catch {
       setSeps([]);
     } finally {
       setLoadingSeps(false);
     }
   };
 
-  const loadAdmissionRequests = async (patientIdNum: number) => {
+  const loadAdmissionRequests = async (pId: number) => {
     setLoadingAdmissionRequests(true);
     try {
-      const response = await admissionRequestApi.getAll({ patient_id: patientIdNum, limit: 100 });
-      const admissionData = response?.data?.data || [];
-      setAdmissionRequests(Array.isArray(admissionData) ? admissionData : []);
-    } catch (error) {
-      console.error("Error loading admission requests:", error);
+      const res = await admissionRequestApi.getAll({ patient_id: pId, limit: 100 });
+      setAdmissionRequests(res?.data?.data || []);
+    } catch {
       setAdmissionRequests([]);
     } finally {
       setLoadingAdmissionRequests(false);
     }
   };
 
+  useEffect(() => {
+    setPageTitle("Detail Pasien");
+    loadPatient();
+  }, [loadPatient]);
+
   const handleBack = () => {
-    if (query) {
-      navigate(`/patient-search?q=${encodeURIComponent(query)}`);
-    } else {
-      navigate(-1);
-    }
+    if (query) navigate(`/patient-search?q=${encodeURIComponent(query)}`);
+    else navigate(-1);
   };
 
   const formatDate = (dateString?: string) => {
@@ -803,225 +766,6 @@ export default function PatientSearchShow() {
     }
   };
 
-  const getStatusVariant = (status: string) => {
-    switch (status) {
-      case "Aktif":
-        return "default";
-      case "Tidak Aktif":
-        return "secondary";
-      case "Meninggal":
-        return "destructive";
-      default:
-        return "outline";
-    }
-  };
-
-  const getVisitStatusVariant = (status: string) => {
-    switch (status) {
-      case "completed":
-        return "default";
-      case "in_progress":
-        return "secondary";
-      case "waiting":
-      case "in_queue":
-        return "outline";
-      case "cancelled":
-        return "destructive";
-      default:
-        return "outline";
-    }
-  };
-
-  const getVisitStatusLabel = (status: string) => {
-    switch (status) {
-      case "completed":
-        return "Selesai";
-      case "in_progress":
-        return "Sedang Berlangsung";
-      case "waiting":
-        return "Menunggu";
-      case "in_queue":
-        return "Dalam Antrian";
-      case "cancelled":
-        return "Dibatalkan";
-      default:
-        return status;
-    }
-  };
-
-  const getVisitTypeLabel = (type: string) => {
-    switch (type) {
-      case "consultation":
-        return "Konsultasi";
-      case "procedure":
-        return "Tindakan";
-      case "lab":
-        return "Laboratorium";
-      case "radiology":
-        return "Radiologi";
-      case "pharmacy":
-        return "Farmasi";
-      case "inpatient":
-        return "Rawat Inap";
-      case "outpatient":
-        return "Rawat Jalan";
-      case "emergency":
-        return "IGD";
-      default:
-        return type;
-    }
-  };
-
-  const getBillingStatusVariant = (status: string) => {
-    switch (status) {
-      case "paid":
-        return "default";
-      case "partial":
-        return "secondary";
-      case "pending":
-      case "draft":
-        return "outline";
-      case "cancelled":
-        return "destructive";
-      default:
-        return "outline";
-    }
-  };
-
-  const getBillingStatusLabel = (status: string) => {
-    switch (status) {
-      case "paid":
-        return "Lunas";
-      case "partial":
-        return "Sebagian";
-      case "pending":
-        return "Menunggu";
-      case "draft":
-        return "Draft";
-      case "cancelled":
-        return "Dibatalkan";
-      default:
-        return status;
-    }
-  };
-
-  const getRegistrationStatusVariant = (status: string) => {
-    switch (status) {
-      case "completed":
-        return "default";
-      case "in_progress":
-        return "secondary";
-      case "registered":
-      case "in_queue":
-        return "outline";
-      case "cancelled":
-        return "destructive";
-      default:
-        return "outline";
-    }
-  };
-
-  const getRegistrationStatusLabel = (status: string) => {
-    switch (status) {
-      case "completed":
-        return "Selesai";
-      case "in_progress":
-        return "Sedang Berlangsung";
-      case "registered":
-        return "Terdaftar";
-      case "in_queue":
-        return "Dalam Antrian";
-      case "cancelled":
-        return "Dibatalkan";
-      case "scheduled":
-        return "Terjadwal";
-      case "no_show":
-        return "Tidak Hadir";
-      default:
-        return status;
-    }
-  };
-
-  const getSepStatusVariant = (status: string) => {
-    switch (status) {
-      case "active":
-        return "default";
-      case "deleted":
-        return "destructive";
-      default:
-        return "outline";
-    }
-  };
-
-  const getSepStatusLabel = (status: string) => {
-    switch (status) {
-      case "active":
-        return "Aktif";
-      case "deleted":
-        return "Dihapus";
-      default:
-        return status;
-    }
-  };
-
-  const getJenisPelayanan = (jns: string) => {
-    return jns === "1" ? "Rawat Inap" : "Rawat Jalan";
-  };
-
-  const handleDeleteSep = async () => {
-    if (!deleteSepId?.no_sep) return;
-
-    setDeletingSep(true);
-    try {
-      await api.delete(`/bpjs/vclaim/sep/${deleteSepId.no_sep}`);
-      toast({
-        title: "Berhasil",
-        description: "SEP berhasil dihapus",
-      });
-      setDeleteSepId(null);
-      loadSeps(Number(patientId));
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.response?.data?.error || "Gagal menghapus SEP",
-      });
-    } finally {
-      setDeletingSep(false);
-    }
-  };
-
-  const handlePrintLabel = async () => {
-    if (!patient) return;
-    try {
-      await printApi.patientLabel(patient.id, 4);
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.response?.data?.error || "Gagal mencetak label pasien",
-      });
-    }
-  };
-
-  const handlePrintInformedConsent = async () => {
-    if (!patient) return;
-    try {
-      await printApi.informedConsent(patient.id);
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.response?.data?.error || "Gagal mencetak informed consent",
-      });
-    }
-  };
-
-  const handleViewSep = (sep: SEPLocal) => {
-    setSelectedSep(sep);
-    setSepDetailOpen(true);
-  };
-
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("id-ID", {
       style: "currency",
@@ -1039,1535 +783,983 @@ export default function PatientSearchShow() {
     }
   };
 
-  // Check if patient has allergies
-  const hasAllergies =
-    patient &&
-    (patient.alergi_obat || patient.alergi_makanan || patient.alergi_lainnya);
+  const getStatusVariant = (status: string) => {
+    switch (status) {
+      case "Aktif": return "success";
+      case "Tidak Aktif": return "secondary";
+      case "Meninggal": return "destructive";
+      default: return "outline";
+    }
+  };
+
+  const getVisitStatusVariant = (status: string) => {
+    switch (status) {
+      case "completed": return "default";
+      case "in_progress": return "secondary";
+      case "waiting":
+      case "in_queue": return "outline";
+      case "cancelled": return "destructive";
+      default: return "outline";
+    }
+  };
+
+  const getVisitStatusLabel = (status: string) => {
+    switch (status) {
+      case "completed": return "Selesai";
+      case "in_progress": return "Aktif";
+      case "waiting": return "Menunggu";
+      case "in_queue": return "Antrian";
+      case "cancelled": return "Batal";
+      default: return status;
+    }
+  };
+
+  const getVisitTypeLabel = (type: string) => {
+    switch (type) {
+      case "consultation": return "Konsul";
+      case "procedure": return "Tindakan";
+      case "lab": return "Laboratorium";
+      case "radiology": return "Radiologi";
+      case "pharmacy": return "Farmasi";
+      case "inpatient": return "Rawat Inap";
+      case "outpatient": return "Rawat Jalan";
+      case "emergency": return "IGD";
+      default: return type;
+    }
+  };
+
+  const getRegistrationStatusVariant = (status: string) => {
+    switch (status) {
+      case "completed": return "default";
+      case "in_progress": return "secondary";
+      case "registered":
+      case "in_queue": return "outline";
+      case "cancelled": return "destructive";
+      case "discharge": return "success";
+      default: return "outline";
+    }
+  };
+
+  const getRegistrationStatusLabel = (status: string) => {
+    switch (status) {
+      case "completed": return "Selesai";
+      case "in_progress": return "Aktif";
+      case "registered": return "Terdaftar";
+      case "in_queue": return "Antrian";
+      case "cancelled": return "Batal";
+      case "scheduled": return "Terjadwal";
+      case "no_show": return "Tidak Hadir";
+      case "discharge": return "Pulang";
+      default: return status;
+    }
+  };
+
+  const getSepStatusVariant = (status: string) => {
+    switch (status) {
+      case "active": return "default";
+      case "deleted": return "destructive";
+      default: return "outline";
+    }
+  };
+
+  const getSepStatusLabel = (status: string) => {
+    switch (status) {
+      case "active": return "Aktif";
+      case "deleted": return "Dihapus";
+      default: return status;
+    }
+  };
+
+  const getJenisPelayanan = (jns: string) => jns === "1" ? "Rawat Inap" : "Rawat Jalan";
+
+  const handleDeleteSep = async () => {
+    if (!deleteSepId?.no_sep) return;
+    setDeletingSep(true);
+    try {
+      await api.delete(`/bpjs/vclaim/sep/${deleteSepId.no_sep}`);
+      toast({ title: "Berhasil", description: "SEP berhasil dihapus" });
+      setDeleteSepId(null);
+      loadSeps(Number(patientId));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Error", description: error.response?.data?.error || "Gagal menghapus SEP" });
+    } finally {
+      setDeletingSep(false);
+    }
+  };
+
+  const handlePrintLabel = async () => {
+    if (!patient) return;
+    try { await printApi.patientLabel(patient.id, 4); }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars
+    catch (error: any) { toast({ variant: "destructive", title: "Error", description: "Gagal mencetak label" }); }
+  };
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const handlePrintInformedConsent = async () => {
+    if (!patient) return;
+    try { await printApi.informedConsent(patient.id); }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars
+    catch (error: any) { toast({ variant: "destructive", title: "Error", description: "Gagal mencetak informed consent" }); }
+  };
+
+  const handleViewSep = (sep: SEPLocal) => {
+    setSelectedSep(sep);
+    setSepDetailOpen(true);
+  };
+
+  // === Column Definitions ===
+  const sepColumns = useMemo<ColumnDef<SEPLocal>[]>(() => [
+    {
+      accessorKey: "no_sep",
+      header: "No. SEP",
+      cell: ({ row }) => <span className="font-mono font-medium text-xs">{row.original.no_sep}</span>,
+    },
+    {
+      accessorKey: "tgl_sep",
+      header: "Tgl SEP",
+      cell: ({ row }) => <span className="text-xs">{row.original.tgl_sep ? format(parseISO(row.original.tgl_sep), "dd/MM/yyyy") : "-"}</span>,
+    },
+    {
+      accessorKey: "jns_pelayanan",
+      header: "Layanan",
+      cell: ({ row }) => <Badge variant="outline" className="text-[10px] uppercase">{getJenisPelayanan(row.original.jns_pelayanan)}</Badge>,
+    },
+    {
+      accessorKey: "nama_poli",
+      header: "Poli",
+      cell: ({ row }) => <span className="text-xs">{row.original.nama_poli || "-"}</span>,
+    },
+    {
+      accessorKey: "nama_diagnosa",
+      header: "Diagnosa",
+      cell: ({ row }) => <span className="text-xs truncate max-w-[150px] block" title={row.original.nama_diagnosa}>{row.original.nama_diagnosa || "-"}</span>,
+    },
+    {
+      accessorKey: "status",
+      header: "Status",
+      cell: ({ row }) => <Badge variant={getSepStatusVariant(row.original.status)} className="text-[10px]">{getSepStatusLabel(row.original.status)}</Badge>,
+    },
+    {
+      id: "actions",
+      header: () => <div className="text-center">Aksi</div>,
+      cell: ({ row }) => (
+        <div className="flex justify-center">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-7 w-7"><MoreHorizontal className="h-4 w-4" /></Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => handleViewSep(row.original)} className="text-xs"><Eye className="mr-2 h-3.5 w-3.5" /> Detail</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => printApi.sep(row.original.id)} className="text-xs"><Printer className="mr-2 h-3.5 w-3.5" /> Cetak SEP</DropdownMenuItem>
+              {row.original.status === "active" && (
+                <DropdownMenuItem className="text-destructive text-xs focus:text-destructive" onClick={() => setDeleteSepId(row.original)}>
+                  <Trash2 className="mr-2 h-3.5 w-3.5" /> Hapus
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      ),
+    }
+  ], []);
+
+  const admissionColumns = useMemo<ColumnDef<AdmissionRequest>[]>(() => [
+    {
+      accessorKey: "request_number",
+      header: "No. Request",
+      cell: ({ row }) => <span className="font-mono font-medium text-xs">{row.original.request_number}</span>,
+    },
+    {
+      accessorKey: "priority",
+      header: "Prioritas",
+      cell: ({ row }) => {
+        const p = row.original.priority;
+        return (
+          <Badge variant={p === "emergency" ? "destructive" : p === "urgent" ? "default" : "secondary"} className={cn("text-[10px] uppercase", p === "urgent" && "bg-orange-500 hover:bg-orange-600 text-white")}>
+            {p}
+          </Badge>
+        );
+      }
+    },
+    {
+      accessorKey: "source_visit",
+      header: "Asal Unit",
+      cell: ({ row }) => <span className="text-xs">{row.original.source_visit?.room?.name || "-"}</span>,
+    },
+    {
+      accessorKey: "preferred_class",
+      header: "Kelas",
+      cell: ({ row }) => <span className="text-xs capitalize">{row.original.preferred_class?.replace(/_/g, ' ') || "-"}</span>,
+    },
+    {
+      accessorKey: "requested_at",
+      header: "Tgl Request",
+      cell: ({ row }) => <span className="text-xs">{row.original.requested_at ? format(parseISO(row.original.requested_at), "dd/MM/yyyy HH:mm") : "-"}</span>,
+    },
+    {
+      accessorKey: "status",
+      header: "Status",
+      cell: ({ row }) => {
+        const s = row.original.status;
+        return (
+          <Badge variant="outline" className={cn(
+            "text-[10px] uppercase",
+            s === "pending" && "bg-yellow-50 text-yellow-700 border-yellow-200",
+            s === "approved" && "bg-green-50 text-green-700 border-green-200",
+            s === "rejected" && "bg-red-50 text-red-700 border-red-200"
+          )}>
+            {s === "pending" ? "Menunggu" : s === "approved" ? "Disetujui" : s === "rejected" ? "Ditolak" : s}
+          </Badge>
+        );
+      }
+    },
+    {
+      id: "actions",
+      header: () => <div className="text-center">Aksi</div>,
+      cell: ({ row }) => (
+        <div className="flex justify-center">
+          <Button size="sm" variant="ghost" className="h-7 text-xs px-2" onClick={() => navigate(row.original.status === "pending" ? `/admisi/${row.original.id}` : row.original.inpatient_visit_id ? `/visits/${row.original.inpatient_visit_id}` : `/admisi/${row.original.id}`)}>
+            {row.original.status === "pending" ? <ArrowRight className="h-3.5 w-3.5 mr-1" /> : <Eye className="h-3.5 w-3.5 mr-1" />}
+            {row.original.status === "pending" ? "Proses" : "Detail"}
+          </Button>
+        </div>
+      )
+    }
+  ], [navigate]);
+
+  const billingColumns = useMemo<ColumnDef<Billing>[]>(() => [
+    {
+      accessorKey: "billing_number",
+      header: "No. Billing",
+      cell: ({ row }) => <span className="font-mono font-medium text-xs">{row.original.billing_number}</span>,
+    },
+    {
+      accessorKey: "created_at",
+      header: "Tanggal",
+      cell: ({ row }) => <span className="text-xs">{formatDateTime(row.original.created_at)}</span>,
+    },
+    {
+      accessorKey: "payment_method",
+      header: "Metode",
+      cell: ({ row }) => <Badge variant="outline" className="text-[10px] uppercase">{row.original.payment_method}</Badge>,
+    },
+    {
+      accessorKey: "final_amount",
+      header: "Total",
+      cell: ({ row }) => <span className="text-xs font-medium">{formatCurrency(row.original.final_amount)}</span>,
+    },
+    {
+      accessorKey: "paid_amount",
+      header: "Dibayar",
+      cell: ({ row }) => <span className="text-xs text-green-600">{formatCurrency(row.original.paid_amount)}</span>,
+    },
+    {
+      accessorKey: "status",
+      header: "Status",
+      cell: ({ row }) => (
+        <Badge variant={row.original.status === 'paid' ? 'default' : 'outline'} className="text-[10px] uppercase">
+          {row.original.status === 'paid' ? 'Lunas' : row.original.status}
+        </Badge>
+      ),
+    },
+    {
+      id: "actions",
+      header: () => <div className="text-center">Aksi</div>,
+      cell: ({ row }) => (
+        <div className="flex justify-center">
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigate(`/billings/${row.original.id}`)}>
+            <Eye className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      )
+    }
+  ], [navigate]);
+
+  const registrationColumns = useMemo<ColumnDef<Registration>[]>(() => [
+    {
+      id: "expand",
+      header: "",
+      cell: ({ row }) => {
+        const regId = row.original.id || row.original.ID;
+        const isExpanded = expandedRegistrations.has(regId!);
+        return (
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => toggleRegistrationExpand(regId!)}>
+            {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+          </Button>
+        );
+      },
+      size: 40,
+    },
+    {
+      accessorKey: "registration_number",
+      header: "No. Registrasi",
+      cell: ({ row }) => <span className="font-mono font-medium text-xs">{row.original.registration_number}</span>,
+    },
+    {
+      accessorKey: "created_at",
+      header: "Tanggal",
+      cell: ({ row }) => <span className="text-xs">{formatDateTime(row.original.created_at || row.original.CreatedAt)}</span>,
+    },
+    {
+      accessorKey: "registration_type",
+      header: "Tipe",
+      cell: ({ row }) => (
+        <Badge variant="outline" className={cn("text-[10px] uppercase font-bold tracking-wider", getRegTypeBadgeColor(row.original.registration_type))}>
+          {getRegTypeLabel(row.original.registration_type)}
+        </Badge>
+      ),
+    },
+    {
+      accessorKey: "destination_room",
+      header: "Tujuan",
+      cell: ({ row }) => (
+        <span className="text-xs flex items-center gap-1.5">
+          <Stethoscope className="h-3 w-3 text-muted-foreground" />
+          {row.original.destination_room?.name || '-'}
+        </span>
+      ),
+    },
+    {
+      accessorKey: "doctor",
+      header: "Dokter",
+      cell: ({ row }) => <span className="text-xs">{row.original.doctor?.nama_lengkap || row.original.doctor?.name || '-'}</span>,
+    },
+    {
+      accessorKey: "payment_method",
+      header: "Jaminan",
+      cell: ({ row }) => <Badge variant="outline" className="text-[10px] uppercase">{row.original.payment_method}</Badge>,
+    },
+    {
+      accessorKey: "status",
+      header: "Status",
+      cell: ({ row }) => (
+        <Badge variant={getRegistrationStatusVariant(row.original.status)} className="text-[10px] uppercase tracking-wider">
+          {getRegistrationStatusLabel(row.original.status)}
+        </Badge>
+      ),
+    },
+  ], [expandedRegistrations]);
+
+  // Custom row rendering for registration table with collapsible visits
+  const registrationTableMeta = useMemo(() => ({
+    renderSubRow: (row: Registration) => {
+      const regId = row.id || row.ID;
+      if (!regId || !expandedRegistrations.has(regId)) return null;
+      const regVisits = visitsByRegistration.get(regId) || [];
+      const mainVisits = regVisits.filter(v => ['outpatient', 'inpatient', 'emergency', 'consultation'].includes(v.visit_type));
+      const orderVisits = regVisits.filter(v => !['outpatient', 'inpatient', 'emergency', 'consultation'].includes(v.visit_type));
+
+      return (
+        <tr key={`sub-${regId}`}>
+          <td colSpan={8} className="p-0 border-b">
+            <div className="bg-muted/20 pl-12 pr-4 py-3">
+              {loadingVisits ? (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground py-2"><Loader2 className="h-3 w-3 animate-spin" /> Memuat kunjungan...</div>
+              ) : regVisits.length === 0 ? (
+                <div className="text-[11px] text-muted-foreground italic py-1">Belum ada kunjungan terkait registrasi ini.</div>
+              ) : (
+                <div className="space-y-3">
+                  {/* Main visits as compact table rows */}
+                  {mainVisits.length > 0 && (
+                    <div>
+                      <p className="text-[9px] font-bold text-muted-foreground/60 uppercase tracking-[0.15em] mb-1.5">Kunjungan</p>
+                      <div className="border divide-y bg-background">
+                        {mainVisits.map((visit) => (
+                          <div key={visit.id} className="flex items-center gap-3 px-3 h-9 text-xs group hover:bg-muted/30 transition-colors">
+                            <Badge variant="secondary" className={cn("text-[9px] uppercase tracking-wider shrink-0 h-5 rounded-none", getRmVisitTypeBadgeColor(visit.visit_type))}>
+                              {getVisitTypeLabel(visit.visit_type)}
+                            </Badge>
+                            <span className="font-medium truncate">{visit.room?.name || '-'}</span>
+                            <span className="text-muted-foreground truncate hidden lg:inline">—</span>
+                            <span className="text-muted-foreground truncate hidden lg:inline flex-1">{visit.doctor?.user?.name || visit.doctor?.name || '-'}</span>
+                            <Badge variant={getVisitStatusVariant(visit.status)} className="text-[9px] uppercase tracking-wider shrink-0 h-5 rounded-none">{getVisitStatusLabel(visit.status)}</Badge>
+                            <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <Button variant="ghost" size="icon" className="h-6 w-6 rounded-none" onClick={() => navigate(`/visits/${visit.id}`)}><Eye className="h-3 w-3" /></Button>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-6 w-6 rounded-none"><MoreHorizontal className="h-3 w-3" /></Button></DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => { if (regId) printApi.admissionDischargeSummary(regId, visit.id); }} className="text-xs"><FileText className="mr-2 h-3.5 w-3.5" /> MR.1 Ringkasan</DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => printApi.dpjpRequest(visit.id)} className="text-xs"><UserCheck className="mr-2 h-3.5 w-3.5" /> Permohonan DPJP</DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => printApi.informedConsentReceipt(visit.id)} className="text-xs"><FileSignature className="mr-2 h-3.5 w-3.5" /> Informed Consent</DropdownMenuItem>
+                                  {visit.visit_type === 'outpatient' && <DropdownMenuItem onClick={() => printApi.outpatientResume(visit.id)} className="text-xs"><ClipboardList className="mr-2 h-3.5 w-3.5" /> Resume Rawat Jalan</DropdownMenuItem>}
+                                  {visit.visit_type === 'emergency' && <DropdownMenuItem onClick={() => printApi.emergencySummary(visit.id)} className="text-xs"><ClipboardList className="mr-2 h-3.5 w-3.5" /> Resume IGD</DropdownMenuItem>}
+                                  {visit.visit_type === 'inpatient' && <DropdownMenuItem onClick={() => printApi.inpatientResume(visit.id)} className="text-xs"><ClipboardList className="mr-2 h-3.5 w-3.5" /> Resume Rawat Inap</DropdownMenuItem>}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Order visits as compact inline items */}
+                  {orderVisits.length > 0 && (
+                    <div>
+                      <p className="text-[9px] font-bold text-muted-foreground/60 uppercase tracking-[0.15em] mb-1.5">Penunjang</p>
+                      <div className="border divide-y bg-background">
+                        {orderVisits.map((visit) => (
+                          <div key={visit.id} className="flex items-center gap-3 px-3 h-9 text-xs group hover:bg-muted/30 transition-colors">
+                            {visit.visit_type === 'lab' ? <FlaskConical className="h-3 w-3 text-cyan-600 shrink-0" /> : visit.visit_type === 'pharmacy' ? <Pill className="h-3 w-3 text-amber-600 shrink-0" /> : <Activity className="h-3 w-3 shrink-0" />}
+                            <Badge variant="outline" className="text-[9px] uppercase px-1 h-5 rounded-none shrink-0">{getVisitTypeLabel(visit.visit_type)}</Badge>
+                            <span className="font-medium truncate flex-1">{visit.room?.name || '-'}</span>
+                            <Button variant="ghost" size="icon" className="h-6 w-6 rounded-none opacity-0 group-hover:opacity-100 transition-opacity shrink-0" onClick={() => navigate(`/visits/${visit.id}`)}>
+                              <Eye className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* SEP info inline */}
+                  {row.sep_number && (
+                    <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground pt-0.5">
+                      <Shield className="h-3 w-3" />
+                      <span>SEP:</span>
+                      <span className="font-mono font-semibold text-primary">{row.sep_number}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </td>
+        </tr>
+      );
+    },
+  }), [expandedRegistrations, visitsByRegistration, loadingVisits, navigate]);
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="h-screen w-screen flex flex-col items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
+        <p className="text-sm font-medium text-muted-foreground animate-pulse">Memuat data pasien...</p>
       </div>
     );
   }
 
-  if (!patient) {
-    return (
-      <div className="flex flex-1 flex-col items-center justify-center p-4">
-        <User className="h-16 w-16 text-muted-foreground opacity-50" />
-        <h2 className="text-xl font-semibold">Pasien Tidak Ditemukan</h2>
-        <Button onClick={handleBack}>Kembali</Button>
-      </div>
-    );
-  }
+  if (!patient) return null;
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div>
-        {/* Patient Header */}
-        <div className="flex flex-wrap items-center justify-between gap-4 pb-4">
-            <div className="flex items-center gap-4">
-              <div className="h-16 w-16 shrink-0 rounded-full bg-muted flex items-center justify-center">
-                {patient.foto ? (
-                  <img
-                    src={`/${patient.foto}`}
-                    alt={patient.nama_lengkap}
-                    className="h-16 w-16 rounded-full object-cover"
-                  />
-                ) : (
-                  <User className="h-8 w-8 text-muted-foreground" />
-                )}
-              </div>
-              <div className="space-y-1">
-                <h1 className="text-lg font-semibold">
-                  {formatPatientName(patient.nama_lengkap, patient.jenis_kelamin, patient.status_perkawinan, patient.tanggal_lahir)} <Badge variant={getStatusVariant(patient.status)} className="text-sm">{patient.status}</Badge>
-                </h1>
-                <p className="text-sm text-muted-foreground">
-                  No. RM:{" "}
-                  <span className="font-mono font-medium text-foreground">
-                    {patient.no_rm}
-                  </span>
-                  {" • "}
-                  {patient.jenis_kelamin === "L" ? "Laki-laki" : "Perempuan"}
-                  {" • "}
-                  {calculateAge(patient.tanggal_lahir)}
-                </p>
-              </div>
-            </div>
+    <PageShell className="h-screen flex flex-col overflow-hidden">
+      <div className="flex-none">
+        <PageHeader
+          title="Profil & Rekam Medis"
+          description={`${patient.nama_lengkap} • No. RM: ${patient.no_rm}`}
+          actions={
             <div className="flex items-center gap-2">
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={handlePrintLabel}
-                    >
-                      <Printer className="h-4 w-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Print Label Pasien</TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={handlePrintInformedConsent}
-                    >
-                      <FileCheck className="h-4 w-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Informed Consent</TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => navigate(`/patients/${patient.id}/edit`)}
-                      className="text-white bg-yellow-600 hover:bg-yellow-700"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Edit Pasien</TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              <Button variant="ghost" size="sm" onClick={handleBack} className="h-8">
+                <ArrowLeft className="h-3.5 w-3.5 mr-1.5" /> Kembali
+              </Button>
+              <Separator orientation="vertical" className="h-5 mx-1" />
+              <Button variant="outline" size="sm" onClick={() => navigate(`/patients/${patient.id}/edit`)} className="h-8 text-yellow-600 border-yellow-200 hover:bg-yellow-50">
+                <Pencil className="h-3.5 w-3.5 mr-1.5" /> Edit
+              </Button>
               {patient.status === "Aktif" && (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        size="icon"
-                        onClick={() => setRegistrationSheetOpen(true)}
-                        className="bg-primary hover:bg-primary/90"
-                      >
-                        <UserPlus className="h-4 w-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Daftarkan Pasien</TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                <Button size="sm" onClick={() => setRegistrationSheetOpen(true)} className="h-8">
+                  <UserPlus className="h-3.5 w-3.5 mr-1.5" /> Daftar Baru
+                </Button>
               )}
             </div>
-        </div>
-
-        <div className="rounded-lg border p-6 space-y-6">
-          {/* Tabs Navigation */}
-          <Tabs value={activeTab} onValueChange={handleTabChange} variant="inline" className="w-full">
-            <TabsList>
-              <TabsTrigger value="detail">
-                <FileText className="mr-2 h-4 w-4" />
-                Detail Pasien
-              </TabsTrigger>
-              <TabsTrigger value="pembayaran">
-                <CreditCard className="mr-2 h-4 w-4" />
-                Riwayat Pembayaran
-              </TabsTrigger>
-              <TabsTrigger value="pendaftaran">
-                <ClipboardList className="mr-2 h-4 w-4" />
-                Riwayat Pendaftaran
-              </TabsTrigger>
-              <TabsTrigger value="sep">
-                <FileCheck className="mr-2 h-4 w-4" />
-                Riwayat SEP
-              </TabsTrigger>
-              <TabsTrigger value="rawat-inap">
-                <BedDouble className="mr-2 h-4 w-4" />
-                Permintaan Rawat Inap
-                {admissionRequests.filter(r => r.status === 'pending').length > 0 && (
-                  <Badge variant="destructive" className="ml-2 h-5 min-w-5 px-1">
-                    {admissionRequests.filter(r => r.status === 'pending').length}
-                  </Badge>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="rekam-medis">
-                <FolderOpen className="mr-2 h-4 w-4" />
-                Rekam Medis
-              </TabsTrigger>
-            </TabsList>
-
-            {/* Detail Pasien Tab */}
-            <TabsContent value="detail" className="mt-6 space-y-6">
-              {/* Allergy Warning */}
-              {hasAllergies && (
-                <div className="rounded-lg border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/20 p-4">
-                  <div className="flex items-start gap-3">
-                    <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
-                    <div>
-                      <h4 className="font-semibold text-red-700 dark:text-red-400 mb-1">
-                        Peringatan Alergi
-                      </h4>
-                      <div className="text-sm text-red-600 dark:text-red-400 space-y-1">
-                        {patient.alergi_obat && (
-                          <p>
-                            <strong>Obat:</strong> {patient.alergi_obat}
-                          </p>
-                        )}
-                        {patient.alergi_makanan && (
-                          <p>
-                            <strong>Makanan:</strong> {patient.alergi_makanan}
-                          </p>
-                        )}
-                        {patient.alergi_lainnya && (
-                          <p>
-                            <strong>Lainnya:</strong> {patient.alergi_lainnya}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Left Column */}
-                <div className="space-y-6">
-                  {/* Identitas Pasien */}
-                  <div>
-                    <h3 className="text-sm font-medium flex items-center gap-2 mb-3">
-                      <User className="h-4 w-4" />
-                      IDENTITAS PASIEN
-                    </h3>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-xs text-muted-foreground">
-                          NIK
-                        </label>
-                        <p className="font-medium text-sm">
-                          {patient.nik || "-"}
-                        </p>
-                      </div>
-                      <div>
-                        <label className="text-xs text-muted-foreground">
-                          Nama Lengkap
-                        </label>
-                        <p className="font-medium text-sm">
-                          {patient.nama_lengkap}
-                        </p>
-                      </div>
-                      <div>
-                        <label className="text-xs text-muted-foreground">
-                          Tempat, Tanggal Lahir
-                        </label>
-                        <p className="font-medium text-sm">
-                          {patient.tempat_lahir || "-"},{" "}
-                          {formatDate(patient.tanggal_lahir)}
-                        </p>
-                      </div>
-                      <div>
-                        <label className="text-xs text-muted-foreground">
-                          Umur
-                        </label>
-                        <p className="font-medium text-sm">
-                          {calculateAge(patient.tanggal_lahir)}
-                        </p>
-                      </div>
-                      <div>
-                        <label className="text-xs text-muted-foreground">
-                          Jenis Kelamin
-                        </label>
-                        <p className="font-medium text-sm">
-                          {patient.jenis_kelamin === "L"
-                            ? "Laki-laki"
-                            : "Perempuan"}
-                        </p>
-                      </div>
-                      <div>
-                        <label className="text-xs text-muted-foreground">
-                          Golongan Darah
-                        </label>
-                        <p className="font-medium text-sm">
-                          {patient.golongan_darah || "-"} (
-                          {patient.rhesus || "-"})
-                        </p>
-                      </div>
-                      <div>
-                        <label className="text-xs text-muted-foreground">
-                          Agama
-                        </label>
-                        <p className="font-medium text-sm">
-                          {patient.agama || "-"}
-                        </p>
-                      </div>
-                      <div>
-                        <label className="text-xs text-muted-foreground">
-                          Pekerjaan
-                        </label>
-                        <p className="font-medium text-sm">
-                          {patient.pekerjaan || "-"}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <Separator />
-
-                  {/* Alamat */}
-                  <div>
-                    <h3 className="text-sm font-medium flex items-center gap-2 mb-3">
-                      <MapPin className="h-4 w-4" />
-                      ALAMAT
-                    </h3>
-                    <div className="space-y-4">
-                      <div>
-                        <h4 className="text-xs font-semibold mb-2">
-                          Alamat KTP
-                        </h4>
-                        <p className="text-sm">{patient.alamat_ktp || "-"}</p>
-                        <p className="text-sm text-muted-foreground">
-                          RT/RW: {patient.rt_ktp || "-"}/{patient.rw_ktp || "-"}
-                          , Kel. {patient.kelurahan_ktp || "-"}, Kec.{" "}
-                          {patient.kecamatan_ktp || "-"}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          {patient.kota_ktp || "-"},{" "}
-                          {patient.provinsi_ktp || "-"}
-                        </p>
-                      </div>
-                      <div>
-                        <h4 className="text-xs font-semibold mb-2">
-                          Alamat Domisili
-                        </h4>
-                        <p className="text-sm">
-                          {patient.alamat_domisili || patient.alamat_ktp || "-"}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          RT/RW: {patient.rt_domisili || patient.rt_ktp || "-"}/
-                          {patient.rw_domisili || patient.rw_ktp || "-"}, Kel.{" "}
-                          {patient.kelurahan_domisili ||
-                            patient.kelurahan_ktp ||
-                            "-"}
-                          , Kec.{" "}
-                          {patient.kecamatan_domisili ||
-                            patient.kecamatan_ktp ||
-                            "-"}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          {patient.kota_domisili || patient.kota_ktp || "-"},{" "}
-                          {patient.provinsi_domisili ||
-                            patient.provinsi_ktp ||
-                            "-"}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <Separator />
-
-                  {/* Kontak */}
-                  <div>
-                    <h3 className="text-sm font-medium flex items-center gap-2 mb-3">
-                      <Phone className="h-4 w-4" />
-                      KONTAK
-                    </h3>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-xs text-muted-foreground">
-                          No. Telepon
-                        </label>
-                        <p className="font-medium text-sm">
-                          {patient.no_telepon || "-"}
-                        </p>
-                      </div>
-                      <div>
-                        <label className="text-xs text-muted-foreground">
-                          No. HP
-                        </label>
-                        <p className="font-medium text-sm">
-                          {patient.no_hp || "-"}
-                        </p>
-                      </div>
-                      <div>
-                        <label className="text-xs text-muted-foreground">
-                          No. HP Alternatif
-                        </label>
-                        <p className="font-medium text-sm">
-                          {patient.no_hp_alternatif || "-"}
-                        </p>
-                      </div>
-                      <div>
-                        <label className="text-xs text-muted-foreground">
-                          Email
-                        </label>
-                        <p className="font-medium text-sm">
-                          {patient.email || "-"}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Right Column */}
-                <div className="space-y-6">
-                  {/* Penanggung Jawab */}
-                  <div>
-                    <h3 className="text-sm font-medium flex items-center gap-2 mb-3">
-                      <Users className="h-4 w-4" />
-                      PENANGGUNG JAWAB
-                    </h3>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-xs text-muted-foreground">
-                          Nama
-                        </label>
-                        <p className="font-medium text-sm">
-                          {patient.nama_penanggung_jawab || "-"}
-                        </p>
-                      </div>
-                      <div>
-                        <label className="text-xs text-muted-foreground">
-                          Hubungan
-                        </label>
-                        <p className="font-medium text-sm">
-                          {patient.hubungan_penanggung_jawab || "-"}
-                        </p>
-                      </div>
-                      <div>
-                        <label className="text-xs text-muted-foreground">
-                          NIK
-                        </label>
-                        <p className="font-medium text-sm">
-                          {patient.nik_penanggung_jawab || "-"}
-                        </p>
-                      </div>
-                      <div>
-                        <label className="text-xs text-muted-foreground">
-                          Telepon
-                        </label>
-                        <p className="font-medium text-sm">
-                          {patient.telepon_penanggung_jawab || "-"}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <Separator />
-
-                  {/* Jaminan Kesehatan */}
-                  <div>
-                    <h3 className="text-sm font-medium flex items-center gap-2 mb-3">
-                      <Shield className="h-4 w-4" />
-                      JAMINAN KESEHATAN
-                    </h3>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-xs text-muted-foreground">
-                          Jenis Jaminan
-                        </label>
-                        <p className="font-medium text-sm">
-                          <Badge variant="outline">
-                            {patient.jenis_jaminan}
-                          </Badge>
-                        </p>
-                      </div>
-                      {(patient.jenis_jaminan === "BPJS" ||
-                        patient.jenis_jaminan === "JKN") && (
-                        <>
-                          <div>
-                            <label className="text-xs text-muted-foreground">
-                              No. BPJS
-                            </label>
-                            <p className="font-medium text-sm">
-                              {patient.no_bpjs || "-"}
-                            </p>
-                          </div>
-                          <div>
-                            <label className="text-xs text-muted-foreground">
-                              Kelas BPJS
-                            </label>
-                            <p className="font-medium text-sm">
-                              Kelas {patient.kelas_bpjs || "-"}
-                            </p>
-                          </div>
-                          <div>
-                            <label className="text-xs text-muted-foreground">
-                              Faskes Tingkat 1
-                            </label>
-                            <p className="font-medium text-sm">
-                              {patient.faskes_tingkat_1 || "-"}
-                            </p>
-                          </div>
-                        </>
-                      )}
-                      {patient.jenis_jaminan === "Asuransi Swasta" && (
-                        <>
-                          <div>
-                            <label className="text-xs text-muted-foreground">
-                              Nama Asuransi
-                            </label>
-                            <p className="font-medium text-sm">
-                              {patient.nama_asuransi || "-"}
-                            </p>
-                          </div>
-                          <div>
-                            <label className="text-xs text-muted-foreground">
-                              No. Polis
-                            </label>
-                            <p className="font-medium text-sm">
-                              {patient.no_polis_asuransi || "-"}
-                            </p>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  </div>
-
-                  <Separator />
-
-                  {/* Riwayat Medis Penting */}
-                  <div>
-                    <h3 className="text-sm font-medium flex items-center gap-2 mb-3 text-red-700 dark:text-red-400">
-                      <Heart className="h-4 w-4" />
-                      RIWAYAT MEDIS PENTING
-                    </h3>
-                    <div className="space-y-3">
-                      <div>
-                        <label className="text-xs text-muted-foreground">
-                          Alergi Obat
-                        </label>
-                        <p
-                          className={`font-medium text-sm ${
-                            patient.alergi_obat
-                              ? "text-red-600 dark:text-red-400"
-                              : ""
-                          }`}
-                        >
-                          {patient.alergi_obat || "-"}
-                        </p>
-                      </div>
-                      <div>
-                        <label className="text-xs text-muted-foreground">
-                          Alergi Makanan
-                        </label>
-                        <p
-                          className={`font-medium text-sm ${
-                            patient.alergi_makanan
-                              ? "text-red-600 dark:text-red-400"
-                              : ""
-                          }`}
-                        >
-                          {patient.alergi_makanan || "-"}
-                        </p>
-                      </div>
-                      <div>
-                        <label className="text-xs text-muted-foreground">
-                          Alergi Lainnya
-                        </label>
-                        <p className="font-medium text-sm">
-                          {patient.alergi_lainnya || "-"}
-                        </p>
-                      </div>
-                      <div>
-                        <label className="text-xs text-muted-foreground">
-                          Penyakit Kronis
-                        </label>
-                        <p className="font-medium text-sm">
-                          {patient.penyakit_kronis || "-"}
-                        </p>
-                      </div>
-                      <div>
-                        <label className="text-xs text-muted-foreground">
-                          Riwayat Operasi
-                        </label>
-                        <p className="font-medium text-sm">
-                          {patient.riwayat_operasi || "-"}
-                        </p>
-                      </div>
-                      <div>
-                        <label className="text-xs text-muted-foreground">
-                          Obat Rutin
-                        </label>
-                        <p className="font-medium text-sm">
-                          {patient.obat_rutin || "-"}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </TabsContent>
-
-            {/* Riwayat Pembayaran Tab */}
-            <TabsContent value="pembayaran" className="mt-6">
-              {loadingBillings ? (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                </div>
-              ) : billings.length === 0 ? (
-                <div className="text-center py-12">
-                  <CreditCard className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
-                  <h3 className="text-lg font-semibold mb-2">
-                    Riwayat Pembayaran
-                  </h3>
-                  <p className="text-muted-foreground">
-                    Belum ada data riwayat pembayaran untuk pasien ini
-                  </p>
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[140px]">No. Billing</TableHead>
-                      <TableHead className="w-[160px]">Tanggal</TableHead>
-                      <TableHead>Metode Bayar</TableHead>
-                      <TableHead className="text-right">Total</TableHead>
-                      <TableHead className="text-right">Dibayar</TableHead>
-                      <TableHead className="text-right">Sisa</TableHead>
-                      <TableHead className="w-[100px]">Status</TableHead>
-                      <TableHead className="w-[80px] text-center">
-                        Aksi
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {billings.map((billing) => (
-                      <TableRow key={billing.id}>
-                        <TableCell className="font-mono font-medium">
-                          {billing.billing_number}
-                        </TableCell>
-                        <TableCell>
-                          {formatDateTime(billing.created_at)}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="uppercase">
-                            {billing.payment_method}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right font-medium">
-                          {formatCurrency(billing.final_amount)}
-                        </TableCell>
-                        <TableCell className="text-right text-green-600">
-                          {formatCurrency(billing.paid_amount)}
-                        </TableCell>
-                        <TableCell className="text-right text-red-600">
-                          {formatCurrency(billing.remaining_amount)}
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={getBillingStatusVariant(billing.status)}
-                          >
-                            {getBillingStatusLabel(billing.status)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() =>
-                              navigate(`/billing/${billing.visit_id}`)
-                            }
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </TabsContent>
-
-            {/* Riwayat Pendaftaran Tab */}
-            <TabsContent value="pendaftaran" className="mt-6">
-              {loadingRegistrations ? (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                </div>
-              ) : registrations.length === 0 ? (
-                <div className="text-center py-12">
-                  <ClipboardList className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
-                  <h3 className="text-lg font-semibold mb-2">
-                    Riwayat Pendaftaran
-                  </h3>
-                  <p className="text-muted-foreground mb-4">
-                    Belum ada data riwayat pendaftaran untuk pasien ini
-                  </p>
-                  <Button
-                    variant="default"
-                    size="sm"
-                    onClick={() => setRegistrationSheetOpen(true)}
-                  >
-                    <UserPlus className="mr-2 h-4 w-4" />
-                    Buat Pendaftaran Baru
-                  </Button>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {registrations.map((reg) => {
-                    const regId = reg.id || reg.ID;
-                    const isExpanded = expandedRegistrations.has(regId!);
-                    const regVisits = visitsByRegistration.get(regId!) || [];
-                    const mainVisits = regVisits.filter(v =>
-                      ['outpatient', 'inpatient', 'emergency', 'consultation'].includes(v.visit_type)
-                    );
-                    const orderVisits = regVisits.filter(v =>
-                      !['outpatient', 'inpatient', 'emergency', 'consultation'].includes(v.visit_type)
-                    );
-
-                    return (
-                      <div key={regId} className="border rounded-lg overflow-hidden">
-                        {/* Registration Header — clickable to expand */}
-                        <div
-                          className={`flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-muted/50 transition-colors ${isExpanded ? 'bg-muted/30' : ''}`}
-                          onClick={() => toggleRegistrationExpand(regId!)}
-                        >
-                          {isExpanded ? (
-                            <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-                          ) : (
-                            <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-                          )}
-                          <div className="flex-1 min-w-0">
-                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                              <span className="font-mono font-medium text-sm">{reg.registration_number}</span>
-                              <span className="text-sm text-muted-foreground">{formatDateTime(reg.created_at)}</span>
-                              <span className="text-sm">{reg.destination_room?.name || '-'}</span>
-                              <span className="text-sm text-muted-foreground">{reg.doctor?.nama_lengkap || reg.doctor?.name || '-'}</span>
-                              <Badge variant="outline" className="uppercase text-xs">{reg.payment_method}</Badge>
-                              {reg.sep_number && (
-                                <span className="font-mono text-xs text-muted-foreground">SEP: {reg.sep_number}</span>
-                              )}
-                              <Badge variant={getRegistrationStatusVariant(reg.status)} className="text-xs">
-                                {getRegistrationStatusLabel(reg.status)}
-                              </Badge>
-                            </div>
-                            {regVisits.length > 0 && (
-                              <div className="text-xs text-muted-foreground mt-0.5">
-                                {mainVisits.length > 0 && `${mainVisits.length} kunjungan utama`}
-                                {mainVisits.length > 0 && orderVisits.length > 0 && ' · '}
-                                {orderVisits.length > 0 && `${orderVisits.length} order`}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Expanded Visit Tree */}
-                        {isExpanded && (
-                          <div className="border-t bg-muted/10 px-4 py-3">
-                            {loadingVisits ? (
-                              <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                                Memuat kunjungan...
-                              </div>
-                            ) : regVisits.length === 0 ? (
-                              <div className="text-sm text-muted-foreground py-2 pl-4">
-                                Belum ada kunjungan untuk pendaftaran ini
-                              </div>
-                            ) : (
-                              <div className="space-y-3">
-                                {/* Section: Kunjungan Utama */}
-                                {mainVisits.length > 0 && (
-                                  <div>
-                                    <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 pl-1">
-                                      Kunjungan Utama
-                                    </div>
-                                    {mainVisits.map((visit, idx) => {
-                                      const isLastMain = idx === mainVisits.length - 1 && orderVisits.length === 0;
-                                      return (
-                                        <div key={visit.id} className="flex items-center gap-2.5 py-1.5 pl-5 relative group hover:bg-muted/50 rounded-sm">
-                                          <div className={`absolute left-[7px] w-px bg-border ${isLastMain ? 'top-0 h-1/2' : 'top-0 bottom-0'}`} />
-                                          <div className="absolute left-[7px] top-1/2 w-3 h-px bg-border" />
-                                          <div className="relative z-10 h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
-                                          <Badge variant="outline" className={`text-xs shrink-0 ${
-                                            visit.visit_type === 'emergency' ? 'border-red-300 text-red-700 dark:border-red-700 dark:text-red-400 bg-red-50 dark:bg-red-950/30' :
-                                            visit.visit_type === 'inpatient' ? 'border-blue-300 text-blue-700 dark:border-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30' :
-                                            visit.visit_type === 'outpatient' ? 'border-green-300 text-green-700 dark:border-green-700 dark:text-green-400 bg-green-50 dark:bg-green-950/30' :
-                                            'border-purple-300 text-purple-700 dark:border-purple-700 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/30'
-                                          }`}>
-                                            {getVisitTypeLabel(visit.visit_type)}
-                                          </Badge>
-                                          <span className="text-sm truncate">{visit.room?.name || '-'}</span>
-                                          <span className="text-xs text-muted-foreground truncate hidden sm:inline">
-                                            {visit.doctor?.user?.name || visit.doctor?.name || ''}
-                                          </span>
-                                          <Badge variant={getVisitStatusVariant(visit.status)} className="text-xs shrink-0">
-                                            {getVisitStatusLabel(visit.status)}
-                                          </Badge>
-                                          {/* Action buttons */}
-                                          <div className="ml-auto flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <TooltipProvider delayDuration={200}>
-                                              <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                  <Button variant="ghost" size="icon" className="h-7 w-7"
-                                                    onClick={() => navigate(`/visits/${visit.id}`)}
-                                                  >
-                                                    <Eye className="h-3.5 w-3.5" />
-                                                  </Button>
-                                                </TooltipTrigger>
-                                                <TooltipContent side="top"><p>Lihat Kunjungan</p></TooltipContent>
-                                              </Tooltip>
-                                              <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                  <Button variant="ghost" size="icon" className="h-7 w-7"
-                                                    onClick={() => { if (regId) printApi.admissionDischargeSummary(regId, visit.id); }}
-                                                  >
-                                                    <FileText className="h-3.5 w-3.5" />
-                                                  </Button>
-                                                </TooltipTrigger>
-                                                <TooltipContent side="top"><p>MR.1 Ringkasan Masuk & Keluar</p></TooltipContent>
-                                              </Tooltip>
-                                              <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                  <Button variant="ghost" size="icon" className="h-7 w-7"
-                                                    onClick={() => printApi.dpjpRequest(visit.id)}
-                                                  >
-                                                    <UserCheck className="h-3.5 w-3.5" />
-                                                  </Button>
-                                                </TooltipTrigger>
-                                                <TooltipContent side="top"><p>Permohonan DPJP</p></TooltipContent>
-                                              </Tooltip>
-                                              <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                  <Button variant="ghost" size="icon" className="h-7 w-7"
-                                                    onClick={() => printApi.informedConsentReceipt(visit.id)}
-                                                  >
-                                                    <FileSignature className="h-3.5 w-3.5" />
-                                                  </Button>
-                                                </TooltipTrigger>
-                                                <TooltipContent side="top"><p>Bukti Informed Consent</p></TooltipContent>
-                                              </Tooltip>
-                                              {visit.visit_type === 'outpatient' && (
-                                                <>
-                                                  <Tooltip>
-                                                    <TooltipTrigger asChild>
-                                                      <Button variant="ghost" size="icon" className="h-7 w-7"
-                                                        onClick={() => printApi.outpatientResume(visit.id)}
-                                                      >
-                                                        <ClipboardList className="h-3.5 w-3.5" />
-                                                      </Button>
-                                                    </TooltipTrigger>
-                                                    <TooltipContent side="top"><p>Cetak Resume Rawat Jalan</p></TooltipContent>
-                                                  </Tooltip>
-                                                  <Tooltip>
-                                                    <TooltipTrigger asChild>
-                                                      <Button variant="ghost" size="icon" className="h-7 w-7"
-                                                        onClick={handlePrintLabel}
-                                                      >
-                                                        <Printer className="h-3.5 w-3.5" />
-                                                      </Button>
-                                                    </TooltipTrigger>
-                                                    <TooltipContent side="top"><p>Cetak Label Pasien</p></TooltipContent>
-                                                  </Tooltip>
-                                                </>
-                                              )}
-                                              {visit.visit_type === 'emergency' && (
-                                                <Tooltip>
-                                                  <TooltipTrigger asChild>
-                                                    <Button variant="ghost" size="icon" className="h-7 w-7"
-                                                      onClick={() => printApi.emergencySummary(visit.id)}
-                                                    >
-                                                      <ClipboardList className="h-3.5 w-3.5" />
-                                                    </Button>
-                                                  </TooltipTrigger>
-                                                  <TooltipContent side="top"><p>Cetak Resume IGD</p></TooltipContent>
-                                                </Tooltip>
-                                              )}
-                                              {visit.visit_type === 'inpatient' && (
-                                                <Tooltip>
-                                                  <TooltipTrigger asChild>
-                                                    <Button variant="ghost" size="icon" className="h-7 w-7"
-                                                      onClick={() => printApi.inpatientResume(visit.id)}
-                                                    >
-                                                      <ClipboardList className="h-3.5 w-3.5" />
-                                                    </Button>
-                                                  </TooltipTrigger>
-                                                  <TooltipContent side="top"><p>Cetak Resume Rawat Inap</p></TooltipContent>
-                                                </Tooltip>
-                                              )}
-                                              {visit.room_queue?.id && (
-                                                <Tooltip>
-                                                  <TooltipTrigger asChild>
-                                                    <Button variant="ghost" size="icon" className="h-7 w-7"
-                                                      onClick={() => printApi.queueTicket(visit.room_queue.id)}
-                                                    >
-                                                      <Clock className="h-3.5 w-3.5" />
-                                                    </Button>
-                                                  </TooltipTrigger>
-                                                  <TooltipContent side="top"><p>Cetak Tiket Antrian</p></TooltipContent>
-                                                </Tooltip>
-                                              )}
-                                            </TooltipProvider>
-                                          </div>
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                )}
-
-                                {/* Section: Order / Penunjang */}
-                                {orderVisits.length > 0 && (
-                                  <div>
-                                    <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 pl-1">
-                                      Order / Penunjang
-                                    </div>
-                                    {orderVisits.map((visit, idx) => {
-                                      const isLastOrder = idx === orderVisits.length - 1;
-                                      return (
-                                        <div key={visit.id} className="flex items-center gap-2.5 py-1.5 pl-5 relative group hover:bg-muted/50 rounded-sm">
-                                          <div className={`absolute left-[7px] w-px bg-border ${isLastOrder ? 'top-0 h-1/2' : 'top-0 bottom-0'}`} />
-                                          <div className="absolute left-[7px] top-1/2 w-3 h-px bg-border" />
-                                          <div className="relative z-10 h-1.5 w-1.5 rounded-full bg-muted-foreground shrink-0" />
-                                          <Badge variant="outline" className={`text-xs shrink-0 ${
-                                            visit.visit_type === 'pharmacy' ? 'border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30' :
-                                            visit.visit_type === 'lab' ? 'border-cyan-300 text-cyan-700 dark:border-cyan-700 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-950/30' :
-                                            visit.visit_type === 'radiology' ? 'border-indigo-300 text-indigo-700 dark:border-indigo-700 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/30' :
-                                            'border-gray-300 text-gray-700 dark:border-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-950/30'
-                                          }`}>
-                                            {getVisitTypeLabel(visit.visit_type)}
-                                          </Badge>
-                                          <span className="text-sm truncate">{visit.room?.name || '-'}</span>
-                                          <Badge variant={getVisitStatusVariant(visit.status)} className="text-xs shrink-0">
-                                            {getVisitStatusLabel(visit.status)}
-                                          </Badge>
-                                          {/* Action buttons */}
-                                          <div className="ml-auto flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <TooltipProvider delayDuration={200}>
-                                              <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                  <Button variant="ghost" size="icon" className="h-7 w-7"
-                                                    onClick={() => navigate(`/visits/${visit.id}`)}
-                                                  >
-                                                    <Eye className="h-3.5 w-3.5" />
-                                                  </Button>
-                                                </TooltipTrigger>
-                                                <TooltipContent side="top"><p>Lihat Kunjungan</p></TooltipContent>
-                                              </Tooltip>
-                                              {visit.room_queue?.id && (
-                                                <Tooltip>
-                                                  <TooltipTrigger asChild>
-                                                    <Button variant="ghost" size="icon" className="h-7 w-7"
-                                                      onClick={() => printApi.queueTicket(visit.room_queue.id)}
-                                                    >
-                                                      <Clock className="h-3.5 w-3.5" />
-                                                    </Button>
-                                                  </TooltipTrigger>
-                                                  <TooltipContent side="top"><p>Cetak Tiket Antrian</p></TooltipContent>
-                                                </Tooltip>
-                                              )}
-                                            </TooltipProvider>
-                                          </div>
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </TabsContent>
-
-            {/* Riwayat SEP Tab */}
-            <TabsContent value="sep" className="mt-6">
-              {loadingSeps ? (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                </div>
-              ) : seps.length === 0 ? (
-                <div className="text-center py-12">
-                  <FileCheck className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
-                  <h3 className="text-lg font-semibold mb-2">
-                    Riwayat SEP
-                  </h3>
-                  <p className="text-muted-foreground">
-                    Belum ada data SEP untuk pasien ini
-                  </p>
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[160px]">No. SEP</TableHead>
-                      <TableHead className="w-[120px]">Tgl SEP</TableHead>
-                      <TableHead className="w-[100px]">Jns Pelayanan</TableHead>
-                      <TableHead>Poli</TableHead>
-                      <TableHead>Dokter DPJP</TableHead>
-                      <TableHead>Diagnosa</TableHead>
-                      <TableHead className="w-[100px]">Status</TableHead>
-                      <TableHead className="w-[80px] text-center">
-                        Aksi
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {seps.map((sep) => (
-                      <TableRow key={sep.id}>
-                        <TableCell className="font-mono font-medium">
-                          {sep.no_sep}
-                        </TableCell>
-                        <TableCell>
-                          {sep.tgl_sep ? new Date(sep.tgl_sep).toLocaleDateString("id-ID") : "-"}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline">
-                            {getJenisPelayanan(sep.jns_pelayanan)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{sep.nama_poli || "-"}</TableCell>
-                        <TableCell>{sep.nama_dpjp || "-"}</TableCell>
-                        <TableCell className="max-w-[200px] truncate" title={sep.nama_diagnosa}>
-                          {sep.nama_diagnosa || "-"}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={getSepStatusVariant(sep.status)}>
-                            {getSepStatusLabel(sep.status)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem
-                                onClick={() => handleViewSep(sep)}
-                              >
-                                <Eye className="mr-2 h-4 w-4" />
-                                Lihat Detail
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => printApi.sep(sep.id)}
-                              >
-                                <Printer className="mr-2 h-4 w-4" />
-                                Cetak SEP
-                              </DropdownMenuItem>
-                              {sep.status === "active" && (
-                                <>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem
-                                    className="text-destructive focus:text-destructive"
-                                    onClick={() => setDeleteSepId(sep)}
-                                  >
-                                    <Trash2 className="mr-2 h-4 w-4" />
-                                    Hapus SEP
-                                  </DropdownMenuItem>
-                                </>
-                              )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </TabsContent>
-
-            {/* Permintaan Rawat Inap Tab */}
-            <TabsContent value="rawat-inap" className="mt-6">
-              {loadingAdmissionRequests ? (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                </div>
-              ) : admissionRequests.length === 0 ? (
-                <div className="text-center py-12">
-                  <BedDouble className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
-                  <h3 className="text-lg font-semibold mb-2">
-                    Permintaan Rawat Inap
-                  </h3>
-                  <p className="text-muted-foreground">
-                    Belum ada permintaan rawat inap untuk pasien ini
-                  </p>
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[140px]">No. Request</TableHead>
-                      <TableHead className="w-[120px]">Prioritas</TableHead>
-                      <TableHead className="w-[100px]">Tipe</TableHead>
-                      <TableHead>Asal Unit</TableHead>
-                      <TableHead>Kelas Pilihan</TableHead>
-                      <TableHead className="w-[160px]">Tanggal Request</TableHead>
-                      <TableHead className="w-[120px]">Status</TableHead>
-                      <TableHead className="w-[80px] text-center">
-                        Aksi
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {admissionRequests.map((request) => (
-                      <TableRow key={request.id}>
-                        <TableCell className="font-mono font-medium">
-                          {request.request_number}
-                        </TableCell>
-                        <TableCell>
-                          {request.priority === "emergency" ? (
-                            <Badge variant="destructive">Emergency</Badge>
-                          ) : request.priority === "urgent" ? (
-                            <Badge className="bg-orange-500 hover:bg-orange-600">Urgent</Badge>
-                          ) : (
-                            <Badge variant="secondary">Normal</Badge>
-                          )}
-                        </TableCell>
-                        <TableCell className="capitalize">
-                          {request.admission_type}
-                        </TableCell>
-                        <TableCell>
-                          {request.source_visit?.id ? (
-                            <Button
-                              variant="link"
-                              className="p-0 h-auto font-normal"
-                              onClick={() => navigate(`/visits/${request.source_visit?.id}`)}
-                            >
-                              {request.source_visit?.room?.name || 'N/A'}
-                              <ExternalLink className="h-3 w-3 ml-1" />
-                            </Button>
-                          ) : (
-                            <span>{request.source_visit?.room?.name || 'N/A'}</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="capitalize">
-                          {request.preferred_class?.replace(/_/g, ' ') || '-'}
-                        </TableCell>
-                        <TableCell>
-                          {request.requested_at
-                            ? formatDateTime(request.requested_at)
-                            : 'N/A'}
-                        </TableCell>
-                        <TableCell>
-                          {request.status === "pending" ? (
-                            <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-300">
-                              <Clock className="h-3 w-3 mr-1" /> Menunggu
-                            </Badge>
-                          ) : request.status === "approved" ? (
-                            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300">
-                              <CheckCircle className="h-3 w-3 mr-1" /> Disetujui
-                            </Badge>
-                          ) : request.status === "rejected" ? (
-                            <Badge variant="outline" className="bg-red-50 text-red-700 border-red-300">
-                              <XCircle className="h-3 w-3 mr-1" /> Ditolak
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-300">
-                              Dibatalkan
-                            </Badge>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {request.status === "pending" ? (
-                            <Button size="sm" onClick={() => navigate(`/admisi/${request.id}`)}>
-                              <ArrowRight className="h-4 w-4 mr-1" />
-                              Proses
-                            </Button>
-                          ) : request.inpatient_visit_id ? (
-                            <Button variant="ghost" size="sm" onClick={() => navigate(`/visits/${request.inpatient_visit_id}`)}>
-                              <Eye className="h-4 w-4 mr-1" />
-                              Lihat
-                            </Button>
-                          ) : (
-                            <Button variant="ghost" size="sm" onClick={() => navigate(`/admisi/${request.id}`)}>
-                              <Eye className="h-4 w-4 mr-1" />
-                              Detail
-                            </Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </TabsContent>
-
-            {/* Rekam Medis Tab */}
-            <TabsContent value="rekam-medis" className="mt-6">
-              {loadingRm ? (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                </div>
-              ) : rmVisits.length === 0 ? (
-                <div className="text-center py-12">
-                  <FolderOpen className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
-                  <h3 className="text-lg font-semibold mb-2">Arsip Rekam Medis</h3>
-                  <p className="text-muted-foreground">
-                    Belum ada data rekam medis untuk pasien ini
-                  </p>
-                </div>
-              ) : (() => {
-                // Build global visit index for bundle ordering
-                let gIdx = 0;
-                const rmVisitGlobalIndexMap = new Map<number, number>();
-                for (const group of rmRegistrationGroups) {
-                  for (const v of group.visits) {
-                    rmVisitGlobalIndexMap.set(v.id, gIdx++);
-                  }
-                }
-
-                return (
-                  <div className="flex border rounded-lg overflow-hidden relative" style={{ height: "600px" }}>
-                    {/* Sidebar */}
-                    <div className="w-80 flex-shrink-0 border-r bg-muted/30 flex flex-col">
-                      <div className="border-b px-4 py-3 flex items-center justify-between">
-                        <div>
-                          <h3 className="text-sm font-semibold">Riwayat Registrasi</h3>
-                          <p className="text-xs text-muted-foreground">
-                            {rmRegistrationGroups.length} registrasi &middot; {rmVisits.length} kunjungan
-                          </p>
-                        </div>
-                        <Button
-                          variant={rmBundleMode ? "default" : "ghost"}
-                          size="sm"
-                          className="h-8 w-8 p-0"
-                          onClick={() => (rmBundleMode ? exitRmBundleMode() : setRmBundleMode(true))}
-                          title={rmBundleMode ? "Batal pilih" : "Pilih & gabungkan PDF"}
-                        >
-                          {rmBundleMode ? <X className="h-4 w-4" /> : <ListChecks className="h-4 w-4" />}
-                        </Button>
-                      </div>
-                      <ScrollArea className="flex-1">
-                        <div className={cn("p-2 space-y-1", rmBundleMode && rmSelectedDocs.size > 0 && "pb-20")}>
-                          {rmRegistrationGroups.map((group) => {
-                            const isRegExpanded = rmExpandedRegIds.has(group.registrationId);
-                            const regCheckState = rmBundleMode && isRegExpanded ? getRmRegCheckboxState(group.visits) : false;
-                            const hasSingleVisit = group.visits.length === 1;
-
-                            return (
-                              <Collapsible
-                                key={group.registrationId}
-                                open={isRegExpanded}
-                                onOpenChange={() => toggleRmReg(group.registrationId)}
-                              >
-                                {/* Registration header */}
-                                <CollapsibleTrigger asChild>
-                                  <button
-                                    className={cn(
-                                      "flex w-full items-start gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-accent",
-                                      isRegExpanded && "bg-accent"
-                                    )}
-                                  >
-                                    {rmBundleMode && isRegExpanded && (
-                                      <div className="mt-0.5" onClick={(e) => e.stopPropagation()}>
-                                        <Checkbox
-                                          checked={regCheckState}
-                                          onCheckedChange={() => toggleRmRegSelection(group)}
-                                        />
-                                      </div>
-                                    )}
-                                    <div className="mt-0.5">
-                                      {isRegExpanded ? (
-                                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                                      ) : (
-                                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                                      )}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                      <div className="flex items-center gap-2">
-                                        <Badge
-                                          variant="outline"
-                                          className={cn("text-[10px] px-1.5 py-0", getRegTypeBadgeColor(group.registrationType))}
-                                        >
-                                          {getRegTypeLabel(group.registrationType)}
-                                        </Badge>
-                                      </div>
-                                      <div className="flex items-center gap-1 mt-0.5">
-                                        <CalendarDays className="h-3 w-3 text-muted-foreground" />
-                                        <span className="text-xs text-muted-foreground">
-                                          {group.registrationDate
-                                            ? format(new Date(group.registrationDate), "dd MMM yyyy", { locale: id })
-                                            : "-"}
-                                        </span>
-                                      </div>
-                                      <p className="text-[11px] text-muted-foreground truncate mt-0.5">
-                                        {group.registrationNumber}
-                                        {!hasSingleVisit && (
-                                          <span className="ml-1 opacity-70">
-                                            &middot; {group.visits.length} kunjungan
-                                          </span>
-                                        )}
-                                      </p>
-                                    </div>
-                                  </button>
-                                </CollapsibleTrigger>
-
-                                <CollapsibleContent>
-                                  <div className="ml-3 border-l pl-2 mr-1 mb-1 space-y-0.5">
-                                    {group.visits.map((visit) => {
-                                      const isVisitExpanded = rmExpandedVisitIds.has(visit.id);
-                                      const docs = getRmDocsForVisit(visit);
-                                      const isLoadingThisVisit = isVisitExpanded && rmLoadingOrders && !rmVisitOrdersMap[visit.id]?.loaded;
-                                      const vIdx = rmVisitGlobalIndexMap.get(visit.id) ?? 0;
-                                      const visitCheckState = rmBundleMode && isVisitExpanded ? getRmVisitCheckboxState(docs) : false;
-
-                                      // If only 1 visit in registration, show docs directly
-                                      if (hasSingleVisit) {
-                                        if (!rmVisitOrdersMap[visit.id]?.loaded && !rmLoadingOrders) {
-                                          loadRmOrdersForVisit(visit.id);
-                                        }
-
-                                        return (
-                                          <div key={visit.id} className="space-y-0.5 py-1">
-                                            <p className="text-[11px] text-muted-foreground px-2 mb-1">
-                                              {visit.room?.name || "-"}
-                                              {visit.doctor?.nama_lengkap && <> &middot; {visit.doctor.nama_lengkap}</>}
-                                            </p>
-                                            {rmLoadingOrders && !rmVisitOrdersMap[visit.id]?.loaded && (
-                                              <div className="flex items-center gap-2 px-2 py-1 text-xs text-muted-foreground">
-                                                <Loader2 className="h-3 w-3 animate-spin" />
-                                                Memuat dokumen...
-                                              </div>
-                                            )}
-                                            {docs.map((doc, docIdx) => (
-                                              <div
-                                                key={doc.id}
-                                                className={cn(
-                                                  "flex w-full items-center gap-1.5 rounded px-2 py-1.5 text-xs transition-colors text-left",
-                                                  rmSelectedDocId === doc.id && !rmBundleMode ? "bg-primary/10 font-medium" : "hover:bg-accent",
-                                                  rmBundleMode && rmSelectedDocs.has(doc.id) && "bg-primary/10"
-                                                )}
-                                              >
-                                                {rmBundleMode && (
-                                                  <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-                                                    <Checkbox
-                                                      checked={rmSelectedDocs.has(doc.id)}
-                                                      onCheckedChange={() => toggleRmDocSelection(doc, visit.id, vIdx, docIdx)}
-                                                    />
-                                                  </div>
-                                                )}
-                                                <button
-                                                  className="flex items-center gap-2 flex-1 min-w-0"
-                                                  onClick={() => handleRmSelectDoc(doc)}
-                                                >
-                                                  {doc.icon}
-                                                  <span className="truncate">{doc.label}</span>
-                                                </button>
-                                              </div>
-                                            ))}
-                                          </div>
-                                        );
-                                      }
-
-                                      // Multiple visits: nested collapsible per visit
-                                      return (
-                                        <Collapsible
-                                          key={visit.id}
-                                          open={isVisitExpanded}
-                                          onOpenChange={() => toggleRmVisit(visit.id)}
-                                        >
-                                          <CollapsibleTrigger asChild>
-                                            <button
-                                              className={cn(
-                                                "flex w-full items-start gap-1.5 rounded px-2 py-1.5 text-left text-xs transition-colors hover:bg-accent",
-                                                isVisitExpanded && "bg-accent/50"
-                                              )}
-                                            >
-                                              {rmBundleMode && isVisitExpanded && docs.length > 0 && (
-                                                <div className="mt-0.5" onClick={(e) => e.stopPropagation()}>
-                                                  <Checkbox
-                                                    checked={visitCheckState}
-                                                    onCheckedChange={() => toggleRmVisitSelection(visit, vIdx, docs)}
-                                                  />
-                                                </div>
-                                              )}
-                                              <div className="mt-0.5">
-                                                {isVisitExpanded ? (
-                                                  <ChevronDown className="h-3 w-3 text-muted-foreground" />
-                                                ) : (
-                                                  <ChevronRight className="h-3 w-3 text-muted-foreground" />
-                                                )}
-                                              </div>
-                                              <div className="flex-1 min-w-0">
-                                                <div className="flex items-center gap-1.5">
-                                                  <Badge
-                                                    variant="secondary"
-                                                    className={cn("text-[10px] px-1 py-0", getRmVisitTypeBadgeColor(visit.visit_type))}
-                                                  >
-                                                    {getRmVisitTypeLabel(visit.visit_type)}
-                                                  </Badge>
-                                                  <span className="text-[11px] text-muted-foreground">
-                                                    {visit.room?.name || "-"}
-                                                  </span>
-                                                </div>
-                                                {visit.doctor?.nama_lengkap && (
-                                                  <p className="text-[11px] text-muted-foreground truncate mt-0.5">
-                                                    {visit.doctor.nama_lengkap}
-                                                  </p>
-                                                )}
-                                              </div>
-                                            </button>
-                                          </CollapsibleTrigger>
-                                          <CollapsibleContent>
-                                            <div className="ml-4 mr-1 mb-1 space-y-0.5">
-                                              {isLoadingThisVisit && (
-                                                <div className="flex items-center gap-2 px-2 py-1 text-xs text-muted-foreground">
-                                                  <Loader2 className="h-3 w-3 animate-spin" />
-                                                  Memuat dokumen...
-                                                </div>
-                                              )}
-                                              {docs.map((doc, docIdx) => (
-                                                <div
-                                                  key={doc.id}
-                                                  className={cn(
-                                                    "flex w-full items-center gap-1.5 rounded px-2 py-1.5 text-xs transition-colors text-left",
-                                                    rmSelectedDocId === doc.id && !rmBundleMode ? "bg-primary/10 font-medium" : "hover:bg-accent",
-                                                    rmBundleMode && rmSelectedDocs.has(doc.id) && "bg-primary/10"
-                                                  )}
-                                                >
-                                                  {rmBundleMode && (
-                                                    <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-                                                      <Checkbox
-                                                        checked={rmSelectedDocs.has(doc.id)}
-                                                        onCheckedChange={() => toggleRmDocSelection(doc, visit.id, vIdx, docIdx)}
-                                                      />
-                                                    </div>
-                                                  )}
-                                                  <button
-                                                    className="flex items-center gap-2 flex-1 min-w-0"
-                                                    onClick={() => handleRmSelectDoc(doc)}
-                                                  >
-                                                    {doc.icon}
-                                                    <span className="truncate">{doc.label}</span>
-                                                  </button>
-                                                </div>
-                                              ))}
-                                            </div>
-                                          </CollapsibleContent>
-                                        </Collapsible>
-                                      );
-                                    })}
-                                  </div>
-                                </CollapsibleContent>
-                              </Collapsible>
-                            );
-                          })}
-                        </div>
-                      </ScrollArea>
-                    </div>
-
-                    {/* Content - PDF Viewer */}
-                    <div className="flex-1 bg-muted/10">
-                      {rmLoadingPdf ? (
-                        <div className="flex h-full items-center justify-center">
-                          <div className="text-center">
-                            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground mx-auto" />
-                            <p className="mt-2 text-sm text-muted-foreground">Memuat dokumen...</p>
-                          </div>
-                        </div>
-                      ) : rmPdfError ? (
-                        <div className="flex h-full items-center justify-center">
-                          <div className="text-center">
-                            <FileText className="h-16 w-16 text-muted-foreground/30 mx-auto" />
-                            <p className="mt-3 text-sm text-muted-foreground">{rmPdfError}</p>
-                          </div>
-                        </div>
-                      ) : rmPdfUrl ? (
-                        <iframe src={rmPdfUrl} className="h-full w-full border-0" title="PDF Viewer" />
-                      ) : (
-                        <div className="flex h-full items-center justify-center">
-                          <div className="text-center">
-                            <FileText className="h-16 w-16 text-muted-foreground/30 mx-auto" />
-                            <p className="mt-3 text-sm text-muted-foreground">
-                              {rmBundleMode
-                                ? "Centang dokumen yang ingin digabungkan, lalu klik Gabungkan PDF"
-                                : "Pilih dokumen dari sidebar untuk melihat rekam medis"}
-                            </p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Floating action bar for bundle */}
-                    {rmBundleMode && rmSelectedDocs.size > 0 && (
-                      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-lg border bg-background px-4 py-3 shadow-lg">
-                        <Badge variant="secondary" className="text-xs">
-                          {rmSelectedDocs.size} dokumen dipilih
-                        </Badge>
-                        <Button size="sm" onClick={handleRmBundle} disabled={rmIsBundling}>
-                          {rmIsBundling ? (
-                            <>
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              {rmBundleProgress
-                                ? `Menggabungkan ${rmBundleProgress.current}/${rmBundleProgress.total}...`
-                                : "Mempersiapkan..."}
-                            </>
-                          ) : (
-                            <>
-                              <Merge className="mr-2 h-4 w-4" />
-                              Gabungkan PDF
-                            </>
-                          )}
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={exitRmBundleMode} disabled={rmIsBundling}>
-                          Batal
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
-            </TabsContent>
-          </Tabs>
-        </div>
+          }
+        />
       </div>
 
-      {/* Delete SEP Dialog */}
-      <AlertDialog open={!!deleteSepId} onOpenChange={(open) => !open && setDeleteSepId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Hapus SEP</AlertDialogTitle>
-            <AlertDialogDescription>
-              Apakah Anda yakin ingin menghapus SEP <strong>{deleteSepId?.no_sep}</strong>?
-              <br />
-              Tindakan ini akan menghapus data SEP dari BPJS dan tidak dapat dibatalkan.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deletingSep}>Batal</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteSep}
-              disabled={deletingSep}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deletingSep ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Menghapus...
-                </>
-              ) : (
-                "Hapus SEP"
-              )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <PageContent className="flex-1 overflow-hidden pb-4">
+        <div className="grid grid-cols-12 gap-6 h-full">
+          {/* Sidebar Info */}
+          <div className="col-span-12 lg:col-span-3 h-full overflow-hidden flex flex-col">
+            <div className="rounded-none border bg-card shadow-sm overflow-hidden flex flex-col max-h-full">
+              <div className="h-32 flex-none bg-muted/30 relative flex items-center justify-center">
+                {patient.foto ? (
+                  <img src={`/${patient.foto}`} alt={patient.nama_lengkap} className="w-full h-full object-cover" />
+                ) : (
+                  <User className="h-12 w-12 text-muted-foreground/20" />
+                )}
+                <Badge variant={getStatusVariant(patient.status)} className="absolute top-2 right-2 uppercase tracking-wider text-[9px] rounded-none px-1.5 h-4">
+                  {patient.status}
+                </Badge>
+              </div>
+              <div className="p-4 space-y-3 overflow-y-auto custom-scrollbar">
+                <div className="space-y-0.5">
+                  <h2 className="font-bold text-base leading-tight truncate">{patient.nama_lengkap}</h2>
+                  <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">{patient.nik || "TIDAK ADA NIK"}</p>
+                </div>
 
-      {/* Registration Sheet */}
-      {patient && (
-        <RegistrationSheet
-          open={registrationSheetOpen}
-          onOpenChange={setRegistrationSheetOpen}
-          patient={patient}
-          onSuccess={() => {
-            // Reload data after registration
-            loadVisits(Number(patientId));
-            loadRegistrations(Number(patientId));
-            loadSeps(Number(patientId));
-          }}
-          onSEPCreated={() => loadSeps(Number(patientId))}
-        />
-      )}
+                <div className="space-y-2 pt-1">
+                  <div className="flex items-center gap-2.5 text-sm">
+                    <div className="h-7 w-7 rounded-none bg-primary/10 flex items-center justify-center shrink-0">
+                      <Dna className="h-3.5 w-3.5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-[9px] text-muted-foreground uppercase font-bold leading-none mb-1">Gender / Umur</p>
+                      <p className="font-medium text-[11px]">{patient.jenis_kelamin === 'L' ? 'Laki-laki' : 'Perempuan'} • {calculateAge(patient.tanggal_lahir)}</p>
+                    </div>
+                  </div>
 
-      {/* SEP Detail Sheet */}
+                  <div className="flex items-center gap-2.5 text-sm">
+                    <div className="h-7 w-7 rounded-none bg-primary/10 flex items-center justify-center shrink-0">
+                      <Phone className="h-3.5 w-3.5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-[9px] text-muted-foreground uppercase font-bold leading-none mb-1">Kontak</p>
+                      <p className="font-medium text-[11px]">{patient.no_hp || patient.no_telepon || "-"}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2.5 text-sm">
+                    <div className="h-7 w-7 rounded-none bg-primary/10 flex items-center justify-center shrink-0">
+                      <MapPin className="h-3.5 w-3.5 text-primary" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[9px] text-muted-foreground uppercase font-bold leading-none mb-1">Domisili</p>
+                      <p className="font-medium text-[11px] truncate" title={patient.alamat_domisili || patient.alamat_ktp}>
+                        {patient.alamat_domisili || patient.alamat_ktp || "-"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2.5 text-sm">
+                    <div className="h-7 w-7 rounded-none bg-primary/10 flex items-center justify-center shrink-0">
+                      <Shield className="h-3.5 w-3.5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-[9px] text-muted-foreground uppercase font-bold leading-none mb-1">Jaminan Utama</p>
+                      <p className="font-medium text-[11px] capitalize">{patient.jenis_jaminan || "UMUM"}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <Separator />
+
+                <div className="space-y-2">
+                  <h4 className="text-[9px] font-bold uppercase text-red-600 flex items-center gap-1">
+                    <Heart className="h-2.5 w-2.5" /> Peringatan Medis
+                  </h4>
+                  <div className="space-y-1.5">
+                    <div className="p-1.5 rounded-none bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/30">
+                      <p className="text-[9px] font-bold text-red-700 dark:text-red-400 leading-none mb-0.5 uppercase">ALERGI OBAT</p>
+                      <p className="text-[10px] font-medium text-red-800 dark:text-red-300 line-clamp-1">{patient.alergi_obat || "Tidak ada data"}</p>
+                    </div>
+                    <div className="p-1.5 rounded-none bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/30">
+                      <p className="text-[9px] font-bold text-red-700 dark:text-red-400 leading-none mb-0.5 uppercase">PENYAKIT KRONIS</p>
+                      <p className="text-[10px] font-medium text-red-800 dark:text-red-300 line-clamp-1">{patient.penyakit_kronis || "Tidak ada data"}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-1">
+                  <Button variant="outline" className="w-full h-7 text-[10px] rounded-none" onClick={handlePrintLabel}>
+                    <Printer className="h-3 w-3 mr-1.5" /> Cetak Label
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Main Tabs Content */}
+          <div className="col-span-12 lg:col-span-9 h-full flex flex-col overflow-hidden">
+            <Tabs value={activeTab} onValueChange={handleTabChange} variant="inline" className="w-full flex-1 flex flex-col overflow-hidden">
+              <div className="flex-none">
+                <TabsList className="bg-transparent h-10 w-full justify-start border-b rounded-none mb-4 p-0 gap-6">
+                  <TabsTrigger value="detail" className="h-10 text-xs gap-1.5 bg-transparent border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent rounded-none px-1">
+                    <User className="h-3.5 w-3.5" /> Detail Profil
+                  </TabsTrigger>
+                  <TabsTrigger value="pendaftaran" className="h-10 text-xs gap-1.5 bg-transparent border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent rounded-none px-1">
+                    <ClipboardList className="h-3.5 w-3.5" /> Registrasi
+                  </TabsTrigger>
+                  <TabsTrigger value="sep" className="h-10 text-xs gap-1.5 bg-transparent border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent rounded-none px-1">
+                    <FileCheck className="h-3.5 w-3.5" /> BPJS SEP
+                  </TabsTrigger>
+                  <TabsTrigger value="rekam-medis" className="h-10 text-xs gap-1.5 bg-transparent border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent rounded-none px-1">
+                    <FolderOpen className="h-3.5 w-3.5" /> Rekam Medis
+                  </TabsTrigger>
+                  <TabsTrigger value="rawat-inap" className="h-10 text-xs gap-1.5 bg-transparent border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent rounded-none px-1">
+                    <BedDouble className="h-3.5 w-3.5" /> Admisi
+                    {admissionRequests.filter(r => r.status === 'pending').length > 0 && (
+                      <Badge className="h-4 min-w-4 px-1 text-[9px] bg-red-500 rounded-none">{admissionRequests.filter(r => r.status === 'pending').length}</Badge>
+                    )}
+                  </TabsTrigger>
+                  <TabsTrigger value="pembayaran" className="h-10 text-xs gap-1.5 bg-transparent border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent rounded-none px-1">
+                    <CreditCard className="h-3.5 w-3.5" /> Pembayaran
+                  </TabsTrigger>
+                </TabsList>
+              </div>
+
+              <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar">
+                {/* Detail Pasien Tab */}
+                <TabsContent value="detail" className="m-0 focus-visible:outline-none pb-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="rounded-none border bg-card shadow-sm p-6 space-y-6">
+                      <div className="flex items-center gap-2 mb-2">
+                        <User className="h-4 w-4 text-primary" />
+                        <h3 className="font-bold text-sm uppercase tracking-wider">Identitas Lengkap</h3>
+                      </div>
+                      <div className="grid grid-cols-2 gap-y-4 gap-x-6">
+                        <div className="space-y-1">
+                          <Label className="text-[10px] uppercase text-muted-foreground font-bold">Tempat Lahir</Label>
+                          <p className="text-sm font-medium">{patient.tempat_lahir || "-"}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[10px] uppercase text-muted-foreground font-bold">Tanggal Lahir</Label>
+                          <p className="text-sm font-medium">{formatDate(patient.tanggal_lahir)}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[10px] uppercase text-muted-foreground font-bold">Golongan Darah</Label>
+                          <p className="text-sm font-medium">{patient.golongan_darah || "-"} ({patient.rhesus || "-"})</p>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[10px] uppercase text-muted-foreground font-bold">Agama</Label>
+                          <p className="text-sm font-medium">{patient.agama || "-"}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[10px] uppercase text-muted-foreground font-bold">Pekerjaan</Label>
+                          <p className="text-sm font-medium">{patient.pekerjaan || "-"}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[10px] uppercase text-muted-foreground font-bold">Status Kawin</Label>
+                          <p className="text-sm font-medium">{patient.status_perkawinan || "-"}</p>
+                        </div>
+                        <div className="space-y-1 col-span-2">
+                          <Label className="text-[10px] uppercase text-muted-foreground font-bold">Pendidikan</Label>
+                          <p className="text-sm font-medium">{patient.pendidikan_terakhir || "-"}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="rounded-none border bg-card shadow-sm p-6 space-y-6">
+                      <div className="flex items-center gap-2 mb-2">
+                        <MapPin className="h-4 w-4 text-primary" />
+                        <h3 className="font-bold text-sm uppercase tracking-wider">Informasi Alamat</h3>
+                      </div>
+                      <div className="space-y-4">
+                        <div className="p-3 rounded-none bg-muted/20 border border-border/50">
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Alamat KTP</p>
+                          <p className="text-xs leading-relaxed">{patient.alamat_ktp || "-"}</p>
+                          <p className="text-[11px] text-muted-foreground mt-1.5">
+                            {patient.kelurahan_ktp}, {patient.kecamatan_ktp}, {patient.kota_ktp}, {patient.provinsi_ktp}
+                          </p>
+                        </div>
+                        <div className="p-3 rounded-none bg-muted/20 border border-border/50">
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Alamat Domisili</p>
+                          <p className="text-xs leading-relaxed">{patient.alamat_domisili || patient.alamat_ktp || "-"}</p>
+                          <p className="text-[11px] text-muted-foreground mt-1.5">
+                            {patient.kelurahan_domisili || patient.kelurahan_ktp}, {patient.kecamatan_domisili || patient.kecamatan_ktp}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="col-span-1 md:col-span-2 rounded-none border bg-card shadow-sm p-6">
+                      <div className="flex items-center gap-2 mb-4">
+                        <Briefcase className="h-4 w-4 text-primary" />
+                        <h3 className="font-bold text-sm uppercase tracking-wider">Keluarga & Penanggung Jawab</h3>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="space-y-1">
+                          <Label className="text-[10px] uppercase text-muted-foreground font-bold">Nama Ayah</Label>
+                          <p className="text-sm font-medium">{patient.nama_ayah || "-"}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[10px] uppercase text-muted-foreground font-bold">Nama Ibu</Label>
+                          <p className="text-sm font-medium">{patient.nama_ibu || "-"}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[10px] uppercase text-muted-foreground font-bold">Nama Pasangan</Label>
+                          <p className="text-sm font-medium">{patient.nama_suami_istri || "-"}</p>
+                        </div>
+                        <Separator className="md:col-span-3" />
+                        <div className="space-y-1">
+                          <Label className="text-[10px] uppercase text-muted-foreground font-bold">Nama Penanggung Jawab</Label>
+                          <p className="text-sm font-medium">{patient.nama_pj || "-"}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[10px] uppercase text-muted-foreground font-bold">Hubungan PJ</Label>
+                          <p className="text-sm font-medium">{patient.hubungan_pj || "-"}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[10px] uppercase text-muted-foreground font-bold">No. Telp PJ</Label>
+                          <p className="text-sm font-medium">{patient.no_telepon_pj || "-"}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </TabsContent>
+
+                {/* Riwayat Pendaftaran Tab */}
+                <TabsContent value="pendaftaran" className="m-0 focus-visible:outline-none">
+                  <div className="rounded-none overflow-hidden">
+                    <div className="relative">
+                      {loadingRegistrations && (
+                        <div className="absolute inset-0 bg-background/50 backdrop-blur-[1px] z-10 flex items-center justify-center">
+                          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                        </div>
+                      )}
+                      <DataTable
+                        columns={registrationColumns}
+                        data={registrations}
+                        searchPlaceholder="Cari pendaftaran..."
+                        tableId={`patient-reg-${patientId}`}
+                        meta={registrationTableMeta}
+                      />
+                    </div>
+                  </div>
+                </TabsContent>
+
+                {/* Riwayat SEP Tab */}
+                <TabsContent value="sep" className="m-0 focus-visible:outline-none">
+                  <div className="rounded-none overflow-hidden">
+                    <div className="relative">
+                      {loadingSeps && (
+                        <div className="absolute inset-0 bg-background/50 backdrop-blur-[1px] z-10 flex items-center justify-center">
+                          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                        </div>
+                      )}
+                      <DataTable
+                        columns={sepColumns}
+                        data={seps}
+                        searchPlaceholder="Cari SEP..."
+                        tableId={`patient-sep-${patientId}`}
+                      />
+                    </div>
+                  </div>
+                </TabsContent>
+
+                {/* Rekam Medis Tab */}
+                <TabsContent value="rekam-medis" className="m-0 focus-visible:outline-none">
+                  <div className="rounded-none border bg-card shadow-sm overflow-hidden">
+                    <div className="px-6 py-3 border-b bg-muted/30 flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <h3 className="text-sm font-semibold flex items-center gap-2">
+                          <FolderOpen className="h-4 w-4 text-primary" /> Arsip Rekam Medis Digital
+                        </h3>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button variant={rmBundleMode ? "default" : "outline"} size="sm" onClick={() => (rmBundleMode ? exitRmBundleMode() : setRmBundleMode(true))} className="h-8 rounded-none">
+                          {rmBundleMode ? <X className="h-3.5 w-3.5 mr-1.5" /> : <ListChecks className="h-3.5 w-3.5 mr-1.5" />}
+                          {rmBundleMode ? "Batal Pilih" : "Gabungkan PDF"}
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="flex relative" style={{ height: "650px" }}>
+                      {/* Sidebar */}
+                      <div className="w-80 flex-shrink-0 border-r bg-muted/10 flex flex-col overflow-hidden sticky top-0 h-full">
+                        <ScrollArea className="flex-1">
+                          <div className={cn("p-4 space-y-2", rmBundleMode && rmSelectedDocs.size > 0 && "pb-24")}>
+                            {rmRegistrationGroups.length === 0 && !loadingRm && (
+                              <div className="text-center py-20">
+                                <FolderOpen className="h-10 w-10 mx-auto text-muted-foreground/30 mb-3" />
+                                <p className="text-xs text-muted-foreground font-medium">Tidak ada data rekam medis</p>
+                              </div>
+                            )}
+                            {loadingRm && (
+                              <div className="flex flex-col items-center justify-center py-10">
+                                <Loader2 className="h-6 w-6 animate-spin text-primary/40 mb-2" />
+                                <p className="text-[10px] text-muted-foreground">Memuat Arsip...</p>
+                              </div>
+                            )}
+                            {rmRegistrationGroups.map((group) => {
+                              const isRegExpanded = rmExpandedRegIds.has(group.registrationId);
+                              const regCheckState = rmBundleMode && isRegExpanded ? getRmRegCheckboxState(group.visits) : false;
+
+                              return (
+                                <Collapsible key={group.registrationId} open={isRegExpanded} onOpenChange={() => toggleRmReg(group.registrationId)}>
+                                  <div className={cn("group flex flex-col rounded-none border bg-background transition-all mb-1", isRegExpanded && "border-primary/20 shadow-sm ring-1 ring-primary/5")}>
+                                    <CollapsibleTrigger asChild>
+                                      <div className={cn("flex items-start gap-3 p-3 cursor-pointer hover:bg-muted/50 transition-colors", isRegExpanded && "bg-muted/20")}>
+                                        {rmBundleMode && (
+                                          <div onClick={(e) => e.stopPropagation()} className="mt-0.5">
+                                            <Checkbox checked={regCheckState} onCheckedChange={() => toggleRmRegSelection(group)} />
+                                          </div>
+                                        )}
+                                        <div className="flex-1 min-w-0">
+                                          <div className="flex items-center gap-1.5 mb-1">
+                                            <Badge variant="outline" className={cn("text-[8px] px-1 h-3.5 uppercase font-bold", getRegTypeBadgeColor(group.registrationType))}>{getRegTypeLabel(group.registrationType)}</Badge>
+                                            <span className="text-[10px] font-bold text-muted-foreground">{format(new Date(group.registrationDate), "dd/MM/yyyy", { locale: id })}</span>
+                                          </div>
+                                          <p className="text-[11px] font-bold truncate leading-tight">{group.registrationNumber}</p>
+                                        </div>
+                                        <div className="mt-1">{isRegExpanded ? <ChevronDown className="h-3 w-3 text-muted-foreground" /> : <ChevronRight className="h-3 w-3 text-muted-foreground" />}</div>
+                                      </div>
+                                    </CollapsibleTrigger>
+                                    <CollapsibleContent className="border-t bg-muted/5">
+                                      <div className="p-2 space-y-1">
+                                        {group.visits.map((visit) => {
+                                          const isVisitExpanded = rmExpandedVisitIds.has(visit.id);
+                                          const docs = getRmDocsForVisit(visit);
+                                          const vIdx = rmRegistrationGroups.findIndex(g => g.registrationId === group.registrationId);
+
+                                          return (
+                                            <div key={visit.id} className="space-y-1">
+                                              <div className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted/50 cursor-pointer" onClick={() => toggleRmVisit(visit.id)}>
+                                                <div className="w-4 flex justify-center">{isVisitExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}</div>
+                                                <div className="flex-1 min-w-0">
+                                                  <p className="text-[10px] font-bold truncate leading-none mb-0.5">{visit.room?.name || "-"}</p>
+                                                  <p className="text-[9px] text-muted-foreground truncate">{visit.doctor?.nama_lengkap || "-"}</p>
+                                                </div>
+                                              </div>
+                                              {isVisitExpanded && (
+                                                <div className="ml-6 space-y-0.5 pb-2">
+                                                  {rmLoadingOrders && !rmVisitOrdersMap[visit.id]?.loaded && (
+                                                    <div className="flex items-center gap-2 py-1 text-[10px] text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> Memuat...</div>
+                                                  )}
+                                                  {docs.map((doc, docIdx) => (
+                                                    <div key={doc.id} className={cn("flex items-center gap-2 p-1.5 rounded-md transition-colors", rmSelectedDocId === doc.id && !rmBundleMode ? "bg-primary text-primary-foreground shadow-sm" : "hover:bg-accent/50")}>
+                                                      {rmBundleMode && (
+                                                        <div onClick={(e) => e.stopPropagation()}>
+                                                          <Checkbox checked={rmSelectedDocs.has(doc.id)} onCheckedChange={() => toggleRmDocSelection(doc, visit.id, vIdx, docIdx)} className={cn(rmSelectedDocId === doc.id && "border-primary-foreground")} />
+                                                        </div>
+                                                      )}
+                                                      <div className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer" onClick={() => handleRmSelectDoc(doc)}>
+                                                        {doc.icon}
+                                                        <span className="text-[10px] font-medium truncate">{doc.label}</span>
+                                                      </div>
+                                                    </div>
+                                                  ))}
+                                                </div>
+                                              )}
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </CollapsibleContent>
+                                  </div>
+                                </Collapsible>
+                              );
+                            })}
+                          </div>
+                        </ScrollArea>
+                      </div>
+
+                      {/* PDF Viewer */}
+                      <div className="flex-1 bg-muted/20 flex flex-col">
+                        {rmLoadingPdf ? (
+                          <div className="flex-1 flex flex-col items-center justify-center">
+                            <div className="h-12 w-12 rounded-none bg-background shadow-lg flex items-center justify-center mb-3">
+                              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                            </div>
+                            <p className="text-xs font-medium text-muted-foreground">Menyiapkan Dokumen Digital...</p>
+                          </div>
+                        ) : rmPdfError ? (
+                          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
+                            <AlertTriangle className="h-12 w-12 text-destructive/20 mb-4" />
+                            <h4 className="text-sm font-bold text-destructive/80 mb-1">Terjadi Kendala</h4>
+                            <p className="text-xs text-muted-foreground max-w-xs leading-relaxed">{rmPdfError}</p>
+                          </div>
+                        ) : rmPdfUrl ? (
+                          <iframe src={rmPdfUrl} className="flex-1 border-0" title="PDF Viewer" />
+                        ) : (
+                          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center opacity-40">
+                            <FolderOpen className="h-20 w-20 text-muted-foreground mb-4" />
+                            <h4 className="text-sm font-bold mb-1">Pilih Dokumen Rekam Medis</h4>
+                            <p className="text-xs max-w-xs leading-relaxed">Pilih salah satu dokumen dari daftar kunjungan di samping untuk menampilkan arsip digital.</p>
+                          </div>
+                        )}
+                        {rmBundleMode && rmSelectedDocs.size > 0 && (
+                          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-background/95 backdrop-blur-md border border-primary/20 rounded-none px-6 py-4 shadow-2xl z-50 ring-1 ring-black/5 animate-in fade-in slide-in-from-bottom-4">
+                            <div className="space-y-0.5">
+                              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground leading-none">Siap Digabungkan</p>
+                              <p className="text-xs font-bold leading-none">{rmSelectedDocs.size} Dokumen Terpilih</p>
+                            </div>
+                            <div className="h-8 w-px bg-border" />
+                            <Button size="sm" onClick={handleRmBundle} disabled={rmIsBundling} className="h-9 px-5 gap-2 shadow-lg shadow-primary/20 rounded-none">
+                              {rmIsBundling ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                  {rmBundleProgress ? `${rmBundleProgress.current}/${rmBundleProgress.total}` : "Memproses..."}
+                                </>
+                              ) : (
+                                <><Merge className="h-4 w-4" /> Gabungkan PDF</>
+                              )}
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-none hover:bg-red-50 hover:text-red-600" onClick={exitRmBundleMode}><X className="h-4 w-4" /></Button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </TabsContent>
+
+                {/* Admisi Tab */}
+                <TabsContent value="rawat-inap" className="m-0 focus-visible:outline-none">
+                  <div className="rounded-none bg-card shadow-sm overflow-hidden">
+                    <div className="relative">
+                      {loadingAdmissionRequests && (
+                        <div className="absolute inset-0 bg-background/50 backdrop-blur-[1px] z-10 flex items-center justify-center">
+                          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                        </div>
+                      )}
+                      <DataTable
+                        columns={admissionColumns}
+                        data={admissionRequests}
+                        searchPlaceholder="Cari permintaan..."
+                        tableId={`patient-admission-${patientId}`}
+                      />
+                    </div>
+                  </div>
+                </TabsContent>
+
+                {/* Pembayaran Tab */}
+                <TabsContent value="pembayaran" className="m-0 focus-visible:outline-none">
+                  <div className="rounded-none bg-card shadow-sm overflow-hidden">
+                    <div className="relative">
+                      {loadingBillings && (
+                        <div className="absolute inset-0 bg-background/50 backdrop-blur-[1px] z-10 flex items-center justify-center">
+                          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                        </div>
+                      )}
+                      <DataTable
+                        columns={billingColumns}
+                        data={billings}
+                        searchPlaceholder="Cari billing..."
+                        tableId={`patient-billing-${patientId}`}
+                      />
+                    </div>
+                  </div>
+                </TabsContent>
+              </div>
+            </Tabs>
+          </div>
+        </div>
+      </PageContent>
+
+      {/* Sheets & Dialogs */}
+      <RegistrationSheet
+        open={registrationSheetOpen}
+        onOpenChange={setRegistrationSheetOpen}
+        patient={patient}
+        onSuccess={() => {
+          setRegistrationSheetOpen(false);
+          loadRegistrations(Number(patientId));
+          loadVisits(Number(patientId));
+        }}
+      />
+
       <SEPDetailSheet
         open={sepDetailOpen}
         onOpenChange={setSepDetailOpen}
         sep={selectedSep}
-        onUpdate={() => loadSeps(Number(patientId))}
-        onDelete={() => loadSeps(Number(patientId))}
       />
-    </div>
+
+      <AlertDialog open={!!deleteSepId} onOpenChange={(open) => !open && setDeleteSepId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus SEP?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tindakan ini tidak dapat dibatalkan. SEP nomor <strong>{deleteSepId?.no_sep}</strong> akan dihapus permanen dari sistem.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingSep}>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteSep} disabled={deletingSep} className="bg-destructive hover:bg-destructive/90">
+              {deletingSep ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
+              Hapus Permanen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </PageShell>
   );
 }

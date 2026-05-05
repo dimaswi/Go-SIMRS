@@ -1,7 +1,6 @@
-﻿import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
-  ArrowLeft,
   Building2,
   Calendar,
   FileText,
@@ -16,7 +15,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import {
   Table,
   TableBody,
@@ -89,7 +87,7 @@ export default function PurchaseShow() {
 
   const handleApprove = async () => {
     if (!id) return;
-    
+
     setApproving(true);
     try {
       await purchasesApi.approve(parseInt(id));
@@ -111,7 +109,7 @@ export default function PurchaseShow() {
 
   const handleSubmit = async () => {
     if (!id) return;
-    
+
     setSubmitting(true);
     try {
       await purchasesApi.submit(parseInt(id));
@@ -133,7 +131,7 @@ export default function PurchaseShow() {
 
   const handleDelete = async () => {
     if (!id) return;
-    
+
     setDeleting(true);
     try {
       await purchasesApi.delete(parseInt(id));
@@ -200,159 +198,97 @@ export default function PurchaseShow() {
 
   return (
     <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => window.history.back()}
-            className="h-9 w-9"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div className="space-y-1">
-            <div className="flex items-center gap-3">
-              <h1 className="text-lg font-semibold">
-                {purchase.purchase_number}
-              </h1>
-              <Badge className={statusColors[status]}>
-                {statusLabels[status]}
-              </Badge>
+
+
+      <div className="flex-1 space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11">
+        <div className="border border-border/70">
+          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+            <Building2 className="h-3 w-3" />
+            Informasi Pembelian
+          </div>
+          <div className="p-3 sm:p-4 space-y-6">
+            {/* Info Section */}
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-6 mb-2">
+              <div className="space-y-1 lg:col-span-2">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  No. Pembelian & Status
+                </div>
+                <div className="flex items-center gap-2 mt-1">
+                  <p className="font-medium font-mono text-base">{purchase.purchase_number}</p>
+                  <Badge className={statusColors[status]}>
+                    {statusLabels[status]}
+                  </Badge>
+                </div>
+              </div>
             </div>
-            <p className="text-sm text-muted-foreground">Detail pembelian</p>
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Building2 className="h-4 w-4" />
+                  Supplier
+                </div>
+                <p className="font-medium">
+                  {purchase.supplier?.name || purchase.supplier_name || "-"}
+                </p>
+                {purchase.supplier?.code && (
+                  <p className="text-xs text-muted-foreground">
+                    {purchase.supplier.code}
+                  </p>
+                )}
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <MapPin className="h-4 w-4" />
+                  Ruangan Tujuan
+                </div>
+                <p className="font-medium">{purchase.to_room?.name || "-"}</p>
+                {purchase.to_room?.code && (
+                  <p className="text-xs text-muted-foreground">
+                    {purchase.to_room.code}
+                  </p>
+                )}
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Calendar className="h-4 w-4" />
+                  Tanggal Pembelian
+                </div>
+                <p className="font-medium">{formatDate(purchase.order_date || purchase.created_at)}</p>
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <User className="h-4 w-4" />
+                  Dibuat Oleh
+                </div>
+                <p className="font-medium">{purchase.created_by?.full_name || "-"}</p>
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <FileText className="h-4 w-4" />
+                  Total
+                </div>
+                <p className="text-lg font-bold text-primary">
+                  Rp {(purchase.total_amount || 0).toLocaleString("id-ID")}
+                </p>
+              </div>
+            </div>
+
+            {purchase.notes && (
+              <div className="border-t border-border/70 mt-4 pt-4">
+                <p className="text-sm text-muted-foreground mb-1">Catatan</p>
+                <p className="text-sm">{purchase.notes}</p>
+              </div>
+            )}
           </div>
         </div>
-        <div className="flex gap-2">
-          {canEdit && (
-            <Button 
-              size="sm" 
-              variant="outline"
-              onClick={() => navigate(`/purchases/${id}/edit`)}
-            >
-              <Pencil className="mr-2 h-4 w-4" />
-              Edit
-            </Button>
-          )}
-          {canDelete && (
-            <Button 
-              size="sm" 
-              variant="destructive"
-              onClick={() => setShowDeleteDialog(true)}
-              disabled={deleting}
-            >
-              {deleting ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Trash2 className="mr-2 h-4 w-4" />
-              )}
-              Hapus
-            </Button>
-          )}
-          {canSubmit && (
-            <Button 
-              size="sm" 
-              variant="default"
-              onClick={handleSubmit}
-              disabled={submitting}
-            >
-              {submitting ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Send className="mr-2 h-4 w-4" />
-              )}
-              Ajukan
-            </Button>
-          )}
-          {canApprove && (
-            <Button 
-              size="sm" 
-              variant="default"
-              onClick={handleApprove}
-              disabled={approving}
-            >
-              {approving ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <CheckCircle className="mr-2 h-4 w-4" />
-              )}
-              Setujui
-            </Button>
-          )}
-          {canReceive && (
-            <Button size="sm" onClick={() => navigate(`/purchases/${id}/receive`)}>
-              <PackageCheck className="mr-2 h-4 w-4" />
-              Terima Barang
-            </Button>
-          )}
-        </div>
-      </div>
 
-      <div className="rounded-lg border p-6 space-y-6">
-          {/* Info Section */}
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Building2 className="h-4 w-4" />
-                Supplier
-              </div>
-              <p className="font-medium">
-                {purchase.supplier?.name || purchase.supplier_name || "-"}
-              </p>
-              {purchase.supplier?.code && (
-                <p className="text-xs text-muted-foreground">
-                  {purchase.supplier.code}
-                </p>
-              )}
-            </div>
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <MapPin className="h-4 w-4" />
-                Ruangan Tujuan
-              </div>
-              <p className="font-medium">{purchase.to_room?.name || "-"}</p>
-              {purchase.to_room?.code && (
-                <p className="text-xs text-muted-foreground">
-                  {purchase.to_room.code}
-                </p>
-              )}
-            </div>
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Calendar className="h-4 w-4" />
-                Tanggal Pembelian
-              </div>
-              <p className="font-medium">{formatDate(purchase.order_date || purchase.created_at)}</p>
-            </div>
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <User className="h-4 w-4" />
-                Dibuat Oleh
-              </div>
-              <p className="font-medium">{purchase.created_by?.full_name || "-"}</p>
-            </div>
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <FileText className="h-4 w-4" />
-                Total
-              </div>
-              <p className="text-lg font-bold text-primary">
-                Rp {(purchase.total_amount || 0).toLocaleString("id-ID")}
-              </p>
-            </div>
+        {/* Items Table */}
+        <div className="border border-border/70">
+          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+            <PackageCheck className="h-3 w-3" />
+            Daftar Item
           </div>
-
-          {purchase.notes && (
-            <div className="bg-muted/50 rounded-lg p-4">
-              <p className="text-sm text-muted-foreground mb-1">Catatan</p>
-              <p className="text-sm">{purchase.notes}</p>
-            </div>
-          )}
-
-          <Separator />
-
-          {/* Items Table */}
-          <div>
-            <h3 className="font-semibold mb-4">Daftar Item</h3>
+          <div className="p-0">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -415,6 +351,7 @@ export default function PurchaseShow() {
               </TableBody>
             </Table>
           </div>
+        </div>
       </div>
 
       <ConfirmDialog
@@ -427,6 +364,72 @@ export default function PurchaseShow() {
         onConfirm={handleDelete}
         variant="destructive"
       />
+
+      {/* Sticky Footer Actions */}
+      <div className="shrink-0 sticky bottom-0 z-10 py-3 mt-4 flex items-center justify-between border-t bg-background">
+        <Button variant="outline" onClick={() => navigate("/purchases")}>
+          Kembali
+        </Button>
+        <div className="flex gap-2">
+          {canEdit && (
+            <Button
+              variant="outline"
+              onClick={() => navigate(`/purchases/${id}/edit`)}
+            >
+              <Pencil className="mr-2 h-4 w-4" />
+              Edit
+            </Button>
+          )}
+          {canDelete && (
+            <Button
+              variant="destructive"
+              onClick={() => setShowDeleteDialog(true)}
+              disabled={deleting}
+            >
+              {deleting ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="mr-2 h-4 w-4" />
+              )}
+              Hapus
+            </Button>
+          )}
+          {canSubmit && (
+            <Button
+              variant="default"
+              onClick={handleSubmit}
+              disabled={submitting}
+            >
+              {submitting ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="mr-2 h-4 w-4" />
+              )}
+              Ajukan
+            </Button>
+          )}
+          {canApprove && (
+            <Button
+              variant="default"
+              onClick={handleApprove}
+              disabled={approving}
+            >
+              {approving ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <CheckCircle className="mr-2 h-4 w-4" />
+              )}
+              Setujui
+            </Button>
+          )}
+          {canReceive && (
+            <Button onClick={() => navigate(`/purchases/${id}/receive`)}>
+              <PackageCheck className="mr-2 h-4 w-4" />
+              Terima Barang
+            </Button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
