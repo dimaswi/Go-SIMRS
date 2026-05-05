@@ -71,9 +71,7 @@ export default defineConfig({
             return 'icon-vendor'
           }
 
-          if (id.includes('@radix-ui') || id.includes('cmdk') || id.includes('vaul') || id.includes('sonner')) {
-            return 'ui-vendor'
-          }
+          // Keep UI dependencies in generic vendor chunk to avoid runtime init-order issues in production.
 
           if (id.includes('@tanstack/react-table')) {
             return 'table-vendor'
