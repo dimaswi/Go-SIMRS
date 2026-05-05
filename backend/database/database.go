@@ -19,6 +19,7 @@ var CasemixDB *gorm.DB
 
 func Connect(dsn string, casemixDsn string) error {
 	var err error
+	casemixDsn = strings.TrimSpace(casemixDsn)
 
 	// Configure GORM with performance optimizations
 	gormConfig := &gorm.Config{
@@ -33,6 +34,13 @@ func Connect(dsn string, casemixDsn string) error {
 	if err != nil {
 		return fmt.Errorf("failed to connect to main database: %w", err)
 	}
+	configurePool(DB)
+
+	if casemixDsn == "" || casemixDsn == dsn {
+		CasemixDB = DB
+		log.Println("Single database mode enabled: CasemixDB uses main database connection")
+		return nil
+	}
 
 	// Casemix DB
 	CasemixDB, err = gorm.Open(postgres.Open(casemixDsn), gormConfig)
@@ -41,7 +49,6 @@ func Connect(dsn string, casemixDsn string) error {
 	}
 
 	// Configure connection pools
-	configurePool(DB)
 	configurePool(CasemixDB)
 
 	log.Println("Databases connected successfully with connection pooling")
@@ -88,7 +95,9 @@ func Migrate() error {
 	// STEP 1: Drop ALL existing foreign key constraints
 	// ==========================================
 	dropAllForeignKeys(DB)
-	dropAllForeignKeys(CasemixDB)
+	if CasemixDB != nil && CasemixDB != DB {
+		dropAllForeignKeys(CasemixDB)
+	}
 
 	// ==========================================
 	// STEP 2: Handle legacy schema migrations
@@ -284,9 +293,9 @@ func Migrate() error {
 		&models.VisitProcedure{}, &models.VisitProcedureResult{},
 		&models.MedicalRecordEditLog{},
 		&models.FallRiskAssessment{}, // Resiko Jatuh
-		&models.O2UsageRecord{},     // Penggunaan Oksigen
+		&models.O2UsageRecord{},      // Penggunaan Oksigen
 		&models.Notification{}, &models.UserTabPreference{},
-		&models.EKlaimLocalLog{},       // E-Klaim Local Communication Logs
+		&models.EKlaimLocalLog{}, // E-Klaim Local Communication Logs
 		// Digital Signatures & Audit Trail
 		&models.SignatureLog{},      // Signature Activity Logs
 		&models.DocumentSignature{}, // Document Signature Status
@@ -306,44 +315,52 @@ func Migrate() error {
 	// ==========================================
 	// STEP 4: Auto-migrate Casemix database (Mirrored RM tables)
 	// ==========================================
-	log.Println("Migrating Casemix database...")
-	err = CasemixDB.AutoMigrate(
-		&models.Triage{},              // Triage (UGD/IGD only)
-		&models.Anamnesis{},           // Anamnesis
-		&models.PhysicalExamination{}, // Physical Examination
-		&models.Diagnosis{},           // Diagnoses
-		&models.DiagnosisSummary{},    // Diagnosis Summary
-		&models.AssessmentPlan{},      // Assessment & Plan
-		&models.Disposition{},         // Disposition/Discharge
-		&models.DischargePlanning{},   // Discharge Planning checklist
-		&models.BodyMarker{},          // Body marker images and points
-		&models.VitalSign{},           // Vital Signs History
-		&models.MedicineOrder{},       // Medicine Orders
-		&models.MedicineOrderItem{},   // Medicine Order Items
-		&models.ProcedureOrder{},      // Procedure Orders
-		&models.ProcedureOrderItem{},  // Procedure Order Items
-		&models.ProcedureOrderResult{}, // Procedure Order Results
-		&models.VisitProcedure{},      // Visit Procedures
-		&models.VisitProcedureResult{}, // Visit Procedure Results
-		&models.CPPT{},                // CPPT
-		&models.FluidBalance{},        // Fluid Balance
-		&models.NursingCare{},         // Nursing Care
-		&models.FallRiskAssessment{},  // Fall Risk
-		&models.BedTransfer{},         // Bed Transfer/Mutation
-		// Digital Signatures & Audit Trail
-		&models.SignatureLog{},      // Signature Activity Logs
-		&models.DocumentSignature{}, // Document Signature Status
-		&models.DocumentPDFCache{},  // Cached PDF blobs for cetakan
-		// Nutrition/Gizi Management
-		&models.NutritionMenu{},        // Master Menu Makanan
-		&models.NutritionPackage{},     // Master Paket Makanan
-		&models.NutritionPackageItem{}, // Item Paket Makanan
-		&models.NutritionOrder{},       // Order Gizi Pasien
-		&models.NutritionOrderItem{},   // Item Order Gizi
-	)
+	if CasemixDB == nil {
+		return fmt.Errorf("casemix database connection is not initialized")
+	}
 
-	if err != nil {
-		return err
+	if CasemixDB == DB {
+		log.Println("Skipping separate Casemix migration: using main database connection")
+	} else {
+		log.Println("Migrating Casemix database...")
+		err = CasemixDB.AutoMigrate(
+			&models.Triage{},               // Triage (UGD/IGD only)
+			&models.Anamnesis{},            // Anamnesis
+			&models.PhysicalExamination{},  // Physical Examination
+			&models.Diagnosis{},            // Diagnoses
+			&models.DiagnosisSummary{},     // Diagnosis Summary
+			&models.AssessmentPlan{},       // Assessment & Plan
+			&models.Disposition{},          // Disposition/Discharge
+			&models.DischargePlanning{},    // Discharge Planning checklist
+			&models.BodyMarker{},           // Body marker images and points
+			&models.VitalSign{},            // Vital Signs History
+			&models.MedicineOrder{},        // Medicine Orders
+			&models.MedicineOrderItem{},    // Medicine Order Items
+			&models.ProcedureOrder{},       // Procedure Orders
+			&models.ProcedureOrderItem{},   // Procedure Order Items
+			&models.ProcedureOrderResult{}, // Procedure Order Results
+			&models.VisitProcedure{},       // Visit Procedures
+			&models.VisitProcedureResult{}, // Visit Procedure Results
+			&models.CPPT{},                 // CPPT
+			&models.FluidBalance{},         // Fluid Balance
+			&models.NursingCare{},          // Nursing Care
+			&models.FallRiskAssessment{},   // Fall Risk
+			&models.BedTransfer{},          // Bed Transfer/Mutation
+			// Digital Signatures & Audit Trail
+			&models.SignatureLog{},      // Signature Activity Logs
+			&models.DocumentSignature{}, // Document Signature Status
+			&models.DocumentPDFCache{},  // Cached PDF blobs for cetakan
+			// Nutrition/Gizi Management
+			&models.NutritionMenu{},        // Master Menu Makanan
+			&models.NutritionPackage{},     // Master Paket Makanan
+			&models.NutritionPackageItem{}, // Item Paket Makanan
+			&models.NutritionOrder{},       // Order Gizi Pasien
+			&models.NutritionOrderItem{},   // Item Order Gizi
+		)
+
+		if err != nil {
+			return err
+		}
 	}
 
 	// Drop old unique index on nutrition_package_items if exists (replaced with regular composite index)
