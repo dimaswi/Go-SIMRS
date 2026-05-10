@@ -1047,6 +1047,7 @@ export default function VisitShow() {
 
     // Helper: Check if current visit is a support visit (pharmacy, radiology, lab, consultation order, surgery)
     const isSupportVisit = visitIsPharmacy || visitIsRadiology || visitIsLaboratory || visitIsConsultation || visitIsSurgery;
+    const allowsInpatientOrEmergencyCare = isInpatient || isEmergency;
     
     // Helper: Render message for wrong visit type
     const renderWrongVisitTypeMessage = (expectedType: string) => (
@@ -1178,9 +1179,9 @@ export default function VisitShow() {
         }
         return <ProcedureForm key={`procedure-${visit.id}`} visitId={visit.id} readOnly={isPatientDischarged} />;
       case "cppt":
-        // CPPT only for inpatient visits
-        if (!isInpatient) {
-          return renderWrongVisitTypeMessage("Rawat Inap");
+        // CPPT for inpatient and emergency visits
+        if (!allowsInpatientOrEmergencyCare) {
+          return renderWrongVisitTypeMessage("Rawat Inap / UGD");
         }
         if (!hasPermission("medical_records.cppt")) {
           return (
@@ -1193,9 +1194,9 @@ export default function VisitShow() {
         }
         return <CPPTForm key={`cppt-${visit.id}`} visitId={visit.id} readOnly={isPatientDischarged} />;
       case "nursing-care":
-        // Nursing care only for inpatient visits
-        if (!isInpatient) {
-          return renderWrongVisitTypeMessage("Rawat Inap");
+        // Nursing care for inpatient and emergency visits
+        if (!allowsInpatientOrEmergencyCare) {
+          return renderWrongVisitTypeMessage("Rawat Inap / UGD");
         }
         if (!hasPermission("medical_records.nursing_care")) {
           return (
@@ -1208,8 +1209,8 @@ export default function VisitShow() {
         }
         return <NursingCareForm key={`nursing-care-${visit.id}`} visitId={visit.id} readOnly={isPatientDischarged} />;
       case "fall-risk":
-        if (!isInpatient) {
-          return renderWrongVisitTypeMessage("Rawat Inap");
+        if (!allowsInpatientOrEmergencyCare) {
+          return renderWrongVisitTypeMessage("Rawat Inap / UGD");
         }
         if (!hasPermission("medical_records.fall_risk")) {
           return (
@@ -1222,14 +1223,14 @@ export default function VisitShow() {
         }
         return <FallRiskForm key={`fall-risk-${visit.id}`} visitId={visit.id} />;
       case "o2-usage":
-        if (!isInpatient) {
-          return renderWrongVisitTypeMessage("Rawat Inap");
+        if (!allowsInpatientOrEmergencyCare) {
+          return renderWrongVisitTypeMessage("Rawat Inap / UGD");
         }
         return <O2UsageForm key={`o2-usage-${visit.id}`} visitId={visit.id} readOnly={isPatientDischarged} />;
       case "fluid-balance":
-        // Fluid balance only for inpatient visits
-        if (!isInpatient) {
-          return renderWrongVisitTypeMessage("Rawat Inap");
+        // Fluid balance for inpatient and emergency visits
+        if (!allowsInpatientOrEmergencyCare) {
+          return renderWrongVisitTypeMessage("Rawat Inap / UGD");
         }
         if (!hasPermission("medical_records.fluid_balance")) {
           return (

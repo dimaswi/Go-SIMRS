@@ -1,11 +1,9 @@
-﻿import { useState, useEffect } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
-import { setPageTitle } from "@/lib/page-title";
+import { PageContent, PageHeader, PageShell } from "@/components/layout/page-shell";
+import { SectionPanel } from "@/components/layout/section-panel";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Command,
   CommandEmpty,
@@ -14,6 +12,8 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Popover,
   PopoverContent,
@@ -26,10 +26,54 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { permissionsApi } from "@/lib/api";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Loader2, Lock, FileText, Package, Tag, Check, ChevronsUpDown } from "lucide-react";
+import { permissionsApi } from "@/lib/api";
+import { setPageTitle } from "@/lib/page-title";
 import { cn } from "@/lib/utils";
+import { ArrowLeft, Check, ChevronsUpDown, FileText, Loader2, Lock, Package, Tag } from "lucide-react";
+
+const moduleOptions = [
+  "User Management",
+  "Role Management",
+  "Permission Management",
+  "Dashboard",
+  "System Settings",
+  "Profile Management",
+];
+
+const categoryOptions = [
+  "Users",
+  "Roles",
+  "Permissions",
+  "Analytics",
+  "Settings",
+  "Account",
+];
+
+const actionOptions = [
+  { id: 'view', label: 'View', description: 'Melihat atau membaca data.' },
+  { id: 'create', label: 'Create', description: 'Membuat data baru.' },
+  { id: 'update', label: 'Update', description: 'Mengubah data yang ada.' },
+  { id: 'delete', label: 'Delete', description: 'Menghapus data.' },
+  { id: 'assign', label: 'Assign', description: 'Memberikan atau mengaitkan akses.' },
+];
+
+function generatePermissionName(module: string, action: string) {
+  if (!module || !action) return "";
+
+  const moduleMap: Record<string, string> = {
+    "User Management": "users",
+    "Role Management": "roles",
+    "Permission Management": "permissions",
+    Dashboard: "dashboard",
+    "System Settings": "settings",
+    "Profile Management": "profile",
+  };
+
+  const moduleKey = moduleMap[module] || module.toLowerCase().replace(/\s+/g, "_");
+  return `${moduleKey}.${action}`;
+}
 
 export default function PermissionEdit() {
   const navigate = useNavigate();
@@ -37,84 +81,35 @@ export default function PermissionEdit() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
+  const [openModule, setOpenModule] = useState(false);
+  const [openCategory, setOpenCategory] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     module: "",
     category: "",
     description: "",
-    action: "", // Single action instead of array
+    action: "",
   });
-
-  const [openModule, setOpenModule] = useState(false);
-  const [openCategory, setOpenCategory] = useState(false);
-
-  // Predefined modules and categories for consistency
-  const moduleOptions = [
-    "User Management",
-    "Role Management", 
-    "Permission Management",
-    "Dashboard",
-    "System Settings",
-    "Profile Management"
-  ];
-
-  const categoryOptions = [
-    "Users",
-    "Roles", 
-    "Permissions",
-    "Analytics",
-    "Settings",
-    "Account"
-  ];
-
-  const actionOptions = [
-    { id: 'view', label: 'View', description: 'Melihat/membaca data' },
-    { id: 'create', label: 'Create', description: 'Membuat data baru' },
-    { id: 'update', label: 'Update', description: 'Mengubah data yang ada' },
-    { id: 'delete', label: 'Delete', description: 'Menghapus data' },
-    { id: 'assign', label: 'Assign', description: 'Memberikan permission' },
-  ];
-
-  // Generate permission name automatically based on module and action
-  const generatePermissionName = (module: string, action: string) => {
-    if (!module || !action) return "";
-    
-    const moduleMap: { [key: string]: string } = {
-      "User Management": "users",
-      "Role Management": "roles", 
-      "Permission Management": "permissions",
-      "Dashboard": "dashboard",
-      "System Settings": "settings",
-      "Profile Management": "profile"
-    };
-    
-    const moduleKey = moduleMap[module] || module.toLowerCase().replace(/\s+/g, '_');
-    return `${moduleKey}.${action}`;
-  };
-
-  // Auto-generate permission name when module or action change
-  useEffect(() => {
-    if (formData.module && formData.action) {
-      const generatedName = generatePermissionName(formData.module, formData.action);
-      setFormData(prev => ({ ...prev, name: generatedName }));
-    }
-  }, [formData.module, formData.action]);
 
   useEffect(() => {
     setPageTitle("Edit Permission");
     loadPermission();
   }, [id]);
 
+  useEffect(() => {
+    if (formData.module && formData.action) {
+      setFormData((current) => ({ ...current, name: generatePermissionName(current.module, current.action) }));
+    }
+  }, [formData.module, formData.action]);
+
   const loadPermission = async () => {
     try {
       setFetching(true);
       const response = await permissionsApi.getById(Number(id));
       const permission = response.data.data;
-      
-      // Parse actions array and get first action
       const actions = JSON.parse(permission.actions || '[]');
       const firstAction = actions.length > 0 ? actions[0] : '';
-      
+
       setFormData({
         name: permission.name || "",
         module: permission.module || "",
@@ -134,17 +129,17 @@ export default function PermissionEdit() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
     setLoading(true);
 
     try {
       const submitData = {
         ...formData,
-        actions: JSON.stringify([formData.action]) // Convert single action to array for backend
+        actions: JSON.stringify([formData.action]),
       };
-      delete (submitData as any).action; // Remove action field, use actions instead
-      
+      delete (submitData as any).action;
+
       await permissionsApi.update(Number(id), submitData);
       toast({
         variant: "success",
@@ -156,87 +151,80 @@ export default function PermissionEdit() {
       toast({
         variant: "destructive",
         title: "Error!",
-        description:
-          error.response?.data?.error || "Failed to update permission.",
+        description: error.response?.data?.error || "Failed to update permission.",
       });
     } finally {
       setLoading(false);
     }
   };
 
+  const selectedAction = useMemo(
+    () => actionOptions.find((action) => action.id === formData.action),
+    [formData.action]
+  );
+  const previewName = generatePermissionName(formData.module, formData.action);
+
   if (fetching) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className="flex h-full items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center gap-4">
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => window.history.back()}
-          className="h-9 w-9"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div>
-          <h1 className="text-lg font-semibold">
-            Informasi Permission
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Edit detail informasi permission
-          </p>
-        </div>
-      </div>
-      <div className="rounded-lg border p-6">
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+    <PageShell>
+      <PageHeader
+        title="Edit Permission"
+        description="Perbarui konteks, aksi, dan nama permission tanpa memutus pola penamaan yang sudah dipakai modul akses."
+        icon={Lock}
+        actions={
+          <Button type="button" variant="outline" onClick={() => navigate("/permissions")}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Kembali
+          </Button>
+        }
+      />
+
+      <PageContent className="flex-none space-y-6 pb-8">
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,0.95fr)]">
+            <SectionPanel
+              icon={Package}
+              title="Konteks Permission"
+              description="Pastikan modul, kategori, dan aksi masih sesuai dengan perilaku akses yang diwakili permission ini."
+              contentClassName="space-y-5"
+            >
+              <div className="grid gap-5 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium flex items-center gap-2">
-                    <Package className="h-4 w-4 text-muted-foreground" />
-                    Module
-                  </Label>
+                  <Label className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">Module</Label>
                   <Popover open={openModule} onOpenChange={setOpenModule}>
                     <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        role="combobox"
-                        aria-expanded={openModule}
-                        className="w-full justify-between h-10"
-                      >
+                      <Button variant="outline" role="combobox" aria-expanded={openModule} className="w-full justify-between">
                         {formData.module || "Pilih atau ketik module..."}
                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-[--radix-popover-trigger-width] min-w-[320px] p-0">
                       <Command>
-                        <CommandInput 
-                          placeholder="Cari atau ketik module baru..." 
+                        <CommandInput
+                          placeholder="Cari atau ketik module baru..."
                           value={formData.module}
-                          onValueChange={(value) => setFormData({ ...formData, module: value })}
+                          onValueChange={(value) => setFormData((current) => ({ ...current, module: value }))}
                         />
                         <CommandList>
-                          <CommandEmpty>Tidak ada module ditemukan. Tekan Enter untuk menambah module baru.</CommandEmpty>
+                          <CommandEmpty>Tidak ada module ditemukan.</CommandEmpty>
                           <CommandGroup>
                             {moduleOptions.map((module) => (
                               <CommandItem
                                 key={module}
                                 value={module}
                                 onSelect={(currentValue) => {
-                                  setFormData({ ...formData, module: currentValue });
+                                  setFormData((current) => ({ ...current, module: currentValue }));
                                   setOpenModule(false);
                                 }}
                               >
-                                <Check
-                                  className={cn(
-                                    "mr-2 h-4 w-4",
-                                    formData.module === module ? "opacity-100" : "opacity-0"
-                                  )}
-                                />
+                                <Check className={cn("mr-2 h-4 w-4", formData.module === module ? "opacity-100" : "opacity-0")} />
                                 {module}
                               </CommandItem>
                             ))}
@@ -248,47 +236,34 @@ export default function PermissionEdit() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium flex items-center gap-2">
-                    <Tag className="h-4 w-4 text-muted-foreground" />
-                    Category
-                  </Label>
+                  <Label className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">Category</Label>
                   <Popover open={openCategory} onOpenChange={setOpenCategory}>
                     <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        role="combobox"
-                        aria-expanded={openCategory}
-                        className="w-full justify-between h-10"
-                      >
+                      <Button variant="outline" role="combobox" aria-expanded={openCategory} className="w-full justify-between">
                         {formData.category || "Pilih atau ketik category..."}
                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-[--radix-popover-trigger-width] min-w-[320px] p-0">
                       <Command>
-                        <CommandInput 
-                          placeholder="Cari atau ketik category baru..." 
+                        <CommandInput
+                          placeholder="Cari atau ketik category baru..."
                           value={formData.category}
-                          onValueChange={(value) => setFormData({ ...formData, category: value })}
+                          onValueChange={(value) => setFormData((current) => ({ ...current, category: value }))}
                         />
                         <CommandList>
-                          <CommandEmpty>Tidak ada category ditemukan. Tekan Enter untuk menambah category baru.</CommandEmpty>
+                          <CommandEmpty>Tidak ada category ditemukan.</CommandEmpty>
                           <CommandGroup>
                             {categoryOptions.map((category) => (
                               <CommandItem
                                 key={category}
                                 value={category}
                                 onSelect={(currentValue) => {
-                                  setFormData({ ...formData, category: currentValue });
+                                  setFormData((current) => ({ ...current, category: currentValue }));
                                   setOpenCategory(false);
                                 }}
                               >
-                                <Check
-                                  className={cn(
-                                    "mr-2 h-4 w-4",
-                                    formData.category === category ? "opacity-100" : "opacity-0"
-                                  )}
-                                />
+                                <Check className={cn("mr-2 h-4 w-4", formData.category === category ? "opacity-100" : "opacity-0")} />
                                 {category}
                               </CommandItem>
                             ))}
@@ -301,15 +276,9 @@ export default function PermissionEdit() {
               </div>
 
               <div className="space-y-2">
-                <Label className="text-sm font-medium flex items-center gap-2">
-                  <Lock className="h-4 w-4 text-muted-foreground" />
-                  Action
-                </Label>
-                <Select
-                  value={formData.action}
-                  onValueChange={(value) => setFormData({ ...formData, action: value })}
-                >
-                  <SelectTrigger className="h-10">
+                <Label className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">Action</Label>
+                <Select value={formData.action} onValueChange={(value) => setFormData((current) => ({ ...current, action: value }))}>
+                  <SelectTrigger>
                     <SelectValue placeholder="Pilih action" />
                   </SelectTrigger>
                   <SelectContent>
@@ -324,65 +293,73 @@ export default function PermissionEdit() {
                   </SelectContent>
                 </Select>
               </div>
+            </SectionPanel>
 
+            <SectionPanel
+              icon={FileText}
+              title="Identitas Dan Preview"
+              description="Preview membantu memastikan nama permission tetap selaras dengan kombinasi modul dan aksi yang sedang dipilih."
+              contentClassName="space-y-5"
+            >
               <div className="space-y-2">
-                <Label
-                  htmlFor="name"
-                  className="text-sm font-medium flex items-center gap-2"
-                >
-                  <FileText className="h-4 w-4 text-muted-foreground" />
-                  Nama Permission (Auto-generated, bisa diedit)
+                <Label htmlFor="name" className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                  Nama Permission
                 </Label>
                 <Input
                   id="name"
                   required
-                  placeholder="e.g., users.view"
+                  placeholder="Contoh: users.view"
                   value={formData.name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, name: e.target.value })
-                  }
-                  className="h-10"
+                  onChange={(event) => setFormData((current) => ({ ...current, name: event.target.value }))}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label
-                  htmlFor="description"
-                  className="text-sm font-medium"
-                >
-                  Description (Optional)
+                <Label htmlFor="description" className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                  Deskripsi
                 </Label>
                 <Textarea
                   id="description"
-                  placeholder="Deskripsi permission..."
+                  placeholder="Deskripsikan apa yang diizinkan oleh permission ini..."
                   value={formData.description}
-                  onChange={(e) =>
-                    setFormData({ ...formData, description: e.target.value })
-                  }
-                  className="min-h-[80px]"
+                  onChange={(event) => setFormData((current) => ({ ...current, description: event.target.value }))}
+                  className="min-h-[140px]"
                 />
               </div>
 
-              <div className="flex gap-3 justify-end pt-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => navigate("/permissions")}
-                  className="h-10"
-                >
-                  Batal
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={loading}
-                  className="h-10 min-w-24"
-                >
-                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Update
-                </Button>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="border border-border/70 bg-muted/20 px-4 py-3 sm:col-span-2">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Preview Nama Otomatis</div>
+                  <p className="mt-2 font-mono text-sm font-medium text-foreground">{previewName || "Menunggu module dan action dipilih"}</p>
+                </div>
+                <div className="border border-border/70 bg-background px-4 py-3">
+                  <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                    <Tag className="h-3.5 w-3.5" /> Category
+                  </div>
+                  <p className="mt-2 text-sm font-medium text-foreground">{formData.category || "Belum dipilih"}</p>
+                </div>
+                <div className="border border-border/70 bg-background px-4 py-3">
+                  <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                    <Lock className="h-3.5 w-3.5" /> Action
+                  </div>
+                  <p className="mt-2 text-sm font-medium text-foreground">{selectedAction?.label || "Belum dipilih"}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{selectedAction?.description || 'Pilih aksi utama yang diizinkan oleh permission ini.'}</p>
+                </div>
               </div>
-            </form>
+            </SectionPanel>
           </div>
-    </div>
+
+          <div className="flex flex-wrap items-center justify-end gap-3 border-t border-border/70 pt-4">
+            <Button type="button" variant="outline" onClick={() => navigate("/permissions")}>
+              Batal
+            </Button>
+            <Button type="submit" disabled={loading} className="min-w-28">
+              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Update Permission
+            </Button>
+          </div>
+        </form>
+      </PageContent>
+    </PageShell>
   );
 }

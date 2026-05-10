@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { usePermission } from "@/hooks/usePermission";
 import { cn } from "@/lib/utils";
 import { Loader2, Save, User, Clock } from "lucide-react";
+import { OrderDetailInfoButton } from "./order-detail-info-button";
 import {
   Dialog,
   DialogContent,
@@ -369,11 +370,11 @@ export function ConsultationForm({
     <div>
       <div className="pt-2">
         {order && (
-          <div className="border border-border/70 bg-background mb-4">
-            <div className="flex flex-wrap items-center justify-between border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              <span>Detail Order Konsultasi</span>
-            </div>
-            <div className="p-3 sm:p-4 space-y-4">
+          <div className="mb-4 flex items-center justify-end">
+            <OrderDetailInfoButton
+              title="Detail Order Konsultasi"
+              tooltip="Lihat detail order konsultasi"
+            >
               <table className="w-full table-fixed text-xs">
                 <tbody>
                   <tr className="border-b">
@@ -474,7 +475,13 @@ export function ConsultationForm({
                   )}
                 </tbody>
               </table>
+            </OrderDetailInfoButton>
+          </div>
+        )}
 
+        {order && (
+          <div className="border border-border/70 bg-background mb-4">
+            <div className="p-3 sm:p-4 space-y-4">
               <div className="space-y-2 pt-2">
                 <div className="border border-border/70 overflow-x-auto">
                   <div className="max-h-[62vh] overflow-auto">

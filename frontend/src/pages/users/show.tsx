@@ -1,18 +1,25 @@
-﻿import { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { usersApi } from '@/lib/api';
-import { usePermission } from '@/hooks/usePermission';
-import { useToast } from '@/hooks/use-toast';
-import { ConfirmDialog } from '@/components/confirm-dialog';
-import { 
-  ArrowLeft, 
-  Loader2, 
-  Pencil, 
-  Trash2
-} from 'lucide-react';
-import { setPageTitle } from '@/lib/page-title';
+﻿import { useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+
+import { ConfirmDialog } from "@/components/confirm-dialog";
+import { PageContent, PageHeader, PageShell } from "@/components/layout/page-shell";
+import { SectionPanel } from "@/components/layout/section-panel";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { usePermission } from "@/hooks/usePermission";
+import { useToast } from "@/hooks/use-toast";
+import { usersApi } from "@/lib/api";
+import { setPageTitle } from "@/lib/page-title";
+import { ArrowLeft, Clock3, Pencil, Shield, Trash2, User } from "lucide-react";
+
+function DetailField({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="space-y-1.5">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
+      <p className={mono ? "font-mono text-sm text-foreground" : "text-sm font-medium text-foreground"}>{value}</p>
+    </div>
+  );
+}
 
 export default function UserShow() {
   const navigate = useNavigate();
@@ -25,7 +32,7 @@ export default function UserShow() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   useEffect(() => {
-    setPageTitle('Detail User');
+    setPageTitle("Detail User");
     loadUser();
   }, [id]);
 
@@ -58,7 +65,7 @@ export default function UserShow() {
         title: "Berhasil!",
         description: "User berhasil dihapus.",
       });
-      setTimeout(() => navigate('/users'), 500);
+      setTimeout(() => navigate("/users"), 500);
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -70,31 +77,31 @@ export default function UserShow() {
   };
 
   const formatDate = (dateString?: string) => {
-    if (!dateString) return '-';
-    return new Date(dateString).toLocaleDateString('id-ID', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+    if (!dateString) return "-";
+    return new Date(dateString).toLocaleDateString("id-ID", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     });
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="flex h-full items-center justify-center">
+        <Clock3 className="h-8 w-8 animate-pulse text-muted-foreground" />
       </div>
     );
   }
 
   if (!user) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className="flex h-full items-center justify-center">
         <div className="text-center">
           <p className="text-lg font-semibold">User tidak ditemukan</p>
-          <Button onClick={() => navigate('/users')} className="mt-4">
-            Kembali ke Daftar User
+          <Button onClick={() => navigate("/users")} className="mt-4">
+            Kembali ke daftar user
           </Button>
         </div>
       </div>
@@ -102,141 +109,97 @@ export default function UserShow() {
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => window.history.back()}
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div className="space-y-1">
-            <h1 className="text-lg font-semibold">
-              {user.full_name}
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              @{user.username} â€¢ {user.role?.name || 'No Role'}
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge variant={user.is_active ? "default" : "secondary"}>
-            {user.is_active ? 'Aktif' : 'Tidak Aktif'}
-          </Badge>
-          {hasPermission('users.update') && (
-            <Button 
-              variant="outline"
-              size="sm"
-              onClick={() => navigate(`/users/${id}/edit`)}
-            >
-              <Pencil className="mr-2 h-4 w-4" />
-              Edit
+    <PageShell>
+      <PageHeader
+        title={user.full_name}
+        description={`@${user.username} · ${user.role?.name || "Tanpa role"}`}
+        icon={User}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="outline" onClick={() => navigate("/users")}>
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Kembali
             </Button>
-          )}
-          {hasPermission('users.delete') && (
-            <Button 
-              variant="destructive"
-              size="sm"
-              onClick={handleDelete}
-              disabled={deleting}
-            >
-              {deleting ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
+            <Badge variant={user.is_active ? "default" : "secondary"} className="h-9 rounded-none px-3">
+              {user.is_active ? "Aktif" : "Tidak Aktif"}
+            </Badge>
+            {hasPermission("users.update") ? (
+              <Button type="button" variant="outline" onClick={() => navigate(`/users/${id}/edit`)}>
+                <Pencil className="mr-2 h-4 w-4" />
+                Edit
+              </Button>
+            ) : null}
+            {hasPermission("users.delete") ? (
+              <Button type="button" variant="destructive" onClick={handleDelete} disabled={deleting}>
                 <Trash2 className="mr-2 h-4 w-4" />
-              )}
-              Hapus
-            </Button>
-          )}
+                Hapus
+              </Button>
+            ) : null}
+          </div>
+        }
+      />
+
+      <PageContent className="flex-none space-y-6 pb-8">
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+          <SectionPanel
+            icon={User}
+            title="Profil User"
+            description="Ringkasan identitas akun, username login, dan keterkaitan ke data pegawai."
+          >
+            <div className="grid gap-5 md:grid-cols-2">
+              <DetailField label="Nama Lengkap" value={user.full_name || "-"} />
+              <DetailField label="Username" value={user.username ? `@${user.username}` : "-"} mono />
+              <DetailField label="Email" value={user.email || "-"} />
+              <DetailField label="Pegawai Terkait" value={user.employee?.nama_lengkap || "-"} />
+            </div>
+          </SectionPanel>
+
+          <SectionPanel
+            icon={Shield}
+            title="Role Aktif"
+            description="Role menentukan permission utama yang diterima user dari modul akses."
+          >
+            <div className="grid gap-5 md:grid-cols-2">
+              <DetailField label="Nama Role" value={user.role?.name || "-"} />
+              <DetailField label="Total Permission" value={`${user.role?.permissions?.length || 0} permission`} />
+              <DetailField label="Deskripsi Role" value={user.role?.description || "-"} />
+              <DetailField label="Status Akun" value={user.is_active ? "Aktif" : "Tidak Aktif"} />
+            </div>
+          </SectionPanel>
         </div>
-      </div>
-      <div className="rounded-lg border p-6">
-          {/* Informasi User */}
-          <div className="mb-6">
-            <h3 className="text-sm font-medium text-muted-foreground mb-4">INFORMASI USER</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-              <div>
-                <label className="text-xs text-muted-foreground">Nama Lengkap</label>
-                <p className="font-medium text-sm">{user.full_name}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Username</label>
-                <p className="font-medium text-sm">{user.username}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Email</label>
-                <p className="font-medium text-sm">{user.email}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Pegawai Terkait</label>
-                <p className="font-medium text-sm">
-                  {user.employee ? user.employee.nama_lengkap : '-'}
-                </p>
-              </div>
+
+        <SectionPanel
+          icon={Shield}
+          title="Permission Yang Diterima"
+          description="Daftar hak akses yang diturunkan dari role user saat ini."
+        >
+          {user.role?.permissions?.length ? (
+            <div className="flex flex-wrap gap-2">
+              {user.role.permissions.map((permission: any) => (
+                <Badge key={permission.id} variant="outline" className="rounded-none px-3 py-1.5 text-[11px] uppercase tracking-[0.16em]">
+                  {permission.name}
+                </Badge>
+              ))}
             </div>
-          </div>
-
-          <hr className="border-border/50 my-6" />
-
-          {/* Role */}
-          <div className="mb-6">
-            <h3 className="text-sm font-medium text-muted-foreground mb-4">ROLE</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-              <div>
-                <label className="text-xs text-muted-foreground">Nama Role</label>
-                <p className="font-medium text-sm">{user.role?.name || '-'}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Deskripsi</label>
-                <p className="font-medium text-sm">{user.role?.description || '-'}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Total Permission</label>
-                <p className="font-medium text-sm">{user.role?.permissions?.length || 0} permission</p>
-              </div>
+          ) : (
+            <div className="border border-dashed border-border/70 px-5 py-8 text-center text-sm text-muted-foreground">
+              Role ini belum memiliki permission.
             </div>
-          </div>
-
-          {/* Daftar Permission */}
-          {user.role?.permissions && user.role.permissions.length > 0 && (
-            <>
-              <hr className="border-border/50 my-6" />
-              <div className="mb-6">
-                <h3 className="text-sm font-medium text-muted-foreground mb-4">DAFTAR PERMISSION</h3>
-                <div className="flex flex-wrap gap-2">
-                  {user.role.permissions.map((perm: any) => (
-                    <Badge key={perm.id} variant="outline" className="text-xs">
-                      {perm.name}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-            </>
           )}
+        </SectionPanel>
 
-          <hr className="border-border/50 my-6" />
-
-          {/* Informasi Sistem */}
-          <div>
-            <h3 className="text-sm font-medium text-muted-foreground mb-4">INFORMASI SISTEM</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-              <div>
-                <label className="text-xs text-muted-foreground">ID User</label>
-                <p className="font-medium text-sm">#{user.id}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Dibuat</label>
-                <p className="font-medium text-sm">{formatDate(user.created_at)}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Terakhir Diperbarui</label>
-                <p className="font-medium text-sm">{formatDate(user.updated_at)}</p>
-              </div>
-            </div>
+        <SectionPanel
+          icon={Clock3}
+          title="Audit Sistem"
+          description="Waktu pembuatan dan perubahan terakhir untuk kebutuhan penelusuran administrasi."
+        >
+          <div className="grid gap-5 md:grid-cols-3">
+            <DetailField label="ID User" value={`#${user.id}`} mono />
+            <DetailField label="Dibuat" value={formatDate(user.created_at)} />
+            <DetailField label="Terakhir Diperbarui" value={formatDate(user.updated_at)} />
           </div>
-      </div>
+        </SectionPanel>
+      </PageContent>
 
       <ConfirmDialog
         open={deleteDialogOpen}
@@ -248,6 +211,6 @@ export default function UserShow() {
         cancelText="Batal"
         variant="destructive"
       />
-    </div>
+    </PageShell>
   );
 }

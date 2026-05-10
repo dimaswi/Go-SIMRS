@@ -31,6 +31,8 @@ interface SelectedItemsTableProps {
   showBatch?: boolean;
   showExpiry?: boolean;
   emptyMessage?: string;
+  className?: string;
+  scrollAreaClassName?: string;
 }
 
 export function SelectedItemsTable({
@@ -42,6 +44,8 @@ export function SelectedItemsTable({
   showBatch = false,
   showExpiry = false,
   emptyMessage = "Belum ada item ditambahkan",
+  className,
+  scrollAreaClassName,
 }: SelectedItemsTableProps) {
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
   const [bulkQty, setBulkQty] = useState<number>(1);
@@ -98,7 +102,7 @@ export function SelectedItemsTable({
   }
 
   return (
-    <div className="space-y-3">
+    <div className={cn("space-y-3", className)}>
       {/* Bulk Actions */}
       {selectedRows.size > 0 && (
         <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-md">
@@ -161,7 +165,7 @@ export function SelectedItemsTable({
       )}
 
       {/* Table */}
-      <ScrollArea className="h-[350px] border rounded-md">
+      <ScrollArea className={cn("h-[350px] rounded-md border", scrollAreaClassName)}>
         <Table>
           <TableHeader className="sticky top-0 bg-background z-10">
             <TableRow>

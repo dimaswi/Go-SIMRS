@@ -1,15 +1,17 @@
-﻿import { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+﻿import { useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
-import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
-import { usersApi, rolesApi, employeesApi, type Employee } from '@/lib/api';
-import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Loader2, User, Shield, Users } from 'lucide-react';
-import { setPageTitle } from '@/lib/page-title';
+import { PageContent, PageHeader, PageShell } from "@/components/layout/page-shell";
+import { SectionPanel } from "@/components/layout/section-panel";
+import { Button } from "@/components/ui/button";
+import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { useToast } from "@/hooks/use-toast";
+import { employeesApi, rolesApi, usersApi, type Employee } from "@/lib/api";
+import { setPageTitle } from "@/lib/page-title";
+import { ArrowLeft, Loader2, Shield, User, Users } from "lucide-react";
 
 export default function UserEdit() {
   const navigate = useNavigate();
@@ -20,14 +22,14 @@ export default function UserEdit() {
   const [roles, setRoles] = useState<any[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [formData, setFormData] = useState({
-    full_name: '',
-    role_id: '',
-    employee_id: '',
+    full_name: "",
+    role_id: "",
+    employee_id: "",
     is_active: true,
   });
 
   useEffect(() => {
-    setPageTitle('Edit User');
+    setPageTitle("Edit User");
     loadData();
   }, [id]);
 
@@ -42,7 +44,7 @@ export default function UserEdit() {
       setFormData({
         full_name: user.full_name,
         role_id: String(user.role_id),
-        employee_id: user.employee_id ? String(user.employee_id) : '',
+        employee_id: user.employee_id ? String(user.employee_id) : "",
         is_active: user.is_active,
       });
       setRoles(rolesRes.data.data);
@@ -58,10 +60,10 @@ export default function UserEdit() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
     setLoading(true);
-    
+
     try {
       await usersApi.update(Number(id), {
         ...formData,
@@ -73,7 +75,7 @@ export default function UserEdit() {
         title: "Berhasil!",
         description: "User berhasil diperbarui.",
       });
-      setTimeout(() => navigate('/users'), 500);
+      setTimeout(() => navigate("/users"), 500);
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -85,45 +87,46 @@ export default function UserEdit() {
     }
   };
 
-  // Convert employees to ComboboxOption format
-  const employeeOptions: ComboboxOption[] = employees.map(emp => ({
-    value: String(emp.id),
-    label: `${emp.nama_lengkap} (${emp.nip || emp.nik})`,
+  const employeeOptions: ComboboxOption[] = employees.map((employee) => ({
+    value: String(employee.id),
+    label: `${employee.nama_lengkap} (${employee.nip || employee.nik})`,
   }));
+
+  const selectedRole = roles.find((role) => String(role.id) === formData.role_id);
+  const selectedEmployee = employees.find((employee) => String(employee.id) === formData.employee_id);
 
   if (fetching) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className="flex h-full items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center gap-4">
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => window.history.back()}
-          className="h-9 w-9"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div>
-          <h1 className="text-lg font-semibold">
-            Informasi User
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Update detail informasi user
-          </p>
-        </div>
-      </div>
-      <div className="rounded-lg border p-6">
-            <form onSubmit={handleSubmit} className="space-y-5">
+    <PageShell>
+      <PageHeader
+        title="Edit User"
+        description="Perbarui identitas user, role aktif, dan keterkaitan pegawai tanpa mengubah alur operasional akun."
+        icon={User}
+        actions={
+          <Button type="button" variant="outline" onClick={() => navigate("/users")}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Kembali
+          </Button>
+        }
+      />
+
+      <PageContent className="flex-none space-y-6 pb-8">
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+            <SectionPanel
+              icon={User}
+              title="Profil User"
+              description="Perbarui nama yang tampil di aplikasi untuk akun ini."
+            >
               <div className="space-y-2">
-                <Label htmlFor="full_name" className="text-xs font-medium flex items-center gap-2">
-                  <User className="h-3.5 w-3.5 text-muted-foreground" />
+                <Label htmlFor="full_name" className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
                   Nama Lengkap
                 </Label>
                 <Input
@@ -131,87 +134,95 @@ export default function UserEdit() {
                   required
                   placeholder="Masukkan nama lengkap"
                   value={formData.full_name}
-                  onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-                  className="h-9 text-sm"
+                  onChange={(event) => setFormData((current) => ({ ...current, full_name: event.target.value }))}
                 />
               </div>
+            </SectionPanel>
 
-              <div className="space-y-2">
-                <Label htmlFor="role_id" className="text-xs font-medium flex items-center gap-2">
-                  <Shield className="h-3.5 w-3.5 text-muted-foreground" />
-                  Role
-                </Label>
-                <select
-                  id="role_id"
-                  required
-                  value={formData.role_id}
-                  onChange={(e) => setFormData({ ...formData, role_id: e.target.value })}
-                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {roles.map((role) => (
-                    <option key={role.id} value={role.id}>
-                      {role.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="employee_id" className="text-xs font-medium flex items-center gap-2">
-                  <Users className="h-3.5 w-3.5 text-muted-foreground" />
-                  Pegawai Terkait
-                  <span className="text-muted-foreground font-normal">(Opsional)</span>
-                </Label>
-                <Combobox
-                  options={employeeOptions}
-                  value={formData.employee_id}
-                  onValueChange={(value) => setFormData({ ...formData, employee_id: value })}
-                  placeholder="Pilih pegawai..."
-                  searchPlaceholder="Cari pegawai..."
-                  emptyText="Pegawai tidak ditemukan"
-                  className="h-9"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Hubungkan user ini dengan data pegawai yang sudah ada
-                </p>
-              </div>
-
-              <div className="flex items-center justify-between rounded-lg border p-4">
-                <div className="space-y-0.5">
-                  <Label htmlFor="is_active" className="text-xs font-medium cursor-pointer">
-                    Status Akun
+            <div className="space-y-6">
+              <SectionPanel
+                icon={Shield}
+                title="Akses Dan Keterkaitan"
+                description="Sinkronkan role dan data pegawai yang terkait dengan akun ini."
+                contentClassName="space-y-5"
+              >
+                <div className="space-y-2">
+                  <Label htmlFor="role_id" className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                    Role
                   </Label>
-                  <p className="text-xs text-muted-foreground">
-                    {formData.is_active ? 'Akun aktif' : 'Akun tidak aktif'}
-                  </p>
+                  <select
+                    id="role_id"
+                    required
+                    value={formData.role_id}
+                    onChange={(event) => setFormData((current) => ({ ...current, role_id: event.target.value }))}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  >
+                    <option value="">Pilih role</option>
+                    {roles.map((role) => (
+                      <option key={role.id} value={role.id}>
+                        {role.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-                <Switch
-                  id="is_active"
-                  checked={formData.is_active}
-                  onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
-                />
-              </div>
 
-              <div className="flex gap-3 justify-end">
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  onClick={() => navigate('/users')}
-                  className="h-9 text-sm"
-                >
-                  Batal
-                </Button>
-                <Button 
-                  type="submit" 
-                  disabled={loading}
-                  className="h-9 text-sm min-w-24"
-                >
-                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Update
-                </Button>
-              </div>
-            </form>
-      </div>
-    </div>
+                <div className="space-y-2">
+                  <Label htmlFor="employee_id" className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                    Pegawai Terkait
+                  </Label>
+                  <Combobox
+                    options={employeeOptions}
+                    value={formData.employee_id}
+                    onValueChange={(value) => setFormData((current) => ({ ...current, employee_id: value }))}
+                    placeholder="Pilih pegawai..."
+                    searchPlaceholder="Cari pegawai..."
+                    emptyText="Pegawai tidak ditemukan"
+                  />
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="border border-border/70 bg-muted/20 px-4 py-3">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Role Aktif</div>
+                    <p className="mt-2 text-sm font-medium text-foreground">{selectedRole?.name || "Belum dipilih"}</p>
+                  </div>
+                  <div className="border border-border/70 bg-muted/20 px-4 py-3">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Pegawai Terkait</div>
+                    <p className="mt-2 text-sm font-medium text-foreground">{selectedEmployee?.nama_lengkap || "Belum dihubungkan"}</p>
+                  </div>
+                </div>
+              </SectionPanel>
+
+              <SectionPanel
+                icon={Users}
+                title="Status Akun"
+                description="Nonaktifkan akun jika tidak lagi dipakai untuk akses harian."
+              >
+                <div className="flex items-center justify-between gap-4 border border-border/70 bg-muted/10 px-4 py-4">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">{formData.is_active ? "Akun aktif" : "Akun tidak aktif"}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Perubahan status tersimpan bersama update user ini.</p>
+                  </div>
+                  <Switch
+                    id="is_active"
+                    checked={formData.is_active}
+                    onCheckedChange={(checked) => setFormData((current) => ({ ...current, is_active: checked }))}
+                  />
+                </div>
+              </SectionPanel>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-end gap-3 border-t border-border/70 pt-4">
+            <Button type="button" variant="outline" onClick={() => navigate("/users")}>
+              Batal
+            </Button>
+            <Button type="submit" disabled={loading} className="min-w-28">
+              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Update User
+            </Button>
+          </div>
+        </form>
+      </PageContent>
+    </PageShell>
   );
 }

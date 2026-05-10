@@ -45,6 +45,7 @@ import {
 } from "lucide-react";
 import { procedureOrdersApi, PROCEDURE_ORDER_STATUS } from "@/lib/api";
 import type { ProcedureOrder, ProcedureOrderItem, Procedure } from "@/lib/api/procedure-orders";
+import { OrderDetailInfoButton } from "./order-detail-info-button";
 
 interface ProcedureEditOrderProps {
   visitId: number;
@@ -388,15 +389,8 @@ export function ProcedureEditOrder({
 
         {selectedOrder && (
           <div className="space-y-4">
-            {/* Order Info */}
-            <div className="border border-border/70 bg-background mb-4">
-              <div className="flex flex-wrap items-center justify-between border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                <span>Detail Order {orderTypeConfig.title}</span>
-                <div className="flex items-center gap-2">
-                  {getStatusBadge(selectedOrder.status)}
-                </div>
-              </div>
-              <div className="p-3 sm:p-4 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <OrderDetailInfoButton title={`Detail Order ${orderTypeConfig.title}`} tooltip={`Lihat detail order ${orderTypeConfig.title.toLowerCase()}`}>
                 <table className="w-full table-fixed text-xs">
                   <tbody>
                     <tr className="border-b">
@@ -437,6 +431,9 @@ export function ProcedureEditOrder({
                     )}
                   </tbody>
                 </table>
+              </OrderDetailInfoButton>
+              <div className="flex items-center gap-2">
+                {getStatusBadge(selectedOrder.status)}
               </div>
             </div>
 

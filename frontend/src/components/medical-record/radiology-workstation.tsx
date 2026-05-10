@@ -35,6 +35,7 @@ import type { VisitProcedure } from "@/lib/api/visit-procedures";
 import { usePINVerification, PINVerificationDialog } from "./edit-mode-controller";
 import { SignaturePINDialog } from "@/components/signature/signature-pin-dialog";
 import { RevokePINDialog } from "@/components/signature/revoke-pin-dialog";
+import { OrderDetailInfoButton } from "./order-detail-info-button";
 import { formatPatientName } from "@/lib/print-utils";
 import { cn } from "@/lib/utils";
 
@@ -544,10 +545,126 @@ export function RadiologyWorkstation({
     <div className="space-y-4">
       {/* Selected Order */}
       {selectedOrder && (
-        <div className="border border-border/70 bg-background">
-          <div className="flex flex-wrap items-center justify-between border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            <span>Detail Order Radiologi</span>
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <OrderDetailInfoButton title="Detail Order Radiologi" tooltip="Lihat detail order radiologi">
+              <table className="w-full table-fixed text-xs">
+                <tbody>
+                  <tr className="border-b">
+                    <td className="py-1.5 text-muted-foreground w-28 align-top">Nama Pasien</td>
+                    <td className="py-1.5 font-medium break-words">
+                      {formatPatientName(
+                        selectedOrder.source_visit?.registration?.patient?.nama_lengkap ||
+                          selectedOrder.registration?.patient?.nama_lengkap,
+                        selectedOrder.source_visit?.registration?.patient?.jenis_kelamin ||
+                          selectedOrder.registration?.patient?.jenis_kelamin,
+                        undefined,
+                        selectedOrder.source_visit?.registration?.patient?.tanggal_lahir ||
+                          selectedOrder.registration?.patient?.tanggal_lahir,
+                      ) || "-"}
+                    </td>
+                  </tr>
+                  <tr className="border-b">
+                    <td className="py-1.5 text-muted-foreground w-28 align-top">No. RM</td>
+                    <td className="py-1.5 font-medium break-words">
+                      {selectedOrder.source_visit?.registration?.patient?.no_rm ||
+                        selectedOrder.registration?.patient?.no_rm || "-"}
+                    </td>
+                  </tr>
+                  <tr className="border-b">
+                    <td className="py-1.5 text-muted-foreground w-28 align-top">Dokter</td>
+                    <td className="py-1.5 font-medium break-words">
+                      {rmDuplicateMode ? (
+                        <span className="inline-flex items-center gap-1">
+                          <span className="font-medium">
+                            {selectedOrder.ordered_by?.nama_lengkap || "-"}
+                          </span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-5 w-5"
+                            title="Pilih dokter"
+                            onClick={() => {
+                              setPendingDoctorName(
+                                selectedOrder.ordered_by?.nama_lengkap || "",
+                              );
+                              setDoctorSearch("");
+                              setDoctorModalOpen(true);
+                            }}
+                          >
+                            <User className="h-3 w-3" />
+                          </Button>
+                        </span>
+                      ) : (
+                        selectedOrder.ordered_by?.nama_lengkap || "-"
+                      )}
+                    </td>
+                  </tr>
+                  <tr className="border-b">
+                    <td className="py-1.5 text-muted-foreground w-28 align-top">Tanggal Order</td>
+                    <td className="py-1.5 font-medium break-words">
+                      {rmDuplicateMode ? (
+                        <span className="inline-flex items-center gap-1">
+                          <span className="font-medium">
+                            {selectedOrder.created_at
+                              ? new Date(selectedOrder.created_at).toLocaleString("id-ID")
+                              : "-"}
+                          </span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-5 w-5"
+                            title="Set tanggal order"
+                            onClick={() => {
+                              setPendingOrderDate(
+                                (selectedOrder.created_at || "")
+                                  .replace(" ", "T")
+                                  .slice(0, 16),
+                              );
+                              setDateModalOpen(true);
+                            }}
+                          >
+                            <Clock className="h-3 w-3" />
+                          </Button>
+                        </span>
+                      ) : (
+                        <span>{new Date(selectedOrder.created_at).toLocaleString("id-ID")}</span>
+                      )}
+                      {selectedOrder.priority !== "normal" && (
+                        <Badge variant="destructive" className="text-xs ml-1">{selectedOrder.priority.toUpperCase()}</Badge>
+                      )}
+                    </td>
+                  </tr>
+                  <tr className="border-b">
+                    <td className="py-1.5 text-muted-foreground w-28 align-top">No. Order</td>
+                    <td className="py-1.5 font-medium break-words">{selectedOrder.order_number}</td>
+                  </tr>
+                  <tr className="border-b">
+                    <td className="py-1.5 text-muted-foreground align-top">Jumlah Item</td>
+                    <td className="py-1.5 font-medium break-words">
+                      {selectedOrder.items?.filter((item) => item.status === "completed").length || 0}/
+                      {selectedOrder.items?.length || 0} selesai
+                    </td>
+                  </tr>
+                  {selectedOrder.diagnosis && (
+                    <tr className="border-b">
+                      <td className="py-1.5 text-muted-foreground align-top">Diagnosis</td>
+                      <td className="py-1.5 font-medium break-words">{selectedOrder.diagnosis}</td>
+                    </tr>
+                  )}
+                  {selectedOrder.clinical_notes && (
+                    <tr>
+                      <td className="py-1.5 text-muted-foreground align-top">Catatan Klinis</td>
+                      <td className="py-1.5 font-medium break-words">{selectedOrder.clinical_notes}</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </OrderDetailInfoButton>
             <div className="flex items-center gap-2">
+              {getStatusBadge(selectedOrder.status)}
               {canPerform && selectedOrder.status === "pending" && (
                 <Button onClick={handleStartOrder} disabled={submitting} size="sm" className="h-6 text-[10px] py-0 px-2">
                   {submitting ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Play className="h-3 w-3 mr-1" />}
@@ -556,122 +673,7 @@ export function RadiologyWorkstation({
               )}
             </div>
           </div>
-          <div className="p-3 sm:p-4 space-y-4">
-            <table className="w-full table-fixed text-xs">
-              <tbody>
-                <tr className="border-b">
-                  <td className="py-1.5 text-muted-foreground w-28 align-top">Nama Pasien</td>
-                  <td className="py-1.5 font-medium break-words">
-                    {formatPatientName(
-                      selectedOrder.source_visit?.registration?.patient?.nama_lengkap ||
-                        selectedOrder.registration?.patient?.nama_lengkap,
-                      selectedOrder.source_visit?.registration?.patient?.jenis_kelamin ||
-                        selectedOrder.registration?.patient?.jenis_kelamin,
-                      undefined,
-                      selectedOrder.source_visit?.registration?.patient?.tanggal_lahir ||
-                        selectedOrder.registration?.patient?.tanggal_lahir,
-                    ) || "-"}
-                  </td>
-                </tr>
-                <tr className="border-b">
-                  <td className="py-1.5 text-muted-foreground w-28 align-top">No. RM</td>
-                  <td className="py-1.5 font-medium break-words">
-                    {selectedOrder.source_visit?.registration?.patient?.no_rm ||
-                      selectedOrder.registration?.patient?.no_rm || "-"}
-                  </td>
-                </tr>
-                <tr className="border-b">
-                  <td className="py-1.5 text-muted-foreground w-28 align-top">Dokter</td>
-                  <td className="py-1.5 font-medium break-words">
-                    {rmDuplicateMode ? (
-                      <span className="inline-flex items-center gap-1">
-                        <span className="font-medium">
-                          {selectedOrder.ordered_by?.nama_lengkap || "-"}
-                        </span>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-5 w-5"
-                          title="Pilih dokter"
-                          onClick={() => {
-                            setPendingDoctorName(
-                              selectedOrder.ordered_by?.nama_lengkap || "",
-                            );
-                            setDoctorSearch("");
-                            setDoctorModalOpen(true);
-                          }}
-                        >
-                          <User className="h-3 w-3" />
-                        </Button>
-                      </span>
-                    ) : (
-                      selectedOrder.ordered_by?.nama_lengkap || "-"
-                    )}
-                  </td>
-                </tr>
-                <tr className="border-b">
-                  <td className="py-1.5 text-muted-foreground w-28 align-top">Tanggal Order</td>
-                  <td className="py-1.5 font-medium break-words">
-                    {rmDuplicateMode ? (
-                      <span className="inline-flex items-center gap-1">
-                        <span className="font-medium">
-                          {selectedOrder.created_at
-                            ? new Date(selectedOrder.created_at).toLocaleString("id-ID")
-                            : "-"}
-                        </span>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-5 w-5"
-                          title="Set tanggal order"
-                          onClick={() => {
-                            setPendingOrderDate(
-                              (selectedOrder.created_at || "")
-                                .replace(" ", "T")
-                                .slice(0, 16),
-                            );
-                            setDateModalOpen(true);
-                          }}
-                        >
-                          <Clock className="h-3 w-3" />
-                        </Button>
-                      </span>
-                    ) : (
-                      <span>{new Date(selectedOrder.created_at).toLocaleString("id-ID")}</span>
-                    )}
-                    {selectedOrder.priority !== "normal" && (
-                      <Badge variant="destructive" className="text-xs ml-1">{selectedOrder.priority.toUpperCase()}</Badge>
-                    )}
-                  </td>
-                </tr>
-                <tr className="border-b">
-                  <td className="py-1.5 text-muted-foreground w-28 align-top">No. Order</td>
-                  <td className="py-1.5 font-medium break-words">{selectedOrder.order_number}</td>
-                </tr>
-                <tr className="border-b">
-                  <td className="py-1.5 text-muted-foreground align-top">Jumlah Item</td>
-                  <td className="py-1.5 font-medium break-words">
-                    {selectedOrder.items?.filter((item) => item.status === "completed").length || 0}/
-                    {selectedOrder.items?.length || 0} selesai
-                  </td>
-                </tr>
-                {selectedOrder.diagnosis && (
-                  <tr className="border-b">
-                    <td className="py-1.5 text-muted-foreground align-top">Diagnosis</td>
-                    <td className="py-1.5 font-medium break-words">{selectedOrder.diagnosis}</td>
-                  </tr>
-                )}
-                {selectedOrder.clinical_notes && (
-                  <tr>
-                    <td className="py-1.5 text-muted-foreground align-top">Catatan Klinis</td>
-                    <td className="py-1.5 font-medium break-words">{selectedOrder.clinical_notes}</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-
+          <div className="border border-border/70 bg-background p-3 sm:p-4 space-y-4">
                 {/* Results Table - Inline Edit */}
                 {/* Results Table - Inline Edit */}
                 <div className="border border-border/70 overflow-x-auto mt-4">

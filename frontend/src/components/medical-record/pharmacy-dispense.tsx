@@ -26,6 +26,7 @@ import {
 import { medicineOrdersApi, signatureApi, DOCUMENT_TYPES } from "@/lib/api";
 import type { MedicineOrder, MedicineOrderItem } from "@/lib/api";
 import { SignaturePINDialog } from "@/components/signature/signature-pin-dialog";
+import { OrderDetailInfoButton } from "./order-detail-info-button";
 
 const FOOTER_ACTION_EVENT = "medical-record-footer-action";
 
@@ -496,18 +497,8 @@ export function PharmacyDispense({
 
         {selectedOrder && (
           <>
-            {/* Patient & Order Info Table */}
-            <div className="border border-border/70 bg-background mb-4">
-              <div className="flex flex-wrap items-center justify-between border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                <span>Detail Order Farmasi</span>
-                <div className="flex items-center gap-2">
-                  {rmDuplicateMode && <Badge variant="outline" className="text-[10px] h-5 px-1.5 py-0">Mode RM Duplikat</Badge>}
-                  <Badge variant={ORDER_STATUS_LABELS[selectedOrder.status]?.variant || "secondary"} className="text-[10px] h-5 px-1.5 py-0">
-                    {ORDER_STATUS_LABELS[selectedOrder.status]?.label || selectedOrder.status}
-                  </Badge>
-                </div>
-              </div>
-              <div className="p-3 sm:p-4 space-y-4">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+              <OrderDetailInfoButton title="Detail Order Farmasi" tooltip="Lihat detail order farmasi">
                 <table className="w-full table-fixed text-xs">
                   <tbody>
                     <tr className="border-b">
@@ -548,6 +539,12 @@ export function PharmacyDispense({
                     </tr>
                   </tbody>
                 </table>
+              </OrderDetailInfoButton>
+              <div className="flex items-center gap-2">
+                {rmDuplicateMode && <Badge variant="outline" className="text-[10px] h-5 px-1.5 py-0">Mode RM Duplikat</Badge>}
+                <Badge variant={ORDER_STATUS_LABELS[selectedOrder.status]?.variant || "secondary"} className="text-[10px] h-5 px-1.5 py-0">
+                  {ORDER_STATUS_LABELS[selectedOrder.status]?.label || selectedOrder.status}
+                </Badge>
               </div>
             </div>
 

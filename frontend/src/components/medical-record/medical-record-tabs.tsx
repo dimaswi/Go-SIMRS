@@ -83,6 +83,7 @@ export function MedicalRecordTabs({
   const [draggingTabId, setDraggingTabId] = useState<string | null>(null);
   const [dragOverTabId, setDragOverTabId] = useState<string | null>(null);
   const [dragOverPosition, setDragOverPosition] = useState<"before" | "after">("before");
+  const showsInpatientOrEmergencyCareTabs = isInpatient || isEmergency;
 
   // Tabs for pharmacy visits
   const pharmacyTabs: Tab[] = [
@@ -240,13 +241,13 @@ export function MedicalRecordTabs({
       permission: "medical_records.medicine_order",
       section: "order",
     },
-    {
+    [{
       id: "medicine-timesheet",
       label: "Timesheet Obat",
       icon: <Clock3 />,
       permission: "medical_records.medicine_order",
       section: "care",
-    },
+    }],
     // Procedure tab - show for clinical visits (rawat_jalan, rawat_inap, gawat_darurat)
     ...(showProcedureTab ? [{
       id: "procedure",
@@ -292,39 +293,39 @@ export function MedicalRecordTabs({
       section: "order",
     }] : []),
     // CPPT tab - show for rawat_inap only
-    ...(isInpatient ? [{
+    ...(showsInpatientOrEmergencyCareTabs ? [{
       id: "cppt",
       label: "CPPT",
       icon: <ClipboardCheck />,
       permission: "medical_records.cppt",
       section: "care",
     }] : []),
-    // Nursing Care tab - show for rawat_inap only
-    ...(isInpatient ? [{
+    // Nursing Care tab - show for rawat_inap and UGD
+    ...(showsInpatientOrEmergencyCareTabs ? [{
       id: "nursing-care",
       label: "Asuhan Keperawatan",
       icon: <HeartPulse />,
       permission: "medical_records.nursing_care",
       section: "care",
     }] : []),
-    // Fall Risk tab - show for rawat_inap only
-    ...(isInpatient ? [{
+    // Fall Risk tab - show for rawat_inap and UGD
+    ...(showsInpatientOrEmergencyCareTabs ? [{
       id: "fall-risk",
       label: "Risiko Jatuh",
       icon: <AlertTriangle />,
       permission: "medical_records.fall_risk",
       section: "care",
     }] : []),
-    // O2 Usage tab - show for rawat_inap only
-    ...(isInpatient ? [{
+    // O2 Usage tab - show for rawat_inap and UGD
+    ...(showsInpatientOrEmergencyCareTabs ? [{
       id: "o2-usage",
       label: "Oksigen",
       icon: <Wind />,
       permission: "medical_records.nursing_care",
       section: "care",
     }] : []),
-    // Fluid Balance tab - show for rawat_inap only
-    ...(isInpatient ? [{
+    // Fluid Balance tab - show for rawat_inap and UGD
+    ...(showsInpatientOrEmergencyCareTabs ? [{
       id: "fluid-balance",
       label: "Balance Cairan",
       icon: <Droplets />,

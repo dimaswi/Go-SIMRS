@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, type ComponentType, type ReactNode } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Building2, FileText, Loader2, MapPin, Package, Pill } from "lucide-react";
 
@@ -16,6 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
+import { SectionPanel } from "@/components/layout/section-panel";
 import { useToast } from "@/hooks/use-toast";
 import { setPageTitle } from "@/lib/page-title";
 import {
@@ -34,40 +35,6 @@ interface EditItem {
   quantity_ordered: number;
   unit_price: number;
   notes: string;
-}
-
-function SectionPanel({
-  icon: Icon,
-  title,
-  description,
-  actions,
-  children,
-}: {
-  icon: ComponentType<{ className?: string }>;
-  title: string;
-  description: string;
-  actions?: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <div className="border border-border/70 bg-background/95 shadow-sm">
-      <div className="border-b border-border/70 bg-muted/20 px-4 py-3">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-start gap-3">
-            <div className="border border-border/70 bg-background p-2">
-              <Icon className="h-4 w-4 text-muted-foreground" />
-            </div>
-            <div>
-              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{title}</div>
-              <p className="mt-1 text-xs text-muted-foreground">{description}</p>
-            </div>
-          </div>
-          {actions}
-        </div>
-      </div>
-      <div className="space-y-4 p-3 sm:p-4">{children}</div>
-    </div>
-  );
 }
 
 export default function PurchaseEdit() {
@@ -217,7 +184,7 @@ export default function PurchaseEdit() {
   }
 
   return (
-    <PageShell>
+    <PageShell className="lg:overflow-hidden">
       <PageHeader
         title="Edit Pembelian"
         description="Perbarui informasi supplier dan catatan pada pembelian yang masih bisa diedit."
@@ -228,147 +195,156 @@ export default function PurchaseEdit() {
           </Button>
         }
       />
-      <PageContent className="flex-none pb-8">
-        <div className="space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11">
-          <SectionPanel
-            icon={Building2}
-            title="Informasi Pembelian & Supplier"
-            description="Nomor pembelian dan status tetap menjadi referensi, sedangkan data supplier masih dapat diperbarui."
-          >
-            <div className="mb-4 flex items-center gap-4">
-              <div>
-                <p className="text-xs text-muted-foreground">No. Pembelian</p>
-                <p className="text-sm font-medium font-mono">{purchase.purchase_number}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Status</p>
-                <Badge variant="outline" className="mt-0.5">
-                  {purchaseStatusLabels[purchase.status] || purchase.status}
-                </Badge>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Nama Supplier *</Label>
-                <Input
-                  placeholder="Nama supplier..."
-                  value={formData.supplier_name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, supplier_name: e.target.value })
-                  }
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Kontak Supplier</Label>
-                <Input
-                  placeholder="Telepon/email supplier..."
-                  value={formData.supplier_contact}
-                  onChange={(e) =>
-                    setFormData({ ...formData, supplier_contact: e.target.value })
-                  }
-                />
-              </div>
-            </div>
-          </SectionPanel>
-
-          <SectionPanel
-            icon={MapPin}
-            title="Informasi Tujuan & Catatan"
-            description="Lokasi tujuan dan tanggal pembelian ditampilkan sebagai konteks, sedangkan catatan masih bisa disesuaikan."
-          >
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div>
-                <p className="text-sm text-muted-foreground">Ruangan Tujuan</p>
-                <p className="font-medium">{purchase.to_room?.name}</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Tanggal Pembelian</p>
-                <p className="font-medium">
-                  {purchase.order_date ? new Date(purchase.order_date).toLocaleDateString("id-ID") : "-"}
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Catatan</Label>
-              <Textarea
-                placeholder="Catatan tambahan..."
-                value={formData.notes}
-                onChange={(e) =>
-                  setFormData({ ...formData, notes: e.target.value })
-                }
-              />
-            </div>
-          </SectionPanel>
-
-          <SectionPanel
-            icon={FileText}
-            title="Daftar Item"
-            description="Item pembelian asli ditampilkan sebagai referensi dan tidak dapat diubah dari halaman ini."
-            actions={<span className="text-xs text-muted-foreground">Item tidak dapat diubah</span>}
-          >
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Kode</TableHead>
-                  <TableHead>Nama</TableHead>
-                  <TableHead className="text-center">Qty</TableHead>
-                  <TableHead className="text-right">Harga</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
-                  <TableHead>Satuan</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {items.map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell className="font-mono">{item.code}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        {item.inventory_id ? (
-                          <Package className="h-4 w-4 text-blue-500" />
-                        ) : (
-                          <Pill className="h-4 w-4 text-green-500" />
-                        )}
-                        {item.name}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      {item.quantity_ordered}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      Rp {item.unit_price.toLocaleString("id-ID")}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      Rp {(item.quantity_ordered * item.unit_price).toLocaleString("id-ID")}
-                    </TableCell>
-                    <TableCell>{item.unit}</TableCell>
-                  </TableRow>
-                ))}
-                <TableRow className="font-semibold">
-                  <TableCell colSpan={4} className="text-right">
-                    Total
-                  </TableCell>
-                  <TableCell className="text-right">
-                    Rp {calculateTotal().toLocaleString("id-ID")}
-                  </TableCell>
-                  <TableCell />
-                </TableRow>
-              </TableBody>
-            </Table>
-          </SectionPanel>
-
-          <div className="sticky bottom-0 z-10 mt-4 flex items-center justify-end gap-2 border-t bg-background py-3">
-            <Button
-              variant="outline"
-              onClick={() => navigate(`/purchases/${id}`)}
+      <PageContent className="min-h-0 overflow-hidden pb-6">
+        <div className="grid min-h-0 flex-1 gap-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11 lg:grid-cols-[minmax(240px,20%)_minmax(0,1fr)]">
+          <div className="space-y-6 lg:overflow-hidden">
+            <SectionPanel
+              icon={Building2}
+              title="Informasi Pembelian & Supplier"
+              description="Nomor pembelian dan status tetap menjadi referensi, sedangkan data supplier masih dapat diperbarui."
             >
-              Batal
-            </Button>
-            <Button onClick={handleSubmit} disabled={submitting}>
-              {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Simpan Perubahan
-            </Button>
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center gap-4">
+                  <div>
+                    <p className="text-xs text-muted-foreground">No. Pembelian</p>
+                    <p className="text-sm font-medium font-mono">{purchase.purchase_number}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Status</p>
+                    <Badge variant="outline" className="mt-0.5">
+                      {purchaseStatusLabels[purchase.status] || purchase.status}
+                    </Badge>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Nama Supplier *</Label>
+                  <Input
+                    placeholder="Nama supplier..."
+                    value={formData.supplier_name}
+                    onChange={(e) =>
+                      setFormData({ ...formData, supplier_name: e.target.value })
+                    }
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Kontak Supplier</Label>
+                  <Input
+                    placeholder="Telepon/email supplier..."
+                    value={formData.supplier_contact}
+                    onChange={(e) =>
+                      setFormData({ ...formData, supplier_contact: e.target.value })
+                    }
+                  />
+                </div>
+              </div>
+            </SectionPanel>
+
+            <SectionPanel
+              icon={MapPin}
+              title="Informasi Tujuan & Catatan"
+              description="Lokasi tujuan dan tanggal pembelian ditampilkan sebagai konteks, sedangkan catatan masih bisa disesuaikan."
+            >
+              <div className="space-y-4">
+                <div>
+                  <p className="text-sm text-muted-foreground">Ruangan Tujuan</p>
+                  <p className="font-medium">{purchase.to_room?.name}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Tanggal Pembelian</p>
+                  <p className="font-medium">
+                    {purchase.order_date ? new Date(purchase.order_date).toLocaleDateString("id-ID") : "-"}
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Catatan</Label>
+                  <Textarea
+                    placeholder="Catatan tambahan..."
+                    value={formData.notes}
+                    onChange={(e) =>
+                      setFormData({ ...formData, notes: e.target.value })
+                    }
+                  />
+                </div>
+              </div>
+            </SectionPanel>
+          </div>
+
+          <div className="flex min-h-0 flex-col gap-6 overflow-hidden">
+            <SectionPanel
+              icon={FileText}
+              title="Daftar Item"
+              description="Item pembelian asli ditampilkan sebagai referensi dan tidak dapat diubah dari halaman ini."
+              actions={<span className="text-xs text-muted-foreground">Item tidak dapat diubah</span>}
+              className="flex min-h-0 flex-1 flex-col overflow-hidden"
+              contentClassName="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
+            >
+              <div className="min-h-0 flex-1 overflow-auto">
+                <Table>
+                  <TableHeader className="sticky top-0 z-10 bg-background">
+                    <TableRow>
+                      <TableHead>Kode</TableHead>
+                      <TableHead>Nama</TableHead>
+                      <TableHead className="text-center">Qty</TableHead>
+                      <TableHead className="text-right">Harga</TableHead>
+                      <TableHead className="text-right">Total</TableHead>
+                      <TableHead>Satuan</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {items.map((item) => (
+                      <TableRow key={item.id}>
+                        <TableCell className="font-mono">{item.code}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            {item.inventory_id ? (
+                              <Package className="h-4 w-4 text-blue-500" />
+                            ) : (
+                              <Pill className="h-4 w-4 text-green-500" />
+                            )}
+                            {item.name}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {item.quantity_ordered}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          Rp {item.unit_price.toLocaleString("id-ID")}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          Rp {(item.quantity_ordered * item.unit_price).toLocaleString("id-ID")}
+                        </TableCell>
+                        <TableCell>{item.unit}</TableCell>
+                      </TableRow>
+                    ))}
+                    <TableRow className="font-semibold">
+                      <TableCell colSpan={4} className="text-right">
+                        Total
+                      </TableCell>
+                      <TableCell className="text-right">
+                        Rp {calculateTotal().toLocaleString("id-ID")}
+                      </TableCell>
+                      <TableCell />
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </div>
+            </SectionPanel>
+
+            <div className="flex shrink-0 items-center justify-end gap-2 border-t bg-background pt-3">
+              <Button
+                variant="outline"
+                onClick={() => navigate(`/purchases/${id}`)}
+              >
+                Batal
+              </Button>
+              <Button onClick={handleSubmit} disabled={submitting}>
+                {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Simpan Perubahan
+              </Button>
+            </div>
           </div>
         </div>
       </PageContent>
