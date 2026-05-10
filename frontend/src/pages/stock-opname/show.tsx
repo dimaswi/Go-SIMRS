@@ -1,18 +1,21 @@
-﻿import { useState, useEffect, useCallback } from "react";
+﻿import { useState, useEffect, useCallback, type ComponentType, type ReactNode } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   Building2,
   Calendar,
+  CircleAlert,
   FileText,
   User,
   CheckCircle,
   Pencil,
   Trash2,
+  ClipboardList,
+  Package,
+  Pill,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import {
   Table,
   TableBody,
@@ -22,6 +25,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { usePermission } from "@/hooks/usePermission";
@@ -43,6 +47,57 @@ const statusColors: Record<string, string> = {
   approved: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
   cancelled: "bg-red-100 text-red-500 dark:bg-red-900 dark:text-red-400",
 };
+
+function SectionPanel({
+  icon: Icon,
+  title,
+  description,
+  actions,
+  children,
+}: {
+  icon: ComponentType<{ className?: string }>;
+  title: string;
+  description: string;
+  actions?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <div className="border border-border/70 bg-background/95 shadow-sm">
+      <div className="border-b border-border/70 bg-muted/20 px-4 py-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div className="border border-border/70 bg-background p-2">
+              <Icon className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{title}</div>
+              <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+            </div>
+          </div>
+          {actions}
+        </div>
+      </div>
+      <div className="p-3 sm:p-4">{children}</div>
+    </div>
+  );
+}
+
+function SummaryCue({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: string;
+}) {
+  return (
+    <div className={`border border-border/70 bg-gradient-to-br px-4 py-3 ${tone}`}>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">{label}</p>
+      <p className="mt-1 text-xl font-semibold text-foreground">{value}</p>
+    </div>
+  );
+}
 
 export default function StockOpnameShow() {
   const { id } = useParams<{ id: string }>();
@@ -154,17 +209,22 @@ export default function StockOpnameShow() {
 
   if (loading) {
     return (
-      <div className="flex flex-1 flex-col px-4">
-        <div className="flex items-center gap-4">
-          <Skeleton className="h-10 w-10" />
-          <Skeleton className="h-8 w-64" />
-        </div>
-        <div className="grid gap-4 md:grid-cols-2">
-          <Skeleton className="h-48" />
-          <Skeleton className="h-48" />
-        </div>
-        <Skeleton className="h-96" />
-      </div>
+      <PageShell>
+        <PageHeader title="Detail Stock Opname" description="Lihat hasil hitung fisik, status approval, dan selisih per item." />
+        <PageContent className="flex-none pb-8">
+          <div className="space-y-4">
+            <div className="flex items-center gap-4">
+              <Skeleton className="h-10 w-10" />
+              <Skeleton className="h-8 w-64" />
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <Skeleton className="h-48" />
+              <Skeleton className="h-48" />
+            </div>
+            <Skeleton className="h-96" />
+          </div>
+        </PageContent>
+      </PageShell>
     );
   }
 
@@ -198,184 +258,203 @@ export default function StockOpnameShow() {
       (sum, item) => sum + (item.difference || 0),
       0
     ) || 0;
+  const matchedItems = opname.items?.filter((item) => (item.difference || 0) === 0).length || 0;
+  const surplusItems = opname.items?.filter((item) => (item.difference || 0) > 0).length || 0;
+  const deficitItems = opname.items?.filter((item) => (item.difference || 0) < 0).length || 0;
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => window.history.back()}
-            className="h-9 w-9"
+    <PageShell>
+      <PageHeader
+        title={opname.opname_number}
+        description="Lihat status opname, total selisih, dan rincian hasil hitung fisik per item."
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => navigate("/stock-opname")}>
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Kembali
+            </Button>
+            {canEdit && (
+              <Button size="sm" variant="outline" onClick={() => navigate(`/stock-opname/${id}/edit`)}>
+                <Pencil className="mr-2 h-4 w-4" />
+                Edit
+              </Button>
+            )}
+            {canComplete && (
+              <Button size="sm" onClick={() => setShowCompleteDialog(true)}>
+                <CheckCircle className="mr-2 h-4 w-4" />
+                Selesaikan
+              </Button>
+            )}
+            {canApprove && (
+              <Button size="sm" variant="default" onClick={() => setShowApproveDialog(true)}>
+                <CheckCircle className="mr-2 h-4 w-4" />
+                Setujui & Sesuaikan Stok
+              </Button>
+            )}
+            {canDelete && (
+              <Button size="sm" variant="destructive" onClick={() => setShowDeleteDialog(true)}>
+                <Trash2 className="mr-2 h-4 w-4" />
+                Hapus
+              </Button>
+            )}
+          </div>
+        }
+      />
+      <PageContent className="flex-none pb-8">
+        <div className="space-y-6">
+          <SectionPanel
+            icon={Building2}
+            title="Informasi Stock Opname"
+            description="Ringkasan ruangan, tanggal opname, petugas pembuat, dan akumulasi selisih stok."
+            actions={<Badge className={statusColors[status]}>{statusLabels[status]}</Badge>}
           >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div className="space-y-1">
-            <div className="flex items-center gap-3">
-              <h1 className="text-lg font-semibold">
-                {opname.opname_number}
-              </h1>
-              <Badge className={statusColors[status]}>
-                {statusLabels[status]}
-              </Badge>
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 pb-4">
+              <SummaryCue label="Item Sesuai" value={`${matchedItems}`} tone="from-emerald-50 via-background to-background" />
+              <SummaryCue label="Surplus" value={`${surplusItems}`} tone="from-blue-50 via-background to-background" />
+              <SummaryCue label="Defisit" value={`${deficitItems}`} tone="from-rose-50 via-background to-background" />
+              <SummaryCue label="Total Selisih" value={totalDifference > 0 ? `+${totalDifference}` : `${totalDifference}`} tone="from-amber-50 via-background to-background" />
             </div>
-            <p className="text-sm text-muted-foreground">Detail stock opname</p>
-          </div>
-        </div>
-        <div className="flex gap-2">
-          {canEdit && (
-            <Button size="sm" variant="outline" onClick={() => navigate(`/stock-opname/${id}/edit`)}>
-              <Pencil className="mr-2 h-4 w-4" />
-              Edit
-            </Button>
-          )}
-          {canComplete && (
-            <Button size="sm" onClick={() => setShowCompleteDialog(true)}>
-              <CheckCircle className="mr-2 h-4 w-4" />
-              Selesaikan
-            </Button>
-          )}
-          {canApprove && (
-            <Button size="sm" variant="default" onClick={() => setShowApproveDialog(true)}>
-              <CheckCircle className="mr-2 h-4 w-4" />
-              Setujui & Sesuaikan Stok
-            </Button>
-          )}
-          {canDelete && (
-            <Button size="sm" variant="destructive" onClick={() => setShowDeleteDialog(true)}>
-              <Trash2 className="mr-2 h-4 w-4" />
-              Hapus
-            </Button>
-          )}
-        </div>
-      </div>
 
-      <div className="rounded-lg border p-6">
-          {/* Info Grid */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-6">
-            <div className="flex items-start gap-3">
-              <Building2 className="h-5 w-5 text-muted-foreground mt-0.5" />
-              <div>
-                <p className="text-sm text-muted-foreground">Ruangan</p>
-                <p className="font-medium">{opname.room?.name || "-"}</p>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              <div className="flex items-start gap-3">
+                <Building2 className="mt-0.5 h-5 w-5 text-muted-foreground" />
+                <div>
+                  <p className="text-sm text-muted-foreground">Ruangan</p>
+                  <p className="font-medium">{opname.room?.name || "-"}</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <Calendar className="mt-0.5 h-5 w-5 text-muted-foreground" />
+                <div>
+                  <p className="text-sm text-muted-foreground">Tanggal Opname</p>
+                  <p className="font-medium">{formatDate(opname.opname_date)}</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <User className="mt-0.5 h-5 w-5 text-muted-foreground" />
+                <div>
+                  <p className="text-sm text-muted-foreground">Dibuat Oleh</p>
+                  <p className="font-medium">{opname.created_by?.full_name || "-"}</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <FileText className="mt-0.5 h-5 w-5 text-muted-foreground" />
+                <div>
+                  <p className="text-sm text-muted-foreground">Jumlah Item</p>
+                  <p className="text-lg font-bold text-foreground">{opname.items?.length || 0}</p>
+                </div>
               </div>
             </div>
-            <div className="flex items-start gap-3">
-              <Calendar className="h-5 w-5 text-muted-foreground mt-0.5" />
-              <div>
-                <p className="text-sm text-muted-foreground">Tanggal Opname</p>
-                <p className="font-medium">{formatDate(opname.opname_date)}</p>
+
+            {opname.notes && (
+              <div className="mt-6 rounded-md border border-border/70 bg-muted/40 p-4">
+                <p className="mb-1 text-sm text-muted-foreground">Catatan</p>
+                <p className="text-sm">{opname.notes}</p>
               </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <User className="h-5 w-5 text-muted-foreground mt-0.5" />
-              <div>
-                <p className="text-sm text-muted-foreground">Dibuat Oleh</p>
-                <p className="font-medium">{opname.created_by?.full_name || "-"}</p>
+            )}
+          </SectionPanel>
+
+          <SectionPanel
+            icon={ClipboardList}
+            title="Daftar Item"
+            description="Bandingkan stok sistem dan fisik untuk setiap item, lengkap dengan selisih dan catatan lapangan."
+            actions={
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <CircleAlert className="h-3.5 w-3.5" />
+                Fokus pada item dengan selisih non-zero
               </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <FileText className="h-5 w-5 text-muted-foreground mt-0.5" />
-              <div>
-                <p className="text-sm text-muted-foreground">Total Selisih</p>
-                <p
-                  className={`text-lg font-bold ${
-                    totalDifference === 0
-                      ? "text-green-600"
-                      : totalDifference > 0
-                      ? "text-blue-600"
-                      : "text-red-600"
-                  }`}
-                >
-                  {totalDifference > 0 ? `+${totalDifference}` : totalDifference}
-                </p>
-              </div>
-            </div>
-          </div>
+            }
+          >
+            <div className="-mx-3 -mb-4 sm:-mx-4">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>No</TableHead>
+                    <TableHead>Nama Item</TableHead>
+                    <TableHead>Tipe</TableHead>
+                    <TableHead className="text-right">Stok Sistem</TableHead>
+                    <TableHead className="text-right">Stok Fisik</TableHead>
+                    <TableHead className="text-right">Selisih</TableHead>
+                    <TableHead>Catatan</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {opname.items && opname.items.length > 0 ? (
+                    opname.items.map((item, index) => {
+                      const difference = item.difference || 0;
+                      const itemName = item.inventory?.name || item.medicine?.name || "-";
+                      const itemCode = item.inventory?.code || item.medicine?.code;
 
-          {opname.notes && (
-            <div className="mb-6 p-4 bg-muted/50 rounded-lg">
-              <p className="text-sm text-muted-foreground mb-1">Catatan</p>
-              <p className="text-sm">{opname.notes}</p>
-            </div>
-          )}
-
-          <Separator className="my-6" />
-
-          {/* Items Table */}
-          <div className="space-y-4">
-            <h3 className="text-base font-semibold">Daftar Item</h3>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>No</TableHead>
-                <TableHead>Nama Item</TableHead>
-                <TableHead className="text-right">Stok Sistem</TableHead>
-                <TableHead className="text-right">Stok Fisik</TableHead>
-                <TableHead className="text-right">Selisih</TableHead>
-                <TableHead>Catatan</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {opname.items && opname.items.length > 0 ? (
-                opname.items.map((item, index) => {
-                  const difference = item.difference || 0;
-                  const itemName = item.inventory?.name || item.medicine?.name || "-";
-                  const itemCode = item.inventory?.code || item.medicine?.code;
-
-                  return (
-                    <TableRow key={item.id}>
-                      <TableCell>{index + 1}</TableCell>
-                      <TableCell>
-                        <div>
-                          <p className="font-medium">{itemName}</p>
-                          {itemCode && (
-                            <p className="text-xs text-muted-foreground">
-                              {itemCode}
-                            </p>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {item.system_stock} {item.unit}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {item.physical_stock} {item.unit}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <span
-                          className={`font-medium ${
-                            difference === 0
-                              ? "text-green-600"
-                              : difference > 0
-                              ? "text-blue-600"
-                              : "text-red-600"
-                          }`}
-                        >
-                          {difference > 0 ? `+${difference}` : difference}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {item.notes || "-"}
+                      return (
+                        <TableRow key={item.id}>
+                          <TableCell>{index + 1}</TableCell>
+                          <TableCell>
+                            <div>
+                              <p className="font-medium">{itemName}</p>
+                              {itemCode && (
+                                <p className="text-xs text-muted-foreground">
+                                  {itemCode}
+                                </p>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="gap-1">
+                              {item.inventory_id ? (
+                                <>
+                                  <Package className="h-3 w-3" />
+                                  Inventaris
+                                </>
+                              ) : (
+                                <>
+                                  <Pill className="h-3 w-3" />
+                                  Obat
+                                </>
+                              )}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {item.system_stock} {item.unit}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {item.physical_stock} {item.unit}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end">
+                              <Badge
+                                variant="outline"
+                                className={
+                                  difference === 0
+                                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                                    : difference > 0
+                                    ? "border-blue-200 bg-blue-50 text-blue-700"
+                                    : "border-rose-200 bg-rose-50 text-rose-700"
+                                }
+                              >
+                                {difference > 0 ? `+${difference}` : difference}
+                              </Badge>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {item.notes || "-"}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={7} className="py-8 text-center">
+                        <p className="text-muted-foreground">Tidak ada item</p>
                       </TableCell>
                     </TableRow>
-                  );
-                })
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8">
-                    <p className="text-muted-foreground">Tidak ada item</p>
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-          </div>
-      </div>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </SectionPanel>
+        </div>
+      </PageContent>
 
-      {/* Complete Dialog */}
       <ConfirmDialog
         open={showCompleteDialog}
         onOpenChange={setShowCompleteDialog}
@@ -385,7 +464,6 @@ export default function StockOpnameShow() {
         onConfirm={handleComplete}
       />
 
-      {/* Approve Dialog */}
       <ConfirmDialog
         open={showApproveDialog}
         onOpenChange={setShowApproveDialog}
@@ -395,7 +473,6 @@ export default function StockOpnameShow() {
         onConfirm={handleApprove}
       />
 
-      {/* Delete Dialog */}
       <ConfirmDialog
         open={showDeleteDialog}
         onOpenChange={setShowDeleteDialog}
@@ -405,6 +482,6 @@ export default function StockOpnameShow() {
         onConfirm={handleDelete}
         variant="destructive"
       />
-    </div>
+    </PageShell>
   );
 }

@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, type ComponentType, type ReactNode } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
+  ArrowLeft,
   Building2,
   Calendar,
   FileText,
@@ -24,6 +25,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { usePermission } from "@/hooks/usePermission";
@@ -47,6 +49,40 @@ const statusColors: Record<string, string> = {
   received: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
   cancelled: "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400",
 };
+
+function SectionPanel({
+  icon: Icon,
+  title,
+  description,
+  actions,
+  children,
+}: {
+  icon: ComponentType<{ className?: string }>;
+  title: string;
+  description: string;
+  actions?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <div className="border border-border/70 bg-background/95 shadow-sm">
+      <div className="border-b border-border/70 bg-muted/20 px-4 py-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div className="border border-border/70 bg-background p-2">
+              <Icon className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{title}</div>
+              <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+            </div>
+          </div>
+          {actions}
+        </div>
+      </div>
+      <div className="p-3 sm:p-4">{children}</div>
+    </div>
+  );
+}
 
 export default function PurchaseShow() {
   const { id } = useParams<{ id: string }>();
@@ -154,17 +190,25 @@ export default function PurchaseShow() {
 
   if (loading) {
     return (
-      <div className="flex flex-1 flex-col px-4">
-        <div className="flex items-center gap-4">
-          <Skeleton className="h-10 w-10" />
-          <Skeleton className="h-8 w-64" />
-        </div>
-        <div className="grid gap-4 md:grid-cols-2">
-          <Skeleton className="h-48" />
-          <Skeleton className="h-48" />
-        </div>
-        <Skeleton className="h-96" />
-      </div>
+      <PageShell>
+        <PageHeader
+          title="Detail Pembelian"
+          description="Lihat status, supplier, dan progres penerimaan item pembelian."
+        />
+        <PageContent className="flex-none pb-8">
+          <div className="space-y-4">
+            <div className="flex items-center gap-4">
+              <Skeleton className="h-10 w-10" />
+              <Skeleton className="h-8 w-64" />
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <Skeleton className="h-48" />
+              <Skeleton className="h-48" />
+            </div>
+            <Skeleton className="h-96" />
+          </div>
+        </PageContent>
+      </PageShell>
     );
   }
 
@@ -197,162 +241,235 @@ export default function PurchaseShow() {
   };
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-
-
-      <div className="flex-1 space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11">
-        <div className="border border-border/70">
-          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
-            <Building2 className="h-3 w-3" />
-            Informasi Pembelian
-          </div>
-          <div className="p-3 sm:p-4 space-y-6">
-            {/* Info Section */}
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-6 mb-2">
-              <div className="space-y-1 lg:col-span-2">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  No. Pembelian & Status
-                </div>
-                <div className="flex items-center gap-2 mt-1">
-                  <p className="font-medium font-mono text-base">{purchase.purchase_number}</p>
-                  <Badge className={statusColors[status]}>
-                    {statusLabels[status]}
-                  </Badge>
+    <PageShell>
+      <PageHeader
+        title={purchase.purchase_number}
+        description="Lihat status pembelian, supplier, total nilai, dan progres penerimaan item."
+        actions={
+          <Button variant="outline" onClick={() => navigate("/purchases")}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Kembali
+          </Button>
+        }
+      />
+      <PageContent className="flex-none pb-8">
+        <div className="space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11">
+          <SectionPanel
+            icon={Building2}
+            title="Informasi Pembelian"
+            description="Ringkasan supplier, ruangan tujuan, tanggal pembelian, penanggung jawab, dan total transaksi."
+          >
+            <div className="space-y-6">
+              <div className="mb-2 grid gap-6 md:grid-cols-2 lg:grid-cols-6">
+                <div className="space-y-1 lg:col-span-2">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    No. Pembelian & Status
+                  </div>
+                  <div className="mt-1 flex items-center gap-2">
+                    <p className="font-mono text-base font-medium">{purchase.purchase_number}</p>
+                    <Badge className={statusColors[status]}>
+                      {statusLabels[status]}
+                    </Badge>
+                  </div>
                 </div>
               </div>
-            </div>
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Building2 className="h-4 w-4" />
-                  Supplier
-                </div>
-                <p className="font-medium">
-                  {purchase.supplier?.name || purchase.supplier_name || "-"}
-                </p>
-                {purchase.supplier?.code && (
-                  <p className="text-xs text-muted-foreground">
-                    {purchase.supplier.code}
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Building2 className="h-4 w-4" />
+                    Supplier
+                  </div>
+                  <p className="font-medium">
+                    {purchase.supplier?.name || purchase.supplier_name || "-"}
                   </p>
-                )}
-              </div>
-              <div className="space-y-1">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <MapPin className="h-4 w-4" />
-                  Ruangan Tujuan
+                  {purchase.supplier?.code && (
+                    <p className="text-xs text-muted-foreground">
+                      {purchase.supplier.code}
+                    </p>
+                  )}
                 </div>
-                <p className="font-medium">{purchase.to_room?.name || "-"}</p>
-                {purchase.to_room?.code && (
-                  <p className="text-xs text-muted-foreground">
-                    {purchase.to_room.code}
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <MapPin className="h-4 w-4" />
+                    Ruangan Tujuan
+                  </div>
+                  <p className="font-medium">{purchase.to_room?.name || "-"}</p>
+                  {purchase.to_room?.code && (
+                    <p className="text-xs text-muted-foreground">
+                      {purchase.to_room.code}
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Calendar className="h-4 w-4" />
+                    Tanggal Pembelian
+                  </div>
+                  <p className="font-medium">{formatDate(purchase.order_date || purchase.created_at)}</p>
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <User className="h-4 w-4" />
+                    Dibuat Oleh
+                  </div>
+                  <p className="font-medium">{purchase.created_by?.full_name || "-"}</p>
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <FileText className="h-4 w-4" />
+                    Total
+                  </div>
+                  <p className="text-lg font-bold text-primary">
+                    Rp {(purchase.total_amount || 0).toLocaleString("id-ID")}
                   </p>
-                )}
-              </div>
-              <div className="space-y-1">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Calendar className="h-4 w-4" />
-                  Tanggal Pembelian
                 </div>
-                <p className="font-medium">{formatDate(purchase.order_date || purchase.created_at)}</p>
               </div>
-              <div className="space-y-1">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <User className="h-4 w-4" />
-                  Dibuat Oleh
+
+              {purchase.notes && (
+                <div className="mt-4 border-t border-border/70 pt-4">
+                  <p className="mb-1 text-sm text-muted-foreground">Catatan</p>
+                  <p className="text-sm">{purchase.notes}</p>
                 </div>
-                <p className="font-medium">{purchase.created_by?.full_name || "-"}</p>
-              </div>
-              <div className="space-y-1">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <FileText className="h-4 w-4" />
-                  Total
-                </div>
-                <p className="text-lg font-bold text-primary">
-                  Rp {(purchase.total_amount || 0).toLocaleString("id-ID")}
-                </p>
-              </div>
+              )}
             </div>
+          </SectionPanel>
 
-            {purchase.notes && (
-              <div className="border-t border-border/70 mt-4 pt-4">
-                <p className="text-sm text-muted-foreground mb-1">Catatan</p>
-                <p className="text-sm">{purchase.notes}</p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Items Table */}
-        <div className="border border-border/70">
-          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
-            <PackageCheck className="h-3 w-3" />
-            Daftar Item
-          </div>
-          <div className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>No</TableHead>
-                  <TableHead>Nama Item</TableHead>
-                  <TableHead className="text-right">Qty</TableHead>
-                  <TableHead className="text-right">Diterima</TableHead>
-                  <TableHead className="text-right">Harga</TableHead>
-                  <TableHead className="text-right">Subtotal</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {purchase.items && purchase.items.length > 0 ? (
-                  purchase.items.map((item, index) => {
-                    const itemName = item.inventory?.name || item.medicine?.name || "-";
-                    const itemCode = item.inventory?.code || item.medicine?.code;
-                    return (
-                      <TableRow key={item.id}>
-                        <TableCell>{index + 1}</TableCell>
-                        <TableCell>
-                          <div>
-                            <p className="font-medium">{itemName}</p>
-                            {itemCode && (
-                              <p className="text-xs text-muted-foreground">
-                                {itemCode}
-                              </p>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {item.quantity_ordered} {item.unit}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <span
-                            className={
-                              (item.quantity_received || 0) >= item.quantity_ordered
-                                ? "text-green-600"
-                                : "text-orange-600"
-                            }
-                          >
-                            {item.quantity_received || 0}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          Rp {(item.unit_price || 0).toLocaleString("id-ID")}
-                        </TableCell>
-                        <TableCell className="text-right font-medium">
-                          Rp {(item.total_price || 0).toLocaleString("id-ID")}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                ) : (
+          <SectionPanel
+            icon={PackageCheck}
+            title="Daftar Item"
+            description="Rincian item yang dipesan, jumlah yang sudah diterima, harga satuan, dan subtotal per item."
+          >
+            <div className="-mx-3 -mb-4 sm:-mx-4">
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8">
-                      <p className="text-muted-foreground">Tidak ada item</p>
-                    </TableCell>
+                    <TableHead>No</TableHead>
+                    <TableHead>Nama Item</TableHead>
+                    <TableHead className="text-right">Qty</TableHead>
+                    <TableHead className="text-right">Diterima</TableHead>
+                    <TableHead className="text-right">Harga</TableHead>
+                    <TableHead className="text-right">Subtotal</TableHead>
                   </TableRow>
-                )}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {purchase.items && purchase.items.length > 0 ? (
+                    purchase.items.map((item, index) => {
+                      const itemName = item.inventory?.name || item.medicine?.name || "-";
+                      const itemCode = item.inventory?.code || item.medicine?.code;
+                      return (
+                        <TableRow key={item.id}>
+                          <TableCell>{index + 1}</TableCell>
+                          <TableCell>
+                            <div>
+                              <p className="font-medium">{itemName}</p>
+                              {itemCode && (
+                                <p className="text-xs text-muted-foreground">
+                                  {itemCode}
+                                </p>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {item.quantity_ordered} {item.unit}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <span
+                              className={
+                                (item.quantity_received || 0) >= item.quantity_ordered
+                                  ? "text-green-600"
+                                  : "text-orange-600"
+                              }
+                            >
+                              {item.quantity_received || 0}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            Rp {(item.unit_price || 0).toLocaleString("id-ID")}
+                          </TableCell>
+                          <TableCell className="text-right font-medium">
+                            Rp {(item.total_price || 0).toLocaleString("id-ID")}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={6} className="py-8 text-center">
+                        <p className="text-muted-foreground">Tidak ada item</p>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </SectionPanel>
+
+          <div className="sticky bottom-0 z-10 mt-4 flex items-center justify-between border-t bg-background py-3">
+            <Button variant="outline" onClick={() => navigate("/purchases")}>
+              Kembali
+            </Button>
+            <div className="flex flex-wrap gap-2">
+              {canEdit && (
+                <Button
+                  variant="outline"
+                  onClick={() => navigate(`/purchases/${id}/edit`)}
+                >
+                  <Pencil className="mr-2 h-4 w-4" />
+                  Edit
+                </Button>
+              )}
+              {canDelete && (
+                <Button
+                  variant="destructive"
+                  onClick={() => setShowDeleteDialog(true)}
+                  disabled={deleting}
+                >
+                  {deleting ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="mr-2 h-4 w-4" />
+                  )}
+                  Hapus
+                </Button>
+              )}
+              {canSubmit && (
+                <Button
+                  variant="default"
+                  onClick={handleSubmit}
+                  disabled={submitting}
+                >
+                  {submitting ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Send className="mr-2 h-4 w-4" />
+                  )}
+                  Ajukan
+                </Button>
+              )}
+              {canApprove && (
+                <Button
+                  variant="default"
+                  onClick={handleApprove}
+                  disabled={approving}
+                >
+                  {approving ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <CheckCircle className="mr-2 h-4 w-4" />
+                  )}
+                  Setujui
+                </Button>
+              )}
+              {canReceive && (
+                <Button onClick={() => navigate(`/purchases/${id}/receive`)}>
+                  <PackageCheck className="mr-2 h-4 w-4" />
+                  Terima Barang
+                </Button>
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      </PageContent>
 
       <ConfirmDialog
         open={showDeleteDialog}
@@ -364,72 +481,6 @@ export default function PurchaseShow() {
         onConfirm={handleDelete}
         variant="destructive"
       />
-
-      {/* Sticky Footer Actions */}
-      <div className="shrink-0 sticky bottom-0 z-10 py-3 mt-4 flex items-center justify-between border-t bg-background">
-        <Button variant="outline" onClick={() => navigate("/purchases")}>
-          Kembali
-        </Button>
-        <div className="flex gap-2">
-          {canEdit && (
-            <Button
-              variant="outline"
-              onClick={() => navigate(`/purchases/${id}/edit`)}
-            >
-              <Pencil className="mr-2 h-4 w-4" />
-              Edit
-            </Button>
-          )}
-          {canDelete && (
-            <Button
-              variant="destructive"
-              onClick={() => setShowDeleteDialog(true)}
-              disabled={deleting}
-            >
-              {deleting ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Trash2 className="mr-2 h-4 w-4" />
-              )}
-              Hapus
-            </Button>
-          )}
-          {canSubmit && (
-            <Button
-              variant="default"
-              onClick={handleSubmit}
-              disabled={submitting}
-            >
-              {submitting ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Send className="mr-2 h-4 w-4" />
-              )}
-              Ajukan
-            </Button>
-          )}
-          {canApprove && (
-            <Button
-              variant="default"
-              onClick={handleApprove}
-              disabled={approving}
-            >
-              {approving ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <CheckCircle className="mr-2 h-4 w-4" />
-              )}
-              Setujui
-            </Button>
-          )}
-          {canReceive && (
-            <Button onClick={() => navigate(`/purchases/${id}/receive`)}>
-              <PackageCheck className="mr-2 h-4 w-4" />
-              Terima Barang
-            </Button>
-          )}
-        </div>
-      </div>
-    </div>
+    </PageShell>
   );
 }

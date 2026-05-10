@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Card,
   CardContent,
@@ -8,7 +8,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { DataTable } from "@/components/ui/data-table";
+import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -25,9 +25,8 @@ import {
   type RoomTariffRequest,
   type MasterData,
 } from "@/lib/api";
-import { Loader2, Plus, Save, X, DollarSign } from "lucide-react";
+import { Loader2, Plus, Save, X, DollarSign, Pencil, Trash2, Search } from "lucide-react";
 import { ConfirmDialog } from "@/components/confirm-dialog";
-import { createRoomTariffColumns } from "./columns";
 
 const formatCurrency = (value: number): string => {
   return new Intl.NumberFormat("id-ID", {
@@ -51,6 +50,7 @@ export function RoomTariffPanel({
   const [patientClasses, setPatientClasses] = useState<MasterData[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [search, setSearch] = useState("");
 
   // Form state
   const [isAdding, setIsAdding] = useState(false);
@@ -200,12 +200,19 @@ export function RoomTariffPanel({
           tariffs.find((t) => t.id === editingId)?.patient_class === c.code))
   );
 
-  const columns = createRoomTariffColumns({
-    onEdit: handleEdit,
-    onDelete: handleDeleteClick,
-    hasEditPermission: hasPermission("rooms.update"),
-    patientClasses,
-  });
+  const getPatientClassName = (code: string): string => {
+    const found = patientClasses.find((item) => item.code === code);
+    return found?.name || code;
+  };
+
+  const filteredTariffs = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return tariffs;
+
+    return tariffs.filter((tariff) =>
+      getPatientClassName(tariff.patient_class).toLowerCase().includes(query)
+    );
+  }, [search, tariffs, patientClasses]);
 
   if (loading) {
     return (
@@ -216,7 +223,7 @@ export function RoomTariffPanel({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 space-y-4 overflow-x-hidden">
       {/* Form for Add/Edit */}
       {(isAdding || editingId) && (
         <Card className="border-primary/50 bg-primary/5">
@@ -399,14 +406,64 @@ export function RoomTariffPanel({
             </Button>
           )}
         </div>
-        <div className="rounded-lg border p-6">
-          <DataTable
-            columns={columns}
-            data={tariffs}
-            searchPlaceholder="Cari berdasarkan kelas pasien..."
-            pageSize={10}
-            tableId={`room_tariff_${roomId}`}
-          />
+        <div className="min-w-0 overflow-hidden rounded-lg border">
+          {tariffs.length > 0 ? (
+            <>
+              <div className="border-b border-border/70 px-3 py-3">
+                <div className="relative max-w-sm">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Cari kelas pasien..." className="pl-9" />
+                </div>
+              </div>
+            <div className="max-h-[26rem] overflow-y-auto pb-3">
+              <table className="w-full table-fixed text-sm">
+                <thead className="sticky top-0 z-10 border-b border-border/70 bg-muted/95 text-left text-[11px] uppercase tracking-[0.18em] text-muted-foreground backdrop-blur">
+                  <tr>
+                    <th className="w-[18%] px-3 py-2.5 font-medium">Kelas</th>
+                    <th className="w-[11%] px-3 py-2.5 font-medium">Akomodasi</th>
+                    <th className="w-[10%] px-3 py-2.5 font-medium">Makan</th>
+                    <th className="w-[11%] px-3 py-2.5 font-medium">Perawatan</th>
+                    <th className="w-[11%] px-3 py-2.5 font-medium">Admin</th>
+                    <th className="w-[10%] px-3 py-2.5 font-medium">Lainnya</th>
+                    <th className="w-[12%] px-3 py-2.5 font-medium">Total</th>
+                    <th className="w-[9%] px-3 py-2.5 font-medium">Status</th>
+                    <th className="w-[8%] px-3 py-2.5 text-right font-medium">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/60 bg-background">
+                  {filteredTariffs.map((tariff) => (
+                    <tr key={tariff.id} className="align-top">
+                      <td className="px-3 py-3 font-medium break-words">{getPatientClassName(tariff.patient_class)}</td>
+                      <td className="px-3 py-3 text-muted-foreground break-words">{formatCurrency(tariff.akomodasi)}</td>
+                      <td className="px-3 py-3 text-muted-foreground break-words">{formatCurrency(tariff.makan)}</td>
+                      <td className="px-3 py-3 text-muted-foreground break-words">{formatCurrency(tariff.perawatan)}</td>
+                      <td className="px-3 py-3 text-muted-foreground break-words">{formatCurrency(tariff.administrasi)}</td>
+                      <td className="px-3 py-3 text-muted-foreground break-words">{formatCurrency(tariff.lainnya)}</td>
+                      <td className="px-3 py-3 font-semibold text-primary break-words">{formatCurrency(calculateTotal(tariff))}</td>
+                      <td className="px-3 py-3"><Badge variant={tariff.is_active ? 'default' : 'secondary'} className="text-[10px]">{tariff.is_active ? 'Aktif' : 'Nonaktif'}</Badge></td>
+                      <td className="px-3 py-3 text-right">
+                        {hasPermission("rooms.update") ? (
+                          <div className="flex items-center justify-end gap-1">
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(tariff)}>
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => handleDeleteClick(tariff.id)}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ) : null}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            </>
+          ) : (
+            <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+              Belum ada tarif ruangan yang ditetapkan.
+            </div>
+          )}
         </div>
       </div>
 

@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { DataTable } from "@/components/ui/data-table";
+import { Input } from "@/components/ui/input";
 import { roomsApi, masterDataApi, type Room, type RoomUnit, type Bed, type RoomStaff, type MasterData, type Schedule, type DoctorSchedule } from "@/lib/api";
 import { roomProceduresApi } from "@/lib/api/procedures";
 import type { RoomProcedure } from "@/lib/api/procedures";
@@ -29,9 +29,9 @@ import {
   Clock,
   Trash2,
   Monitor,
+  Eye,
+  Search,
 } from "lucide-react";
-import { createUnitColumns } from "./components/kamar/unit-columns";
-import { createBedColumns } from "./components/bed/bed-columns";
 import { UnitFormDialog } from "./components/kamar/unit-form-dialog";
 import { BedFormDialog } from "./components/bed/bed-form-dialog";
 import { StaffFormDialog } from "./components/staff/staff-form-dialog";
@@ -72,6 +72,8 @@ export default function RoomShow() {
   const [editingBed, setEditingBed] = useState<Bed | null>(null);
   const [deleteBedDialogOpen, setDeleteBedDialogOpen] = useState(false);
   const [bedToDelete, setBedToDelete] = useState<number | null>(null);
+  const [unitSearch, setUnitSearch] = useState("");
+  const [bedSearch, setBedSearch] = useState("");
 
   const [staffDialogOpen, setStaffDialogOpen] = useState(false);
   const [deleteStaffDialogOpen, setDeleteStaffDialogOpen] = useState(false);
@@ -209,6 +211,45 @@ export default function RoomShow() {
     const item = items.find(i => i.code === code);
     return item?.name || code;
   };
+
+  const filteredUnits = useMemo(() => {
+    const query = unitSearch.trim().toLowerCase();
+    if (!query) return units;
+
+    return units.filter((unit) => {
+      const searchable = [
+        unit.name,
+        unit.code,
+        `lantai ${unit.floor}`,
+        unit.is_active ? 'aktif' : 'tidak aktif',
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+
+      return searchable.includes(query);
+    });
+  }, [unitSearch, units]);
+
+  const filteredBeds = useMemo(() => {
+    const query = bedSearch.trim().toLowerCase();
+    const beds = selectedUnit?.beds || [];
+    if (!query) return beds;
+
+    return beds.filter((bed) => {
+      const searchable = [
+        bed.bed_number,
+        bed.bed_type ? getMasterDataName('bed_type', bed.bed_type) : '',
+        getMasterDataName('bed_status', bed.status),
+        bed.notes,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+
+      return searchable.includes(query);
+    });
+  }, [bedSearch, selectedUnit, masterData]);
 
   // Unit handlers
   const handleAddUnit = () => {
@@ -465,21 +506,18 @@ export default function RoomShow() {
     }
   };
 
-  const unitColumns = createUnitColumns({
-    onView: handleViewUnit,
-    onEdit: handleEditUnit,
-    onDelete: handleDeleteUnit,
-    hasEditPermission: hasPermission('rooms.update'),
-    hasDeletePermission: hasPermission('rooms.update'),
-  });
-
-  const bedColumns = createBedColumns({
-    onEdit: handleEditBed,
-    onDelete: handleDeleteBed,
-    hasEditPermission: hasPermission('rooms.update'),
-    hasDeletePermission: hasPermission('rooms.update'),
-    getMasterDataName,
-  });
+  const getBedStatusBadgeVariant = (status: string): "default" | "secondary" | "destructive" | "outline" => {
+    switch (status) {
+      case 'available':
+        return 'default';
+      case 'occupied':
+        return 'destructive';
+      case 'reserved':
+        return 'secondary';
+      default:
+        return 'outline';
+    }
+  };
 
   if (loading) {
     return (
@@ -531,15 +569,10 @@ export default function RoomShow() {
           </div>
         }
       >
-        <div className="pb-4">
-          <Badge variant={room.is_active ? "default" : "secondary"}>
-            {room.is_active ? "Aktif" : "Tidak Aktif"}
-          </Badge>
-        </div>
       </PageHeader>
-      <PageContent>
-        <div className="border border-border/70 bg-background">
-          <div className="p-3 sm:p-4">
+      <PageContent className="min-w-0 overflow-x-hidden">
+        <div className="min-w-0 overflow-hidden border border-border/70 bg-background">
+          <div className="min-w-0 p-3 sm:p-4">
             {/* Show beds for selected unit OR show main tabs */}
             {selectedUnit ? (
               <div className="space-y-4">
@@ -575,51 +608,108 @@ export default function RoomShow() {
                     </p>
                   </div>
                 )}
-                <DataTable
-                  columns={bedColumns}
-                  data={selectedUnit.beds || []}
-                  searchPlaceholder="Cari tempat tidur..."
-                  pageSize={10}
-                  tableId={`room_beds_${selectedUnit.id}`}
-                />
+                <div className="min-w-0 overflow-hidden border border-border/70">
+                  {(selectedUnit.beds || []).length > 0 ? (
+                    <>
+                      <div className="border-b border-border/70 px-3 py-3">
+                        <div className="relative max-w-sm">
+                          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                          <Input
+                            value={bedSearch}
+                            onChange={(event) => setBedSearch(event.target.value)}
+                            placeholder="Cari bed, tipe, status, atau catatan..."
+                            className="pl-9"
+                          />
+                        </div>
+                      </div>
+                      <div className="max-h-[26rem] overflow-y-auto pb-3">
+                      <table className="w-full table-fixed text-sm">
+                        <thead className="sticky top-0 z-10 border-b border-border/70 bg-muted/95 text-left text-[11px] uppercase tracking-[0.18em] text-muted-foreground backdrop-blur">
+                          <tr>
+                            <th className="w-[18%] px-3 py-2.5 font-medium">Bed</th>
+                            <th className="w-[20%] px-3 py-2.5 font-medium">Tipe</th>
+                            <th className="w-[18%] px-3 py-2.5 font-medium">Status</th>
+                            <th className="w-[30%] px-3 py-2.5 font-medium">Catatan</th>
+                            <th className="w-[14%] px-3 py-2.5 text-right font-medium">Aksi</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border/60">
+                          {filteredBeds.map((bed) => (
+                            <tr key={bed.id} className="bg-background align-top">
+                              <td className="px-3 py-3 font-medium break-words">{bed.bed_number}</td>
+                              <td className="px-3 py-3 text-muted-foreground break-words">
+                                {bed.bed_type ? getMasterDataName('bed_type', bed.bed_type) : '-'}
+                              </td>
+                              <td className="px-3 py-3">
+                                <Badge variant={getBedStatusBadgeVariant(bed.status)}>
+                                  {getMasterDataName('bed_status', bed.status)}
+                                </Badge>
+                              </td>
+                              <td className="px-3 py-3 text-muted-foreground break-words">{bed.notes || '-'}</td>
+                              <td className="px-3 py-3">
+                                <div className="flex justify-end gap-1">
+                                  {hasPermission('rooms.update') && (
+                                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditBed(bed)}>
+                                      <Pencil className="h-4 w-4" />
+                                    </Button>
+                                  )}
+                                  {hasPermission('rooms.update') && bed.status !== 'occupied' && (
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDeleteBed(bed.id)}>
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+                      Belum ada tempat tidur pada kamar ini.
+                    </div>
+                  )}
+                </div>
               </div>
             ) : (
-              <Tabs defaultValue="detail" variant="inline" className="w-full">
-                <TabsList className="mb-6">
-                  <TabsTrigger value="detail">
+              <Tabs defaultValue="detail" variant="inline" className="min-w-0 w-full overflow-hidden">
+                <TabsList className="mb-4 h-auto flex-wrap gap-1 border-b border-border/70">
+                  <TabsTrigger value="detail" className="px-2.5 py-1.5 text-xs">
                     Detail
                   </TabsTrigger>
                   {room.has_bed && (
-                    <TabsTrigger value="units">
+                    <TabsTrigger value="units" className="px-2.5 py-1.5 text-xs">
                       Kamar
                     </TabsTrigger>
                   )}
                   {room.has_schedule && (
-                    <TabsTrigger value="schedules">
+                    <TabsTrigger value="schedules" className="px-2.5 py-1.5 text-xs">
                       Jadwal
                     </TabsTrigger>
                   )}
-                  <TabsTrigger value="staff">
+                  <TabsTrigger value="staff" className="px-2.5 py-1.5 text-xs">
                     Staff
                   </TabsTrigger>
-                  <TabsTrigger value="procedures">
+                  <TabsTrigger value="procedures" className="px-2.5 py-1.5 text-xs">
                     Tindakan
                   </TabsTrigger>
-                  <TabsTrigger value="clinical-packages">
+                  <TabsTrigger value="clinical-packages" className="px-2.5 py-1.5 text-xs">
                     Paket
                   </TabsTrigger>
-                  <TabsTrigger value="inventories">
+                  <TabsTrigger value="inventories" className="px-2.5 py-1.5 text-xs">
                     Inventaris
                   </TabsTrigger>
-                  <TabsTrigger value="medicines">
+                  <TabsTrigger value="medicines" className="px-2.5 py-1.5 text-xs">
                     Obat
                   </TabsTrigger>
-                  <TabsTrigger value="tariffs">
+                  <TabsTrigger value="tariffs" className="px-2.5 py-1.5 text-xs">
                     Tarif
                   </TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="detail" className="mt-0">
+                <TabsContent value="detail" className="mt-0 min-w-0 overflow-hidden">
                   {/* Room Info */}
                   <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                     <div>
@@ -739,7 +829,7 @@ export default function RoomShow() {
                   )}
                 </TabsContent>
 
-                <TabsContent value="units" className="mt-0">
+                <TabsContent value="units" className="mt-0 min-w-0 overflow-hidden">
                   <div className="space-y-4">
                     {hasPermission('rooms.update') && room.has_bed && (
                       <div className="flex justify-end">
@@ -750,13 +840,82 @@ export default function RoomShow() {
                       </div>
                     )}
                     {room.has_bed ? (
-                      <DataTable
-                        columns={unitColumns}
-                        data={units}
-                        searchPlaceholder="Cari kamar..."
-                        pageSize={10}
-                        tableId={`room_units_${id}`}
-                      />
+                      <div className="min-w-0 overflow-hidden border border-border/70">
+                        {units.length > 0 ? (
+                          <>
+                            <div className="border-b border-border/70 px-3 py-3">
+                              <div className="relative max-w-sm">
+                                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                                <Input
+                                  value={unitSearch}
+                                  onChange={(event) => setUnitSearch(event.target.value)}
+                                  placeholder="Cari kamar, kode, lantai, atau status..."
+                                  className="pl-9"
+                                />
+                              </div>
+                            </div>
+                          <div className="max-h-[26rem] overflow-y-auto pb-3">
+                            <table className="w-full table-fixed text-sm">
+                              <thead className="sticky top-0 z-10 border-b border-border/70 bg-muted/95 text-left text-[11px] uppercase tracking-[0.18em] text-muted-foreground backdrop-blur">
+                                <tr>
+                                  <th className="w-[34%] px-3 py-2.5 font-medium">Kamar</th>
+                                  <th className="w-[14%] px-3 py-2.5 font-medium">Lantai</th>
+                                  <th className="w-[18%] px-3 py-2.5 font-medium">Bed</th>
+                                  <th className="w-[20%] px-3 py-2.5 font-medium">Status</th>
+                                  <th className="w-[14%] px-3 py-2.5 text-right font-medium">Aksi</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-border/60">
+                                {filteredUnits.map((unit) => {
+                                  const beds = unit.beds || [];
+                                  const available = beds.filter((bed) => bed.status === 'available').length;
+
+                                  return (
+                                    <tr key={unit.id} className="bg-background align-top">
+                                      <td className="px-3 py-3">
+                                        <div className="font-medium break-words">{unit.name}</div>
+                                        <div className="text-xs text-muted-foreground break-words">{unit.code}</div>
+                                      </td>
+                                      <td className="px-3 py-3 text-muted-foreground">Lantai {unit.floor}</td>
+                                      <td className="px-3 py-3">
+                                        <div className="font-medium">{beds.length}/{unit.capacity}</div>
+                                        <div className="text-xs text-muted-foreground">{available} tersedia</div>
+                                      </td>
+                                      <td className="px-3 py-3">
+                                        <Badge variant={unit.is_active ? 'default' : 'secondary'}>
+                                          {unit.is_active ? 'Aktif' : 'Tidak Aktif'}
+                                        </Badge>
+                                      </td>
+                                      <td className="px-3 py-3">
+                                        <div className="flex justify-end gap-1">
+                                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleViewUnit(unit)}>
+                                            <Eye className="h-4 w-4" />
+                                          </Button>
+                                          {hasPermission('rooms.update') && (
+                                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEditUnit(unit)}>
+                                              <Pencil className="h-4 w-4" />
+                                            </Button>
+                                          )}
+                                          {hasPermission('rooms.update') && (
+                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDeleteUnit(unit.id)}>
+                                              <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                          )}
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                          </>
+                        ) : (
+                          <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+                            Belum ada kamar untuk ruangan ini.
+                          </div>
+                        )}
+                      </div>
                     ) : (
                       <div className="text-center py-8 text-muted-foreground">
                         <BedDouble className="h-12 w-12 mx-auto mb-3 opacity-50" />
@@ -767,7 +926,7 @@ export default function RoomShow() {
                 </TabsContent>
 
                 {/* Schedules Tab */}
-                <TabsContent value="schedules" className="mt-0">
+                <TabsContent value="schedules" className="mt-0 min-w-0 overflow-hidden">
                   <div className="space-y-6">
                     {/* Room Schedule (Jadwal Poli) */}
                     <div>
@@ -930,7 +1089,7 @@ export default function RoomShow() {
                   </div>
                 </TabsContent>
 
-                <TabsContent value="staff" className="mt-0">
+                <TabsContent value="staff" className="mt-0 min-w-0 overflow-hidden">
                   <StaffAssignmentPanel
                     roomId={parseInt(id!)}
                     masterData={masterData}
@@ -940,7 +1099,7 @@ export default function RoomShow() {
                   />
                 </TabsContent>
 
-                <TabsContent value="procedures" className="mt-0">
+                <TabsContent value="procedures" className="mt-0 min-w-0 overflow-hidden">
                   <ProcedureAssignmentPanel
                     roomId={parseInt(id!)}
                     roomProcedures={roomProcedures}
@@ -949,7 +1108,7 @@ export default function RoomShow() {
                   />
                 </TabsContent>
 
-                <TabsContent value="clinical-packages" className="mt-0">
+                <TabsContent value="clinical-packages" className="mt-0 min-w-0 overflow-hidden">
                   <ClinicalPackageAssignmentPanel
                     roomId={parseInt(id!)}
                     assignments={roomClinicalPackages}
@@ -958,7 +1117,7 @@ export default function RoomShow() {
                   />
                 </TabsContent>
 
-                <TabsContent value="inventories" className="mt-0">
+                <TabsContent value="inventories" className="mt-0 min-w-0 overflow-hidden">
                   <InventoryAssignmentPanel
                     roomId={parseInt(id!)}
                     roomInventories={roomInventories}
@@ -967,7 +1126,7 @@ export default function RoomShow() {
                   />
                 </TabsContent>
 
-                <TabsContent value="medicines" className="mt-0">
+                <TabsContent value="medicines" className="mt-0 min-w-0 overflow-hidden">
                   <MedicineAssignmentPanel
                     roomId={parseInt(id!)}
                     roomMedicines={roomMedicines}
@@ -977,7 +1136,7 @@ export default function RoomShow() {
                 </TabsContent>
 
                 {/* Room Tariffs Tab (for all room types) */}
-                <TabsContent value="tariffs" className="mt-0">
+                <TabsContent value="tariffs" className="mt-0 min-w-0 overflow-hidden">
                   <RoomTariffPanel
                     roomId={parseInt(id!)}
                     hasPermission={hasPermission}

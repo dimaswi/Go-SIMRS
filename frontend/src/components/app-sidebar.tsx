@@ -2,6 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import {
   LayoutDashboard,
+  type LucideIcon,
   Users,
   Shield,
   LogOut,
@@ -90,10 +91,16 @@ import { DASHBOARD_ACCESS_PERMISSIONS } from '@/pages/dashboard/config';
 interface MenuItem {
   path: string;
   label: string;
-  icon: any;
+  icon: LucideIcon;
   permission?: string;
   exact?: boolean;
   submenu?: MenuItem[];
+}
+
+interface NavigationSection {
+  id: string;
+  title: string;
+  paths: string[];
 }
 
 const menuItems: MenuItem[] = [
@@ -223,6 +230,24 @@ const menuItems: MenuItem[] = [
   },
 ];
 
+const navigationSections: NavigationSection[] = [
+  {
+    id: 'daily-operations',
+    title: 'Operasional',
+    paths: ['/dashboard', '/front-office', '/room-management', '/logistics', '/nutrition'],
+  },
+  {
+    id: 'monitoring',
+    title: 'Monitoring',
+    paths: ['/eklaim', '/bpjs', '/integrations', '/reports'],
+  },
+  {
+    id: 'configuration',
+    title: 'Master Data',
+    paths: ['/master', '/settings'],
+  },
+];
+
 function matchesPath(pathname: string, menuPath: string, exact?: boolean): boolean {
   const baseMenuPath = menuPath.split('?')[0];
   if (exact) return pathname === baseMenuPath;
@@ -281,23 +306,93 @@ function TreeChild({
   isActive,
 }: {
   item: MenuItem;
-  isLast: boolean;
   isActive: boolean;
 }) {
+  const Icon = item.icon;
+
   return (
     <li>
       <Link
         to={item.path}
         className={cn(
-          "group/child flex items-center gap-2.5 rounded-md py-1.5 pl-4 pr-2 text-[13px] transition-all",
+          "group/child flex items-center gap-2.5 rounded-md py-1.5 pl-4 pr-2 text-[13px] transition-colors",
           isActive
-            ? "bg-primary/10 text-primary font-medium border-l-2 border-primary"
-            : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground border-l-2 border-transparent"
+            ? "border-l-2 border-primary bg-primary/10 font-medium text-primary"
+            : "border-l-2 border-transparent text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
         )}
       >
-        <span className="truncate">{item.label}</span>
+        <div
+          className={cn(
+            "flex size-6 shrink-0 items-center justify-center rounded-md transition-colors",
+            isActive
+              ? "bg-primary/15 text-primary"
+              : "text-sidebar-foreground/50 group-hover/child:text-sidebar-foreground/80"
+          )}
+        >
+          <Icon className="size-3" />
+        </div>
+        <span className="truncate font-medium">{item.label}</span>
       </Link>
     </li>
+  );
+}
+
+function DirectMenuLink({
+  item,
+  isActive,
+  isCollapsed,
+}: {
+  item: MenuItem;
+  isActive: boolean;
+  isCollapsed: boolean;
+}) {
+  const Icon = item.icon;
+
+  if (isCollapsed) {
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Link
+              to={item.path}
+              className={cn(
+                "flex size-8 items-center justify-center rounded-md transition-colors",
+                isActive
+                  ? "bg-primary/10 text-primary"
+                  : "text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+              )}
+            >
+              <Icon className="size-4" />
+            </Link>
+          </TooltipTrigger>
+          <TooltipContent side="right">{item.label}</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
+
+  return (
+    <Link
+      to={item.path}
+      className={cn(
+        "group/direct flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+        isActive
+          ? "bg-primary/10 text-primary"
+          : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+      )}
+    >
+      <div
+        className={cn(
+          "flex size-6 shrink-0 items-center justify-center rounded-md transition-colors",
+          isActive
+            ? "bg-primary/15 text-primary"
+            : "text-sidebar-foreground/60 group-hover/direct:text-sidebar-foreground"
+        )}
+      >
+        <Icon className="size-3.5" />
+      </div>
+      <span className="min-w-0 flex-1 truncate font-medium">{item.label}</span>
+    </Link>
   );
 }
 
@@ -339,10 +434,10 @@ function TreeParent({
               <DropdownMenuTrigger asChild>
                 <button
                   className={cn(
-                    "flex size-8 items-center justify-center rounded-md transition-colors",
+                    "flex h-9 w-9 items-center justify-center rounded-md transition-colors",
                     isActive
-                      ? "bg-primary/15 text-primary shadow-sm"
-                      : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                      ? "bg-primary/10 text-primary"
+                      : "text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                   )}
                 >
                   <Icon className="size-4" />
@@ -352,19 +447,19 @@ function TreeParent({
             <TooltipContent side="right">{item.label}</TooltipContent>
           </Tooltip>
         </TooltipProvider>
-        <DropdownMenuContent side="right" align="start" className="min-w-[210px] p-1.5">
-          {/* Group header */}
-          <div className="flex items-center gap-2 px-2.5 py-2 mb-1">
+        <DropdownMenuContent side="right" align="start" className="min-w-[220px] border-border/70 p-1.5">
+          <div className="mb-1 flex items-center gap-2 px-2.5 py-2">
             <div className={cn(
-              "flex size-6 items-center justify-center rounded-md",
-              isActive ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"
+              "flex size-7 items-center justify-center rounded-md",
+              isActive ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
             )}>
               <Icon className="size-3.5" />
             </div>
-            <span className="text-sm font-semibold">{item.label}</span>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm font-semibold">{item.label}</div>
+              <div className="text-[11px] text-muted-foreground">{visibleSubmenu.length} menu</div>
+            </div>
           </div>
-          <div className="-mx-1.5 mb-1.5 h-px bg-border" />
-          {/* Submenu items */}
           {visibleSubmenu.map(subItem => {
             const SubIcon = subItem.icon;
             const isSubActive = subItem.exact ? location.pathname === subItem.path : isPathActive(location.pathname, subItem.path);
@@ -373,17 +468,19 @@ function TreeParent({
                 <Link
                   to={subItem.path}
                   className={cn(
-                    "flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-sm transition-colors",
+                    "flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-sm transition-colors",
                     isSubActive
                       ? "bg-primary/10 text-primary font-medium"
                       : "text-foreground/80 hover:bg-accent hover:text-accent-foreground"
                   )}
                 >
-                  <SubIcon className={cn(
-                    "size-4 shrink-0",
-                    isSubActive ? "text-primary" : "text-muted-foreground"
-                  )} />
-                  <span>{subItem.label}</span>
+                  <div className={cn(
+                    "flex size-7 shrink-0 items-center justify-center rounded-md",
+                    isSubActive ? "bg-primary/15 text-primary" : "text-muted-foreground"
+                  )}>
+                    <SubIcon className="size-3.5" />
+                  </div>
+                  <span className="truncate">{subItem.label}</span>
                   {isSubActive && <div className="ml-auto size-1.5 rounded-full bg-primary" />}
                 </Link>
               </DropdownMenuItem>
@@ -400,18 +497,17 @@ function TreeParent({
       <button
         onClick={() => setExpanded(!expanded)}
         className={cn(
-          "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-all",
-          "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-          isActive && "text-primary font-semibold"
+          "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+          isActive ? "bg-primary/10 text-primary" : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
         )}
       >
         <div className={cn(
-          "flex size-6 items-center justify-center rounded-md shrink-0 transition-colors",
-          isActive ? "bg-primary/15 text-primary" : "text-sidebar-foreground/70"
+          "flex size-6 shrink-0 items-center justify-center rounded-md",
+          isActive ? "bg-primary/15 text-primary" : "text-sidebar-foreground/60"
         )}>
           <Icon className="size-3.5" />
         </div>
-        <span className="flex-1 truncate text-left">{item.label}</span>
+        <span className="min-w-0 flex-1 truncate text-left font-medium">{item.label}</span>
         <ChevronDown
           className={cn(
             "size-3.5 shrink-0 text-sidebar-foreground/40 transition-transform duration-200",
@@ -420,21 +516,21 @@ function TreeParent({
         />
       </button>
 
-      {/* Tree children with animation */}
       <div className={cn(
         "grid transition-[grid-template-rows] duration-200 ease-in-out",
         expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
       )}>
-        <ul className="overflow-hidden pl-2 pt-0.5 pb-1">
-          {visibleSubmenu.map((subItem, idx) => (
-            <TreeChild
-              key={subItem.path}
-              item={subItem}
-              isLast={idx === visibleSubmenu.length - 1}
-              isActive={subItem.exact ? location.pathname === subItem.path : isPathActive(location.pathname, subItem.path)}
-            />
-          ))}
-        </ul>
+        <div className="overflow-hidden">
+          <ul className="ml-3 mt-0.5 space-y-1 border-l border-border/70 pl-2">
+            {visibleSubmenu.map((subItem) => (
+              <TreeChild
+                key={subItem.path}
+                item={subItem}
+                isActive={subItem.exact ? location.pathname === subItem.path : isPathActive(location.pathname, subItem.path)}
+              />
+            ))}
+          </ul>
+        </div>
       </div>
     </li>
   );
@@ -545,34 +641,64 @@ export function AppSidebar() {
     return hasMenuItemAccess(item, hasPermission);
   });
 
+  const visibleSections = navigationSections
+    .map((section) => ({
+      ...section,
+      items: visibleMenuItems.filter((item) => section.paths.includes(item.path)),
+    }))
+    .filter((section) => section.items.length > 0);
+
+  const activeEntry = visibleMenuItems.find((item) =>
+    item.exact ? location.pathname === item.path : isPathActive(location.pathname, item.path)
+  );
+  const activeChildEntry = visibleMenuItems
+    .flatMap((item) => item.submenu || [])
+    .find((item) => (item.exact ? location.pathname === item.path : isPathActive(location.pathname, item.path)));
+  const activeLabel = activeChildEntry?.label || activeEntry?.label || 'Navigasi Sistem';
   return (
     <Sidebar collapsible="icon" className="border-r-0" variant="inset">
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" asChild className="data-[state=open]:bg-transparent hover:bg-transparent">
+            <SidebarMenuButton size="lg" asChild className="h-auto p-0 data-[state=open]:bg-transparent hover:bg-transparent">
               <button
                 type="button"
                 onClick={() => {
                   refreshSavedAccounts();
                   setShowAccountSwitcher(true);
                 }}
-                className="font-semibold text-left"
+                className="w-full text-left"
               >
-                <div className="flex aspect-square size-8 items-center justify-center rounded-xl bg-primary text-primary-foreground overflow-hidden shrink-0">
-                  {appLogo ? (
-                    <img
-                      src={appLogo.startsWith('http') ? appLogo : `${(import.meta.env.VITE_API_URL || 'http://localhost:8080/api').replace(/\/api$/, '')}${appLogo}`}
-                      alt="Logo"
-                      className="size-8 object-contain"
-                    />
-                  ) : (
-                    <Building2 className="size-4" />
+                <div
+                  className={cn(
+                    "border border-sidebar-border/70 bg-background transition-colors",
+                    isCollapsed
+                      ? "mx-auto flex size-10 items-center justify-center rounded-lg p-0"
+                      : "rounded-md px-2.5 py-2"
                   )}
-                </div>
-                <div className="flex flex-col gap-0 leading-none overflow-hidden group-data-[collapsible=icon]:hidden">
-                  <span className="font-bold text-sm tracking-tight truncate">{appName}</span>
-                  <span className="text-[11px] text-muted-foreground truncate">{appSubtitle}</span>
+                >
+                  <div className={cn("relative flex gap-3", isCollapsed ? "items-center justify-center" : "items-start")}>
+                    <div
+                      className={cn(
+                        "flex shrink-0 items-center justify-center overflow-hidden border bg-background",
+                        isCollapsed ? "size-8 rounded-lg" : "size-8 rounded-md"
+                      )}
+                    >
+                      {appLogo ? (
+                        <img
+                          src={appLogo.startsWith('http') ? appLogo : `${(import.meta.env.VITE_API_URL || 'http://localhost:8080/api').replace(/\/api$/, '')}${appLogo}`}
+                          alt="Logo"
+                          className={cn("object-contain", isCollapsed ? "size-6" : "size-6")}
+                        />
+                      ) : (
+                        <Building2 className="size-3.5" />
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
+                      <div className="truncate text-sm font-semibold tracking-tight text-sidebar-foreground">{appName}</div>
+                      <div className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-sidebar-foreground/55">{appSubtitle}</div>
+                    </div>
+                  </div>
                 </div>
               </button>
             </SidebarMenuButton>
@@ -581,99 +707,75 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent>
-        {isCollapsed ? (
-          /* Collapsed: icon-only mode with tooltips & dropdowns */
-          <div className="flex flex-col items-center gap-1 px-1.5 py-2">
-            {visibleMenuItems.map(item => {
-              const Icon = item.icon;
-              const isActive = isPathActive(location.pathname, item.path) ||
-                (item.submenu?.some(sub => isPathActive(location.pathname, sub.path)) ?? false);
+        <div className="h-full overflow-hidden">
+          {isCollapsed ? (
+            <div className="flex h-full flex-col gap-3 overflow-y-auto px-1.5 py-2">
+              {visibleSections.map((section, sectionIndex) => (
+                <div key={section.id} className="space-y-2">
+                  {sectionIndex > 0 ? (
+                    <div className="flex justify-center px-1 py-1">
+                      <div className="h-px w-6 rounded-full bg-sidebar-border/80" />
+                    </div>
+                  ) : null}
+                  <div className="space-y-1">
+                    {section.items.map((item) => {
+                      const isActive = isPathActive(location.pathname, item.path) ||
+                        (item.submenu?.some((sub) => isPathActive(location.pathname, sub.path)) ?? false);
 
-              if (item.submenu) {
-                return (
-                  <TreeParent
-                    key={item.path}
-                    item={item}
-                    isPathActive={isPathActive}
-                    location={location}
-                    hasPermission={hasPermission}
-                    isCollapsed={true}
-                  />
-                );
-              }
+                      return item.submenu ? (
+                        <div key={item.path} className="flex justify-center">
+                          <TreeParent
+                            item={item}
+                            isPathActive={isPathActive}
+                            location={location}
+                            hasPermission={hasPermission}
+                            isCollapsed={true}
+                          />
+                        </div>
+                      ) : (
+                        <div key={item.path} className="flex justify-center">
+                          <DirectMenuLink item={item} isActive={isActive} isCollapsed />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex h-full flex-col gap-3 overflow-y-auto px-3 pb-3 pt-2">
+              {visibleSections.map((section) => (
+                <section key={section.id} className="space-y-2">
+                  <div className="px-2">
+                    <div className="flex items-center gap-2">
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-sidebar-foreground/35">{section.title}</div>
+                      <div className="h-px flex-1 bg-sidebar-border/70" />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    {section.items.map((item) => {
+                      const isActive = isPathActive(location.pathname, item.path) ||
+                        (item.submenu?.some((sub) => isPathActive(location.pathname, sub.path)) ?? false);
 
-              return (
-                <TooltipProvider key={item.path}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Link
-                        to={item.path}
-                        className={cn(
-                          "flex size-8 items-center justify-center rounded-md transition-colors",
-                          isActive
-                            ? "bg-foreground text-background shadow-sm"
-                            : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                        )}
-                      >
-                        <Icon className="size-4" />
-                      </Link>
-                    </TooltipTrigger>
-                    <TooltipContent side="right">{item.label}</TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              );
-            })}
-          </div>
-        ) : (
-          /* Expanded: tree view */
-          <div className="px-3 py-2">
-            <p className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-widest text-sidebar-foreground/30">
-              Navigasi
-            </p>
-            <ul className="flex flex-col gap-0.5">
-              {visibleMenuItems.map(item => {
-                const Icon = item.icon;
-                const isActive = isPathActive(location.pathname, item.path) ||
-                  (item.submenu?.some(sub => isPathActive(location.pathname, sub.path)) ?? false);
-
-                if (item.submenu) {
-                  return (
-                    <TreeParent
-                      key={item.path}
-                      item={item}
-                      isPathActive={isPathActive}
-                      location={location}
-                      hasPermission={hasPermission}
-                      isCollapsed={false}
-                    />
-                  );
-                }
-
-                return (
-                  <li key={item.path}>
-                    <Link
-                      to={item.path}
-                      className={cn(
-                        "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-all",
-                        isActive
-                          ? "bg-primary/10 text-primary font-semibold border-l-2 border-primary pl-[7px]"
-                          : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                      )}
-                    >
-                      <div className={cn(
-                        "flex size-6 items-center justify-center rounded-md shrink-0 transition-colors",
-                        isActive ? "bg-primary/15 text-primary" : "text-sidebar-foreground/70"
-                      )}>
-                        <Icon className="size-3.5" />
-                      </div>
-                      <span className="truncate">{item.label}</span>
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        )}
+                      return item.submenu ? (
+                        <TreeParent
+                          key={item.path}
+                          item={item}
+                          isPathActive={isPathActive}
+                          location={location}
+                          hasPermission={hasPermission}
+                          isCollapsed={false}
+                        />
+                      ) : (
+                        <DirectMenuLink key={item.path} item={item} isActive={isActive} isCollapsed={false} />
+                      );
+                    })}
+                  </div>
+                </section>
+              ))}
+            </div>
+          )}
+        </div>
       </SidebarContent>
 
       <SidebarFooter>
@@ -681,18 +783,29 @@ export function AppSidebar() {
           <SidebarMenuItem>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <SidebarMenuButton size="lg" className="hover:bg-sidebar-accent/80">
-                  <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary/80 to-primary text-primary-foreground font-semibold text-sm shadow-sm">
+                <SidebarMenuButton
+                  size="lg"
+                  className={cn(
+                    "border border-border/70 bg-background hover:bg-sidebar-accent/60",
+                    isCollapsed
+                      ? "mx-auto flex size-10 items-center justify-center rounded-lg p-0"
+                      : "h-auto rounded-md p-2"
+                  )}
+                >
+                  <div className={cn(
+                    "flex aspect-square items-center justify-center bg-primary text-sm font-semibold text-primary-foreground",
+                    isCollapsed ? "size-8 rounded-lg" : "size-8 rounded-md"
+                  )}>
                     {user?.full_name?.charAt(0).toUpperCase() || 'U'}
                   </div>
-                  <div className="flex flex-col gap-0.5 leading-none overflow-hidden">
-                    <span className="font-semibold text-sm truncate">{user?.full_name}</span>
-                    <span className="text-[11px] text-muted-foreground truncate">{user?.role?.name || user?.email}</span>
+                  <div className="flex min-w-0 flex-1 flex-col gap-1 leading-none overflow-hidden group-data-[collapsible=icon]:hidden">
+                    <span className="truncate text-sm font-semibold">{user?.full_name}</span>
+                    <span className="truncate text-[11px] text-muted-foreground">{user?.role?.name || user?.email}</span>
                   </div>
-                  <ChevronUp className="ml-auto size-4 text-muted-foreground" />
+                  <ChevronUp className="ml-auto size-4 text-muted-foreground group-data-[collapsible=icon]:hidden" />
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
-              <DropdownMenuContent side="top" className="w-[--radix-popper-anchor-width] p-1.5">
+              <DropdownMenuContent side="top" className="w-[--radix-popper-anchor-width] rounded-2xl border-border/70 bg-background/96 p-2 shadow-2xl backdrop-blur-xl">
                 <div className="px-2 py-1.5 mb-1">
                   <p className="text-sm font-semibold truncate">{user?.full_name}</p>
                   <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
@@ -759,7 +872,7 @@ export function AppSidebar() {
               )}
 
               {savedAccounts.map((account) => (
-                <div key={account.key} className="flex items-center justify-between rounded-md border p-2.5">
+                <div key={account.key} className="flex items-center justify-between rounded-2xl border border-border/70 bg-background/70 p-3">
                   <div className="min-w-0 pr-2">
                     <p className="truncate text-sm font-medium">{account.user.full_name}</p>
                     <p className="truncate text-xs text-muted-foreground">{account.user.email}</p>

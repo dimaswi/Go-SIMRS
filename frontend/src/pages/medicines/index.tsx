@@ -110,13 +110,20 @@ export default function MedicinesPage() {
         }
       />
       <PageContent>
-        <DataTable
+        <div className="border border-border/70 bg-background">
+          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            Daftar Obat
+          </div>
+          <div className="p-3 sm:p-4">
+            <DataTable
           columns={columns}
           data={medicines}
           searchPlaceholder="Cari obat berdasarkan kode, nama, atau nama generik..."
           pageSize={10}
           tableId="medicines"
         />
+          </div>
+        </div>
       </PageContent>
 
       <ConfirmDialog

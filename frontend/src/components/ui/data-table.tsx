@@ -104,6 +104,8 @@ interface DataTableProps<TData, TValue> {
   initialColumnVisibility?: VisibilityState;
   pageIndex?: number;
   onPageIndexChange?: (pageIndex: number) => void;
+  globalFilterValue?: string;
+  onGlobalFilterValueChange?: (value: string) => void;
   searchSlot?: React.ReactNode;
   className?: string;
 }
@@ -121,6 +123,8 @@ export function DataTable<TData, TValue>({
   initialColumnVisibility = {},
   pageIndex: controlledPageIndex,
   onPageIndexChange,
+  globalFilterValue: controlledGlobalFilter,
+  onGlobalFilterValueChange,
   searchSlot,
   className,
 }: DataTableProps<TData, TValue>) {
@@ -189,13 +193,18 @@ export function DataTable<TData, TValue>({
 
   const handleSearchChange = React.useCallback(
     (value: string) => {
-      setGlobalFilter(value);
+      if (onGlobalFilterValueChange) {
+        onGlobalFilterValueChange(value);
+      } else {
+        setGlobalFilter(value);
+      }
       handlePageChange(0);
     },
-    [handlePageChange],
+    [handlePageChange, onGlobalFilterValueChange],
   );
 
   const pageIndex = controlledPageIndex ?? internalPageIndex;
+  const effectiveGlobalFilter = controlledGlobalFilter ?? globalFilter;
 
   const table = useReactTable({
     data,
@@ -232,7 +241,7 @@ export function DataTable<TData, TValue>({
       columnFilters,
       columnVisibility,
       rowSelection,
-      globalFilter,
+      globalFilter: effectiveGlobalFilter,
       pagination: { pageIndex, pageSize },
     },
   });
@@ -257,11 +266,11 @@ export function DataTable<TData, TValue>({
               <Search className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder={searchPlaceholder}
-                value={globalFilter}
+                value={effectiveGlobalFilter}
                 onChange={(event) => handleSearchChange(event.target.value)}
                 className="h-7 w-full bg-background pl-7 pr-7 text-xs"
               />
-              {globalFilter && (
+              {effectiveGlobalFilter && (
                 <button
                   type="button"
                   onClick={() => handleSearchChange("")}
@@ -298,7 +307,7 @@ export function DataTable<TData, TValue>({
                   {headerGroup.headers.map((header) => (
                     <TableHead
                       key={header.id}
-                      className="sticky top-0 z-50 bg-background shadow-[inset_0_1px_0_hsl(var(--border)),inset_0_-1px_0_hsl(var(--border))]"
+                      className="sticky top-0 z-2 bg-background shadow-[inset_0_1px_0_hsl(var(--border)),inset_0_-1px_0_hsl(var(--border))]"
                     >
                       {header.isPlaceholder
                         ? null
@@ -360,7 +369,7 @@ export function DataTable<TData, TValue>({
               value={String(pageSize)}
               onValueChange={(value) => handlePageSizeChange(Number(value))}
             >
-              <SelectTrigger className="h-7 w-[56px] bg-background text-[11px]">
+              <SelectTrigger className="h-7 w-[70px] bg-background text-[11px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent side="top">

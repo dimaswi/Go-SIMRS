@@ -9,9 +9,27 @@ import { Switch } from "@/components/ui/switch";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { medicinesApi, type Medicine, type MedicineCategory, type MedicineType, type MedicineForm } from "@/lib/api/medicines";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Pill, Tag, DollarSign, FileText, Layers, Box, Beaker, AlertTriangle, Info } from "lucide-react";
+import { Loader2, Pill, Tag, DollarSign, FileText, Layers, Box, Beaker, AlertTriangle, Info, ArrowLeft } from "lucide-react";
 import { setPageTitle } from "@/lib/page-title";
+import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 import { DPHOMappingField } from "./dpho-mapping-field";
+
+function SummaryCue({
+  label,
+  description,
+  tone,
+}: {
+  label: string;
+  description: string;
+  tone: string;
+}) {
+  return (
+    <div className={`border border-border/70 bg-gradient-to-br ${tone} px-4 py-3 shadow-sm`}>
+      <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">{label}</div>
+      <div className="mt-1 text-sm font-medium text-foreground">{description}</div>
+    </div>
+  );
+}
 
 export default function MedicineEdit() {
   const navigate = useNavigate();
@@ -223,13 +241,53 @@ export default function MedicineEdit() {
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
+    <PageShell>
+      <PageHeader
+        title="Edit Obat"
+        description="Perbarui identitas, harga, stok, serta informasi klinis obat tanpa harus berpindah antar halaman master."
+        icon={Pill}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => navigate("/medicines")}>
+              <ArrowLeft className="h-4 w-4" />
+              Kembali
+            </Button>
+            <Button type="submit" form="medicine-edit-form" size="sm" disabled={loading}>
+              {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+              Simpan Perubahan
+            </Button>
+          </div>
+        }
+      >
+        <div className="flex flex-wrap gap-2 pb-3">
+          <div className="border border-border/70 bg-background px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Edit langsung dari master obat</div>
+          <div className="border border-border/70 bg-background px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">DPHO bisa diperbarui kapan saja</div>
+          <div className="border border-border/70 bg-background px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Status aktif dapat diubah</div>
+        </div>
+      </PageHeader>
 
-      <div className="flex-1 space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11">
-        <form onSubmit={handleSubmit} className="space-y-6">
+      <PageContent className="flex-none pb-8">
+        <div className="mb-4 grid gap-3 lg:grid-cols-3">
+          <SummaryCue label="Review Cepat" description="Cek ulang nama, kategori, dan bentuk sediaan sebelum menyimpan perubahan." tone="from-background via-background to-sky-50/40" />
+          <SummaryCue label="Harga & Inventori" description="Pastikan batas stok tetap logis agar notifikasi inventory tidak bias." tone="from-background via-background to-emerald-50/40" />
+          <SummaryCue label="Validasi Klinis" description="Perubahan indikasi atau kontraindikasi akan langsung memengaruhi referensi penggunaan obat." tone="from-background via-background to-amber-50/50" />
+        </div>
+
+        <div className="space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11">
+        <form id="medicine-edit-form" onSubmit={handleSubmit} className="space-y-6">
           {/* Basic Info */}
-          <div className="border border-border/70">
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Informasi Dasar</div>
+          <div className="border border-border/70 bg-background/95 shadow-sm">
+            <div className="border-b border-border/70 bg-muted/20 px-4 py-3">
+              <div className="flex items-start gap-3">
+                <div className="border border-border/70 bg-background p-2">
+                  <Pill className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Informasi Dasar</div>
+                  <p className="mt-1 text-xs text-muted-foreground">Perbarui identitas obat, klasifikasi, produsen, dan relasi ke katalog DPHO.</p>
+                </div>
+              </div>
+            </div>
             <div className="p-3 sm:p-4 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                 <div className="space-y-2">
@@ -418,8 +476,18 @@ export default function MedicineEdit() {
           </div>
 
           {/* Price & Stock Info */}
-          <div className="border border-border/70">
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Harga & Stok</div>
+          <div className="border border-border/70 bg-background/95 shadow-sm">
+            <div className="border-b border-border/70 bg-muted/20 px-4 py-3">
+              <div className="flex items-start gap-3">
+                <div className="border border-border/70 bg-background p-2">
+                  <DollarSign className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Harga & Stok</div>
+                  <p className="mt-1 text-xs text-muted-foreground">Tinjau harga dan ambang inventori agar perubahan master tidak memicu mismatch operasional.</p>
+                </div>
+              </div>
+            </div>
             <div className="p-3 sm:p-4 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
                 <div className="space-y-2">
@@ -505,8 +573,18 @@ export default function MedicineEdit() {
           </div>
 
           {/* Medical Info */}
-          <div className="border border-border/70">
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Informasi Medis</div>
+          <div className="border border-border/70 bg-background/95 shadow-sm">
+            <div className="border-b border-border/70 bg-muted/20 px-4 py-3">
+              <div className="flex items-start gap-3">
+                <div className="border border-border/70 bg-background p-2">
+                  <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Informasi Medis</div>
+                  <p className="mt-1 text-xs text-muted-foreground">Pantau detail klinis yang akan dipakai sebagai referensi resep dan edukasi pasien.</p>
+                </div>
+              </div>
+            </div>
             <div className="p-3 sm:p-4 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div className="space-y-2">
@@ -618,8 +696,18 @@ export default function MedicineEdit() {
           </div>
 
           {/* Properties */}
-          <div className="border border-border/70">
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Properti</div>
+          <div className="border border-border/70 bg-background/95 shadow-sm">
+            <div className="border-b border-border/70 bg-muted/20 px-4 py-3">
+              <div className="flex items-start gap-3">
+                <div className="border border-border/70 bg-background p-2">
+                  <Layers className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Properti</div>
+                  <p className="mt-1 text-xs text-muted-foreground">Kontrol aturan penggunaan obat dan status aktifnya di seluruh modul.</p>
+                </div>
+              </div>
+            </div>
             <div className="p-3 sm:p-4 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div className="flex items-center justify-between rounded-lg border p-3">
@@ -661,8 +749,18 @@ export default function MedicineEdit() {
           </div>
 
           {/* Additional Info */}
-          <div className="border border-border/70">
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Informasi Tambahan</div>
+          <div className="border border-border/70 bg-background/95 shadow-sm">
+            <div className="border-b border-border/70 bg-muted/20 px-4 py-3">
+              <div className="flex items-start gap-3">
+                <div className="border border-border/70 bg-background p-2">
+                  <FileText className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Informasi Tambahan</div>
+                  <p className="mt-1 text-xs text-muted-foreground">Catatan tambahan untuk menjaga konteks perubahan obat tetap terdokumentasi.</p>
+                </div>
+              </div>
+            </div>
             <div className="p-3 sm:p-4 space-y-4">
               <div className="space-y-2">
                 <Label
@@ -702,8 +800,7 @@ export default function MedicineEdit() {
             </div>
           </div>
 
-          {/* Sticky Footer Actions */}
-          <div className="shrink-0 sticky bottom-0 z-10 py-3 mt-4 flex items-center justify-end gap-2 border-t bg-background">
+          <div className="sticky bottom-0 z-10 mt-4 flex items-center justify-end gap-2 border-t border-border/70 bg-background/95 py-3 backdrop-blur">
             <Button
               type="button"
               variant="outline"
@@ -717,7 +814,8 @@ export default function MedicineEdit() {
             </Button>
           </div>
         </form>
-      </div>
-    </div>
+        </div>
+      </PageContent>
+    </PageShell>
   );
 }

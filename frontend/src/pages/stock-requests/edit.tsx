@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from "react";
+﻿import { useState, useEffect, useCallback, type ComponentType, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
@@ -29,7 +29,10 @@ import {
   Package,
   Pill,
   AlertTriangle,
+  ArrowLeft,
+  ClipboardList,
 } from "lucide-react";
+import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 
 interface EditItem {
   id: string;
@@ -51,6 +54,35 @@ const priorityOptions: ComboboxOption[] = [
   { value: "high", label: "Tinggi" },
   { value: "urgent", label: "Mendesak" },
 ];
+
+function SectionPanel({
+  icon: Icon,
+  title,
+  description,
+  children,
+}: {
+  icon: ComponentType<{ className?: string }>;
+  title: string;
+  description: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="border border-border/70 bg-background/95 shadow-sm">
+      <div className="border-b border-border/70 bg-muted/20 px-4 py-3">
+        <div className="flex items-start gap-3">
+          <div className="border border-border/70 bg-background p-2">
+            <Icon className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <div>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{title}</div>
+            <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+          </div>
+        </div>
+      </div>
+      <div className="p-3 sm:p-4 space-y-4">{children}</div>
+    </div>
+  );
+}
 
 export default function StockRequestEdit() {
   const { id } = useParams<{ id: string }>();
@@ -233,16 +265,54 @@ export default function StockRequestEdit() {
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
+    <PageShell>
+      <PageHeader
+        title="Edit Permintaan Stok"
+        description="Perbarui prioritas, waktu kebutuhan, dan catatan permintaan tanpa mengubah item yang sudah diajukan."
+        icon={ClipboardList}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => navigate(`/stock-requests/${id}`)}>
+              <ArrowLeft className="h-4 w-4" />
+              Kembali
+            </Button>
+            <Button size="sm" onClick={handleSubmit} disabled={submitting}>
+              {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
+              Simpan Perubahan
+            </Button>
+          </div>
+        }
+      >
+        <div className="flex flex-wrap gap-2 pb-3">
+          <div className="border border-border/70 bg-background px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Item tetap read only</div>
+          <div className="border border-border/70 bg-background px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Prioritas dapat diubah</div>
+          <div className="border border-border/70 bg-background px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Catatan tetap tersimpan</div>
+        </div>
+      </PageHeader>
 
+      <PageContent className="flex-none pb-8">
+        <div className="mb-4 grid gap-3 lg:grid-cols-3">
+          <div className="border border-border/70 bg-gradient-to-br from-background via-background to-sky-50/40 px-4 py-3 shadow-sm">
+            <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Nomor Permintaan</div>
+            <div className="mt-1 text-sm font-medium text-foreground">{request.request_number}</div>
+          </div>
+          <div className="border border-border/70 bg-gradient-to-br from-background via-background to-emerald-50/40 px-4 py-3 shadow-sm">
+            <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Item Diajukan</div>
+            <div className="mt-1 text-sm font-medium text-foreground">{items.length} item tetap dipertahankan dari permintaan awal.</div>
+          </div>
+          <div className="border border-border/70 bg-gradient-to-br from-background via-background to-amber-50/50 px-4 py-3 shadow-sm">
+            <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Status</div>
+            <div className="mt-1 text-sm font-medium text-foreground">{stockRequestStatusLabels[request.status]} dengan prioritas {priorityOptions.find((option) => option.value === formData.priority)?.label?.toLowerCase() || formData.priority}.</div>
+          </div>
+        </div>
 
       <div className="flex-1 space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11">
         {/* Info Box */}
-        <div className="border border-border/70">
-          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            Informasi Dasar
-          </div>
-          <div className="p-3 sm:p-4 space-y-6">
+        <SectionPanel
+          icon={ClipboardList}
+          title="Informasi Dasar"
+          description="Ubah prioritas, tanggal kebutuhan, dan catatan sambil mempertahankan struktur item yang sudah diajukan."
+        >
             <div className="flex items-center gap-6">
               <div>
                 <p className="text-xs text-muted-foreground">No. Permintaan</p>
@@ -335,15 +405,14 @@ export default function StockRequestEdit() {
                 }
               />
             </div>
-          </div>
-        </div>
+        </SectionPanel>
 
         {/* Items Section (Read Only) */}
-        <div className="border border-border/70">
-          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            Daftar Item (Read Only)
-          </div>
-          <div className="p-3 sm:p-4 space-y-4">
+        <SectionPanel
+          icon={request.request_type === "inventory" ? Package : Pill}
+          title="Daftar Item"
+          description="Item permintaan asli ditampilkan sebagai referensi dan tidak dapat diubah dari halaman edit ini."
+        >
 
             <Table>
               <TableHeader>
@@ -380,11 +449,10 @@ export default function StockRequestEdit() {
                 ))}
               </TableBody>
             </Table>
-          </div>
-        </div>
+        </SectionPanel>
 
         {/* Sticky Footer Actions */}
-        <div className="shrink-0 sticky bottom-0 z-10 py-3 mt-4 flex items-center justify-end gap-4 border-t bg-background">
+        <div className="shrink-0 sticky bottom-0 z-10 py-3 mt-4 flex items-center justify-end gap-4 border-t border-border/70 bg-background/95 backdrop-blur">
           <Button
             variant="outline"
             onClick={() => navigate(`/stock-requests/${id}`)}
@@ -397,6 +465,7 @@ export default function StockRequestEdit() {
           </Button>
         </div>
       </div>
-    </div>
+      </PageContent>
+    </PageShell>
   );
 }

@@ -10,11 +10,6 @@ import {
   Loader2,
   ArrowLeft,
   User,
-  Calendar,
-  MapPin,
-  DollarSign,
-  FileText,
-  Activity,
   Smartphone,
   CheckCircle,
   Clock,
@@ -22,6 +17,7 @@ import {
   Pencil,
   Trash2,
   ShieldCheck,
+  Search,
 } from "lucide-react";
 import { format } from "date-fns";
 import { id as localeId } from "date-fns/locale";
@@ -67,7 +63,7 @@ import {
 } from "@/components/ui/tooltip";
 import { api } from "@/lib/api";
 import { vclaimApi, type VClaimSEP } from "@/lib/api/vclaim";
-import { Search } from "lucide-react";
+import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 
 interface SEPLocal {
   id: number;
@@ -111,6 +107,56 @@ interface SPRILocal {
   nama_diagnosa: string;
   user_buat: string;
   status: string; // active, used, cancelled
+}
+
+function FlatSection({
+  title,
+  eyebrow,
+  actions,
+  children,
+}: {
+  title: string;
+  eyebrow?: string;
+  actions?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="border border-border/70 bg-background">
+      <div className="border-b border-border/70 bg-muted/30 px-3 py-2">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            {eyebrow && (
+              <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+                {eyebrow}
+              </div>
+            )}
+            <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+          </div>
+          {actions}
+        </div>
+      </div>
+      <div className="p-3 sm:p-4">{children}</div>
+    </section>
+  );
+}
+
+function DetailItem({
+  label,
+  value,
+  mono,
+}: {
+  label: string;
+  value: React.ReactNode;
+  mono?: boolean;
+}) {
+  return (
+    <div className="space-y-1 border-l border-border/70 pl-3 first:border-l-0 first:pl-0">
+      <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">{label}</div>
+      <div className={mono ? "font-mono text-sm font-medium text-foreground" : "text-sm font-medium text-foreground"}>
+        {value}
+      </div>
+    </div>
+  );
 }
 
 export default function RegistrationShow() {
@@ -210,22 +256,21 @@ export default function RegistrationShow() {
     }
   };
 
-  // const handleOpenEditPayment = () => {
-  //   if (registration) {
-  //     setPaymentForm({
-  //       payment_method: registration.payment_method || "cash",
-  //       bpjs_number: registration.bpjs_number || registration.patient?.no_bpjs || "",
-  //       insurance_name: registration.insurance_name || "",
-  //       insurance_number: registration.insurance_number || "",
-  //     });
-  //     // Reset SEP lookup states
-  //     setSepInputNumber("");
-  //     setFoundSEP(null);
-  //     setSepSearchError("");
-  //     setSelectedVisitId("");
-  //     setEditPaymentOpen(true);
-  //   }
-  // };
+  const handleOpenEditPayment = () => {
+    if (registration) {
+      setPaymentForm({
+        payment_method: registration.payment_method || "cash",
+        bpjs_number: registration.bpjs_number || registration.patient?.no_bpjs || "",
+        insurance_name: registration.insurance_name || "",
+        insurance_number: registration.insurance_number || "",
+      });
+      setSepInputNumber("");
+      setFoundSEP(null);
+      setSepSearchError("");
+      setSelectedVisitId("");
+      setEditPaymentOpen(true);
+    }
+  };
 
   const handleSearchSEP = async () => {
     if (!sepInputNumber.trim()) return;
@@ -468,579 +513,368 @@ export default function RegistrationShow() {
   };
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => window.history.back()}
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div className="space-y-1">
-            <h1 className="text-lg font-semibold">
-              {formatPatientName(registration.patient?.nama_lengkap || registration.patient?.name, registration.patient?.jenis_kelamin, undefined, registration.patient?.tanggal_lahir) || "-"}
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              No. RM: {registration.patient?.no_rm || registration.patient?.medical_record_number || "-"} â€¢ 
-              No. Pendaftaran: {registration.registration_number}
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {bpjsQueue && (
-            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 flex items-center gap-1">
-              <Smartphone className="h-3 w-3" />
-              MJKN
+    <PageShell>
+      <PageHeader
+        title={formatPatientName(registration.patient?.nama_lengkap || registration.patient?.name, registration.patient?.jenis_kelamin, undefined, registration.patient?.tanggal_lahir) || "-"}
+        description={`No. RM ${registration.patient?.no_rm || registration.patient?.medical_record_number || "-"} | No. Pendaftaran ${registration.registration_number}`}
+        icon={User}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => window.history.back()}>
+              <ArrowLeft className="h-4 w-4" />
+              Kembali
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleOpenEditPayment}>
+              <Pencil className="h-4 w-4" />
+              Ubah Pembayaran
+            </Button>
+            {bpjsQueue && (
+              <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700">
+                <Smartphone className="mr-1 h-3 w-3" />
+                MJKN
+              </Badge>
+            )}
+            <Badge variant={getStatusVariant(registration.status) as any}>
+              {registrationStatusLabels[registration.status]}
             </Badge>
+          </div>
+        }
+      >
+        <div className="flex flex-wrap gap-2 pb-3">
+          <Badge variant="outline">{paymentMethodLabels[registration.payment_method]}</Badge>
+          <Badge variant="outline">{registrationTypeLabels[registration.registration_type]}</Badge>
+          {registration.destination_room?.name && <Badge variant="outline">{registration.destination_room.name}</Badge>}
+          {registration.visit?.room_queue?.queue_number && (
+            <Badge variant="outline" className="font-mono">Antrian {registration.visit.room_queue.queue_number}</Badge>
           )}
-          <Badge variant={getStatusVariant(registration.status) as any}>
-            {registrationStatusLabels[registration.status]}
-          </Badge>
         </div>
-      </div>
+      </PageHeader>
 
-      <div className="rounded-lg border p-6">
-          {/* Informasi Pasien */}
-          <div className="mb-6">
-            <h3 className="text-sm font-medium text-muted-foreground mb-4 flex items-center gap-2">
-              <User className="h-4 w-4" />
-              INFORMASI PASIEN
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-              <div>
-                <label className="text-xs text-muted-foreground">Nama Lengkap</label>
-                <p className="font-medium text-sm">{formatPatientName(registration.patient?.nama_lengkap || registration.patient?.name, registration.patient?.jenis_kelamin, undefined, registration.patient?.tanggal_lahir) || "-"}</p>
+      <PageContent className="flex-none pb-8">
+        <div className="grid gap-4 2xl:grid-cols-[minmax(0,1.35fr)_minmax(380px,0.95fr)]">
+          <div className="space-y-4">
+            <FlatSection title="Informasi Pasien" eyebrow="Identity Block">
+              <div className="grid gap-3 lg:grid-cols-4">
+                <DetailItem
+                  label="Nama Lengkap"
+                  value={formatPatientName(registration.patient?.nama_lengkap || registration.patient?.name, registration.patient?.jenis_kelamin, undefined, registration.patient?.tanggal_lahir) || "-"}
+                />
+                <DetailItem label="No. Rekam Medis" value={registration.patient?.no_rm || registration.patient?.medical_record_number || "-"} mono />
+                <DetailItem label="NIK" value={registration.patient?.nik || "-"} mono />
+                <DetailItem label="Jenis Kelamin" value={(registration.patient?.jenis_kelamin || registration.patient?.gender) === "L" ? "Laki-laki" : "Perempuan"} />
+                <DetailItem
+                  label="Tanggal Lahir"
+                  value={
+                    (registration.patient?.tanggal_lahir || registration.patient?.date_of_birth)
+                      ? format(new Date(registration.patient.tanggal_lahir || registration.patient.date_of_birth!), "dd MMMM yyyy", { locale: localeId })
+                      : "-"
+                  }
+                />
               </div>
-              <div>
-                <label className="text-xs text-muted-foreground">No. Rekam Medis</label>
-                <p className="font-medium text-sm font-mono">{registration.patient?.no_rm || registration.patient?.medical_record_number || "-"}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">NIK</label>
-                <p className="font-medium text-sm font-mono">{registration.patient?.nik || "-"}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Jenis Kelamin</label>
-                <p className="font-medium text-sm">
-                  {(registration.patient?.jenis_kelamin || registration.patient?.gender) === "L" ? "Laki-laki" : "Perempuan"}
-                </p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Tanggal Lahir</label>
-                <p className="font-medium text-sm">
-                  {(registration.patient?.tanggal_lahir || registration.patient?.date_of_birth)
-                    ? format(new Date(registration.patient.tanggal_lahir || registration.patient.date_of_birth!), "dd MMMM yyyy", {
-                        locale: localeId,
-                      })
-                    : "-"}
-                </p>
-              </div>
-            </div>
-          </div>
+            </FlatSection>
 
-          <div className="border-t my-6" />
-
-          {/* Informasi Pendaftaran */}
-          <div className="mb-6">
-            <h3 className="text-sm font-medium text-muted-foreground mb-4 flex items-center gap-2">
-              <Calendar className="h-4 w-4" />
-              INFORMASI PENDAFTARAN
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-              <div>
-                <label className="text-xs text-muted-foreground">Nomor Pendaftaran</label>
-                <p className="font-medium text-sm font-mono">{registration.registration_number}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Tanggal Pendaftaran</label>
-                <p className="font-medium text-sm">
-                  {format(new Date(registration.registration_date), "dd MMMM yyyy HH:mm", { locale: localeId })}
-                </p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Jenis Pendaftaran</label>
-                <p className="font-medium text-sm">{registrationTypeLabels[registration.registration_type]}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Didaftarkan Oleh</label>
-                <p className="font-medium text-sm">{registration.registered_by?.full_name || registration.registered_by?.name || "-"}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Status</label>
-                <div className="mt-1">
-                  <Badge variant={getStatusVariant(registration.status) as any}>
-                    {registrationStatusLabels[registration.status]}
-                  </Badge>
-                </div>
-              </div>
-              {registration.queue?.queue_number && (
-                <div>
-                  <label className="text-xs text-muted-foreground">Nomor Antrian Loket</label>
-                  <p className="font-medium text-sm">{registration.queue.queue_number}</p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="border-t my-6" />
-
-          {/* Informasi Layanan */}
-          <div className="mb-6">
-            <h3 className="text-sm font-medium text-muted-foreground mb-4 flex items-center gap-2">
-              <MapPin className="h-4 w-4" />
-              INFORMASI LAYANAN
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-              <div>
-                <label className="text-xs text-muted-foreground">Poli/Ruangan Tujuan</label>
-                {registration.destination_room ? (
-                  <Button
-                    variant="link"
-                    className="h-auto p-0 text-sm font-medium text-primary hover:underline"
-                    onClick={() => navigate(`/rooms/show/${registration.destination_room?.id || registration.destination_room?.ID}`)}
-                  >
-                    {registration.destination_room.name}
-                  </Button>
-                ) : (
-                  <p className="font-medium text-sm">-</p>
+            <FlatSection title="Informasi Pendaftaran" eyebrow="Registration Ledger">
+              <div className="grid gap-3 lg:grid-cols-4">
+                <DetailItem label="Nomor Pendaftaran" value={registration.registration_number} mono />
+                <DetailItem
+                  label="Tanggal Pendaftaran"
+                  value={format(new Date(registration.registration_date), "dd MMMM yyyy HH:mm", { locale: localeId })}
+                />
+                <DetailItem label="Jenis Pendaftaran" value={registrationTypeLabels[registration.registration_type]} />
+                <DetailItem label="Didaftarkan Oleh" value={registration.registered_by?.full_name || registration.registered_by?.name || "-"} />
+                <DetailItem label="Status" value={<Badge variant={getStatusVariant(registration.status) as any}>{registrationStatusLabels[registration.status]}</Badge>} />
+                {registration.queue?.queue_number && (
+                  <DetailItem label="Antrian Loket" value={registration.queue.queue_number} mono />
                 )}
               </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Kode Ruangan</label>
-                <p className="font-medium text-sm font-mono">{registration.destination_room?.code || "-"}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Dokter</label>
-                <p className="font-medium text-sm">{registration.doctor?.nama_lengkap || registration.doctor?.nama || registration.doctor?.name || "-"}</p>
-                {(registration.doctor?.spesialisasi || registration.doctor?.specialization) && (
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {registration.doctor.spesialisasi || registration.doctor.specialization}
-                  </p>
-                )}
-              </div>
-              {registration.visit?.room_queue && (
-                <div className="col-span-2 md:col-span-1">
-                  <label className="text-xs text-muted-foreground">Nomor Antrian Ruangan</label>
-                  <p className="font-mono font-bold text-2xl text-primary mt-1">
-                    {registration.visit.room_queue.queue_number}
-                  </p>
-                  <Badge className="mt-1" variant="outline">
-                    {registration.visit.room_queue.status}
-                  </Badge>
-                </div>
-              )}
-            </div>
-          </div>
+            </FlatSection>
 
-          <div className="border-t my-6" />
-
-          {/* Informasi Pembayaran */}
-          <div className="mb-6">
-            <h3 className="text-sm font-medium text-muted-foreground mb-4 flex items-center gap-2">
-              <DollarSign className="h-4 w-4" />
-              INFORMASI PEMBAYARAN
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-              <div>
-                <label className="text-xs text-muted-foreground">Metode Pembayaran</label>
-                <div className="mt-1 flex items-center gap-2">
-                  <Badge variant={registration.payment_method === "cash" ? "default" : "secondary"}>
-                    {paymentMethodLabels[registration.payment_method]}
-                  </Badge>
-                </div>
-              </div>
-              {registration.payment_method === "bpjs" && registration.bpjs_number && (
-                <div>
-                  <label className="text-xs text-muted-foreground">Nomor BPJS</label>
-                  <p className="font-medium text-sm font-mono">{registration.bpjs_number}</p>
-                </div>
-              )}
-              {registration.payment_method === "insurance" && (
-                <>
-                  <div>
-                    <label className="text-xs text-muted-foreground">Nama Asuransi</label>
-                    <p className="font-medium text-sm">{registration.insurance_name || "-"}</p>
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">Nomor Polis</label>
-                    <p className="font-medium text-sm font-mono">{registration.insurance_number || "-"}</p>
-                  </div>
-                </>
-              )}
-              
-              {/* SEP Info - inline with payment */}
-              {registration.payment_method === "bpjs" && sepData && (
-                <div className="col-span-2 lg:col-span-4">
-                  <div className="mt-2 p-3 rounded-lg border bg-blue-50/50 border-blue-200">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <ShieldCheck className="h-5 w-5 text-blue-600" />
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs text-muted-foreground">No. SEP:</span>
-                            <span className="font-mono font-bold text-blue-700">{sepData.no_sep}</span>
-                            <Badge variant="outline" className="text-[10px] bg-blue-100 text-blue-700 border-blue-300">
-                              {sepData.status === 'active' ? 'Aktif' : sepData.status}
-                            </Badge>
-                          </div>
-                          <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground">
-                            <span>Poli: <strong className="text-foreground">{sepData.nama_poli || sepData.kode_poli}</strong></span>
-                            <span>DPJP: <strong className="text-foreground">{sepData.nama_dpjp || sepData.kode_dpjp}</strong></span>
-                            <span>Diagnosa: <strong className="text-foreground">{sepData.nama_diagnosa || sepData.diag_awal}</strong></span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button 
-                                variant="ghost" 
-                                size="icon"
-                                className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-100"
-                                onClick={handleOpenEditSEP}
-                              >
-                                <Pencil className="h-4 w-4" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Edit SEP</TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button 
-                                variant="ghost" 
-                                size="icon"
-                                className="h-8 w-8 text-destructive hover:text-destructive hover:bg-red-100"
-                                disabled={deletingSEP}
-                                onClick={() => setDeleteSEPOpen(true)}
-                              >
-                                {deletingSEP ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  <Trash2 className="h-4 w-4" />
-                                )}
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Hapus SEP</TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Informasi SPRI (Surat Perintah Rawat Inap) */}
-          {registration.payment_method === "bpjs" && spriData && (
-            <>
-              <div className="border-t my-6" />
-              <div className="mb-6">
-                <h3 className="text-sm font-medium text-muted-foreground mb-4 flex items-center gap-2">
-                  <ShieldCheck className="h-4 w-4" />
-                  SPRI (SURAT PERINTAH RAWAT INAP)
-                  <Badge
-                    variant="outline"
-                    className={
-                      spriData.status === "active"
-                        ? "bg-green-50 text-green-700 border-green-200"
-                        : spriData.status === "cancelled"
-                        ? "bg-red-50 text-red-700 border-red-200"
-                        : "bg-yellow-50 text-yellow-700 border-yellow-200"
-                    }
-                  >
-                    {spriData.status === "active" ? "Aktif" : spriData.status === "cancelled" ? "Dibatalkan" : spriData.status}
-                  </Badge>
-                </h3>
-                <div className="p-4 rounded-lg border bg-green-50/40 border-green-200">
-                  <div className="flex items-start justify-between">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 flex-1">
-                      <div>
-                        <label className="text-xs text-muted-foreground">Nomor SPRI</label>
-                        <p className="font-medium text-sm font-mono text-green-700">{spriData.no_spri}</p>
-                      </div>
-                      <div>
-                        <label className="text-xs text-muted-foreground">Tgl Rencana Kontrol</label>
-                        <p className="font-medium text-sm">
-                          {spriData.tgl_rencana_kontrol
-                            ? format(new Date(spriData.tgl_rencana_kontrol), "dd MMMM yyyy", { locale: localeId })
-                            : "-"}
-                        </p>
-                      </div>
-                      <div>
-                        <label className="text-xs text-muted-foreground">Poli Kontrol</label>
-                        <p className="font-medium text-sm">{spriData.nama_poli || spriData.kode_poli || "-"}</p>
-                      </div>
-                      <div>
-                        <label className="text-xs text-muted-foreground">Dokter DPJP</label>
-                        <p className="font-medium text-sm">{spriData.nama_dokter || spriData.kode_dokter || "-"}</p>
-                      </div>
-                      {spriData.nama_diagnosa && (
-                        <div>
-                          <label className="text-xs text-muted-foreground">Diagnosa</label>
-                          <p className="font-medium text-sm">{spriData.nama_diagnosa}</p>
+            <FlatSection title="Informasi Layanan" eyebrow="Clinical Routing">
+              <div className="grid gap-3 lg:grid-cols-4">
+                <DetailItem
+                  label="Poli atau Ruangan"
+                  value={
+                    registration.destination_room ? (
+                      <Button
+                        variant="link"
+                        className="h-auto p-0 text-sm font-medium text-primary"
+                        onClick={() => navigate(`/rooms/show/${registration.destination_room?.id || registration.destination_room?.ID}`)}
+                      >
+                        {registration.destination_room.name}
+                      </Button>
+                    ) : (
+                      "-"
+                    )
+                  }
+                />
+                <DetailItem label="Kode Ruangan" value={registration.destination_room?.code || "-"} mono />
+                <DetailItem
+                  label="Dokter"
+                  value={
+                    <div>
+                      <div>{registration.doctor?.nama_lengkap || registration.doctor?.nama || registration.doctor?.name || "-"}</div>
+                      {(registration.doctor?.spesialisasi || registration.doctor?.specialization) && (
+                        <div className="text-xs text-muted-foreground">
+                          {registration.doctor.spesialisasi || registration.doctor.specialization}
                         </div>
                       )}
-                      <div>
-                        <label className="text-xs text-muted-foreground">Dibuat Oleh</label>
-                        <p className="font-medium text-sm">{spriData.user_buat || "-"}</p>
-                      </div>
                     </div>
-                    {spriData.status === "active" && (
-                      <div className="flex items-center gap-1 ml-4 shrink-0">
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-destructive hover:text-destructive hover:bg-red-100"
-                                disabled={deletingSPRI}
-                                onClick={() => setDeleteSPRIOpen(true)}
-                              >
-                                {deletingSPRI ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  <Trash2 className="h-4 w-4" />
-                                )}
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Hapus SPRI dari BPJS</TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
+                  }
+                />
+                {registration.visit?.room_queue && (
+                  <DetailItem
+                    label="Antrian Ruangan"
+                    value={
+                      <div className="space-y-1">
+                        <div className="font-mono text-2xl font-bold text-primary">{registration.visit.room_queue.queue_number}</div>
+                        <Badge variant="outline">{registration.visit.room_queue.status}</Badge>
                       </div>
-                    )}
-                  </div>
-                </div>
+                    }
+                  />
+                )}
               </div>
-            </>
-          )}
+            </FlatSection>
 
-          {/* Informasi BPJS/MJKN */}
-          {bpjsQueue && (
-            <>
-              <div className="border-t my-6" />
-              <div className="mb-6">
-                <h3 className="text-sm font-medium text-muted-foreground mb-4 flex items-center gap-2">
-                  <Smartphone className="h-4 w-4" />
-                  INFORMASI ANTRIAN BPJS (MJKN)
-                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                    MJKN
-                  </Badge>
-                </h3>
-                
-                {/* Status & Action */}
-                <div className="mb-4 p-4 rounded-lg border bg-muted/30">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className={`p-2 rounded-full ${
-                        bpjsQueue.status === 'booking' ? 'bg-yellow-100' :
-                        bpjsQueue.status === 'checkin' ? 'bg-green-100' :
-                        bpjsQueue.status === 'batal' ? 'bg-red-100' : 'bg-blue-100'
-                      }`}>
-                        {bpjsQueue.status === 'booking' && <Clock className="h-5 w-5 text-yellow-600" />}
-                        {bpjsQueue.status === 'checkin' && <CheckCircle className="h-5 w-5 text-green-600" />}
-                        {bpjsQueue.status === 'batal' && <AlertCircle className="h-5 w-5 text-red-600" />}
-                        {!['booking', 'checkin', 'batal'].includes(bpjsQueue.status) && <Smartphone className="h-5 w-5 text-blue-600" />}
-                      </div>
-                      <div>
-                        <p className="font-medium">
-                          {bpjsQueue.status === 'booking' && 'Menunggu Check-in'}
-                          {bpjsQueue.status === 'checkin' && 'Sudah Check-in'}
-                          {bpjsQueue.status === 'dipanggil' && 'Dipanggil'}
-                          {bpjsQueue.status === 'dilayani' && 'Sedang Dilayani'}
-                          {bpjsQueue.status === 'selesai' && 'Selesai'}
-                          {bpjsQueue.status === 'batal' && 'Dibatalkan'}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {bpjsQueue.status === 'booking' 
-                            ? 'Pasien sudah booking via MJKN, silakan aktivasi check-in saat pasien datang'
-                            : bpjsQueue.waktu_checkin 
-                              ? `Check-in: ${format(new Date(bpjsQueue.waktu_checkin), "dd MMM yyyy HH:mm", { locale: localeId })}`
-                              : ''
-                          }
-                        </p>
-                      </div>
-                    </div>
-                    {bpjsQueue.status === 'booking' && (
-                      <Button 
-                        onClick={handleActivateCheckin}
-                        disabled={activatingCheckin}
-                        className="bg-green-600 hover:bg-green-700"
-                      >
-                        {activatingCheckin ? (
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        ) : (
-                          <CheckCircle className="mr-2 h-4 w-4" />
-                        )}
-                        Aktivasi Check-in
-                      </Button>
-                    )}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-                  <div>
-                    <label className="text-xs text-muted-foreground">Kode Booking</label>
-                    <p className="font-medium text-sm font-mono">{bpjsQueue.kode_booking}</p>
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">Nomor Antrian MJKN</label>
-                    <p className="font-mono font-bold text-2xl text-primary">{bpjsQueue.nomor_antrean}</p>
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">Tanggal Periksa</label>
-                    <p className="font-medium text-sm">
-                      {format(new Date(bpjsQueue.tanggal_periksa), "dd MMMM yyyy", { locale: localeId })}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">Jam Praktek</label>
-                    <p className="font-medium text-sm">{bpjsQueue.jam_praktek}</p>
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">Poli BPJS</label>
-                    <p className="font-medium text-sm">{bpjsQueue.nama_poli}</p>
-                    <p className="text-xs text-muted-foreground">{bpjsQueue.kode_poli}</p>
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">Dokter BPJS</label>
-                    <p className="font-medium text-sm">{bpjsQueue.nama_dokter}</p>
-                    <p className="text-xs text-muted-foreground">{bpjsQueue.kode_dokter}</p>
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">Nomor Kartu BPJS</label>
-                    <p className="font-medium text-sm font-mono">{bpjsQueue.no_kartu}</p>
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">Jenis Kunjungan</label>
-                    <p className="font-medium text-sm">
-                      {bpjsQueue.jenis_kunjungan === 1 && "Rujukan FKTP"}
-                      {bpjsQueue.jenis_kunjungan === 2 && "Rujukan Internal"}
-                      {bpjsQueue.jenis_kunjungan === 3 && "Kontrol"}
-                      {bpjsQueue.jenis_kunjungan === 4 && "Rujukan Antar RS"}
-                    </p>
-                  </div>
-                  {bpjsQueue.nomor_referensi && (
-                    <div>
-                      <label className="text-xs text-muted-foreground">Nomor Referensi/Rujukan</label>
-                      <p className="font-medium text-sm font-mono">{bpjsQueue.nomor_referensi}</p>
-                    </div>
-                  )}
-                  <div>
-                    <label className="text-xs text-muted-foreground">Estimasi Dilayani</label>
-                    <p className="font-medium text-sm">
-                      {format(new Date(bpjsQueue.estimasi_dilayani), "HH:mm", { locale: localeId })}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Task Tracking */}
-                <div className="mt-4 pt-4 border-t">
-                  <label className="text-xs text-muted-foreground mb-2 block">Progress Task BPJS</label>
-                  <div className="flex flex-wrap gap-2">
-                    <Badge variant={bpjsQueue.task3_at ? "default" : "outline"} className={bpjsQueue.task3_at ? "bg-green-600" : ""}>
-                      Task 3: Tunggu Poli {bpjsQueue.task3_at && "âœ“"}
-                    </Badge>
-                    <Badge variant={bpjsQueue.task4_at ? "default" : "outline"} className={bpjsQueue.task4_at ? "bg-green-600" : ""}>
-                      Task 4: Dipanggil {bpjsQueue.task4_at && "âœ“"}
-                    </Badge>
-                    <Badge variant={bpjsQueue.task5_at ? "default" : "outline"} className={bpjsQueue.task5_at ? "bg-green-600" : ""}>
-                      Task 5: Selesai {bpjsQueue.task5_at && "âœ“"}
-                    </Badge>
-                    <Badge variant={bpjsQueue.task6_at ? "default" : "outline"} className={bpjsQueue.task6_at ? "bg-green-600" : ""}>
-                      Task 6: Tunggu Farmasi {bpjsQueue.task6_at && "âœ“"}
-                    </Badge>
-                    <Badge variant={bpjsQueue.task7_at ? "default" : "outline"} className={bpjsQueue.task7_at ? "bg-green-600" : ""}>
-                      Task 7: Serah Obat {bpjsQueue.task7_at && "âœ“"}
-                    </Badge>
-                  </div>
-                </div>
-
-                {/* Sync Status */}
-                <div className="mt-4 pt-4 border-t">
-                  <div className="flex items-center gap-2">
-                    <label className="text-xs text-muted-foreground">Status Sinkronisasi:</label>
-                    <Badge variant={bpjsQueue.sync_status === 'success' ? "default" : bpjsQueue.sync_status === 'failed' ? "destructive" : "secondary"}>
-                      {bpjsQueue.sync_status}
-                    </Badge>
-                    {bpjsQueue.last_sync_at && (
-                      <span className="text-xs text-muted-foreground">
-                        (Terakhir: {format(new Date(bpjsQueue.last_sync_at), "dd/MM HH:mm")})
-                      </span>
-                    )}
-                  </div>
-                  {bpjsQueue.sync_error && (
-                    <p className="text-xs text-red-500 mt-1">{bpjsQueue.sync_error}</p>
-                  )}
-                </div>
-              </div>
-            </>
-          )}
-
-          {(registration.complaint || registration.notes || registration.visit) && (
-            <>
-              <div className="border-t my-6" />
-
-              {/* Informasi Tambahan */}
-              <div className="mb-6">
-                <h3 className="text-sm font-medium text-muted-foreground mb-4 flex items-center gap-2">
-                  <FileText className="h-4 w-4" />
-                  INFORMASI TAMBAHAN
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {(registration.complaint || registration.notes) && (
+              <FlatSection title="Informasi Tambahan" eyebrow="Narrative Notes">
+                <div className="grid gap-4 md:grid-cols-2">
                   {registration.complaint && (
-                    <div className="col-span-2">
-                      <label className="text-xs text-muted-foreground">Keluhan</label>
-                      <p className="font-medium text-sm">{registration.complaint}</p>
+                    <div className="space-y-1">
+                      <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Keluhan</div>
+                      <div className="text-sm text-foreground">{registration.complaint}</div>
                     </div>
                   )}
                   {registration.notes && (
-                    <div className="col-span-2">
-                      <label className="text-xs text-muted-foreground">Catatan</label>
-                      <p className="font-medium text-sm">{registration.notes}</p>
+                    <div className="space-y-1">
+                      <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Catatan</div>
+                      <div className="text-sm text-foreground">{registration.notes}</div>
                     </div>
                   )}
                 </div>
+              </FlatSection>
+            )}
+
+            {registration.visit && (
+              <FlatSection title="Informasi Kunjungan" eyebrow="Visit Summary">
+                <div className="grid gap-3 lg:grid-cols-4">
+                  <DetailItem label="Nomor Kunjungan" value={registration.visit.visit_number} mono />
+                  <DetailItem label="Jenis Kunjungan" value={registration.visit.visit_type} />
+                  <DetailItem label="Status Kunjungan" value={<Badge variant="outline">{registration.visit.status}</Badge>} />
+                </div>
+              </FlatSection>
+            )}
+          </div>
+
+          <div className="space-y-4">
+            <FlatSection
+              title="Informasi Pembayaran"
+              eyebrow="Coverage"
+              actions={
+                <Button variant="ghost" size="sm" onClick={handleOpenEditPayment}>
+                  <Pencil className="h-4 w-4" />
+                  Ubah
+                </Button>
+              }
+            >
+              <div className="grid gap-3 lg:grid-cols-2">
+                <DetailItem
+                  label="Metode Pembayaran"
+                  value={<Badge variant={registration.payment_method === "cash" ? "default" : "secondary"}>{paymentMethodLabels[registration.payment_method]}</Badge>}
+                />
+                {registration.payment_method === "bpjs" && registration.bpjs_number && (
+                  <DetailItem label="Nomor BPJS" value={registration.bpjs_number} mono />
+                )}
+                {registration.payment_method === "insurance" && (
+                  <>
+                    <DetailItem label="Nama Asuransi" value={registration.insurance_name || "-"} />
+                    <DetailItem label="Nomor Polis" value={registration.insurance_number || "-"} mono />
+                  </>
+                )}
               </div>
-            </>
-          )}
 
-          {registration.visit && (
-            <>
-              <div className="border-t my-6" />
-
-              {/* Informasi Kunjungan */}
-              <div className="mb-6">
-                <h3 className="text-sm font-medium text-muted-foreground mb-4 flex items-center gap-2">
-                  <Activity className="h-4 w-4" />
-                  INFORMASI KUNJUNGAN
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-                  <div>
-                    <label className="text-xs text-muted-foreground">Nomor Kunjungan</label>
-                    <p className="font-medium text-sm font-mono">{registration.visit.visit_number}</p>
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">Jenis Kunjungan</label>
-                    <p className="font-medium text-sm capitalize">{registration.visit.visit_type}</p>
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">Status Kunjungan</label>
-                    <div className="mt-1">
-                      <Badge variant="outline">{registration.visit.status}</Badge>
+              {registration.payment_method === "bpjs" && sepData && (
+                <div className="mt-4 border border-blue-200 bg-blue-50/50 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-sm font-semibold text-blue-900">
+                        <ShieldCheck className="h-4 w-4" />
+                        SEP Aktif
+                      </div>
+                      <div className="grid gap-2 text-xs text-muted-foreground">
+                        <div>No. SEP: <span className="font-mono font-semibold text-foreground">{sepData.no_sep}</span></div>
+                        <div>Poli: <span className="font-medium text-foreground">{sepData.nama_poli || sepData.kode_poli}</span></div>
+                        <div>DPJP: <span className="font-medium text-foreground">{sepData.nama_dpjp || sepData.kode_dpjp}</span></div>
+                        <div>Diagnosa: <span className="font-medium text-foreground">{sepData.nama_diagnosa || sepData.diag_awal}</span></div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-blue-600 hover:bg-blue-100 hover:text-blue-700"
+                              onClick={handleOpenEditSEP}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Edit SEP</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-destructive hover:bg-red-100 hover:text-destructive"
+                              disabled={deletingSEP}
+                              onClick={() => setDeleteSEPOpen(true)}
+                            >
+                              {deletingSEP ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Hapus SEP</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     </div>
                   </div>
                 </div>
-              </div>
-            </>
-          )}
-      </div>
+              )}
+            </FlatSection>
+
+            {registration.payment_method === "bpjs" && spriData && (
+              <FlatSection
+                title="SPRI"
+                eyebrow="Inpatient Order"
+                actions={
+                  spriData.status === "active" ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive hover:bg-red-100 hover:text-destructive"
+                      disabled={deletingSPRI}
+                      onClick={() => setDeleteSPRIOpen(true)}
+                    >
+                      {deletingSPRI ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                      Hapus
+                    </Button>
+                  ) : undefined
+                }
+              >
+                <div className="grid gap-3 lg:grid-cols-2">
+                  <DetailItem label="Nomor SPRI" value={spriData.no_spri} mono />
+                  <DetailItem label="Status" value={spriData.status === "active" ? "Aktif" : spriData.status === "cancelled" ? "Dibatalkan" : spriData.status} />
+                  <DetailItem
+                    label="Tanggal Rencana Kontrol"
+                    value={spriData.tgl_rencana_kontrol ? format(new Date(spriData.tgl_rencana_kontrol), "dd MMMM yyyy", { locale: localeId }) : "-"}
+                  />
+                  <DetailItem label="Poli Kontrol" value={spriData.nama_poli || spriData.kode_poli || "-"} />
+                  <DetailItem label="Dokter DPJP" value={spriData.nama_dokter || spriData.kode_dokter || "-"} />
+                  {spriData.nama_diagnosa && <DetailItem label="Diagnosa" value={spriData.nama_diagnosa} />}
+                  <DetailItem label="Dibuat Oleh" value={spriData.user_buat || "-"} />
+                </div>
+              </FlatSection>
+            )}
+
+            {bpjsQueue && (
+              <FlatSection title="Informasi Antrian BPJS" eyebrow="MJKN Sync">
+                <div className="space-y-4">
+                  <div className="border border-border/70 bg-muted/30 p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className={`border p-2 ${bpjsQueue.status === "booking" ? "bg-yellow-100" : bpjsQueue.status === "checkin" ? "bg-green-100" : bpjsQueue.status === "batal" ? "bg-red-100" : "bg-blue-100"}`}>
+                          {bpjsQueue.status === "booking" && <Clock className="h-5 w-5 text-yellow-600" />}
+                          {bpjsQueue.status === "checkin" && <CheckCircle className="h-5 w-5 text-green-600" />}
+                          {bpjsQueue.status === "batal" && <AlertCircle className="h-5 w-5 text-red-600" />}
+                          {!['booking', 'checkin', 'batal'].includes(bpjsQueue.status) && <Smartphone className="h-5 w-5 text-blue-600" />}
+                        </div>
+                        <div>
+                          <div className="text-sm font-semibold text-foreground">
+                            {bpjsQueue.status === 'booking' && 'Menunggu Check-in'}
+                            {bpjsQueue.status === 'checkin' && 'Sudah Check-in'}
+                            {bpjsQueue.status === 'dipanggil' && 'Dipanggil'}
+                            {bpjsQueue.status === 'dilayani' && 'Sedang Dilayani'}
+                            {bpjsQueue.status === 'selesai' && 'Selesai'}
+                            {bpjsQueue.status === 'batal' && 'Dibatalkan'}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {bpjsQueue.status === 'booking'
+                              ? 'Pasien sudah booking via MJKN. Aktivasi check-in saat pasien datang.'
+                              : bpjsQueue.waktu_checkin
+                                ? `Check-in: ${format(new Date(bpjsQueue.waktu_checkin), 'dd MMM yyyy HH:mm', { locale: localeId })}`
+                                : '-'}
+                          </div>
+                        </div>
+                      </div>
+                      {bpjsQueue.status === 'booking' && (
+                        <Button onClick={handleActivateCheckin} disabled={activatingCheckin} className="bg-green-600 hover:bg-green-700">
+                          {activatingCheckin ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4" />}
+                          Aktivasi Check-in
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 lg:grid-cols-2">
+                    <DetailItem label="Kode Booking" value={bpjsQueue.kode_booking} mono />
+                    <DetailItem label="Nomor Antrian MJKN" value={bpjsQueue.nomor_antrean} mono />
+                    <DetailItem label="Tanggal Periksa" value={format(new Date(bpjsQueue.tanggal_periksa), "dd MMMM yyyy", { locale: localeId })} />
+                    <DetailItem label="Jam Praktek" value={bpjsQueue.jam_praktek} />
+                    <DetailItem label="Poli BPJS" value={<div><div>{bpjsQueue.nama_poli}</div><div className="text-xs text-muted-foreground">{bpjsQueue.kode_poli}</div></div>} />
+                    <DetailItem label="Dokter BPJS" value={<div><div>{bpjsQueue.nama_dokter}</div><div className="text-xs text-muted-foreground">{bpjsQueue.kode_dokter}</div></div>} />
+                    <DetailItem label="Nomor Kartu BPJS" value={bpjsQueue.no_kartu} mono />
+                    <DetailItem
+                      label="Jenis Kunjungan"
+                      value={
+                        bpjsQueue.jenis_kunjungan === 1
+                          ? "Rujukan FKTP"
+                          : bpjsQueue.jenis_kunjungan === 2
+                            ? "Rujukan Internal"
+                            : bpjsQueue.jenis_kunjungan === 3
+                              ? "Kontrol"
+                              : bpjsQueue.jenis_kunjungan === 4
+                                ? "Rujukan Antar RS"
+                                : "-"
+                      }
+                    />
+                    {bpjsQueue.nomor_referensi && <DetailItem label="Nomor Referensi" value={bpjsQueue.nomor_referensi} mono />}
+                    <DetailItem label="Estimasi Dilayani" value={format(new Date(bpjsQueue.estimasi_dilayani), "HH:mm", { locale: localeId })} />
+                  </div>
+
+                  <div className="space-y-2 border-t border-border/70 pt-4">
+                    <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Progress Task BPJS</div>
+                    <div className="flex flex-wrap gap-2">
+                      <Badge variant={bpjsQueue.task3_at ? "default" : "outline"} className={bpjsQueue.task3_at ? "bg-green-600" : ""}>Task 3: Tunggu Poli {bpjsQueue.task3_at ? "OK" : ""}</Badge>
+                      <Badge variant={bpjsQueue.task4_at ? "default" : "outline"} className={bpjsQueue.task4_at ? "bg-green-600" : ""}>Task 4: Dipanggil {bpjsQueue.task4_at ? "OK" : ""}</Badge>
+                      <Badge variant={bpjsQueue.task5_at ? "default" : "outline"} className={bpjsQueue.task5_at ? "bg-green-600" : ""}>Task 5: Selesai {bpjsQueue.task5_at ? "OK" : ""}</Badge>
+                      <Badge variant={bpjsQueue.task6_at ? "default" : "outline"} className={bpjsQueue.task6_at ? "bg-green-600" : ""}>Task 6: Tunggu Farmasi {bpjsQueue.task6_at ? "OK" : ""}</Badge>
+                      <Badge variant={bpjsQueue.task7_at ? "default" : "outline"} className={bpjsQueue.task7_at ? "bg-green-600" : ""}>Task 7: Serah Obat {bpjsQueue.task7_at ? "OK" : ""}</Badge>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 border-t border-border/70 pt-4">
+                    <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Sinkronisasi</div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant={bpjsQueue.sync_status === 'success' ? "default" : bpjsQueue.sync_status === 'failed' ? "destructive" : "secondary"}>
+                        {bpjsQueue.sync_status}
+                      </Badge>
+                      {bpjsQueue.last_sync_at && (
+                        <span className="text-xs text-muted-foreground">
+                          Terakhir: {format(new Date(bpjsQueue.last_sync_at), "dd/MM HH:mm")}
+                        </span>
+                      )}
+                    </div>
+                    {bpjsQueue.sync_error && <p className="text-xs text-red-500">{bpjsQueue.sync_error}</p>}
+                  </div>
+                </div>
+              </FlatSection>
+            )}
+          </div>
+        </div>
+      </PageContent>
 
       {/* Modal Edit SEP */}
       <Dialog open={editSEPOpen} onOpenChange={setEditSEPOpen}>
@@ -1445,6 +1279,6 @@ export default function RegistrationShow() {
         </AlertDialogContent>
       </AlertDialog>
 
-    </div>
+    </PageShell>
   );
 }

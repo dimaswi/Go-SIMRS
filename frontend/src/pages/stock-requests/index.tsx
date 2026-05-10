@@ -164,26 +164,35 @@ export default function StockRequestsIndex() {
         }
       />
       <PageContent>
-        <FilterBar>
-          <FilterPill active={activeView === "all"} onClick={() => setActiveView("all")} count={requests.length}>
-            Semua
-          </FilterPill>
-          <FilterPill active={activeView === "my"} onClick={() => setActiveView("my")} count={myRequests.length}>
-            Permintaan Saya
-          </FilterPill>
-          <FilterPill active={activeView === "pending"} onClick={() => setActiveView("pending")} count={pendingApprovals.length}>
-            Perlu Persetujuan
-          </FilterPill>
-        </FilterBar>
-
-        <DataTable
-          columns={columns}
-          data={displayData}
-          searchPlaceholder="Cari nomor permintaan..."
-          pageSize={10}
-          tableId={tableId}
-        />
-
+        <div className="border border-border/70 bg-background">
+          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            {activeView === "all" && "Daftar Permintaan Stok"}
+            {activeView === "my" && "Permintaan Saya"}
+            {activeView === "pending" && "Perlu Persetujuan"}
+          </div>
+          <div className="p-3 sm:p-4">
+            <FilterBar>
+              <FilterPill active={activeView === "all"} onClick={() => setActiveView("all")} count={requests.length}>
+                Semua
+              </FilterPill>
+              <FilterPill active={activeView === "my"} onClick={() => setActiveView("my")} count={myRequests.length}>
+                Permintaan Saya
+              </FilterPill>
+              <FilterPill active={activeView === "pending"} onClick={() => setActiveView("pending")} count={pendingApprovals.length}>
+                Perlu Persetujuan
+              </FilterPill>
+            </FilterBar>
+            <div className="mt-4">
+              <DataTable
+                columns={columns}
+                data={displayData}
+                searchPlaceholder="Cari nomor permintaan..."
+                pageSize={10}
+                tableId={tableId}
+              />
+            </div>
+          </div>
+        </div>
         <ConfirmDialog
           open={deleteId !== null}
           onOpenChange={(open) => {

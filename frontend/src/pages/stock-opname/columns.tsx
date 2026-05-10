@@ -1,5 +1,5 @@
 import type { ColumnDef } from "@tanstack/react-table";
-import { Eye, CheckCircle, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { Eye, CheckCircle, MoreHorizontal, Pencil, Trash2, Building2, CalendarDays, Package2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -44,9 +44,14 @@ export function createStockOpnameColumns({
       accessorKey: "opname_number",
       header: "Nomor Opname",
       cell: ({ row }) => (
-        <span className="font-mono font-medium">
-          {row.original.opname_number}
-        </span>
+        <div>
+          <span className="font-mono font-medium">
+            {row.original.opname_number}
+          </span>
+          <p className="text-xs text-muted-foreground">
+            {row.original.created_by?.full_name || "Tanpa petugas"}
+          </p>
+        </div>
       ),
     },
     {
@@ -60,14 +65,27 @@ export function createStockOpnameColumns({
               year: "numeric",
             })
           : "-";
-        return <span>{date}</span>;
+        return (
+          <div className="flex items-center gap-2 text-sm">
+            <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
+            <span>{date}</span>
+          </div>
+        );
       },
     },
     {
       accessorKey: "room",
       header: "Ruangan",
       cell: ({ row }) => (
-        <span>{row.original.room?.name || "-"}</span>
+        <div className="flex items-center gap-2">
+          <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+          <div>
+            <p>{row.original.room?.name || "-"}</p>
+            {row.original.room?.code && (
+              <p className="text-xs text-muted-foreground">{row.original.room.code}</p>
+            )}
+          </div>
+        </div>
       ),
     },
     {
@@ -75,7 +93,12 @@ export function createStockOpnameColumns({
       header: "Jumlah Item",
       cell: ({ row }) => {
         const items = row.original.items?.length || 0;
-        return <span>{items} item</span>;
+        return (
+          <div className="flex items-center gap-2">
+            <Package2 className="h-3.5 w-3.5 text-muted-foreground" />
+            <span>{items} item</span>
+          </div>
+        );
       },
     },
     {
@@ -105,7 +128,7 @@ export function createStockOpnameColumns({
         return (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-8 w-8 p-0">
+              <Button variant="ghost" className="h-8 w-8 p-0 hover:bg-muted/80">
                 <span className="sr-only">Open menu</span>
                 <MoreHorizontal className="h-4 w-4" />
               </Button>

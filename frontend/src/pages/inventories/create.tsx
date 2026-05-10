@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react";
+﻿import { useState, useEffect, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,8 +8,55 @@ import { Switch } from "@/components/ui/switch";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { inventoriesApi, type InventoryCategory } from "@/lib/api/inventories";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Package, Tag, DollarSign, FileText, Layers, Hash, Box } from "lucide-react";
+import { Loader2, Package, Tag, DollarSign, FileText, Layers, Hash, Box, ArrowLeft } from "lucide-react";
 import { setPageTitle } from "@/lib/page-title";
+import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
+
+function SummaryCue({
+  label,
+  description,
+  tone,
+}: {
+  label: string;
+  description: string;
+  tone: string;
+}) {
+  return (
+    <div className={`border border-border/70 bg-gradient-to-br ${tone} px-4 py-3 shadow-sm`}>
+      <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">{label}</div>
+      <div className="mt-1 text-sm font-medium text-foreground">{description}</div>
+    </div>
+  );
+}
+
+function SectionPanel({
+  icon: Icon,
+  title,
+  description,
+  children,
+}: {
+  icon: typeof Package;
+  title: string;
+  description: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="border border-border/70 bg-background/95 shadow-sm">
+      <div className="border-b border-border/70 bg-muted/20 px-4 py-3">
+        <div className="flex items-start gap-3">
+          <div className="border border-border/70 bg-background p-2">
+            <Icon className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <div>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{title}</div>
+            <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+          </div>
+        </div>
+      </div>
+      <div className="p-3 sm:p-4 space-y-4">{children}</div>
+    </div>
+  );
+}
 
 export default function InventoryCreate() {
   const navigate = useNavigate();
@@ -121,14 +168,42 @@ export default function InventoryCreate() {
   };
 
   return (
-    <div className="flex flex-1 flex-col px-4">
+    <PageShell>
+      <PageHeader
+        title="Tambah Inventaris"
+        description="Buat master inventaris baru dengan identitas, stok, dan properti operasional yang lengkap agar siap dipakai untuk tracking item dan transaksi."
+        icon={Package}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => navigate("/inventories")}>
+              <ArrowLeft className="h-4 w-4" />
+              Kembali
+            </Button>
+            <Button type="submit" form="inventory-create-form" size="sm" disabled={loading}>
+              {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+              Simpan Inventaris
+            </Button>
+          </div>
+        }
+      >
+        <div className="flex flex-wrap gap-2 pb-3">
+          <div className="border border-border/70 bg-background px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Kode inventaris uppercase</div>
+          <div className="border border-border/70 bg-background px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Stok awal bisa diisi</div>
+          <div className="border border-border/70 bg-background px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Properti item fleksibel</div>
+        </div>
+      </PageHeader>
 
-      <div className="flex-1 space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11">
-        <form onSubmit={handleSubmit} className="space-y-6">
+      <PageContent className="flex-none pb-8">
+        <div className="mb-4 grid gap-3 lg:grid-cols-3">
+          <SummaryCue label="Identitas" description="Pastikan kode, nama inventaris, kategori, dan satuan terisi lebih dulu." tone="from-background via-background to-sky-50/40" />
+          <SummaryCue label="Kontrol Stok" description="Isi stok awal dan batas stok agar monitoring inventaris langsung aktif." tone="from-background via-background to-emerald-50/40" />
+          <SummaryCue label="Properti Item" description="Tentukan apakah inventaris habis pakai, reusable, dan perlu serial number." tone="from-background via-background to-amber-50/50" />
+        </div>
+
+        <div className="flex-1 space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11">
+        <form id="inventory-create-form" onSubmit={handleSubmit} className="space-y-6">
           {/* Basic Info */}
-          <div className="border border-border/70">
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Informasi Dasar</div>
-            <div className="p-3 sm:p-4 space-y-4">
+          <SectionPanel icon={Package} title="Informasi Dasar" description="Identitas inventaris, klasifikasi, satuan, dan detail produk utama.">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                 <div className="space-y-2">
                   <Label
@@ -264,13 +339,10 @@ export default function InventoryCreate() {
                   />
                 </div>
               </div>
-            </div>
-          </div>
+          </SectionPanel>
 
           {/* Stock Info */}
-          <div className="border border-border/70">
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Informasi Stok</div>
-            <div className="p-3 sm:p-4 space-y-4">
+          <SectionPanel icon={Hash} title="Informasi Stok" description="Stok awal dan ambang minimum-maksimum untuk monitoring inventaris.">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                 <div className="space-y-2">
                   <Label
@@ -331,13 +403,10 @@ export default function InventoryCreate() {
                   />
                 </div>
               </div>
-            </div>
-          </div>
+          </SectionPanel>
 
           {/* Properties */}
-          <div className="border border-border/70">
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Properti</div>
-            <div className="p-3 sm:p-4 space-y-4">
+          <SectionPanel icon={Layers} title="Properti" description="Aturan operasional inventaris untuk konsumsi, reuse, serial, dan status aktif.">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
                 <div className="flex items-center justify-between rounded-lg border p-3">
                   <div className="space-y-0.5">
@@ -408,13 +477,10 @@ export default function InventoryCreate() {
                   />
                 </div>
               </div>
-            </div>
-          </div>
+          </SectionPanel>
 
           {/* Additional Info */}
-          <div className="border border-border/70">
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Informasi Tambahan</div>
-            <div className="p-3 sm:p-4 space-y-4">
+          <SectionPanel icon={FileText} title="Informasi Tambahan" description="Deskripsi, spesifikasi teknis, dan catatan pendukung inventaris.">
               <div className="space-y-2">
                 <Label
                   htmlFor="description"
@@ -467,11 +533,10 @@ export default function InventoryCreate() {
                   className="min-h-[60px] text-sm"
                 />
               </div>
-            </div>
-          </div>
+          </SectionPanel>
 
           {/* Sticky Footer Actions */}
-          <div className="shrink-0 sticky bottom-0 z-10 py-3 mt-4 flex items-center justify-end gap-2 border-t bg-background">
+          <div className="shrink-0 sticky bottom-0 z-10 py-3 mt-4 flex items-center justify-end gap-2 border-t border-border/70 bg-background/95 backdrop-blur">
             <Button
               type="button"
               variant="outline"
@@ -485,7 +550,8 @@ export default function InventoryCreate() {
             </Button>
           </div>
         </form>
-      </div>
-    </div>
+        </div>
+      </PageContent>
+    </PageShell>
   );
 }

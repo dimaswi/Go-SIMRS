@@ -6,10 +6,12 @@ import { suppliersApi, type Supplier } from "@/lib/api/suppliers";
 import { usePermission } from "@/hooks/usePermission";
 import { useToast } from "@/hooks/use-toast";
 import { setPageTitle } from "@/lib/page-title";
+import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 import {
   Loader2,
   Pencil,
   Building2,
+  ArrowLeft,
   Phone,
   Mail,
   MapPin,
@@ -18,6 +20,23 @@ import {
   FileText,
   AlertTriangle,
 } from "lucide-react";
+
+function SummaryMetric({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: React.ReactNode;
+  tone: string;
+}) {
+  return (
+    <div className={`border border-border/70 bg-gradient-to-br ${tone} px-4 py-3 shadow-sm`}>
+      <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">{label}</div>
+      <div className="mt-1 text-lg font-semibold text-foreground">{value}</div>
+    </div>
+  );
+}
 
 export default function SupplierShow() {
   const { id } = useParams<{ id: string }>();
@@ -70,9 +89,42 @@ export default function SupplierShow() {
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
+    <PageShell>
+      <PageHeader
+        title="Detail Supplier"
+        description="Tinjau identitas supplier, PIC, rekening, dan status dalam satu halaman yang lebih ringkas."
+        icon={Building2}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => navigate("/suppliers")}>
+              <ArrowLeft className="h-4 w-4" />
+              Kembali
+            </Button>
+            {hasPermission("suppliers.update") && (
+              <Button variant="outline" size="sm" onClick={() => navigate(`/suppliers/${id}/edit`)}>
+                <Pencil className="h-4 w-4" />
+                Edit
+              </Button>
+            )}
+          </div>
+        }
+      >
+        <div className="flex flex-wrap gap-2 pb-3">
+          <div className="border border-border/70 bg-background px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Profil supplier lengkap</div>
+          <div className="border border-border/70 bg-background px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">PIC dan bank terhubung</div>
+          <div className="border border-border/70 bg-background px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Aksi cepat di header</div>
+        </div>
+      </PageHeader>
 
-      <div className="flex-1 space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11 mt-6">
+      <PageContent className="flex-none pb-8">
+        <div className="mb-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <SummaryMetric label="Status" tone="from-background via-background to-sky-50/40" value={<span className="text-sm">{supplier.is_active ? "Aktif" : "Non-Aktif"}</span>} />
+          <SummaryMetric label="Telepon" tone="from-background via-background to-emerald-50/40" value={<span className="text-sm">{supplier.phone || "-"}</span>} />
+          <SummaryMetric label="PIC" tone="from-background via-background to-amber-50/50" value={<span className="text-sm">{supplier.contact_person || "-"}</span>} />
+          <SummaryMetric label="Email" tone="from-background via-background to-rose-50/40" value={<span className="text-sm">{supplier.email || "-"}</span>} />
+        </div>
+
+      <div className="flex-1 space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11">
         {/* Basic Info */}
         <div className="border border-border/70">
           <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
@@ -208,24 +260,7 @@ export default function SupplierShow() {
           </div>
         )}
       </div>
-
-      {/* Sticky Footer Actions */}
-      <div className="shrink-0 sticky bottom-0 z-10 py-3 mt-4 flex items-center justify-between border-t bg-background">
-        <Button variant="outline" onClick={() => navigate("/suppliers")}>
-          Kembali
-        </Button>
-        <div className="flex gap-2">
-          {hasPermission("suppliers.update") && (
-            <Button
-              variant="outline"
-              onClick={() => navigate(`/suppliers/${id}/edit`)}
-            >
-              <Pencil className="mr-2 h-4 w-4" />
-              Edit
-            </Button>
-          )}
-        </div>
-      </div>
-    </div>
+      </PageContent>
+    </PageShell>
   );
 }

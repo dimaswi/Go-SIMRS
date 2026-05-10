@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, type ComponentType, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -28,7 +28,10 @@ import {
   Building,
   FileText,
   AlertTriangle,
+  ArrowLeft,
+  Truck,
 } from "lucide-react";
+import { PageShell, PageHeader, PageContent } from '@/components/layout/page-shell';
 
 const statusColors: Record<string, string> = {
   pending: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
@@ -41,6 +44,35 @@ const statusLabels: Record<string, string> = {
   delivered: "Dikirim",
   received: "Diterima",
 };
+
+function SectionPanel({
+  icon: Icon,
+  title,
+  description,
+  children,
+}: {
+  icon: ComponentType<{ className?: string }>;
+  title: string;
+  description: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="border border-border/70 bg-background/95 shadow-sm">
+      <div className="border-b border-border/70 bg-muted/20 px-4 py-3">
+        <div className="flex items-start gap-3">
+          <div className="border border-border/70 bg-background p-2">
+            <Icon className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <div>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{title}</div>
+            <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+          </div>
+        </div>
+      </div>
+      <div className="p-3 sm:p-4">{children}</div>
+    </div>
+  );
+}
 
 export default function DistributionShow() {
   const { id } = useParams<{ id: string }>();
@@ -131,16 +163,44 @@ export default function DistributionShow() {
     (distribution.status === "pending" || distribution.status === "delivered");
 
   return (
-    <div className="flex flex-1 flex-col px-4">
+    <PageShell>
+      <PageHeader
+        title="Detail Distribusi"
+        description="Lihat rute distribusi, pihak yang terlibat, dan item yang telah dikirim atau diterima dari satu tampilan yang lebih ringkas."
+        icon={Truck}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => navigate('/distributions')}>
+              <ArrowLeft className="h-4 w-4" />
+              Kembali
+            </Button>
+            {canReceive && (
+              <Button size="sm" onClick={() => setReceiveDialogOpen(true)}>
+                <CheckCircle className="h-4 w-4" />
+                Terima Distribusi
+              </Button>
+            )}
+          </div>
+        }
+      >
+        <div className="flex flex-wrap gap-2 pb-3">
+          <div className="border border-border/70 bg-background px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Status distribusi live</div>
+          <div className="border border-border/70 bg-background px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Jalur antar ruangan jelas</div>
+          <div className="border border-border/70 bg-background px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Aksi penerimaan di header</div>
+        </div>
+      </PageHeader>
 
+      <PageContent className="flex-none pb-8">
+        <div className="mb-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="border border-border/70 bg-gradient-to-br from-background via-background to-sky-50/40 px-4 py-3 shadow-sm"><div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Status</div><div className="mt-1 text-sm font-semibold text-foreground">{statusLabels[distribution.status]}</div></div>
+          <div className="border border-border/70 bg-gradient-to-br from-background via-background to-emerald-50/40 px-4 py-3 shadow-sm"><div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Jumlah Item</div><div className="mt-1 text-sm font-semibold text-foreground">{distribution.items?.length || 0} item</div></div>
+          <div className="border border-border/70 bg-gradient-to-br from-background via-background to-amber-50/50 px-4 py-3 shadow-sm"><div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Dari</div><div className="mt-1 text-sm font-semibold text-foreground">{distribution.from_room?.name || '-'}</div></div>
+          <div className="border border-border/70 bg-gradient-to-br from-background via-background to-rose-50/40 px-4 py-3 shadow-sm"><div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Ke</div><div className="mt-1 text-sm font-semibold text-foreground">{distribution.to_room?.name || '-'}</div></div>
+        </div>
 
       <div className="flex-1 space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11">
-        <div className="border border-border/70">
-          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
-            <Package className="h-3 w-3" />
-            Informasi Distribusi
-          </div>
-          <div className="p-3 sm:p-4">
+        <SectionPanel icon={Truck} title="Informasi Distribusi" description="Ringkasan nomor distribusi, jalur ruangan, tanggal kirim, dan referensi permintaan.">
+          <div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
               <div className="space-y-1">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -203,15 +263,11 @@ export default function DistributionShow() {
               )}
             </div>
           </div>
-        </div>
+        </SectionPanel>
 
         {/* People Info */}
-        <div className="border border-border/70">
-          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
-            <User className="h-3 w-3" />
-            Informasi Pihak Terlibat
-          </div>
-          <div className="p-3 sm:p-4">
+        <SectionPanel icon={User} title="Informasi Pihak Terlibat" description="Jejak siapa yang mengirim dan siapa yang menerima distribusi ini.">
+          <div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Distributed By */}
               <div className="space-y-1">
@@ -236,16 +292,12 @@ export default function DistributionShow() {
               )}
             </div>
           </div>
-        </div>
+        </SectionPanel>
 
         {/* Notes */}
         {distribution.notes && (
-          <div className="border border-border/70">
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
-              <FileText className="h-3 w-3" />
-              Catatan
-            </div>
-            <div className="p-3 sm:p-4">
+          <SectionPanel icon={FileText} title="Catatan" description="Keterangan tambahan dari proses distribusi yang perlu dilihat penerima atau pengirim.">
+            <div>
               <div className="space-y-1">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <FileText className="h-4 w-4" />
@@ -254,16 +306,12 @@ export default function DistributionShow() {
                 <p className="text-sm">{distribution.notes}</p>
               </div>
             </div>
-          </div>
+          </SectionPanel>
         )}
 
         {/* Items Table */}
-        <div className="border border-border/70">
-          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
-            <Package className="h-3 w-3" />
-            Daftar Item ({distribution.items?.length || 0} item)
-          </div>
-          <div className="p-0">
+        <SectionPanel icon={Package} title="Daftar Item" description={`Rincian ${distribution.items?.length || 0} item yang ikut dalam distribusi ini.`}>
+          <div className="-mx-3 -mb-4 sm:-mx-4">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -329,7 +377,7 @@ export default function DistributionShow() {
               </TableBody>
             </Table>
           </div>
-        </div>
+        </SectionPanel>
       </div>
 
       {/* Receive Confirmation Dialog */}
@@ -342,21 +390,7 @@ export default function DistributionShow() {
         cancelText="Batal"
         onConfirm={handleReceive}
       />
-
-      {/* Sticky Footer Actions */}
-      <div className="shrink-0 sticky bottom-0 z-10 py-3 mt-4 flex items-center justify-between border-t bg-background">
-        <Button variant="outline" onClick={() => navigate("/distributions")}>
-          Kembali
-        </Button>
-        <div className="flex gap-2">
-          {canReceive && (
-            <Button onClick={() => setReceiveDialogOpen(true)}>
-              <CheckCircle className="mr-2 h-4 w-4" />
-              Terima Distribusi
-            </Button>
-          )}
-        </div>
-      </div>
-    </div>
+      </PageContent>
+    </PageShell>
   );
 }

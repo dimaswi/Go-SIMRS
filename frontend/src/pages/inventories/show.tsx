@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from "react";
+﻿import { useState, useEffect, useCallback, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -40,9 +40,12 @@ import { usePermission } from "@/hooks/usePermission";
 import { useToast } from "@/hooks/use-toast";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { setPageTitle } from "@/lib/page-title";
+import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 import {
   Loader2,
   Pencil,
+  Package,
+  ArrowLeft,
   Plus,
   Trash2,
   ArrowUpCircle,
@@ -100,6 +103,43 @@ const statusOptions: ComboboxOption[] = [
   { value: "reserved", label: "Direservasi" },
   { value: "disposed", label: "Dihapuskan" },
 ];
+
+function SummaryMetric({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: React.ReactNode;
+  tone: string;
+}) {
+  return (
+    <div className={`border border-border/70 bg-gradient-to-br ${tone} px-4 py-3 shadow-sm`}>
+      <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">{label}</div>
+      <div className="mt-1 text-xl font-semibold text-foreground">{value}</div>
+    </div>
+  );
+}
+
+function SectionPanel({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="border border-border/70 bg-background/95 shadow-sm">
+      <div className="border-b border-border/70 bg-muted/20 px-4 py-3">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{title}</div>
+        <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+      </div>
+      <div className="p-3 sm:p-4">{children}</div>
+    </div>
+  );
+}
 
 export default function InventoryShow() {
   const { id } = useParams<{ id: string }>();
@@ -286,9 +326,42 @@ export default function InventoryShow() {
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
+    <PageShell>
+      <PageHeader
+        title="Detail Inventaris"
+        description="Tinjau master inventaris, item fisik, dan riwayat transaksi dalam satu halaman yang lebih ringkas."
+        icon={Package}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => navigate("/inventories")}>
+              <ArrowLeft className="h-4 w-4" />
+              Kembali
+            </Button>
+            {hasPermission("inventories.update") && (
+              <Button variant="outline" size="sm" onClick={() => navigate(`/inventories/${id}/edit`)}>
+                <Pencil className="h-4 w-4" />
+                Edit
+              </Button>
+            )}
+          </div>
+        }
+      >
+        <div className="flex flex-wrap gap-2 pb-3">
+          <div className="border border-border/70 bg-background px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Detail master dan item</div>
+          <div className="border border-border/70 bg-background px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Transaksi inventaris terintegrasi</div>
+          <div className="border border-border/70 bg-background px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Aksi cepat di header</div>
+        </div>
+      </PageHeader>
 
-      <div className="flex-1 space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11">
+      <PageContent className="flex-none pb-8">
+        <div className="mb-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <SummaryMetric label="Stok Saat Ini" tone="from-background via-background to-sky-50/40" value={inventory.current_stock} />
+          <SummaryMetric label="Nilai Total" tone="from-background via-background to-emerald-50/40" value={formatCurrency(inventory.total_value)} />
+          <SummaryMetric label="Jumlah Item" tone="from-background via-background to-amber-50/50" value={items.length} />
+          <SummaryMetric label="Status" tone="from-background via-background to-rose-50/40" value={<span className="text-sm">{inventory.is_active ? "Aktif" : "Tidak Aktif"}</span>} />
+        </div>
+
+        <div className="flex-1 space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11">
         <Tabs defaultValue="detail" variant="inline">
           <TabsList>
             <TabsTrigger value="detail">Detail</TabsTrigger>
@@ -304,11 +377,8 @@ export default function InventoryShow() {
           <TabsContent value="detail" className="space-y-6 pt-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Informasi Umum */}
-              <div className="border border-border/70">
-                <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                  Informasi Umum
-                </div>
-                <div className="p-3 sm:p-4 space-y-3">
+              <SectionPanel title="Informasi Umum" description="Ringkasan identitas inventaris, kategori, harga, dan status master.">
+                <div className="space-y-3">
                   <div className="flex justify-between">
                     <span className="text-sm text-muted-foreground">Nama Inventaris</span>
                     <span className="text-sm font-medium">{inventory.name}</span>
@@ -359,14 +429,11 @@ export default function InventoryShow() {
                     </span>
                   </div>
                 </div>
-              </div>
+              </SectionPanel>
 
               {/* Informasi Stok */}
-              <div className="border border-border/70">
-                <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                  Informasi Stok
-                </div>
-                <div className="p-3 sm:p-4 space-y-3">
+              <SectionPanel title="Informasi Stok" description="Posisi stok saat ini dan nilai inventaris untuk keputusan operasional cepat.">
+                <div className="space-y-3">
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-muted-foreground">
                       Stok Saat Ini
@@ -408,15 +475,12 @@ export default function InventoryShow() {
                     </span>
                   </div>
                 </div>
-              </div>
+              </SectionPanel>
             </div>
 
             {/* Properti */}
-            <div className="border border-border/70">
-              <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                Properti
-              </div>
-              <div className="p-3 sm:p-4 flex flex-wrap gap-4">
+            <SectionPanel title="Properti" description="Karakter penggunaan inventaris untuk pemakaian habis pakai, reuse, dan serial number.">
+              <div className="flex flex-wrap gap-4">
                 <div className="flex items-center gap-2 text-sm">
                   {inventory.is_consumable ? (
                     <Check className="h-4 w-4 text-green-600" />
@@ -442,32 +506,26 @@ export default function InventoryShow() {
                   <span>Wajib Serial Number</span>
                 </div>
               </div>
-            </div>
+            </SectionPanel>
 
             {/* Deskripsi & Spesifikasi */}
             {(inventory.description || inventory.specifications) && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {inventory.description && (
-                  <div className="border border-border/70">
-                    <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                      Deskripsi
-                    </div>
-                    <div className="p-3 sm:p-4">
+                  <SectionPanel title="Deskripsi" description="Penjelasan umum mengenai inventaris dan konteks penggunaannya.">
+                    <div>
                       <p className="text-sm">{inventory.description}</p>
                     </div>
-                  </div>
+                  </SectionPanel>
                 )}
                 {inventory.specifications && (
-                  <div className="border border-border/70">
-                    <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                      Spesifikasi
-                    </div>
-                    <div className="p-3 sm:p-4">
+                  <SectionPanel title="Spesifikasi" description="Spesifikasi teknis inventaris yang dibutuhkan tim saat identifikasi item.">
+                    <div>
                       <p className="text-sm whitespace-pre-wrap">
                         {inventory.specifications}
                       </p>
                     </div>
-                  </div>
+                  </SectionPanel>
                 )}
               </div>
             )}
@@ -608,7 +666,7 @@ export default function InventoryShow() {
             </div>
           </TabsContent>
         </Tabs>
-      </div>
+        </div>
 
       {/* Item Dialog */}
       <Dialog open={itemDialogOpen} onOpenChange={setItemDialogOpen}>
@@ -753,23 +811,7 @@ export default function InventoryShow() {
         cancelText="Batal"
         variant="destructive"
       />
-      {/* Sticky Footer Actions */}
-      <div className="shrink-0 sticky bottom-0 z-10 py-3 mt-4 flex items-center justify-between border-t bg-background">
-        <Button variant="outline" onClick={() => navigate("/inventories")}>
-          Kembali
-        </Button>
-        <div className="flex gap-2">
-          {hasPermission("inventories.update") && (
-            <Button
-              variant="outline"
-              onClick={() => navigate(`/inventories/${id}/edit`)}
-            >
-              <Pencil className="mr-2 h-4 w-4" />
-              Edit
-            </Button>
-          )}
-        </div>
-      </div>
-    </div>
+      </PageContent>
+    </PageShell>
   );
 }

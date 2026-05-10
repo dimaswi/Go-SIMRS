@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from "react";
+﻿import { useState, useEffect, useCallback, type ComponentType, type ReactNode } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -27,6 +27,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 import { useToast } from "@/hooks/use-toast";
 import { setPageTitle } from "@/lib/page-title";
 import { cn } from "@/lib/utils";
@@ -35,6 +36,40 @@ import {
   type Purchase,
   type PurchaseItem,
 } from "@/lib/api/stock-requests";
+
+function SectionPanel({
+  icon: Icon,
+  title,
+  description,
+  actions,
+  children,
+}: {
+  icon: ComponentType<{ className?: string }>;
+  title: string;
+  description: string;
+  actions?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <div className="border border-border/70 bg-background/95 shadow-sm">
+      <div className="border-b border-border/70 bg-muted/20 px-4 py-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div className="border border-border/70 bg-background p-2">
+              <Icon className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{title}</div>
+              <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+            </div>
+          </div>
+          {actions}
+        </div>
+      </div>
+      <div className="p-3 sm:p-4">{children}</div>
+    </div>
+  );
+}
 
 const formSchema = z.object({
   receive_date: z.string().min(1, "Tanggal penerimaan wajib diisi"),
@@ -258,14 +293,22 @@ export default function PurchaseReceive() {
 
   if (loading) {
     return (
-      <div className="flex flex-1 flex-col px-4">
-        <div className="flex items-center gap-4">
-          <Skeleton className="h-10 w-10" />
-          <Skeleton className="h-8 w-64" />
-        </div>
-        <Skeleton className="h-48" />
-        <Skeleton className="h-96" />
-      </div>
+      <PageShell>
+        <PageHeader
+          title="Terima Barang"
+          description="Catat item yang sudah datang dan lengkapi informasi batch bila diperlukan."
+        />
+        <PageContent className="flex-none pb-8">
+          <div className="space-y-4">
+            <div className="flex items-center gap-4">
+              <Skeleton className="h-10 w-10" />
+              <Skeleton className="h-8 w-64" />
+            </div>
+            <Skeleton className="h-48" />
+            <Skeleton className="h-96" />
+          </div>
+        </PageContent>
+      </PageShell>
     );
   }
 
@@ -274,26 +317,37 @@ export default function PurchaseReceive() {
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-          <div className="flex-1 space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11">
-            {/* Purchase Info */}
-            <div className="border border-border/70">
-              <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex justify-between items-center">
-                <span>Informasi Pembelian</span>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="h-5 text-[10px]">
-                    {completedItems} / {totalItems} Lengkap
-                  </Badge>
-                  {selectedCount > 0 && (
-                    <Badge className="bg-primary h-5 text-[10px]">
-                      {selectedCount} dipilih
+    <PageShell>
+      <PageHeader
+        title={`Terima Barang ${purchase.purchase_number}`}
+        description="Catat item yang datang dan selesaikan sisa penerimaan per item."
+        actions={
+          <Button variant="outline" onClick={() => navigate(`/purchases/${id}`)}>
+            Kembali
+          </Button>
+        }
+      />
+      <PageContent className="flex-none pb-8">
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            <div className="space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11">
+              <SectionPanel
+                icon={PackageCheck}
+                title="Informasi Pembelian"
+                description="Ringkasan pembelian sumber dan progres item yang sudah lengkap atau masih harus diterima."
+                actions={
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="h-5 text-[10px]">
+                      {completedItems} / {totalItems} Lengkap
                     </Badge>
-                  )}
-                </div>
-              </div>
-              <div className="p-3 sm:p-4">
+                    {selectedCount > 0 && (
+                      <Badge className="bg-primary h-5 text-[10px]">
+                        {selectedCount} dipilih
+                      </Badge>
+                    )}
+                  </div>
+                }
+              >
                 <div className="flex items-center gap-6">
                   <div>
                     <p className="text-xs text-muted-foreground">No. Pembelian</p>
@@ -304,14 +358,13 @@ export default function PurchaseReceive() {
                     <p className="text-sm font-medium">{purchase.supplier_name}</p>
                   </div>
                 </div>
-              </div>
-            </div>
+              </SectionPanel>
 
-            <div className="border border-border/70">
-              <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                Informasi Penerimaan
-              </div>
-              <div className="p-3 sm:p-4">
+              <SectionPanel
+                icon={Info}
+                title="Informasi Penerimaan"
+                description="Tentukan tanggal terima dan catatan singkat untuk proses penerimaan saat ini."
+              >
                 <div className="grid gap-4 md:grid-cols-2">
                   <FormField
                     control={form.control}
@@ -343,16 +396,13 @@ export default function PurchaseReceive() {
                     )}
                   />
                 </div>
-              </div>
-            </div>
+              </SectionPanel>
 
-            {/* Bulk Actions Card */}
-            <div className="border border-border/70">
-              <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                Aksi Massal
-              </div>
-              <div className="p-3 sm:p-4">
-                <div className="flex items-center justify-between mb-4">
+              <SectionPanel
+                icon={CheckCheck}
+                title="Aksi Massal"
+                description="Pilih item yang ingin diterima sekaligus, lalu isi jumlah sisa atau data batch untuk obat terpilih."
+                actions={
                   <div className="flex items-center gap-2">
                     <Button
                       type="button"
@@ -360,7 +410,7 @@ export default function PurchaseReceive() {
                       size="sm"
                       onClick={handleSelectAll}
                     >
-                      <CheckCheck className="h-4 w-4 mr-1" />
+                      <CheckCheck className="mr-1 h-4 w-4" />
                       {selectedCount === itemsWithRemaining
                         ? "Batal Pilih Semua"
                         : "Pilih Semua"}
@@ -372,110 +422,110 @@ export default function PurchaseReceive() {
                       onClick={handleFillAll}
                       disabled={selectedCount === 0}
                     >
-                      <PackageCheck className="h-4 w-4 mr-1" />
+                      <PackageCheck className="mr-1 h-4 w-4" />
                       Isi Sisa ke Terpilih
                     </Button>
                   </div>
-                </div>
-              </div>
-              {selectedMedicines > 0 && (
-                <div className="px-6 pb-6">
-                  <Alert>
-                    <Info className="h-4 w-4" />
-                    <AlertDescription>
-                      <strong>{selectedMedicines} obat</strong> terpilih. Anda
-                      dapat mengisi batch number dan tanggal kadaluarsa secara
-                      massal.
-                    </AlertDescription>
-                  </Alert>
-                  <div className="grid gap-4 md:grid-cols-2 mt-4">
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">
-                        Batch Number untuk Semua Obat Terpilih
-                      </label>
-                      <div className="flex gap-2">
-                        <Input
-                          placeholder="Masukkan batch number..."
-                          id="bulk-batch"
-                        />
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => {
-                            const input = document.getElementById(
-                              "bulk-batch"
-                            ) as HTMLInputElement;
-                            if (input?.value) {
-                              handleApplyBatchToSelected(input.value);
-                              toast({
-                                title: "Berhasil",
-                                description: `Batch number diterapkan ke ${selectedMedicines} obat.`,
-                              });
-                            }
-                          }}
-                        >
-                          Terapkan
-                        </Button>
+                }
+              >
+                {selectedMedicines > 0 && (
+                  <div className="space-y-4">
+                    <Alert>
+                      <Info className="h-4 w-4" />
+                      <AlertDescription>
+                        <strong>{selectedMedicines} obat</strong> terpilih. Anda
+                        dapat mengisi batch number dan tanggal kadaluarsa secara
+                        massal.
+                      </AlertDescription>
+                    </Alert>
+                    <div className="mt-4 grid gap-4 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">
+                          Batch Number untuk Semua Obat Terpilih
+                        </label>
+                        <div className="flex gap-2">
+                          <Input
+                            placeholder="Masukkan batch number..."
+                            id="bulk-batch"
+                          />
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => {
+                              const input = document.getElementById(
+                                "bulk-batch"
+                              ) as HTMLInputElement;
+                              if (input?.value) {
+                                handleApplyBatchToSelected(input.value);
+                                toast({
+                                  title: "Berhasil",
+                                  description: `Batch number diterapkan ke ${selectedMedicines} obat.`,
+                                });
+                              }
+                            }}
+                          >
+                            Terapkan
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">
-                        Tanggal Kadaluarsa untuk Semua Obat Terpilih
-                      </label>
-                      <div className="flex gap-2">
-                        <Input type="date" id="bulk-expiry" />
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => {
-                            const input = document.getElementById(
-                              "bulk-expiry"
-                            ) as HTMLInputElement;
-                            if (input?.value) {
-                              handleApplyExpiryToSelected(input.value);
-                              toast({
-                                title: "Berhasil",
-                                description: `Tanggal kadaluarsa diterapkan ke ${selectedMedicines} obat.`,
-                              });
-                            }
-                          }}
-                        >
-                          Terapkan
-                        </Button>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">
+                          Tanggal Kadaluarsa untuk Semua Obat Terpilih
+                        </label>
+                        <div className="flex gap-2">
+                          <Input type="date" id="bulk-expiry" />
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => {
+                              const input = document.getElementById(
+                                "bulk-expiry"
+                              ) as HTMLInputElement;
+                              if (input?.value) {
+                                handleApplyExpiryToSelected(input.value);
+                                toast({
+                                  title: "Berhasil",
+                                  description: `Tanggal kadaluarsa diterapkan ke ${selectedMedicines} obat.`,
+                                });
+                              }
+                            }}
+                          >
+                            Terapkan
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
+              </SectionPanel>
             </div>
-          </div>
 
-          {/* Items Card */}
-          <div className="border border-border/70">
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              Daftar Item ({totalItems})
-            </div>
-            <div className="px-4 py-3">
-              <ScrollArea className="h-[500px]">
-                <div className="divide-y">
-                  {fields.map((field, index) => {
-                    const item = watchItems?.[index];
-                    const isComplete = item?.remaining === 0;
-                    const isSelected = item?.selected;
-                    const isMedicine = item?.item_type === "medicine";
+            <SectionPanel
+              icon={Package}
+              title="Daftar Item"
+              description={`Kelola penerimaan ${totalItems} item dengan memilih baris yang ingin diproses pada sesi ini.`}
+            >
+              <div className="-mx-3 -mb-4 px-1 sm:-mx-4">
+                <ScrollArea className="h-[500px]">
+                  <div className="divide-y">
+                    {fields.map((field, index) => {
+                      const item = watchItems?.[index];
+                      const isComplete = item?.remaining === 0;
+                      const isSelected = item?.selected;
+                      const isMedicine = item?.item_type === "medicine";
 
-                    return (
-                      <div
-                        key={field.id}
-                        className={cn(
-                          "p-4 transition-colors",
-                          isComplete && "bg-muted/30",
-                          isSelected && !isComplete && "bg-primary/5"
-                        )}
-                      >
-                        <div className="flex items-start gap-4">
+                      return (
+                        <div
+                          key={field.id}
+                          className={cn(
+                            "p-4 transition-colors",
+                            isComplete && "bg-muted/30",
+                            isSelected && !isComplete && "bg-primary/5"
+                          )}
+                        >
+                          <div className="flex items-start gap-4">
                           {/* Checkbox */}
                           <div className="pt-1">
                             <FormField
@@ -647,35 +697,35 @@ export default function PurchaseReceive() {
                             </div>
                           )}
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </ScrollArea>
-            </div>
-          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </ScrollArea>
+              </div>
+            </SectionPanel>
 
-          {/* Sticky Footer Actions */}
-          <div className="shrink-0 sticky bottom-0 z-10 py-3 mt-4 flex items-center justify-between border-t bg-background">
-            <p className="text-sm text-muted-foreground">
-              {selectedCount} item akan diterima
-            </p>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => navigate(`/purchases/${id}`)}
-              >
-                Batal
-              </Button>
-              <Button type="submit" disabled={submitting || selectedCount === 0}>
-                <PackageCheck className="mr-2 h-4 w-4" />
-                {submitting ? "Menyimpan..." : `Terima ${selectedCount} Item`}
-              </Button>
+            <div className="sticky bottom-0 z-10 mt-4 flex items-center justify-between border-t bg-background py-3">
+              <p className="text-sm text-muted-foreground">
+                {selectedCount} item akan diterima
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => navigate(`/purchases/${id}`)}
+                >
+                  Batal
+                </Button>
+                <Button type="submit" disabled={submitting || selectedCount === 0}>
+                  <PackageCheck className="mr-2 h-4 w-4" />
+                  {submitting ? "Menyimpan..." : `Terima ${selectedCount} Item`}
+                </Button>
+              </div>
             </div>
-          </div>
-        </form>
-      </Form>
-    </div>
+          </form>
+        </Form>
+      </PageContent>
+    </PageShell>
   );
 }

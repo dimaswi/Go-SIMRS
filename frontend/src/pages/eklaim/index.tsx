@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, type ReactNode } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -46,13 +46,14 @@ import {
 import { format } from 'date-fns';
 import { id as localeId } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { PageContent, PageHeader, PageShell } from '@/components/layout/page-shell';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line, Legend,
 } from 'recharts';
 
 // Chart colors
-const CHART_COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];
+const CHART_COLORS = ['#0f172a', '#334155', '#475569', '#64748b', '#94a3b8', '#1f2937', '#52525b', '#78716c'];
 
 // Format helpers
 const fmtQcCurrency = (value: number): string => {
@@ -90,20 +91,6 @@ const getStatusColor = (status: 'success' | 'warning' | 'danger') => {
     case 'danger': return 'text-red-600 bg-red-100';
   }
 };
-
-const STRIP_CLASS = 'border border-border/70 bg-background';
-
-function SectionStrip({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
-  return (
-    <section className="space-y-3">
-      <div className="border-l-4 border-l-primary pl-3">
-        <h2 className="text-sm font-semibold uppercase tracking-[0.2em]">{title}</h2>
-        {description ? <p className="text-xs text-muted-foreground">{description}</p> : null}
-      </div>
-      {children}
-    </section>
-  );
-}
 
 export default function EKlaimDashboard() {
   const navigate = useNavigate();
@@ -181,12 +168,6 @@ export default function EKlaimDashboard() {
     }
   }, [activeTab, loadQualityCostData]);
 
-  const fmtNum = (value?: number | string) => {
-    const num = typeof value === 'string' ? parseFloat(value) : value;
-    if (!num) return '-';
-    return new Intl.NumberFormat('id-ID').format(num);
-  };
-
   const fmtCurrency = (value?: number | string) => {
     const num = typeof value === 'string' ? parseFloat(value) : value;
     if (!num) return '-';
@@ -234,35 +215,57 @@ export default function EKlaimDashboard() {
 
   if (loading && !data) {
     return (
-      <div className="flex flex-1 items-center justify-center py-20">
+      <div className="flex flex-1 items-center justify-center bg-muted/20 py-20">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4 pb-4">
-      {/* Header */}
-      <div className="border border-border/70 bg-gradient-to-r from-cyan-50 via-background to-emerald-50 px-4 py-3">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-lg font-semibold flex items-center gap-2 uppercase tracking-[0.08em]">
-            <LayoutDashboard className="h-5 w-5" />
-            Dashboard E-Klaim
-          </h1>
-          <p className="text-sm text-muted-foreground">Ringkasan klaim, kendali mutu, dan analisis biaya BPJS</p>
+    <PageShell>
+      <PageHeader
+        title="Dashboard E-Klaim"
+        description="Ringkasan klaim BPJS, mutu, dan biaya dalam satu tampilan kerja."
+        count={data?.total_claims || 0}
+        icon={LayoutDashboard}
+        actions={
+          <div className="flex items-center gap-1 border border-border/70 bg-background px-1 py-1">
+            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-none" onClick={prevMonth}>
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <span className="min-w-[140px] px-2 text-center text-sm font-medium capitalize">{bulanLabel()}</span>
+            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-none" onClick={nextMonth}>
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        }
+      >
+        <div className="grid gap-px border border-border/70 bg-border/70 lg:grid-cols-4">
+          <div className="bg-background px-4 py-3">
+            <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Jumlah Klaim</p>
+            <p className="mt-1 text-2xl font-semibold">{data?.total_claims || 0}</p>
+          </div>
+          <div className="bg-background px-4 py-3">
+            <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">INA-CBG</p>
+            <p className="mt-1 text-base font-semibold text-foreground">{fmtCurrency(data?.financial.total_inacbg_tariff)}</p>
+            <p className="mt-1 text-[11px] text-muted-foreground">Rata-rata {fmtCurrency(data?.financial.avg_inacbg_tariff)}</p>
+          </div>
+          <div className="bg-background px-4 py-3">
+            <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Tarif RS</p>
+            <p className="mt-1 text-base font-semibold text-foreground">{fmtCurrency(data?.financial.total_tarif_rs)}</p>
+            <p className="mt-1 text-[11px] text-muted-foreground">Rata-rata {fmtCurrency(data?.financial.avg_tarif_rs)}</p>
+          </div>
+          <div className="bg-background px-4 py-3">
+            <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Pending</p>
+            <p className="mt-1 text-2xl font-semibold">{totalPending}</p>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              {selisih > 0 ? 'RS di atas INA-CBG' : selisih < 0 ? 'INA-CBG di atas RS' : 'Selisih seimbang'}
+            </p>
+          </div>
         </div>
-        <div className="flex items-center gap-1 border border-border/70 bg-background/80 px-1 py-1">
-          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-none" onClick={prevMonth}>
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <span className="text-sm font-medium min-w-[140px] text-center capitalize">{bulanLabel()}</span>
-          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-none" onClick={nextMonth}>
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
-      </div>
+      </PageHeader>
+
+      <PageContent className="gap-6">
 
       {loading ? (
         <div className="flex items-center justify-center py-12">
@@ -270,37 +273,9 @@ export default function EKlaimDashboard() {
         </div>
       ) : data ? (
         <>
-          <SectionStrip title="" description="">
-            <div className={`${STRIP_CLASS} grid grid-cols-2 lg:grid-cols-4 divide-x divide-border/60`}>
-              <div className="p-4">
-                <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Jumlah Klaim</p>
-                <p className="text-2xl font-bold mt-1">{data.total_claims}</p>
-              </div>
-              <div className="p-4">
-                <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Tarif INACBG</p>
-                <p className="text-base font-semibold text-blue-600 font-mono mt-1">{fmtCurrency(data.financial.total_inacbg_tariff)}</p>
-                <p className="text-[11px] text-muted-foreground font-mono mt-1">Avg {fmtCurrency(data.financial.avg_inacbg_tariff)}</p>
-              </div>
-              <div className="p-4">
-                <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Tarif RS</p>
-                <p className="text-base font-semibold text-green-600 font-mono mt-1">{fmtCurrency(data.financial.total_tarif_rs)}</p>
-                <p className="text-[11px] text-muted-foreground font-mono mt-1">Avg {fmtCurrency(data.financial.avg_tarif_rs)}</p>
-              </div>
-              <div className="p-4">
-                <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Selisih RS - INACBG</p>
-                <p className={`text-base font-semibold font-mono mt-1 ${selisih > 0 ? 'text-red-600' : selisih < 0 ? 'text-emerald-600' : ''}`}>
-                  {selisih !== 0 ? (selisih > 0 ? '+' : '') + fmtNum(selisih) : '-'}
-                </p>
-                <p className="text-[11px] text-muted-foreground mt-1">
-                  {selisih > 0 ? 'Tarif RS lebih tinggi' : selisih < 0 ? 'Tarif INACBG lebih tinggi' : 'Seimbang'}
-                </p>
-              </div>
-            </div>
-          </SectionStrip>
-
           {/* Tabs: Klaim + Kendali Mutu + Analisis Biaya */}
           <Tabs value={activeTab} onValueChange={setActiveTab} variant="inline" className="w-full">
-            <TabsList className="rounded-none border border-border/70 bg-background p-1">
+            <TabsList className="rounded-none border border-border/70 bg-muted/30 p-1">
               <TabsTrigger value="klaim" className="rounded-none data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
                 <LayoutDashboard className="mr-2 h-4 w-4" />
                 Klaim
@@ -324,47 +299,49 @@ export default function EKlaimDashboard() {
             <TabsContent value="klaim" className="mt-6 space-y-4">
               {/* Pending Actions */}
               {totalPending > 0 && (
-                <div className="flex items-center gap-3 flex-wrap">
+                <div className="border border-border/70 bg-background px-3 py-3">
+                  <div className="flex flex-wrap items-center gap-3">
                   <span className="text-sm font-medium flex items-center gap-1.5">
-                    <AlertTriangle className="h-4 w-4 text-orange-500" />
-                    Perlu tindakan:
+                    <AlertTriangle className="h-4 w-4 text-foreground" />
+                    Tindakan
                   </span>
                   {data.pending_actions.draft > 0 && (
-                    <Badge variant="outline" className="cursor-pointer hover:bg-muted" onClick={() => navigate('/eklaim/data-klaim?status=draft')}>
+                    <Badge variant="outline" className="rounded-none cursor-pointer hover:bg-muted" onClick={() => navigate('/eklaim/data-klaim?status=draft')}>
                       <Pencil className="h-3 w-3 mr-1" /> {data.pending_actions.draft} Draft
                     </Badge>
                   )}
                   {data.pending_actions.new_claim > 0 && (
-                    <Badge variant="outline" className="cursor-pointer hover:bg-muted text-blue-700 border-blue-200" onClick={() => navigate('/eklaim/data-klaim?status=new_claim')}>
-                      <FileText className="h-3 w-3 mr-1" /> {data.pending_actions.new_claim} Perlu Set Data
+                    <Badge variant="outline" className="rounded-none cursor-pointer hover:bg-muted" onClick={() => navigate('/eklaim/data-klaim?status=new_claim')}>
+                      <FileText className="h-3 w-3 mr-1" /> {data.pending_actions.new_claim} Set Data
                     </Badge>
                   )}
                   {data.pending_actions.pending_grouper > 0 && (
-                    <Badge variant="outline" className="cursor-pointer hover:bg-muted text-purple-700 border-purple-200" onClick={() => navigate('/eklaim/data-klaim?status=set_claim_data')}>
-                      <Clock className="h-3 w-3 mr-1" /> {data.pending_actions.pending_grouper} Perlu Grouper
+                    <Badge variant="outline" className="rounded-none cursor-pointer hover:bg-muted" onClick={() => navigate('/eklaim/data-klaim?status=set_claim_data')}>
+                      <Clock className="h-3 w-3 mr-1" /> {data.pending_actions.pending_grouper} Grouper
                     </Badge>
                   )}
                   {data.pending_actions.pending_final > 0 && (
-                    <Badge variant="outline" className="cursor-pointer hover:bg-muted text-indigo-700 border-indigo-200" onClick={() => navigate('/eklaim/data-klaim?status=idrg_grouped')}>
-                      <CheckCircle2 className="h-3 w-3 mr-1" /> {data.pending_actions.pending_final} Perlu Final
+                    <Badge variant="outline" className="rounded-none cursor-pointer hover:bg-muted" onClick={() => navigate('/eklaim/data-klaim?status=idrg_grouped')}>
+                      <CheckCircle2 className="h-3 w-3 mr-1" /> {data.pending_actions.pending_final} Final
                     </Badge>
                   )}
                   {data.pending_actions.pending_send > 0 && (
-                    <Badge variant="outline" className="cursor-pointer hover:bg-muted text-green-700 border-green-200" onClick={() => navigate('/eklaim/data-klaim?status=claim_final')}>
-                      <Send className="h-3 w-3 mr-1" /> {data.pending_actions.pending_send} Perlu Kirim
+                    <Badge variant="outline" className="rounded-none cursor-pointer hover:bg-muted" onClick={() => navigate('/eklaim/data-klaim?status=claim_final')}>
+                      <Send className="h-3 w-3 mr-1" /> {data.pending_actions.pending_send} Kirim
                     </Badge>
                   )}
+                  </div>
                 </div>
               )}
                 {/* Chart + Status + Breakdown */}
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
                   {/* Daily Tariff Chart */}
-                  <div className="lg:col-span-5 border border-border/70 bg-background p-4">
+                  <div className="border border-border/70 bg-background p-4 md:col-span-5">
                     <div className="flex items-center justify-between mb-3">
                       <h3 className="text-sm font-medium">Tarif Harian</h3>
                       <div className="flex items-center gap-3 text-[10px]">
-                        <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm bg-blue-500" /> INACBG</span>
-                        <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm bg-green-500" /> RS</span>
+                        <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-none bg-slate-700" /> INACBG</span>
+                        <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-none bg-slate-400" /> RS</span>
                       </div>
                     </div>
                     {data.daily_claims?.length > 0 ? (
@@ -376,8 +353,8 @@ export default function EKlaimDashboard() {
                           return (
                             <div key={d.date} className="flex-1 flex flex-col items-center group" title={`${fmtDate(d.date)}\nINACBG: ${fmtCurrency(d.total_inacbg)}\nRS: ${fmtCurrency(d.total_tarif_rs)}\n${d.count} klaim`}>
                               <div className="flex-1 w-full flex gap-[1px] items-end">
-                                <div className="flex-1 bg-blue-400 rounded-t hover:bg-blue-500 transition-colors" style={{ height: `${hINACBG}px` }} />
-                                <div className="flex-1 bg-green-400 rounded-t hover:bg-green-500 transition-colors" style={{ height: `${hRS}px` }} />
+                                <div className="flex-1 bg-slate-700 transition-colors" style={{ height: `${hINACBG}px` }} />
+                                <div className="flex-1 bg-slate-400 transition-colors" style={{ height: `${hRS}px` }} />
                               </div>
                               <span className="text-[8px] text-muted-foreground leading-none mt-1">{dayNum}</span>
                             </div>
@@ -390,7 +367,7 @@ export default function EKlaimDashboard() {
                   </div>
 
                   {/* Status Distribution */}
-                  <div className="lg:col-span-4 border border-border/70 bg-background p-4">
+                  <div className="border border-border/70 bg-background p-4 md:col-span-4">
                     <h3 className="text-sm font-medium mb-3">Distribusi Status</h3>
                     {data.status_counts?.length > 0 ? (
                       <div className="space-y-1.5">
@@ -415,7 +392,7 @@ export default function EKlaimDashboard() {
                   </div>
 
                   {/* Jenis & Kelas Rawat */}
-                  <div className="lg:col-span-3 border border-border/70 bg-background p-4 space-y-4">
+                  <div className="border border-border/70 bg-background p-4 space-y-4 md:col-span-3">
                     <div>
                       <h3 className="text-sm font-medium mb-2">Jenis Rawat</h3>
                       {data.jenis_rawat_counts?.length > 0 ? (
@@ -447,7 +424,7 @@ export default function EKlaimDashboard() {
                 </div>
 
                 {/* Bottom: Top CBG + Recent Claims */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   {/* Top CBG */}
                   <div className="border border-border/70 bg-background p-4">
                     <h3 className="text-sm font-medium mb-3">Top Kode INACBG</h3>
@@ -785,7 +762,7 @@ export default function EKlaimDashboard() {
                 ) : (
                   <>
                     {/* Charts Row */}
-                    <div className="grid gap-6 lg:grid-cols-2">
+                    <div className="grid gap-6 md:grid-cols-2">
                       <div className="border border-border/70 bg-background">
                         <div className="p-4 pb-2">
                           <h3 className="text-base font-semibold">Perbandingan Biaya vs Klaim</h3>
@@ -1044,7 +1021,8 @@ export default function EKlaimDashboard() {
           </Tabs>
         </>
       ) : null}
-    </div>
+      </PageContent>
+    </PageShell>
   );
 }
 

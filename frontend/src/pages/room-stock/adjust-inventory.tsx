@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ComponentType, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -23,10 +23,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { PageShell, PageHeader, PageContent } from '@/components/layout/page-shell';
 import { roomInventoriesApi } from '@/lib/api/inventories';
 import { useToast } from '@/hooks/use-toast';
 import { setPageTitle } from '@/lib/page-title';
-import { Loader2, ArrowLeft, Package, Plus, Minus, RefreshCw } from 'lucide-react';
+import { Loader2, ArrowLeft, Package, Plus, Minus, RefreshCw, Building2, ClipboardList } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 
 const formSchema = z.object({
   adjustment_type: z.enum(['add', 'subtract', 'set']),
@@ -42,6 +44,52 @@ interface RoomInventory {
   min_quantity: number;
   room?: { id: number; name: string; code: string };
   inventory?: { id: number; name: string; code: string; unit: string };
+}
+
+function SectionPanel({
+  icon: Icon,
+  title,
+  description,
+  children,
+}: {
+  icon: ComponentType<{ className?: string }>;
+  title: string;
+  description: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="border border-border/70 bg-background/95 shadow-sm">
+      <div className="border-b border-border/70 bg-muted/20 px-4 py-3">
+        <div className="flex items-start gap-3">
+          <div className="border border-border/70 bg-background p-2">
+            <Icon className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <div>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{title}</div>
+            <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+          </div>
+        </div>
+      </div>
+      <div className="space-y-4 p-3 sm:p-4">{children}</div>
+    </div>
+  );
+}
+
+function SummaryCue({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: string;
+}) {
+  return (
+    <div className={`border border-border/70 bg-gradient-to-br px-4 py-3 ${tone}`}>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">{label}</p>
+      <p className="mt-1 text-xl font-semibold text-foreground">{value}</p>
+    </div>
+  );
 }
 
 export default function AdjustInventoryStockPage() {
@@ -130,9 +178,14 @@ export default function AdjustInventoryStockPage() {
 
   if (dataLoading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
+      <PageShell>
+        <PageHeader title="Sesuaikan Stok Inventaris" description="Tambah, kurangi, atau set ulang stok inventaris ruangan dengan preview hasil akhirnya." />
+        <PageContent className="flex-none pb-8">
+          <div className="flex items-center justify-center py-16">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        </PageContent>
+      </PageShell>
     );
   }
 
@@ -143,133 +196,136 @@ export default function AdjustInventoryStockPage() {
   const newStock = calculateNewStock();
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-          <Package className="h-5 w-5 text-primary" />
-        </div>
-        <div>
-          <h1 className="text-lg font-semibold">Sesuaikan Stok Inventaris</h1>
-          <p className="text-sm text-muted-foreground">Tambah, kurangi, atau set stok baru</p>
-        </div>
-      </div>
-      <div className="rounded-lg border p-6">
-          {/* Current Info */}
-          <div className="mb-6 p-4 bg-muted rounded-lg">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <p className="text-sm text-muted-foreground">Ruangan</p>
-                <p className="font-medium">{roomInventory.room?.name}</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Inventaris</p>
-                <p className="font-medium">{roomInventory.inventory?.name}</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Stok Saat Ini</p>
-                <Badge variant="secondary" className="text-lg">
-                  {roomInventory.quantity} {roomInventory.inventory?.unit}
-                </Badge>
-              </div>
+    <PageShell>
+      <PageHeader
+        title="Sesuaikan Stok Inventaris"
+        description="Tambah, kurangi, atau set stok baru dengan preview hasil akhir sebelum disimpan."
+        actions={
+          <Button variant="outline" onClick={() => navigate(-1)}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Kembali
+          </Button>
+        }
+      />
+      <PageContent className="flex-none pb-8">
+        <div className="space-y-6">
+          <SectionPanel
+            icon={Building2}
+            title="Ringkasan Stok"
+            description="Lihat ruangan, inventaris, stok saat ini, dan hasil stok setelah penyesuaian sebelum menyimpan perubahan."
+          >
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <SummaryCue label="Ruangan" value={roomInventory.room?.name || '-'} tone="from-slate-50 via-background to-background" />
+              <SummaryCue label="Inventaris" value={roomInventory.inventory?.name || '-'} tone="from-blue-50 via-background to-background" />
+              <SummaryCue label="Stok Saat Ini" value={`${roomInventory.quantity} ${roomInventory.inventory?.unit || ''}`.trim()} tone="from-emerald-50 via-background to-background" />
+              <SummaryCue label="Stok Setelah Adjust" value={`${newStock} ${roomInventory.inventory?.unit || ''}`.trim()} tone="from-amber-50 via-background to-background" />
             </div>
-          </div>
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="outline">Kode: {roomInventory.inventory?.code || '-'}</Badge>
+              <Badge variant="outline">Minimum: {roomInventory.min_quantity} {roomInventory.inventory?.unit || ''}</Badge>
+            </div>
+          </SectionPanel>
 
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              <FormField
-                control={form.control}
-                name="adjustment_type"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Tipe Penyesuaian *</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
+          <SectionPanel
+            icon={ClipboardList}
+            title="Form Penyesuaian"
+            description="Pilih metode penyesuaian, isi jumlah, lalu catat alasan agar histori stok tetap jelas."
+          >
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                <FormField
+                  control={form.control}
+                  name="adjustment_type"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Tipe Penyesuaian *</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="add">
+                            <div className="flex items-center gap-2">
+                              <Plus className="h-4 w-4 text-green-600" />
+                              Tambah Stok
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="subtract">
+                            <div className="flex items-center gap-2">
+                              <Minus className="h-4 w-4 text-red-600" />
+                              Kurangi Stok
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="set">
+                            <div className="flex items-center gap-2">
+                              <RefreshCw className="h-4 w-4 text-blue-600" />
+                              Set Stok Baru
+                            </div>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="quantity"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>
+                        {adjustmentType === 'set' ? 'Stok Baru' : 'Jumlah'} *
+                      </FormLabel>
                       <FormControl>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
+                        <Input type="number" min="1" {...field} />
                       </FormControl>
-                      <SelectContent>
-                        <SelectItem value="add">
-                          <div className="flex items-center gap-2">
-                            <Plus className="h-4 w-4 text-green-600" />
-                            Tambah Stok
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="subtract">
-                          <div className="flex items-center gap-2">
-                            <Minus className="h-4 w-4 text-red-600" />
-                            Kurangi Stok
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="set">
-                          <div className="flex items-center gap-2">
-                            <RefreshCw className="h-4 w-4 text-blue-600" />
-                            Set Stok Baru
-                          </div>
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                      <FormDescription>
+                        Stok akan menjadi: <strong>{newStock} {roomInventory.inventory?.unit}</strong>
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-              <FormField
-                control={form.control}
-                name="quantity"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>
-                      {adjustmentType === 'set' ? 'Stok Baru' : 'Jumlah'} *
-                    </FormLabel>
-                    <FormControl>
-                      <Input type="number" min="1" {...field} />
-                    </FormControl>
-                    <FormDescription>
-                      Stok akan menjadi: <strong>{newStock} {roomInventory.inventory?.unit}</strong>
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                <FormField
+                  control={form.control}
+                  name="reason"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Alasan</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          rows={3}
+                          placeholder="Masukkan alasan penyesuaian..."
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-              <FormField
-                control={form.control}
-                name="reason"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Alasan</FormLabel>
-                    <FormControl>
-                      <Textarea 
-                        rows={3} 
-                        placeholder="Masukkan alasan penyesuaian..."
-                        {...field} 
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <div className="flex justify-end gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => navigate(-1)}
-                >
-                  Batal
-                </Button>
-                <Button type="submit" disabled={loading}>
-                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Simpan
-                </Button>
-              </div>
-            </form>
-          </Form>
-      </div>
-    </div>
+                <div className="sticky bottom-0 z-10 flex justify-end gap-2 border-t bg-background py-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => navigate(-1)}
+                  >
+                    Batal
+                  </Button>
+                  <Button type="submit" disabled={loading}>
+                    {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Simpan
+                  </Button>
+                </div>
+              </form>
+            </Form>
+          </SectionPanel>
+        </div>
+      </PageContent>
+    </PageShell>
   );
 }

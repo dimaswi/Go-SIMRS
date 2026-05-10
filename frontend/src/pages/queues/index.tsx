@@ -1,13 +1,7 @@
-import { PageShell, PageHeader, PageToolbar, PageContent } from "@/components/layout/page-shell";
+import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 import { useEffect, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 import { DataTable } from "@/components/ui/data-table";
 import { createQueueColumns } from "./columns";
 import { queueApi, type Queue } from "@/lib/api/queue";
@@ -17,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { RegistrationDialog } from "./registration-dialog";
 import { setPageTitle } from "@/lib/page-title";
+import { DatePickerDropdown } from "@/components/ui/date-picker-dropdown";
 import {
   Loader2,
   RefreshCcw,
@@ -26,8 +21,8 @@ import {
   DoorOpen,
   DoorClosed,
   ScreenShare,
+  X,
 } from "lucide-react";
-import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 
@@ -245,6 +240,23 @@ export default function QueueIndex() {
     hasRegisterPermission: hasPermission("registrations.create"),
   });
 
+  const counterOptions = [
+    { value: "all", label: "Semua Loket" },
+    ...counters.map((counter) => ({
+      value: counter.id.toString(),
+      label: counter.name,
+    })),
+  ];
+  const statusOptions = [
+    { value: "all", label: "Semua Status" },
+    { value: "waiting", label: "Menunggu" },
+    { value: "called", label: "Dipanggil" },
+    { value: "serving", label: "Dilayani" },
+    { value: "completed", label: "Selesai" },
+    { value: "skipped", label: "Dilewati" },
+    { value: "cancelled", label: "Dibatalkan" },
+  ];
+
   return (
     <PageShell>
       <PageHeader
@@ -287,62 +299,6 @@ export default function QueueIndex() {
           </div>
         }
       />
-
-      <PageToolbar className="gap-2 py-2">
-        <Input
-          type="date"
-          value={selectedDate}
-          onChange={(event) => setSelectedDate(event.target.value)}
-          className="h-8 w-36 text-xs"
-        />
-        <Select value={selectedCounter} onValueChange={setSelectedCounter}>
-          <SelectTrigger className="h-8 w-[150px] text-xs">
-            <SelectValue placeholder="Semua Loket" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Semua Loket</SelectItem>
-            {loadingCounters ? (
-              <SelectItem value="loading" disabled>
-                Memuat...
-              </SelectItem>
-            ) : (
-              counters.map((counter) => (
-                <SelectItem key={counter.id} value={counter.id.toString()}>
-                  {counter.name}
-                </SelectItem>
-              ))
-            )}
-          </SelectContent>
-        </Select>
-        <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-          <SelectTrigger className="h-8 w-[150px] text-xs">
-            <SelectValue placeholder="Semua Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Semua Status</SelectItem>
-            <SelectItem value="waiting">Menunggu</SelectItem>
-            <SelectItem value="called">Dipanggil</SelectItem>
-            <SelectItem value="serving">Dilayani</SelectItem>
-            <SelectItem value="completed">Selesai</SelectItem>
-            <SelectItem value="skipped">Dilewati</SelectItem>
-            <SelectItem value="cancelled">Dibatalkan</SelectItem>
-          </SelectContent>
-        </Select>
-        {(selectedDate || selectedCounter !== "all" || selectedStatus !== "all") && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 px-2 text-xs"
-            onClick={() => {
-              setSelectedDate("");
-              setSelectedCounter("all");
-              setSelectedStatus("all");
-            }}
-          >
-            Reset
-          </Button>
-        )}
-      </PageToolbar>
 
       {counterPanelOpen && (
         <div className="border-b border-border px-6 py-3">
@@ -467,20 +423,78 @@ export default function QueueIndex() {
         </div>
       )}
 
-      <PageContent>
-        {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <PageContent className="py-3">
+        <div className="border border-border/70 bg-background">
+          <div className="border-b border-border/70 bg-muted/30 px-3 py-3 sm:px-4">
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+              <div className="flex min-w-0 flex-col gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                    Daftar Antrean
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-2 sm:grid-cols-2 xl:flex xl:flex-wrap xl:items-center xl:justify-end">
+                <DatePickerDropdown
+                  value={selectedDate || undefined}
+                  onChange={(value) => setSelectedDate(value || "")}
+                  size="sm"
+                  className="w-full sm:w-auto"
+                />
+                <Combobox
+                  options={counterOptions}
+                  value={selectedCounter}
+                  onValueChange={(value) => setSelectedCounter(value || "all")}
+                  placeholder="Semua Loket"
+                  searchPlaceholder="Cari loket..."
+                  emptyText="Loket tidak ditemukan"
+                  loading={loadingCounters}
+                  className="h-8 w-full rounded-none border-border/70 bg-background text-xs sm:w-[170px]"
+                />
+                <Combobox
+                  options={statusOptions}
+                  value={selectedStatus}
+                  onValueChange={(value) => setSelectedStatus(value || "all")}
+                  placeholder="Semua Status"
+                  searchPlaceholder="Cari status..."
+                  emptyText="Status tidak ditemukan"
+                  className="h-8 w-full rounded-none border-border/70 bg-background text-xs sm:w-[170px]"
+                />
+                {(selectedDate || selectedCounter !== "all" || selectedStatus !== "all") && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 rounded-none px-3 text-xs"
+                    onClick={() => {
+                      setSelectedDate("");
+                      setSelectedCounter("all");
+                      setSelectedStatus("all");
+                    }}
+                  >
+                    <X className="mr-1.5 h-3.5 w-3.5" />
+                    Reset
+                  </Button>
+                )}
+              </div>
+            </div>
           </div>
-        ) : (
-          <DataTable
-            columns={columns}
-            data={queues}
-            searchPlaceholder="Cari nomor antrean atau nama pasien..."
-            pageSize={10}
-            tableId="queues"
-          />
-        )}
+          <div className="p-3 sm:p-4">
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            ) : (
+              <DataTable
+                columns={columns}
+                data={queues}
+                searchPlaceholder="Cari nomor antrean atau nama pasien..."
+                pageSize={10}
+                tableId="queues"
+              />
+            )}
+          </div>
+        </div>
       </PageContent>
 
       <ConfirmDialog

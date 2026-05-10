@@ -18,7 +18,7 @@ export default function ICDIndexPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { hasPermission } = usePermission();
   const { toast } = useToast();
-  
+
   const initialType = (searchParams.get("type") as ICDType) || "icd10";
   const [activeTab, setActiveTab] = useState<ICDType>(initialType);
   const [data, setData] = useState<(ICD10 | ICD9CM)[]>([]);
@@ -128,38 +128,38 @@ export default function ICDIndexPage() {
         }
       />
 
-      <FilterBar>
-        <FilterPill active={activeTab === "icd10"} onClick={() => handleTabChange("icd10")}>
-          <Stethoscope className="h-3.5 w-3.5" />
-          ICD-10
-        </FilterPill>
-        <FilterPill active={activeTab === "icd9cm"} onClick={() => handleTabChange("icd9cm")}>
-          <Syringe className="h-3.5 w-3.5" />
-          ICD-9-CM
-        </FilterPill>
-      </FilterBar>
-
       <PageContent>
-        {loading ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          </div>
-        ) : (
-          <div className="border border-border/70 bg-background">
+        <div className="border border-border/70 bg-background">
           <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            Daftar Hapus Kode ICD
+            {activeTab === "icd10" ? "Daftar ICD-10" : "Daftar ICD-9-CM"}
           </div>
+
           <div className="p-3 sm:p-4">
-            <DataTable
-            columns={columns}
-            data={data}
-            searchPlaceholder="Cari kode atau nama..."
-            pageSize={15}
-            tableId={`icd_${activeTab}`}
-          />
+            <FilterBar>
+              <FilterPill active={activeTab === "icd10"} onClick={() => handleTabChange("icd10")}>
+                <Stethoscope className="h-3.5 w-3.5" />
+                ICD-10
+              </FilterPill>
+              <FilterPill active={activeTab === "icd9cm"} onClick={() => handleTabChange("icd9cm")}>
+                <Syringe className="h-3.5 w-3.5" />
+                ICD-9-CM
+              </FilterPill>
+            </FilterBar>
+            {loading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            ) : (
+              <DataTable
+                columns={columns}
+                data={data}
+                searchPlaceholder="Cari kode atau nama..."
+                pageSize={15}
+                tableId={`icd_${activeTab}`}
+              />
+            )}
           </div>
         </div>
-        )}
       </PageContent>
 
       <ConfirmDialog

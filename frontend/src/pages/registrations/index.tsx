@@ -329,7 +329,7 @@ export default function RegistrationIndex() {
         "dt_page_admission-requests-in-registrations",
         "dt_size_admission-requests-in-registrations",
       ].forEach((key) => localStorage.removeItem(key));
-    } catch {}
+    } catch { }
   }, []);
 
   const loadScheduledCount = useCallback(async () => {
@@ -1366,22 +1366,35 @@ export default function RegistrationIndex() {
         </DialogContent>
       </Dialog>
 
-      <PageContent>
-        {isAdmissionRequestTab ? (
-          <DataTable
-            columns={admissionColumns}
-            data={admissionRequests}
-            searchPlaceholder="Cari no. request, nama pasien, atau RM..."
-            pageSize={10}
-          />
-        ) : (
-          <DataTable
-            columns={columns}
-            data={registrations}
-            searchPlaceholder="Cari no. registrasi, nama pasien, atau no. RM..."
-            pageSize={10}
-          />
-        )}
+      <PageContent className="py-3">
+        <div className="border border-border/70 bg-background">
+          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            Daftar Pendaftaran
+          </div>
+          <div className="p-3 sm:p-4">
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            ) : (
+              isAdmissionRequestTab ? (
+                <DataTable
+                  columns={admissionColumns}
+                  data={admissionRequests}
+                  searchPlaceholder="Cari no. request, nama pasien, atau RM..."
+                  pageSize={10}
+                />
+              ) : (
+                <DataTable
+                  columns={columns}
+                  data={registrations}
+                  searchPlaceholder="Cari no. registrasi, nama pasien, atau no. RM..."
+                  pageSize={10}
+                />
+              )
+            )}
+          </div>
+        </div>
       </PageContent>
 
       {/* Confirm dialog for regular registration cancellation */}

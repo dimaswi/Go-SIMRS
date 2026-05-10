@@ -132,13 +132,20 @@ export default function StockOpnameIndex() {
         }
       />
       <PageContent>
-        <DataTable
-          columns={columns}
-          data={stockOpnames}
-          searchPlaceholder="Cari nomor opname..."
-          pageSize={10}
-          tableId="stock_opname"
-        />
+        <div className="border border-border/70 bg-background">
+          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            Daftar Stock Opname
+          </div>
+          <div className="p-3 sm:p-4">
+            <DataTable
+              columns={columns}
+              data={stockOpnames}
+              searchPlaceholder="Cari nomor opname..."
+              pageSize={10}
+              tableId="stock_opname"
+            />
+          </div>
+        </div>
       </PageContent>
 
       <ConfirmDialog

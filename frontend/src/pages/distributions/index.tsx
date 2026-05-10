@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Loader2, Plus } from "lucide-react";import { PageShell, PageHeader, PageContent } from '@/components/layout/page-shell';import { Button } from "@/components/ui/button";
+import { Loader2, Plus } from "lucide-react"; import { PageShell, PageHeader, PageContent } from '@/components/layout/page-shell'; import { Button } from "@/components/ui/button";
 
 import { DataTable } from "@/components/ui/data-table";
 import { useToast } from "@/hooks/use-toast";
@@ -100,13 +100,20 @@ export default function DistributionsIndex() {
         }
       />
       <PageContent>
-        <DataTable
-          columns={columns}
-          data={distributions}
-          searchPlaceholder="Cari nomor distribusi..."
-          pageSize={10}
-          tableId="distributions"
-        />
+        <div className="border border-border/70 bg-background">
+          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            Daftar Distribusi
+          </div>
+          <div className="p-3 sm:p-4">
+            <DataTable
+              columns={columns}
+              data={distributions}
+              searchPlaceholder="Cari nomor distribusi..."
+              pageSize={10}
+              tableId="distributions"
+            />
+          </div>
+        </div>
       </PageContent>
     </PageShell>
   );

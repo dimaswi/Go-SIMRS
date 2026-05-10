@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,54 @@ import { Switch } from "@/components/ui/switch";
 import { suppliersApi, type SupplierFormData } from "@/lib/api/suppliers";
 import { useToast } from "@/hooks/use-toast";
 import { setPageTitle } from "@/lib/page-title";
-import { Loader2, Save } from "lucide-react";
+import { Loader2, Save, Building2, ArrowLeft, User, CreditCard, FileText } from "lucide-react";
+import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
+
+function SummaryCue({
+  label,
+  description,
+  tone,
+}: {
+  label: string;
+  description: string;
+  tone: string;
+}) {
+  return (
+    <div className={`border border-border/70 bg-gradient-to-br ${tone} px-4 py-3 shadow-sm`}>
+      <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">{label}</div>
+      <div className="mt-1 text-sm font-medium text-foreground">{description}</div>
+    </div>
+  );
+}
+
+function SectionPanel({
+  icon: Icon,
+  title,
+  description,
+  children,
+}: {
+  icon: typeof Building2;
+  title: string;
+  description: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="border border-border/70 bg-background/95 shadow-sm">
+      <div className="border-b border-border/70 bg-muted/20 px-4 py-3">
+        <div className="flex items-start gap-3">
+          <div className="border border-border/70 bg-background p-2">
+            <Icon className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <div>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{title}</div>
+            <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+          </div>
+        </div>
+      </div>
+      <div className="p-3 sm:p-4 space-y-6">{children}</div>
+    </div>
+  );
+}
 
 export default function SupplierCreate() {
   const navigate = useNavigate();
@@ -75,16 +122,42 @@ export default function SupplierCreate() {
   };
 
   return (
-    <div className="flex flex-1 flex-col px-4">
+    <PageShell>
+      <PageHeader
+        title="Tambah Supplier"
+        description="Buat data supplier baru lengkap dengan identitas, PIC, rekening, dan status agar siap dipakai di pembelian dan inventori."
+        icon={Building2}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => navigate("/suppliers")}>
+              <ArrowLeft className="h-4 w-4" />
+              Kembali
+            </Button>
+            <Button type="submit" form="supplier-create-form" size="sm" disabled={loading}>
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              Simpan Supplier
+            </Button>
+          </div>
+        }
+      >
+        <div className="flex flex-wrap gap-2 pb-3">
+          <div className="border border-border/70 bg-background px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Supplier untuk pembelian</div>
+          <div className="border border-border/70 bg-background px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">PIC dan rekening opsional</div>
+          <div className="border border-border/70 bg-background px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Status aktif langsung tersedia</div>
+        </div>
+      </PageHeader>
 
-      <div className="flex-1 space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11">
-        <form onSubmit={handleSubmit} className="flex flex-col flex-1 gap-6">
+      <PageContent className="flex-none pb-8">
+        <div className="mb-4 grid gap-3 lg:grid-cols-3">
+          <SummaryCue label="Identitas" description="Isi kode, nama, dan alamat supplier sebagai fondasi master data." tone="from-background via-background to-sky-50/40" />
+          <SummaryCue label="Relasi Bisnis" description="Tambahkan PIC dan rekening untuk mempercepat proses pembelian dan pembayaran." tone="from-background via-background to-emerald-50/40" />
+          <SummaryCue label="Kontrol Status" description="Catatan dan status aktif membantu menjaga supplier tetap terkelola." tone="from-background via-background to-amber-50/50" />
+        </div>
+
+        <div className="flex-1 space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11">
+        <form id="supplier-create-form" onSubmit={handleSubmit} className="flex flex-col flex-1 gap-6">
           {/* Basic Info */}
-          <div className="border border-border/70">
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              Informasi Dasar
-            </div>
-            <div className="p-3 sm:p-4 space-y-6">
+          <SectionPanel icon={Building2} title="Informasi Dasar" description="Identitas utama supplier dan kanal komunikasi dasar.">
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="code">
@@ -157,15 +230,11 @@ export default function SupplierCreate() {
                   />
                 </div>
               </div>
-            </div>
-          </div>
+          </SectionPanel>
 
           {/* Contact Person */}
-          <div className="border border-border/70">
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              Contact Person
-            </div>
-            <div className="p-3 sm:p-4">
+          <SectionPanel icon={User} title="Contact Person" description="Penanggung jawab supplier untuk komunikasi operasional harian.">
+            <div>
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="contact_person">Nama PIC</Label>
@@ -189,14 +258,11 @@ export default function SupplierCreate() {
                 </div>
               </div>
             </div>
-          </div>
+          </SectionPanel>
 
           {/* Bank Info */}
-          <div className="border border-border/70">
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              Informasi Bank
-            </div>
-            <div className="p-3 sm:p-4">
+          <SectionPanel icon={CreditCard} title="Informasi Bank" description="Data rekening supplier untuk kebutuhan pembayaran dan administrasi.">
+            <div>
               <div className="grid gap-4 md:grid-cols-3">
                 <div className="space-y-2">
                   <Label htmlFor="bank_name">Nama Bank</Label>
@@ -230,14 +296,11 @@ export default function SupplierCreate() {
                 </div>
               </div>
             </div>
-          </div>
+          </SectionPanel>
 
           {/* Notes and Status */}
-          <div className="border border-border/70">
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              Status & Catatan
-            </div>
-            <div className="p-3 sm:p-4">
+          <SectionPanel icon={FileText} title="Status & Catatan" description="Catatan internal dan status aktif supplier untuk kontrol operasional.">
+            <div>
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="notes">Catatan</Label>
@@ -267,10 +330,10 @@ export default function SupplierCreate() {
                 </div>
               </div>
             </div>
-          </div>
+          </SectionPanel>
 
           {/* Sticky Footer Actions */}
-          <div className="shrink-0 sticky bottom-0 z-10 py-3 mt-auto flex items-center justify-end gap-2 border-t bg-background">
+          <div className="shrink-0 sticky bottom-0 z-10 py-3 mt-auto flex items-center justify-end gap-2 border-t border-border/70 bg-background/95 backdrop-blur">
             <Button
               type="button"
               variant="outline"
@@ -293,7 +356,8 @@ export default function SupplierCreate() {
             </Button>
           </div>
         </form>
-      </div>
-    </div>
+        </div>
+      </PageContent>
+    </PageShell>
   );
 }

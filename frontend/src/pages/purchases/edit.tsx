@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, type ComponentType, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { ArrowLeft, Building2, FileText, Loader2, MapPin, Package, Pill } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 import { useToast } from "@/hooks/use-toast";
 import { setPageTitle } from "@/lib/page-title";
 import {
@@ -21,7 +23,6 @@ import {
   purchaseStatusLabels,
   type Purchase,
 } from "@/lib/api/stock-requests";
-import { Loader2, Package, Pill } from "lucide-react";
 
 interface EditItem {
   id: number;
@@ -33,6 +34,40 @@ interface EditItem {
   quantity_ordered: number;
   unit_price: number;
   notes: string;
+}
+
+function SectionPanel({
+  icon: Icon,
+  title,
+  description,
+  actions,
+  children,
+}: {
+  icon: ComponentType<{ className?: string }>;
+  title: string;
+  description: string;
+  actions?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <div className="border border-border/70 bg-background/95 shadow-sm">
+      <div className="border-b border-border/70 bg-muted/20 px-4 py-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div className="border border-border/70 bg-background p-2">
+              <Icon className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{title}</div>
+              <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+            </div>
+          </div>
+          {actions}
+        </div>
+      </div>
+      <div className="space-y-4 p-3 sm:p-4">{children}</div>
+    </div>
+  );
 }
 
 export default function PurchaseEdit() {
@@ -163,9 +198,17 @@ export default function PurchaseEdit() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
+      <PageShell>
+        <PageHeader
+          title="Edit Pembelian"
+          description="Perbarui informasi supplier dan catatan pembelian yang masih bisa diubah."
+        />
+        <PageContent className="flex-none pb-8">
+          <div className="flex items-center justify-center py-16">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        </PageContent>
+      </PageShell>
     );
   }
 
@@ -174,16 +217,25 @@ export default function PurchaseEdit() {
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-
-      <div className="flex-1 space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11">
-        {/* Supplier Info */}
-        <div className="border border-border/70">
-          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            Informasi Pembelian & Supplier
-          </div>
-          <div className="p-3 sm:p-4 space-y-4">
-            <div className="flex items-center gap-4 mb-4">
+    <PageShell>
+      <PageHeader
+        title="Edit Pembelian"
+        description="Perbarui informasi supplier dan catatan pada pembelian yang masih bisa diedit."
+        actions={
+          <Button variant="outline" onClick={() => navigate(`/purchases/${id}`)}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Kembali
+          </Button>
+        }
+      />
+      <PageContent className="flex-none pb-8">
+        <div className="space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11">
+          <SectionPanel
+            icon={Building2}
+            title="Informasi Pembelian & Supplier"
+            description="Nomor pembelian dan status tetap menjadi referensi, sedangkan data supplier masih dapat diperbarui."
+          >
+            <div className="mb-4 flex items-center gap-4">
               <div>
                 <p className="text-xs text-muted-foreground">No. Pembelian</p>
                 <p className="text-sm font-medium font-mono">{purchase.purchase_number}</p>
@@ -195,7 +247,7 @@ export default function PurchaseEdit() {
                 </Badge>
               </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
               <div className="space-y-2">
                 <Label>Nama Supplier *</Label>
                 <Input
@@ -218,16 +270,14 @@ export default function PurchaseEdit() {
                 />
               </div>
             </div>
-          </div>
-        </div>
+          </SectionPanel>
 
-        {/* Destination Room Info */}
-        <div className="border border-border/70">
-          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            Informasi Tujuan & Tanggal
-          </div>
-          <div className="p-3 sm:p-4 space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <SectionPanel
+            icon={MapPin}
+            title="Informasi Tujuan & Catatan"
+            description="Lokasi tujuan dan tanggal pembelian ditampilkan sebagai konteks, sedangkan catatan masih bisa disesuaikan."
+          >
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
                 <p className="text-sm text-muted-foreground">Ruangan Tujuan</p>
                 <p className="font-medium">{purchase.to_room?.name}</p>
@@ -250,17 +300,14 @@ export default function PurchaseEdit() {
                 }
               />
             </div>
-          </div>
-        </div>
+          </SectionPanel>
 
-        {/* Items (Read-only) */}
-        <div className="border border-border/70">
-          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center justify-between">
-            <span>Daftar Item</span>
-            <span className="normal-case tracking-normal font-normal opacity-70">* Item tidak dapat diubah</span>
-          </div>
-          <div className="p-3 sm:p-4 space-y-4">
-
+          <SectionPanel
+            icon={FileText}
+            title="Daftar Item"
+            description="Item pembelian asli ditampilkan sebagai referensi dan tidak dapat diubah dari halaman ini."
+            actions={<span className="text-xs text-muted-foreground">Item tidak dapat diubah</span>}
+          >
             <Table>
               <TableHeader>
                 <TableRow>
@@ -309,23 +356,22 @@ export default function PurchaseEdit() {
                 </TableRow>
               </TableBody>
             </Table>
+          </SectionPanel>
+
+          <div className="sticky bottom-0 z-10 mt-4 flex items-center justify-end gap-2 border-t bg-background py-3">
+            <Button
+              variant="outline"
+              onClick={() => navigate(`/purchases/${id}`)}
+            >
+              Batal
+            </Button>
+            <Button onClick={handleSubmit} disabled={submitting}>
+              {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Simpan Perubahan
+            </Button>
           </div>
         </div>
-
-        {/* Sticky Footer Actions */}
-        <div className="shrink-0 sticky bottom-0 z-10 py-3 mt-4 flex items-center justify-end gap-2 border-t bg-background">
-          <Button
-            variant="outline"
-            onClick={() => navigate(`/purchases/${id}`)}
-          >
-            Batal
-          </Button>
-          <Button onClick={handleSubmit} disabled={submitting}>
-            {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Simpan Perubahan
-          </Button>
-        </div>
-      </div>
-    </div>
+      </PageContent>
+    </PageShell>
   );
 }

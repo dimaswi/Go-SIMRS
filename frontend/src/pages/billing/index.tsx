@@ -419,17 +419,24 @@ export default function BillingIndex() {
       </Collapsible>
 
       <PageContent className="py-3">
-        {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <div className="border border-border/70 bg-background">
+          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            Daftar Billing
           </div>
-        ) : (
-          <DataTable
-            columns={billingColumns}
-            data={filtered}
-            searchPlaceholder="Cari pasien, No. RM, no. registrasi, atau no. billing..."
-          />
-        )}
+          <div className="p-3 sm:p-4">
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            ) : ( 
+              <DataTable
+                columns={billingColumns}
+                data={filtered}
+                searchPlaceholder="Cari pasien, No. RM, no. registrasi, atau no. billing..."
+              />
+            )}
+          </div>
+        </div>
       </PageContent>
     </PageShell>
   );

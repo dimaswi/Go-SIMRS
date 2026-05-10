@@ -10,17 +10,22 @@ import { dashboardApi, type DashboardCharts, type DashboardStats, type Dashboard
 import {
   Activity,
   ArrowDownRight,
+  ArrowRight,
   ArrowUpRight,
   Bed,
   CheckCircle2,
+  CircleAlert,
   Clock,
+  Command,
   DollarSign,
   HeartPulse,
   Hotel,
+  LayoutGrid,
   Loader2,
   Pill,
   Receipt,
   RefreshCw,
+  ShieldCheck,
   Stethoscope,
   Users,
   type LucideIcon,
@@ -31,9 +36,9 @@ import { Button } from '@/components/ui/button';
 import {
   Area,
   AreaChart,
+  CartesianGrid,
   Bar,
   BarChart,
-  CartesianGrid,
   Cell,
   Pie,
   PieChart,
@@ -45,10 +50,12 @@ import {
 import { usePermission } from '@/hooks/usePermission';
 import { DASHBOARD_PERMISSION_GROUPS, DASHBOARD_WORKSPACES, type DashboardPermissionKey } from './config';
 
-const CHART_COLORS = ['#0f766e', '#2563eb', '#d97706', '#dc2626', '#64748b', '#16a34a'];
+const CHART_COLORS = ['#0f766e', '#b45309', '#1d4ed8', '#b91c1c', '#52525b', '#15803d'];
 const FLAT_CARD_CLASS = 'rounded-none border-border/70 shadow-none';
 const FLAT_PANEL_CLASS = 'rounded-none border border-border/70 bg-background';
 const FLAT_TINTED_PANEL_CLASS = 'rounded-none border border-border/70';
+const DASHBOARD_FONT_FAMILY = '"IBM Plex Sans", "Segoe UI", sans-serif';
+const DASHBOARD_MONO_FAMILY = '"IBM Plex Mono", "SFMono-Regular", Consolas, monospace';
 
 interface MetricCardConfig {
   key: string;
@@ -68,6 +75,14 @@ interface DashboardSectionConfig {
   description: string;
   permissions: DashboardPermissionKey[];
   content: ReactNode;
+}
+
+interface DistributionRowProps {
+  label: string;
+  value: number;
+  total: number;
+  fill: string;
+  suffix?: string;
 }
 
 const formatCurrency = (value: number): string => {
@@ -127,12 +142,70 @@ function DashboardShellCard({ children, className }: { children: ReactNode; clas
 function SectionBlock({ title, description, children }: { title: string; description: string; children: ReactNode }) {
   return (
     <section className="space-y-3">
-      <div className="space-y-1">
-        <h2 className="text-sm font-semibold uppercase tracking-[0.24em] text-muted-foreground">{title}</h2>
-        <p className="text-sm text-muted-foreground">{description}</p>
+      <div className="flex flex-col gap-1 border-b border-border/70 pb-3 sm:flex-row sm:items-end sm:justify-between">
+        <h2 className="text-sm font-semibold uppercase tracking-[0.28em] text-foreground/80" style={{ fontFamily: DASHBOARD_MONO_FAMILY }}>{title}</h2>
+        <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground" style={{ fontFamily: DASHBOARD_MONO_FAMILY }}>{description}</p>
       </div>
       {children}
     </section>
+  );
+}
+
+function DashboardPanel({
+  eyebrow,
+  title,
+  description,
+  action,
+  children,
+  className,
+  contentClassName,
+}: {
+  eyebrow: string;
+  title: string;
+  description?: string;
+  action?: ReactNode;
+  children: ReactNode;
+  className?: string;
+  contentClassName?: string;
+}) {
+  return (
+    <DashboardShellCard className={cn('overflow-hidden bg-background/95 backdrop-blur', className)}>
+      <CardHeader className="border-b border-border/70 bg-muted/10 px-4 py-3 sm:px-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-1">
+            <div className="text-[10px] uppercase tracking-[0.28em] text-muted-foreground" style={{ fontFamily: DASHBOARD_MONO_FAMILY }}>{eyebrow}</div>
+            <CardTitle className="text-lg font-semibold tracking-tight">{title}</CardTitle>
+            {description && <CardDescription className="text-xs uppercase tracking-[0.16em]">{description}</CardDescription>}
+          </div>
+          {action}
+        </div>
+      </CardHeader>
+      <CardContent className={cn('p-4 sm:p-5', contentClassName)}>{children}</CardContent>
+    </DashboardShellCard>
+  );
+}
+
+function DistributionRow({ label, value, total, fill, suffix }: DistributionRowProps) {
+  const percentage = total > 0 ? Math.min((value / total) * 100, 100) : 0;
+
+  return (
+    <div className="space-y-2 border-b border-dashed border-border/70 pb-3 last:border-b-0 last:pb-0">
+      <div className="flex items-center justify-between gap-3 text-sm">
+        <div className="min-w-0">
+          <div className="truncate font-medium">{label}</div>
+          <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground" style={{ fontFamily: DASHBOARD_MONO_FAMILY }}>
+            {percentage.toFixed(0)}%
+          </div>
+        </div>
+        <div className="shrink-0 text-right font-semibold">
+          {formatNumber(value)}
+          {suffix ? <span className="ml-1 text-xs font-normal text-muted-foreground">{suffix}</span> : null}
+        </div>
+      </div>
+      <div className="h-2 bg-muted">
+        <div className="h-full transition-all duration-500" style={{ width: `${percentage}%`, backgroundColor: fill }} />
+      </div>
+    </div>
   );
 }
 
@@ -160,6 +233,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [chartPeriod, setChartPeriod] = useState<'week' | 'month' | 'year'>('week');
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
 
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [charts, setCharts] = useState<DashboardCharts | null>(null);
@@ -191,6 +265,7 @@ export default function DashboardPage() {
       if (chartsRes.data.success) setCharts(chartsRes.data.data);
       if (summaryRes.data.success) setSummary(summaryRes.data.data);
       if (bedRes.data.success) setBedMonitoring(bedRes.data.data);
+      setLastUpdatedAt(new Date());
     } catch (error) {
       console.error('Failed to load dashboard data:', error);
     } finally {
@@ -230,6 +305,30 @@ export default function DashboardPage() {
   })) || [];
 
   const bedOccupancy = bedMonitoring?.summary.occupancy_rate || stats?.bed_occupancy_rate || 0;
+  const showFrontOffice = canShowSection(['overview', 'frontOffice']);
+  const showRooms = canShowSection(['overview', 'rooms']);
+  const showBilling = canShowSection(['overview', 'billing']);
+  const showPharmacy = canShowSection(['pharmacy']);
+  const showProcedures = canShowSection(['procedures']);
+  const serviceTotal = (stats?.outpatient_today || 0) + (stats?.inpatient_today || 0) + (stats?.emergency_today || 0);
+  const attentionCount = (stats?.visits_waiting || 0) + (stats?.pending_billings || 0) + (stats?.pending_medicine_orders || 0) + (stats?.pending_procedure_orders || 0);
+  const completionRate = (stats?.registrations_today || 0) > 0
+    ? ((stats?.visits_completed_today || 0) / (stats?.registrations_today || 1)) * 100
+    : 0;
+  const lastUpdatedLabel = lastUpdatedAt
+    ? new Intl.DateTimeFormat('id-ID', {
+      day: '2-digit',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(lastUpdatedAt)
+    : '-';
+  const currentDateLabel = useMemo(() => new Intl.DateTimeFormat('id-ID', {
+    weekday: 'long',
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  }).format(new Date()), []);
 
   const metricCards: MetricCardConfig[] = [
     {
@@ -316,6 +415,53 @@ export default function DashboardPage() {
   const visibleModuleSummaries = Object.entries(permissionsByModule)
     .sort((left, right) => right[1].length - left[1].length)
     .slice(0, 8);
+
+  const sortedVisitTypeData = [...visitTypeData].sort((left, right) => right.value - left.value);
+  const sortedPaymentMethodData = [...paymentMethodData].sort((left, right) => right.value - left.value);
+  const totalVisitTypeValue = sortedVisitTypeData.reduce((total, item) => total + item.value, 0);
+  const totalPaymentMethodValue = sortedPaymentMethodData.reduce((total, item) => total + item.value, 0);
+  const dominantVisitType = sortedVisitTypeData[0];
+  const dominantPaymentMethod = sortedPaymentMethodData[0];
+  const quickStats = [
+    {
+      label: 'Role Aktif',
+      value: user?.role?.name || 'Tanpa Role',
+      detail: `${userPermissions.length} permission`,
+    },
+    {
+      label: 'Workspace',
+      value: formatNumber(visibleWorkspaces.length),
+      detail: 'jalur kerja terbuka',
+    },
+    {
+      label: 'Prioritas',
+      value: formatNumber(attentionCount),
+      detail: 'item perlu tindak lanjut',
+    },
+  ];
+  const commandRows = [
+    showFrontOffice
+      ? { icon: Clock, label: 'Menunggu', value: stats?.visits_waiting || 0, hint: 'antrian aktif', tone: 'text-amber-700' }
+      : null,
+    showFrontOffice
+      ? { icon: Activity, label: 'Dilayani', value: stats?.visits_in_progress || 0, hint: 'visit berjalan', tone: 'text-violet-700' }
+      : null,
+    showFrontOffice
+      ? { icon: CheckCircle2, label: 'Selesai', value: stats?.visits_completed_today || 0, hint: `${completionRate.toFixed(0)}% dari registrasi`, tone: 'text-emerald-700' }
+      : null,
+    showBilling
+      ? { icon: Receipt, label: 'Tagihan Pending', value: stats?.pending_billings || 0, hint: formatCurrency(stats?.unpaid_billing_amount || 0), tone: 'text-rose-700' }
+      : null,
+    showPharmacy
+      ? { icon: Pill, label: 'Farmasi Pending', value: stats?.pending_medicine_orders || 0, hint: `${formatNumber(stats?.medicine_orders_today || 0)} order`, tone: 'text-lime-700' }
+      : null,
+    showProcedures
+      ? { icon: Stethoscope, label: 'Lab/Rad Pending', value: stats?.pending_procedure_orders || 0, hint: `${formatNumber((stats?.lab_orders_today || 0) + (stats?.radiology_orders_today || 0))} order`, tone: 'text-sky-700' }
+      : null,
+    showRooms
+      ? { icon: Bed, label: 'BOR', value: `${bedOccupancy.toFixed(1)}%`, hint: `${bedMonitoring?.summary.occupied_beds || 0}/${bedMonitoring?.summary.total_beds || 0} bed`, tone: 'text-slate-700' }
+      : null,
+  ].filter(Boolean) as Array<{ icon: LucideIcon; label: string; value: string | number; hint: string; tone: string }>;
 
   const dashboardSections: DashboardSectionConfig[] = [
     {
@@ -682,197 +828,434 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-8 bg-muted/20 p-4 md:p-6">
-      <div className="border-b border-border/70 pb-4">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="border border-border/70 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
-                Dashboard
-              </span>
-              <span className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
-                {user?.role?.name || 'Tanpa Role'}
-              </span>
+    <div className="relative flex flex-1 flex-col overflow-auto bg-muted/20" style={{ fontFamily: DASHBOARD_FONT_FAMILY }}>
+      <div className="pointer-events-none absolute inset-0 opacity-60 [background-image:linear-gradient(to_right,rgba(15,23,42,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(15,23,42,0.05)_1px,transparent_1px)] [background-size:28px_28px]" />
+
+      <div className="relative flex flex-1 flex-col gap-4 p-3 md:p-5">
+        <DashboardShellCard className="overflow-hidden bg-background/95 backdrop-blur">
+          <div className="grid gap-px bg-border/70 xl:grid-cols-[minmax(0,1.25fr)_360px]">
+            <div className="bg-background p-5 md:p-6">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.26em] text-muted-foreground" style={{ fontFamily: DASHBOARD_MONO_FAMILY }}>
+                    <span className="border border-border/70 px-2 py-1 text-foreground">SIMRS Board</span>
+                    <span>{currentDateLabel}</span>
+                  </div>
+                  <div className="space-y-2">
+                    <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Pusat Operasi Harian</h1>
+                    <p className="max-w-2xl text-sm text-muted-foreground">
+                      Kunjungan, kapasitas bed, billing, farmasi, dan tindakan dalam satu board operasional.
+                    </p>
+                  </div>
+                </div>
+
+                <Button variant="outline" size="sm" className="rounded-none self-start" onClick={() => loadDashboardData(true)} disabled={refreshing}>
+                  <RefreshCw className={cn('mr-2 h-4 w-4', refreshing && 'animate-spin')} />
+                  Refresh
+                </Button>
+              </div>
+
+              <div className="mt-6 grid gap-px bg-border/70 sm:grid-cols-3">
+                {quickStats.map((item) => (
+                  <div key={item.label} className="bg-background px-4 py-4">
+                    <div className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground" style={{ fontFamily: DASHBOARD_MONO_FAMILY }}>{item.label}</div>
+                    <div className="mt-2 text-lg font-semibold leading-tight">{item.value}</div>
+                    <div className="mt-1 text-xs uppercase tracking-[0.16em] text-muted-foreground">{item.detail}</div>
+                  </div>
+                ))}
+              </div>
             </div>
-            <div>
-              <h1 className="text-3xl font-semibold tracking-tight">Ringkasan per permission</h1>
-              <p className="text-sm text-muted-foreground">
-                Komponen dashboard tampil sesuai akses {user?.full_name}. Setiap blok hanya muncul jika permission modul tersedia.
-              </p>
+
+            <div className="grid gap-px bg-border/70 sm:grid-cols-3 xl:grid-cols-1">
+              <div className="bg-background px-4 py-4">
+                <div className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground" style={{ fontFamily: DASHBOARD_MONO_FAMILY }}>Last Sync</div>
+                <div className="mt-2 text-2xl font-semibold">{lastUpdatedLabel}</div>
+                <div className="mt-1 text-xs uppercase tracking-[0.16em] text-muted-foreground">data dashboard terakhir</div>
+              </div>
+              <div className="bg-background px-4 py-4">
+                <div className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground" style={{ fontFamily: DASHBOARD_MONO_FAMILY }}>Throughput</div>
+                <div className="mt-2 text-2xl font-semibold">{completionRate.toFixed(0)}%</div>
+                <div className="mt-1 text-xs uppercase tracking-[0.16em] text-muted-foreground">visit selesai hari ini</div>
+              </div>
+              <div className="bg-background px-4 py-4">
+                <div className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground" style={{ fontFamily: DASHBOARD_MONO_FAMILY }}>Service Load</div>
+                <div className="mt-2 text-2xl font-semibold">{formatNumber(serviceTotal)}</div>
+                <div className="mt-1 text-xs uppercase tracking-[0.16em] text-muted-foreground">rawat jalan, inap, IGD</div>
+              </div>
             </div>
           </div>
-          <Button variant="outline" size="sm" className="rounded-none" onClick={() => loadDashboardData(true)} disabled={refreshing}>
-            <RefreshCw className={cn('mr-2 h-4 w-4', refreshing && 'animate-spin')} />
-            Refresh
-          </Button>
-        </div>
-      </div>
+        </DashboardShellCard>
 
-      <SectionBlock title="Snapshot" description="Kartu utama dipilih dari permission yang dimiliki user saat ini.">
-        <div className="grid gap-px bg-border/70 sm:grid-cols-2 xl:grid-cols-4">
-          {visibleMetricCards.map((card) => {
-            const Icon = card.icon;
-            return (
-              <DashboardShellCard key={card.key} className="border-0 bg-background">
-                <CardContent className="p-0">
-                  <div className="grid min-h-[152px] grid-cols-[96px_minmax(0,1fr)]">
-                    <div className={cn('flex items-center justify-center border-r border-border/70', card.tintClass)}>
-                      <Icon className={cn('h-7 w-7', card.iconClass)} />
+        {visibleMetricCards.length > 0 && (
+          <SectionBlock title="Snapshot" description="angka utama sesuai permission aktif">
+            <div className="grid gap-px bg-border/70 sm:grid-cols-2 xl:grid-cols-4">
+              {visibleMetricCards.map((card) => {
+                const Icon = card.icon;
+
+                return (
+                  <div key={card.key} className="bg-background px-4 py-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground" style={{ fontFamily: DASHBOARD_MONO_FAMILY }}>{card.title}</div>
+                        <div className="mt-3 text-3xl font-semibold leading-none tracking-tight">{card.value}</div>
+                      </div>
+                      <div className={cn('flex h-11 w-11 items-center justify-center border border-border/70', card.tintClass)}>
+                        <Icon className={cn('h-5 w-5', card.iconClass)} />
+                      </div>
                     </div>
-                    <div className="flex flex-col justify-between p-5">
-                      <div className="space-y-2">
-                        <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">{card.title}</p>
-                        <div className="text-2xl font-semibold leading-none tracking-tight">{card.value}</div>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                        {typeof card.trend === 'number' && (
-                          <span className={cn('inline-flex items-center gap-1 font-medium', card.trend >= 0 ? 'text-emerald-700' : 'text-rose-700')}>
-                            {card.trend >= 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
-                            {Math.abs(card.trend).toFixed(0)}%
-                          </span>
-                        )}
-                        {card.detail && <span>{card.detail}</span>}
-                      </div>
+
+                    <div className="mt-5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                      {typeof card.trend === 'number' && (
+                        <span className={cn('inline-flex items-center gap-1 font-medium', card.trend >= 0 ? 'text-emerald-700' : 'text-rose-700')}>
+                          {card.trend >= 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
+                          {Math.abs(card.trend).toFixed(0)}%
+                        </span>
+                      )}
+                      {card.detail && <span className="uppercase tracking-[0.16em]">{card.detail}</span>}
                     </div>
                   </div>
-                </CardContent>
-              </DashboardShellCard>
-            );
-          })}
-        </div>
-      </SectionBlock>
+                );
+              })}
+            </div>
+          </SectionBlock>
+        )}
 
-      <SectionBlock title="Workspace" description="Akses dashboard tambahan untuk tiap modul yang diizinkan oleh permission user.">
-        <div className="grid gap-px bg-border/70 md:grid-cols-2 2xl:grid-cols-4">
-          {visibleWorkspaces.map((workspace) => {
-            const Icon = workspace.icon;
-            const accessCount = workspace.permissions.filter((permission) =>
-              userPermissions.some((userPermission) => userPermission.name === permission),
-            ).length;
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_320px] xl:grid-cols-[minmax(0,1.35fr)_360px]">
+          {showFrontOffice && (
+            <DashboardPanel
+              eyebrow="Traffic"
+              title="Pergerakan Pasien"
+              description="registrasi dan ritme layanan"
+              action={
+                <Select value={chartPeriod} onValueChange={(value) => setChartPeriod(value as 'week' | 'month' | 'year')}>
+                  <SelectTrigger className="h-9 w-[124px] rounded-none border-border/70 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-none">
+                    <SelectItem value="week">7 Hari</SelectItem>
+                    <SelectItem value="month">30 Hari</SelectItem>
+                    <SelectItem value="year">1 Tahun</SelectItem>
+                  </SelectContent>
+                </Select>
+              }
+            >
+              {registrationTrendData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={286}>
+                  <AreaChart data={registrationTrendData}>
+                    <defs>
+                      <linearGradient id="dashboard-registration-trend" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#0f766e" stopOpacity={0.28} />
+                        <stop offset="95%" stopColor="#0f766e" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#d4d4d8" />
+                    <XAxis dataKey="date" fontSize={11} tickLine={false} axisLine={false} />
+                    <YAxis fontSize={11} tickLine={false} axisLine={false} />
+                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 0, border: '1px solid #d4d4d8' }} />
+                    <Area type="monotone" dataKey="value" stroke="#0f766e" fill="url(#dashboard-registration-trend)" strokeWidth={2.25} name="Kunjungan" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex h-[286px] items-center justify-center border border-dashed border-border/70 text-sm text-muted-foreground">
+                  Belum ada data tren kunjungan.
+                </div>
+              )}
 
-            return (
-              <DashboardShellCard key={workspace.key} className="border-0 bg-background">
-                <CardContent className="p-0">
-                  <div className="grid min-h-[180px] grid-cols-[84px_minmax(0,1fr)]">
-                    <div className={cn('flex items-center justify-center border-r border-border/70', workspace.tintClass)}>
-                      <Icon className={cn('h-7 w-7', workspace.iconClass)} />
-                    </div>
-                    <div className="flex flex-col justify-between p-5">
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="text-sm font-semibold leading-tight">{workspace.title}</p>
-                          <Badge variant="outline" className="rounded-none">{accessCount}</Badge>
+              <div className="mt-4 grid gap-px bg-border/70 lg:grid-cols-3">
+                <div className="bg-background px-4 py-4">
+                  <div className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground" style={{ fontFamily: DASHBOARD_MONO_FAMILY }}>Visit Dominan</div>
+                  <div className="mt-2 text-lg font-semibold">{dominantVisitType?.name || '-'}</div>
+                  <div className="mt-1 text-xs uppercase tracking-[0.16em] text-muted-foreground">{formatNumber(dominantVisitType?.value || 0)} kunjungan</div>
+                </div>
+                <div className="bg-background px-4 py-4">
+                  <div className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground" style={{ fontFamily: DASHBOARD_MONO_FAMILY }}>Pembayaran Dominan</div>
+                  <div className="mt-2 text-lg font-semibold">{dominantPaymentMethod?.name || '-'}</div>
+                  <div className="mt-1 text-xs uppercase tracking-[0.16em] text-muted-foreground">{formatNumber(dominantPaymentMethod?.value || 0)} transaksi</div>
+                </div>
+                <div className="bg-background px-4 py-4">
+                  <div className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground" style={{ fontFamily: DASHBOARD_MONO_FAMILY }}>Registrasi Hari Ini</div>
+                  <div className="mt-2 text-lg font-semibold">{formatNumber(stats?.registrations_today || 0)}</div>
+                  <div className="mt-1 text-xs uppercase tracking-[0.16em] text-muted-foreground">pergerakan front office</div>
+                </div>
+              </div>
+            </DashboardPanel>
+          )}
+
+          <DashboardPanel eyebrow="Command" title="Prioritas Hari Ini" description="item yang perlu ditutup lebih dulu">
+            {commandRows.length > 0 ? (
+              <div className="space-y-3">
+                {commandRows.map((item) => {
+                  const Icon = item.icon;
+
+                  return (
+                    <div key={item.label} className="grid gap-3 border-b border-dashed border-border/70 pb-3 last:border-b-0 last:pb-0 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center border border-border/70 bg-muted/20">
+                          <Icon className={cn('h-4 w-4', item.tone)} />
                         </div>
-                        <p className="text-sm text-muted-foreground">{workspace.description}</p>
+                        <div className="space-y-1">
+                          <div className="font-medium">{item.label}</div>
+                          <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">{item.hint}</div>
+                        </div>
                       </div>
-                      <div className="space-y-3">
-                        <div className="flex flex-wrap gap-2">
-                          {workspace.permissions
-                            .filter((permission) => userPermissions.some((userPermission) => userPermission.name === permission))
-                            .slice(0, 3)
-                            .map((permission) => (
-                              <span key={permission} className="border border-border/70 px-2 py-1 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-                                {permission}
-                              </span>
-                            ))}
+                      <div className="text-left text-2xl font-semibold sm:text-right">{item.value}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="flex min-h-[286px] items-center justify-center border border-dashed border-border/70 text-sm text-muted-foreground">
+                Belum ada panel prioritas untuk permission ini.
+              </div>
+            )}
+          </DashboardPanel>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-3">
+          {showFrontOffice && (
+            <DashboardPanel eyebrow="Mix" title="Komposisi Kunjungan" description="jenis layanan yang paling aktif">
+              {sortedVisitTypeData.length > 0 ? (
+                <div className="space-y-3">
+                  {sortedVisitTypeData.slice(0, 5).map((item) => (
+                    <DistributionRow key={item.name} label={item.name} value={item.value} total={totalVisitTypeValue} fill={item.fill} suffix="visit" />
+                  ))}
+                </div>
+              ) : (
+                <div className="text-sm text-muted-foreground">Belum ada data jenis kunjungan.</div>
+              )}
+            </DashboardPanel>
+          )}
+
+          {showRooms && (
+            <DashboardPanel eyebrow="Capacity" title="Kapasitas Rawat Inap" description="bor dan tekanan ruangan">
+              <div className="space-y-5">
+                <div className="grid gap-px bg-border/70 sm:grid-cols-3">
+                  <div className="bg-background px-4 py-4">
+                    <div className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground" style={{ fontFamily: DASHBOARD_MONO_FAMILY }}>BOR</div>
+                    <div className="mt-2 text-3xl font-semibold">{bedOccupancy.toFixed(1)}%</div>
+                  </div>
+                  <div className="bg-background px-4 py-4">
+                    <div className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground" style={{ fontFamily: DASHBOARD_MONO_FAMILY }}>Bed Tersedia</div>
+                    <div className="mt-2 text-3xl font-semibold text-emerald-700">{bedMonitoring?.summary.available_beds || 0}</div>
+                  </div>
+                  <div className="bg-background px-4 py-4">
+                    <div className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground" style={{ fontFamily: DASHBOARD_MONO_FAMILY }}>Bed Terisi</div>
+                    <div className="mt-2 text-3xl font-semibold text-amber-700">{bedMonitoring?.summary.occupied_beds || 0}</div>
+                  </div>
+                </div>
+
+                <Progress value={bedOccupancy} className="h-2 rounded-none bg-slate-200" />
+
+                <div className="space-y-3">
+                  {(bedMonitoring?.rooms || []).slice(0, 5).map((room) => (
+                    <div key={room.room_id} className="space-y-2 border-b border-dashed border-border/70 pb-3 last:border-b-0 last:pb-0">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="truncate font-medium">{room.room_name}</div>
+                          <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">{room.room_code} · {room.room_class}</div>
                         </div>
-                        <Button asChild variant="outline" size="sm" className="w-full rounded-none justify-between">
+                        <div className="text-right text-sm font-semibold">{room.occupied_beds}/{room.total_beds}</div>
+                      </div>
+                      <Progress value={room.occupancy_rate} className="h-2 rounded-none bg-slate-200" />
+                    </div>
+                  ))}
+
+                  {(bedMonitoring?.rooms || []).length === 0 && (
+                    <div className="text-sm text-muted-foreground">Belum ada data bed per ruangan.</div>
+                  )}
+                </div>
+              </div>
+            </DashboardPanel>
+          )}
+
+          {showBilling && (
+            <DashboardPanel eyebrow="Finance" title="Billing & Pendapatan" description="arus tagihan berjalan">
+              <div className="grid gap-px bg-border/70 sm:grid-cols-2">
+                <div className="bg-background px-4 py-4">
+                  <div className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground" style={{ fontFamily: DASHBOARD_MONO_FAMILY }}>Hari Ini</div>
+                  <div className="mt-2 text-2xl font-semibold">{formatCurrency(stats?.revenue_today || 0)}</div>
+                </div>
+                <div className="bg-background px-4 py-4">
+                  <div className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground" style={{ fontFamily: DASHBOARD_MONO_FAMILY }}>Bulan Ini</div>
+                  <div className="mt-2 text-2xl font-semibold">{formatCurrency(stats?.revenue_month || 0)}</div>
+                </div>
+              </div>
+
+              <div className={cn(FLAT_TINTED_PANEL_CLASS, 'mt-4 border-rose-200 bg-rose-50 p-4')}>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground" style={{ fontFamily: DASHBOARD_MONO_FAMILY }}>Outstanding</div>
+                    <div className="mt-2 text-2xl font-semibold text-rose-700">{formatCurrency(stats?.unpaid_billing_amount || 0)}</div>
+                  </div>
+                  <Badge variant="outline" className="rounded-none border-rose-300 bg-transparent text-rose-700">{formatNumber(stats?.pending_billings || 0)} tagihan</Badge>
+                </div>
+              </div>
+
+              <div className="mt-4 space-y-3">
+                {sortedPaymentMethodData.length > 0 ? (
+                  sortedPaymentMethodData.slice(0, 4).map((item) => (
+                    <DistributionRow key={item.name} label={item.name} value={item.value} total={totalPaymentMethodValue} fill={item.fill} suffix="trx" />
+                  ))
+                ) : (
+                  <div className="text-sm text-muted-foreground">Belum ada data metode pembayaran.</div>
+                )}
+              </div>
+            </DashboardPanel>
+          )}
+
+          {(showPharmacy || showProcedures) && (
+            <DashboardPanel eyebrow="Orders" title="Farmasi & Tindakan" description="antrean order penunjang">
+              <div className="grid gap-px bg-border/70 sm:grid-cols-2">
+                {showPharmacy && (
+                  <div className="bg-background px-4 py-4">
+                    <div className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground" style={{ fontFamily: DASHBOARD_MONO_FAMILY }}>Farmasi Pending</div>
+                    <div className="mt-2 text-3xl font-semibold text-lime-700">{formatNumber(stats?.pending_medicine_orders || 0)}</div>
+                    <div className="mt-1 text-xs uppercase tracking-[0.16em] text-muted-foreground">{formatNumber(stats?.medicine_orders_today || 0)} order hari ini</div>
+                  </div>
+                )}
+                {showProcedures && (
+                  <div className="bg-background px-4 py-4">
+                    <div className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground" style={{ fontFamily: DASHBOARD_MONO_FAMILY }}>Lab / Rad Pending</div>
+                    <div className="mt-2 text-3xl font-semibold text-sky-700">{formatNumber(stats?.pending_procedure_orders || 0)}</div>
+                    <div className="mt-1 text-xs uppercase tracking-[0.16em] text-muted-foreground">{formatNumber((stats?.lab_orders_today || 0) + (stats?.radiology_orders_today || 0))} order hari ini</div>
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-4 grid gap-px bg-border/70 sm:grid-cols-2">
+                {showPharmacy && (
+                  <div className="bg-background px-4 py-4">
+                    <div className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground" style={{ fontFamily: DASHBOARD_MONO_FAMILY }}>Farmasi Selesai</div>
+                    <div className="mt-2 text-2xl font-semibold">{formatNumber(stats?.completed_medicine_orders_today || 0)}</div>
+                  </div>
+                )}
+                {showProcedures && (
+                  <div className="bg-background px-4 py-4">
+                    <div className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground" style={{ fontFamily: DASHBOARD_MONO_FAMILY }}>Lab + Radiologi</div>
+                    <div className="mt-2 text-2xl font-semibold">{formatNumber((stats?.lab_orders_today || 0) + (stats?.radiology_orders_today || 0))}</div>
+                  </div>
+                )}
+              </div>
+            </DashboardPanel>
+          )}
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+          <DashboardPanel eyebrow="Workspace" title="Akses Kerja" description="jalur masuk modul harian">
+            {visibleWorkspaces.length > 0 ? (
+              <div className="space-y-2">
+                {visibleWorkspaces.slice(0, 8).map((workspace) => {
+                  const Icon = workspace.icon;
+                  const accessCount = workspace.permissions.filter((permission) =>
+                    userPermissions.some((userPermission) => userPermission.name === permission),
+                  ).length;
+
+                  return (
+                    <div key={workspace.key} className="grid gap-3 border-b border-dashed border-border/70 pb-3 last:border-b-0 last:pb-0 sm:grid-cols-[minmax(0,1fr)_170px] sm:items-center">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className={cn('flex h-10 w-10 shrink-0 items-center justify-center border border-border/70', workspace.tintClass)}>
+                          <Icon className={cn('h-4 w-4', workspace.iconClass)} />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="truncate font-medium">{workspace.title}</div>
+                          <div className="truncate text-[11px] uppercase tracking-[0.16em] text-muted-foreground">{workspace.description}</div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 sm:justify-end">
+                        <Badge variant="outline" className="rounded-none">{accessCount}</Badge>
+                        <Button asChild variant="outline" size="sm" className="rounded-none">
                           <Link to={workspace.href}>
-                            Buka workspace
-                            <ArrowUpRight className="h-4 w-4" />
+                            Buka
+                            <ArrowRight className="ml-2 h-4 w-4" />
                           </Link>
                         </Button>
                       </div>
                     </div>
-                  </div>
-                </CardContent>
-              </DashboardShellCard>
-            );
-          })}
-        </div>
-      </SectionBlock>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="flex min-h-[220px] items-center justify-center border border-dashed border-border/70 text-sm text-muted-foreground">
+                Belum ada workspace yang aktif untuk role ini.
+              </div>
+            )}
+          </DashboardPanel>
 
-      <SectionBlock title="Permission Map" description="Ringkasan modul yang aktif untuk user ini berdasarkan permission yang terbaca dari role.">
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
-          <DashboardShellCard>
-            <CardHeader className="border-b border-border/70 pb-3">
-              <CardTitle className="text-base">Modul Aktif</CardTitle>
-              <CardDescription>Distribusi permission yang tersedia per modul.</CardDescription>
-            </CardHeader>
-            <CardContent className="pt-5">
-              <div className="space-y-3">
-                {visibleModuleSummaries.map(([moduleName, permissions]) => (
-                  <div key={moduleName} className="grid gap-2 border-b border-dashed border-border/70 pb-3 last:border-b-0 last:pb-0 md:grid-cols-[minmax(0,1fr)_140px] md:items-center">
+          <DashboardPanel eyebrow="Access" title="Peta Permission" description="modul dan permission aktif">
+            <div className="grid gap-px bg-border/70 sm:grid-cols-3">
+              <div className="bg-background px-4 py-4">
+                <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.24em] text-muted-foreground" style={{ fontFamily: DASHBOARD_MONO_FAMILY }}>
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  Permission
+                </div>
+                <div className="mt-2 text-3xl font-semibold">{userPermissions.length}</div>
+              </div>
+              <div className="bg-background px-4 py-4">
+                <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.24em] text-muted-foreground" style={{ fontFamily: DASHBOARD_MONO_FAMILY }}>
+                  <LayoutGrid className="h-3.5 w-3.5" />
+                  Modul
+                </div>
+                <div className="mt-2 text-3xl font-semibold">{visibleModuleSummaries.length}</div>
+              </div>
+              <div className="bg-background px-4 py-4">
+                <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.24em] text-muted-foreground" style={{ fontFamily: DASHBOARD_MONO_FAMILY }}>
+                  <Command className="h-3.5 w-3.5" />
+                  User
+                </div>
+                <div className="mt-2 text-lg font-semibold leading-tight">{user?.full_name || '-'}</div>
+              </div>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              {visibleModuleSummaries.length > 0 ? (
+                visibleModuleSummaries.map(([moduleName, permissions]) => (
+                  <div key={moduleName} className="grid gap-2 border-b border-dashed border-border/70 pb-3 last:border-b-0 last:pb-0 md:grid-cols-[minmax(0,1fr)_150px] md:items-center">
                     <div>
                       <div className="font-medium">{moduleName}</div>
-                      <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                      <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
                         {permissions.slice(0, 3).map((permission) => permission.name).join(' · ')}
-                      </p>
+                      </div>
                     </div>
                     <div className="flex items-center justify-between gap-3">
                       <Progress value={Math.min((permissions.length / Math.max(userPermissions.length, 1)) * 100, 100)} className="h-2 rounded-none bg-slate-200" />
-                      <span className="min-w-10 text-right text-sm font-semibold">{permissions.length}</span>
+                      <span className="min-w-8 text-right text-sm font-semibold">{permissions.length}</span>
                     </div>
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </DashboardShellCard>
-
-          <DashboardShellCard>
-            <CardHeader className="border-b border-border/70 pb-3">
-              <CardTitle className="text-base">Akses User</CardTitle>
-              <CardDescription>Jumlah permission dan role yang sedang aktif.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4 pt-5">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className={cn(FLAT_PANEL_CLASS, 'p-4')}>
-                  <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Total Permission</div>
-                  <div className="mt-2 text-2xl font-semibold">{userPermissions.length}</div>
+                ))
+              ) : (
+                <div className="flex min-h-[220px] items-center justify-center border border-dashed border-border/70 text-sm text-muted-foreground">
+                  Belum ada permission modul yang dipetakan.
                 </div>
-                <div className={cn(FLAT_PANEL_CLASS, 'p-4')}>
-                  <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Total Modul</div>
-                  <div className="mt-2 text-2xl font-semibold">{visibleModuleSummaries.length}</div>
-                </div>
-              </div>
-              <div className={cn(FLAT_TINTED_PANEL_CLASS, 'border-sky-200 bg-sky-50 p-4')}>
-                <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Role Aktif</div>
-                <div className="mt-2 text-xl font-semibold text-sky-700">{user?.role?.name || 'Tanpa Role'}</div>
-              </div>
-              <div className="space-y-2">
-                <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Permission Teratas</p>
-                <div className="flex flex-wrap gap-2">
-                  {userPermissions.slice(0, 10).map((permission) => (
-                    <span key={permission.id} className="border border-border/70 px-2 py-1 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-                      {permission.name}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </CardContent>
-          </DashboardShellCard>
-        </div>
-      </SectionBlock>
-
-      {visibleSections.map((section) => (
-        <SectionBlock key={section.key} title={section.title} description={section.description}>
-          {section.content}
-        </SectionBlock>
-      ))}
-
-      {visibleSections.length === 0 && (
-        <DashboardShellCard>
-          <CardContent className="flex min-h-[220px] flex-col items-center justify-center gap-3 text-center">
-            <Users className="h-8 w-8 text-muted-foreground" />
-            <div className="space-y-1">
-              <p className="text-lg font-semibold">Belum ada panel untuk permission ini</p>
-              <p className="max-w-md text-sm text-muted-foreground">
-                User tetap masuk ke dashboard, tetapi belum memiliki permission modul yang dipetakan ke komponen dashboard. Tambahkan permission modul untuk menampilkan panel terkait.
-              </p>
+              )}
             </div>
-          </CardContent>
-        </DashboardShellCard>
-      )}
+          </DashboardPanel>
+        </div>
+
+        <SectionBlock title="Panel Modul" description="ringkasan operasional tambahan">
+          <div className="grid gap-4">
+            {visibleSections.map((section) => (
+              <DashboardPanel key={section.key} eyebrow="Module" title={section.title} description={section.description}>
+                {section.content}
+              </DashboardPanel>
+            ))}
+
+            {visibleSections.length === 0 && visibleMetricCards.length === 0 && (
+              <DashboardShellCard>
+                <CardContent className="flex min-h-[220px] flex-col items-center justify-center gap-3 text-center">
+                  <CircleAlert className="h-8 w-8 text-muted-foreground" />
+                  <div className="space-y-1">
+                    <p className="text-lg font-semibold">Belum ada panel untuk permission ini</p>
+                    <p className="max-w-md text-sm text-muted-foreground">
+                      Dashboard tetap aktif, tetapi role ini belum punya permission yang dipetakan ke panel operasional.
+                    </p>
+                  </div>
+                </CardContent>
+              </DashboardShellCard>
+            )}
+          </div>
+        </SectionBlock>
+      </div>
     </div>
   );
 }

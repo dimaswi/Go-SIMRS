@@ -429,16 +429,28 @@ export default function ScheduledRegistrationsPage() {
         }
       />
 
-      <PageContent>
-        <DataTable
-          columns={columns}
-          data={registrations}
-          searchPlaceholder="Cari nama pasien, No. RM..."
-          pageSize={10}
-          tableId="scheduled-registrations"
-        />
+      <PageContent className="py-3">
+        <div className="border border-border/70 bg-background">
+          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            Daftar Billing
+          </div>
+          <div className="p-3 sm:p-4">
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            ) : (
+              <DataTable
+                columns={columns}
+                data={registrations}
+                searchPlaceholder="Cari nama pasien, No. RM..."
+                pageSize={10}
+                tableId="scheduled-registrations"
+              />
+            )}
+          </div>
+        </div>
       </PageContent>
-
       {/* Cancel Confirmation Dialog */}
       <ConfirmDialog
         open={cancelId !== null}

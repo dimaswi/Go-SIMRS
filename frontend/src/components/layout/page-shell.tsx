@@ -47,14 +47,14 @@ export function PageHeader({
       <div className="border-b border-border/70 bg-muted/10 px-4 py-4 md:px-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0 space-y-2">
-            <div className="flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.24em] text-muted-foreground" style={{ fontFamily: PAGE_SHELL_MONO_FAMILY }}>
+            {/* <div className="flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.24em] text-muted-foreground" style={{ fontFamily: PAGE_SHELL_MONO_FAMILY }}>
               <span>Workspace</span>
               {count !== undefined && (
                 <span className="border border-border/70 px-2 py-1 text-foreground">
                   {count.toLocaleString("id-ID")}
                 </span>
               )}
-            </div>
+            </div> */}
             <div className="flex min-w-0 items-start gap-3">
           {Icon && (
                 <div className="mt-0.5 flex-shrink-0 border border-border/70 bg-background p-2">
@@ -123,7 +123,7 @@ interface FilterBarProps {
 
 export function FilterBar({ children, className }: FilterBarProps) {
   return (
-    <div className={cn("flex flex-wrap items-center gap-2 border-b border-border/70 bg-background/90 px-4 py-3 backdrop-blur md:px-6", className)}>
+    <div className={cn("flex flex-wrap items-center gap-2 border-border/70 bg-background/90 backdrop-blur", className)}>
       {children}
     </div>
   )

@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from "react";
+﻿import { useState, useEffect, useCallback, type ComponentType, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -35,7 +35,10 @@ import {
   Pencil,
   Send,
   Trash2,
+  ArrowLeft,
+  ClipboardList,
 } from "lucide-react";
+import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 
 const statusColors: Record<string, string> = {
   draft: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200",
@@ -53,6 +56,35 @@ const priorityColors: Record<string, string> = {
   high: "bg-orange-100 text-orange-600 dark:bg-orange-900 dark:text-orange-200",
   urgent: "bg-red-100 text-red-600 dark:bg-red-900 dark:text-red-200",
 };
+
+function SectionPanel({
+  icon: Icon,
+  title,
+  description,
+  children,
+}: {
+  icon: ComponentType<{ className?: string }>;
+  title: string;
+  description: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="border border-border/70 bg-background/95 shadow-sm">
+      <div className="border-b border-border/70 bg-muted/20 px-4 py-3">
+        <div className="flex items-start gap-3">
+          <div className="border border-border/70 bg-background p-2">
+            <Icon className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <div>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{title}</div>
+            <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+          </div>
+        </div>
+      </div>
+      <div className="p-3 sm:p-4">{children}</div>
+    </div>
+  );
+}
 
 export default function StockRequestShow() {
   const { id } = useParams<{ id: string }>();
@@ -203,16 +235,56 @@ export default function StockRequestShow() {
   const canSubmit = hasPermission("stock_requests.create") && request.status === "draft";
 
   return (
-    <div className="flex flex-1 flex-col px-4">
+    <PageShell>
+      <PageHeader
+        title="Detail Permintaan Stok"
+        description="Pantau status permintaan, pihak terlibat, dan kemajuan item dalam satu halaman yang lebih mudah dipindai."
+        icon={ClipboardList}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => navigate("/stock-requests")}>
+              <ArrowLeft className="h-4 w-4" />
+              Kembali
+            </Button>
+            {canEdit && (
+              <Button variant="outline" size="sm" onClick={() => navigate(`/stock-requests/${id}/edit`)}>
+                <Pencil className="h-4 w-4" />
+                Edit
+              </Button>
+            )}
+            {canSubmit && (
+              <Button size="sm" onClick={() => setSubmitDialogOpen(true)}>
+                <Send className="h-4 w-4" />
+                Ajukan
+              </Button>
+            )}
+            {canApprove && (
+              <Button size="sm" onClick={() => navigate(`/stock-requests/${id}/approve`)}>
+                <CheckCircle className="h-4 w-4" />
+                Proses
+              </Button>
+            )}
+          </div>
+        }
+      >
+        <div className="flex flex-wrap gap-2 pb-3">
+          <div className="border border-border/70 bg-background px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Status permintaan live</div>
+          <div className="border border-border/70 bg-background px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Progress item mudah dibaca</div>
+          <div className="border border-border/70 bg-background px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Aksi utama pindah ke header</div>
+        </div>
+      </PageHeader>
 
+      <PageContent className="flex-none pb-8">
+        <div className="mb-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="border border-border/70 bg-gradient-to-br from-background via-background to-sky-50/40 px-4 py-3 shadow-sm"><div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Status</div><div className="mt-1 text-sm font-semibold text-foreground">{stockRequestStatusLabels[request.status]}</div></div>
+          <div className="border border-border/70 bg-gradient-to-br from-background via-background to-emerald-50/40 px-4 py-3 shadow-sm"><div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Prioritas</div><div className="mt-1 text-sm font-semibold text-foreground">{priorityLabels[request.priority]}</div></div>
+          <div className="border border-border/70 bg-gradient-to-br from-background via-background to-amber-50/50 px-4 py-3 shadow-sm"><div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Jumlah Item</div><div className="mt-1 text-sm font-semibold text-foreground">{request.items?.length || 0} item</div></div>
+          <div className="border border-border/70 bg-gradient-to-br from-background via-background to-rose-50/40 px-4 py-3 shadow-sm"><div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Ruang Tujuan</div><div className="mt-1 text-sm font-semibold text-foreground">{request.to_room?.name || "-"}</div></div>
+        </div>
 
       <div className="flex-1 space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11">
-        <div className="border border-border/70">
-          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
-            <AlertTriangle className="h-3 w-3" />
-            Informasi Permintaan
-          </div>
-          <div className="p-3 sm:p-4">
+        <SectionPanel icon={ClipboardList} title="Informasi Permintaan" description="Ringkasan status, prioritas, asal dan tujuan ruangan, serta waktu kebutuhan permintaan.">
+          <div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6">
               <div className="space-y-1 lg:col-span-2">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -272,15 +344,11 @@ export default function StockRequestShow() {
               </div>
             </div>
           </div>
-        </div>
+        </SectionPanel>
 
         {/* People Info */}
-        <div className="border border-border/70">
-          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
-            <User className="h-3 w-3" />
-            Informasi Pihak Terlibat
-          </div>
-          <div className="p-3 sm:p-4">
+        <SectionPanel icon={User} title="Informasi Pihak Terlibat" description="Jejak siapa yang meminta, menyetujui, dan menyelesaikan permintaan ini.">
+          <div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Requested By */}
               <div className="space-y-1">
@@ -317,16 +385,12 @@ export default function StockRequestShow() {
               )}
             </div>
           </div>
-        </div>
+        </SectionPanel>
 
         {/* Reason & Notes */}
         {(request.reason || request.notes) && (
-          <div className="border border-border/70">
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
-              <FileText className="h-3 w-3" />
-              Alasan & Catatan
-            </div>
-            <div className="p-3 sm:p-4">
+          <SectionPanel icon={FileText} title="Alasan & Catatan" description="Konteks utama permintaan dan catatan tambahan dari pengaju.">
+            <div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {request.reason && (
                   <div className="space-y-1">
@@ -348,17 +412,13 @@ export default function StockRequestShow() {
                 )}
               </div>
             </div>
-          </div>
+          </SectionPanel>
         )}
 
         {/* Rejection Reason */}
         {request.rejection_reason && (
-          <div className="border border-border/70">
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
-              <XCircle className="h-3 w-3 text-red-600" />
-              Alasan Penolakan
-            </div>
-            <div className="p-3 sm:p-4">
+          <SectionPanel icon={XCircle} title="Alasan Penolakan" description="Penjelasan mengapa permintaan ini tidak dilanjutkan ke tahap berikutnya.">
+            <div>
               <div className="bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 p-4">
                 <div className="flex items-center gap-2 text-sm font-medium text-red-800 dark:text-red-200 mb-2">
                   <XCircle className="h-4 w-4" />
@@ -367,16 +427,12 @@ export default function StockRequestShow() {
                 <p className="text-sm text-red-700 dark:text-red-300">{request.rejection_reason}</p>
               </div>
             </div>
-          </div>
+          </SectionPanel>
         )}
 
         {/* Items Table */}
-        <div className="border border-border/70">
-          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
-            <Package className="h-3 w-3" />
-            Daftar Item ({request.items?.length || 0} item)
-          </div>
-          <div className="p-0">
+        <SectionPanel icon={request.request_type === "inventory" ? Package : Pill} title="Daftar Item" description={`Rincian ${request.items?.length || 0} item yang diminta, disetujui, dan sudah dipenuhi.`}>
+          <div className="-mx-3 -mb-4 sm:-mx-4">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -448,7 +504,7 @@ export default function StockRequestShow() {
               </TableBody>
             </Table>
           </div>
-        </div>
+        </SectionPanel>
       </div>
 
       {/* Cancel Confirmation Dialog */}
@@ -486,55 +542,27 @@ export default function StockRequestShow() {
         onConfirm={handleDelete}
       />
 
-      {/* Sticky Footer Actions */}
-      <div className="shrink-0 sticky bottom-0 z-10 py-3 mt-4 flex items-center justify-between border-t bg-background">
-        <Button variant="outline" onClick={() => navigate("/stock-requests")}>
-          Kembali
-        </Button>
-        <div className="flex gap-2">
-          {canEdit && (
-            <Button variant="outline" onClick={() => navigate(`/stock-requests/${id}/edit`)}>
-              <Pencil className="mr-2 h-4 w-4" />
-              Edit
-            </Button>
-          )}
+      {canDelete || canCancel ? (
+        <div className="shrink-0 sticky bottom-0 z-10 py-3 mt-4 flex items-center justify-end gap-2 border-t border-border/70 bg-background/95 backdrop-blur">
           {canDelete && (
             <Button
               variant="destructive"
               onClick={() => setDeleteDialogOpen(true)}
               disabled={deleting}
             >
-              {deleting ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Trash2 className="mr-2 h-4 w-4" />
-              )}
+              {deleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
               Hapus
             </Button>
           )}
-          {canSubmit && (
-            <Button onClick={() => setSubmitDialogOpen(true)}>
-              <Send className="mr-2 h-4 w-4" />
-              Ajukan
-            </Button>
-          )}
-          {canApprove && (
-            <Button onClick={() => navigate(`/stock-requests/${id}/approve`)}>
-              <CheckCircle className="mr-2 h-4 w-4" />
-              Proses
-            </Button>
-          )}
           {canCancel && (
-            <Button
-              variant="destructive"
-              onClick={() => setCancelDialogOpen(true)}
-            >
+            <Button variant="destructive" onClick={() => setCancelDialogOpen(true)}>
               <XCircle className="mr-2 h-4 w-4" />
               Batalkan
             </Button>
           )}
         </div>
-      </div>
-    </div>
+      ) : null}
+      </PageContent>
+    </PageShell>
   );
 }

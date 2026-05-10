@@ -11,7 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Eye, Pencil, Trash2, User, ArrowUpDown, CheckCircle, XCircle, Smartphone } from "lucide-react";
+import { MoreHorizontal, Eye, Pencil, Trash2, User, ArrowUpDown, CheckCircle, XCircle, Smartphone, Mars, Venus } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -125,15 +125,7 @@ export const createPatientColumns = ({
       return (
         <div className="flex items-center gap-3">
           <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center">
-            {row.original.foto ? (
-              <img 
-                src={`/${row.original.foto}`} 
-                alt={row.original.nama_lengkap}
-                className="h-9 w-9 rounded-full object-cover"
-              />
-            ) : (
-              <User className="h-4 w-4 text-muted-foreground" />
-            )}
+            {row.original.jenis_kelamin === 'L' ? <Mars className="text-blue-300"/> : <Venus className="text-pink-300"/>}
           </div>
           <div>
             <button
@@ -142,33 +134,17 @@ export const createPatientColumns = ({
               className="font-medium text-left hover:text-primary hover:underline cursor-pointer"
             >
               {formatPatientName(row.original.nama_lengkap, row.original.jenis_kelamin, row.original.status_perkawinan, row.original.tanggal_lahir)}
+              <span>
+                &nbsp;&nbsp;{row.original.status === "Aktif" ? <CheckCircle className="inline-block h-3 w-3 text-green-500" /> : <XCircle className="inline-block h-3 w-3 text-red-500" />}
+              </span>
             </button>
             <p className="text-xs text-muted-foreground">
-              {row.original.nik || 'NIK: -'}
+              {row.original.nik || 'Tidak ada data NIK'}
             </p>
           </div>
         </div>
       );
     },
-  },
-  {
-    accessorKey: "jenis_kelamin",
-    sortDescFirst: false,
-    header: ({ column }) => (
-      <Button
-        variant="ghost"
-        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        className="h-8 p-0 hover:bg-transparent"
-      >
-        L/P
-        <ArrowUpDown className="ml-2 h-4 w-4" />
-      </Button>
-    ),
-    cell: ({ row }) => (
-      <Badge variant="outline">
-        {row.original.jenis_kelamin === 'L' ? 'Laki-laki' : 'Perempuan'}
-      </Badge>
-    ),
   },
   {
     accessorKey: "tanggal_lahir",
@@ -238,36 +214,6 @@ export const createPatientColumns = ({
         </div>
       );
     },
-  },
-  {
-    accessorKey: "status",
-    sortDescFirst: false,
-    header: ({ column }) => (
-      <Button
-        variant="ghost"
-        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        className="h-8 p-0 hover:bg-transparent"
-      >
-        Status
-        <ArrowUpDown className="ml-2 h-4 w-4" />
-      </Button>
-    ),
-    cell: ({ row }) => (
-      <div className="flex items-center gap-2">
-        <Badge variant={getStatusVariant(row.original.status)}>
-          {row.original.status}
-        </Badge>
-        {row.original.is_final ? (
-          <Badge variant="default" className="bg-green-600">
-            <CheckCircle className="h-3 w-3" />
-          </Badge>
-        ) : (
-          <Badge variant="secondary">
-            <XCircle className="h-3 w-3" />
-          </Badge>
-        )}
-      </div>
-    ),
   },
   {
     accessorKey: "tanggal_kunjungan_terakhir",

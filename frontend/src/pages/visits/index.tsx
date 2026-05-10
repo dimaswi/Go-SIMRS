@@ -894,20 +894,26 @@ export default function VisitsIndex() {
           </div>
         </div>
       )}
-
-      <PageContent>
-        {loading && visits.length === 0 ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <PageContent className="py-3">
+        <div className="border border-border/70 bg-background">
+          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            Daftar Kunjungan
           </div>
-        ) : (
-          <DataTable
+          <div className="p-3 sm:p-4">
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            ) : ( 
+              <DataTable
             columns={columns}
             data={visits}
             searchPlaceholder="Cari nomor RM, nama pasien, nomor kunjungan..."
             pageSize={10}
           />
-        )}
+            )}
+          </div>
+        </div>
       </PageContent>
 
       <AlertDialog

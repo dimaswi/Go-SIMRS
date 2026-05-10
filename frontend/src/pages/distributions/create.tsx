@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ComponentType, type ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
@@ -24,8 +24,10 @@ import {
   CheckCheck,
   Info,
   AlertTriangle,
+  ArrowLeft,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PageShell, PageHeader, PageContent } from '@/components/layout/page-shell';
 
 interface DistributionItem {
   id: string;
@@ -44,6 +46,40 @@ interface DistributionItem {
   batch_number: string;
   expiry_date: string;
   notes: string;
+}
+
+function SectionPanel({
+  icon: Icon,
+  title,
+  description,
+  actions,
+  children,
+}: {
+  icon: ComponentType<{ className?: string }>;
+  title: string;
+  description: string;
+  actions?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <div className="border border-border/70 bg-background/95 shadow-sm">
+      <div className="border-b border-border/70 bg-muted/20 px-4 py-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div className="border border-border/70 bg-background p-2">
+              <Icon className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{title}</div>
+              <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+            </div>
+          </div>
+          {actions}
+        </div>
+      </div>
+      <div className="p-3 sm:p-4">{children}</div>
+    </div>
+  );
 }
 
 export default function DistributionCreate() {
@@ -292,25 +328,59 @@ export default function DistributionCreate() {
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-
-
-      <div className="flex-1 space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11">
-        <div className="border border-border/70">
-          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex justify-between items-center">
-            <span>Pemilihan Permintaan</span>
+    <PageShell>
+      <PageHeader
+        title="Buat Distribusi"
+        description="Pilih permintaan yang disetujui, tentukan item yang dikirim, lalu lengkapi batch obat dengan alur yang lebih jelas."
+        icon={Truck}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => navigate('/distributions')}>
+              <ArrowLeft className="h-4 w-4" />
+              Kembali
+            </Button>
             {selectedRequest && (
-              <div className="flex items-center gap-2">
-                <Badge variant="outline" className="h-5 text-[10px]">
-                  {completedItems} / {totalItems} Selesai
-                </Badge>
-                {selectedCount > 0 && (
-                  <Badge className="bg-primary h-5 text-[10px]">{selectedCount} dipilih</Badge>
-                )}
-              </div>
+              <Button size="sm" onClick={handleSubmit} disabled={submitting || selectedCount === 0}>
+                {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
+                <Truck className="h-4 w-4" />
+                Kirim {selectedCount} Item
+              </Button>
             )}
           </div>
-          <div className="p-3 sm:p-4 space-y-4">
+        }
+      >
+        <div className="flex flex-wrap gap-2 pb-3">
+          <div className="border border-border/70 bg-background px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Distribusi berbasis approval</div>
+          <div className="border border-border/70 bg-background px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Batch obat bisa massal</div>
+          <div className="border border-border/70 bg-background px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Item terpenuhi terlihat cepat</div>
+        </div>
+      </PageHeader>
+
+      <PageContent className="flex-none pb-8">
+        <div className="mb-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="border border-border/70 bg-gradient-to-br from-background via-background to-sky-50/40 px-4 py-3 shadow-sm"><div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Permintaan</div><div className="mt-1 text-sm font-semibold text-foreground">{selectedRequest ? selectedRequest.request_number : 'Belum dipilih'}</div></div>
+          <div className="border border-border/70 bg-gradient-to-br from-background via-background to-emerald-50/40 px-4 py-3 shadow-sm"><div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Item Terpilih</div><div className="mt-1 text-sm font-semibold text-foreground">{selectedCount} dari {itemsWithRemaining}</div></div>
+          <div className="border border-border/70 bg-gradient-to-br from-background via-background to-amber-50/50 px-4 py-3 shadow-sm"><div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Obat Terpilih</div><div className="mt-1 text-sm font-semibold text-foreground">{selectedMedicines} item</div></div>
+          <div className="border border-border/70 bg-gradient-to-br from-background via-background to-rose-50/40 px-4 py-3 shadow-sm"><div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Item Selesai</div><div className="mt-1 text-sm font-semibold text-foreground">{completedItems} item</div></div>
+        </div>
+
+      <div className="flex-1 space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11">
+        <SectionPanel
+          icon={Truck}
+          title="Pemilihan Permintaan"
+          description="Pilih permintaan yang telah disetujui untuk membuka item yang masih perlu dikirim."
+          actions={selectedRequest ? (
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="h-5 text-[10px]">
+                {completedItems} / {totalItems} Selesai
+              </Badge>
+              {selectedCount > 0 && (
+                <Badge className="bg-primary h-5 text-[10px]">{selectedCount} dipilih</Badge>
+              )}
+            </div>
+          ) : undefined}
+        >
+          <div className="space-y-4">
             {/* Select Request */}
             <div className="space-y-2">
               <Label>Pilih Permintaan yang Disetujui *</Label>
@@ -329,16 +399,13 @@ export default function DistributionCreate() {
               />
             </div>
           </div>
-        </div>
+        </SectionPanel>
 
         {selectedRequest && (
           <>
             {/* Request Info */}
-            <div className="border border-border/70">
-              <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                Informasi Permintaan
-              </div>
-              <div className="p-3 sm:p-4">
+            <SectionPanel icon={Info} title="Informasi Permintaan" description="Ringkasan request sumber distribusi, arah ruangan, dan catatan pengiriman.">
+              <div>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div>
                     <p className="text-sm text-muted-foreground">No. Permintaan</p>
@@ -368,15 +435,17 @@ export default function DistributionCreate() {
                   />
                 </div>
               </div>
-            </div>
+            </SectionPanel>
           </>
         )}
 
         {/* Bulk Actions Card */}
         {selectedRequest && items.length > 0 && (
-          <div className="border border-border/70">
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center justify-between">
-              <span>Aksi Massal</span>
+          <SectionPanel
+            icon={CheckCheck}
+            title="Aksi Massal"
+            description="Gunakan aksi cepat untuk memilih item sekaligus dan mengisi jumlah sisa yang belum terkirim."
+            actions={
               <div className="flex items-center gap-2">
                 <Button
                   type="button"
@@ -402,9 +471,10 @@ export default function DistributionCreate() {
                   Isi Sisa ke Terpilih
                 </Button>
               </div>
-            </div>
+            }
+          >
             {selectedMedicines > 0 && (
-              <div className="p-3 sm:p-4">
+              <div>
                 <Alert className="mb-4">
                   <Info className="h-4 w-4" />
                   <AlertDescription>
@@ -470,18 +540,18 @@ export default function DistributionCreate() {
                 </div>
               </div>
             )}
-          </div>
+          </SectionPanel>
         )}
 
         {/* Items Card */}
         {selectedRequest && (
-          <div className="border border-border/70">
-            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center justify-between">
-              <span>Daftar Item</span>
-              <span className="normal-case tracking-normal font-normal opacity-70">({totalItems} item total)</span>
-            </div>
-
-            <div className="p-0">
+          <SectionPanel
+            icon={Package}
+            title="Daftar Item"
+            description="Pilih item yang akan dikirim, lalu lengkapi jumlah dan informasi batch bila diperlukan."
+            actions={<span className="text-xs text-muted-foreground">{totalItems} item total</span>}
+          >
+            <div className="-mx-3 -mb-4 sm:-mx-4">
               <ScrollArea className="h-[500px]">
                 {items.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
@@ -664,13 +734,13 @@ export default function DistributionCreate() {
                 )}
               </ScrollArea>
             </div>
-          </div>
+          </SectionPanel>
         )}
 
         {/* No Request Selected */}
         {!selectedRequest && (
-          <div className="border border-border/70">
-            <div className="py-12">
+          <SectionPanel icon={Truck} title="Belum Ada Permintaan" description="Pilih permintaan yang sudah disetujui untuk mulai menyiapkan distribusi item.">
+            <div className="py-8">
               <div className="flex flex-col items-center justify-center text-muted-foreground">
                 <Truck className="h-12 w-12 mb-3 opacity-50" />
                 <p className="text-sm font-medium">Belum ada permintaan dipilih</p>
@@ -679,7 +749,7 @@ export default function DistributionCreate() {
                 </p>
               </div>
             </div>
-          </div>
+          </SectionPanel>
         )}
       </div>
 
@@ -687,7 +757,7 @@ export default function DistributionCreate() {
 
       {/* Sticky Footer Actions */}
       {selectedRequest && (
-        <div className="shrink-0 sticky bottom-0 z-10 py-3 mt-4 flex items-center justify-between border-t bg-background">
+        <div className="shrink-0 sticky bottom-0 z-10 py-3 mt-4 flex items-center justify-between border-t border-border/70 bg-background/95 backdrop-blur">
           <p className="text-sm text-muted-foreground">
             {selectedCount} item akan dikirim
           </p>
@@ -706,6 +776,7 @@ export default function DistributionCreate() {
           </div>
         </div>
       )}
-    </div>
+      </PageContent>
+    </PageShell>
   );
 }

@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from "react";
+﻿import { useState, useEffect, useCallback, type ComponentType, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -40,7 +40,10 @@ import {
   Building,
   AlertTriangle,
   FileText,
+  ArrowLeft,
+  CheckCheck,
 } from "lucide-react";
+import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 
 const priorityColors: Record<string, string> = {
   low: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300",
@@ -48,6 +51,35 @@ const priorityColors: Record<string, string> = {
   high: "bg-orange-100 text-orange-600 dark:bg-orange-900 dark:text-orange-200",
   urgent: "bg-red-100 text-red-600 dark:bg-red-900 dark:text-red-200",
 };
+
+function SectionPanel({
+  icon: Icon,
+  title,
+  description,
+  children,
+}: {
+  icon: ComponentType<{ className?: string }>;
+  title: string;
+  description: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="border border-border/70 bg-background/95 shadow-sm">
+      <div className="border-b border-border/70 bg-muted/20 px-4 py-3">
+        <div className="flex items-start gap-3">
+          <div className="border border-border/70 bg-background p-2">
+            <Icon className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <div>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{title}</div>
+            <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+          </div>
+        </div>
+      </div>
+      <div className="p-3 sm:p-4">{children}</div>
+    </div>
+  );
+}
 
 interface ApprovalItem {
   id: number;
@@ -252,15 +284,47 @@ export default function StockRequestApprove() {
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
+    <PageShell>
+      <PageHeader
+        title="Proses Persetujuan"
+        description="Nilai stok tersedia, tentukan jumlah yang disetujui, lalu selesaikan approval dengan catatan yang jelas."
+        icon={CheckCheck}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => navigate(`/stock-requests/${id}`)}>
+              <ArrowLeft className="h-4 w-4" />
+              Kembali
+            </Button>
+            <Button variant="destructive" size="sm" onClick={() => setRejectDialogOpen(true)}>
+              <XCircle className="h-4 w-4" />
+              Tolak
+            </Button>
+            <Button size="sm" onClick={handleApprove} disabled={submitting}>
+              {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
+              <CheckCircle className="h-4 w-4" />
+              Setujui
+            </Button>
+          </div>
+        }
+      >
+        <div className="flex flex-wrap gap-2 pb-3">
+          <div className="border border-border/70 bg-background px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Approval item per item</div>
+          <div className="border border-border/70 bg-background px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Stok tersedia langsung terlihat</div>
+          <div className="border border-border/70 bg-background px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Setujui semua atau reset cepat</div>
+        </div>
+      </PageHeader>
 
+      <PageContent className="flex-none pb-8">
+        <div className="mb-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="border border-border/70 bg-gradient-to-br from-background via-background to-sky-50/40 px-4 py-3 shadow-sm"><div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">No. Permintaan</div><div className="mt-1 text-sm font-semibold text-foreground">{request.request_number}</div></div>
+          <div className="border border-border/70 bg-gradient-to-br from-background via-background to-emerald-50/40 px-4 py-3 shadow-sm"><div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Prioritas</div><div className="mt-1 text-sm font-semibold text-foreground">{priorityLabels[request.priority]}</div></div>
+          <div className="border border-border/70 bg-gradient-to-br from-background via-background to-amber-50/50 px-4 py-3 shadow-sm"><div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Jumlah Item</div><div className="mt-1 text-sm font-semibold text-foreground">{items.length} item</div></div>
+          <div className="border border-border/70 bg-gradient-to-br from-background via-background to-rose-50/40 px-4 py-3 shadow-sm"><div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Ruang Pemohon</div><div className="mt-1 text-sm font-semibold text-foreground">{request.from_room?.name || "-"}</div></div>
+        </div>
 
       <div className="flex-1 space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11">
-        <div className="border border-border/70">
-          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            Informasi Permintaan
-          </div>
-          <div className="p-3 sm:p-4">
+        <SectionPanel icon={CheckCheck} title="Informasi Permintaan" description="Lihat prioritas, ruangan asal-tujuan, dan alasan sebelum menyetujui distribusi stok.">
+          <div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
               <div className="space-y-1 lg:col-span-2">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -319,14 +383,11 @@ export default function StockRequestApprove() {
               </>
             )}
           </div>
-        </div>
+        </SectionPanel>
 
         {/* Items Approval Card */}
-        <div className="border border-border/70">
-          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            Daftar Item
-          </div>
-          <div className="flex items-center justify-between px-4 py-3">
+        <SectionPanel icon={request.request_type === "inventory" ? Package : Pill} title="Daftar Item" description="Tentukan jumlah yang disetujui berdasarkan stok yang benar-benar tersedia di ruangan Anda.">
+          <div className="flex items-center justify-between pb-3">
             <div className="flex items-center justify-between flex-1">
               <div className="space-y-1">
                 <p className="text-xs text-muted-foreground">Tentukan jumlah yang disetujui untuk setiap item</p>
@@ -341,7 +402,7 @@ export default function StockRequestApprove() {
               </div>
             </div>
           </div>
-          <div className="px-4 pb-4">
+          <div className="-mx-3 -mb-4 px-3 pb-4 sm:-mx-4 sm:px-4">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -403,13 +464,10 @@ export default function StockRequestApprove() {
               </TableBody>
             </Table>
           </div>
-        </div>
+        </SectionPanel>
 
-        <div className="border border-border/70">
-          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            Persetujuan
-          </div>
-          <div className="p-3 sm:p-4">
+        <SectionPanel icon={FileText} title="Persetujuan" description="Tambahkan catatan approval sebelum keputusan akhir dikirimkan.">
+          <div>
             {/* Notes */}
             <div className="space-y-2">
               <Label>Catatan Persetujuan</Label>
@@ -421,7 +479,7 @@ export default function StockRequestApprove() {
             </div>
 
             {/* Sticky Footer Actions */}
-            <div className="shrink-0 sticky bottom-0 z-10 py-3 mt-4 flex items-center justify-end gap-4 border-t bg-background">
+            <div className="shrink-0 sticky bottom-0 z-10 py-3 mt-4 flex items-center justify-end gap-4 border-t border-border/70 bg-background/95 backdrop-blur">
               <Button
                 variant="outline"
                 onClick={() => navigate(`/stock-requests/${id}`)}
@@ -442,7 +500,7 @@ export default function StockRequestApprove() {
               </Button>
             </div>
           </div>
-        </div>
+        </SectionPanel>
       </div>
 
       {/* Reject Dialog */}
@@ -483,6 +541,8 @@ export default function StockRequestApprove() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+      </PageContent>
+    </PageShell>
   );
 }
