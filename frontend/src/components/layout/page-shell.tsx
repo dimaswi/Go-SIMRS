@@ -2,6 +2,8 @@ import * as React from "react"
 import { cn } from "@/lib/utils"
 import type { LucideIcon } from "lucide-react"
 
+const PAGE_SHELL_MONO_FAMILY = '"IBM Plex Mono", "SFMono-Regular", Consolas, monospace'
+
 // ── PageShell ──────────────────────────────────────────────────────────────
 // Wrapper utama setiap halaman. Menggantikan <div className="flex flex-1 flex-col px-4">
 interface PageShellProps {
@@ -11,8 +13,9 @@ interface PageShellProps {
 
 export function PageShell({ children, className }: PageShellProps) {
   return (
-    <div className={cn("flex flex-1 flex-col min-h-0", className)}>
-      {children}
+    <div className={cn("relative flex flex-1 min-h-0 flex-col overflow-auto bg-muted/20", className)}>
+      <div className="pointer-events-none absolute inset-0 opacity-50 [background-image:linear-gradient(to_right,rgba(15,23,42,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(15,23,42,0.05)_1px,transparent_1px)] [background-size:28px_28px]" />
+      <div className="relative flex min-h-0 flex-1 flex-col">{children}</div>
     </div>
   )
 }
@@ -40,45 +43,49 @@ export function PageHeader({
   children,
 }: PageHeaderProps) {
   return (
-    <div className={cn("border-border bg-background", className)}>
-      <div className="flex items-center justify-between gap-4 px-6 py-2">
-        {/* Left: Icon + Title + Description */}
-        <div className="flex items-start gap-3 min-w-0">
-          {Icon && (
-            <div className="mt-0.5 flex-shrink-0">
-              <Icon className="h-5 w-5 text-muted-foreground" />
-            </div>
-          )}
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h1 className="text-base font-semibold text-foreground leading-tight truncate">
-                {title}
-              </h1>
+    <div className={cn("overflow-hidden border-b border-border/70 bg-background/95 backdrop-blur", className)}>
+      <div className="border-b border-border/70 bg-muted/10 px-4 py-4 md:px-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0 space-y-2">
+            <div className="flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.24em] text-muted-foreground" style={{ fontFamily: PAGE_SHELL_MONO_FAMILY }}>
+              <span>Workspace</span>
               {count !== undefined && (
-                <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground flex-shrink-0">
+                <span className="border border-border/70 px-2 py-1 text-foreground">
                   {count.toLocaleString("id-ID")}
                 </span>
               )}
             </div>
-            {description && (
-              <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                {description}
-              </p>
-            )}
+            <div className="flex min-w-0 items-start gap-3">
+          {Icon && (
+                <div className="mt-0.5 flex-shrink-0 border border-border/70 bg-background p-2">
+                  <Icon className="h-4 w-4 text-muted-foreground" />
+                </div>
+              )}
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="truncate text-xl font-semibold leading-tight tracking-tight text-foreground">
+                    {title}
+                  </h1>
+                </div>
+                {description && (
+                  <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
+                    {description}
+                  </p>
+                )}
+              </div>
+            </div>
           </div>
-        </div>
 
-        {/* Right: Action buttons */}
-        {actions && (
-          <div className="flex items-center gap-2 flex-shrink-0">
-            {actions}
-          </div>
-        )}
+          {actions && (
+            <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+              {actions}
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Optional: tabs or extra content below title row */}
       {children && (
-        <div className="px-6 pb-0">
+        <div className="bg-background px-4 pb-0 pt-3 md:px-6">
           {children}
         </div>
       )}
@@ -98,7 +105,7 @@ export function PageToolbar({ children, className }: PageToolbarProps) {
   return (
     <div
       className={cn(
-        "flex flex-wrap items-center gap-2 px-6 py-2.5 bg-muted/30 px-4 py-2 border-border",
+        "flex flex-wrap items-center gap-2 border-b border-border/70 bg-background/90 px-4 py-3 backdrop-blur md:px-6",
         className
       )}
     >
@@ -116,7 +123,7 @@ interface FilterBarProps {
 
 export function FilterBar({ children, className }: FilterBarProps) {
   return (
-    <div className={cn("flex flex-wrap items-center gap-1.5 px-6 py-2.5 px-4 py-2 border-border bg-background", className)}>
+    <div className={cn("flex flex-wrap items-center gap-2 border-b border-border/70 bg-background/90 px-4 py-3 backdrop-blur md:px-6", className)}>
       {children}
     </div>
   )
@@ -138,19 +145,20 @@ export function FilterPill({ active, onClick, children, count, className }: Filt
       type="button"
       onClick={onClick}
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "inline-flex items-center gap-1.5 border px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.16em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         active
-          ? "bg-foreground text-background"
-          : "bg-muted text-muted-foreground hover:bg-muted/70 hover:text-foreground",
+          ? "border-foreground bg-foreground text-background"
+          : "border-border/70 bg-background text-muted-foreground hover:bg-muted/70 hover:text-foreground",
         className
       )}
+      style={{ fontFamily: PAGE_SHELL_MONO_FAMILY }}
     >
       {children}
       {count !== undefined && (
         <span
           className={cn(
-            "inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full px-1 text-[10px] font-semibold tabular-nums",
-            active ? "bg-background/20 text-background" : "bg-background text-foreground"
+            "inline-flex h-[18px] min-w-[18px] items-center justify-center px-1 text-[10px] font-semibold tabular-nums",
+            active ? "bg-background/20 text-background" : "border border-border/70 bg-background text-foreground"
           )}
         >
           {count.toLocaleString("id-ID")}
@@ -173,7 +181,7 @@ export function PageContent({ children, className, noPadding }: PageContentProps
     <div
       className={cn(
         "flex flex-col flex-1 min-h-0",
-        !noPadding && "px-6",
+        !noPadding && "px-4 pb-4 pt-4 md:px-6",
         className
       )}
     >

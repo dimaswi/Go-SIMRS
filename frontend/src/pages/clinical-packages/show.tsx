@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { PageShell, PageHeader, PageContent } from '@/components/layout/page-shell';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { clinicalPackagesApi, type ClinicalPackage } from '@/lib/api/clinical-packages';
@@ -54,22 +55,27 @@ export default function ClinicalPackagesShow() {
   const totalMedicineQuantity = (pkg.medicine_items || []).reduce((total, item) => total + (item.quantity || 0), 0);
 
   return (
-    <div className="flex flex-1 flex-col px-4 space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => window.history.back()}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div>
-            <h1 className="text-lg font-semibold">{pkg.name}</h1>
-            <p className="text-sm text-muted-foreground font-mono">{pkg.code}</p>
+    <PageShell>
+      <PageHeader
+        title={pkg.name}
+        description={pkg.code}
+        actions={
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="icon" onClick={() => window.history.back()} className="h-9 w-9">
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => navigate(`/clinical-packages/${id}/edit`)}>
+              <Pencil className="mr-2 h-4 w-4" /> Edit
+            </Button>
           </div>
+        }
+      >
+        <div className="pb-4">
+          <Badge variant={pkg.is_active ? 'default' : 'secondary'}>{pkg.is_active ? 'Aktif' : 'Nonaktif'}</Badge>
         </div>
-        <Button size="sm" variant="outline" onClick={() => navigate(`/clinical-packages/${id}/edit`)}>
-          <Pencil className="mr-2 h-4 w-4" /> Edit
-        </Button>
-      </div>
+      </PageHeader>
 
+      <PageContent>
       <Card className="overflow-hidden">
         <CardHeader className="bg-gradient-to-r from-slate-50 via-white to-emerald-50/70">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -182,6 +188,7 @@ export default function ClinicalPackagesShow() {
           </CardContent>
         </Card>
       </div>
-    </div>
+      </PageContent>
+    </PageShell>
   );
-}
+}

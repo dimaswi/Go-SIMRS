@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { PageShell, PageHeader, PageContent } from '@/components/layout/page-shell';
 import { Combobox } from '@/components/ui/combobox';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -315,19 +316,17 @@ export function ClinicalPackageForm({
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4 gap-4">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => window.history.back()}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div>
-          <h1 className="text-lg font-semibold">{title}</h1>
-          <p className="text-sm text-muted-foreground">
-            Susun paket tindakan dan obat dalam satu layar. Kode tindakan akan selalu mengikuti master dan langsung ditampilkan.
-          </p>
-        </div>
-      </div>
-
+    <PageShell>
+      <PageHeader
+        title={title}
+        description="Susun paket tindakan dan obat dalam satu layar."
+        actions={
+          <Button variant="ghost" size="icon" onClick={() => window.history.back()} className="h-9 w-9">
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+        }
+      />
+      <PageContent>
       <form onSubmit={handleSubmit} className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_360px]">
         <div className="space-y-4">
           <Card className="overflow-hidden border-slate-200/80">
@@ -697,6 +696,7 @@ export function ClinicalPackageForm({
           </Card>
         </div>
       </form>
-    </div>
+      </PageContent>
+    </PageShell>
   );
-}
+}

@@ -54,7 +54,7 @@ function getStoredPageIndex(tableId: string): number {
         return parsed;
       }
     }
-  } catch { }
+  } catch {}
 
   return 0;
 }
@@ -64,7 +64,7 @@ function setStoredPageIndex(tableId: string, pageIndex: number) {
 
   try {
     localStorage.setItem(`dt_page_${tableId}`, String(pageIndex));
-  } catch { }
+  } catch {}
 }
 
 function getStoredPageSize(tableId: string, defaultSize: number): number {
@@ -78,7 +78,7 @@ function getStoredPageSize(tableId: string, defaultSize: number): number {
         return parsed;
       }
     }
-  } catch { }
+  } catch {}
 
   return defaultSize;
 }
@@ -88,7 +88,7 @@ function setStoredPageSize(tableId: string, pageSize: number) {
 
   try {
     localStorage.setItem(`dt_size_${tableId}`, String(pageSize));
-  } catch { }
+  } catch {}
 }
 
 interface DataTableProps<TData, TValue> {
@@ -125,7 +125,9 @@ export function DataTable<TData, TValue>({
   className,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>(initialSorting);
-  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
+  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
+    [],
+  );
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>(initialColumnVisibility);
   const [rowSelection, setRowSelection] = React.useState({});
@@ -152,7 +154,7 @@ export function DataTable<TData, TValue>({
 
     try {
       localStorage.setItem(`dt_search_${tableId}`, globalFilter);
-    } catch { }
+    } catch {}
   }, [globalFilter, tableId]);
 
   const handlePageChange = React.useCallback(
@@ -215,9 +217,11 @@ export function DataTable<TData, TValue>({
       const extractStrings = (obj: unknown): string => {
         if (obj === null || obj === undefined) return "";
         if (typeof obj === "string") return obj.toLowerCase();
-        if (typeof obj === "number" || typeof obj === "boolean") return String(obj).toLowerCase();
+        if (typeof obj === "number" || typeof obj === "boolean")
+          return String(obj).toLowerCase();
         if (Array.isArray(obj)) return obj.map(extractStrings).join(" ");
-        if (typeof obj === "object") return Object.values(obj).map(extractStrings).join(" ");
+        if (typeof obj === "object")
+          return Object.values(obj).map(extractStrings).join(" ");
         return "";
       };
       return extractStrings(row.original).includes(q);
@@ -285,60 +289,69 @@ export function DataTable<TData, TValue>({
         </div>
       )}
 
-      <Table>
-        <TableHeader>
-          {table.getHeaderGroups().map((headerGroup) => (
-            <TableRow
-              key={headerGroup.id}
-              className="even:bg-transparent odd:bg-transparent hover:bg-transparent"
-            >
-              {headerGroup.headers.map((header) => (
-                <TableHead key={header.id}>
-                  {header.isPlaceholder
-                    ? null
-                    : flexRender(
-                      header.column.columnDef.header,
-                      header.getContext(),
-                    )}
-                </TableHead>
+      <div className="rounded-md border-b">
+        <div className="relative max-h-[calc(100dvh-400px)] overflow-y-auto">
+          <Table>
+            <TableHeader>
+              {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => (
+                    <TableHead
+                      key={header.id}
+                      className="sticky top-0 z-50 bg-background shadow-[inset_0_1px_0_hsl(var(--border)),inset_0_-1px_0_hsl(var(--border))]"
+                    >
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(
+                            header.column.columnDef.header,
+                            header.getContext(),
+                          )}
+                    </TableHead>
+                  ))}
+                </TableRow>
               ))}
-            </TableRow>
-          ))}
-        </TableHeader>
-        <TableBody>
-          {table.getRowModel().rows.length ? (
-            table.getRowModel().rows.map((row) => {
-              const subRowRenderer = (meta as Record<string, unknown>)?.renderSubRow as ((data: TData) => React.ReactNode) | undefined;
-              return (
-                <React.Fragment key={row.id}>
-                  <TableRow
-                    data-state={row.getIsSelected() && "selected"}
+            </TableHeader>
+
+            <TableBody>
+              {table.getRowModel().rows.length ? (
+                table.getRowModel().rows.map((row) => {
+                  const subRowRenderer = (meta as Record<string, unknown>)
+                    ?.renderSubRow as
+                    | ((data: TData) => React.ReactNode)
+                    | undefined;
+                  return (
+                    <React.Fragment key={row.id}>
+                      <TableRow data-state={row.getIsSelected() && "selected"}>
+                        {row.getVisibleCells().map((cell) => (
+                          <TableCell key={cell.id}>
+                            {flexRender(
+                              cell.column.columnDef.cell,
+                              cell.getContext(),
+                            )}
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                      {subRowRenderer && subRowRenderer(row.original)}
+                    </React.Fragment>
+                  );
+                })
+              ) : (
+                <TableRow className="even:bg-transparent odd:bg-transparent hover:bg-transparent">
+                  <TableCell
+                    colSpan={columns.length}
+                    className="h-32 text-center text-sm text-muted-foreground"
                   >
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id}>
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                  {subRowRenderer && subRowRenderer(row.original)}
-                </React.Fragment>
-              );
-            })
-          ) : (
-            <TableRow className="even:bg-transparent odd:bg-transparent hover:bg-transparent">
-              <TableCell
-                colSpan={columns.length}
-                className="h-32 text-center text-sm text-muted-foreground"
-              >
-                Tidak ada data yang ditemukan.
-              </TableCell>
-            </TableRow>
-          )}
-        </TableBody>
-      </Table>
+                    Tidak ada data yang ditemukan.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
 
       {showPagination && (
-        <div className="sticky bottom-0 z-10 flex items-center justify-between gap-3 bg-background py-1.5">
+        <div className="sticky bottom-4 z-10 flex items-center justify-between gap-3 bg-background py-1.5 px-2 rounded-md">
           <div className="flex items-center gap-1.5">
             <span className="whitespace-nowrap text-[11px] text-muted-foreground">
               Baris/hal

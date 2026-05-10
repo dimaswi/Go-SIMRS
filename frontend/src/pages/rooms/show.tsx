@@ -1,7 +1,8 @@
-﻿import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DataTable } from "@/components/ui/data-table";
 import { roomsApi, masterDataApi, type Room, type RoomUnit, type Bed, type RoomStaff, type MasterData, type Schedule, type DoctorSchedule } from "@/lib/api";
@@ -51,27 +52,27 @@ export default function RoomShow() {
   const { id } = useParams<{ id: string }>();
   const { hasPermission } = usePermission();
   const { toast } = useToast();
-  
+
   const [room, setRoom] = useState<Room | null>(null);
   const [units, setUnits] = useState<RoomUnit[]>([]);
   const [staff, setStaff] = useState<RoomStaff[]>([]);
   const [masterData, setMasterData] = useState<Record<string, MasterData[]>>({});
   const [loading, setLoading] = useState(true);
-  
+
   // Selected unit for bed management
   const [selectedUnit, setSelectedUnit] = useState<RoomUnit | null>(null);
-  
+
   // Dialog states
   const [unitDialogOpen, setUnitDialogOpen] = useState(false);
   const [editingUnit, setEditingUnit] = useState<RoomUnit | null>(null);
   const [deleteUnitDialogOpen, setDeleteUnitDialogOpen] = useState(false);
   const [unitToDelete, setUnitToDelete] = useState<number | null>(null);
-  
+
   const [bedDialogOpen, setBedDialogOpen] = useState(false);
   const [editingBed, setEditingBed] = useState<Bed | null>(null);
   const [deleteBedDialogOpen, setDeleteBedDialogOpen] = useState(false);
   const [bedToDelete, setBedToDelete] = useState<number | null>(null);
-  
+
   const [staffDialogOpen, setStaffDialogOpen] = useState(false);
   const [deleteStaffDialogOpen, setDeleteStaffDialogOpen] = useState(false);
   const [staffToDelete, setStaffToDelete] = useState<number | null>(null);
@@ -84,7 +85,7 @@ export default function RoomShow() {
   const [deleteScheduleDialogOpen, setDeleteScheduleDialogOpen] = useState(false);
   const [scheduleToDelete, setScheduleToDelete] = useState<number | null>(null);
   const [doctorScheduleDialogOpen, setDoctorScheduleDialogOpen] = useState(false);
-  
+
   const [editingDoctorSchedule, setEditingDoctorSchedule] = useState<DoctorSchedule | null>(null);
   const [deleteDoctorScheduleDialogOpen, setDeleteDoctorScheduleDialogOpen] = useState(false);
   const [doctorScheduleToDelete, setDoctorScheduleToDelete] = useState<number | null>(null);
@@ -110,21 +111,21 @@ export default function RoomShow() {
 
   const loadData = useCallback(async () => {
     if (!id) return;
-    
+
     try {
       const [roomRes, masterDataRes] = await Promise.all([
         roomsApi.getById(parseInt(id)),
         masterDataApi.getMultiple(['service_type', 'room_type', 'room_class', 'bed_type', 'bed_status', 'room_staff_role'])
       ]);
-      
+
       const roomData = roomRes.data.data;
       setRoom(roomData);
       setUnits(roomData.units || []);
-      
+
       // Load staff separately
       const staffRes = await roomsApi.getStaff(parseInt(id));
       setStaff(staffRes.data.data || []);
-      
+
       // Load schedules if room has schedule
       if (roomData.has_schedule) {
         const [schedulesRes, doctorSchedulesRes] = await Promise.all([
@@ -134,7 +135,7 @@ export default function RoomShow() {
         setSchedules(schedulesRes.data.data || []);
         setDoctorSchedules(doctorSchedulesRes.data.data || []);
       }
-      
+
       // Load room procedures
       try {
         const proceduresRes = await roomProceduresApi.getByRoom(parseInt(id));
@@ -165,10 +166,10 @@ export default function RoomShow() {
       } catch {
         setRoomClinicalPackages([]);
       }
-      
+
       setMasterData(masterDataRes.data.data || {});
       setPageTitle(roomData.name);
-      
+
       // If we have a selected unit, refresh its data
       if (selectedUnit) {
         const updatedUnit = (roomData.units || []).find((u: RoomUnit) => u.id === selectedUnit.id);
@@ -231,7 +232,7 @@ export default function RoomShow() {
 
   const confirmDeleteUnit = async () => {
     if (!id || !unitToDelete) return;
-    
+
     try {
       await roomsApi.deleteUnit(parseInt(id), unitToDelete);
       toast({
@@ -270,7 +271,7 @@ export default function RoomShow() {
 
   const confirmDeleteBed = async () => {
     if (!id || !selectedUnit || !bedToDelete) return;
-    
+
     try {
       await roomsApi.deleteBed(parseInt(id), selectedUnit.id, bedToDelete);
       toast({
@@ -294,7 +295,7 @@ export default function RoomShow() {
   // Staff handlers - handleDeleteStaff is kept but handled in panel now
   const confirmDeleteStaff = async () => {
     if (!id || !staffToDelete) return;
-    
+
     try {
       await roomsApi.removeStaff(parseInt(id), staffToDelete);
       toast({
@@ -333,7 +334,7 @@ export default function RoomShow() {
 
   const confirmDeleteSchedule = async () => {
     if (!id || !scheduleToDelete) return;
-    
+
     try {
       await roomsApi.deleteSchedule(parseInt(id), scheduleToDelete);
       toast({
@@ -372,7 +373,7 @@ export default function RoomShow() {
 
   const confirmDeleteDoctorSchedule = async () => {
     if (!id || !doctorScheduleToDelete) return;
-    
+
     try {
       await roomsApi.deleteDoctorSchedule(parseInt(id), doctorScheduleToDelete);
       toast({
@@ -395,7 +396,7 @@ export default function RoomShow() {
 
   const confirmDeleteRoomProcedure = async () => {
     if (!id || !roomProcedureToDelete) return;
-    
+
     try {
       await roomProceduresApi.delete(parseInt(id), roomProcedureToDelete);
       toast({
@@ -419,7 +420,7 @@ export default function RoomShow() {
   // Room Inventory handlers - handled in panel now, keep confirm for delete dialog
   const confirmDeleteRoomInventory = async () => {
     if (!id || !roomInventoryToDelete) return;
-    
+
     try {
       await roomInventoriesApi.remove(parseInt(id), roomInventoryToDelete);
       toast({
@@ -443,7 +444,7 @@ export default function RoomShow() {
   // Room Medicine handlers - handled in panel now, keep confirm for delete dialog
   const confirmDeleteRoomMedicine = async () => {
     if (!id || !roomMedicineToDelete) return;
-    
+
     try {
       await roomMedicinesApi.remove(parseInt(id), roomMedicineToDelete);
       toast({
@@ -496,47 +497,49 @@ export default function RoomShow() {
   const availableBeds = room.available_beds || 0;
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center gap-4">
-              <div>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => window.history.back()}
-                  className="h-9 w-9"
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                </Button>
-              </div>
-              <div className="flex-1">
-                <h1 className="text-lg font-semibold">
-                  {room.name}
-                </h1>
-                <p className="text-sm text-muted-foreground">
-                  {room.code}
-                </p>
-              </div>
-              <Badge variant={room.is_active ? "default" : "secondary"}>
-                {room.is_active ? "Aktif" : "Tidak Aktif"}
-              </Badge>
-              {room.has_bed && (
-                <Button 
-                  onClick={() => navigate(`/bed-monitoring/${room.id}`)} 
-                  size="sm"
-                  variant="outline"
-                >
-                  <Monitor className="mr-2 h-4 w-4" />
-                  Monitoring
-                </Button>
-              )}
-              {hasPermission("rooms.update") && (
-                <Button onClick={() => navigate(`/rooms/${room.id}/edit`)} size="sm">
-                  <Pencil className="mr-2 h-4 w-4" />
-                  Edit
-                </Button>
-              )}
-      </div>
-      <div className="rounded-lg border p-6">
+    <PageShell>
+      <PageHeader
+        title={room.name}
+        description={room.code}
+        icon={DoorOpen}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => window.history.back()}
+              className="h-9 w-9"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            {room.has_bed && (
+              <Button
+                onClick={() => navigate(`/bed-monitoring/${room.id}`)}
+                size="sm"
+                variant="outline"
+              >
+                <Monitor className="mr-2 h-4 w-4" />
+                Monitoring
+              </Button>
+            )}
+            {hasPermission("rooms.update") && (
+              <Button onClick={() => navigate(`/rooms/${room.id}/edit`)} size="sm">
+                <Pencil className="mr-2 h-4 w-4" />
+                Edit
+              </Button>
+            )}
+          </div>
+        }
+      >
+        <div className="pb-4">
+          <Badge variant={room.is_active ? "default" : "secondary"}>
+            {room.is_active ? "Aktif" : "Tidak Aktif"}
+          </Badge>
+        </div>
+      </PageHeader>
+      <PageContent>
+        <div className="border border-border/70 bg-background">
+          <div className="p-3 sm:p-4">
             {/* Show beds for selected unit OR show main tabs */}
             {selectedUnit ? (
               <div className="space-y-4">
@@ -553,7 +556,7 @@ export default function RoomShow() {
                     <div>
                       <h3 className="text-sm font-semibold">{selectedUnit.name}</h3>
                       <p className="text-xs text-muted-foreground">
-                        {selectedUnit.code} â€¢ Lantai {selectedUnit.floor} â€¢ 
+                        {selectedUnit.code} â€¢ Lantai {selectedUnit.floor} â€¢
                         Kapasitas {selectedUnit.capacity} bed
                       </p>
                     </div>
@@ -783,7 +786,7 @@ export default function RoomShow() {
                           </Button>
                         )}
                       </div>
-                      
+
                       {schedules.length > 0 ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                           {['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'].map((dayName, idx) => {
@@ -803,17 +806,17 @@ export default function RoomShow() {
                                           )}
                                           {hasPermission('rooms.update') && (
                                             <>
-                                              <Button 
-                                                variant="ghost" 
-                                                size="icon" 
+                                              <Button
+                                                variant="ghost"
+                                                size="icon"
                                                 className="h-6 w-6"
                                                 onClick={() => handleEditSchedule(schedule)}
                                               >
                                                 <Pencil className="h-3 w-3" />
                                               </Button>
-                                              <Button 
-                                                variant="ghost" 
-                                                size="icon" 
+                                              <Button
+                                                variant="ghost"
+                                                size="icon"
                                                 className="h-6 w-6 text-destructive"
                                                 onClick={() => handleDeleteSchedule(schedule.id)}
                                               >
@@ -859,7 +862,7 @@ export default function RoomShow() {
                           </Button>
                         )}
                       </div>
-                      
+
                       {doctorSchedules.length > 0 ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                           {['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'].map((dayName, idx) => {
@@ -876,17 +879,17 @@ export default function RoomShow() {
                                           <span className="font-medium">{schedule.employee?.nama_lengkap || 'Unknown'}</span>
                                           {hasPermission('rooms.update') && (
                                             <div className="flex items-center gap-1">
-                                              <Button 
-                                                variant="ghost" 
-                                                size="icon" 
+                                              <Button
+                                                variant="ghost"
+                                                size="icon"
                                                 className="h-6 w-6"
                                                 onClick={() => handleEditDoctorSchedule(schedule)}
                                               >
                                                 <Pencil className="h-3 w-3" />
                                               </Button>
-                                              <Button 
-                                                variant="ghost" 
-                                                size="icon" 
+                                              <Button
+                                                variant="ghost"
+                                                size="icon"
                                                 className="h-6 w-6 text-destructive"
                                                 onClick={() => handleDeleteDoctorSchedule(schedule.id)}
                                               >
@@ -982,168 +985,173 @@ export default function RoomShow() {
                 </TabsContent>
               </Tabs>
             )}
-      </div>
+          </div>
 
-      {/* Dialogs */}
-      <UnitFormDialog
-        open={unitDialogOpen}
-        onOpenChange={setUnitDialogOpen}
-        roomId={parseInt(id!)}
-        totalFloors={room.total_floors}
-        unit={editingUnit}
-        onSuccess={loadData}
-      />
+          {/* Dialogs */}
+          <UnitFormDialog
+            open={unitDialogOpen}
+            onOpenChange={setUnitDialogOpen}
+            roomId={parseInt(id!)}
+            totalFloors={room.total_floors}
+            unit={editingUnit}
+            onSuccess={loadData}
+          />
 
-      {selectedUnit && (
-        <BedFormDialog
-          open={bedDialogOpen}
-          onOpenChange={setBedDialogOpen}
-          roomId={parseInt(id!)}
-          unitId={selectedUnit.id}
-          bed={editingBed}
-          masterData={masterData}
-          onSuccess={loadData}
-        />
-      )}
+          {selectedUnit && (
+            <BedFormDialog
+              open={bedDialogOpen}
+              onOpenChange={setBedDialogOpen}
+              roomId={parseInt(id!)}
+              unitId={selectedUnit.id}
+              bed={editingBed}
+              masterData={masterData}
+              onSuccess={loadData}
+            />
+          )}
 
-      <StaffFormDialog
-        open={staffDialogOpen}
-        onOpenChange={setStaffDialogOpen}
-        roomId={parseInt(id!)}
-        masterData={masterData}
-        onSuccess={loadData}
-      />
+          <StaffFormDialog
+            open={staffDialogOpen}
+            onOpenChange={setStaffDialogOpen}
+            roomId={parseInt(id!)}
+            masterData={masterData}
+            onSuccess={loadData}
+          />
 
-      <ConfirmDialog
-        open={deleteUnitDialogOpen}
-        onOpenChange={setDeleteUnitDialogOpen}
-        onConfirm={confirmDeleteUnit}
-        title="Hapus Kamar"
-        description="Apakah Anda yakin ingin menghapus kamar ini? Pastikan tidak ada tempat tidur di kamar ini."
-        confirmText="Hapus"
-        cancelText="Batal"
-        variant="destructive"
-      />
+          <ConfirmDialog
+            open={deleteUnitDialogOpen}
+            onOpenChange={setDeleteUnitDialogOpen}
+            onConfirm={confirmDeleteUnit}
+            title="Hapus Kamar"
+            description="Apakah Anda yakin ingin menghapus kamar ini? Pastikan tidak ada tempat tidur di kamar ini."
+            confirmText="Hapus"
+            cancelText="Batal"
+            variant="destructive"
+          />
 
-      <ConfirmDialog
-        open={deleteBedDialogOpen}
-        onOpenChange={setDeleteBedDialogOpen}
-        onConfirm={confirmDeleteBed}
-        title="Hapus Tempat Tidur"
-        description="Apakah Anda yakin ingin menghapus tempat tidur ini?"
-        confirmText="Hapus"
-        cancelText="Batal"
-        variant="destructive"
-      />
+          <ConfirmDialog
+            open={deleteBedDialogOpen}
+            onOpenChange={setDeleteBedDialogOpen}
+            onConfirm={confirmDeleteBed}
+            title="Hapus Tempat Tidur"
+            description="Apakah Anda yakin ingin menghapus tempat tidur ini?"
+            confirmText="Hapus"
+            cancelText="Batal"
+            variant="destructive"
+          />
 
-      <ConfirmDialog
-        open={deleteStaffDialogOpen}
-        onOpenChange={setDeleteStaffDialogOpen}
-        onConfirm={confirmDeleteStaff}
-        title="Hapus Staff"
-        description="Apakah Anda yakin ingin menghapus staff ini dari ruangan?"
-        confirmText="Hapus"
-        cancelText="Batal"
-        variant="destructive"
-      />
+          <ConfirmDialog
+            open={deleteStaffDialogOpen}
+            onOpenChange={setDeleteStaffDialogOpen}
+            onConfirm={confirmDeleteStaff}
+            title="Hapus Staff"
+            description="Apakah Anda yakin ingin menghapus staff ini dari ruangan?"
+            confirmText="Hapus"
+            cancelText="Batal"
+            variant="destructive"
+          />
 
-      {/* Schedule Dialogs */}
-      <ScheduleFormDialog
-        open={scheduleDialogOpen}
-        onOpenChange={setScheduleDialogOpen}
-        roomId={parseInt(id!)}
-        schedule={editingSchedule}
-        onSuccess={loadData}
-      />
+          {/* Schedule Dialogs */}
+          <ScheduleFormDialog
+            open={scheduleDialogOpen}
+            onOpenChange={setScheduleDialogOpen}
+            roomId={parseInt(id!)}
+            schedule={editingSchedule}
+            onSuccess={loadData}
+          />
 
-      <DoctorScheduleFormDialog
-        open={doctorScheduleDialogOpen}
-        onOpenChange={setDoctorScheduleDialogOpen}
-        roomId={parseInt(id!)}
-        schedule={editingDoctorSchedule}
-        onSuccess={loadData}
-      />
+          <DoctorScheduleFormDialog
+            open={doctorScheduleDialogOpen}
+            onOpenChange={setDoctorScheduleDialogOpen}
+            roomId={parseInt(id!)}
+            schedule={editingDoctorSchedule}
+            onSuccess={loadData}
+          />
 
-      <RoomProcedureFormDialog
-        open={roomProcedureDialogOpen}
-        onOpenChange={setRoomProcedureDialogOpen}
-        roomId={parseInt(id!)}
-        roomProcedure={null}
-        onSuccess={loadData}
-      />
+          <RoomProcedureFormDialog
+            open={roomProcedureDialogOpen}
+            onOpenChange={setRoomProcedureDialogOpen}
+            roomId={parseInt(id!)}
+            roomProcedure={null}
+            onSuccess={loadData}
+          />
 
-      <ConfirmDialog
-        open={deleteScheduleDialogOpen}
-        onOpenChange={setDeleteScheduleDialogOpen}
-        onConfirm={confirmDeleteSchedule}
-        title="Hapus Jadwal"
-        description="Apakah Anda yakin ingin menghapus jadwal ini?"
-        confirmText="Hapus"
-        cancelText="Batal"
-        variant="destructive"
-      />
+          <ConfirmDialog
+            open={deleteScheduleDialogOpen}
+            onOpenChange={setDeleteScheduleDialogOpen}
+            onConfirm={confirmDeleteSchedule}
+            title="Hapus Jadwal"
+            description="Apakah Anda yakin ingin menghapus jadwal ini?"
+            confirmText="Hapus"
+            cancelText="Batal"
+            variant="destructive"
+          />
 
-      <ConfirmDialog
-        open={deleteDoctorScheduleDialogOpen}
-        onOpenChange={setDeleteDoctorScheduleDialogOpen}
-        onConfirm={confirmDeleteDoctorSchedule}
-        title="Hapus Jadwal Dokter"
-        description="Apakah Anda yakin ingin menghapus jadwal dokter ini?"
-        confirmText="Hapus"
-        cancelText="Batal"
-        variant="destructive"
-      />
+          <ConfirmDialog
+            open={deleteDoctorScheduleDialogOpen}
+            onOpenChange={setDeleteDoctorScheduleDialogOpen}
+            onConfirm={confirmDeleteDoctorSchedule}
+            title="Hapus Jadwal Dokter"
+            description="Apakah Anda yakin ingin menghapus jadwal dokter ini?"
+            confirmText="Hapus"
+            cancelText="Batal"
+            variant="destructive"
+          />
 
-      <ConfirmDialog
-        open={deleteRoomProcedureDialogOpen}
-        onOpenChange={setDeleteRoomProcedureDialogOpen}
-        onConfirm={confirmDeleteRoomProcedure}
-        title="Hapus Tindakan"
-        description="Apakah Anda yakin ingin menghapus tindakan ini dari ruangan?"
-        confirmText="Hapus"
-        cancelText="Batal"
-        variant="destructive"
-      />
+          <ConfirmDialog
+            open={deleteRoomProcedureDialogOpen}
+            onOpenChange={setDeleteRoomProcedureDialogOpen}
+            onConfirm={confirmDeleteRoomProcedure}
+            title="Hapus Tindakan"
+            description="Apakah Anda yakin ingin menghapus tindakan ini dari ruangan?"
+            confirmText="Hapus"
+            cancelText="Batal"
+            variant="destructive"
+          />
 
-      {/* Room Inventory Dialogs */}
-      <RoomInventoryFormDialog
-        open={roomInventoryDialogOpen}
-        onOpenChange={setRoomInventoryDialogOpen}
-        roomId={parseInt(id!)}
-        roomInventory={null}
-        onSuccess={loadData}
-      />
+          {/* Room Inventory Dialogs */}
+          <RoomInventoryFormDialog
+            open={roomInventoryDialogOpen}
+            onOpenChange={setRoomInventoryDialogOpen}
+            roomId={parseInt(id!)}
+            roomInventory={null}
+            onSuccess={loadData}
+          />
 
-      <ConfirmDialog
-        open={deleteRoomInventoryDialogOpen}
-        onOpenChange={setDeleteRoomInventoryDialogOpen}
-        onConfirm={confirmDeleteRoomInventory}
-        title="Hapus Inventaris"
-        description="Apakah Anda yakin ingin menghapus inventaris ini dari ruangan?"
-        confirmText="Hapus"
-        cancelText="Batal"
-        variant="destructive"
-      />
+          <ConfirmDialog
+            open={deleteRoomInventoryDialogOpen}
+            onOpenChange={setDeleteRoomInventoryDialogOpen}
+            onConfirm={confirmDeleteRoomInventory}
+            title="Hapus Inventaris"
+            description="Apakah Anda yakin ingin menghapus inventaris ini dari ruangan?"
+            confirmText="Hapus"
+            cancelText="Batal"
+            variant="destructive"
+          />
 
-      {/* Room Medicine Dialogs */}
-      <RoomMedicineFormDialog
-        open={roomMedicineDialogOpen}
-        onOpenChange={setRoomMedicineDialogOpen}
-        roomId={parseInt(id!)}
-        roomMedicine={null}
-        onSuccess={loadData}
-      />
+          {/* Room Medicine Dialogs */}
+          <RoomMedicineFormDialog
+            open={roomMedicineDialogOpen}
+            onOpenChange={setRoomMedicineDialogOpen}
+            roomId={parseInt(id!)}
+            roomMedicine={null}
+            onSuccess={loadData}
+          />
 
-      <ConfirmDialog
-        open={deleteRoomMedicineDialogOpen}
-        onOpenChange={setDeleteRoomMedicineDialogOpen}
-        onConfirm={confirmDeleteRoomMedicine}
-        title="Hapus Obat"
-        description="Apakah Anda yakin ingin menghapus obat ini dari ruangan?"
-        confirmText="Hapus"
-        cancelText="Batal"
-        variant="destructive"
-      />
-    </div>
+          <ConfirmDialog
+            open={deleteRoomMedicineDialogOpen}
+            onOpenChange={setDeleteRoomMedicineDialogOpen}
+            onConfirm={confirmDeleteRoomMedicine}
+            title="Hapus Obat"
+            description="Apakah Anda yakin ingin menghapus obat ini dari ruangan?"
+            confirmText="Hapus"
+            cancelText="Batal"
+            variant="destructive"
+          />
+        </div>
+      </PageContent>
+    </PageShell>
   );
 }
+
+
+

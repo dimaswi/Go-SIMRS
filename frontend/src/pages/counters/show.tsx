@@ -1,7 +1,8 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 import { useToast } from "@/hooks/use-toast";
 import { counterApi } from "@/lib/api/counters";
 import { usePermission } from "@/hooks/usePermission";
@@ -98,115 +99,120 @@ export default function CounterShow() {
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => window.history.back()}
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div className="space-y-1">
-            <h1 className="text-lg font-semibold font-mono">
-              {counter.code} - {counter.name}
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              {counter.description || "Tidak ada deskripsi"}
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {hasPermission("counters.update") && (
+    <PageShell>
+      <PageHeader
+        title={`${counter.code} - ${counter.name}`}
+        description={counter.description || "Tidak ada deskripsi"}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="outline"
               size="sm"
-              onClick={() => navigate(`/counters/${id}/edit`)}
+              onClick={() => window.history.back()}
             >
-              <Pencil className="mr-2 h-4 w-4" />
-              Edit
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Kembali
             </Button>
-          )}
-          {hasPermission("counters.delete") && (
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={handleDelete}
-              disabled={deleting}
-            >
-              {deleting ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Trash2 className="mr-2 h-4 w-4" />
-              )}
-              Hapus
-            </Button>
-          )}
+            {hasPermission("counters.update") && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate(`/counters/${id}/edit`)}
+              >
+                <Pencil className="mr-2 h-4 w-4" />
+                Edit
+              </Button>
+            )}
+            {hasPermission("counters.delete") && (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleDelete}
+                disabled={deleting}
+              >
+                {deleting ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Trash2 className="mr-2 h-4 w-4" />
+                )}
+                Hapus
+              </Button>
+            )}
+          </div>
+        }
+      >
+        <div className="pb-4">
+          <Badge variant={counter.is_active ? "default" : "secondary"}>
+            {counter.is_active ? "Aktif" : "Tidak Aktif"}
+          </Badge>
         </div>
-      </div>
-      <div className="rounded-lg border p-6">
+      </PageHeader>
 
+      <PageContent>
+        <div className="mx-auto w-full max-w-full flex-1 space-y-6">
           {/* Informasi Loket */}
-          <div className="mb-6">
-            <h3 className="text-sm font-medium text-muted-foreground mb-4">
+          <div className="border border-border/70 bg-background">
+            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
               INFORMASI LOKET
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-              <div>
-                <label className="text-xs text-muted-foreground">Kode Loket</label>
-                <p className="font-medium text-sm font-mono">{counter.code}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Nama Loket</label>
-                <p className="font-medium text-sm">{counter.name}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Status</label>
-                <div className="mt-1">
-                  <Badge variant={counter.is_active ? "default" : "secondary"}>
-                    {counter.is_active ? "Aktif" : "Tidak Aktif"}
-                  </Badge>
+            </div>
+            <div className="p-3 sm:p-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                <div>
+                  <label className="text-xs text-muted-foreground">Kode Loket</label>
+                  <p className="font-medium text-sm font-mono">{counter.code}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Nama Loket</label>
+                  <p className="font-medium text-sm">{counter.name}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Status</label>
+                  <div className="mt-1">
+                    <Badge variant={counter.is_active ? "default" : "secondary"}>
+                      {counter.is_active ? "Aktif" : "Tidak Aktif"}
+                    </Badge>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Deskripsi</label>
+                  <p className="font-medium text-sm">{counter.description || "-"}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Lokasi</label>
+                  <p className="font-medium text-sm">{counter.location || "-"}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Urutan Tampilan</label>
+                  <p className="font-medium text-sm">{counter.display_order ?? 0}</p>
                 </div>
               </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Deskripsi</label>
-                <p className="font-medium text-sm">{counter.description || "-"}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Lokasi</label>
-                <p className="font-medium text-sm">{counter.location || "-"}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Urutan Tampilan</label>
-                <p className="font-medium text-sm">{counter.display_order ?? 0}</p>
-              </div>
             </div>
           </div>
-
-          <hr className="border-border/50 my-6" />
 
           {/* Informasi Sistem */}
-          <div>
-            <h3 className="text-sm font-medium text-muted-foreground mb-4">
+          <div className="border border-border/70 bg-background">
+            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
               INFORMASI SISTEM
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-              <div>
-                <label className="text-xs text-muted-foreground">ID Loket</label>
-                <p className="font-medium text-sm">#{counter.id}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Dibuat</label>
-                <p className="font-medium text-sm">{formatDate(counter.created_at)}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Terakhir Diperbarui</label>
-                <p className="font-medium text-sm">{formatDate(counter.updated_at)}</p>
+            </div>
+            <div className="p-3 sm:p-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                <div>
+                  <label className="text-xs text-muted-foreground">ID Loket</label>
+                  <p className="font-medium text-sm">#{counter.id}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Dibuat</label>
+                  <p className="font-medium text-sm">{formatDate(counter.created_at)}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Terakhir Diperbarui</label>
+                  <p className="font-medium text-sm">{formatDate(counter.updated_at)}</p>
+                </div>
               </div>
             </div>
           </div>
-      </div>
+        </div>
+      </PageContent>
 
       <ConfirmDialog
         open={deleteDialogOpen}
@@ -218,6 +224,6 @@ export default function CounterShow() {
         cancelText="Batal"
         variant="destructive"
       />
-    </div>
+    </PageShell>
   );
 }

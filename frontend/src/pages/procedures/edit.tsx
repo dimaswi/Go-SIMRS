@@ -5,6 +5,7 @@ import { proceduresApi, TARIFF_COMPONENTS, tariffsToRequest, PROCEDURE_TYPES, no
 import { masterDataApi, type MasterData } from "@/lib/api/master-data";
 import type { CreateProcedureRequest, Procedure, PatientClass, TariffRequest, ProcedureType } from "@/lib/api/procedures";
 import { Button } from "@/components/ui/button";
+import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -274,20 +275,25 @@ export default function ProcedureEdit() {
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center gap-4">
-        <Button variant="outline" size="icon" asChild className="h-9 w-9">
-          <Link to="/procedures">
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
-        </Button>
-        <div>
-          <h1 className="text-lg font-semibold">Edit Tindakan</h1>
-          <p className="text-sm text-muted-foreground">Edit data tindakan {procedure?.name}</p>
+    <PageShell>
+      <PageHeader
+        title="Edit Tindakan"
+        description={`Edit data tindakan ${procedure?.name}`}
+        actions={
+          <Button variant="outline" size="icon" asChild className="h-9 w-9">
+            <Link to="/procedures">
+              <ArrowLeft className="h-4 w-4" />
+            </Link>
+          </Button>
+        }
+      />
+      <PageContent>
+      <div className="border border-border/70 bg-background">
+        <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+          DATA TINDAKAN
         </div>
-      </div>
-      <div className="rounded-lg border p-6">
-          <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="p-3 sm:p-4">
+          <form onSubmit={handleSubmit} className="space-y-6 [&_input]:h-9 [&_[role=combobox]]:h-9">
             {/* Basic Information */}
             <div className="space-y-4">
               <h3 className="text-sm font-medium">Informasi Dasar</h3>
@@ -534,12 +540,12 @@ export default function ProcedureEdit() {
               </div>
             </div>
 
-            {/* Submit Button */}
-            <div className="flex justify-end gap-4 pt-4">
-              <Button variant="outline" type="button" asChild>
+            {/* Sticky Footer */}
+            <div className="sticky bottom-0 z-10 flex items-center justify-end gap-2 border-t border-border/70 bg-background/95 px-3 py-3 backdrop-blur -mx-3 sm:-mx-4">
+              <Button variant="outline" type="button" asChild className="h-9">
                 <Link to="/procedures">Batal</Link>
               </Button>
-              <Button type="submit" disabled={saving}>
+              <Button type="submit" disabled={saving} className="h-9 min-w-28">
                 {saving ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -554,7 +560,9 @@ export default function ProcedureEdit() {
               </Button>
             </div>
           </form>
+        </div>
       </div>
-    </div>
+      </PageContent>
+    </PageShell>
   );
 }

@@ -1,6 +1,7 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -75,24 +76,29 @@ export default function CounterCreate() {
   };
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center gap-4">
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => window.history.back()}
-          className="h-9 w-9"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div>
-          <h1 className="text-lg font-semibold">Informasi Loket</h1>
-          <p className="text-sm text-muted-foreground">Masukkan detail informasi loket baru</p>
+    <PageShell>
+      <PageHeader
+        title="Informasi Loket"
+        description="Masukkan detail informasi loket baru"
+        actions={
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => window.history.back()}
+            className="h-9 w-9"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+        }
+      />
+      <PageContent>
+      <div className="border border-border/70 bg-background">
+        <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+          DATA LOKET
         </div>
-      </div>
-      <div className="rounded-lg border p-6">
+        <div className="p-3 sm:p-4">
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 [&_input]:h-9">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <FormField
                   control={form.control}
@@ -199,23 +205,25 @@ export default function CounterCreate() {
                   )}
                 />
               </div>
-
-              <div className="flex justify-end gap-4 pt-4 border-t">
+              <div className="sticky bottom-0 z-10 flex items-center justify-end gap-2 border-t border-border/70 bg-background/95 px-3 py-3 backdrop-blur -mx-3 sm:-mx-4 mt-6">
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => navigate("/counters")}
                   disabled={submitting}
+                  className="h-9"
                 >
                   Batal
                 </Button>
-                <Button type="submit" disabled={submitting}>
+                <Button type="submit" disabled={submitting} className="h-9 min-w-28">
                   {submitting ? "Menyimpan..." : "Simpan"}
                 </Button>
               </div>
             </form>
           </Form>
+        </div>
       </div>
-    </div>
+      </PageContent>
+    </PageShell>
   );
 }

@@ -1,17 +1,18 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { PageShell, PageHeader, PageContent } from '@/components/layout/page-shell';
 import { patientsApi } from '@/lib/api';
 import type { Patient } from '@/lib/api';
 import { usePermission } from '@/hooks/usePermission';
 import { useToast } from '@/hooks/use-toast';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { setPageTitle } from '@/lib/page-title';
-import { 
-  ArrowLeft, 
-  Loader2, 
-  Pencil, 
+import {
+  ArrowLeft,
+  Loader2,
+  Pencil,
   Trash2,
   User,
   MapPin,
@@ -192,133 +193,119 @@ export default function PatientShow() {
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
+    <PageShell>
+      <PageHeader
+        title={formatPatientName(patient.nama_lengkap, patient.jenis_kelamin, patient.status_perkawinan, patient.tanggal_lahir)}
+        description={`No. RM: ${patient.no_rm} • ${patient.jenis_kelamin === 'L' ? 'Laki-laki' : 'Perempuan'} • ${calculateAge(patient.tanggal_lahir)}`}
+        icon={User}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => window.history.back()}
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Kembali
+            </Button>
+            {/* Tombol Finalisasi */}
+            {!patient.is_final && hasPermission('patients.finalize') && (
               <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => window.history.back()}
+                variant="default"
+                size="sm"
+                onClick={handleFinalize}
+                disabled={finalizing}
               >
-                <ArrowLeft className="h-4 w-4" />
+                {finalizing ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <CheckCircle className="mr-2 h-4 w-4" />
+                )}
+                Finalisasi
               </Button>
-              <div className="flex items-center gap-4">
-                <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
-                  {patient.foto ? (
-                    <img 
-                      src={`/${patient.foto}`} 
-                      alt={patient.nama_lengkap}
-                      className="h-12 w-12 rounded-full object-cover"
-                    />
-                  ) : (
-                    <User className="h-6 w-6 text-muted-foreground" />
-                  )}
-                </div>
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <h1 className="text-lg font-semibold">
-                      {formatPatientName(patient.nama_lengkap, patient.jenis_kelamin, patient.status_perkawinan, patient.tanggal_lahir)}
-                    </h1>
-                    {patient.registration_source === 'mjkn' && (
-                      <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800 gap-1">
-                        <Smartphone className="h-3 w-3" />
-                        Mobile JKN
-                      </Badge>
-                    )}
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    No. RM: {patient.no_rm} â€¢ {patient.jenis_kelamin === 'L' ? 'Laki-laki' : 'Perempuan'} â€¢ {calculateAge(patient.tanggal_lahir)}
-                  </p>
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              {patient.is_final ? (
-                <Badge variant="default" className="bg-green-600">
-                  <CheckCircle className="mr-1 h-3 w-3" />
-                  Final
-                </Badge>
-              ) : (
-                <Badge variant="secondary">
-                  <XCircle className="mr-1 h-3 w-3" />
-                  Belum Final
-                </Badge>
-              )}
-              <Badge variant={getStatusVariant(patient.status)}>
-                {patient.status}
-              </Badge>
-              {/* Tombol Finalisasi */}
-              {!patient.is_final && hasPermission('patients.finalize') && (
-                <Button 
-                  variant="default"
-                  size="sm"
-                  onClick={handleFinalize}
-                  disabled={finalizing}
-                >
-                  {finalizing ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <CheckCircle className="mr-2 h-4 w-4" />
-                  )}
-                  Finalisasi
-                </Button>
-              )}
-              {/* Tombol Buka Finalisasi */}
-              {patient.is_final && hasPermission('patients.finalize') && (
-                <Button 
-                  variant="outline"
-                  size="sm"
-                  onClick={handleUnfinalize}
-                  disabled={unfinalizing}
-                >
-                  {unfinalizing ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <XCircle className="mr-2 h-4 w-4" />
-                  )}
-                  Buka Finalisasi
-                </Button>
-              )}
-              {hasPermission('patients.update') && (
-                <Button 
-                  variant="outline"
-                  size="sm"
-                  onClick={() => navigate(`/patients/${patientId}/edit`)}
-                >
-                  <Pencil className="mr-2 h-4 w-4" />
-                  Edit
-                </Button>
-              )}
-              {hasPermission('patients.delete') && (
-                <Button 
-                  variant="destructive"
-                  size="sm"
-                  onClick={handleDelete}
-                  disabled={deleting}
-                >
-                  {deleting ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Trash2 className="mr-2 h-4 w-4" />
-                  )}
-                  Hapus
-                </Button>
-              )}
-            </div>
-      </div>
-      <div className="rounded-lg border p-6">
+            )}
+            {/* Tombol Buka Finalisasi */}
+            {patient.is_final && hasPermission('patients.finalize') && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleUnfinalize}
+                disabled={unfinalizing}
+              >
+                {unfinalizing ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <XCircle className="mr-2 h-4 w-4" />
+                )}
+                Buka Finalisasi
+              </Button>
+            )}
+            {hasPermission('patients.update') && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate(`/patients/${patientId}/edit`)}
+              >
+                <Pencil className="mr-2 h-4 w-4" />
+                Edit
+              </Button>
+            )}
+            {hasPermission('patients.delete') && (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleDelete}
+                disabled={deleting}
+              >
+                {deleting ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Trash2 className="mr-2 h-4 w-4" />
+                )}
+                Hapus
+              </Button>
+            )}
+          </div>
+        }
+      >
+        <div className="flex items-center gap-2 pb-4">
+          {patient.registration_source === 'mjkn' && (
+            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800 gap-1">
+              <Smartphone className="h-3 w-3" />
+              Mobile JKN
+            </Badge>
+          )}
+          {patient.is_final ? (
+            <Badge variant="default" className="bg-green-600">
+              <CheckCircle className="mr-1 h-3 w-3" />
+              Final
+            </Badge>
+          ) : (
+            <Badge variant="secondary">
+              <XCircle className="mr-1 h-3 w-3" />
+              Belum Final
+            </Badge>
+          )}
+          <Badge variant={getStatusVariant(patient.status)}>
+            {patient.status}
+          </Badge>
+        </div>
+      </PageHeader>
+
+      <PageContent>
+        <div className="mx-auto w-full max-w-full flex-1 space-y-6">
           {/* Identitas Pasien */}
-          <div className="mb-6">
-            <h3 className="text-sm font-medium text-muted-foreground mb-4 flex items-center gap-2">
-              <User className="h-4 w-4" />
+          <div className="border border-border/70 bg-background">
+            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+              <User className="h-3 w-3" />
               IDENTITAS PASIEN
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-              <div>
-                <label className="text-xs text-muted-foreground">NIK</label>
-                <p className="font-medium text-sm">{patient.nik || '-'}</p>
-              </div>
-              <div>
+            </div>
+            <div className="p-3 sm:p-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+                <div>
+                  <label className="text-xs text-muted-foreground">NIK</label>
+                  <p className="font-medium text-sm">{patient.nik || '-'}</p>
+                </div>
                 <label className="text-xs text-muted-foreground">Nama Lengkap</label>
                 <p className="font-medium text-sm">{formatPatientName(patient.nama_lengkap, patient.jenis_kelamin, patient.status_perkawinan, patient.tanggal_lahir)}</p>
               </div>
@@ -365,217 +352,220 @@ export default function PatientShow() {
             </div>
           </div>
 
-          <hr className="border-border/50 my-6" />
-
           {/* Alamat */}
-          <div className="mb-6">
-            <h3 className="text-sm font-medium text-muted-foreground mb-4 flex items-center gap-2">
-              <MapPin className="h-4 w-4" />
+          <div className="border border-border/70 bg-background">
+            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+              <MapPin className="h-3 w-3" />
               ALAMAT
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <h4 className="text-xs font-semibold mb-3">Alamat KTP</h4>
-                <p className="text-sm">{patient.alamat_ktp || '-'}</p>
-                <p className="text-sm text-muted-foreground">
-                  RT/RW: {patient.rt_ktp || '-'}/{patient.rw_ktp || '-'}, 
-                  Kel. {patient.kelurahan_ktp || '-'}, 
-                  Kec. {patient.kecamatan_ktp || '-'}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  {patient.kota_ktp || '-'}, {patient.provinsi_ktp || '-'} {patient.kode_pos_ktp || ''}
-                </p>
-              </div>
-              <div>
-                <h4 className="text-xs font-semibold mb-3">Alamat Domisili</h4>
-                <p className="text-sm">{patient.alamat_domisili || patient.alamat_ktp || '-'}</p>
-                <p className="text-sm text-muted-foreground">
-                  RT/RW: {patient.rt_domisili || patient.rt_ktp || '-'}/{patient.rw_domisili || patient.rw_ktp || '-'}, 
-                  Kel. {patient.kelurahan_domisili || patient.kelurahan_ktp || '-'}, 
-                  Kec. {patient.kecamatan_domisili || patient.kecamatan_ktp || '-'}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  {patient.kota_domisili || patient.kota_ktp || '-'}, {patient.provinsi_domisili || patient.provinsi_ktp || '-'} {patient.kode_pos_domisili || patient.kode_pos_ktp || ''}
-                </p>
+            </div>
+            <div className="p-3 sm:p-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <h4 className="text-xs font-semibold mb-3">Alamat KTP</h4>
+                  <p className="text-sm">{patient.alamat_ktp || '-'}</p>
+                  <p className="text-sm text-muted-foreground">
+                    RT/RW: {patient.rt_ktp || '-'}/{patient.rw_ktp || '-'},
+                    Kel. {patient.kelurahan_ktp || '-'},
+                    Kec. {patient.kecamatan_ktp || '-'}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {patient.kota_ktp || '-'}, {patient.provinsi_ktp || '-'} {patient.kode_pos_ktp || ''}
+                  </p>
+                </div>
+                <div>
+                  <h4 className="text-xs font-semibold mb-3">Alamat Domisili</h4>
+                  <p className="text-sm">{patient.alamat_domisili || patient.alamat_ktp || '-'}</p>
+                  <p className="text-sm text-muted-foreground">
+                    RT/RW: {patient.rt_domisili || patient.rt_ktp || '-'}/{patient.rw_domisili || patient.rw_ktp || '-'},
+                    Kel. {patient.kelurahan_domisili || patient.kelurahan_ktp || '-'},
+                    Kec. {patient.kecamatan_domisili || patient.kecamatan_ktp || '-'}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {patient.kota_domisili || patient.kota_ktp || '-'}, {patient.provinsi_domisili || patient.provinsi_ktp || '-'} {patient.kode_pos_domisili || patient.kode_pos_ktp || ''}
+                  </p>
+                </div>
               </div>
             </div>
           </div>
-
-          <hr className="border-border/50 my-6" />
 
           {/* Kontak */}
-          <div className="mb-6">
-            <h3 className="text-sm font-medium text-muted-foreground mb-4 flex items-center gap-2">
-              <Phone className="h-4 w-4" />
+          <div className="border border-border/70 bg-background">
+            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+              <Phone className="h-3 w-3" />
               KONTAK
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-              <div>
-                <label className="text-xs text-muted-foreground">No. Telepon</label>
-                <p className="font-medium text-sm">{patient.no_telepon || '-'}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">No. HP</label>
-                <p className="font-medium text-sm">{patient.no_hp || '-'}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">No. HP Alternatif</label>
-                <p className="font-medium text-sm">{patient.no_hp_alternatif || '-'}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Email</label>
-                <p className="font-medium text-sm">{patient.email || '-'}</p>
+            </div>
+            <div className="p-3 sm:p-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+                <div>
+                  <label className="text-xs text-muted-foreground">No. Telepon</label>
+                  <p className="font-medium text-sm">{patient.no_telepon || '-'}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">No. HP</label>
+                  <p className="font-medium text-sm">{patient.no_hp || '-'}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">No. HP Alternatif</label>
+                  <p className="font-medium text-sm">{patient.no_hp_alternatif || '-'}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Email</label>
+                  <p className="font-medium text-sm">{patient.email || '-'}</p>
+                </div>
               </div>
             </div>
           </div>
-
-          <hr className="border-border/50 my-6" />
 
           {/* Penanggung Jawab */}
-          <div className="mb-6">
-            <h3 className="text-sm font-medium text-muted-foreground mb-4 flex items-center gap-2">
-              <Users className="h-4 w-4" />
+          <div className="border border-border/70 bg-background">
+            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+              <Users className="h-3 w-3" />
               PENANGGUNG JAWAB
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-              <div>
-                <label className="text-xs text-muted-foreground">Nama</label>
-                <p className="font-medium text-sm">{patient.nama_penanggung_jawab || '-'}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Hubungan</label>
-                <p className="font-medium text-sm">{patient.hubungan_penanggung_jawab || '-'}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">NIK</label>
-                <p className="font-medium text-sm">{patient.nik_penanggung_jawab || '-'}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Telepon</label>
-                <p className="font-medium text-sm">{patient.telepon_penanggung_jawab || '-'}</p>
+            </div>
+            <div className="p-3 sm:p-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+                <div>
+                  <label className="text-xs text-muted-foreground">Nama</label>
+                  <p className="font-medium text-sm">{patient.nama_penanggung_jawab || '-'}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Hubungan</label>
+                  <p className="font-medium text-sm">{patient.hubungan_penanggung_jawab || '-'}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">NIK</label>
+                  <p className="font-medium text-sm">{patient.nik_penanggung_jawab || '-'}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Telepon</label>
+                  <p className="font-medium text-sm">{patient.telepon_penanggung_jawab || '-'}</p>
+                </div>
               </div>
             </div>
           </div>
-
-          <hr className="border-border/50 my-6" />
 
           {/* Jaminan */}
-          <div className="mb-6">
-            <h3 className="text-sm font-medium text-muted-foreground mb-4 flex items-center gap-2">
-              <Shield className="h-4 w-4" />
+          <div className="border border-border/70 bg-background">
+            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+              <Shield className="h-3 w-3" />
               JAMINAN KESEHATAN
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-              <div>
-                <label className="text-xs text-muted-foreground">Jenis Jaminan</label>
-                <p className="font-medium text-sm">
-                  <Badge variant="outline">{patient.jenis_jaminan}</Badge>
-                </p>
+            </div>
+            <div className="p-3 sm:p-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+                <div>
+                  <label className="text-xs text-muted-foreground">Jenis Jaminan</label>
+                  <p className="font-medium text-sm">
+                    <Badge variant="outline">{patient.jenis_jaminan}</Badge>
+                  </p>
+                </div>
+                {(patient.jenis_jaminan === 'BPJS' || patient.jenis_jaminan === 'JKN') && (
+                  <>
+                    <div>
+                      <label className="text-xs text-muted-foreground">No. BPJS</label>
+                      <p className="font-medium text-sm">{patient.no_bpjs || '-'}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground">Kelas BPJS</label>
+                      <p className="font-medium text-sm">Kelas {patient.kelas_bpjs || '-'}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground">Faskes Tingkat 1</label>
+                      <p className="font-medium text-sm">{patient.faskes_tingkat_1 || '-'}</p>
+                    </div>
+                  </>
+                )}
+                {patient.jenis_jaminan === 'Asuransi Swasta' && (
+                  <>
+                    <div>
+                      <label className="text-xs text-muted-foreground">Nama Asuransi</label>
+                      <p className="font-medium text-sm">{patient.nama_asuransi || '-'}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground">No. Polis</label>
+                      <p className="font-medium text-sm">{patient.no_polis_asuransi || '-'}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground">Masa Berlaku</label>
+                      <p className="font-medium text-sm">{formatDate(patient.masa_berlaku_asuransi)}</p>
+                    </div>
+                  </>
+                )}
               </div>
-              {(patient.jenis_jaminan === 'BPJS' || patient.jenis_jaminan === 'JKN') && (
-                <>
-                  <div>
-                    <label className="text-xs text-muted-foreground">No. BPJS</label>
-                    <p className="font-medium text-sm">{patient.no_bpjs || '-'}</p>
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">Kelas BPJS</label>
-                    <p className="font-medium text-sm">Kelas {patient.kelas_bpjs || '-'}</p>
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">Faskes Tingkat 1</label>
-                    <p className="font-medium text-sm">{patient.faskes_tingkat_1 || '-'}</p>
-                  </div>
-                </>
-              )}
-              {patient.jenis_jaminan === 'Asuransi Swasta' && (
-                <>
-                  <div>
-                    <label className="text-xs text-muted-foreground">Nama Asuransi</label>
-                    <p className="font-medium text-sm">{patient.nama_asuransi || '-'}</p>
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">No. Polis</label>
-                    <p className="font-medium text-sm">{patient.no_polis_asuransi || '-'}</p>
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">Masa Berlaku</label>
-                    <p className="font-medium text-sm">{formatDate(patient.masa_berlaku_asuransi)}</p>
-                  </div>
-                </>
-              )}
             </div>
           </div>
-
-          <hr className="border-border/50 my-6" />
 
           {/* Riwayat Medis */}
-          <div className="mb-6">
-            <h3 className="text-sm font-medium text-muted-foreground mb-4 flex items-center gap-2">
-              <Heart className="h-4 w-4" />
+          <div className="border border-border/70 bg-background">
+            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+              <Heart className="h-3 w-3" />
               RIWAYAT MEDIS PENTING
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              <div>
-                <label className="text-xs text-muted-foreground">Alergi Obat</label>
-                <p className="font-medium text-sm">{patient.alergi_obat || '-'}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Alergi Makanan</label>
-                <p className="font-medium text-sm">{patient.alergi_makanan || '-'}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Alergi Lainnya</label>
-                <p className="font-medium text-sm">{patient.alergi_lainnya || '-'}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Penyakit Kronis</label>
-                <p className="font-medium text-sm">{patient.penyakit_kronis || '-'}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Riwayat Operasi</label>
-                <p className="font-medium text-sm">{patient.riwayat_operasi || '-'}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Obat Rutin</label>
-                <p className="font-medium text-sm">{patient.obat_rutin || '-'}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Disabilitas</label>
-                <p className="font-medium text-sm">{patient.disabilitas || '-'}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Catatan Khusus</label>
-                <p className="font-medium text-sm">{patient.catatan_khusus || '-'}</p>
+            </div>
+            <div className="p-3 sm:p-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div>
+                  <label className="text-xs text-muted-foreground">Alergi Obat</label>
+                  <p className="font-medium text-sm">{patient.alergi_obat || '-'}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Alergi Makanan</label>
+                  <p className="font-medium text-sm">{patient.alergi_makanan || '-'}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Alergi Lainnya</label>
+                  <p className="font-medium text-sm">{patient.alergi_lainnya || '-'}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Penyakit Kronis</label>
+                  <p className="font-medium text-sm">{patient.penyakit_kronis || '-'}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Riwayat Operasi</label>
+                  <p className="font-medium text-sm">{patient.riwayat_operasi || '-'}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Obat Rutin</label>
+                  <p className="font-medium text-sm">{patient.obat_rutin || '-'}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Disabilitas</label>
+                  <p className="font-medium text-sm">{patient.disabilitas || '-'}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Catatan Khusus</label>
+                  <p className="font-medium text-sm">{patient.catatan_khusus || '-'}</p>
+                </div>
               </div>
             </div>
           </div>
-
-          <hr className="border-border/50 my-6" />
 
           {/* Informasi Sistem */}
-          <div>
-            <h3 className="text-sm font-medium text-muted-foreground mb-4">INFORMASI SISTEM</h3>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
-              <div>
-                <label className="text-xs text-muted-foreground">ID Pasien</label>
-                <p className="font-medium text-sm">#{patient.id}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Tanggal Registrasi</label>
-                <p className="font-medium text-sm">{formatDateTime(patient.tanggal_registrasi)}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Kunjungan Terakhir</label>
-                <p className="font-medium text-sm">{formatDateTime(patient.tanggal_kunjungan_terakhir)}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Terakhir Diperbarui</label>
-                <p className="font-medium text-sm">{formatDateTime(patient.updated_at)}</p>
+          <div className="border border-border/70 bg-background">
+            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              INFORMASI SISTEM
+            </div>
+            <div className="p-3 sm:p-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
+                <div>
+                  <label className="text-xs text-muted-foreground">ID Pasien</label>
+                  <p className="font-medium text-sm">#{patient.id}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Tanggal Registrasi</label>
+                  <p className="font-medium text-sm">{formatDateTime(patient.tanggal_registrasi)}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Kunjungan Terakhir</label>
+                  <p className="font-medium text-sm">{formatDateTime(patient.tanggal_kunjungan_terakhir)}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Terakhir Diperbarui</label>
+                  <p className="font-medium text-sm">{formatDateTime(patient.updated_at)}</p>
+                </div>
               </div>
             </div>
           </div>
-      </div>
+        </div>
+      </PageContent>
 
       <ConfirmDialog
         open={deleteDialogOpen}
@@ -587,6 +577,8 @@ export default function PatientShow() {
         cancelText="Batal"
         variant="destructive"
       />
-    </div>
+    </PageShell>
   );
 }
+
+

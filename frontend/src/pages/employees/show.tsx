@@ -1,16 +1,24 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { PageShell, PageHeader, PageContent } from '@/components/layout/page-shell';
 import { employeesApi, masterDataApi, type Employee, type MasterData } from '@/lib/api';
 import { usePermission } from '@/hooks/usePermission';
 import { useToast } from '@/hooks/use-toast';
 import { ConfirmDialog } from '@/components/confirm-dialog';
-import { 
-  ArrowLeft, 
-  Loader2, 
-  Pencil, 
-  Trash2
+import {
+  ArrowLeft,
+  Loader2,
+  Pencil,
+  Trash2,
+  User,
+  Phone,
+  Briefcase,
+  Stethoscope,
+  GraduationCap,
+  Building2,
+  Heart,
 } from 'lucide-react';
 import { setPageTitle } from '@/lib/page-title';
 
@@ -71,7 +79,6 @@ export default function EmployeeShow() {
     }
   };
 
-  // Helper function to get name from code
   const getMasterDataName = (category: string, code?: string): string => {
     if (!code) return '-';
     const items = masterData[category];
@@ -129,171 +136,183 @@ export default function EmployeeShow() {
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => window.history.back()}
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div className="space-y-1">
-            <h1 className="text-lg font-semibold">
-              {employee.nama_lengkap}
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              {employee.nip || employee.nik} â€¢ {getMasterDataName('employee_type', employee.tipe_karyawan)}
-            </p>
+    <PageShell>
+      <PageHeader
+        title={employee.nama_lengkap}
+        description={`${employee.nip || employee.nik} • ${getMasterDataName('employee_type', employee.tipe_karyawan)}`}
+        icon={User}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => window.history.back()}
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Kembali
+            </Button>
+            {hasPermission('employees.update') && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate(`/employees/${id}/edit`)}
+              >
+                <Pencil className="mr-2 h-4 w-4" />
+                Edit
+              </Button>
+            )}
+            {hasPermission('employees.delete') && (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleDelete}
+                disabled={deleting}
+              >
+                {deleting ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Trash2 className="mr-2 h-4 w-4" />
+                )}
+                Hapus
+              </Button>
+            )}
           </div>
-        </div>
-        <div className="flex items-center gap-2">
+        }
+      >
+        <div className="pb-4">
           <Badge variant={employee.is_active ? "default" : "secondary"}>
             {employee.is_active ? 'Aktif' : 'Tidak Aktif'}
           </Badge>
-          {hasPermission('employees.update') && (
-            <Button 
-              variant="outline"
-              size="sm"
-              onClick={() => navigate(`/employees/${id}/edit`)}
-            >
-              <Pencil className="mr-2 h-4 w-4" />
-              Edit
-            </Button>
-          )}
-          {hasPermission('employees.delete') && (
-            <Button 
-              variant="destructive"
-              size="sm"
-              onClick={handleDelete}
-              disabled={deleting}
-            >
-              {deleting ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Trash2 className="mr-2 h-4 w-4" />
-              )}
-              Hapus
-            </Button>
-          )}
         </div>
-      </div>
-      <div className="rounded-lg border p-6">
+      </PageHeader>
+
+      <PageContent>
+        <div className="mx-auto w-full max-w-full flex-1 space-y-6">
           {/* Data Pribadi */}
-          <div className="mb-6">
-            <h3 className="text-sm font-medium text-muted-foreground mb-4">DATA PRIBADI</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-              <div>
-                <label className="text-xs text-muted-foreground">Nama Lengkap</label>
-                <p className="font-medium text-sm">{employee.nama_lengkap}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">NIK</label>
-                <p className="font-medium text-sm">{employee.nik}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">NIP</label>
-                <p className="font-medium text-sm">{employee.nip || '-'}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Tempat, Tanggal Lahir</label>
-                <p className="font-medium text-sm">
-                  {employee.tempat_lahir || '-'}, {formatDate(employee.tanggal_lahir)}
-                </p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Jenis Kelamin</label>
-                <p className="font-medium text-sm">
-                  {getMasterDataName('gender', employee.jenis_kelamin)}
-                </p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Agama</label>
-                <p className="font-medium text-sm">{getMasterDataName('religion', employee.agama)}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Status Perkawinan</label>
-                <p className="font-medium text-sm">{getMasterDataName('marital_status', employee.status_perkawinan)}</p>
+          <div className="border border-border/70 bg-background">
+            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+              <User className="h-3 w-3" />
+              DATA PRIBADI
+            </div>
+            <div className="p-3 sm:p-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+                <div>
+                  <label className="text-xs text-muted-foreground">Nama Lengkap</label>
+                  <p className="font-medium text-sm">{employee.nama_lengkap}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">NIK</label>
+                  <p className="font-medium text-sm">{employee.nik}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">NIP</label>
+                  <p className="font-medium text-sm">{employee.nip || '-'}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Tempat, Tanggal Lahir</label>
+                  <p className="font-medium text-sm">
+                    {employee.tempat_lahir || '-'}, {formatDate(employee.tanggal_lahir)}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Jenis Kelamin</label>
+                  <p className="font-medium text-sm">{getMasterDataName('gender', employee.jenis_kelamin)}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Agama</label>
+                  <p className="font-medium text-sm">{getMasterDataName('religion', employee.agama)}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Status Perkawinan</label>
+                  <p className="font-medium text-sm">{getMasterDataName('marital_status', employee.status_perkawinan)}</p>
+                </div>
               </div>
             </div>
           </div>
 
-          <hr className="border-border/50 my-6" />
-
-          {/* Kontak */}
-          <div className="mb-6">
-            <h3 className="text-sm font-medium text-muted-foreground mb-4">KONTAK</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-              <div>
-                <label className="text-xs text-muted-foreground">No. Telepon</label>
-                <p className="font-medium text-sm">{employee.no_telepon || '-'}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">No. HP</label>
-                <p className="font-medium text-sm">{employee.no_hp || '-'}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Email</label>
-                <p className="font-medium text-sm">{employee.email || '-'}</p>
-              </div>
-              <div className="md:col-span-2 lg:col-span-4">
-                <label className="text-xs text-muted-foreground">Alamat</label>
-                <p className="font-medium text-sm">
-                  {employee.alamat || '-'}
-                  {employee.kota && `, ${employee.kota}`}
-                  {employee.provinsi && `, ${employee.provinsi}`}
-                  {employee.kode_pos && ` ${employee.kode_pos}`}
-                </p>
+          {/* Kontak & Alamat */}
+          <div className="border border-border/70 bg-background">
+            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+              <Phone className="h-3 w-3" />
+              KONTAK & ALAMAT
+            </div>
+            <div className="p-3 sm:p-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+                <div>
+                  <label className="text-xs text-muted-foreground">No. Telepon</label>
+                  <p className="font-medium text-sm">{employee.no_telepon || '-'}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">No. HP</label>
+                  <p className="font-medium text-sm">{employee.no_hp || '-'}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Email</label>
+                  <p className="font-medium text-sm">{employee.email || '-'}</p>
+                </div>
+                <div className="md:col-span-2 lg:col-span-4">
+                  <label className="text-xs text-muted-foreground">Alamat</label>
+                  <p className="font-medium text-sm">
+                    {employee.alamat || '-'}
+                    {employee.kota && `, ${employee.kota}`}
+                    {employee.provinsi && `, ${employee.provinsi}`}
+                    {employee.kode_pos && ` ${employee.kode_pos}`}
+                  </p>
+                </div>
               </div>
             </div>
           </div>
-
-          <hr className="border-border/50 my-6" />
 
           {/* Data Kepegawaian */}
-          <div className="mb-6">
-            <h3 className="text-sm font-medium text-muted-foreground mb-4">DATA KEPEGAWAIAN</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-              <div>
-                <label className="text-xs text-muted-foreground">Tipe Karyawan</label>
-                <p className="font-medium text-sm">{getMasterDataName('employee_type', employee.tipe_karyawan)}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Status Kepegawaian</label>
-                <Badge variant="outline" className="mt-1">{getMasterDataName('employment_status', employee.status_kepegawaian)}</Badge>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Departemen</label>
-                <p className="font-medium text-sm">{employee.departemen || '-'}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Jabatan</label>
-                <p className="font-medium text-sm">{employee.jabatan || '-'}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Tanggal Masuk</label>
-                <p className="font-medium text-sm">{formatDate(employee.tanggal_masuk)}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Tanggal Keluar</label>
-                <p className="font-medium text-sm">{formatDate(employee.tanggal_keluar)}</p>
-              </div>
-              {employee.spesialisasi && (
+          <div className="border border-border/70 bg-background">
+            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+              <Briefcase className="h-3 w-3" />
+              DATA KEPEGAWAIAN
+            </div>
+            <div className="p-3 sm:p-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
                 <div>
-                  <label className="text-xs text-muted-foreground">Spesialisasi</label>
-                  <p className="font-medium text-sm">{employee.spesialisasi}</p>
+                  <label className="text-xs text-muted-foreground">Tipe Karyawan</label>
+                  <p className="font-medium text-sm">{getMasterDataName('employee_type', employee.tipe_karyawan)}</p>
                 </div>
-              )}
+                <div>
+                  <label className="text-xs text-muted-foreground">Status Kepegawaian</label>
+                  <Badge variant="outline" className="mt-1">{getMasterDataName('employment_status', employee.status_kepegawaian)}</Badge>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Departemen</label>
+                  <p className="font-medium text-sm">{employee.departemen || '-'}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Jabatan</label>
+                  <p className="font-medium text-sm">{employee.jabatan || '-'}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Tanggal Masuk</label>
+                  <p className="font-medium text-sm">{formatDate(employee.tanggal_masuk)}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Tanggal Keluar</label>
+                  <p className="font-medium text-sm">{formatDate(employee.tanggal_keluar)}</p>
+                </div>
+                {employee.spesialisasi && (
+                  <div>
+                    <label className="text-xs text-muted-foreground">Spesialisasi</label>
+                    <p className="font-medium text-sm">{employee.spesialisasi}</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
           {/* Surat Izin Praktik (Medical Staff) */}
           {isMedicalStaff && (
-            <>
-              <hr className="border-border/50 my-6" />
-              <div className="mb-6">
-                <h3 className="text-sm font-medium text-muted-foreground mb-4">SURAT IZIN PRAKTIK</h3>
+            <div className="border border-border/70 bg-background">
+              <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+                <Stethoscope className="h-3 w-3" />
+                SURAT IZIN PRAKTIK
+              </div>
+              <div className="p-3 sm:p-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                   <div>
                     <label className="text-xs text-muted-foreground">No. STR</label>
@@ -321,89 +340,101 @@ export default function EmployeeShow() {
                   </div>
                 </div>
               </div>
-            </>
+            </div>
           )}
 
-          <hr className="border-border/50 my-6" />
-
           {/* Pendidikan */}
-          <div className="mb-6">
-            <h3 className="text-sm font-medium text-muted-foreground mb-4">PENDIDIKAN</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-              <div>
-                <label className="text-xs text-muted-foreground">Pendidikan Terakhir</label>
-                <p className="font-medium text-sm">{getMasterDataName('education_level', employee.pendidikan_terakhir)}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Nama Institusi</label>
-                <p className="font-medium text-sm">{employee.nama_institusi || '-'}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Tahun Lulus</label>
-                <p className="font-medium text-sm">{employee.tahun_lulus || '-'}</p>
+          <div className="border border-border/70 bg-background">
+            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+              <GraduationCap className="h-3 w-3" />
+              PENDIDIKAN
+            </div>
+            <div className="p-3 sm:p-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                <div>
+                  <label className="text-xs text-muted-foreground">Pendidikan Terakhir</label>
+                  <p className="font-medium text-sm">{getMasterDataName('education_level', employee.pendidikan_terakhir)}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Nama Institusi</label>
+                  <p className="font-medium text-sm">{employee.nama_institusi || '-'}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Tahun Lulus</label>
+                  <p className="font-medium text-sm">{employee.tahun_lulus || '-'}</p>
+                </div>
               </div>
             </div>
           </div>
-
-          <hr className="border-border/50 my-6" />
 
           {/* Informasi Bank */}
-          <div className="mb-6">
-            <h3 className="text-sm font-medium text-muted-foreground mb-4">INFORMASI BANK</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-              <div>
-                <label className="text-xs text-muted-foreground">Nama Bank</label>
-                <p className="font-medium text-sm">{getMasterDataName('bank', employee.nama_bank)}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">No. Rekening</label>
-                <p className="font-medium text-sm">{employee.no_rekening || '-'}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Atas Nama</label>
-                <p className="font-medium text-sm">{employee.atas_nama_rekening || '-'}</p>
+          <div className="border border-border/70 bg-background">
+            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+              <Building2 className="h-3 w-3" />
+              INFORMASI BANK
+            </div>
+            <div className="p-3 sm:p-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                <div>
+                  <label className="text-xs text-muted-foreground">Nama Bank</label>
+                  <p className="font-medium text-sm">{getMasterDataName('bank', employee.nama_bank)}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">No. Rekening</label>
+                  <p className="font-medium text-sm">{employee.no_rekening || '-'}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Atas Nama</label>
+                  <p className="font-medium text-sm">{employee.atas_nama_rekening || '-'}</p>
+                </div>
               </div>
             </div>
           </div>
-
-          <hr className="border-border/50 my-6" />
 
           {/* Kontak Darurat */}
-          <div className="mb-6">
-            <h3 className="text-sm font-medium text-muted-foreground mb-4">KONTAK DARURAT</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-              <div>
-                <label className="text-xs text-muted-foreground">Nama</label>
-                <p className="font-medium text-sm">{employee.nama_kontak_darurat || '-'}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Hubungan</label>
-                <p className="font-medium text-sm">{getMasterDataName('relationship', employee.hubungan_kontak_darurat)}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">No. Telepon</label>
-                <p className="font-medium text-sm">{employee.telepon_kontak_darurat || '-'}</p>
+          <div className="border border-border/70 bg-background">
+            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+              <Heart className="h-3 w-3" />
+              KONTAK DARURAT
+            </div>
+            <div className="p-3 sm:p-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                <div>
+                  <label className="text-xs text-muted-foreground">Nama</label>
+                  <p className="font-medium text-sm">{employee.nama_kontak_darurat || '-'}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Hubungan</label>
+                  <p className="font-medium text-sm">{getMasterDataName('relationship', employee.hubungan_kontak_darurat)}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">No. Telepon</label>
+                  <p className="font-medium text-sm">{employee.telepon_kontak_darurat || '-'}</p>
+                </div>
               </div>
             </div>
           </div>
-
-          <hr className="border-border/50 my-6" />
 
           {/* Informasi Sistem */}
-          <div>
-            <h3 className="text-sm font-medium text-muted-foreground mb-4">INFORMASI SISTEM</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              <div>
-                <label className="text-xs text-muted-foreground">Dibuat</label>
-                <p className="font-medium text-sm">{formatDate(employee.created_at)}</p>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Terakhir Diperbarui</label>
-                <p className="font-medium text-sm">{formatDate(employee.updated_at)}</p>
+          <div className="border border-border/70 bg-background">
+            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              INFORMASI SISTEM
+            </div>
+            <div className="p-3 sm:p-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div>
+                  <label className="text-xs text-muted-foreground">Dibuat</label>
+                  <p className="font-medium text-sm">{formatDate(employee.created_at)}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Terakhir Diperbarui</label>
+                  <p className="font-medium text-sm">{formatDate(employee.updated_at)}</p>
+                </div>
               </div>
             </div>
           </div>
-      </div>
+        </div>
+      </PageContent>
 
       <ConfirmDialog
         open={deleteDialogOpen}
@@ -415,6 +446,6 @@ export default function EmployeeShow() {
         cancelText="Batal"
         variant="destructive"
       />
-    </div>
+    </PageShell>
   );
 }

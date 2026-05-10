@@ -1,6 +1,7 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -136,23 +137,30 @@ export default function RoomCreate() {
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center gap-4">
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => window.history.back()}
-          className="h-9 w-9"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div>
-          <h1 className="text-lg font-semibold">Tambah Ruangan</h1>
-          <p className="text-sm text-muted-foreground">Masukkan detail informasi ruangan baru</p>
+    <PageShell>
+      <PageHeader
+        title="Tambah Ruangan"
+        description="Masukkan detail informasi ruangan baru"
+        icon={Building2}
+        actions={
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => window.history.back()}
+            className="h-9 w-9"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+        }
+      />
+      <PageContent>
+      <div className="border border-border/70 bg-background">
+        <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+          <Building2 className="h-3 w-3" />
+          DATA RUANGAN
         </div>
-      </div>
-      <div className="rounded-lg border p-6">
-            <form onSubmit={handleSubmit} className="space-y-5">
+        <div className="p-3 sm:p-4">
+            <form onSubmit={handleSubmit} className="space-y-5 [&_input]:h-9 [&_[role=combobox]]:h-9">
               {/* Basic Info */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div className="space-y-2">
@@ -466,22 +474,25 @@ export default function RoomCreate() {
                 </Label>
               </div>
 
-              {/* Submit Button */}
-              <div className="flex justify-end gap-3 pt-4">
+              {/* Sticky Footer */}
+              <div className="sticky bottom-0 z-10 flex items-center justify-end gap-2 border-t border-border/70 bg-background/95 px-3 py-3 backdrop-blur -mx-3 sm:-mx-4">
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => navigate("/rooms")}
+                  className="h-9"
                 >
                   Batal
                 </Button>
-                <Button type="submit" disabled={loading}>
+                <Button type="submit" disabled={loading} className="h-9 min-w-28">
                   {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Simpan
                 </Button>
               </div>
             </form>
+        </div>
       </div>
-    </div>
+      </PageContent>
+    </PageShell>
   );
 }

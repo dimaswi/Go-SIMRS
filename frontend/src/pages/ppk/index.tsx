@@ -244,18 +244,25 @@ export default function PPKIndexPage() {
         }
       />
       <PageContent>
-        <DataTable
-          tableId="master-ppk"
-          columns={columns}
-          data={rows}
-          searchPlaceholder="Cari kode/nama PPK..."
-          searchSlot={
-            <div className="flex items-center gap-2 pl-2">
-              <Label className="text-xs text-muted-foreground">Tampilkan nonaktif</Label>
-              <Switch checked={showInactive} onCheckedChange={setShowInactive} />
-            </div>
-          }
-        />
+        <div className="border border-border/70 bg-background">
+          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            Daftar PPK
+          </div>
+          <div className="p-3 sm:p-4">
+            <DataTable
+              tableId="master-ppk"
+              columns={columns}
+              data={rows}
+              searchPlaceholder="Cari kode/nama PPK..."
+              searchSlot={
+                <div className="flex items-center gap-2 pl-2">
+                  <Label className="text-xs text-muted-foreground">Tampilkan nonaktif</Label>
+                  <Switch checked={showInactive} onCheckedChange={setShowInactive} />
+                </div>
+              }
+            />
+          </div>
+        </div>
       </PageContent>
 
       <Dialog open={formOpen} onOpenChange={setFormOpen}>

@@ -133,13 +133,20 @@ export default function RoomsPage() {
         }
       />
       <PageContent>
-        <DataTable
+        <div className="border border-border/70 bg-background">
+          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            Daftar Ruangan
+          </div>
+          <div className="p-3 sm:p-4">
+            <DataTable
           columns={columns}
           data={rooms}
           searchPlaceholder="Cari ruangan berdasarkan kode atau nama..."
           pageSize={10}
           tableId="rooms"
         />
+          </div>
+        </div>
       </PageContent>
 
       <ConfirmDialog

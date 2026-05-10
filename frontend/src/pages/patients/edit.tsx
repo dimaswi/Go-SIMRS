@@ -1,7 +1,8 @@
-﻿import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
+import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -681,7 +682,7 @@ export default function PatientEdit() {
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
+    <PageShell>
       {/* Keyboard Shortcuts Modal */}
       {showShortcuts && (
         <div
@@ -741,15 +742,12 @@ export default function PatientEdit() {
         </div>
       )}
 
-      <form
-        ref={formRef}
-        onSubmit={(e) => {
-          e.preventDefault();
-          handleSubmit();
-        }}
-      >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
+      <PageHeader
+        title="Edit Data Pasien"
+        description="Perbarui data pasien sesuai dengan standar Kemenkes RI"
+        icon={User}
+        actions={
+          <div className="flex items-center gap-2">
             <Button
               type="button"
               variant="outline"
@@ -760,31 +758,38 @@ export default function PatientEdit() {
             >
               <ArrowLeft className="h-4 w-4" />
             </Button>
-            <div>
-              <h1 className="text-lg font-semibold">Edit Data Pasien</h1>
-              <p className="text-sm text-muted-foreground">Perbarui data pasien sesuai dengan standar Kemenkes RI</p>
-            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowShortcuts(true)}
+              className="text-muted-foreground"
+              tabIndex={-1}
+            >
+              <Keyboard className="h-4 w-4 mr-2" />
+              <span className="hidden sm:inline">Shortcuts</span>
+              <kbd className="ml-2 px-1.5 py-0.5 bg-muted rounded text-xs font-mono hidden sm:inline">F1</kbd>
+            </Button>
           </div>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowShortcuts(true)}
-            className="text-muted-foreground"
-            tabIndex={-1}
-          >
-            <Keyboard className="h-4 w-4 mr-2" />
-            <span className="hidden sm:inline">Shortcuts</span>
-            <kbd className="ml-2 px-1.5 py-0.5 bg-muted rounded text-xs font-mono hidden sm:inline">F1</kbd>
-          </Button>
-        </div>
-        <div className="rounded-lg border p-6 space-y-8">
+        }
+      />
+      <PageContent>
+
+      <form
+        ref={formRef}
+        onSubmit={(e) => {
+          e.preventDefault();
+          handleSubmit();
+        }}
+      >
+        <div className="mx-auto w-full max-w-full flex-1 space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-9 [&_[role=combobox]]:h-9">
             {/* Section: Identitas */}
-            <section className="pb-6">
-              <div className="flex items-center gap-2 mb-4 pb-2 border-b">
-                <User className="h-5 w-5 text-primary" />
-                <h3 className="text-sm font-semibold text-primary">DATA IDENTITAS</h3>
+            <div className="border border-border/70 bg-background">
+              <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+                <User className="h-3 w-3" />
+                DATA IDENTITAS
               </div>
+              <div className="p-3 sm:p-4">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                 <div className="space-y-2">
                   <Label htmlFor="nik" className="text-xs font-medium">NIK</Label>
@@ -1060,15 +1065,16 @@ export default function PatientEdit() {
                   />
                 </div>
               </div>
-            </section>
+              </div>
+            </div>
 
             {/* Section: Alamat KTP */}
-            <section className="pb-6">
-              <div className="flex items-center gap-2 mb-4 pb-2 border-b">
-                <MapPin className="h-5 w-5 text-primary" />
-                <h3 className="text-sm font-semibold text-primary">ALAMAT KTP</h3>
+            <div className="border border-border/70 bg-background">
+              <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+                <MapPin className="h-3 w-3" />
+                ALAMAT KTP
               </div>
-              <div className="space-y-4">
+              <div className="p-3 sm:p-4 space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="alamat_ktp" className="text-xs font-medium">Alamat Lengkap</Label>
                   <Textarea
@@ -1174,14 +1180,14 @@ export default function PatientEdit() {
                   </div>
                 </div>
               </div>
-            </section>
+            </div>
 
             {/* Section: Alamat Domisili */}
-            <section className="pb-6">
-              <div className="flex items-center justify-between mb-4 pb-2 border-b">
+            <div className="border border-border/70 bg-background">
+              <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <MapPin className="h-5 w-5 text-primary" />
-                  <h3 className="text-sm font-semibold text-primary">ALAMAT DOMISILI</h3>
+                  <MapPin className="h-3 w-3" />
+                  ALAMAT DOMISILI
                 </div>
                 <div className="flex items-center space-x-2">
                   <Checkbox
@@ -1189,12 +1195,12 @@ export default function PatientEdit() {
                     checked={sameAddress}
                     onCheckedChange={(checked) => setSameAddress(checked === true)}
                   />
-                  <Label htmlFor="same_address" className="text-xs cursor-pointer">
-                    Sama dengan alamat KTP
+                  <Label htmlFor="same_address" className="text-[10px] uppercase tracking-[0.1em] cursor-pointer">
+                    Sama dengan KTP
                   </Label>
                 </div>
               </div>
-              <div className="space-y-4">
+              <div className="p-3 sm:p-4 space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="alamat_domisili" className="text-xs font-medium">Alamat Lengkap</Label>
                   <Textarea
@@ -1305,14 +1311,15 @@ export default function PatientEdit() {
                   </div>
                 </div>
               </div>
-            </section>
+            </div>
 
             {/* Section: Kontak */}
-            <section className="pb-6">
-              <div className="flex items-center gap-2 mb-4 pb-2 border-b">
-                <Phone className="h-5 w-5 text-primary" />
-                <h3 className="text-sm font-semibold text-primary">DATA KONTAK</h3>
+            <div className="border border-border/70 bg-background">
+              <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+                <Phone className="h-3 w-3" />
+                DATA KONTAK
               </div>
+              <div className="p-3 sm:p-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div className="space-y-2">
                   <Label htmlFor="no_telepon" className="text-xs font-medium">Nomor Telepon Rumah</Label>
@@ -1363,14 +1370,16 @@ export default function PatientEdit() {
                   />
                 </div>
               </div>
-            </section>
+              </div>
+            </div>
 
             {/* Section: Keluarga */}
-            <section className="pb-6">
-              <div className="flex items-center gap-2 mb-4 pb-2 border-b">
-                <Users className="h-5 w-5 text-primary" />
-                <h3 className="text-sm font-semibold text-primary">DATA KELUARGA / PENANGGUNG JAWAB</h3>
+            <div className="border border-border/70 bg-background">
+              <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+                <Users className="h-3 w-3" />
+                DATA KELUARGA / PENANGGUNG JAWAB
               </div>
+              <div className="p-3 sm:p-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div className="space-y-2">
                   <Label htmlFor="nama_penanggung_jawab" className="text-xs font-medium">Nama Penanggung Jawab</Label>
@@ -1517,14 +1526,16 @@ export default function PatientEdit() {
                   </div>
                 </div>
               </div>
-            </section>
+              </div>
+            </div>
 
             {/* Section: Jaminan */}
-            <section className="pb-6">
-              <div className="flex items-center gap-2 mb-4 pb-2 border-b">
-                <Shield className="h-5 w-5 text-primary" />
-                <h3 className="text-sm font-semibold text-primary">DATA JAMINAN / ASURANSI</h3>
+            <div className="border border-border/70 bg-background">
+              <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+                <Shield className="h-3 w-3" />
+                DATA JAMINAN / ASURANSI
               </div>
+              <div className="p-3 sm:p-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div className="space-y-2">
                   <Label className="text-xs font-medium">Jenis Jaminan/Pembayaran</Label>
@@ -1618,14 +1629,16 @@ export default function PatientEdit() {
                   </>
                 )}
               </div>
-            </section>
+              </div>
+            </div>
 
             {/* Section: Medis */}
-            <section className="pb-6">
-              <div className="flex items-center gap-2 mb-4 pb-2 border-b">
-                <Heart className="h-5 w-5 text-primary" />
-                <h3 className="text-sm font-semibold text-primary">DATA MEDIS</h3>
+            <div className="border border-border/70 bg-background">
+              <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+                <Heart className="h-3 w-3" />
+                DATA MEDIS
               </div>
+              <div className="p-3 sm:p-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div className="space-y-2">
                   <Label htmlFor="alergi_obat" className="text-xs font-medium">Alergi Obat</Label>
@@ -1723,10 +1736,11 @@ export default function PatientEdit() {
                   />
                 </div>
               </div>
-            </section>
+              </div>
+            </div>
 
             {/* Action Buttons */}
-            <div className="flex justify-between items-center pt-6 border-t sticky bottom-0 bg-background pb-2">
+            <div className="sticky bottom-0 z-10 mt-4 flex items-center justify-end gap-2 border-t border-border/70 bg-background/95 px-3 py-3 backdrop-blur">
               <div className="text-xs text-muted-foreground hidden sm:flex items-center gap-4">
                 <span className="flex items-center gap-1">
                   <kbd className="px-1.5 py-0.5 bg-muted rounded text-xs font-mono">Ctrl+S</kbd>
@@ -1765,6 +1779,7 @@ export default function PatientEdit() {
             </div>
         </div>
       </form>
-    </div>
+      </PageContent>
+    </PageShell>
   );
 }

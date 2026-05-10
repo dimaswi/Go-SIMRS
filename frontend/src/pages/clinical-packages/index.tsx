@@ -72,7 +72,12 @@ export default function ClinicalPackagesIndex() {
         }
       />
       <PageContent>
-        <DataTable
+        <div className="border border-border/70 bg-background">
+          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            Daftar Paket Klinis
+          </div>
+          <div className="p-3 sm:p-4">
+            <DataTable
           columns={createClinicalPackageColumns({
             onView: (id) => navigate(`/clinical-packages/${id}`),
             onEdit: (id) => navigate(`/clinical-packages/${id}/edit`),
@@ -86,6 +91,8 @@ export default function ClinicalPackagesIndex() {
           pageSize={10}
           tableId="clinical-packages"
         />
+          </div>
+        </div>
       </PageContent>
 
       <ConfirmDialog

@@ -1,6 +1,7 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -365,10 +366,12 @@ export default function EmployeeEdit() {
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <form onSubmit={handleSubmit} className="grid gap-4">
-        {/* Header */}
-        <div className="flex items-center gap-4">
+    <PageShell>
+      <PageHeader
+        title="Edit Pegawai"
+        description="Perbarui data pegawai rumah sakit"
+        icon={User}
+        actions={
           <Button
             type="button"
             variant="outline"
@@ -378,20 +381,17 @@ export default function EmployeeEdit() {
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <div>
-            <h1 className="text-lg font-semibold">
-              Edit Pegawai
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Perbarui data pegawai rumah sakit
-            </p>
-          </div>
-        </div>
-
+        }
+      />
+      <PageContent>
+      <form onSubmit={handleSubmit} className="space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-9 [&_[role=combobox]]:h-9">
         {/* Status Card */}
-        <div className="rounded-lg border">
-          <div className="p-6">
-            <div className="flex items-center justify-between rounded-lg border p-4">
+        <div className="border border-border/70 bg-background">
+          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            Status Pegawai
+          </div>
+          <div className="p-3 sm:p-4">
+            <div className="flex items-center justify-between border border-border/50 p-3">
               <div className="space-y-0.5">
                 <Label htmlFor="is_active" className="text-sm font-medium cursor-pointer">
                   Status Pegawai
@@ -410,12 +410,12 @@ export default function EmployeeEdit() {
         </div>
 
         {/* Personal Information */}
-        <div className="rounded-lg border">
-          <div className="flex items-center gap-2 px-6 py-4">
-            <User className="h-4 w-4 text-muted-foreground" />
-            <h3 className="text-sm font-medium">Data Pribadi</h3>
+        <div className="border border-border/70 bg-background">
+          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+            <User className="h-3 w-3" />
+            Data Pribadi
           </div>
-          <div className="px-6 pb-6">
+          <div className="p-3 sm:p-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
               <div className="space-y-2">
                 <Label htmlFor="nik" className="text-xs font-medium flex items-center gap-2">
@@ -570,12 +570,12 @@ export default function EmployeeEdit() {
         </div>
 
         {/* Address Information */}
-        <div className="rounded-lg border">
-          <div className="flex items-center gap-2 px-6 py-4">
-            <MapPin className="h-4 w-4 text-muted-foreground" />
-            <h3 className="text-sm font-medium">Alamat</h3>
+        <div className="border border-border/70 bg-background">
+          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+            <MapPin className="h-3 w-3" />
+            Alamat
           </div>
-          <div className="px-6 pb-6">
+          <div className="p-3 sm:p-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div className="space-y-2">
                 <Label className="text-xs font-medium">
@@ -669,12 +669,12 @@ export default function EmployeeEdit() {
         </div>
 
         {/* Employment Information */}
-        <div className="rounded-lg border">
-          <div className="flex items-center gap-2 px-6 py-4">
-            <Briefcase className="h-4 w-4 text-muted-foreground" />
-            <h3 className="text-sm font-medium">Data Kepegawaian</h3>
+        <div className="border border-border/70 bg-background">
+          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+            <Briefcase className="h-3 w-3" />
+            Data Kepegawaian
           </div>
-          <div className="px-6 pb-6">
+          <div className="p-3 sm:p-4">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
               <div className="space-y-2">
                 <Label className="text-xs font-medium">
@@ -772,12 +772,12 @@ export default function EmployeeEdit() {
 
         {/* Medical Staff License Information */}
         {isMedicalStaff && (
-          <div className="rounded-lg border">
-            <div className="flex items-center gap-2 px-6 py-4">
-              <Stethoscope className="h-4 w-4 text-muted-foreground" />
-              <h3 className="text-sm font-medium">Surat Izin Praktik</h3>
+          <div className="border border-border/70 bg-background">
+            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+              <Stethoscope className="h-3 w-3" />
+              Surat Izin Praktik
             </div>
-            <div className="px-6 pb-6">
+            <div className="p-3 sm:p-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                 <div className="space-y-2">
                   <Label htmlFor="no_str" className="text-xs font-medium">
@@ -859,12 +859,12 @@ export default function EmployeeEdit() {
         )}
 
         {/* Education */}
-        <div className="rounded-lg border">
-          <div className="flex items-center gap-2 px-6 py-4">
-            <GraduationCap className="h-4 w-4 text-muted-foreground" />
-            <h3 className="text-sm font-medium">Pendidikan</h3>
+        <div className="border border-border/70 bg-background">
+          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+            <GraduationCap className="h-3 w-3" />
+            Pendidikan
           </div>
-          <div className="px-6 pb-6">
+          <div className="p-3 sm:p-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
               <div className="space-y-2">
                 <Label className="text-xs font-medium">
@@ -910,12 +910,12 @@ export default function EmployeeEdit() {
         </div>
 
         {/* Bank Information */}
-        <div className="rounded-lg border">
-          <div className="flex items-center gap-2 px-6 py-4">
-            <Building2 className="h-4 w-4 text-muted-foreground" />
-            <h3 className="text-sm font-medium">Informasi Bank</h3>
+        <div className="border border-border/70 bg-background">
+          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+            <Building2 className="h-3 w-3" />
+            Informasi Bank
           </div>
-          <div className="px-6 pb-6">
+          <div className="p-3 sm:p-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
               <div className="space-y-2">
                 <Label htmlFor="nama_bank" className="text-xs font-medium">
@@ -959,12 +959,12 @@ export default function EmployeeEdit() {
         </div>
 
         {/* Emergency Contact */}
-        <div className="rounded-lg border">
-          <div className="flex items-center gap-2 px-6 py-4">
-            <Heart className="h-4 w-4 text-muted-foreground" />
-            <h3 className="text-sm font-medium">Kontak Darurat</h3>
+        <div className="border border-border/70 bg-background">
+          <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground flex items-center gap-2">
+            <Heart className="h-3 w-3" />
+            Kontak Darurat
           </div>
-          <div className="px-6 pb-6">
+          <div className="p-3 sm:p-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
               <div className="space-y-2">
                 <Label htmlFor="nama_kontak_darurat" className="text-xs font-medium">
@@ -1007,22 +1007,23 @@ export default function EmployeeEdit() {
           </div>
         </div>
 
-        {/* Submit Button */}
-        <div className="flex gap-3 justify-end">
+        {/* Sticky Footer */}
+        <div className="sticky bottom-0 z-10 flex items-center justify-end gap-2 border-t border-border/70 bg-background/95 px-3 py-3 backdrop-blur">
           <Button
             type="button"
             variant="outline"
             onClick={() => navigate("/employees")}
-            className="h-9 text-sm"
+            className="h-9"
           >
             Batal
           </Button>
-          <Button type="submit" disabled={loading} className="h-9 text-sm min-w-24">
+          <Button type="submit" disabled={loading} className="h-9 min-w-28">
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Update
+            Perbarui
           </Button>
         </div>
       </form>
-    </div>
+      </PageContent>
+    </PageShell>
   );
 }
