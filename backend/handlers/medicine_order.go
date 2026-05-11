@@ -852,6 +852,7 @@ func UpdateMedicineOrderItem(c *gin.Context) {
 	}
 
 	var input struct {
+		MedicineID    *uint   `json:"medicine_id"`
 		Quantity     *int    `json:"quantity"`
 		Unit         *string `json:"unit"`
 		Dosage       *string `json:"dosage"`
@@ -874,6 +875,33 @@ func UpdateMedicineOrderItem(c *gin.Context) {
 	}
 
 	updates := map[string]interface{}{}
+	if input.MedicineID != nil && *input.MedicineID != item.MedicineID {
+		var medicine models.Medicine
+		if err := database.DB.First(&medicine, *input.MedicineID).Error; err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Obat tidak ditemukan"})
+			return
+		}
+
+		query := database.DB.Where("medicine_order_id = ? AND medicine_id = ? AND status != ? AND id != ?",
+			order.ID, *input.MedicineID, models.ItemStatusCancelled, item.ID)
+		if item.ItemType == models.MedicineOrderItemTypeRacikan {
+			query = query.Where("item_type = ? AND racikan_group = ?", item.ItemType, item.RacikanGroup)
+		} else {
+			query = query.Where("COALESCE(item_type, '') IN ('', ?)", models.MedicineOrderItemTypeNonRacikan)
+		}
+
+		var existingItem models.MedicineOrderItem
+		if err := query.First(&existingItem).Error; err == nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Obat pengganti sudah ada dalam resep"})
+			return
+		}
+
+		updates["medicine_id"] = *input.MedicineID
+		if input.Unit == nil {
+			unit := strings.TrimSpace(medicine.Unit)
+			updates["unit"] = unit
+		}
+	}
 	if input.Quantity != nil && *input.Quantity > 0 {
 		updates["quantity"] = *input.Quantity
 	}

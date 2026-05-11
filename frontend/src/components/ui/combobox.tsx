@@ -35,6 +35,8 @@ interface ComboboxProps {
   loading?: boolean
   className?: string
   tabIndex?: number
+  allowCustomValue?: boolean
+  customValueLabel?: (value: string) => string
   //searchable?: boolean
 }
 
@@ -50,11 +52,29 @@ export function Combobox({
   loading = false,
   className,
   tabIndex,
+  allowCustomValue = false,
+  customValueLabel,
   //searchable = false,
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false)
+  const [search, setSearch] = React.useState("")
 
   const selectedOption = options.find((option) => option.value === value)
+  const trimmedSearch = search.trim()
+  const canUseCustomValue =
+    allowCustomValue &&
+    trimmedSearch.length > 0 &&
+    !options.some(
+      (option) =>
+        option.value.toLowerCase() === trimmedSearch.toLowerCase() ||
+        option.label.toLowerCase() === trimmedSearch.toLowerCase()
+    )
+
+  React.useEffect(() => {
+    if (!open) {
+      setSearch("")
+    }
+  }, [open])
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -78,6 +98,8 @@ export function Combobox({
             </span>
           ) : selectedOption ? (
             <span className="truncate">{selectedOption.label}</span>
+          ) : value ? (
+            <span className="truncate">{value}</span>
           ) : (
             placeholder
           )}
@@ -89,7 +111,11 @@ export function Combobox({
           <CommandInput
             placeholder={searchPlaceholder}
             className="h-9"
-            onValueChange={onSearchChange}
+            value={search}
+            onValueChange={(nextValue) => {
+              setSearch(nextValue)
+              onSearchChange?.(nextValue)
+            }}
           />
           <CommandList>
             <CommandEmpty>{emptyText}</CommandEmpty>
@@ -100,6 +126,7 @@ export function Combobox({
                   value={option.label}
                   onSelect={() => {
                     onValueChange?.(option.value === value ? "" : option.value)
+                    setSearch("")
                     setOpen(false)
                   }}
                 >
@@ -112,6 +139,18 @@ export function Combobox({
                   />
                 </CommandItem>
               ))}
+              {canUseCustomValue && (
+                <CommandItem
+                  value={trimmedSearch}
+                  onSelect={() => {
+                    onValueChange?.(trimmedSearch)
+                    setSearch("")
+                    setOpen(false)
+                  }}
+                >
+                  {customValueLabel ? customValueLabel(trimmedSearch) : `Gunakan "${trimmedSearch}"`}
+                </CommandItem>
+              )}
             </CommandGroup>
           </CommandList>
         </Command>

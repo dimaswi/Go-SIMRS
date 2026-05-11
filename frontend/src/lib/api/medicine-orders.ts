@@ -416,6 +416,7 @@ export const medicineOrdersApi = {
 
   // Update item in medicine order (pharmacy edit)
   updateItem: async (orderId: number, itemId: number, data: {
+    medicine_id?: number;
     quantity?: number;
     unit?: string;
     dosage?: string;

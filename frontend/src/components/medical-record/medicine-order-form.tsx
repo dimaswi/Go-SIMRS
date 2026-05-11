@@ -87,6 +87,7 @@ interface OrderItem {
   route: string;
   duration: string;
   instructions: string;
+  notes: string;
   available_stock: number;
   unit_price: number;
 }
@@ -329,7 +330,7 @@ function OrderCollapsible({ order }: { order: MedicineOrder }) {
                               </td>
                               <td className="py-2 px-3">
                                 <p className="truncate">
-                                  {(group.sharedFields.dosage || "-") + " • " + (group.sharedFields.frequency || "-") + " • " + (group.sharedFields.route || "-")}
+                                  {(group.sharedFields.dosage || "-") + " • " + (group.sharedFields.frequency || "-")}
                                 </p>
                                 <p className="text-xs text-muted-foreground truncate">Instruksi: {group.sharedFields.instructions || "-"}</p>
                               </td>
@@ -353,7 +354,7 @@ function OrderCollapsible({ order }: { order: MedicineOrder }) {
                       }
 
                       const item = group.items[0];
-                      const detailSummary = [item.dosage || "-", item.frequency || "-", item.route || "-", item.duration || "-"].join(" • ");
+                      const detailSummary = [item.dosage || "-", item.frequency || "-"].join(" • ");
                       return (
                         <tr key={group.key} className="border-t">
                           <td className="py-2 px-3">
@@ -369,6 +370,7 @@ function OrderCollapsible({ order }: { order: MedicineOrder }) {
                           <td className="py-2 px-3">
                             <p className="truncate">{detailSummary}</p>
                             <p className="text-xs text-muted-foreground truncate">Instruksi: {item.instructions || "-"}</p>
+                            {item.notes ? <p className="text-xs text-muted-foreground truncate">Catatan: {item.notes}</p> : null}
                           </td>
                           <td className="py-2 px-3 font-medium">{item.quantity} {item.unit}</td>
                         </tr>
@@ -428,7 +430,7 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
     unit: "bungkus",
     dosage: "",
     frequency: "",
-    route: "oral",
+    route: "",
     duration: "",
     instructions: "",
   });
@@ -436,6 +438,7 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
   const [showEditItemDialog, setShowEditItemDialog] = useState(false);
   const [editingItemIndex, setEditingItemIndex] = useState<number | null>(null);
   const [editingItemDraft, setEditingItemDraft] = useState<OrderItem | null>(null);
+  const [editingMedicineSearch, setEditingMedicineSearch] = useState("");
   const [showEditRacikanDialog, setShowEditRacikanDialog] = useState(false);
   const [editingRacikanKey, setEditingRacikanKey] = useState<string | null>(null);
   const [editingRacikanMeta, setEditingRacikanMeta] = useState<RacikanEditMeta>({
@@ -445,7 +448,7 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
     unit: "bungkus",
     dosage: "",
     frequency: "",
-    route: "oral",
+    route: "",
     duration: "",
     instructions: "",
   });
@@ -460,6 +463,10 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
     }).format(value || 0);
 
   const frequencyOptions = [
+    "1x",
+    "2x",
+    "3x",
+    "4x",
     "1x1",
     "2x1",
     "3x1",
@@ -508,11 +515,6 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
     "Dikocok dulu",
     "Dilarutkan dulu",
   ].map((o) => ({ value: o, label: o }));
-
-  const getRouteLabel = (value?: string) => {
-    if (!value) return "-";
-    return routeOptions.find((option) => option.value === value)?.label || value;
-  };
 
   // Only pharmacy rooms with service_type 'farmasi' (exclude depo_farmasi)
   const isPharmacyRoom = (room: any) =>
@@ -697,9 +699,10 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
       unit: medicine.medicine.unit,
       dosage: medicine.medicine.strength || "",
       frequency: "",
-      route: "oral",
+      route: "",
       duration: "",
       instructions: "",
+      notes: "",
       available_stock: medicine.quantity,
       unit_price: unitPrice,
     };
@@ -713,7 +716,7 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
       unit: "bungkus",
       dosage: "",
       frequency: "",
-      route: "oral",
+      route: "",
       duration: "",
       instructions: "",
     });
@@ -771,6 +774,14 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
     });
   };
 
+  const handleUpdateRacikanItemDosage = (index: number, dosage: string) => {
+    setRacikanItems((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], dosage };
+      return next;
+    });
+  };
+
   const openEditItemDialog = (index: number) => {
     const item = orderItems[index];
     if (!item) return;
@@ -790,11 +801,11 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
       toast({ variant: "destructive", title: "Jumlah melebihi stok" });
       return;
     }
-    if (!editingItemDraft.dosage?.trim() || !editingItemDraft.frequency?.trim() || !editingItemDraft.route?.trim() || !editingItemDraft.duration?.trim() || !editingItemDraft.instructions?.trim()) {
+    if (!editingItemDraft.dosage?.trim() || !editingItemDraft.frequency?.trim() || !editingItemDraft.instructions?.trim()) {
       toast({
         variant: "destructive",
         title: "Data resep belum lengkap",
-        description: "Lengkapi dosis, frekuensi, rute, durasi, dan instruksi.",
+        description: "Lengkapi dosis, frekuensi, dan instruksi.",
       });
       return;
     }
@@ -816,7 +827,7 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
       unit: group.racikanUnit || "bungkus",
       dosage: group.sharedFields.dosage || "",
       frequency: group.sharedFields.frequency || "",
-      route: group.sharedFields.route || "oral",
+      route: group.sharedFields.route || "",
       duration: group.sharedFields.duration || "",
       instructions: group.sharedFields.instructions || "",
     });
@@ -851,7 +862,6 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
         racikan_type: editingRacikanMeta.type,
         racikan_qty: editingRacikanMeta.qty,
         racikan_unit: editingRacikanMeta.unit,
-        dosage: editingRacikanMeta.dosage,
         frequency: editingRacikanMeta.frequency,
         route: editingRacikanMeta.route,
         duration: editingRacikanMeta.duration,
@@ -870,6 +880,14 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
     });
   };
 
+  const handleEditRacikanComponentDosage = (index: number, dosage: string) => {
+    setEditingRacikanComponents((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], dosage };
+      return next;
+    });
+  };
+
   const handleRemoveEditingRacikanComponent = (index: number) => {
     setEditingRacikanComponents((prev) => prev.filter((_, itemIndex) => itemIndex !== index));
   };
@@ -881,11 +899,11 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
       toast({ variant: "destructive", title: "Nama racikan wajib diisi" });
       return;
     }
-    if (!editingRacikanMeta.dosage.trim() || !editingRacikanMeta.frequency.trim() || !editingRacikanMeta.route.trim() || !editingRacikanMeta.duration.trim() || !editingRacikanMeta.instructions.trim()) {
+    if (!editingRacikanMeta.dosage.trim() || !editingRacikanMeta.frequency.trim() || !editingRacikanMeta.instructions.trim()) {
       toast({
         variant: "destructive",
         title: "Data racikan belum lengkap",
-        description: "Lengkapi dosis, frekuensi, rute, durasi, dan instruksi racikan.",
+        description: "Lengkapi dosis, frekuensi, dan instruksi racikan.",
       });
       return;
     }
@@ -894,6 +912,14 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
         variant: "destructive",
         title: "Komponen racikan belum ada",
         description: "Tambahkan minimal satu obat ke racikan.",
+      });
+      return;
+    }
+    if (editingRacikanComponents.some((item) => !item.dosage?.trim())) {
+      toast({
+        variant: "destructive",
+        title: "Dosis bahan belum lengkap",
+        description: "Lengkapi dosis pada setiap bahan racikan.",
       });
       return;
     }
@@ -909,10 +935,10 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
         racikan_type: editingRacikanMeta.type,
         racikan_qty: Math.max(1, editingRacikanMeta.qty || 1),
         racikan_unit: editingRacikanMeta.unit.trim() || "bungkus",
-        dosage: editingRacikanMeta.dosage,
+        dosage: item.dosage,
         frequency: editingRacikanMeta.frequency,
-        route: editingRacikanMeta.route,
-        duration: editingRacikanMeta.duration,
+        route: "",
+        duration: "",
         instructions: editingRacikanMeta.instructions,
       }));
 
@@ -951,11 +977,19 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
       });
       return;
     }
-    if (!racikanDraft.dosage.trim() || !racikanDraft.frequency.trim() || !racikanDraft.route.trim() || !racikanDraft.duration.trim() || !racikanDraft.instructions.trim()) {
+    if (!racikanDraft.dosage.trim() || !racikanDraft.frequency.trim() || !racikanDraft.instructions.trim()) {
       toast({
         variant: "destructive",
         title: "Data racikan belum lengkap",
-        description: "Lengkapi dosis, frekuensi, rute, durasi, dan instruksi racikan.",
+        description: "Lengkapi dosis, frekuensi, dan instruksi racikan.",
+      });
+      return;
+    }
+    if (racikanItems.some((item) => !item.dosage?.trim())) {
+      toast({
+        variant: "destructive",
+        title: "Dosis bahan belum lengkap",
+        description: "Lengkapi dosis pada setiap bahan racikan.",
       });
       return;
     }
@@ -971,10 +1005,10 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
         racikan_type: racikanDraft.type,
         racikan_qty: Math.max(1, racikanDraft.quantity || 1),
         racikan_unit: racikanDraft.unit.trim() || "bungkus",
-        dosage: racikanDraft.dosage,
+        dosage: item.dosage,
         frequency: racikanDraft.frequency,
-        route: racikanDraft.route,
-        duration: racikanDraft.duration,
+        route: "",
+        duration: "",
         instructions: racikanDraft.instructions,
       })),
     ]);
@@ -1050,6 +1084,7 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
             route: current.route || item.route || "oral",
             duration: current.duration || item.duration || "",
             instructions: current.instructions || item.instructions || "",
+            notes: current.notes || item.notes || "",
           };
           merged += 1;
           continue;
@@ -1076,6 +1111,7 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
           route: item.route || "oral",
           duration: item.duration || "",
           instructions: item.instructions || "",
+          notes: item.notes || "",
           available_stock: pm.quantity,
           unit_price: unitPrice,
         });
@@ -1167,22 +1203,6 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
     setItemErrors({});
   };
 
-  const handleUpdateItemQuantity = (index: number, quantity: number) => {
-    const newItems = [...orderItems];
-    const maxStock = newItems[index].available_stock;
-    const nextQty = Math.max(1, Math.min(quantity || 0, maxStock));
-    newItems[index].quantity = nextQty;
-    setOrderItems(newItems);
-    setItemErrors({});
-  };
-
-  const handleUpdateItemField = (index: number, field: keyof OrderItem, value: string | number) => {
-    const newItems = [...orderItems];
-    (newItems[index] as any)[field] = value;
-    setOrderItems(newItems);
-    setItemErrors({});
-  };
-
   const handleRemoveRacikanGroup = (racikanGroup: string) => {
     setOrderItems((prev) => prev.filter((item) => item.racikan_group !== racikanGroup));
     setExpandedRacikanGroups((prev) => {
@@ -1202,8 +1222,6 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
       if (item.quantity > item.available_stock) rowErrors.push("Jumlah melebihi stok");
       if (!item.dosage?.trim()) rowErrors.push("Dosis wajib diisi");
       if (!item.frequency?.trim()) rowErrors.push("Frekuensi wajib diisi");
-      if (!item.route?.trim()) rowErrors.push("Rute wajib diisi");
-      if (!item.duration?.trim()) rowErrors.push("Durasi wajib diisi");
       if (!item.instructions?.trim()) rowErrors.push("Instruksi wajib diisi");
 
       if (rowErrors.length > 0) {
@@ -1213,8 +1231,6 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
 
     return errors;
   };
-
-  const plainFieldClass = "h-8 border-0 bg-transparent shadow-none px-2 focus-visible:ring-1 focus-visible:ring-primary/30";
 
   const handleSubmitOrder = async () => {
     if (!selectedPharmacyRoom) {
@@ -1241,7 +1257,7 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
       toast({
         variant: "destructive",
         title: "Validasi gagal",
-        description: "Pastikan jumlah, dosis, frekuensi, rute, durasi, dan instruksi sudah diisi dengan benar.",
+        description: "Pastikan jumlah, dosis, frekuensi, dan instruksi sudah diisi dengan benar.",
       });
       return;
     }
@@ -1265,6 +1281,7 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
           route: item.route,
           duration: item.duration,
           instructions: item.instructions,
+          notes: item.notes,
           item_type: item.item_type,
           racikan_group: item.racikan_group,
           racikan_name: item.racikan_name,
@@ -1459,206 +1476,223 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
                             </TooltipTrigger>
                             <TooltipContent side="top">Tambah racikan</TooltipContent>
                           </Tooltip>
-                          <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+                          <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-[98vw] 2xl:max-w-[1520px] max-h-[92vh] overflow-hidden flex flex-col">
                             <DialogHeader>
                               <DialogTitle>Tambah Racikan</DialogTitle>
                               <DialogDescription>
-                                Lengkapi jenis racikan, jumlah hasil racikan, dan komponen obat yang akan diracik.
+                                Tambahkan racikan baru ke resep ini. Stok akan tetap dihitung dari tiap komponen bahan.
                               </DialogDescription>
                             </DialogHeader>
-                            <div className="grid gap-4 overflow-y-auto pr-1">
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                <div className="space-y-1">
-                                  <Label>Nama Racikan</Label>
-                                  <Input
-                                    value={racikanDraft.name}
-                                    onChange={(e) => handleUpdateRacikanDraft("name", e.target.value)}
-                                    placeholder="Contoh: Racikan Batuk Anak"
-                                  />
+                            <div className="grid flex-1 gap-4 overflow-y-auto pr-1 xl:grid-cols-[minmax(0,1.2fr)_minmax(400px,0.8fr)]">
+                              <div className="space-y-4">
+                                <div className="rounded-lg border p-4 space-y-4">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <div>
+                                      <h4 className="text-sm font-semibold">Informasi Racikan</h4>
+                                      <p className="text-xs text-muted-foreground">Isi identitas racikan dan aturan pakai utamanya.</p>
+                                    </div>
+                                    <Badge variant="outline">{racikanItems.length} komponen</Badge>
+                                  </div>
+
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <div className="space-y-1">
+                                      <Label>Nama Racikan</Label>
+                                      <Input
+                                        value={racikanDraft.name}
+                                        onChange={(e) => handleUpdateRacikanDraft("name", e.target.value)}
+                                        placeholder="Contoh: Racikan Demam Anak"
+                                      />
+                                    </div>
+                                    <div className="space-y-1">
+                                      <Label>Jenis Racikan</Label>
+                                      <Select value={racikanDraft.type} onValueChange={(value) => handleUpdateRacikanDraft("type", value)}>
+                                        <SelectTrigger>
+                                          <SelectValue placeholder="Pilih jenis racikan" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {RACIKAN_TYPE_OPTIONS.map((option) => (
+                                            <SelectItem key={option} value={option}>{option}</SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                  </div>
+
+                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                    <div className="space-y-1">
+                                      <Label>Jumlah Hasil</Label>
+                                      <Input
+                                        type="number"
+                                        min={1}
+                                        value={racikanDraft.quantity}
+                                        onChange={(e) => handleUpdateRacikanDraft("quantity", Number(e.target.value) || 1)}
+                                      />
+                                    </div>
+                                    <div className="space-y-1">
+                                      <Label>Satuan Hasil</Label>
+                                      <Input
+                                        value={racikanDraft.unit}
+                                        onChange={(e) => handleUpdateRacikanDraft("unit", e.target.value)}
+                                      />
+                                    </div>
+                                    <div className="space-y-1">
+                                      <Label>Dosis</Label>
+                                      <Input
+                                        value={racikanDraft.dosage}
+                                        onChange={(e) => handleUpdateRacikanDraft("dosage", e.target.value)}
+                                      />
+                                    </div>
+                                  </div>
+
+                                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                                    <div className="space-y-1">
+                                      <Label>Frekuensi</Label>
+                                      <Combobox
+                                        options={frequencyOptions.map((option) => ({ value: option, label: option }))}
+                                        value={racikanDraft.frequency}
+                                        onValueChange={(value) => handleUpdateRacikanDraft("frequency", value)}
+                                        allowCustomValue
+                                        placeholder="Pilih frekuensi"
+                                        searchPlaceholder="Cari frekuensi..."
+                                        emptyText="Frekuensi tidak ditemukan"
+                                        className="w-full"
+                                      />
+                                    </div>
+                                    <div className="space-y-1 md:col-span-1 xl:col-span-2">
+                                      <Label>Cara Pakai</Label>
+                                      <Combobox
+                                        options={instructionOptions}
+                                        value={racikanDraft.instructions}
+                                        onValueChange={(value) => handleUpdateRacikanDraft("instructions", value)}
+                                        allowCustomValue
+                                        placeholder="Pilih cara pakai"
+                                        searchPlaceholder="Cari cara pakai..."
+                                        emptyText="Cara pakai tidak ditemukan"
+                                        className="w-full"
+                                      />
+                                    </div>
+                                  </div>
                                 </div>
-                                <div className="space-y-1">
-                                  <Label>Jenis Racikan</Label>
-                                  <Select value={racikanDraft.type} onValueChange={(value) => handleUpdateRacikanDraft("type", value)}>
-                                    <SelectTrigger>
-                                      <SelectValue placeholder="Pilih jenis racikan" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {RACIKAN_TYPE_OPTIONS.map((option) => (
-                                        <SelectItem key={option} value={option}>{option}</SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
+
+                                <div className="rounded-lg border p-4 space-y-3">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <div>
+                                      <h4 className="text-sm font-semibold">Komponen Terpilih</h4>
+                                      <p className="text-xs text-muted-foreground">Atur jumlah tiap bahan tanpa keluar dari modal.</p>
+                                    </div>
+                                    <Badge variant="secondary">{racikanItems.length}</Badge>
+                                  </div>
+
+                                  {racikanItems.length > 0 ? (
+                                    <div className="overflow-x-auto rounded-md border">
+                                      <table className="w-full min-w-[780px] text-sm">
+                                        <thead className="bg-muted/50 border-b">
+                                          <tr>
+                                            <th className="py-2 px-3 text-left font-medium">Nama Bahan</th>
+                                            <th className="py-2 px-3 text-left font-medium w-[140px]">Dosis Bahan</th>
+                                            <th className="py-2 px-3 text-left font-medium w-[140px]">Qty Bahan</th>
+                                            <th className="py-2 px-3 text-left font-medium w-[180px]">Info</th>
+                                            <th className="py-2 px-3 text-center font-medium w-[72px]">Aksi</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          {racikanItems.map((item, index) => (
+                                            <tr key={`racikan-item-${item.medicine_id}-${index}`} className="border-t align-top">
+                                              <td className="py-2 px-3">
+                                                <p className="font-medium text-sm truncate">{item.medicine_name}</p>
+                                                <p className="text-xs text-muted-foreground truncate">{item.medicine_code}</p>
+                                              </td>
+                                              <td className="py-2 px-3">
+                                                <Input
+                                                  value={item.dosage}
+                                                  onChange={(e) => handleUpdateRacikanItemDosage(index, e.target.value)}
+                                                  placeholder="Contoh: 1/2 tablet"
+                                                  className="h-8"
+                                                />
+                                              </td>
+                                              <td className="py-2 px-3">
+                                                <Input
+                                                  type="number"
+                                                  min={1}
+                                                  max={item.available_stock}
+                                                  value={item.quantity}
+                                                  onChange={(e) => handleUpdateRacikanItemQuantity(index, Number(e.target.value))}
+                                                  className="h-8 w-28"
+                                                />
+                                              </td>
+                                              <td className="py-2 px-3 text-xs text-muted-foreground">Stok tersedia {item.available_stock} {item.unit}</td>
+                                              <td className="py-2 px-3 text-center">
+                                                <Button
+                                                  type="button"
+                                                  variant="ghost"
+                                                  size="icon"
+                                                  className="h-8 w-8 text-destructive"
+                                                  onClick={() => handleRemoveRacikanItem(index)}
+                                                >
+                                                  <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                              </td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  ) : (
+                                    <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
+                                      Belum ada komponen racikan. Pilih bahan dari panel kanan.
+                                    </div>
+                                  )}
                                 </div>
                               </div>
 
-                              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                <div className="space-y-1">
-                                  <Label>Jumlah Hasil Racikan</Label>
-                                  <Input
-                                    type="number"
-                                    min={1}
-                                    value={racikanDraft.quantity}
-                                    onChange={(e) => handleUpdateRacikanDraft("quantity", Number(e.target.value) || 1)}
-                                  />
-                                </div>
-                                <div className="space-y-1">
-                                  <Label>Satuan Hasil</Label>
-                                  <Input
-                                    value={racikanDraft.unit}
-                                    onChange={(e) => handleUpdateRacikanDraft("unit", e.target.value)}
-                                    placeholder="Contoh: bungkus"
-                                  />
-                                </div>
-                                <div className="space-y-1">
-                                  <Label>Dosis</Label>
-                                  <Input
-                                    value={racikanDraft.dosage}
-                                    onChange={(e) => handleUpdateRacikanDraft("dosage", e.target.value)}
-                                    placeholder="Contoh: 3x1"
-                                  />
-                                </div>
-                              </div>
-
-                              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                                <div className="space-y-1">
-                                  <Label>Frekuensi</Label>
-                                  <Select value={racikanDraft.frequency} onValueChange={(value) => handleUpdateRacikanDraft("frequency", value)}>
-                                    <SelectTrigger>
-                                      <SelectValue placeholder="Pilih frekuensi" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {frequencyOptions.map((option) => (
-                                        <SelectItem key={`racikan-freq-${option}`} value={option}>{option}</SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                                <div className="space-y-1">
-                                  <Label>Rute</Label>
-                                  <Select value={racikanDraft.route} onValueChange={(value) => handleUpdateRacikanDraft("route", value)}>
-                                    <SelectTrigger>
-                                      <SelectValue placeholder="Pilih rute" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {routeOptions.map((option) => (
-                                        <SelectItem key={`racikan-route-${option.value}`} value={option.value}>{option.label}</SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                                <div className="space-y-1">
-                                  <Label>Durasi</Label>
-                                  <Input
-                                    value={racikanDraft.duration}
-                                    onChange={(e) => handleUpdateRacikanDraft("duration", e.target.value)}
-                                    placeholder="Contoh: 7 hari"
-                                  />
-                                </div>
-                                <div className="space-y-1">
-                                  <Label>Instruksi</Label>
-                                  <Combobox
-                                    options={instructionOptions}
-                                    value={racikanDraft.instructions}
-                                    onValueChange={(value) => handleUpdateRacikanDraft("instructions", value)}
-                                    placeholder="Pilih instruksi"
-                                    searchPlaceholder="Cari instruksi..."
-                                    emptyText="Instruksi tidak ditemukan"
-                                  />
-                                </div>
-                              </div>
-
-                              <div className="space-y-2 border rounded-md p-3">
+                              <div className="rounded-lg border p-4 space-y-3 h-fit">
                                 <div className="flex items-center justify-between gap-2">
-                                  <Label className="text-sm font-medium">Komponen Racikan</Label>
-                                  <Badge variant="outline">{racikanItems.length} komponen</Badge>
+                                  <div>
+                                    <h4 className="text-sm font-semibold">Pilih Bahan Obat</h4>
+                                    <p className="text-xs text-muted-foreground">Daftar dipersingkat saat belum mencari supaya modal lebih fokus.</p>
+                                  </div>
+                                  <Badge variant="outline">{filteredRacikanMedicines.length} kandidat</Badge>
                                 </div>
                                 <div className="relative">
                                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                   <Input
-                                    placeholder="Cari obat untuk racikan..."
+                                    placeholder="Cari nama atau kode obat..."
                                     className="pl-9"
                                     value={racikanSearchTerm}
                                     onChange={(e) => setRacikanSearchTerm(e.target.value)}
                                   />
                                 </div>
-                                <ScrollArea className="h-44 border rounded-md">
+                                <ScrollArea className="h-[24rem] border rounded-md">
                                   <div className="divide-y">
                                     {filteredRacikanMedicines.length === 0 ? (
-                                      <div className="text-center py-6 text-sm text-muted-foreground">
-                                        {racikanSearchTerm ? "Obat tidak ditemukan" : "Semua obat sudah masuk ke racikan"}
+                                      <div className="text-center py-8 text-sm text-muted-foreground">
+                                        {racikanSearchTerm ? "Tidak ada obat yang sesuai" : "Semua bahan sudah dipilih"}
                                       </div>
                                     ) : (
                                       filteredRacikanMedicines.map((pm) => (
                                         <button
                                           key={`racikan-${pm.id}`}
                                           type="button"
-                                          className="w-full p-2.5 hover:bg-muted/50 flex items-center justify-between text-left"
+                                          className="w-full p-3 hover:bg-muted/50 flex items-start justify-between gap-3 text-left"
                                           onClick={() => handleAddRacikanComponent(pm)}
                                         >
-                                          <div>
-                                            <p className="text-sm font-medium">{pm.medicine.name}</p>
-                                            <p className="text-xs text-muted-foreground">{pm.medicine.code} • Stok {pm.quantity}</p>
+                                          <div className="min-w-0">
+                                            <p className="font-medium text-sm truncate">{pm.medicine.name}</p>
+                                            <p className="text-xs text-muted-foreground truncate">{pm.medicine.code} • {pm.medicine.form || "-"} • {pm.medicine.strength || "-"}</p>
                                           </div>
-                                          <Plus className="h-4 w-4 text-muted-foreground" />
+                                          <Badge variant={pm.quantity > pm.min_quantity ? "default" : "destructive"} className="shrink-0">
+                                            Stok {pm.quantity}
+                                          </Badge>
                                         </button>
                                       ))
                                     )}
                                   </div>
                                 </ScrollArea>
-
-                                {racikanItems.length > 0 ? (
-                                  <div className="border border-border/70 overflow-x-auto">
-                                    <table className="w-full text-xs min-w-[720px]">
-                                      <thead className="bg-muted/50 border-b border-border/70">
-                                        <tr>
-                                          <th className="py-2 px-2 text-left">Obat</th>
-                                          <th className="py-2 px-2 text-left w-[100px]">Qty Bahan</th>
-                                          <th className="py-2 px-2 text-left w-[120px]">Stok</th>
-                                          <th className="py-2 px-2 text-left w-[52px]">Aksi</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody>
-                                        {racikanItems.map((item, index) => (
-                                          <tr key={`racikan-item-${item.medicine_id}-${index}`} className="border-t align-top">
-                                            <td className="py-2 px-2">
-                                              <p className="font-medium">{item.medicine_name}</p>
-                                              <p className="text-[11px] text-muted-foreground">{item.medicine_code}</p>
-                                            </td>
-                                            <td className="py-2 px-2">
-                                              <Input
-                                                type="number"
-                                                min={1}
-                                                max={item.available_stock}
-                                                value={item.quantity}
-                                                onChange={(e) => handleUpdateRacikanItemQuantity(index, Number(e.target.value))}
-                                                className="h-7"
-                                              />
-                                            </td>
-                                            <td className="py-2 px-2 text-muted-foreground">{item.available_stock} {item.unit}</td>
-                                            <td className="py-2 px-2">
-                                              <Button
-                                                type="button"
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-7 w-7 text-destructive"
-                                                onClick={() => handleRemoveRacikanItem(index)}
-                                              >
-                                                <Trash2 className="h-4 w-4" />
-                                              </Button>
-                                            </td>
-                                          </tr>
-                                        ))}
-                                      </tbody>
-                                    </table>
-                                  </div>
-                                ) : (
-                                  <p className="text-xs text-muted-foreground">Belum ada komponen racikan. Tambahkan obat dari daftar di atas.</p>
-                                )}
                               </div>
                             </div>
                             <DialogFooter>
                               <Button variant="outline" onClick={() => setShowRacikanDialog(false)}>
-                                Batal
+                                Tutup
                               </Button>
                               <Button onClick={handleSaveRacikan} disabled={racikanItems.length === 0}>
                                 Simpan Racikan
@@ -2022,124 +2056,7 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
                       </div>
                     ) : (
                       <>
-                        <div className="space-y-3 md:hidden">
-                          {orderItems.map((item, index) => (
-                            <div key={index} className="rounded-lg border p-3 space-y-3">
-                              <div className="flex items-start justify-between gap-2">
-                                <div>
-                                  <p className="font-medium text-sm leading-5">{item.medicine_name}</p>
-                                  <p className="text-xs text-muted-foreground mt-0.5">{item.medicine_code} • Stok {item.available_stock} {item.unit}</p>
-                                </div>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 text-destructive shrink-0"
-                                  onClick={() => handleRemoveItem(index)}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </div>
-
-                              <div className="grid grid-cols-2 gap-2">
-                                <div className="space-y-1">
-                                  <Label className="text-xs">Jumlah*</Label>
-                                  <Input
-                                    type="number"
-                                    min={1}
-                                    max={item.available_stock}
-                                    value={item.quantity}
-                                    onChange={(e) => handleUpdateItemQuantity(index, Number(e.target.value))}
-                                    className={cn(plainFieldClass, itemErrors[index]?.length ? "border border-destructive bg-destructive/5" : "")}
-                                  />
-                                  <p className="text-[10px] text-muted-foreground">Maks {item.available_stock}</p>
-                                </div>
-                                <div className="space-y-1">
-                                  <Label className="text-xs">Dosis*</Label>
-                                  <Input
-                                    placeholder="Contoh: 3x1"
-                                    value={item.dosage}
-                                    onChange={(e) => handleUpdateItemField(index, "dosage", e.target.value)}
-                                    className={cn(plainFieldClass, itemErrors[index]?.length ? "border border-destructive bg-destructive/5" : "")}
-                                  />
-                                </div>
-                              </div>
-
-                              <div className="grid grid-cols-1 gap-2">
-                                <div className="space-y-1">
-                                  <Label className="text-xs">Frekuensi*</Label>
-                                  <Select
-                                    value={item.frequency}
-                                    onValueChange={(value) => handleUpdateItemField(index, "frequency", value)}
-                                  >
-                                    <SelectTrigger className={cn(plainFieldClass, itemErrors[index]?.length ? "border border-destructive bg-destructive/5" : "")}>
-                                      <SelectValue placeholder="Pilih" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {frequencyOptions.map((option) => (
-                                        <SelectItem key={option} value={option}>{option}</SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-
-                                <div className="space-y-1">
-                                  <Label className="text-xs">Rute*</Label>
-                                  <Select
-                                    value={item.route}
-                                    onValueChange={(value) => handleUpdateItemField(index, "route", value)}
-                                  >
-                                    <SelectTrigger className={cn(plainFieldClass, itemErrors[index]?.length ? "border border-destructive bg-destructive/5" : "")}>
-                                      <SelectValue placeholder="Pilih" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {routeOptions.map((option) => (
-                                        <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-
-                                <div className="space-y-1">
-                                  <Label className="text-xs">Durasi*</Label>
-                                  <Input
-                                    placeholder="Contoh: 7 hari"
-                                    value={item.duration}
-                                    onChange={(e) => handleUpdateItemField(index, "duration", e.target.value)}
-                                    className={cn(plainFieldClass, itemErrors[index]?.length ? "border border-destructive bg-destructive/5" : "")}
-                                  />
-                                </div>
-
-                                <div className="space-y-1">
-                                  <Label className="text-xs">Instruksi*</Label>
-                                  <Combobox
-                                    options={instructionOptions}
-                                    value={item.instructions}
-                                    onValueChange={(value) => handleUpdateItemField(index, "instructions", value)}
-                                    placeholder="Pilih instruksi"
-                                    searchPlaceholder="Cari instruksi..."
-                                    emptyText="Instruksi tidak ditemukan"
-                                    className={cn("w-full", itemErrors[index]?.length ? "border border-destructive bg-destructive/5" : "")}
-                                  />
-                                  {itemErrors[index]?.length ? (
-                                    <p className="text-[11px] text-destructive mt-1">{itemErrors[index][0]}</p>
-                                  ) : null}
-                                </div>
-                              </div>
-
-                              <div className="rounded-md bg-primary/5 p-2 text-right">
-                                <p className="text-xs text-muted-foreground">@ {formatRupiah(item.unit_price)}</p>
-                                <p className="text-sm font-semibold leading-4">{formatRupiah(item.quantity * item.unit_price)}</p>
-                              </div>
-                            </div>
-                          ))}
-
-                          <div className="rounded-lg border bg-primary/5 p-3 text-right">
-                            <p className="text-sm font-medium text-muted-foreground">Grand Total</p>
-                            <p className="text-lg font-bold text-primary">{formatRupiah(orderGrandTotal)}</p>
-                          </div>
-                        </div>
-
-                        <div className="hidden md:block border border-border/70 overflow-x-auto">
+                        <div className="border border-border/70 overflow-x-auto">
                           <table className="w-full text-sm min-w-[980px]">
                             <thead className="bg-muted/50 border-b border-border/70">
                               <tr>
@@ -2162,12 +2079,7 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
                                   });
                                   const groupKey = group.racikanGroup || group.key;
                                   const isExpanded = expandedRacikanGroups[groupKey] ?? groupHasError;
-                                  const detailSummary = [
-                                    group.sharedFields.dosage || "-",
-                                    group.sharedFields.frequency || "-",
-                                    getRouteLabel(group.sharedFields.route),
-                                    group.sharedFields.duration || "-",
-                                  ].join(" • ");
+                                  const detailSummary = [group.sharedFields.dosage || "-", group.sharedFields.frequency || "-"].join(" • ");
 
                                   return (
                                     <Fragment key={group.key}>
@@ -2250,12 +2162,7 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
 
                                 const item = group.items[0];
                                 const index = orderItems.findIndex((candidate) => candidate === item);
-                                const detailSummary = [
-                                  item.dosage || "-",
-                                  item.frequency || "-",
-                                  getRouteLabel(item.route),
-                                  item.duration || "-",
-                                ].join(" • ");
+                                const detailSummary = [item.dosage || "-", item.frequency || "-"].join(" • ");
                                 const hasError = Boolean(itemErrors[index]?.length);
 
                                 return (
@@ -2267,6 +2174,7 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
                                     <td className="py-2 px-3">
                                       <p className="truncate">{detailSummary}</p>
                                       <p className="text-xs text-muted-foreground truncate">Instruksi: {item.instructions || "-"}</p>
+                                      {item.notes ? <p className="text-xs text-muted-foreground truncate">Catatan: {item.notes}</p> : null}
                                     </td>
                                     <td className="py-2 px-3 font-medium">{item.quantity} {item.unit}</td>
                                     <td className="py-2 px-3 text-right">
@@ -2329,6 +2237,7 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
                         if (!open) {
                           setEditingItemIndex(null);
                           setEditingItemDraft(null);
+                          setEditingMedicineSearch("");
                         }
                       }}
                     >
@@ -2336,7 +2245,7 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
                         <DialogHeader>
                           <DialogTitle>Edit Detail Obat</DialogTitle>
                           <DialogDescription>
-                            Ubah detail resep dari tombol aksi pada row.
+                            Ubah obat, detail resep, dan catatan tambahan dari tombol aksi pada row.
                           </DialogDescription>
                         </DialogHeader>
 
@@ -2348,6 +2257,57 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              <div className="space-y-1 md:col-span-2">
+                                <Label>Ganti Obat</Label>
+                                <Combobox
+                                  options={pharmacyMedicines
+                                    .filter((medicine) =>
+                                      medicine.medicine.id === editingItemDraft.medicine_id ||
+                                      !orderItems.some((item, index) => index !== editingItemIndex && item.medicine_id === medicine.medicine.id),
+                                    )
+                                    .filter((medicine) =>
+                                      !editingMedicineSearch ||
+                                      medicine.medicine.name.toLowerCase().includes(editingMedicineSearch.toLowerCase()) ||
+                                      medicine.medicine.code.toLowerCase().includes(editingMedicineSearch.toLowerCase()),
+                                    )
+                                    .map((medicine) => ({
+                                      value: String(medicine.medicine.id),
+                                      label: `${medicine.medicine.name} (${medicine.medicine.code})`,
+                                    }))}
+                                  value={String(editingItemDraft.medicine_id)}
+                                  onSearchChange={setEditingMedicineSearch}
+                                  onValueChange={(value) => {
+                                    const nextMedicine = pharmacyMedicines.find((medicine) => medicine.medicine.id === Number(value));
+                                    if (!nextMedicine) return;
+                                    const nextUnitPrice =
+                                      nextMedicine.medicine.selling_price ||
+                                      nextMedicine.medicine.unit_price ||
+                                      nextMedicine.medicine.price ||
+                                      nextMedicine.unit_price ||
+                                      nextMedicine.price ||
+                                      nextMedicine.selling_price ||
+                                      0;
+                                    setEditingItemDraft((prev) =>
+                                      prev
+                                        ? {
+                                            ...prev,
+                                            medicine_id: nextMedicine.medicine.id,
+                                            medicine_name: nextMedicine.medicine.name,
+                                            medicine_code: nextMedicine.medicine.code,
+                                            unit: nextMedicine.medicine.unit,
+                                            available_stock: nextMedicine.quantity,
+                                            unit_price: nextUnitPrice,
+                                            quantity: Math.min(prev.quantity, Math.max(1, nextMedicine.quantity)),
+                                          }
+                                        : prev,
+                                    );
+                                  }}
+                                  placeholder="Pilih obat pengganti"
+                                  searchPlaceholder="Cari obat..."
+                                  emptyText="Obat tidak ditemukan"
+                                  className="w-full"
+                                />
+                              </div>
                               <div className="space-y-1">
                                 <Label>Jumlah</Label>
                                 <Input
@@ -2368,49 +2328,37 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
                               </div>
                               <div className="space-y-1">
                                 <Label>Frekuensi</Label>
-                                <Select
+                                <Combobox
+                                  options={frequencyOptions.map((option) => ({ value: option, label: option }))}
                                   value={editingItemDraft.frequency}
                                   onValueChange={(value) => setEditingItemDraft((prev) => prev ? ({ ...prev, frequency: value }) : prev)}
-                                >
-                                  <SelectTrigger><SelectValue placeholder="Pilih frekuensi" /></SelectTrigger>
-                                  <SelectContent>
-                                    {frequencyOptions.map((option) => (
-                                      <SelectItem key={`edit-item-freq-${option}`} value={option}>{option}</SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                              <div className="space-y-1">
-                                <Label>Rute</Label>
-                                <Select
-                                  value={editingItemDraft.route}
-                                  onValueChange={(value) => setEditingItemDraft((prev) => prev ? ({ ...prev, route: value }) : prev)}
-                                >
-                                  <SelectTrigger><SelectValue placeholder="Pilih rute" /></SelectTrigger>
-                                  <SelectContent>
-                                    {routeOptions.map((option) => (
-                                      <SelectItem key={`edit-item-route-${option.value}`} value={option.value}>{option.label}</SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                              <div className="space-y-1 md:col-span-2">
-                                <Label>Durasi</Label>
-                                <Input
-                                  value={editingItemDraft.duration}
-                                  onChange={(e) => setEditingItemDraft((prev) => prev ? ({ ...prev, duration: e.target.value }) : prev)}
+                                  allowCustomValue
+                                  placeholder="Pilih frekuensi"
+                                  searchPlaceholder="Cari frekuensi..."
+                                  emptyText="Frekuensi tidak ditemukan"
+                                  className="w-full"
                                 />
                               </div>
-                              <div className="space-y-1 md:col-span-2">
-                                <Label>Instruksi</Label>
+                              <div className="space-y-1">
+                                <Label>Cara Pakai</Label>
                                 <Combobox
                                   options={instructionOptions}
                                   value={editingItemDraft.instructions}
                                   onValueChange={(value) => setEditingItemDraft((prev) => prev ? ({ ...prev, instructions: value }) : prev)}
-                                  placeholder="Pilih instruksi"
-                                  searchPlaceholder="Cari instruksi..."
-                                  emptyText="Instruksi tidak ditemukan"
+                                  allowCustomValue
+                                  placeholder="Pilih cara pakai"
+                                  searchPlaceholder="Cari cara pakai..."
+                                  emptyText="Cara pakai tidak ditemukan"
                                   className="w-full"
+                                />
+                              </div>
+                              <div className="space-y-1 md:col-span-2">
+                                <Label>Catatan Tambahan</Label>
+                                <Textarea
+                                  placeholder="Opsional"
+                                  value={editingItemDraft.notes}
+                                  onChange={(e) => setEditingItemDraft((prev) => prev ? ({ ...prev, notes: e.target.value }) : prev)}
+                                  rows={3}
                                 />
                               </div>
                             </div>
@@ -2439,199 +2387,213 @@ export function MedicineOrderForm({ visitId, sourceServiceType, readOnly = false
                         }
                       }}
                     >
-                      <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+                      <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-[98vw] 2xl:max-w-[1520px] max-h-[92vh] overflow-hidden flex flex-col">
                         <DialogHeader>
-                          <DialogTitle>Edit Racikan</DialogTitle>
+                          <DialogTitle>Edit Detail Racikan</DialogTitle>
                           <DialogDescription>
-                            Ubah detail racikan dan komponen dari tombol aksi pada row racikan.
+                            Atur detail racikan dan jumlah bahan dari satu tombol aksi.
                           </DialogDescription>
                         </DialogHeader>
 
-                        <div className="space-y-3 overflow-y-auto pr-1">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <div className="space-y-1">
-                              <Label>Nama Racikan</Label>
-                              <Input
-                                value={editingRacikanMeta.name}
-                                onChange={(e) => setEditingRacikanMeta((prev) => ({ ...prev, name: e.target.value }))}
-                              />
+                        <div className="grid flex-1 gap-4 overflow-y-auto pr-1 xl:grid-cols-[minmax(0,1.2fr)_minmax(400px,0.8fr)]">
+                          <div className="space-y-4">
+                            <div className="rounded-lg border p-4 space-y-4">
+                              <div className="flex items-center justify-between gap-2">
+                                <div>
+                                  <h4 className="text-sm font-semibold">Detail Racikan</h4>
+                                  <p className="text-xs text-muted-foreground">Atur identitas racikan dan aturan pakai tanpa field yang tidak diperlukan.</p>
+                                </div>
+                                <Badge variant="outline">{editingRacikanComponents.length} komponen</Badge>
+                              </div>
+
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div className="space-y-1">
+                                  <Label>Nama Racikan</Label>
+                                  <Input
+                                    value={editingRacikanMeta.name}
+                                    onChange={(e) => setEditingRacikanMeta((prev) => ({ ...prev, name: e.target.value }))}
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <Label>Jenis Racikan</Label>
+                                  <Select
+                                    value={editingRacikanMeta.type}
+                                    onValueChange={(value) => setEditingRacikanMeta((prev) => ({ ...prev, type: value }))}
+                                  >
+                                    <SelectTrigger><SelectValue placeholder="Pilih jenis" /></SelectTrigger>
+                                    <SelectContent>
+                                      {RACIKAN_TYPE_OPTIONS.map((option) => (
+                                        <SelectItem key={`edit-racikan-type-${option}`} value={option}>{option}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                <div className="space-y-1">
+                                  <Label>Jumlah Hasil</Label>
+                                  <Input
+                                    type="number"
+                                    min={1}
+                                    value={editingRacikanMeta.qty}
+                                    onChange={(e) => setEditingRacikanMeta((prev) => ({ ...prev, qty: Number(e.target.value) || 1 }))}
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <Label>Satuan Hasil</Label>
+                                  <Input
+                                    value={editingRacikanMeta.unit}
+                                    onChange={(e) => setEditingRacikanMeta((prev) => ({ ...prev, unit: e.target.value }))}
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <Label>Dosis</Label>
+                                  <Input
+                                    value={editingRacikanMeta.dosage}
+                                    onChange={(e) => setEditingRacikanMeta((prev) => ({ ...prev, dosage: e.target.value }))}
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                                <div className="space-y-1">
+                                  <Label>Frekuensi</Label>
+                                  <Combobox
+                                    options={frequencyOptions.map((option) => ({ value: option, label: option }))}
+                                    value={editingRacikanMeta.frequency}
+                                    onValueChange={(value) => setEditingRacikanMeta((prev) => ({ ...prev, frequency: value }))}
+                                    allowCustomValue
+                                    placeholder="Pilih frekuensi"
+                                    searchPlaceholder="Cari frekuensi..."
+                                    emptyText="Frekuensi tidak ditemukan"
+                                    className="w-full"
+                                  />
+                                </div>
+                                <div className="space-y-1 md:col-span-1 xl:col-span-2">
+                                  <Label>Cara Pakai</Label>
+                                  <Combobox
+                                    options={instructionOptions}
+                                    value={editingRacikanMeta.instructions}
+                                    onValueChange={(value) => setEditingRacikanMeta((prev) => ({ ...prev, instructions: value }))}
+                                    allowCustomValue
+                                    placeholder="Pilih cara pakai"
+                                    searchPlaceholder="Cari cara pakai..."
+                                    emptyText="Cara pakai tidak ditemukan"
+                                    className="w-full"
+                                  />
+                                </div>
+                              </div>
                             </div>
-                            <div className="space-y-1">
-                              <Label>Jenis Racikan</Label>
-                              <Select
-                                value={editingRacikanMeta.type}
-                                onValueChange={(value) => setEditingRacikanMeta((prev) => ({ ...prev, type: value }))}
-                              >
-                                <SelectTrigger><SelectValue placeholder="Pilih jenis" /></SelectTrigger>
-                                <SelectContent>
-                                  {RACIKAN_TYPE_OPTIONS.map((option) => (
-                                    <SelectItem key={`edit-racikan-type-${option}`} value={option}>{option}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+
+                            <div className="rounded-lg border p-4 space-y-3">
+                              <div className="flex items-center justify-between gap-2">
+                                <div>
+                                  <h4 className="text-sm font-semibold">Komponen Terpilih</h4>
+                                  <p className="text-xs text-muted-foreground">Atur jumlah tiap bahan tanpa keluar dari modal.</p>
+                                </div>
+                                <Badge variant="secondary">{editingRacikanComponents.length}</Badge>
+                              </div>
+
+                              <div className="overflow-x-auto rounded-md border">
+                                <table className="w-full min-w-[780px] text-sm">
+                                  <thead className="bg-muted/50 border-b">
+                                    <tr>
+                                      <th className="py-2 px-3 text-left font-medium">Nama Bahan</th>
+                                      <th className="py-2 px-3 text-left font-medium w-[140px]">Dosis Bahan</th>
+                                      <th className="py-2 px-3 text-left font-medium w-[140px]">Qty Bahan</th>
+                                      <th className="py-2 px-3 text-left font-medium w-[180px]">Info</th>
+                                      <th className="py-2 px-3 text-center font-medium w-[72px]">Aksi</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {editingRacikanComponents.map((item, index) => (
+                                      <tr key={`edit-racikan-comp-${item.medicine_id}-${index}`} className="border-t align-top">
+                                        <td className="py-2 px-3">
+                                          <p className="font-medium text-sm truncate">{item.medicine_name}</p>
+                                          <p className="text-xs text-muted-foreground truncate">{item.medicine_code}</p>
+                                        </td>
+                                        <td className="py-2 px-3">
+                                          <Input
+                                            value={item.dosage}
+                                            onChange={(e) => handleEditRacikanComponentDosage(index, e.target.value)}
+                                            placeholder="Contoh: 1/2 tablet"
+                                            className="h-8"
+                                          />
+                                        </td>
+                                        <td className="py-2 px-3">
+                                          <Input
+                                            type="number"
+                                            min={1}
+                                            max={item.available_stock}
+                                            value={item.quantity}
+                                            onChange={(e) => handleEditRacikanComponentQuantity(index, Number(e.target.value))}
+                                            className="h-8 w-28"
+                                          />
+                                        </td>
+                                        <td className="py-2 px-3 text-xs text-muted-foreground">Stok tersedia {item.available_stock} {item.unit}</td>
+                                        <td className="py-2 px-3 text-center">
+                                          <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-8 w-8 text-destructive"
+                                            onClick={() => handleRemoveEditingRacikanComponent(index)}
+                                          >
+                                            <Trash2 className="h-4 w-4" />
+                                          </Button>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
                             </div>
                           </div>
 
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                            <div className="space-y-1">
-                              <Label>Jumlah Hasil</Label>
-                              <Input
-                                type="number"
-                                min={1}
-                                value={editingRacikanMeta.qty}
-                                onChange={(e) => setEditingRacikanMeta((prev) => ({ ...prev, qty: Number(e.target.value) || 1 }))}
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label>Satuan Hasil</Label>
-                              <Input
-                                value={editingRacikanMeta.unit}
-                                onChange={(e) => setEditingRacikanMeta((prev) => ({ ...prev, unit: e.target.value }))}
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label>Dosis</Label>
-                              <Input
-                                value={editingRacikanMeta.dosage}
-                                onChange={(e) => setEditingRacikanMeta((prev) => ({ ...prev, dosage: e.target.value }))}
-                              />
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                            <div className="space-y-1">
-                              <Label>Frekuensi</Label>
-                              <Select
-                                value={editingRacikanMeta.frequency}
-                                onValueChange={(value) => setEditingRacikanMeta((prev) => ({ ...prev, frequency: value }))}
-                              >
-                                <SelectTrigger><SelectValue placeholder="Pilih frekuensi" /></SelectTrigger>
-                                <SelectContent>
-                                  {frequencyOptions.map((option) => (
-                                    <SelectItem key={`edit-racikan-freq-${option}`} value={option}>{option}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            <div className="space-y-1">
-                              <Label>Rute</Label>
-                              <Select
-                                value={editingRacikanMeta.route}
-                                onValueChange={(value) => setEditingRacikanMeta((prev) => ({ ...prev, route: value }))}
-                              >
-                                <SelectTrigger><SelectValue placeholder="Pilih rute" /></SelectTrigger>
-                                <SelectContent>
-                                  {routeOptions.map((option) => (
-                                    <SelectItem key={`edit-racikan-route-${option.value}`} value={option.value}>{option.label}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            <div className="space-y-1">
-                              <Label>Durasi</Label>
-                              <Input
-                                value={editingRacikanMeta.duration}
-                                onChange={(e) => setEditingRacikanMeta((prev) => ({ ...prev, duration: e.target.value }))}
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label>Instruksi</Label>
-                              <Combobox
-                                options={instructionOptions}
-                                value={editingRacikanMeta.instructions}
-                                onValueChange={(value) => setEditingRacikanMeta((prev) => ({ ...prev, instructions: value }))}
-                                placeholder="Pilih instruksi"
-                                searchPlaceholder="Cari instruksi..."
-                                emptyText="Instruksi tidak ditemukan"
-                              />
-                            </div>
-                          </div>
-
-                          <div className="space-y-2 border rounded-md p-3">
+                          <div className="rounded-lg border p-4 space-y-3 h-fit">
                             <div className="flex items-center justify-between gap-2">
-                              <Label className="text-sm font-medium">Komponen Racikan</Label>
-                              <Badge variant="outline">{editingRacikanComponents.length} komponen</Badge>
+                              <div>
+                                <h4 className="text-sm font-semibold">Pilih Bahan Obat</h4>
+                                <p className="text-xs text-muted-foreground">Daftar dipersingkat saat belum mencari supaya modal lebih fokus.</p>
+                              </div>
+                              <Badge variant="outline">{filteredEditingRacikanMedicines.length} kandidat</Badge>
                             </div>
                             <div className="relative">
                               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                               <Input
-                                placeholder="Cari obat untuk ditambahkan..."
+                                placeholder="Cari nama atau kode obat..."
                                 className="pl-9"
                                 value={editingRacikanSearch}
                                 onChange={(e) => setEditingRacikanSearch(e.target.value)}
                               />
                             </div>
-                            <ScrollArea className="h-36 border rounded-md">
+                            <ScrollArea className="h-[24rem] border rounded-md">
                               <div className="divide-y">
                                 {filteredEditingRacikanMedicines.length === 0 ? (
-                                  <div className="text-center py-6 text-sm text-muted-foreground">
-                                    {editingRacikanSearch ? "Obat tidak ditemukan" : "Semua obat sudah menjadi komponen"}
+                                  <div className="text-center py-8 text-sm text-muted-foreground">
+                                    {editingRacikanSearch ? "Tidak ada obat yang sesuai" : "Semua bahan sudah dipilih"}
                                   </div>
                                 ) : (
                                   filteredEditingRacikanMedicines.map((pm) => (
                                     <button
                                       key={`edit-racikan-add-${pm.id}`}
                                       type="button"
-                                      className="w-full p-2.5 hover:bg-muted/50 flex items-center justify-between text-left"
+                                      className="w-full p-3 hover:bg-muted/50 flex items-start justify-between gap-3 text-left"
                                       onClick={() => handleAddEditingRacikanComponent(pm)}
                                     >
-                                      <div>
-                                        <p className="text-sm font-medium">{pm.medicine.name}</p>
-                                        <p className="text-xs text-muted-foreground">{pm.medicine.code} • Stok {pm.quantity}</p>
+                                      <div className="min-w-0">
+                                        <p className="font-medium text-sm truncate">{pm.medicine.name}</p>
+                                        <p className="text-xs text-muted-foreground truncate">{pm.medicine.code} • {pm.medicine.form || "-"} • {pm.medicine.strength || "-"}</p>
                                       </div>
-                                      <Plus className="h-4 w-4 text-muted-foreground" />
+                                      <Badge variant={pm.quantity > pm.min_quantity ? "default" : "destructive"} className="shrink-0">
+                                        Stok {pm.quantity}
+                                      </Badge>
                                     </button>
                                   ))
                                 )}
                               </div>
                             </ScrollArea>
-
-                            <div className="border border-border/70 overflow-x-auto mt-2">
-                              <table className="w-full text-sm min-w-[680px]">
-                                <thead className="bg-muted/50 border-b border-border/70">
-                                  <tr>
-                                    <th className="py-2 px-3 text-left">Obat</th>
-                                    <th className="py-2 px-3 text-left w-[120px]">Qty Bahan</th>
-                                    <th className="py-2 px-3 text-left w-[120px]">Stok</th>
-                                    <th className="py-2 px-3 text-right w-[140px]">Subtotal</th>
-                                    <th className="py-2 px-3 text-left w-[56px]">Aksi</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {editingRacikanComponents.map((item, index) => (
-                                    <tr key={`edit-racikan-comp-${item.medicine_id}-${index}`} className="border-t">
-                                      <td className="py-2 px-2">
-                                        <p className="font-medium">{item.medicine_name}</p>
-                                        <p className="text-xs text-muted-foreground">{item.medicine_code}</p>
-                                      </td>
-                                      <td className="py-2 px-2">
-                                        <Input
-                                          type="number"
-                                          min={1}
-                                          max={item.available_stock}
-                                          value={item.quantity}
-                                          onChange={(e) => handleEditRacikanComponentQuantity(index, Number(e.target.value))}
-                                          className="h-8"
-                                        />
-                                      </td>
-                                      <td className="py-2 px-2 text-muted-foreground">{item.available_stock} {item.unit}</td>
-                                      <td className="py-2 px-2 text-right font-medium">{formatRupiah(item.quantity * item.unit_price)}</td>
-                                      <td className="py-2 px-2">
-                                        <Button
-                                          type="button"
-                                          variant="ghost"
-                                          size="icon"
-                                          className="h-8 w-8 text-destructive"
-                                          onClick={() => handleRemoveEditingRacikanComponent(index)}
-                                        >
-                                          <Trash2 className="h-4 w-4" />
-                                        </Button>
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
                           </div>
                         </div>
 
