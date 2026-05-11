@@ -328,11 +328,19 @@ export default function PurchaseReceive() {
     return null;
   }
 
+  const isFollowUpReceipt = purchase.status === "partial";
+  const receivePageTitle = isFollowUpReceipt
+    ? `Terima Lagi ${purchase.purchase_number}`
+    : `Terima Barang ${purchase.purchase_number}`;
+  const receivePageDescription = isFollowUpReceipt
+    ? "Lanjutkan penerimaan item yang masih tersisa dari pembelian ini."
+    : "Catat item yang datang dan selesaikan sisa penerimaan per item.";
+
   return (
     <PageShell className="lg:overflow-hidden">
       <PageHeader
-        title={`Terima Barang ${purchase.purchase_number}`}
-        description="Catat item yang datang dan selesaikan sisa penerimaan per item."
+        title={receivePageTitle}
+        description={receivePageDescription}
         actions={
           <Button variant="outline" size="sm" onClick={() => navigate(`/purchases/${id}`)}>
             <ArrowLeft className="mr-2 h-4 w-4" />

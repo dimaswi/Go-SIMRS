@@ -13,6 +13,7 @@ import { MedicineRoutes } from './MedicineRoutes';
 import { StockRequestRoutes } from './StockRequestRoutes';
 import { DistributionRoutes } from './DistributionRoutes';
 import { PurchaseRoutes } from './PurchaseRoutes';
+import { LogisticsRoutes } from './LogisticsRoutes';
 import { StockOpnameRoutes } from './StockOpnameRoutes';
 import SupplierRoutes from './SupplierRoutes';
 import { RoomStockRoutes } from './RoomStockRoutes';
@@ -38,6 +39,7 @@ export {
   StockRequestRoutes,
   DistributionRoutes,
   PurchaseRoutes,
+  LogisticsRoutes,
   StockOpnameRoutes,
   SupplierRoutes,
   RoomStockRoutes,

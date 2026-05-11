@@ -173,6 +173,7 @@ export function createPurchaseColumns({
         const canReceive =
           hasReceivePermission &&
           (purchase.status === "ordered" || purchase.status === "partial");
+        const receiveLabel = purchase.status === "partial" ? "Terima Lagi" : "Terima Barang";
 
         return (
           <DropdownMenu>
@@ -196,7 +197,7 @@ export function createPurchaseColumns({
               {canReceive && (
                 <DropdownMenuItem onClick={() => onReceive(purchase.id)}>
                   <PackageCheck className="mr-2 h-4 w-4" />
-                  Terima Barang
+                  {receiveLabel}
                 </DropdownMenuItem>
               )}
               {canDelete && (

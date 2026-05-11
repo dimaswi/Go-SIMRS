@@ -88,6 +88,18 @@ import {
 import { cn } from '@/lib/utils';
 import { DASHBOARD_ACCESS_PERMISSIONS } from '@/pages/dashboard/config';
 
+const LOGISTICS_ACCESS_PERMISSIONS = [
+  'medicines.view',
+  'inventories.view',
+  'suppliers.view',
+  'stock_requests.view',
+  'distributions.view',
+  'purchases.view',
+  'stock_opname.view',
+  'room-medicines.view',
+  'room-inventories.view',
+];
+
 interface MenuItem {
   path: string;
   label: string;
@@ -141,9 +153,11 @@ const menuItems: MenuItem[] = [
   },
   {
     path: '/logistics',
+
     label: 'Logistik',
     icon: Send,
     submenu: [
+      { path: '/logistics', label: 'Dashboard', icon: LayoutDashboard, exact: true },
       { path: '/medicines', label: 'Master Obat', icon: Pill, permission: 'medicines.view' },
       { path: '/inventories', label: 'Master Inventaris', icon: Package, permission: 'inventories.view' },
       { path: '/suppliers', label: 'Master Supplier', icon: Truck, permission: 'suppliers.view' },
@@ -293,6 +307,10 @@ function hasMenuItemAccess(item: MenuItem, hasPermission: (permission: string) =
     return hasDashboardMenuAccess(hasPermission);
   }
 
+  if (item.path === '/logistics') {
+    return LOGISTICS_ACCESS_PERMISSIONS.some((permission) => hasPermission(permission));
+  }
+
   if (!item.permission) {
     return true;
   }
@@ -309,6 +327,7 @@ function TreeChild({
   isActive: boolean;
 }) {
   const Icon = item.icon;
+
 
   return (
     <li>

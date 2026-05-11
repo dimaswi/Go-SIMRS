@@ -281,6 +281,15 @@ export default function PurchaseShow() {
   const canReceive =
     hasPermission("purchases.receive") &&
     (status === "ordered" || status === "partial");
+  const receiveActionLabel = status === "partial" ? "Terima Lagi" : "Terima Barang";
+  const incompleteItems = (purchase.items || []).filter(
+    (item) => (item.quantity_received || 0) < item.quantity_ordered,
+  );
+  const incompleteItemCount = incompleteItems.length;
+  const remainingReceiptQuantity = incompleteItems.reduce(
+    (total, item) => total + Math.max(item.quantity_ordered - (item.quantity_received || 0), 0),
+    0,
+  );
   const canRecordPayment =
     hasPermission("purchases.update") &&
     status !== "cancelled" &&
@@ -349,6 +358,11 @@ export default function PurchaseShow() {
                     <Badge className={statusColors[status]}>
                       {statusLabels[status]}
                     </Badge>
+                    {status === "partial" && incompleteItemCount > 0 ? (
+                      <p className="mt-1 text-[11px] leading-4 text-amber-700">
+                        Sisa {incompleteItemCount} item, {remainingReceiptQuantity} unit belum diterima.
+                      </p>
+                    ) : null}
                   </div>
                 </div>
                 </div>
@@ -576,9 +590,16 @@ export default function PurchaseShow() {
               </div>
 
               <div className="flex shrink-0 items-center justify-between border-t border-border/70 px-2.5 py-2.5 sm:px-3">
-                <Button size="sm" variant="outline" onClick={() => navigate("/purchases")}>
-                  Kembali
-                </Button>
+                <div className="flex items-center gap-3">
+                  <Button size="sm" variant="outline" onClick={() => navigate("/purchases")}>
+                    Kembali
+                  </Button>
+                  {status === "partial" && incompleteItemCount > 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      Menunggu penerimaan lanjutan untuk {incompleteItemCount} item dengan sisa {remainingReceiptQuantity} unit.
+                    </p>
+                  ) : null}
+                </div>
                 <div className="flex flex-wrap gap-2">
                 {canEdit && (
                   <Button
@@ -638,7 +659,7 @@ export default function PurchaseShow() {
                 {canReceive && (
                   <Button size="sm" onClick={() => navigate(`/purchases/${id}/receive`)}>
                     <PackageCheck className="mr-2 h-4 w-4" />
-                    Terima Barang
+                    {receiveActionLabel}
                   </Button>
                 )}
               </div>

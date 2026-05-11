@@ -199,6 +199,54 @@ func generatePurchasePaymentNumber() string {
 	return fmt.Sprintf("PPAY-%s-%04d", time.Now().Format("2006"), count+1)
 }
 
+func derivePurchaseReceiptStatus(purchase *models.Purchase) string {
+	if purchase == nil {
+		return "draft"
+	}
+
+	switch purchase.Status {
+	case "draft", "pending", "cancelled":
+		return purchase.Status
+	}
+
+	if len(purchase.Items) == 0 {
+		return purchase.Status
+	}
+
+	hasReceived := false
+	allReceived := true
+	for _, item := range purchase.Items {
+		if item.QuantityReceived > 0 {
+			hasReceived = true
+		}
+		if item.QuantityReceived < item.QuantityOrdered {
+			allReceived = false
+		}
+	}
+
+	if allReceived {
+		return "received"
+	}
+	if hasReceived {
+		return "partial"
+	}
+	return "ordered"
+}
+
+func syncPurchaseReceiptStatus(purchase *models.Purchase) {
+	if purchase == nil {
+		return
+	}
+
+	nextStatus := derivePurchaseReceiptStatus(purchase)
+	if nextStatus == "" || nextStatus == purchase.Status {
+		return
+	}
+
+	purchase.Status = nextStatus
+	_ = database.DB.Model(&models.Purchase{}).Where("id = ?", purchase.ID).Update("status", nextStatus).Error
+}
+
 // GetPurchases godoc
 // @Summary Get all purchases
 // @Description Get all purchases with pagination and filters
@@ -237,6 +285,9 @@ func GetPurchases(c *gin.Context) {
 	query.Model(&models.Purchase{}).Count(&total)
 
 	query.Order("created_at DESC").Limit(limit).Offset(offset).Find(&purchases)
+	for index := range purchases {
+		syncPurchaseReceiptStatus(&purchases[index])
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"data": purchases,
@@ -268,6 +319,8 @@ func GetPurchase(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Purchase not found"})
 		return
 	}
+
+	syncPurchaseReceiptStatus(&purchase)
 
 	c.JSON(http.StatusOK, gin.H{"data": purchase})
 }
@@ -722,11 +775,26 @@ func ReceivePurchase(c *gin.Context) {
 
 	tx := database.DB.Begin()
 
-	allReceived := true
+	itemByID := make(map[uint]models.PurchaseItem, len(purchase.Items))
+	receivedQuantities := make(map[uint]int, len(purchase.Items))
+	for _, purchaseItem := range purchase.Items {
+		itemByID[purchaseItem.ID] = purchaseItem
+		receivedQuantities[purchaseItem.ID] = purchaseItem.QuantityReceived
+	}
+
 	for _, itemInput := range input.Items {
+		purchaseItem, exists := itemByID[itemInput.ID]
+		if !exists {
+			tx.Rollback()
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Item penerimaan tidak termasuk dalam pembelian ini"})
+			return
+		}
+
 		var item models.PurchaseItem
 		if err := tx.Preload("Inventory").Preload("Medicine").First(&item, itemInput.ID).Error; err != nil {
-			continue
+			tx.Rollback()
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Item pembelian tidak ditemukan"})
+			return
 		}
 
 		// Parse expiry date if provided
@@ -740,8 +808,14 @@ func ReceivePurchase(c *gin.Context) {
 
 		// Calculate quantity being received this time
 		qtyReceiving := itemInput.QuantityReceived
+		newTotalReceived := item.QuantityReceived + qtyReceiving
+		if newTotalReceived > purchaseItem.QuantityOrdered {
+			tx.Rollback()
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Jumlah diterima untuk item %d melebihi qty yang dipesan", item.ID)})
+			return
+		}
 
-		item.QuantityReceived += qtyReceiving
+		item.QuantityReceived = newTotalReceived
 		if itemInput.BatchNumber != "" {
 			item.BatchNumber = itemInput.BatchNumber
 		}
@@ -750,10 +824,7 @@ func ReceivePurchase(c *gin.Context) {
 		}
 
 		tx.Save(&item)
-
-		if item.QuantityReceived < item.QuantityOrdered {
-			allReceived = false
-		}
+		receivedQuantities[item.ID] = item.QuantityReceived
 
 		// Add stock to room - only if quantity being received > 0
 		if qtyReceiving > 0 {
@@ -849,6 +920,14 @@ func ReceivePurchase(c *gin.Context) {
 	}
 
 	// Update purchase status
+	allReceived := len(purchase.Items) > 0
+	for _, purchaseItem := range purchase.Items {
+		if receivedQuantities[purchaseItem.ID] < purchaseItem.QuantityOrdered {
+			allReceived = false
+			break
+		}
+	}
+
 	now2 := time.Now()
 	userIDUint := userID.(uint)
 	if allReceived {
