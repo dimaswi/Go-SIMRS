@@ -323,16 +323,22 @@ export function DataTable<TData, TValue>({
 
             <TableBody>
               {table.getRowModel().rows.length ? (
-                table.getRowModel().rows.map((row) => {
+                table.getRowModel().rows.map((row, rowIndex) => {
                   const subRowRenderer = (meta as Record<string, unknown>)
                     ?.renderSubRow as
                     | ((data: TData) => React.ReactNode)
                     | undefined;
                   return (
                     <React.Fragment key={row.id}>
-                      <TableRow data-state={row.getIsSelected() && "selected"}>
+                      <TableRow
+                        data-state={row.getIsSelected() && "selected"}
+                        className="border-b-0"
+                      >
                         {row.getVisibleCells().map((cell) => (
-                          <TableCell key={cell.id}>
+                          <TableCell
+                            key={cell.id}
+                            className={rowIndex > 0 ? "border-t border-border" : undefined}
+                          >
                             {flexRender(
                               cell.column.columnDef.cell,
                               cell.getContext(),
