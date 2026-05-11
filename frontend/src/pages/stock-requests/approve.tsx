@@ -322,226 +322,225 @@ export default function StockRequestApprove() {
           <div className="border border-border/70 bg-gradient-to-br from-background via-background to-rose-50/40 px-4 py-3 shadow-sm"><div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Ruang Pemohon</div><div className="mt-1 text-sm font-semibold text-foreground">{request.from_room?.name || "-"}</div></div>
         </div>
 
-      <div className="flex-1 space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11">
-        <SectionPanel icon={CheckCheck} title="Informasi Permintaan" description="Lihat prioritas, ruangan asal-tujuan, dan alasan sebelum menyetujui distribusi stok.">
-          <div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-              <div className="space-y-1 lg:col-span-2">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <AlertTriangle className="h-4 w-4" />
-                  No. Permintaan & Prioritas
+        <div className="flex-1 space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11">
+          <SectionPanel icon={CheckCheck} title="Informasi Permintaan" description="Lihat prioritas, ruangan asal-tujuan, dan alasan sebelum menyetujui distribusi stok.">
+            <div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+                <div className="space-y-1 lg:col-span-2">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <AlertTriangle className="h-4 w-4" />
+                    No. Permintaan & Prioritas
+                  </div>
+                  <div className="flex items-center gap-2 mt-1">
+                    <p className="font-medium font-mono text-base">{request.request_number}</p>
+                    <Badge variant="outline" className={priorityColors[request.priority]}>
+                      Prioritas: {priorityLabels[request.priority]}
+                    </Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {requestTypeLabels[request.request_type]}
+                  </p>
                 </div>
-                <div className="flex items-center gap-2 mt-1">
-                  <p className="font-medium font-mono text-base">{request.request_number}</p>
-                  <Badge variant="outline" className={priorityColors[request.priority]}>
-                    Prioritas: {priorityLabels[request.priority]}
-                  </Badge>
-                </div>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {requestTypeLabels[request.request_type]}
-                </p>
-              </div>
-              {/* From Room */}
-              <div className="space-y-1">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Building className="h-4 w-4" />
-                  Dari Ruangan
-                </div>
-                <p className="font-medium">
-                  {request.from_room?.code} - {request.from_room?.name}
-                </p>
-              </div>
-
-              {/* To Room */}
-              <div className="space-y-1">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Building className="h-4 w-4" />
-                  Ke Ruangan (Anda)
-                </div>
-                <p className="font-medium">
-                  {request.to_room?.code} - {request.to_room?.name}
-                </p>
-              </div>
-
-              {/* Requested By */}
-              <div className="space-y-1">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <FileText className="h-4 w-4" />
-                  Diminta Oleh
-                </div>
-                <p className="font-medium">{request.requested_by?.full_name || "-"}</p>
-              </div>
-            </div>
-
-            {request.reason && (
-              <>
-                <Separator className="my-4" />
+                {/* From Room */}
                 <div className="space-y-1">
-                  <div className="text-sm text-muted-foreground">Alasan Permintaan</div>
-                  <p className="text-sm">{request.reason}</p>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Building className="h-4 w-4" />
+                    Dari Ruangan
+                  </div>
+                  <p className="font-medium">
+                    {request.from_room?.code} - {request.from_room?.name}
+                  </p>
                 </div>
-              </>
-            )}
-          </div>
-        </SectionPanel>
 
-        {/* Items Approval Card */}
-        <SectionPanel icon={request.request_type === "inventory" ? Package : Pill} title="Daftar Item" description="Tentukan jumlah yang disetujui berdasarkan stok yang benar-benar tersedia di ruangan Anda.">
-          <div className="flex items-center justify-between pb-3">
-            <div className="flex items-center justify-between flex-1">
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">Tentukan jumlah yang disetujui untuk setiap item</p>
+                {/* To Room */}
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Building className="h-4 w-4" />
+                    Ke Ruangan (Anda)
+                  </div>
+                  <p className="font-medium">
+                    {request.to_room?.code} - {request.to_room?.name}
+                  </p>
+                </div>
+
+                {/* Requested By */}
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <FileText className="h-4 w-4" />
+                    Diminta Oleh
+                  </div>
+                  <p className="font-medium">{request.requested_by?.full_name || "-"}</p>
+                </div>
               </div>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={handleApproveAll}>
-                  Setujui Semua
-                </Button>
-                <Button variant="outline" size="sm" onClick={handleClearAll}>
-                  Reset
-                </Button>
+
+              {request.reason && (
+                <>
+                  <Separator className="my-4" />
+                  <div className="space-y-1">
+                    <div className="text-sm text-muted-foreground">Alasan Permintaan</div>
+                    <p className="text-sm">{request.reason}</p>
+                  </div>
+                </>
+              )}
+            </div>
+          </SectionPanel>
+
+          {/* Items Approval Card */}
+          <SectionPanel icon={request.request_type === "inventory" ? Package : Pill} title="Daftar Item" description="Tentukan jumlah yang disetujui berdasarkan stok yang benar-benar tersedia di ruangan Anda.">
+            <div className="flex items-center justify-between pb-3">
+              <div className="flex items-center justify-between flex-1">
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">Tentukan jumlah yang disetujui untuk setiap item</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={handleApproveAll}>
+                    Setujui Semua
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={handleClearAll}>
+                    Reset
+                  </Button>
+                </div>
               </div>
             </div>
-          </div>
-          <div className="-mx-3 -mb-4 px-3 pb-4 sm:-mx-4 sm:px-4">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>No</TableHead>
-                  <TableHead>Kode</TableHead>
-                  <TableHead>Nama Item</TableHead>
-                  <TableHead className="text-center">Stok Tersedia</TableHead>
-                  <TableHead className="text-center">Qty Diminta</TableHead>
-                  <TableHead className="text-center">Qty Disetujui</TableHead>
-                  <TableHead>Satuan</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {items.map((item, index) => (
-                  <TableRow key={item.id}>
-                    <TableCell>{index + 1}</TableCell>
-                    <TableCell className="font-mono text-sm">{item.code}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        {item.inventory_id ? (
-                          <Package className="h-4 w-4 text-blue-500" />
-                        ) : (
-                          <Pill className="h-4 w-4 text-green-500" />
-                        )}
-                        {item.name}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Badge
-                        variant={
-                          item.current_stock >= item.quantity_requested
-                            ? "default"
-                            : "destructive"
-                        }
-                      >
-                        {item.current_stock}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-center font-medium">
-                      {item.quantity_requested}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex justify-center">
-                        <Input
-                          type="number"
-                          min={0}
-                          max={Math.min(item.quantity_requested, item.current_stock)}
-                          value={item.quantity_approved}
-                          onChange={(e) =>
-                            handleItemChange(item.id, parseInt(e.target.value) || 0)
-                          }
-                          className="w-24 text-center"
-                        />
-                      </div>
-                    </TableCell>
-                    <TableCell>{item.unit}</TableCell>
+            <div className="-mx-3 -mb-4 px-3 pb-4 sm:-mx-4 sm:px-4">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>No</TableHead>
+                    <TableHead>Kode</TableHead>
+                    <TableHead>Nama Item</TableHead>
+                    <TableHead className="text-center">Stok Tersedia</TableHead>
+                    <TableHead className="text-center">Qty Diminta</TableHead>
+                    <TableHead className="text-center">Qty Disetujui</TableHead>
+                    <TableHead>Satuan</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </SectionPanel>
-
-        <SectionPanel icon={FileText} title="Persetujuan" description="Tambahkan catatan approval sebelum keputusan akhir dikirimkan.">
-          <div>
-            {/* Notes */}
-            <div className="space-y-2">
-              <Label>Catatan Persetujuan</Label>
-              <Textarea
-                placeholder="Catatan tambahan untuk persetujuan ini..."
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-              />
+                </TableHeader>
+                <TableBody>
+                  {items.map((item, index) => (
+                    <TableRow key={item.id}>
+                      <TableCell>{index + 1}</TableCell>
+                      <TableCell className="font-mono text-sm">{item.code}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          {item.inventory_id ? (
+                            <Package className="h-4 w-4 text-blue-500" />
+                          ) : (
+                            <Pill className="h-4 w-4 text-green-500" />
+                          )}
+                          {item.name}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Badge
+                          variant={
+                            item.current_stock >= item.quantity_requested
+                              ? "default"
+                              : "destructive"
+                          }
+                        >
+                          {item.current_stock}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-center font-medium">
+                        {item.quantity_requested}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex justify-center">
+                          <Input
+                            type="number"
+                            min={0}
+                            max={Math.min(item.quantity_requested, item.current_stock)}
+                            value={item.quantity_approved}
+                            onChange={(e) =>
+                              handleItemChange(item.id, parseInt(e.target.value) || 0)
+                            }
+                            className="w-24 text-center"
+                          />
+                        </div>
+                      </TableCell>
+                      <TableCell>{item.unit}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
+          </SectionPanel>
 
-            {/* Sticky Footer Actions */}
-            <div className="shrink-0 sticky bottom-0 z-10 py-3 mt-4 flex items-center justify-end gap-4 border-t border-border/70 bg-background/95 backdrop-blur">
+          <SectionPanel icon={FileText} title="Persetujuan" description="Tambahkan catatan approval sebelum keputusan akhir dikirimkan.">
+            <div>
+              {/* Notes */}
+              <div className="space-y-2">
+                <Label>Catatan Persetujuan</Label>
+                <Textarea
+                  placeholder="Catatan tambahan untuk persetujuan ini..."
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                />
+              </div>
+
+              {/* Sticky Footer Actions */}
+              <div className="shrink-0 sticky bottom-0 z-10 py-3 mt-4 flex items-center justify-end gap-4 border-t border-border/70 bg-background/95 backdrop-blur">
+                <Button
+                  variant="outline"
+                  onClick={() => navigate(`/stock-requests/${id}`)}
+                >
+                  Batal
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => setRejectDialogOpen(true)}
+                >
+                  <XCircle className="mr-2 h-4 w-4" />
+                  Tolak
+                </Button>
+                <Button onClick={handleApprove} disabled={submitting}>
+                  {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  <CheckCircle className="mr-2 h-4 w-4" />
+                  Setujui
+                </Button>
+              </div>
+            </div>
+          </SectionPanel>
+        </div>
+
+        {/* Reject Dialog */}
+        <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Tolak Permintaan</DialogTitle>
+              <DialogDescription>
+                Berikan alasan mengapa permintaan ini ditolak.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Alasan Penolakan *</Label>
+                <Textarea
+                  placeholder="Jelaskan alasan penolakan..."
+                  value={rejectionReason}
+                  onChange={(e) => setRejectionReason(e.target.value)}
+                  rows={4}
+                />
+              </div>
+            </div>
+            <DialogFooter>
               <Button
                 variant="outline"
-                onClick={() => navigate(`/stock-requests/${id}`)}
+                onClick={() => setRejectDialogOpen(false)}
               >
                 Batal
               </Button>
               <Button
                 variant="destructive"
-                onClick={() => setRejectDialogOpen(true)}
+                onClick={handleReject}
+                disabled={rejecting || !rejectionReason.trim()}
               >
-                <XCircle className="mr-2 h-4 w-4" />
-                Tolak
+                {rejecting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Tolak Permintaan
               </Button>
-              <Button onClick={handleApprove} disabled={submitting}>
-                {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                <CheckCircle className="mr-2 h-4 w-4" />
-                Setujui
-              </Button>
-            </div>
-          </div>
-        </SectionPanel>
-      </div>
-
-      {/* Reject Dialog */}
-      <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Tolak Permintaan</DialogTitle>
-            <DialogDescription>
-              Berikan alasan mengapa permintaan ini ditolak.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Alasan Penolakan *</Label>
-              <Textarea
-                placeholder="Jelaskan alasan penolakan..."
-                value={rejectionReason}
-                onChange={(e) => setRejectionReason(e.target.value)}
-                rows={4}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setRejectDialogOpen(false)}
-            >
-              Batal
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleReject}
-              disabled={rejecting || !rejectionReason.trim()}
-            >
-              {rejecting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Tolak Permintaan
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      </div>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </PageContent>
     </PageShell>
   );
