@@ -1246,101 +1246,6 @@ export function PharmacyEditPrescription({
           </div>
         ) : (
           <>
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-              <OrderDetailInfoButton title="Detail Order Farmasi" tooltip="Lihat detail order farmasi">
-                <table className="w-full table-fixed text-xs">
-                  <tbody>
-                    <tr className="border-b">
-                      <td className="py-1.5 text-muted-foreground w-28 align-top">Nama Pasien</td>
-                      <td className="py-1.5 font-medium break-words">{patient?.nama_lengkap || "-"}</td>
-                    </tr>
-                    <tr className="border-b">
-                      <td className="py-1.5 text-muted-foreground w-28 align-top">No. RM</td>
-                      <td className="py-1.5 font-medium break-words">{patient?.no_rm || "-"}</td>
-                    </tr>
-                    <tr className="border-b">
-                      <td className="py-1.5 text-muted-foreground w-28 align-top">Dokter</td>
-                      <td className="py-1.5 font-medium break-words">
-                        {rmDuplicateMode ? (
-                          <span className="inline-flex items-center gap-1">
-                            <span className="font-medium">{selectedOrder.prescriber?.nama_lengkap || "-"}</span>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-5 w-5"
-                              title="Pilih dokter"
-                              onClick={() => setDoctorModalOpen(true)}
-                            >
-                              <User className="h-3 w-3" />
-                            </Button>
-                          </span>
-                        ) : (
-                          <span className="font-medium">{selectedOrder.prescriber?.nama_lengkap || "-"}</span>
-                        )}
-                      </td>
-                    </tr>
-                    <tr className="border-b">
-                      <td className="py-1.5 text-muted-foreground w-28 align-top">Tanggal Order</td>
-                      <td className="py-1.5 font-medium break-words">
-                        {rmDuplicateMode ? (
-                          <span className="inline-flex items-center gap-1">
-                            <span className="font-medium">
-                              {selectedOrder.created_at
-                                ? new Date(selectedOrder.created_at).toLocaleString("id-ID")
-                                : "-"}
-                            </span>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-5 w-5"
-                              title="Set tanggal order"
-                              onClick={() => setDateModalOpen(true)}
-                            >
-                              <Clock className="h-3 w-3" />
-                            </Button>
-                          </span>
-                        ) : (
-                          <span className="font-medium">
-                            {selectedOrder.created_at
-                              ? new Date(selectedOrder.created_at).toLocaleString("id-ID")
-                              : "-"}
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                    <tr className="border-b">
-                      <td className="py-1.5 text-muted-foreground w-28 align-top">No. Resep</td>
-                      <td className="py-1.5 font-medium break-words">{selectedOrder.order_number || "-"}</td>
-                    </tr>
-                    <tr className="border-b">
-                      <td className="py-1.5 text-muted-foreground align-top">Jumlah Item</td>
-                      <td className="py-1.5 font-medium break-words">{groupedActiveItems.length}</td>
-                    </tr>
-                    {selectedOrder.diagnosis && (
-                      <tr className="border-b">
-                        <td className="py-1.5 text-muted-foreground align-top">Diagnosis</td>
-                        <td className="py-1.5 font-medium break-words">{selectedOrder.diagnosis}</td>
-                      </tr>
-                    )}
-                    {selectedOrder.notes && (
-                      <tr>
-                        <td className="py-1.5 text-muted-foreground align-top">Catatan Resep</td>
-                        <td className="py-1.5 font-medium break-words">{selectedOrder.notes}</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </OrderDetailInfoButton>
-              <div className="flex items-center gap-2">
-                {rmDuplicateMode && <Badge variant="outline" className="text-[10px] h-5 px-1.5 py-0">Mode RM Duplikat</Badge>}
-                <Badge variant={ORDER_STATUS_LABELS[selectedOrder.status]?.variant || "secondary"} className="text-[10px] h-5 px-1.5 py-0">
-                  {ORDER_STATUS_LABELS[selectedOrder.status]?.label || selectedOrder.status}
-                </Badge>
-              </div>
-            </div>
-
             {!isEditable && (
               <div className="border border-yellow-200 bg-yellow-50 dark:bg-yellow-950/30 rounded p-3 mb-4">
                 <div className="flex items-center gap-2 text-yellow-800 dark:text-yellow-200">
@@ -1351,23 +1256,121 @@ export function PharmacyEditPrescription({
             )}
 
             <div className="border border-border/70 bg-background mb-4">
-              <div className="flex flex-wrap items-center justify-between border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              <div className="flex flex-col gap-3 border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground sm:flex-row sm:items-start sm:justify-between">
                 <span className="flex items-center gap-2">
                   <Pill className="h-3 w-3" />
                   Daftar Obat ({groupedActiveItems.length} entri)
                 </span>
-                {canModify && (
-                  <div className="flex items-center gap-2">
-                    <Button size="sm" variant="outline" onClick={openRacikanDialog} className="h-6 text-[10px] py-0 px-2">
-                      <Pill className="h-3 w-3 mr-1" />
-                      Tambah Racikan
-                    </Button>
-                    <Button size="sm" onClick={openAddDialog} className="h-6 text-[10px] py-0 px-2">
-                      <Plus className="h-3 w-3 mr-1" />
-                      Tambah Obat
-                    </Button>
+                <div className="flex w-full flex-col gap-2 sm:w-auto sm:min-w-[320px] sm:items-end">
+                  {canModify && (
+                    <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                      <Button size="sm" variant="outline" onClick={openRacikanDialog} className="h-6 text-[10px] py-0 px-2">
+                        <Pill className="h-3 w-3 mr-1" />
+                        Tambah Racikan
+                      </Button>
+                      <Button size="sm" onClick={openAddDialog} className="h-6 text-[10px] py-0 px-2">
+                        <Plus className="h-3 w-3 mr-1" />
+                        Tambah Obat
+                      </Button>
+                    </div>
+                  )}
+                  <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                    {rmDuplicateMode && <Badge variant="outline" className="text-[10px] h-5 px-1.5 py-0">Mode RM Duplikat</Badge>}
+                    <Badge variant={ORDER_STATUS_LABELS[selectedOrder.status]?.variant || "secondary"} className="text-[10px] h-5 px-1.5 py-0">
+                      {ORDER_STATUS_LABELS[selectedOrder.status]?.label || selectedOrder.status}
+                    </Badge>
+                    <OrderDetailInfoButton
+                      title="Detail Order Farmasi"
+                      tooltip="Lihat detail order farmasi"
+                      className="h-6 w-6 rounded-md"
+                    >
+                      <table className="w-full table-fixed text-xs">
+                        <tbody>
+                          <tr className="border-b">
+                            <td className="w-28 py-1.5 align-top text-muted-foreground">Nama Pasien</td>
+                            <td className="py-1.5 font-medium break-words">{patient?.nama_lengkap || "-"}</td>
+                          </tr>
+                          <tr className="border-b">
+                            <td className="w-28 py-1.5 align-top text-muted-foreground">No. RM</td>
+                            <td className="py-1.5 font-medium break-words">{patient?.no_rm || "-"}</td>
+                          </tr>
+                          <tr className="border-b">
+                            <td className="w-28 py-1.5 align-top text-muted-foreground">Dokter</td>
+                            <td className="py-1.5 font-medium break-words">
+                              {rmDuplicateMode ? (
+                                <span className="inline-flex items-center gap-1">
+                                  <span className="font-medium">{selectedOrder.prescriber?.nama_lengkap || "-"}</span>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-5 w-5"
+                                    title="Pilih dokter"
+                                    onClick={() => setDoctorModalOpen(true)}
+                                  >
+                                    <User className="h-3 w-3" />
+                                  </Button>
+                                </span>
+                              ) : (
+                                <span className="font-medium">{selectedOrder.prescriber?.nama_lengkap || "-"}</span>
+                              )}
+                            </td>
+                          </tr>
+                          <tr className="border-b">
+                            <td className="w-28 py-1.5 align-top text-muted-foreground">Tanggal Order</td>
+                            <td className="py-1.5 font-medium break-words">
+                              {rmDuplicateMode ? (
+                                <span className="inline-flex items-center gap-1">
+                                  <span className="font-medium">
+                                    {selectedOrder.created_at
+                                      ? new Date(selectedOrder.created_at).toLocaleString("id-ID")
+                                      : "-"}
+                                  </span>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-5 w-5"
+                                    title="Set tanggal order"
+                                    onClick={() => setDateModalOpen(true)}
+                                  >
+                                    <Clock className="h-3 w-3" />
+                                  </Button>
+                                </span>
+                              ) : (
+                                <span className="font-medium">
+                                  {selectedOrder.created_at
+                                    ? new Date(selectedOrder.created_at).toLocaleString("id-ID")
+                                    : "-"}
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                          <tr className="border-b">
+                            <td className="w-28 py-1.5 align-top text-muted-foreground">No. Resep</td>
+                            <td className="py-1.5 font-medium break-words">{selectedOrder.order_number || "-"}</td>
+                          </tr>
+                          <tr className="border-b">
+                            <td className="py-1.5 align-top text-muted-foreground">Jumlah Item</td>
+                            <td className="py-1.5 font-medium break-words">{groupedActiveItems.length}</td>
+                          </tr>
+                          {selectedOrder.diagnosis && (
+                            <tr className="border-b">
+                              <td className="py-1.5 align-top text-muted-foreground">Diagnosis</td>
+                              <td className="py-1.5 font-medium break-words">{selectedOrder.diagnosis}</td>
+                            </tr>
+                          )}
+                          {selectedOrder.notes && (
+                            <tr>
+                              <td className="py-1.5 align-top text-muted-foreground">Catatan Resep</td>
+                              <td className="py-1.5 font-medium break-words">{selectedOrder.notes}</td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </OrderDetailInfoButton>
                   </div>
-                )}
+                </div>
               </div>
               <div className="p-0 overflow-x-auto">
                 <table className="w-full min-w-[980px] text-sm">

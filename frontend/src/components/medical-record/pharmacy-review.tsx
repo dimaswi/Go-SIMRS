@@ -387,72 +387,77 @@ export function PharmacyReview({ visitId, readOnly = false }: PharmacyReviewProp
 
         {selectedOrder && (
           <>
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-              <OrderDetailInfoButton title="Detail Order Farmasi" tooltip="Lihat detail order farmasi">
-                <table className="w-full table-fixed text-xs">
-                  <tbody>
-                    <tr className="border-b">
-                      <td className="py-1.5 text-muted-foreground w-28 align-top">Nama Pasien</td>
-                      <td className="py-1.5 font-medium break-words">{patient?.nama_lengkap || "-"}</td>
-                    </tr>
-                    <tr className="border-b">
-                      <td className="py-1.5 text-muted-foreground w-28 align-top">No. RM</td>
-                      <td className="py-1.5 font-medium break-words">{patient?.no_rm || "-"}</td>
-                    </tr>
-                    <tr className="border-b">
-                      <td className="py-1.5 text-muted-foreground w-28 align-top">Dokter</td>
-                      <td className="py-1.5 font-medium break-words">
-                        <span className="font-medium">{selectedOrder.prescriber?.nama_lengkap || "-"}</span>
-                      </td>
-                    </tr>
-                    <tr className="border-b">
-                      <td className="py-1.5 text-muted-foreground w-28 align-top">Diagnosis</td>
-                      <td className="py-1.5 font-medium break-words">{selectedOrder.diagnosis || "-"}</td>
-                    </tr>
-                    <tr className="border-b">
-                      <td className="py-1.5 text-muted-foreground align-top">Ruang Asal</td>
-                      <td className="py-1.5 font-medium break-words">{selectedOrder.source_room?.name || "-"}</td>
-                    </tr>
-                    <tr className="border-b">
-                      <td className="py-1.5 text-muted-foreground align-top">Waktu Order</td>
-                      <td className="py-1.5 font-medium break-words">
-                        {selectedOrder.created_at ? new Date(selectedOrder.created_at).toLocaleString("id-ID") : "-"}
-                      </td>
-                    </tr>
-                    <tr>
-                      <td className="py-1.5 text-muted-foreground align-top">Prioritas</td>
-                      <td className="py-1.5">
-                        <Badge variant={selectedOrder.priority === "urgent" ? "destructive" : "outline"}>
-                          {selectedOrder.priority === "urgent" ? "Urgent" : "Normal"}
-                        </Badge>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </OrderDetailInfoButton>
-              <Badge variant={ORDER_STATUS_LABELS[selectedOrder.status]?.variant || "secondary"} className="text-[10px] h-5 px-1.5 py-0">
-                {ORDER_STATUS_LABELS[selectedOrder.status]?.label || selectedOrder.status}
-              </Badge>
-            </div>
-
             {/* Order Items Table */}
             <div className="border border-border/70 bg-background mb-4">
-              <div className="flex flex-wrap items-center justify-between border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              <div className="flex flex-col gap-3 border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground sm:flex-row sm:items-start sm:justify-between">
                 <span className="flex items-center gap-2">
                   <Pill className="h-3 w-3" />
                   Daftar Obat ({activeItems.length} item)
                 </span>
-                {activeItems.length > 8 && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 px-2 text-[10px] py-0"
-                    onClick={() => setShowAllReviewItems((prev) => !prev)}
-                  >
-                    {showAllReviewItems ? "Ringkas" : `Lihat Semua (${activeItems.length})`}
-                  </Button>
-                )}
+                <div className="flex w-full flex-col gap-2 sm:w-auto sm:min-w-[260px] sm:items-end">
+                  {activeItems.length > 8 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 py-0 text-[10px]"
+                      onClick={() => setShowAllReviewItems((prev) => !prev)}
+                    >
+                      {showAllReviewItems ? "Ringkas" : `Lihat Semua (${activeItems.length})`}
+                    </Button>
+                  )}
+                  <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                    <Badge variant={ORDER_STATUS_LABELS[selectedOrder.status]?.variant || "secondary"} className="h-5 px-1.5 py-0 text-[10px]">
+                      {ORDER_STATUS_LABELS[selectedOrder.status]?.label || selectedOrder.status}
+                    </Badge>
+                    <OrderDetailInfoButton
+                      title="Detail Order Farmasi"
+                      tooltip="Lihat detail order farmasi"
+                      className="h-6 w-6 rounded-md"
+                    >
+                      <table className="w-full table-fixed text-xs">
+                        <tbody>
+                          <tr className="border-b">
+                            <td className="w-28 py-1.5 align-top text-muted-foreground">Nama Pasien</td>
+                            <td className="py-1.5 font-medium break-words">{patient?.nama_lengkap || "-"}</td>
+                          </tr>
+                          <tr className="border-b">
+                            <td className="w-28 py-1.5 align-top text-muted-foreground">No. RM</td>
+                            <td className="py-1.5 font-medium break-words">{patient?.no_rm || "-"}</td>
+                          </tr>
+                          <tr className="border-b">
+                            <td className="w-28 py-1.5 align-top text-muted-foreground">Dokter</td>
+                            <td className="py-1.5 font-medium break-words">
+                              <span className="font-medium">{selectedOrder.prescriber?.nama_lengkap || "-"}</span>
+                            </td>
+                          </tr>
+                          <tr className="border-b">
+                            <td className="w-28 py-1.5 align-top text-muted-foreground">Diagnosis</td>
+                            <td className="py-1.5 font-medium break-words">{selectedOrder.diagnosis || "-"}</td>
+                          </tr>
+                          <tr className="border-b">
+                            <td className="py-1.5 align-top text-muted-foreground">Ruang Asal</td>
+                            <td className="py-1.5 font-medium break-words">{selectedOrder.source_room?.name || "-"}</td>
+                          </tr>
+                          <tr className="border-b">
+                            <td className="py-1.5 align-top text-muted-foreground">Waktu Order</td>
+                            <td className="py-1.5 font-medium break-words">
+                              {selectedOrder.created_at ? new Date(selectedOrder.created_at).toLocaleString("id-ID") : "-"}
+                            </td>
+                          </tr>
+                          <tr>
+                            <td className="py-1.5 align-top text-muted-foreground">Prioritas</td>
+                            <td className="py-1.5">
+                              <Badge variant={selectedOrder.priority === "urgent" ? "destructive" : "outline"}>
+                                {selectedOrder.priority === "urgent" ? "Urgent" : "Normal"}
+                              </Badge>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </OrderDetailInfoButton>
+                  </div>
+                </div>
               </div>
               <div className="p-0">
                 <table className="w-full table-fixed text-xs">
@@ -701,9 +706,6 @@ export function PharmacyReview({ visitId, readOnly = false }: PharmacyReviewProp
                         <SelectItem value="rejected">Tidak Setuju</SelectItem>
                       </SelectContent>
                     </Select>
-                    <p className="text-xs text-muted-foreground">
-                      Gunakan tombol Simpan di footer untuk menyimpan telaah resep.
-                    </p>
                   </div>
                 </div>
               </div>

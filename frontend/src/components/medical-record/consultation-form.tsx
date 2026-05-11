@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -43,6 +44,16 @@ interface ConsultationFormProps {
     updates: { fake_date?: string; doctor_name?: string },
   ) => void;
 }
+
+const CONSULTATION_STATUS_LABELS: Record<
+  string,
+  { label: string; variant: "default" | "secondary" | "destructive" | "outline" }
+> = {
+  pending: { label: "Menunggu", variant: "secondary" },
+  in_progress: { label: "Dikerjakan", variant: "default" },
+  completed: { label: "Selesai", variant: "outline" },
+  cancelled: { label: "Dibatalkan", variant: "destructive" },
+};
 
 export function ConsultationForm({
   visitId,
@@ -370,117 +381,123 @@ export function ConsultationForm({
     <div>
       <div className="pt-2">
         {order && (
-          <div className="mb-4 flex items-center justify-end">
-            <OrderDetailInfoButton
-              title="Detail Order Konsultasi"
-              tooltip="Lihat detail order konsultasi"
-            >
-              <table className="w-full table-fixed text-xs">
-                <tbody>
-                  <tr className="border-b">
-                    <td className="py-1.5 text-muted-foreground w-28 align-top">Nama Pasien</td>
-                    <td className="py-1.5 font-medium break-words">
-                      {order.source_visit?.registration?.patient?.nama_lengkap ||
-                        order.registration?.patient?.nama_lengkap ||
-                        "-"}
-                    </td>
-                  </tr>
-                  <tr className="border-b">
-                    <td className="py-1.5 text-muted-foreground w-28 align-top">No. RM</td>
-                    <td className="py-1.5 font-medium break-words">
-                      {order.source_visit?.registration?.patient?.no_rm ||
-                        order.registration?.patient?.no_rm ||
-                        "-"}
-                    </td>
-                  </tr>
-                  <tr className="border-b">
-                    <td className="py-1.5 text-muted-foreground w-28 align-top">Dokter</td>
-                    <td className="py-1.5 font-medium break-words">
-                      {rmDuplicateMode ? (
-                        <span className="inline-flex items-center gap-1">
-                          <span className="font-medium">{order.ordered_by?.nama_lengkap || "-"}</span>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-5 w-5"
-                            title="Pilih dokter"
-                            onClick={() => {
-                              setPendingDoctorName(order.ordered_by?.nama_lengkap || "");
-                              setDoctorSearch("");
-                              setDoctorModalOpen(true);
-                            }}
-                          >
-                            <User className="h-3 w-3" />
-                          </Button>
-                        </span>
-                      ) : (
-                        order.ordered_by?.nama_lengkap || "-"
-                      )}
-                    </td>
-                  </tr>
-                  <tr className="border-b">
-                    <td className="py-1.5 text-muted-foreground w-28 align-top">Tanggal Order</td>
-                    <td className="py-1.5 font-medium break-words">
-                      {rmDuplicateMode ? (
-                        <span className="inline-flex items-center gap-1">
-                          <span className="font-medium">
-                            {order.created_at
-                              ? new Date(order.created_at).toLocaleString("id-ID")
-                              : "-"}
-                          </span>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-5 w-5"
-                            title="Set tanggal order"
-                            onClick={() => {
-                              setPendingOrderDate((order.created_at || "").replace(" ", "T").slice(0, 16));
-                              setDateModalOpen(true);
-                            }}
-                          >
-                            <Clock className="h-3 w-3" />
-                          </Button>
-                        </span>
-                      ) : (
-                        <span>
-                          {order.created_at ? new Date(order.created_at).toLocaleString("id-ID") : "-"}
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                  <tr className="border-b">
-                    <td className="py-1.5 text-muted-foreground w-28 align-top">No. Order</td>
-                    <td className="py-1.5 font-medium break-words">{order.order_number || "-"}</td>
-                  </tr>
-                  <tr className="border-b">
-                    <td className="py-1.5 text-muted-foreground align-top">Jumlah Item</td>
-                    <td className="py-1.5 font-medium break-words">
-                      {(order.items || []).filter((item) => item.status === "completed").length}/
-                      {(order.items || []).length} selesai
-                    </td>
-                  </tr>
-                  {order.diagnosis && (
-                    <tr className="border-b">
-                      <td className="py-1.5 text-muted-foreground align-top">Diagnosis</td>
-                      <td className="py-1.5 font-medium break-words">{order.diagnosis}</td>
-                    </tr>
-                  )}
-                  {order.clinical_notes && (
-                    <tr>
-                      <td className="py-1.5 text-muted-foreground align-top">Catatan Klinis</td>
-                      <td className="py-1.5 font-medium break-words">{order.clinical_notes}</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </OrderDetailInfoButton>
-          </div>
-        )}
-
-        {order && (
           <div className="border border-border/70 bg-background mb-4">
+            <div className="flex flex-col gap-3 border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground sm:flex-row sm:items-start sm:justify-between">
+              <span>Hasil Konsultasi</span>
+              <div className="flex w-full flex-col gap-2 sm:w-auto sm:min-w-[220px] sm:items-end">
+                <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                  <Badge variant={CONSULTATION_STATUS_LABELS[order.status || "pending"]?.variant || "secondary"} className="h-5 px-1.5 py-0 text-[10px]">
+                    {CONSULTATION_STATUS_LABELS[order.status || "pending"]?.label || order.status || "-"}
+                  </Badge>
+                  <OrderDetailInfoButton
+                    title="Detail Order Konsultasi"
+                    tooltip="Lihat detail order konsultasi"
+                    className="h-6 w-6 rounded-md"
+                  >
+                    <table className="w-full table-fixed text-xs">
+                      <tbody>
+                        <tr className="border-b">
+                          <td className="w-28 py-1.5 align-top text-muted-foreground">Nama Pasien</td>
+                          <td className="py-1.5 font-medium break-words">
+                            {order.source_visit?.registration?.patient?.nama_lengkap ||
+                              order.registration?.patient?.nama_lengkap ||
+                              "-"}
+                          </td>
+                        </tr>
+                        <tr className="border-b">
+                          <td className="w-28 py-1.5 align-top text-muted-foreground">No. RM</td>
+                          <td className="py-1.5 font-medium break-words">
+                            {order.source_visit?.registration?.patient?.no_rm ||
+                              order.registration?.patient?.no_rm ||
+                              "-"}
+                          </td>
+                        </tr>
+                        <tr className="border-b">
+                          <td className="w-28 py-1.5 align-top text-muted-foreground">Dokter</td>
+                          <td className="py-1.5 font-medium break-words">
+                            {rmDuplicateMode ? (
+                              <span className="inline-flex items-center gap-1">
+                                <span className="font-medium">{order.ordered_by?.nama_lengkap || "-"}</span>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-5 w-5"
+                                  title="Pilih dokter"
+                                  onClick={() => {
+                                    setPendingDoctorName(order.ordered_by?.nama_lengkap || "");
+                                    setDoctorSearch("");
+                                    setDoctorModalOpen(true);
+                                  }}
+                                >
+                                  <User className="h-3 w-3" />
+                                </Button>
+                              </span>
+                            ) : (
+                              order.ordered_by?.nama_lengkap || "-"
+                            )}
+                          </td>
+                        </tr>
+                        <tr className="border-b">
+                          <td className="w-28 py-1.5 align-top text-muted-foreground">Tanggal Order</td>
+                          <td className="py-1.5 font-medium break-words">
+                            {rmDuplicateMode ? (
+                              <span className="inline-flex items-center gap-1">
+                                <span className="font-medium">
+                                  {order.created_at
+                                    ? new Date(order.created_at).toLocaleString("id-ID")
+                                    : "-"}
+                                </span>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-5 w-5"
+                                  title="Set tanggal order"
+                                  onClick={() => {
+                                    setPendingOrderDate((order.created_at || "").replace(" ", "T").slice(0, 16));
+                                    setDateModalOpen(true);
+                                  }}
+                                >
+                                  <Clock className="h-3 w-3" />
+                                </Button>
+                              </span>
+                            ) : (
+                              <span>
+                                {order.created_at ? new Date(order.created_at).toLocaleString("id-ID") : "-"}
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                        <tr className="border-b">
+                          <td className="w-28 py-1.5 align-top text-muted-foreground">No. Order</td>
+                          <td className="py-1.5 font-medium break-words">{order.order_number || "-"}</td>
+                        </tr>
+                        <tr className="border-b">
+                          <td className="py-1.5 align-top text-muted-foreground">Jumlah Item</td>
+                          <td className="py-1.5 font-medium break-words">
+                            {(order.items || []).filter((item) => item.status === "completed").length}/
+                            {(order.items || []).length} selesai
+                          </td>
+                        </tr>
+                        {order.diagnosis && (
+                          <tr className="border-b">
+                            <td className="py-1.5 align-top text-muted-foreground">Diagnosis</td>
+                            <td className="py-1.5 font-medium break-words">{order.diagnosis}</td>
+                          </tr>
+                        )}
+                        {order.clinical_notes && (
+                          <tr>
+                            <td className="py-1.5 align-top text-muted-foreground">Catatan Klinis</td>
+                            <td className="py-1.5 font-medium break-words">{order.clinical_notes}</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </OrderDetailInfoButton>
+                </div>
+              </div>
+            </div>
             <div className="p-3 sm:p-4 space-y-4">
               <div className="space-y-2 pt-2">
                 <div className="border border-border/70 overflow-x-auto">

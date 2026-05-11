@@ -497,57 +497,6 @@ export function PharmacyDispense({
 
         {selectedOrder && (
           <>
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-              <OrderDetailInfoButton title="Detail Order Farmasi" tooltip="Lihat detail order farmasi">
-                <table className="w-full table-fixed text-xs">
-                  <tbody>
-                    <tr className="border-b">
-                      <td className="py-1.5 text-muted-foreground w-28 align-top">Nama Pasien</td>
-                      <td className="py-1.5 font-medium break-words">{patient?.nama_lengkap || "-"}</td>
-                    </tr>
-                    <tr className="border-b">
-                      <td className="py-1.5 text-muted-foreground w-28 align-top">No. RM</td>
-                      <td className="py-1.5 font-medium break-words">{patient?.no_rm || "-"}</td>
-                    </tr>
-                    <tr className="border-b">
-                      <td className="py-1.5 text-muted-foreground w-28 align-top">Dokter</td>
-                      <td className="py-1.5 font-medium break-words">
-                        <span className="font-medium">{selectedOrder.prescriber?.nama_lengkap || "-"}</span>
-                      </td>
-                    </tr>
-                    <tr className="border-b">
-                      <td className="py-1.5 text-muted-foreground w-28 align-top">Diagnosis</td>
-                      <td className="py-1.5 font-medium break-words">{selectedOrder.diagnosis || "-"}</td>
-                    </tr>
-                    <tr className="border-b">
-                      <td className="py-1.5 text-muted-foreground align-top">Ruang Asal</td>
-                      <td className="py-1.5 font-medium break-words">{selectedOrder.source_room?.name || "-"}</td>
-                    </tr>
-                    <tr className="border-b">
-                      <td className="py-1.5 text-muted-foreground align-top">Waktu Order</td>
-                      <td className="py-1.5 font-medium break-words">
-                        {selectedOrder.created_at ? new Date(selectedOrder.created_at).toLocaleString("id-ID") : "-"}
-                      </td>
-                    </tr>
-                    <tr>
-                      <td className="py-1.5 text-muted-foreground align-top">Prioritas</td>
-                      <td className="py-1.5">
-                        <Badge variant={selectedOrder.priority === "urgent" ? "destructive" : "outline"}>
-                          {selectedOrder.priority === "urgent" ? "Urgent" : "Normal"}
-                        </Badge>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </OrderDetailInfoButton>
-              <div className="flex items-center gap-2">
-                {rmDuplicateMode && <Badge variant="outline" className="text-[10px] h-5 px-1.5 py-0">Mode RM Duplikat</Badge>}
-                <Badge variant={ORDER_STATUS_LABELS[selectedOrder.status]?.variant || "secondary"} className="text-[10px] h-5 px-1.5 py-0">
-                  {ORDER_STATUS_LABELS[selectedOrder.status]?.label || selectedOrder.status}
-                </Badge>
-              </div>
-            </div>
-
             {/* Status Warning */}
             {!canDispense && !allDelivered && (
               <div className="border border-yellow-200 bg-yellow-50 dark:bg-yellow-950 rounded-lg p-3">
@@ -562,44 +511,98 @@ export function PharmacyDispense({
 
             {/* Dispense Items */}
             <div className="border border-border/70 bg-background mb-4">
-              <div className="flex flex-wrap items-center justify-between border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              <div className="flex flex-col gap-3 border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground sm:flex-row sm:items-start sm:justify-between">
                 <span className="flex items-center gap-2">
                   <Package className="h-3 w-3" />
                   Daftar Obat untuk Diserahkan
                 </span>
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2">
-                    <Checkbox
-                      id="show_selected_only"
-                      checked={showSelectedOnly}
-                      onCheckedChange={(checked) => setShowSelectedOnly(checked === true)}
-                    />
-                    <Label htmlFor="show_selected_only" className="text-[10px] text-muted-foreground">
-                      Hanya terpilih
-                    </Label>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Checkbox
-                      id="show_delivered_rows"
-                      checked={showDeliveredRows}
-                      onCheckedChange={(checked) => setShowDeliveredRows(checked === true)}
-                    />
-                    <Label htmlFor="show_delivered_rows" className="text-[10px] text-muted-foreground">
-                      Tampilkan item selesai
-                    </Label>
-                  </div>
-                  {canDispense && !allDelivered && (
+                <div className="flex w-full flex-col gap-2 sm:w-auto sm:min-w-[360px] sm:items-end">
+                  <div className="flex flex-wrap items-center gap-3 sm:justify-end">
                     <div className="flex items-center gap-2">
                       <Checkbox
-                        id="select_all"
-                        checked={dispenseItems.filter((i) => i.remaining > 0).every((i) => i.selected)}
-                        onCheckedChange={(checked) => handleSelectAll(checked as boolean)}
+                        id="show_selected_only"
+                        checked={showSelectedOnly}
+                        onCheckedChange={(checked) => setShowSelectedOnly(checked === true)}
                       />
-                      <Label htmlFor="select_all" className="text-sm">
-                        Pilih Semua
+                      <Label htmlFor="show_selected_only" className="text-[10px] text-muted-foreground">
+                        Hanya terpilih
                       </Label>
                     </div>
-                  )}
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="show_delivered_rows"
+                        checked={showDeliveredRows}
+                        onCheckedChange={(checked) => setShowDeliveredRows(checked === true)}
+                      />
+                      <Label htmlFor="show_delivered_rows" className="text-[10px] text-muted-foreground">
+                        Tampilkan item selesai
+                      </Label>
+                    </div>
+                    {canDispense && !allDelivered && (
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          id="select_all"
+                          checked={dispenseItems.filter((i) => i.remaining > 0).every((i) => i.selected)}
+                          onCheckedChange={(checked) => handleSelectAll(checked as boolean)}
+                        />
+                        <Label htmlFor="select_all" className="text-sm">
+                          Pilih Semua
+                        </Label>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                    {rmDuplicateMode && <Badge variant="outline" className="h-5 px-1.5 py-0 text-[10px]">Mode RM Duplikat</Badge>}
+                    <Badge variant={ORDER_STATUS_LABELS[selectedOrder.status]?.variant || "secondary"} className="h-5 px-1.5 py-0 text-[10px]">
+                      {ORDER_STATUS_LABELS[selectedOrder.status]?.label || selectedOrder.status}
+                    </Badge>
+                    <OrderDetailInfoButton
+                      title="Detail Order Farmasi"
+                      tooltip="Lihat detail order farmasi"
+                      className="h-6 w-6 rounded-md"
+                    >
+                      <table className="w-full table-fixed text-xs">
+                        <tbody>
+                          <tr className="border-b">
+                            <td className="w-28 py-1.5 align-top text-muted-foreground">Nama Pasien</td>
+                            <td className="py-1.5 font-medium break-words">{patient?.nama_lengkap || "-"}</td>
+                          </tr>
+                          <tr className="border-b">
+                            <td className="w-28 py-1.5 align-top text-muted-foreground">No. RM</td>
+                            <td className="py-1.5 font-medium break-words">{patient?.no_rm || "-"}</td>
+                          </tr>
+                          <tr className="border-b">
+                            <td className="w-28 py-1.5 align-top text-muted-foreground">Dokter</td>
+                            <td className="py-1.5 font-medium break-words">
+                              <span className="font-medium">{selectedOrder.prescriber?.nama_lengkap || "-"}</span>
+                            </td>
+                          </tr>
+                          <tr className="border-b">
+                            <td className="w-28 py-1.5 align-top text-muted-foreground">Diagnosis</td>
+                            <td className="py-1.5 font-medium break-words">{selectedOrder.diagnosis || "-"}</td>
+                          </tr>
+                          <tr className="border-b">
+                            <td className="py-1.5 align-top text-muted-foreground">Ruang Asal</td>
+                            <td className="py-1.5 font-medium break-words">{selectedOrder.source_room?.name || "-"}</td>
+                          </tr>
+                          <tr className="border-b">
+                            <td className="py-1.5 align-top text-muted-foreground">Waktu Order</td>
+                            <td className="py-1.5 font-medium break-words">
+                              {selectedOrder.created_at ? new Date(selectedOrder.created_at).toLocaleString("id-ID") : "-"}
+                            </td>
+                          </tr>
+                          <tr>
+                            <td className="py-1.5 align-top text-muted-foreground">Prioritas</td>
+                            <td className="py-1.5">
+                              <Badge variant={selectedOrder.priority === "urgent" ? "destructive" : "outline"}>
+                                {selectedOrder.priority === "urgent" ? "Urgent" : "Normal"}
+                              </Badge>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </OrderDetailInfoButton>
+                  </div>
                 </div>
               </div>
               <div className="p-3 pb-0">

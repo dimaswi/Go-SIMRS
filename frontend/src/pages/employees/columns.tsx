@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Eye, Edit, Trash2, ArrowUpDown } from "lucide-react"
-import { createSelectColumn } from "@/components/ui/data-table"
+import { createSelectColumn } from "@/components/ui/data-table-utils"
 import type { Employee, MasterData } from "@/lib/api"
 
 interface EmployeeColumnsProps {

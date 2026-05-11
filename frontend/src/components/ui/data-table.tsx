@@ -54,7 +54,9 @@ function getStoredPageIndex(tableId: string): number {
         return parsed;
       }
     }
-  } catch {}
+  } catch {
+    // Ignore localStorage access failures and fall back to defaults.
+  }
 
   return 0;
 }
@@ -64,7 +66,9 @@ function setStoredPageIndex(tableId: string, pageIndex: number) {
 
   try {
     localStorage.setItem(`dt_page_${tableId}`, String(pageIndex));
-  } catch {}
+  } catch {
+    // Ignore localStorage access failures and fall back to defaults.
+  }
 }
 
 function getStoredPageSize(tableId: string, defaultSize: number): number {
@@ -78,7 +82,9 @@ function getStoredPageSize(tableId: string, defaultSize: number): number {
         return parsed;
       }
     }
-  } catch {}
+  } catch {
+    // Ignore localStorage access failures and fall back to defaults.
+  }
 
   return defaultSize;
 }
@@ -88,7 +94,9 @@ function setStoredPageSize(tableId: string, pageSize: number) {
 
   try {
     localStorage.setItem(`dt_size_${tableId}`, String(pageSize));
-  } catch {}
+  } catch {
+    // Ignore localStorage access failures and fall back to defaults.
+  }
 }
 
 interface DataTableProps<TData, TValue> {
@@ -158,7 +166,9 @@ export function DataTable<TData, TValue>({
 
     try {
       localStorage.setItem(`dt_search_${tableId}`, globalFilter);
-    } catch {}
+    } catch {
+      // Ignore localStorage access failures and keep the UI responsive.
+    }
   }, [globalFilter, tableId]);
 
   const handlePageChange = React.useCallback(
@@ -323,22 +333,16 @@ export function DataTable<TData, TValue>({
 
             <TableBody>
               {table.getRowModel().rows.length ? (
-                table.getRowModel().rows.map((row, rowIndex) => {
+                table.getRowModel().rows.map((row) => {
                   const subRowRenderer = (meta as Record<string, unknown>)
                     ?.renderSubRow as
                     | ((data: TData) => React.ReactNode)
                     | undefined;
                   return (
                     <React.Fragment key={row.id}>
-                      <TableRow
-                        data-state={row.getIsSelected() && "selected"}
-                        className="border-b-0"
-                      >
+                      <TableRow data-state={row.getIsSelected() && "selected"}>
                         {row.getVisibleCells().map((cell) => (
-                          <TableCell
-                            key={cell.id}
-                            className={rowIndex > 0 ? "border-t border-border" : undefined}
-                          >
+                          <TableCell key={cell.id}>
                             {flexRender(
                               cell.column.columnDef.cell,
                               cell.getContext(),
@@ -444,29 +448,3 @@ export function DataTable<TData, TValue>({
     </div>
   );
 }
-
-export function createSelectColumn<TData>(): ColumnDef<TData> {
-  return {
-    id: "select",
-    header: ({ table }) => (
-      <input
-        type="checkbox"
-        checked={table.getIsAllPageRowsSelected()}
-        onChange={table.getToggleAllPageRowsSelectedHandler()}
-        className="cursor-pointer"
-      />
-    ),
-    cell: ({ row }) => (
-      <input
-        type="checkbox"
-        checked={row.getIsSelected()}
-        onChange={row.getToggleSelectedHandler()}
-        className="cursor-pointer"
-      />
-    ),
-    enableSorting: false,
-    enableHiding: false,
-  };
-}
-
-export { type ColumnDef } from "@tanstack/react-table";

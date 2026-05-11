@@ -546,8 +546,23 @@ export function RadiologyWorkstation({
       {/* Selected Order */}
       {selectedOrder && (
         <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <OrderDetailInfoButton title="Detail Order Radiologi" tooltip="Lihat detail order radiologi">
+          <div className="border border-border/70 bg-background">
+            <div className="flex flex-col gap-3 border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground sm:flex-row sm:items-start sm:justify-between">
+              <span>Hasil Radiologi</span>
+              <div className="flex w-full flex-col gap-2 sm:w-auto sm:min-w-[240px] sm:items-end">
+                {canPerform && selectedOrder.status === "pending" && (
+                  <Button onClick={handleStartOrder} disabled={submitting} size="sm" className="h-6 px-2 py-0 text-[10px]">
+                    {submitting ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Play className="mr-1 h-3 w-3" />}
+                    Mulai Pemeriksaan
+                  </Button>
+                )}
+                <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                  {getStatusBadge(selectedOrder.status)}
+                  <OrderDetailInfoButton
+                    title="Detail Order Radiologi"
+                    tooltip="Lihat detail order radiologi"
+                    className="h-6 w-6 rounded-md"
+                  >
               <table className="w-full table-fixed text-xs">
                 <tbody>
                   <tr className="border-b">
@@ -662,18 +677,11 @@ export function RadiologyWorkstation({
                   )}
                 </tbody>
               </table>
-            </OrderDetailInfoButton>
-            <div className="flex items-center gap-2">
-              {getStatusBadge(selectedOrder.status)}
-              {canPerform && selectedOrder.status === "pending" && (
-                <Button onClick={handleStartOrder} disabled={submitting} size="sm" className="h-6 text-[10px] py-0 px-2">
-                  {submitting ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Play className="h-3 w-3 mr-1" />}
-                  Mulai Pemeriksaan
-                </Button>
-              )}
+                  </OrderDetailInfoButton>
+                </div>
+              </div>
             </div>
-          </div>
-          <div className="border border-border/70 bg-background p-3 sm:p-4 space-y-4">
+            <div className="p-3 sm:p-4 space-y-4">
                 {/* Results Table - Inline Edit */}
                 {/* Results Table - Inline Edit */}
                 <div className="border border-border/70 overflow-x-auto mt-4">
@@ -762,12 +770,6 @@ export function RadiologyWorkstation({
                   </table>
                 </div>
 
-                {selectedOrder.status === "in_progress" && canPerform && !rmDuplicateMode && (
-                  <div className="rounded border border-dashed px-3 py-2 text-sm text-muted-foreground">
-                    Gunakan tombol Simpan di footer untuk menyimpan hasil radiologi.
-                  </div>
-                )}
-
                 {/* Signature status remains visible once signed even if order status changes. */}
                 {canShowSignatureArea && (
                   <div className="border-t pt-3 mt-3 space-y-2">
@@ -812,6 +814,7 @@ export function RadiologyWorkstation({
                     )}
                   </div>
                 )}
+            </div>
           </div>
         </div>
       )}

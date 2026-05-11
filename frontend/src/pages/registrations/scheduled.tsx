@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { DataTable, type ColumnDef } from "@/components/ui/data-table";
+import { DataTable } from "@/components/ui/data-table";
+import { type ColumnDef } from "@/components/ui/data-table-utils";
 import {
   Dialog,
   DialogContent,
@@ -158,7 +159,7 @@ export default function ScheduledRegistrationsPage() {
       });
       setCancelId(null);
       loadData();
-    } catch (error) {
+    } catch {
       toast({
         title: "Gagal",
         description: "Gagal membatalkan jadwal",
@@ -201,7 +202,7 @@ export default function ScheduledRegistrationsPage() {
       setRescheduleData(null);
       setRescheduleForm({ new_date: "", new_room_id: "", reason: "" });
       loadData();
-    } catch (error) {
+    } catch {
       toast({
         title: "Gagal",
         description: "Gagal mengubah jadwal",

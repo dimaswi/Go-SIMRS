@@ -59,6 +59,14 @@ interface ItemFormData {
   notes: string;
 }
 
+interface ApiErrorShape {
+  response?: {
+    data?: {
+      error?: string;
+    };
+  };
+}
+
 export function ProcedureEditOrder({ 
   visitId, 
   orderType,
@@ -87,6 +95,14 @@ export function ProcedureEditOrder({
   const [deleteConfirmItem, setDeleteConfirmItem] = useState<ProcedureOrderItem | null>(null);
 
   const canEdit = hasPermission("procedure_orders.edit") && !readOnly;
+
+  const getApiErrorMessage = useCallback(
+    (error: unknown, fallback: string) => {
+      const apiError = error as ApiErrorShape;
+      return apiError.response?.data?.error || fallback;
+    },
+    [],
+  );
 
   const orderTypeConfig = useMemo(() => {
     switch (orderType) {
@@ -205,11 +221,11 @@ export function ProcedureEditOrder({
       // Trigger refresh print options dan final visit
       window.dispatchEvent(new CustomEvent("refresh-print-options"));
       window.dispatchEvent(new CustomEvent("refresh-final-visit"));
-    } catch (error: any) {
+    } catch (error) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.response?.data?.error || "Gagal menambahkan prosedur",
+        description: getApiErrorMessage(error, "Gagal menambahkan prosedur"),
       });
     } finally {
       setSubmitting(false);
@@ -232,11 +248,11 @@ export function ProcedureEditOrder({
       // Trigger refresh print options dan final visit
       window.dispatchEvent(new CustomEvent("refresh-print-options"));
       window.dispatchEvent(new CustomEvent("refresh-final-visit"));
-    } catch (error: any) {
+    } catch (error) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.response?.data?.error || "Gagal memperbarui prosedur",
+        description: getApiErrorMessage(error, "Gagal memperbarui prosedur"),
       });
     } finally {
       setSubmitting(false);
@@ -260,11 +276,11 @@ export function ProcedureEditOrder({
       // Trigger refresh print options dan final visit
       window.dispatchEvent(new CustomEvent("refresh-print-options"));
       window.dispatchEvent(new CustomEvent("refresh-final-visit"));
-    } catch (error: any) {
+    } catch (error) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.response?.data?.error || "Gagal menghapus prosedur",
+        description: getApiErrorMessage(error, "Gagal menghapus prosedur"),
       });
     }
   };
@@ -389,64 +405,67 @@ export function ProcedureEditOrder({
 
         {selectedOrder && (
           <div className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <OrderDetailInfoButton title={`Detail Order ${orderTypeConfig.title}`} tooltip={`Lihat detail order ${orderTypeConfig.title.toLowerCase()}`}>
-                <table className="w-full table-fixed text-xs">
-                  <tbody>
-                    <tr className="border-b">
-                      <td className="py-1.5 text-muted-foreground w-28 align-top">Nama Pasien</td>
-                      <td className="py-1.5 font-medium break-words">{selectedOrder.registration?.patient?.nama_lengkap || selectedOrder.source_visit?.registration?.patient?.nama_lengkap || "-"}</td>
-                    </tr>
-                    <tr className="border-b">
-                      <td className="py-1.5 text-muted-foreground w-28 align-top">No. RM</td>
-                      <td className="py-1.5 font-medium break-words">{selectedOrder.registration?.patient?.no_rm || selectedOrder.source_visit?.registration?.patient?.no_rm || "-"}</td>
-                    </tr>
-                    <tr className="border-b">
-                      <td className="py-1.5 text-muted-foreground w-28 align-top">Dokter</td>
-                      <td className="py-1.5 font-medium break-words">{selectedOrder.ordered_by?.nama_lengkap || "-"}</td>
-                    </tr>
-                    <tr className="border-b">
-                      <td className="py-1.5 text-muted-foreground w-28 align-top">Tanggal Order</td>
-                      <td className="py-1.5 font-medium break-words">{selectedOrder.created_at ? new Date(selectedOrder.created_at).toLocaleString("id-ID") : "-"}</td>
-                    </tr>
-                    <tr className="border-b">
-                      <td className="py-1.5 text-muted-foreground w-28 align-top">No. Order</td>
-                      <td className="py-1.5 font-medium break-words">{selectedOrder.order_number || "-"}</td>
-                    </tr>
-                    <tr className="border-b">
-                      <td className="py-1.5 text-muted-foreground align-top">Jumlah Item</td>
-                      <td className="py-1.5 font-medium break-words">{selectedOrder.items?.length || 0}</td>
-                    </tr>
-                    {selectedOrder.diagnosis && (
-                      <tr className="border-b">
-                        <td className="py-1.5 text-muted-foreground align-top">Diagnosis</td>
-                        <td className="py-1.5 font-medium break-words">{selectedOrder.diagnosis}</td>
-                      </tr>
-                    )}
-                    {selectedOrder.notes && (
-                      <tr>
-                        <td className="py-1.5 text-muted-foreground align-top">Catatan Order</td>
-                        <td className="py-1.5 font-medium break-words">{selectedOrder.notes}</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </OrderDetailInfoButton>
-              <div className="flex items-center gap-2">
-                {getStatusBadge(selectedOrder.status)}
-              </div>
-            </div>
-
             {/* Items Table */}
             <div className="border border-border/70 bg-background mb-4">
-              <div className="flex flex-wrap items-center justify-between border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              <div className="flex flex-col gap-3 border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground sm:flex-row sm:items-start sm:justify-between">
                 <span>Daftar Pemeriksaan</span>
-                {canEdit && canModifyOrder(selectedOrder) && (
-                  <Button size="sm" onClick={openAddDialog} className="h-6 text-[10px] py-0 px-2">
-                    <Plus className="h-3 w-3 mr-1" />
-                    Tambah Prosedur
-                  </Button>
-                )}
+                <div className="flex w-full flex-col gap-2 sm:w-auto sm:min-w-[260px] sm:items-end">
+                  {canEdit && canModifyOrder(selectedOrder) && (
+                    <Button size="sm" onClick={openAddDialog} className="h-6 px-2 py-0 text-[10px]">
+                      <Plus className="mr-1 h-3 w-3" />
+                      Tambah Prosedur
+                    </Button>
+                  )}
+                  <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                    {getStatusBadge(selectedOrder.status)}
+                    <OrderDetailInfoButton
+                      title={`Detail Order ${orderTypeConfig.title}`}
+                      tooltip={`Lihat detail order ${orderTypeConfig.title.toLowerCase()}`}
+                      className="h-6 w-6 rounded-md"
+                    >
+                      <table className="w-full table-fixed text-xs">
+                        <tbody>
+                          <tr className="border-b">
+                            <td className="w-28 py-1.5 align-top text-muted-foreground">Nama Pasien</td>
+                            <td className="py-1.5 font-medium break-words">{selectedOrder.registration?.patient?.nama_lengkap || selectedOrder.source_visit?.registration?.patient?.nama_lengkap || "-"}</td>
+                          </tr>
+                          <tr className="border-b">
+                            <td className="w-28 py-1.5 align-top text-muted-foreground">No. RM</td>
+                            <td className="py-1.5 font-medium break-words">{selectedOrder.registration?.patient?.no_rm || selectedOrder.source_visit?.registration?.patient?.no_rm || "-"}</td>
+                          </tr>
+                          <tr className="border-b">
+                            <td className="w-28 py-1.5 align-top text-muted-foreground">Dokter</td>
+                            <td className="py-1.5 font-medium break-words">{selectedOrder.ordered_by?.nama_lengkap || "-"}</td>
+                          </tr>
+                          <tr className="border-b">
+                            <td className="w-28 py-1.5 align-top text-muted-foreground">Tanggal Order</td>
+                            <td className="py-1.5 font-medium break-words">{selectedOrder.created_at ? new Date(selectedOrder.created_at).toLocaleString("id-ID") : "-"}</td>
+                          </tr>
+                          <tr className="border-b">
+                            <td className="w-28 py-1.5 align-top text-muted-foreground">No. Order</td>
+                            <td className="py-1.5 font-medium break-words">{selectedOrder.order_number || "-"}</td>
+                          </tr>
+                          <tr className="border-b">
+                            <td className="py-1.5 align-top text-muted-foreground">Jumlah Item</td>
+                            <td className="py-1.5 font-medium break-words">{selectedOrder.items?.length || 0}</td>
+                          </tr>
+                          {selectedOrder.diagnosis && (
+                            <tr className="border-b">
+                              <td className="py-1.5 align-top text-muted-foreground">Diagnosis</td>
+                              <td className="py-1.5 font-medium break-words">{selectedOrder.diagnosis}</td>
+                            </tr>
+                          )}
+                          {selectedOrder.notes && (
+                            <tr>
+                              <td className="py-1.5 align-top text-muted-foreground">Catatan Order</td>
+                              <td className="py-1.5 font-medium break-words">{selectedOrder.notes}</td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </OrderDetailInfoButton>
+                  </div>
+                </div>
               </div>
               <div className="p-0 overflow-x-auto">
                 <table className="w-full text-xs text-left">
@@ -465,7 +484,7 @@ export function ProcedureEditOrder({
                   <tbody>
                   {selectedOrder.items?.length === 0 ? (
                     <tr className="border-b">
-                      <td colSpan={6} className="py-8 text-center text-muted-foreground">
+                      <td colSpan={canEdit && canModifyOrder(selectedOrder) ? 6 : 5} className="py-8 text-center text-muted-foreground">
                         Belum ada prosedur dalam order ini
                       </td>
                     </tr>

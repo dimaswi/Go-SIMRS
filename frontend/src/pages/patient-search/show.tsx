@@ -5,7 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { DataTable, type ColumnDef } from "@/components/ui/data-table";
+import { DataTable } from "@/components/ui/data-table";
+import { type ColumnDef } from "@/components/ui/data-table-utils";
 import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 import {
   patientsApi,
