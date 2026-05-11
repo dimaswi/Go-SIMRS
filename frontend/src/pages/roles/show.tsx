@@ -12,6 +12,14 @@ import { useToast } from '@/hooks/use-toast';
 import { setPageTitle } from '@/lib/page-title';
 import { ArrowLeft, Clock3, Pencil, Shield, Trash2 } from 'lucide-react';
 
+interface RolePermission {
+  id: number;
+  name: string;
+  module?: string;
+  category?: string;
+  description?: string;
+}
+
 function DetailField({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
   return (
     <div className="space-y-1.5">
@@ -87,11 +95,11 @@ export default function RoleShow() {
     });
   };
 
-  const permissionsByModule = useMemo(() => {
+  const permissionsByModule = useMemo<[string, RolePermission[]][]>(() => {
     if (!role?.permissions?.length) return [];
 
     return Object.entries(
-      role.permissions.reduce((acc: Record<string, any[]>, permission: any) => {
+      role.permissions.reduce((acc: Record<string, RolePermission[]>, permission: RolePermission) => {
         const module = permission.module || 'Other';
         if (!acc[module]) {
           acc[module] = [];
@@ -199,7 +207,7 @@ export default function RoleShow() {
                     </div>
                   </div>
                   <div className="space-y-2 p-3">
-                    {(permissions as any[]).map((permission) => (
+                    {permissions.map((permission) => (
                       <div key={permission.id} className="border border-border/70 px-3 py-3">
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="font-mono text-sm font-medium text-foreground">{permission.name}</p>

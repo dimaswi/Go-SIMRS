@@ -648,13 +648,6 @@ export function AppSidebar() {
     }))
     .filter((section) => section.items.length > 0);
 
-  const activeEntry = visibleMenuItems.find((item) =>
-    item.exact ? location.pathname === item.path : isPathActive(location.pathname, item.path)
-  );
-  const activeChildEntry = visibleMenuItems
-    .flatMap((item) => item.submenu || [])
-    .find((item) => (item.exact ? location.pathname === item.path : isPathActive(location.pathname, item.path)));
-  const activeLabel = activeChildEntry?.label || activeEntry?.label || 'Navigasi Sistem';
   return (
     <Sidebar collapsible="icon" className="border-r-0" variant="inset">
       <SidebarHeader>

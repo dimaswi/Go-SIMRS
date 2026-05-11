@@ -27,7 +27,7 @@ import { PageShell, PageHeader, PageContent } from '@/components/layout/page-she
 import { roomMedicinesApi } from '@/lib/api/medicines';
 import { useToast } from '@/hooks/use-toast';
 import { setPageTitle } from '@/lib/page-title';
-import { Loader2, ArrowLeft, Pill, Plus, Minus, RefreshCw, Building2, ClipboardList, FileText } from 'lucide-react';
+import { Loader2, ArrowLeft, Plus, Minus, RefreshCw, Building2, ClipboardList } from 'lucide-react';
 
 const formSchema = z.object({
   adjustment_type: z.enum(['add', 'subtract', 'set']),

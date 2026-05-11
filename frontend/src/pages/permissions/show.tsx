@@ -90,7 +90,8 @@ export default function PermissionShow() {
   const parsedActions = useMemo(() => {
     if (!permission?.actions) return [] as string[];
     try {
-      return JSON.parse(permission.actions || '[]');
+      const actions = JSON.parse(permission.actions || '[]');
+      return Array.isArray(actions) ? actions.filter((action): action is string => typeof action === 'string') : [];
     } catch {
       return [] as string[];
     }

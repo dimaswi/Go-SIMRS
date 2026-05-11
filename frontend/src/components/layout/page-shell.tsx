@@ -36,7 +36,6 @@ interface PageHeaderProps {
 export function PageHeader({
   title,
   description,
-  count,
   icon: Icon,
   actions,
   className,

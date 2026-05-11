@@ -13,7 +13,6 @@ interface MedicineAssignmentPanelProps {
 }
 
 export function MedicineAssignmentPanel({
-  roomId,
   roomMedicines,
 }: MedicineAssignmentPanelProps) {
   const [search, setSearch] = useState("");

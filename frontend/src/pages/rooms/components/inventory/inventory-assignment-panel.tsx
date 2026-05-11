@@ -30,7 +30,6 @@ export function InventoryAssignmentPanel({
         item.inventory?.code,
         item.inventory?.category ? inventoryCategoryLabels[item.inventory.category] : '',
         item.inventory?.unit,
-        item.location,
       ]
         .filter(Boolean)
         .join(' ')
@@ -116,7 +115,7 @@ export function InventoryAssignmentPanel({
                         </td>
                         <td className="px-3 py-3 text-muted-foreground">{item.min_quantity}</td>
                         <td className="px-3 py-3 text-muted-foreground">{item.inventory?.unit || '-'}</td>
-                        <td className="px-3 py-3 text-muted-foreground break-words">{item.location || '-'}</td>
+                        <td className="px-3 py-3 text-muted-foreground break-words">-</td>
                       </tr>
                     );
                   })}

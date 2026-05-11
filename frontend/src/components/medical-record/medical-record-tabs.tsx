@@ -241,13 +241,13 @@ export function MedicalRecordTabs({
       permission: "medical_records.medicine_order",
       section: "order",
     },
-    [{
+    {
       id: "medicine-timesheet",
       label: "Timesheet Obat",
       icon: <Clock3 />,
       permission: "medical_records.medicine_order",
       section: "care",
-    }],
+    },
     // Procedure tab - show for clinical visits (rawat_jalan, rawat_inap, gawat_darurat)
     ...(showProcedureTab ? [{
       id: "procedure",

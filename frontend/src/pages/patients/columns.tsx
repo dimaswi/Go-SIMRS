@@ -1,7 +1,6 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import type { Patient } from "@/lib/api";
 import { formatPatientName } from "@/lib/print-utils";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { 
   DropdownMenu, 
@@ -11,7 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Eye, Pencil, Trash2, User, ArrowUpDown, CheckCircle, XCircle, Smartphone, Mars, Venus } from "lucide-react";
+import { MoreHorizontal, Eye, Pencil, Trash2, ArrowUpDown, CheckCircle, XCircle, Smartphone, Mars, Venus } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -48,20 +47,6 @@ const formatDate = (date: string | undefined) => {
     return format(parseISO(date), 'dd MMM yyyy', { locale: id });
   } catch {
     return '-';
-  }
-};
-
-// Get status badge variant
-const getStatusVariant = (status: string) => {
-  switch (status) {
-    case 'Aktif':
-      return 'default';
-    case 'Tidak Aktif':
-      return 'secondary';
-    case 'Meninggal':
-      return 'destructive';
-    default:
-      return 'outline';
   }
 };
 

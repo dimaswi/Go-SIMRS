@@ -3,10 +3,10 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
 import {
   Form,
   FormControl,
@@ -27,8 +27,7 @@ import { PageShell, PageHeader, PageContent } from '@/components/layout/page-she
 import { roomInventoriesApi } from '@/lib/api/inventories';
 import { useToast } from '@/hooks/use-toast';
 import { setPageTitle } from '@/lib/page-title';
-import { Loader2, ArrowLeft, Package, Plus, Minus, RefreshCw, Building2, ClipboardList } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { Loader2, ArrowLeft, Plus, Minus, RefreshCw, Building2, ClipboardList } from 'lucide-react';
 
 const formSchema = z.object({
   adjustment_type: z.enum(['add', 'subtract', 'set']),

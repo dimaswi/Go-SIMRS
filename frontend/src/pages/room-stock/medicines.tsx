@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, type ComponentType, type ReactNode } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DataTable } from '@/components/ui/data-table';
 import { createRoomMedicineColumns } from './columns-medicine';
@@ -9,9 +9,8 @@ import { useToast } from '@/hooks/use-toast';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { PageShell, PageHeader, PageContent } from '@/components/layout/page-shell';
 import { setPageTitle } from '@/lib/page-title';
-import { Building2, Loader2, Pill, TriangleAlert } from 'lucide-react';
+import { Loader2, Pill } from 'lucide-react';
 import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
-import { Badge } from '@/components/ui/badge';
 
 interface RoomMedicine {
   id: number;
@@ -28,40 +27,6 @@ interface Room {
   id: number;
   name: string;
   code: string;
-}
-
-function SectionPanel({
-  icon: Icon,
-  title,
-  description,
-  actions,
-  children,
-}: {
-  icon: ComponentType<{ className?: string }>;
-  title: string;
-  description: string;
-  actions?: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <div className="border border-border/70 bg-background/95 shadow-sm">
-      <div className="border-b border-border/70 bg-muted/20 px-4 py-3">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-start gap-3">
-            <div className="border border-border/70 bg-background p-2">
-              <Icon className="h-4 w-4 text-muted-foreground" />
-            </div>
-            <div>
-              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{title}</div>
-              <p className="mt-1 text-xs text-muted-foreground">{description}</p>
-            </div>
-          </div>
-          {actions}
-        </div>
-      </div>
-      <div className="p-3 sm:p-4">{children}</div>
-    </div>
-  );
 }
 
 export default function RoomMedicinePage() {
@@ -163,9 +128,6 @@ export default function RoomMedicinePage() {
     hasEditPermission: hasPermission('room-medicines.update'),
     hasDeletePermission: hasPermission('room-medicines.delete'),
   });
-
-  const lowStockCount = roomMedicines.filter((item) => item.quantity <= item.min_quantity).length;
-  const uniqueRooms = new Set(roomMedicines.map((item) => item.room_id)).size;
 
   if (loading && roomOptions.length === 0) {
     return (
