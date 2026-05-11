@@ -139,10 +139,54 @@ func GetStockRequest(c *gin.Context) {
 
 	if err := database.DB.Preload("FromRoom").Preload("ToRoom").
 		Preload("RequestedBy").Preload("ApprovedBy").Preload("CompletedBy").
+		Preload("ApprovalHistories.ApprovedBy").
+		Preload("ApprovalHistories.Items.Inventory").
+		Preload("ApprovalHistories.Items.Medicine").
 		Preload("Items.Inventory").Preload("Items.Medicine").
 		First(&request, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Stock request not found"})
 		return
+	}
+
+	if len(request.Items) > 0 {
+		inventoryIDs := make([]uint, 0)
+		medicineIDs := make([]uint, 0)
+
+		for _, item := range request.Items {
+			if item.InventoryID != nil {
+				inventoryIDs = append(inventoryIDs, *item.InventoryID)
+			}
+			if item.MedicineID != nil {
+				medicineIDs = append(medicineIDs, *item.MedicineID)
+			}
+		}
+
+		roomInventoryStock := make(map[uint]int)
+		if len(inventoryIDs) > 0 {
+			var roomInventories []models.RoomInventory
+			database.DB.Where("room_id = ? AND inventory_id IN ?", request.ToRoomID, inventoryIDs).Find(&roomInventories)
+			for _, roomInventory := range roomInventories {
+				roomInventoryStock[roomInventory.InventoryID] = roomInventory.Quantity
+			}
+		}
+
+		roomMedicineStock := make(map[uint]int)
+		if len(medicineIDs) > 0 {
+			var roomMedicines []models.RoomMedicine
+			database.DB.Where("room_id = ? AND medicine_id IN ?", request.ToRoomID, medicineIDs).Find(&roomMedicines)
+			for _, roomMedicine := range roomMedicines {
+				roomMedicineStock[roomMedicine.MedicineID] = roomMedicine.Quantity
+			}
+		}
+
+		for i := range request.Items {
+			if request.Items[i].InventoryID != nil && request.Items[i].Inventory != nil {
+				request.Items[i].Inventory.CurrentStock = roomInventoryStock[*request.Items[i].InventoryID]
+			}
+			if request.Items[i].MedicineID != nil && request.Items[i].Medicine != nil {
+				request.Items[i].Medicine.CurrentStock = roomMedicineStock[*request.Items[i].MedicineID]
+			}
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": request})
@@ -357,8 +401,8 @@ func ApproveStockRequest(c *gin.Context) {
 		return
 	}
 
-	if request.Status != models.RequestStatusPending {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Can only approve pending requests"})
+	if request.Status != models.RequestStatusPending && request.Status != models.RequestStatusPartial {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Can only approve pending or partial requests"})
 		return
 	}
 
@@ -376,30 +420,73 @@ func ApproveStockRequest(c *gin.Context) {
 	now := time.Now()
 
 	tx := database.DB.Begin()
+	approval := models.StockRequestApproval{
+		StockRequestID: request.ID,
+		ApprovedByID:   userID.(uint),
+		ApprovedDate:   now,
+		Notes:          input.Notes,
+	}
 
-	// Update approved quantities
 	allApproved := true
 	anyApproved := false
 	for _, approveItem := range input.Items {
+		matched := false
 		for i := range request.Items {
 			if request.Items[i].ID == approveItem.ID {
-				request.Items[i].QuantityApproved = approveItem.QuantityApproved
-				tx.Save(&request.Items[i])
+				matched = true
+				remainingApproval := request.Items[i].QuantityRequested - request.Items[i].QuantityApproved
+				if approveItem.QuantityApproved < 0 {
+					tx.Rollback()
+					c.JSON(http.StatusBadRequest, gin.H{"error": "Approved quantity cannot be negative"})
+					return
+				}
+				if approveItem.QuantityApproved > remainingApproval {
+					tx.Rollback()
+					c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Jumlah persetujuan %s melebihi sisa approval %d", itemDisplayName(request.Items[i]), remainingApproval)})
+					return
+				}
+
+				request.Items[i].QuantityApproved += approveItem.QuantityApproved
+				if err := tx.Save(&request.Items[i]).Error; err != nil {
+					tx.Rollback()
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update approved quantity"})
+					return
+				}
 				if approveItem.QuantityApproved > 0 {
 					anyApproved = true
+					approval.Items = append(approval.Items, models.StockRequestApprovalItem{
+						StockRequestItemID: request.Items[i].ID,
+						InventoryID:        request.Items[i].InventoryID,
+						MedicineID:         request.Items[i].MedicineID,
+						QuantityApproved:   approveItem.QuantityApproved,
+						Unit:               request.Items[i].Unit,
+						Notes:              request.Items[i].Notes,
+					})
 				}
 				if approveItem.QuantityApproved < request.Items[i].QuantityRequested {
-					allApproved = false
+					// no-op: final status is recalculated from cumulative totals below
 				}
 				break
 			}
+		}
+		if !matched {
+			tx.Rollback()
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Request item %d not found", approveItem.ID)})
+			return
+		}
+	}
+
+	for _, item := range request.Items {
+		if item.QuantityApproved < item.QuantityRequested {
+			allApproved = false
+			break
 		}
 	}
 
 	// Determine status
 	status := models.RequestStatusApproved
 	if !anyApproved {
-		status = models.RequestStatusRejected
+		status = request.Status
 	} else if !allApproved {
 		status = models.RequestStatusPartial
 	}
@@ -412,10 +499,34 @@ func ApproveStockRequest(c *gin.Context) {
 		request.Notes = request.Notes + "\n[Approval Notes]: " + input.Notes
 	}
 
-	tx.Save(&request)
+	approval.Status = status
+	if len(approval.Items) > 0 {
+		if err := tx.Create(&approval).Error; err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save approval history"})
+			return
+		}
+	}
+
+	if err := tx.Save(&request).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update stock request"})
+		return
+	}
+
 	tx.Commit()
 
 	c.JSON(http.StatusOK, gin.H{"data": request, "message": "Stock request approved successfully"})
+}
+
+func itemDisplayName(item models.StockRequestItem) string {
+	if item.Inventory != nil && item.Inventory.Name != "" {
+		return item.Inventory.Name
+	}
+	if item.Medicine != nil && item.Medicine.Name != "" {
+		return item.Medicine.Name
+	}
+	return fmt.Sprintf("item #%d", item.ID)
 }
 
 // RejectStockRequest godoc

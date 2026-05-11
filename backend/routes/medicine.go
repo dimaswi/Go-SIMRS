@@ -21,6 +21,7 @@ func setupMedicineRoutes(rg *gin.RouterGroup) {
 		medicines.POST("", middleware.RequirePermission("medicines.create"), handlers.CreateMedicine)
 
 		// Single medicine operations
+		medicines.GET("/:id/traceability", middleware.RequirePermission("medicines.view"), handlers.GetMedicineTraceability)
 		medicines.GET("/:id", middleware.RequirePermission("medicines.view"), handlers.GetMedicine)
 		medicines.PUT("/:id", middleware.RequirePermission("medicines.update"), handlers.UpdateMedicine)
 		medicines.DELETE("/:id", middleware.RequirePermission("medicines.delete"), handlers.DeleteMedicine)

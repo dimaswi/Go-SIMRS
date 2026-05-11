@@ -17,6 +17,7 @@ import type {
 } from "@/lib/api/medicines";
 
 interface ColumnOptions {
+  onTrace: (id: number) => void;
   onView: (id: number) => void;
   onEdit: (id: number) => void;
   onDelete: (id: number) => void;
@@ -74,7 +75,7 @@ const formLabels: Record<MedicineForm, string> = {
 };
 
 export function createMedicineColumns(options: ColumnOptions): ColumnDef<Medicine>[] {
-  const { onView, onEdit, onDelete, hasViewPermission, hasEditPermission, hasDeletePermission } = options;
+  const { onTrace, onView, onEdit, onDelete, hasViewPermission, hasEditPermission, hasDeletePermission } = options;
 
   return [
     {
@@ -108,12 +109,16 @@ export function createMedicineColumns(options: ColumnOptions): ColumnDef<Medicin
         </Button>
       ),
       cell: ({ row }) => (
-        <button
-          onClick={() => onView(row.original.id)}
-          className="text-left hover:underline text-primary font-medium"
-        >
-          {row.getValue("name")}
-        </button>
+        hasViewPermission ? (
+          <button
+            onClick={() => onTrace(row.original.id)}
+            className="text-left text-primary font-medium hover:underline"
+          >
+            {row.getValue("name")}
+          </button>
+        ) : (
+          <span className="font-medium">{row.getValue("name")}</span>
+        )
       ),
     },
     {

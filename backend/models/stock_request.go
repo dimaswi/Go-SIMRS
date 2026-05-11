@@ -6,6 +6,23 @@ import (
 	"gorm.io/gorm"
 )
 
+const (
+	PurchasePaymentMethodCash        = "cash"
+	PurchasePaymentMethodTransfer    = "transfer"
+	PurchasePaymentMethodCredit      = "credit"
+	PurchasePaymentMethodCOD         = "cod"
+	PurchasePaymentMethodCBD         = "cbd"
+	PurchasePaymentMethodConsignment = "consignment"
+	PurchasePaymentMethodInstallment = "installment"
+)
+
+const (
+	PurchasePaymentStatusUnpaid  = "unpaid"
+	PurchasePaymentStatusPartial = "partial"
+	PurchasePaymentStatusPaid    = "paid"
+	PurchasePaymentStatusOverdue = "overdue"
+)
+
 // Request Status Constants
 const (
 	RequestStatusDraft     = "draft"
@@ -25,32 +42,33 @@ const (
 
 // StockRequest represents a request for inventory/medicine from one room to another (e.g., from ward to pharmacy depot)
 type StockRequest struct {
-	ID              uint               `gorm:"primarykey" json:"id"`
-	CreatedAt       time.Time          `json:"created_at"`
-	UpdatedAt       time.Time          `json:"updated_at"`
-	DeletedAt       gorm.DeletedAt     `gorm:"index" json:"-"`
-	RequestNumber   string             `gorm:"uniqueIndex;size:50;not null" json:"request_number"` // Format: REQ-INV-2024-0001 or REQ-MED-2024-0001
-	RequestType     string             `gorm:"size:20;not null" json:"request_type"`               // inventory, medicine
-	FromRoomID      uint               `gorm:"not null;index" json:"from_room_id"`                 // Ruangan yang meminta
-	FromRoom        *Room              `gorm:"foreignKey:FromRoomID" json:"from_room,omitempty"`
-	ToRoomID        uint               `gorm:"not null;index" json:"to_room_id"` // Depo Farmasi / Gudang tujuan
-	ToRoom          *Room              `gorm:"foreignKey:ToRoomID" json:"to_room,omitempty"`
-	Status          string             `gorm:"size:20;not null;default:'draft'" json:"status"` // draft, pending, approved, rejected, partial, completed, cancelled
-	Priority        string             `gorm:"size:20;default:'normal'" json:"priority"`       // low, normal, high, urgent
-	RequestDate     time.Time          `gorm:"not null" json:"request_date"`
-	RequiredDate    *time.Time         `json:"required_date,omitempty"`  // Tanggal dibutuhkan
-	ApprovedDate    *time.Time         `json:"approved_date,omitempty"`  // Tanggal disetujui
-	CompletedDate   *time.Time         `json:"completed_date,omitempty"` // Tanggal selesai distribusi
-	RequestedByID   uint               `gorm:"not null;index" json:"requested_by_id"`
-	RequestedBy     *User              `gorm:"foreignKey:RequestedByID" json:"requested_by,omitempty"`
-	ApprovedByID    *uint              `gorm:"index" json:"approved_by_id"`
-	ApprovedBy      *User              `gorm:"foreignKey:ApprovedByID" json:"approved_by,omitempty"`
-	CompletedByID   *uint              `gorm:"index" json:"completed_by_id"`
-	CompletedBy     *User              `gorm:"foreignKey:CompletedByID" json:"completed_by,omitempty"`
-	Reason          string             `gorm:"type:text" json:"reason"`                // Alasan permintaan
-	RejectionReason string             `gorm:"type:text" json:"rejection_reason"`      // Alasan penolakan
-	Notes           string             `gorm:"type:text" json:"notes"`                 // Catatan tambahan
-	Items           []StockRequestItem `gorm:"foreignKey:StockRequestID" json:"items"` // Detail item yang diminta
+	ID                uint                   `gorm:"primarykey" json:"id"`
+	CreatedAt         time.Time              `json:"created_at"`
+	UpdatedAt         time.Time              `json:"updated_at"`
+	DeletedAt         gorm.DeletedAt         `gorm:"index" json:"-"`
+	RequestNumber     string                 `gorm:"uniqueIndex;size:50;not null" json:"request_number"` // Format: REQ-INV-2024-0001 or REQ-MED-2024-0001
+	RequestType       string                 `gorm:"size:20;not null" json:"request_type"`               // inventory, medicine
+	FromRoomID        uint                   `gorm:"not null;index" json:"from_room_id"`                 // Ruangan yang meminta
+	FromRoom          *Room                  `gorm:"foreignKey:FromRoomID" json:"from_room,omitempty"`
+	ToRoomID          uint                   `gorm:"not null;index" json:"to_room_id"` // Depo Farmasi / Gudang tujuan
+	ToRoom            *Room                  `gorm:"foreignKey:ToRoomID" json:"to_room,omitempty"`
+	Status            string                 `gorm:"size:20;not null;default:'draft'" json:"status"` // draft, pending, approved, rejected, partial, completed, cancelled
+	Priority          string                 `gorm:"size:20;default:'normal'" json:"priority"`       // low, normal, high, urgent
+	RequestDate       time.Time              `gorm:"not null" json:"request_date"`
+	RequiredDate      *time.Time             `json:"required_date,omitempty"`  // Tanggal dibutuhkan
+	ApprovedDate      *time.Time             `json:"approved_date,omitempty"`  // Tanggal disetujui
+	CompletedDate     *time.Time             `json:"completed_date,omitempty"` // Tanggal selesai distribusi
+	RequestedByID     uint                   `gorm:"not null;index" json:"requested_by_id"`
+	RequestedBy       *User                  `gorm:"foreignKey:RequestedByID" json:"requested_by,omitempty"`
+	ApprovedByID      *uint                  `gorm:"index" json:"approved_by_id"`
+	ApprovedBy        *User                  `gorm:"foreignKey:ApprovedByID" json:"approved_by,omitempty"`
+	CompletedByID     *uint                  `gorm:"index" json:"completed_by_id"`
+	CompletedBy       *User                  `gorm:"foreignKey:CompletedByID" json:"completed_by,omitempty"`
+	Reason            string                 `gorm:"type:text" json:"reason"`                // Alasan permintaan
+	RejectionReason   string                 `gorm:"type:text" json:"rejection_reason"`      // Alasan penolakan
+	Notes             string                 `gorm:"type:text" json:"notes"`                 // Catatan tambahan
+	Items             []StockRequestItem     `gorm:"foreignKey:StockRequestID" json:"items"` // Detail item yang diminta
+	ApprovalHistories []StockRequestApproval `gorm:"foreignKey:StockRequestID" json:"approval_histories,omitempty"`
 }
 
 // TableName sets the table name for StockRequest
@@ -80,6 +98,51 @@ type StockRequestItem struct {
 // TableName sets the table name for StockRequestItem
 func (StockRequestItem) TableName() string {
 	return "stock_request_items"
+}
+
+// StockRequestApproval stores each approval pass for a stock request.
+type StockRequestApproval struct {
+	ID             uint                       `gorm:"primarykey" json:"id"`
+	CreatedAt      time.Time                  `json:"created_at"`
+	UpdatedAt      time.Time                  `json:"updated_at"`
+	DeletedAt      gorm.DeletedAt             `gorm:"index" json:"-"`
+	StockRequestID uint                       `gorm:"not null;index;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"stock_request_id"`
+	StockRequest   *StockRequest              `gorm:"foreignKey:StockRequestID" json:"-"`
+	ApprovedByID   uint                       `gorm:"not null;index" json:"approved_by_id"`
+	ApprovedBy     *User                      `gorm:"foreignKey:ApprovedByID" json:"approved_by,omitempty"`
+	ApprovedDate   time.Time                  `gorm:"not null;index" json:"approved_date"`
+	Status         string                     `gorm:"size:20;not null" json:"status"`
+	Notes          string                     `gorm:"type:text" json:"notes"`
+	Items          []StockRequestApprovalItem `gorm:"foreignKey:StockRequestApprovalID" json:"items"`
+}
+
+// TableName sets the table name for StockRequestApproval.
+func (StockRequestApproval) TableName() string {
+	return "stock_request_approvals"
+}
+
+// StockRequestApprovalItem stores per-item quantities approved in one approval pass.
+type StockRequestApprovalItem struct {
+	ID                     uint                  `gorm:"primarykey" json:"id"`
+	CreatedAt              time.Time             `json:"created_at"`
+	UpdatedAt              time.Time             `json:"updated_at"`
+	DeletedAt              gorm.DeletedAt        `gorm:"index" json:"-"`
+	StockRequestApprovalID uint                  `gorm:"not null;index;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"stock_request_approval_id"`
+	StockRequestApproval   *StockRequestApproval `gorm:"foreignKey:StockRequestApprovalID" json:"-"`
+	StockRequestItemID     uint                  `gorm:"not null;index" json:"stock_request_item_id"`
+	StockRequestItem       *StockRequestItem     `gorm:"foreignKey:StockRequestItemID" json:"stock_request_item,omitempty"`
+	InventoryID            *uint                 `gorm:"index" json:"inventory_id,omitempty"`
+	Inventory              *Inventory            `gorm:"foreignKey:InventoryID" json:"inventory,omitempty"`
+	MedicineID             *uint                 `gorm:"index" json:"medicine_id,omitempty"`
+	Medicine               *Medicine             `gorm:"foreignKey:MedicineID" json:"medicine,omitempty"`
+	QuantityApproved       int                   `gorm:"not null" json:"quantity_approved"`
+	Unit                   string                `gorm:"size:30" json:"unit"`
+	Notes                  string                `gorm:"type:text" json:"notes"`
+}
+
+// TableName sets the table name for StockRequestApprovalItem.
+func (StockRequestApprovalItem) TableName() string {
+	return "stock_request_approval_items"
 }
 
 // StockDistribution represents the actual distribution/fulfillment of a stock request
@@ -139,36 +202,66 @@ func (StockDistributionItem) TableName() string {
 
 // Purchase represents a purchase order for inventory/medicine
 type Purchase struct {
-	ID              uint           `gorm:"primarykey" json:"id"`
-	CreatedAt       time.Time      `json:"created_at"`
-	UpdatedAt       time.Time      `json:"updated_at"`
-	DeletedAt       gorm.DeletedAt `gorm:"index" json:"-"`
-	PurchaseNumber  string         `gorm:"uniqueIndex;size:50;not null" json:"purchase_number"` // Format: PO-2024-0001
-	PurchaseType    string         `gorm:"size:20;not null" json:"purchase_type"`               // inventory, medicine
-	SupplierID      *uint          `gorm:"index" json:"supplier_id,omitempty"`                  // Optional supplier reference
-	Supplier        *Supplier      `gorm:"foreignKey:SupplierID" json:"supplier,omitempty"`
-	SupplierName    string         `gorm:"size:200" json:"supplier_name"`
-	SupplierContact string         `gorm:"size:100" json:"supplier_contact"`
-	ToRoomID        uint           `gorm:"not null;index" json:"to_room_id"` // Depo Farmasi / Gudang tujuan
-	ToRoom          *Room          `gorm:"foreignKey:ToRoomID" json:"to_room,omitempty"`
-	Status          string         `gorm:"size:20;not null;default:'draft'" json:"status"` // draft, ordered, partial, received, cancelled
-	OrderDate       *time.Time     `json:"order_date,omitempty"`
-	ExpectedDate    *time.Time     `json:"expected_date,omitempty"`
-	ReceivedDate    *time.Time     `json:"received_date,omitempty"`
-	TotalAmount     float64        `gorm:"type:decimal(15,2);default:0" json:"total_amount"`
-	CreatedByID     uint           `gorm:"not null;index" json:"created_by_id"`
-	CreatedBy       *User          `gorm:"foreignKey:CreatedByID" json:"created_by,omitempty"`
-	ApprovedByID    *uint          `gorm:"index" json:"approved_by_id"`
-	ApprovedBy      *User          `gorm:"foreignKey:ApprovedByID" json:"approved_by,omitempty"`
-	ReceivedByID    *uint          `gorm:"index" json:"received_by_id"`
-	ReceivedBy      *User          `gorm:"foreignKey:ReceivedByID" json:"received_by,omitempty"`
-	Notes           string         `gorm:"type:text" json:"notes"`
-	Items           []PurchaseItem `gorm:"foreignKey:PurchaseID" json:"items"`
+	ID              uint              `gorm:"primarykey" json:"id"`
+	CreatedAt       time.Time         `json:"created_at"`
+	UpdatedAt       time.Time         `json:"updated_at"`
+	DeletedAt       gorm.DeletedAt    `gorm:"index" json:"-"`
+	PurchaseNumber  string            `gorm:"uniqueIndex;size:50;not null" json:"purchase_number"` // Format: PO-2024-0001
+	PurchaseType    string            `gorm:"size:20;not null" json:"purchase_type"`               // inventory, medicine
+	SupplierID      *uint             `gorm:"index" json:"supplier_id,omitempty"`                  // Optional supplier reference
+	Supplier        *Supplier         `gorm:"foreignKey:SupplierID" json:"supplier,omitempty"`
+	SupplierName    string            `gorm:"size:200" json:"supplier_name"`
+	SupplierContact string            `gorm:"size:100" json:"supplier_contact"`
+	ToRoomID        uint              `gorm:"not null;index" json:"to_room_id"` // Depo Farmasi / Gudang tujuan
+	ToRoom          *Room             `gorm:"foreignKey:ToRoomID" json:"to_room,omitempty"`
+	Status          string            `gorm:"size:20;not null;default:'draft'" json:"status"` // draft, ordered, partial, received, cancelled
+	OrderDate       *time.Time        `json:"order_date,omitempty"`
+	ExpectedDate    *time.Time        `json:"expected_date,omitempty"`
+	ReceivedDate    *time.Time        `json:"received_date,omitempty"`
+	InvoiceNumber   string            `gorm:"size:100" json:"invoice_number"`
+	InvoiceDate     *time.Time        `json:"invoice_date,omitempty"`
+	PaymentMethod   string            `gorm:"size:30;not null;default:'credit'" json:"payment_method"`
+	PaymentTermDays int               `gorm:"default:0" json:"payment_term_days"`
+	DueDate         *time.Time        `json:"due_date,omitempty"`
+	TotalAmount     float64           `gorm:"type:decimal(15,2);default:0" json:"total_amount"`
+	PaidAmount      float64           `gorm:"type:decimal(15,2);default:0" json:"paid_amount"`
+	RemainingAmount float64           `gorm:"type:decimal(15,2);default:0" json:"remaining_amount"`
+	PaymentStatus   string            `gorm:"size:20;not null;default:'unpaid'" json:"payment_status"`
+	CreatedByID     uint              `gorm:"not null;index" json:"created_by_id"`
+	CreatedBy       *User             `gorm:"foreignKey:CreatedByID" json:"created_by,omitempty"`
+	ApprovedByID    *uint             `gorm:"index" json:"approved_by_id"`
+	ApprovedBy      *User             `gorm:"foreignKey:ApprovedByID" json:"approved_by,omitempty"`
+	ReceivedByID    *uint             `gorm:"index" json:"received_by_id"`
+	ReceivedBy      *User             `gorm:"foreignKey:ReceivedByID" json:"received_by,omitempty"`
+	Notes           string            `gorm:"type:text" json:"notes"`
+	Items           []PurchaseItem    `gorm:"foreignKey:PurchaseID" json:"items"`
+	Payments        []PurchasePayment `gorm:"foreignKey:PurchaseID" json:"payments,omitempty"`
 }
 
 // TableName sets the table name for Purchase
 func (Purchase) TableName() string {
 	return "purchases"
+}
+
+type PurchasePayment struct {
+	ID              uint           `gorm:"primarykey" json:"id"`
+	CreatedAt       time.Time      `json:"created_at"`
+	UpdatedAt       time.Time      `json:"updated_at"`
+	DeletedAt       gorm.DeletedAt `gorm:"index" json:"-"`
+	PurchaseID      uint           `gorm:"not null;index;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"purchase_id"`
+	Purchase        *Purchase      `gorm:"foreignKey:PurchaseID" json:"-"`
+	PaymentNumber   string         `gorm:"size:50;not null;uniqueIndex" json:"payment_number"`
+	PaymentMethod   string         `gorm:"size:30;not null" json:"payment_method"`
+	Amount          float64        `gorm:"type:decimal(15,2);default:0" json:"amount"`
+	PaymentDate     time.Time      `gorm:"not null" json:"payment_date"`
+	ReferenceNumber string         `gorm:"size:100" json:"reference_number"`
+	Notes           string         `gorm:"type:text" json:"notes"`
+	RecordedByID    uint           `gorm:"not null;index" json:"recorded_by_id"`
+	RecordedBy      *User          `gorm:"foreignKey:RecordedByID" json:"recorded_by,omitempty"`
+}
+
+func (PurchasePayment) TableName() string {
+	return "purchase_payments"
 }
 
 // PurchaseItem represents an item in a purchase order
@@ -187,6 +280,10 @@ type PurchaseItem struct {
 	QuantityReceived int            `gorm:"default:0" json:"quantity_received"`
 	Unit             string         `gorm:"size:30" json:"unit"`
 	UnitPrice        float64        `gorm:"type:decimal(15,2);default:0" json:"unit_price"`
+	DiscountPercent  float64        `gorm:"type:decimal(7,2);default:0" json:"discount_percent"`
+	DiscountAmount   float64        `gorm:"type:decimal(15,2);default:0" json:"discount_amount"`
+	TaxPercent       float64        `gorm:"type:decimal(7,2);default:0" json:"tax_percent"`
+	TaxAmount        float64        `gorm:"type:decimal(15,2);default:0" json:"tax_amount"`
 	TotalPrice       float64        `gorm:"type:decimal(15,2);default:0" json:"total_price"`
 	BatchNumber      string         `gorm:"size:50" json:"batch_number,omitempty"`
 	ExpiryDate       *time.Time     `json:"expiry_date,omitempty"`

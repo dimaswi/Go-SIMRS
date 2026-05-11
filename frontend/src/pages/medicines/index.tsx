@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { PageShell, PageHeader, PageContent } from '@/components/layout/page-shell';
 
 import { DataTable } from '@/components/ui/data-table';
+import { MedicineTraceabilityDrawer } from '@/components/medicines/medicine-traceability-drawer';
 import { createMedicineColumns } from './columns';
 import { medicinesApi, type Medicine } from '@/lib/api/medicines';
 import { usePermission } from '@/hooks/usePermission';
@@ -20,6 +21,10 @@ export default function MedicinesPage() {
   const [loading, setLoading] = useState(true);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [medicineToDelete, setMedicineToDelete] = useState<number | null>(null);
+  const [traceabilityOpen, setTraceabilityOpen] = useState(false);
+  const [selectedMedicineId, setSelectedMedicineId] = useState<number | null>(null);
+
+  const selectedMedicine = medicines.find((medicine) => medicine.id === selectedMedicineId) || null;
 
   const loadData = useCallback(async () => {
     try {
@@ -64,6 +69,11 @@ export default function MedicinesPage() {
     }
   };
 
+  const handleTrace = (id: number) => {
+    setSelectedMedicineId(id);
+    setTraceabilityOpen(true);
+  };
+
   const handleView = (id: number) => {
     navigate(`/medicines/${id}`);
   };
@@ -78,6 +88,7 @@ export default function MedicinesPage() {
   };
 
   const columns = createMedicineColumns({
+    onTrace: handleTrace,
     onView: handleView,
     onEdit: handleEdit,
     onDelete: handleDelete,
@@ -135,6 +146,14 @@ export default function MedicinesPage() {
         confirmText="Hapus"
         cancelText="Batal"
         variant="destructive"
+      />
+
+      <MedicineTraceabilityDrawer
+        open={traceabilityOpen}
+        onOpenChange={setTraceabilityOpen}
+        medicineId={selectedMedicineId}
+        initialMedicine={selectedMedicine}
+        onOpenDetail={(id) => navigate(`/medicines/${id}`)}
       />
     </PageShell>
   );

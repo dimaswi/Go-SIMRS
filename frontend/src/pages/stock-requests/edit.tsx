@@ -7,16 +7,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { setPageTitle } from "@/lib/page-title";
+import { cn } from "@/lib/utils";
 import {
   stockRequestsApi,
   type StockRequest,
@@ -59,27 +53,38 @@ function SectionPanel({
   icon: Icon,
   title,
   description,
+  actions,
   children,
+  className,
+  headerClassName,
+  contentClassName,
 }: {
   icon: ComponentType<{ className?: string }>;
   title: string;
-  description: string;
+  description?: string;
+  actions?: ReactNode;
   children: ReactNode;
+  className?: string;
+  headerClassName?: string;
+  contentClassName?: string;
 }) {
   return (
-    <div className="border border-border/70 bg-background/95 shadow-sm">
-      <div className="border-b border-border/70 bg-muted/20 px-4 py-3">
-        <div className="flex items-start gap-3">
-          <div className="border border-border/70 bg-background p-2">
-            <Icon className="h-4 w-4 text-muted-foreground" />
+    <div className={cn("border border-border/70 bg-background/95", className)}>
+      <div className={cn("border-b border-border/70 bg-muted/20 px-2.5 py-2 sm:px-3", headerClassName)}>
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div className="border border-border/70 bg-background p-1.5">
+              <Icon className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{title}</div>
+              {description ? <p className="mt-1 text-xs text-muted-foreground">{description}</p> : null}
+            </div>
           </div>
-          <div>
-            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{title}</div>
-            <p className="mt-1 text-xs text-muted-foreground">{description}</p>
-          </div>
+          {actions}
         </div>
       </div>
-      <div className="p-3 sm:p-4 space-y-4">{children}</div>
+      <div className={cn("space-y-3 p-2.5 sm:p-3", contentClassName)}>{children}</div>
     </div>
   );
 }
@@ -265,206 +270,217 @@ export default function StockRequestEdit() {
   }
 
   return (
-    <PageShell>
+    <PageShell className="lg:overflow-hidden">
       <PageHeader
         title="Edit Permintaan Stok"
         description="Perbarui prioritas, waktu kebutuhan, dan catatan permintaan tanpa mengubah item yang sudah diajukan."
-        icon={ClipboardList}
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <Button type="button" variant="outline" size="sm" onClick={() => navigate(`/stock-requests/${id}`)}>
-              <ArrowLeft className="h-4 w-4" />
+              <ArrowLeft className="mr-2 h-4 w-4" />
               Kembali
             </Button>
             <Button size="sm" onClick={handleSubmit} disabled={submitting}>
-              {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
+              {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Simpan Perubahan
             </Button>
           </div>
         }
-      >
-        <div className="flex flex-wrap gap-2 pb-3">
-          <div className="border border-border/70 bg-background px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Item tetap read only</div>
-          <div className="border border-border/70 bg-background px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Prioritas dapat diubah</div>
-          <div className="border border-border/70 bg-background px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Catatan tetap tersimpan</div>
-        </div>
-      </PageHeader>
+      />
 
-      <PageContent className="flex-none pb-8">
-        <div className="mb-4 grid gap-3 lg:grid-cols-3">
-          <div className="border border-border/70 bg-gradient-to-br from-background via-background to-sky-50/40 px-4 py-3 shadow-sm">
-            <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Nomor Permintaan</div>
-            <div className="mt-1 text-sm font-medium text-foreground">{request.request_number}</div>
+      <PageContent className="min-h-0 overflow-hidden pb-3">
+        <div className="grid min-h-0 flex-1 gap-3 [&_label]:text-[10px] [&_label]:uppercase [&_label]:tracking-[0.08em] [&_label]:text-muted-foreground [&_input]:h-8 [&_[role=combobox]]:h-8 lg:grid-cols-[minmax(320px,380px)_minmax(0,1fr)] xl:grid-cols-[minmax(330px,390px)_minmax(0,1fr)]">
+          <div className="min-h-0 overflow-hidden">
+            <div className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto pr-1">
+              <SectionPanel
+                icon={ClipboardList}
+                title="Informasi Dasar"
+                description="Ubah prioritas, tanggal kebutuhan, dan catatan sambil mempertahankan struktur item yang sudah diajukan."
+              >
+                <div className="space-y-3 border-b border-border/70 pb-3">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <p className="text-xs text-muted-foreground">No. Permintaan</p>
+                      <p className="font-mono text-sm font-medium">{request.request_number}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Tipe Permintaan</p>
+                      <p className="text-sm font-medium">{requestTypeLabels[request.request_type]}</p>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <p className="text-xs text-muted-foreground">Status</p>
+                      <Badge className="mt-1 bg-yellow-100 text-yellow-800">
+                        {stockRequestStatusLabels[request.status]}
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-md border border-sky-200 bg-sky-50/70 px-3 py-3 text-xs leading-5 text-sky-800">
+                  Hanya prioritas, tanggal dibutuhkan, alasan, dan catatan yang bisa diubah. Item tetap mengikuti permintaan awal.
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <Label>Ruangan Pemohon</Label>
+                    <Combobox
+                      options={rooms}
+                      value={formData.from_room_id.toString()}
+                      onValueChange={() => {}}
+                      placeholder="Pilih ruangan"
+                      disabled
+                      className="h-8"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label>Depo/Gudang Tujuan</Label>
+                    <Combobox
+                      options={depoRooms}
+                      value={formData.to_room_id.toString()}
+                      onValueChange={() => {}}
+                      placeholder="Pilih depo/gudang"
+                      disabled
+                      className="h-8"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label>Prioritas</Label>
+                    <Combobox
+                      options={priorityOptions}
+                      value={formData.priority}
+                      onValueChange={(value) => setFormData({ ...formData, priority: value })}
+                      placeholder="Pilih prioritas"
+                      searchPlaceholder="Cari prioritas..."
+                      emptyText="Prioritas tidak ditemukan"
+                      className="h-8"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label>Tanggal Dibutuhkan</Label>
+                    <Input
+                      type="date"
+                      value={formData.required_date}
+                      onChange={(e) => setFormData({ ...formData, required_date: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="space-y-1 sm:col-span-2">
+                    <Label>Alasan Permintaan</Label>
+                    <Input
+                      placeholder="Alasan permintaan"
+                      value={formData.reason}
+                      onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <Label>Catatan</Label>
+                  <Textarea
+                    placeholder="Catatan tambahan"
+                    value={formData.notes}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                    className="min-h-[96px] resize-none"
+                  />
+                </div>
+              </SectionPanel>
+
+              <SectionPanel
+                icon={request.request_type === "inventory" ? Package : Pill}
+                title="Ringkasan Permintaan"
+                description="Status, jumlah item, dan arah distribusi permintaan saat ini."
+              >
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="border border-border/70 bg-gradient-to-br from-background via-background to-sky-50/40 px-3 py-3">
+                    <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Nomor</div>
+                    <div className="mt-1 text-sm font-medium text-foreground">{request.request_number}</div>
+                  </div>
+                  <div className="border border-border/70 bg-gradient-to-br from-background via-background to-emerald-50/40 px-3 py-3">
+                    <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Item Diajukan</div>
+                    <div className="mt-1 text-sm font-medium text-foreground">{items.length} item</div>
+                  </div>
+                  <div className="border border-border/70 bg-gradient-to-br from-background via-background to-amber-50/50 px-3 py-3">
+                    <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Prioritas</div>
+                    <div className="mt-1 text-sm font-medium text-foreground">{priorityOptions.find((option) => option.value === formData.priority)?.label || formData.priority}</div>
+                  </div>
+                </div>
+              </SectionPanel>
+            </div>
           </div>
-          <div className="border border-border/70 bg-gradient-to-br from-background via-background to-emerald-50/40 px-4 py-3 shadow-sm">
-            <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Item Diajukan</div>
-            <div className="mt-1 text-sm font-medium text-foreground">{items.length} item tetap dipertahankan dari permintaan awal.</div>
-          </div>
-          <div className="border border-border/70 bg-gradient-to-br from-background via-background to-amber-50/50 px-4 py-3 shadow-sm">
-            <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Status</div>
-            <div className="mt-1 text-sm font-medium text-foreground">{stockRequestStatusLabels[request.status]} dengan prioritas {priorityOptions.find((option) => option.value === formData.priority)?.label?.toLowerCase() || formData.priority}.</div>
+
+          <div className="flex min-h-0 flex-col overflow-hidden">
+            <SectionPanel
+              icon={request.request_type === "inventory" ? Package : Pill}
+              title="Daftar Item"
+              description="Item permintaan asli ditampilkan sebagai referensi dan tidak dapat diubah dari halaman edit ini."
+              className="flex min-h-0 flex-1 flex-col overflow-hidden"
+              headerClassName="px-2.5 py-2 sm:px-3"
+              contentClassName="flex min-h-0 flex-1 flex-col overflow-hidden px-2.5 py-2.5 sm:px-3"
+            >
+              <div className="min-h-0 flex-1 overflow-hidden rounded-lg border border-border/80 bg-background">
+                <ScrollArea className="h-full">
+                  <table className="w-full table-fixed border-collapse text-sm">
+                    <thead className="sticky top-0 z-10 bg-background">
+                      <tr className="bg-muted/20">
+                        <th className="h-9 w-[30%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Item</th>
+                        <th className="h-9 w-[16%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Tipe</th>
+                        <th className="h-9 w-[16%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Stok</th>
+                        <th className="h-9 w-[14%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Qty</th>
+                        <th className="h-9 w-[10%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Sat</th>
+                        <th className="h-9 w-[14%] border-b border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Catatan</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {items.map((item) => (
+                        <tr key={item.id} className="transition-colors hover:bg-muted/10">
+                          <td className="border-b border-r border-border/60 px-3 py-2.5 align-top">
+                            <div className="flex items-start gap-2">
+                              {item.inventory_id ? (
+                                <Package className="mt-0.5 h-4 w-4 text-blue-500" />
+                              ) : (
+                                <Pill className="mt-0.5 h-4 w-4 text-green-500" />
+                              )}
+                              <div className="min-w-0 space-y-0.5">
+                                <p className="text-xs font-semibold leading-4 text-foreground">{item.name}</p>
+                                <p className="font-mono text-[11px] leading-4 text-muted-foreground">{item.code}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="border-b border-r border-border/60 px-3 py-2.5 align-top">
+                            <Badge variant="outline" className="text-[10px]">
+                              {item.inventory_id ? "Inventaris" : "Obat"}
+                            </Badge>
+                          </td>
+                          <td className="border-b border-r border-border/60 px-3 py-2.5 align-top text-[11px] text-muted-foreground">
+                            {item.current_stock}
+                          </td>
+                          <td className="border-b border-r border-border/60 px-3 py-2.5 align-top text-sm font-medium text-foreground">
+                            {item.quantity_requested}
+                          </td>
+                          <td className="border-b border-r border-border/60 px-3 py-2.5 align-top text-[11px] text-muted-foreground">
+                            {item.unit}
+                          </td>
+                          <td className="border-b border-border/60 px-3 py-2.5 align-top text-[11px] text-muted-foreground">
+                            {item.notes || "-"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </ScrollArea>
+              </div>
+
+              <div className="mt-2 flex shrink-0 items-center justify-end gap-2 border-t border-border/70 pt-2.5">
+                <Button size="sm" variant="outline" onClick={() => navigate(`/stock-requests/${id}`)}>
+                  Batal
+                </Button>
+              </div>
+            </SectionPanel>
           </div>
         </div>
-
-      <div className="flex-1 space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11">
-        {/* Info Box */}
-        <SectionPanel
-          icon={ClipboardList}
-          title="Informasi Dasar"
-          description="Ubah prioritas, tanggal kebutuhan, dan catatan sambil mempertahankan struktur item yang sudah diajukan."
-        >
-            <div className="flex items-center gap-6">
-              <div>
-                <p className="text-xs text-muted-foreground">No. Permintaan</p>
-                <p className="text-sm font-medium font-mono">{request.request_number}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Tipe Permintaan</p>
-                <p className="text-sm font-medium">{requestTypeLabels[request.request_type]}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Status</p>
-                <Badge className="bg-yellow-100 text-yellow-800 mt-0.5">
-                  {stockRequestStatusLabels[request.status]}
-                </Badge>
-              </div>
-            </div>
-            <div className="bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500 p-4">
-              <p className="text-sm text-blue-700 dark:text-blue-300">
-                <strong>Catatan:</strong> Anda hanya dapat mengubah prioritas, tanggal dibutuhkan, alasan, dan catatan.
-                Untuk mengubah item, Anda perlu membatalkan permintaan ini dan membuat yang baru.
-              </p>
-            </div>
-
-            {/* Form Fields */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label>Ruangan Pemohon</Label>
-                <Combobox
-                  options={rooms}
-                  value={formData.from_room_id.toString()}
-                  onValueChange={() => { }}
-                  placeholder="Pilih ruangan"
-                  disabled
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Depo/Gudang Tujuan</Label>
-                <Combobox
-                  options={depoRooms}
-                  value={formData.to_room_id.toString()}
-                  onValueChange={() => { }}
-                  placeholder="Pilih depo/gudang"
-                  disabled
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Prioritas</Label>
-                <Combobox
-                  options={priorityOptions}
-                  value={formData.priority}
-                  onValueChange={(value) =>
-                    setFormData({ ...formData, priority: value })
-                  }
-                  placeholder="Pilih prioritas"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Tanggal Dibutuhkan</Label>
-                <Input
-                  type="date"
-                  value={formData.required_date}
-                  onChange={(e) =>
-                    setFormData({ ...formData, required_date: e.target.value })
-                  }
-                />
-              </div>
-
-              <div className="space-y-2 md:col-span-2">
-                <Label>Alasan Permintaan</Label>
-                <Input
-                  placeholder="Alasan permintaan..."
-                  value={formData.reason}
-                  onChange={(e) =>
-                    setFormData({ ...formData, reason: e.target.value })
-                  }
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Catatan</Label>
-              <Textarea
-                placeholder="Catatan tambahan..."
-                value={formData.notes}
-                onChange={(e) =>
-                  setFormData({ ...formData, notes: e.target.value })
-                }
-              />
-            </div>
-        </SectionPanel>
-
-        {/* Items Section (Read Only) */}
-        <SectionPanel
-          icon={request.request_type === "inventory" ? Package : Pill}
-          title="Daftar Item"
-          description="Item permintaan asli ditampilkan sebagai referensi dan tidak dapat diubah dari halaman edit ini."
-        >
-
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Kode</TableHead>
-                  <TableHead>Nama</TableHead>
-                  <TableHead>Stok Saat Ini</TableHead>
-                  <TableHead>Qty Diminta</TableHead>
-                  <TableHead>Satuan</TableHead>
-                  <TableHead>Catatan</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {items.map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell className="font-mono">{item.code}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        {item.inventory_id ? (
-                          <Package className="h-4 w-4 text-blue-500" />
-                        ) : (
-                          <Pill className="h-4 w-4 text-green-500" />
-                        )}
-                        {item.name}
-                      </div>
-                    </TableCell>
-                    <TableCell>{item.current_stock}</TableCell>
-                    <TableCell className="font-medium">{item.quantity_requested}</TableCell>
-                    <TableCell>{item.unit}</TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {item.notes || "-"}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-        </SectionPanel>
-
-        {/* Sticky Footer Actions */}
-        <div className="shrink-0 sticky bottom-0 z-10 py-3 mt-4 flex items-center justify-end gap-4 border-t border-border/70 bg-background/95 backdrop-blur">
-          <Button
-            variant="outline"
-            onClick={() => navigate(`/stock-requests/${id}`)}
-          >
-            Batal
-          </Button>
-          <Button onClick={handleSubmit} disabled={submitting}>
-            {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Simpan Perubahan
-          </Button>
-        </div>
-      </div>
       </PageContent>
     </PageShell>
   );

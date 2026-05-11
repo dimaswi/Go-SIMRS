@@ -59,10 +59,11 @@ type Inventory struct {
 	Model       string            `gorm:"size:100" json:"model"`                    // Model/Tipe
 
 	// Inventory Details (stok aktual ada di RoomInventory per ruangan)
-	MinStock   int     `gorm:"default:0" json:"min_stock"`                      // Stok Minimum Global (untuk alert)
-	MaxStock   int     `gorm:"default:0" json:"max_stock"`                      // Stok Maksimum Global
-	Price      float64 `gorm:"type:decimal(15,2);default:0" json:"price"`       // Harga Satuan
-	TotalValue float64 `gorm:"type:decimal(15,2);default:0" json:"total_value"` // Nilai Total (computed)
+	MinStock     int     `gorm:"default:0" json:"min_stock"`                      // Stok Minimum Global (untuk alert)
+	MaxStock     int     `gorm:"default:0" json:"max_stock"`                      // Stok Maksimum Global
+	CurrentStock int     `gorm:"-" json:"current_stock"`                          // Stok untuk kebutuhan display (bukan data master tersimpan)
+	Price        float64 `gorm:"type:decimal(15,2);default:0" json:"price"`       // Harga Satuan
+	TotalValue   float64 `gorm:"type:decimal(15,2);default:0" json:"total_value"` // Nilai Total (computed)
 
 	// Classification
 	IsConsumable  bool `gorm:"default:false" json:"is_consumable"`  // Apakah barang habis pakai

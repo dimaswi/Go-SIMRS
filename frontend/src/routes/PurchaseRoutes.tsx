@@ -4,6 +4,7 @@ import { ProtectedRoute as PermissionGuard } from '@/components/protected-route'
 
 // Lazy load components
 const PurchasesIndex = lazy(() => import('@/pages/purchases/index'));
+const PurchasePayablesIndex = lazy(() => import('@/pages/purchases/payables'));
 const PurchaseCreate = lazy(() => import('@/pages/purchases/create'));
 const PurchaseShow = lazy(() => import('@/pages/purchases/show'));
 const PurchaseEdit = lazy(() => import('@/pages/purchases/edit'));
@@ -13,6 +14,13 @@ export function PurchaseRoutes(ProtectedRoute: React.ComponentType<{ children: R
   return (
     <>
       <Route path="/purchases" element={<ProtectedRoute><PurchasesIndex /></ProtectedRoute>} />
+      <Route path="/purchases/payables" element={
+        <ProtectedRoute>
+          <PermissionGuard permission="purchases.view">
+            <PurchasePayablesIndex />
+          </PermissionGuard>
+        </ProtectedRoute>
+      } />
       <Route path="/purchases/create" element={
         <ProtectedRoute>
           <PermissionGuard permission="purchases.create">

@@ -27,6 +27,41 @@ export interface StockRequest {
   rejection_reason?: string;
   notes?: string;
   items: StockRequestItem[];
+  approval_histories?: StockRequestApproval[];
+}
+
+export interface StockRequestApproval {
+  id: number;
+  stock_request_id: number;
+  approved_by_id: number;
+  approved_by?: User;
+  approved_date: string;
+  status: StockRequestStatus;
+  notes?: string;
+  items: StockRequestApprovalItem[];
+}
+
+export interface StockRequestApprovalItem {
+  id: number;
+  stock_request_approval_id: number;
+  stock_request_item_id: number;
+  inventory_id?: number;
+  inventory?: {
+    id: number;
+    code: string;
+    name: string;
+    unit: string;
+  };
+  medicine_id?: number;
+  medicine?: {
+    id: number;
+    code: string;
+    name: string;
+    unit: string;
+  };
+  quantity_approved: number;
+  unit: string;
+  notes?: string;
 }
 
 export interface StockRequestItem {
@@ -288,14 +323,38 @@ export interface Purchase {
   order_date?: string;
   expected_date?: string;
   received_date?: string;
+  invoice_number?: string;
+  invoice_date?: string;
+  payment_method: 'cash' | 'transfer' | 'credit' | 'cod' | 'cbd' | 'consignment' | 'installment';
+  payment_term_days: number;
+  due_date?: string;
   status: 'draft' | 'pending' | 'ordered' | 'partial' | 'received' | 'cancelled';
   total_amount: number;
+  paid_amount: number;
+  remaining_amount: number;
+  payment_status: 'unpaid' | 'partial' | 'paid' | 'overdue';
   notes?: string;
   created_by_id: number;
   created_by?: User;
   received_by_id?: number;
   received_by?: User;
   items: PurchaseItem[];
+  payments?: PurchasePayment[];
+}
+
+export interface PurchasePayment {
+  id: number;
+  purchase_id: number;
+  payment_number: string;
+  payment_method: 'cash' | 'transfer' | 'credit' | 'cod' | 'cbd' | 'consignment' | 'installment';
+  amount: number;
+  payment_date: string;
+  reference_number?: string;
+  notes?: string;
+  recorded_by_id: number;
+  recorded_by?: User;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface PurchaseItem {
@@ -318,6 +377,10 @@ export interface PurchaseItem {
   quantity_ordered: number;
   quantity_received: number;
   unit_price: number;
+  discount_percent: number;
+  discount_amount: number;
+  tax_percent: number;
+  tax_amount: number;
   total_price: number;
   batch_number?: string;
   expiry_date?: string;
@@ -334,6 +397,23 @@ export const purchaseStatusLabels: Record<string, string> = {
   cancelled: 'Dibatalkan',
 };
 
+export const purchasePaymentMethodLabels: Record<string, string> = {
+  cash: 'Tunai',
+  transfer: 'Transfer',
+  credit: 'Kredit / Termin',
+  cod: 'COD',
+  cbd: 'CBD',
+  consignment: 'Konsinyasi',
+  installment: 'Cicilan',
+};
+
+export const purchasePaymentStatusLabels: Record<string, string> = {
+  unpaid: 'Belum Bayar',
+  partial: 'Bayar Sebagian',
+  paid: 'Lunas',
+  overdue: 'Lewat Jatuh Tempo',
+};
+
 // Purchase API
 export const purchasesApi = {
   getAll: (params?: {
@@ -341,29 +421,63 @@ export const purchasesApi = {
     limit?: number;
     status?: string;
     to_room_id?: number;
+    payment_status?: string;
+    overdue?: boolean;
   }) => api.get('/purchases', { params }),
 
   getById: (id: number) => api.get(`/purchases/${id}`),
 
   create: (data: {
+    supplier_id?: number;
     supplier_name: string;
     supplier_contact?: string;
     to_room_id: number;
+    invoice_number?: string;
+    invoice_date?: string;
+    payment_method?: string;
+    payment_term_days?: number;
+    due_date?: string;
     notes?: string;
     items: {
       inventory_id?: number;
       medicine_id?: number;
       quantity_ordered: number;
       unit_price: number;
+      discount_percent?: number;
+      discount_amount?: number;
+      tax_percent?: number;
+      tax_amount?: number;
+      batch_number?: string;
+      expiry_date?: string;
       unit?: string;
       notes?: string;
     }[];
   }) => api.post('/purchases', data),
 
   update: (id: number, data: {
+    supplier_id?: number;
     supplier_name?: string;
     supplier_contact?: string;
+    invoice_number?: string;
+    invoice_date?: string;
+    payment_method?: string;
+    payment_term_days?: number;
+    due_date?: string;
     notes?: string;
+    items?: {
+      inventory_id?: number;
+      medicine_id?: number;
+      quantity_ordered: number;
+      unit_price: number;
+      discount_percent?: number;
+      discount_amount?: number;
+      tax_percent?: number;
+      tax_amount?: number;
+      batch_number?: string;
+      expiry_date?: string;
+      unit?: string;
+      notes?: string;
+    }[];
   }) => api.put(`/purchases/${id}`, data),
 
   delete: (id: number) => api.delete(`/purchases/${id}`),
@@ -382,6 +496,14 @@ export const purchasesApi = {
     notes?: string;
   }) => api.post(`/purchases/${id}/receive`, data),
 
+  recordPayment: (id: number, data: {
+    amount: number;
+    payment_date?: string;
+    payment_method?: string;
+    reference_number?: string;
+    notes?: string;
+  }) => api.post(`/purchases/${id}/payments`, data),
+
   cancel: (id: number) => api.post(`/purchases/${id}/cancel`),
 };
 
@@ -396,8 +518,8 @@ export interface StockOpname {
   opname_date: string;
   status: 'draft' | 'in_progress' | 'completed' | 'approved';
   notes?: string;
-  created_by_id: number;
-  created_by?: User;
+  conducted_by_id: number;
+  conducted_by?: User;
   approved_by_id?: number;
   approved_by?: User;
   approved_date?: string;

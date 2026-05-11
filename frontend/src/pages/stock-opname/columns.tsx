@@ -49,7 +49,7 @@ export function createStockOpnameColumns({
             {row.original.opname_number}
           </span>
           <p className="text-xs text-muted-foreground">
-            {row.original.created_by?.full_name || "Tanpa petugas"}
+            {row.original.conducted_by?.full_name || "Tanpa petugas"}
           </p>
         </div>
       ),

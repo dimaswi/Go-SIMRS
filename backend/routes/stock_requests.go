@@ -54,6 +54,7 @@ func setupPurchaseRoutes(rg *gin.RouterGroup) {
 		purchases.POST("/:id/submit", handlers.SubmitPurchase)
 		purchases.POST("/:id/approve", handlers.ApprovePurchase)
 		purchases.POST("/:id/receive", handlers.ReceivePurchase)
+		purchases.POST("/:id/payments", handlers.RecordPurchasePayment)
 		purchases.POST("/:id/cancel", handlers.CancelPurchase)
 	}
 }

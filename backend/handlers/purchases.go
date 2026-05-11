@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"starter/backend/database"
@@ -19,6 +20,11 @@ type CreatePurchaseInput struct {
 	SupplierName    string                    `json:"supplier_name"`
 	SupplierContact string                    `json:"supplier_contact"`
 	ToRoomID        uint                      `json:"to_room_id" binding:"required"`
+	InvoiceNumber   string                    `json:"invoice_number"`
+	InvoiceDate     string                    `json:"invoice_date"`
+	PaymentMethod   string                    `json:"payment_method"`
+	PaymentTermDays int                       `json:"payment_term_days"`
+	DueDate         string                    `json:"due_date"`
 	Notes           string                    `json:"notes"`
 	Items           []CreatePurchaseItemInput `json:"items" binding:"required,min=1"`
 }
@@ -28,15 +34,27 @@ type CreatePurchaseItemInput struct {
 	MedicineID      *uint   `json:"medicine_id"`
 	QuantityOrdered int     `json:"quantity_ordered" binding:"required,min=1"`
 	UnitPrice       float64 `json:"unit_price"`
+	DiscountPercent float64 `json:"discount_percent"`
+	DiscountAmount  float64 `json:"discount_amount"`
+	TaxPercent      float64 `json:"tax_percent"`
+	TaxAmount       float64 `json:"tax_amount"`
+	BatchNumber     string  `json:"batch_number"`
+	ExpiryDate      string  `json:"expiry_date"`
 	Unit            string  `json:"unit"`
 	Notes           string  `json:"notes"`
 }
 
 type UpdatePurchaseInput struct {
-	SupplierID      *uint  `json:"supplier_id"`
-	SupplierName    string `json:"supplier_name"`
-	SupplierContact string `json:"supplier_contact"`
-	Notes           string `json:"notes"`
+	SupplierID      *uint                      `json:"supplier_id"`
+	SupplierName    *string                    `json:"supplier_name"`
+	SupplierContact *string                    `json:"supplier_contact"`
+	InvoiceNumber   *string                    `json:"invoice_number"`
+	InvoiceDate     *string                    `json:"invoice_date"`
+	PaymentMethod   *string                    `json:"payment_method"`
+	PaymentTermDays *int                       `json:"payment_term_days"`
+	DueDate         *string                    `json:"due_date"`
+	Notes           *string                    `json:"notes"`
+	Items           *[]CreatePurchaseItemInput `json:"items"`
 }
 
 type ReceivePurchaseInput struct {
@@ -44,11 +62,141 @@ type ReceivePurchaseInput struct {
 	Notes string                     `json:"notes"`
 }
 
+type RecordPurchasePaymentInput struct {
+	Amount          float64 `json:"amount" binding:"required,gt=0"`
+	PaymentDate     string  `json:"payment_date"`
+	PaymentMethod   string  `json:"payment_method"`
+	ReferenceNumber string  `json:"reference_number"`
+	Notes           string  `json:"notes"`
+}
+
 type ReceivePurchaseItemInput struct {
 	ID               uint   `json:"id" binding:"required"`
 	QuantityReceived int    `json:"quantity_received" binding:"required,min=0"`
 	BatchNumber      string `json:"batch_number"`
 	ExpiryDate       string `json:"expiry_date"`
+}
+
+func parseOptionalLocalDate(s string) (*time.Time, error) {
+	if strings.TrimSpace(s) == "" {
+		return nil, nil
+	}
+	parsed, err := ParseLocalDate(strings.TrimSpace(s))
+	if err != nil {
+		return nil, err
+	}
+	return &parsed, nil
+}
+
+func normalizePurchasePaymentMethod(method string) string {
+	switch strings.ToLower(strings.TrimSpace(method)) {
+	case models.PurchasePaymentMethodCash,
+		models.PurchasePaymentMethodTransfer,
+		models.PurchasePaymentMethodCredit,
+		models.PurchasePaymentMethodCOD,
+		models.PurchasePaymentMethodCBD,
+		models.PurchasePaymentMethodConsignment,
+		models.PurchasePaymentMethodInstallment:
+		return strings.ToLower(strings.TrimSpace(method))
+	default:
+		return models.PurchasePaymentMethodCredit
+	}
+}
+
+func derivePurchaseDueDate(invoiceDate *time.Time, explicitDueDate *time.Time, paymentMethod string, termDays int, fallback time.Time) *time.Time {
+	if explicitDueDate != nil {
+		dueDate := time.Date(explicitDueDate.Year(), explicitDueDate.Month(), explicitDueDate.Day(), 0, 0, 0, 0, explicitDueDate.Location())
+		return &dueDate
+	}
+
+	baseDate := fallback
+	if invoiceDate != nil {
+		baseDate = *invoiceDate
+	}
+	baseDate = time.Date(baseDate.Year(), baseDate.Month(), baseDate.Day(), 0, 0, 0, 0, baseDate.Location())
+
+	switch paymentMethod {
+	case models.PurchasePaymentMethodCredit, models.PurchasePaymentMethodInstallment, models.PurchasePaymentMethodConsignment:
+		dueDate := baseDate.AddDate(0, 0, termDays)
+		return &dueDate
+	case models.PurchasePaymentMethodCash, models.PurchasePaymentMethodCOD, models.PurchasePaymentMethodCBD:
+		dueDate := baseDate
+		return &dueDate
+	default:
+		if termDays > 0 {
+			dueDate := baseDate.AddDate(0, 0, termDays)
+			return &dueDate
+		}
+		return nil
+	}
+}
+
+func derivePurchasePaymentStatus(totalAmount, paidAmount float64, dueDate *time.Time, now time.Time) string {
+	remaining := totalAmount - paidAmount
+	if remaining <= 0.0001 {
+		return models.PurchasePaymentStatusPaid
+	}
+	if dueDate != nil {
+		today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+		compareDate := time.Date(dueDate.Year(), dueDate.Month(), dueDate.Day(), 0, 0, 0, 0, dueDate.Location())
+		if today.After(compareDate) {
+			return models.PurchasePaymentStatusOverdue
+		}
+	}
+	if paidAmount > 0.0001 {
+		return models.PurchasePaymentStatusPartial
+	}
+	return models.PurchasePaymentStatusUnpaid
+}
+
+func calculatePurchaseItemCommercials(input CreatePurchaseItemInput) (discountPercent float64, discountAmount float64, taxPercent float64, taxAmount float64, totalPrice float64) {
+	baseAmount := float64(input.QuantityOrdered) * input.UnitPrice
+	if baseAmount <= 0 {
+		return 0, 0, 0, 0, 0
+	}
+
+	discountPercent = input.DiscountPercent
+	discountAmount = input.DiscountAmount
+	if discountAmount <= 0 && discountPercent > 0 {
+		discountAmount = (baseAmount * discountPercent) / 100
+	}
+	if discountPercent <= 0 && discountAmount > 0 {
+		discountPercent = (discountAmount / baseAmount) * 100
+	}
+	if discountAmount < 0 {
+		discountAmount = 0
+	}
+	if discountAmount > baseAmount {
+		discountAmount = baseAmount
+	}
+
+	taxableBase := baseAmount - discountAmount
+	taxPercent = input.TaxPercent
+	taxAmount = input.TaxAmount
+	if taxAmount <= 0 && taxPercent > 0 {
+		taxAmount = (taxableBase * taxPercent) / 100
+	}
+	if taxPercent <= 0 && taxAmount > 0 && taxableBase > 0 {
+		taxPercent = (taxAmount / taxableBase) * 100
+	}
+	if taxAmount < 0 {
+		taxAmount = 0
+	}
+
+	totalPrice = taxableBase + taxAmount
+	if totalPrice < 0 {
+		totalPrice = 0
+	}
+
+	return discountPercent, discountAmount, taxPercent, taxAmount, totalPrice
+}
+
+func generatePurchasePaymentNumber() string {
+	var count int64
+	database.DB.Model(&models.PurchasePayment{}).
+		Where("created_at >= ?", time.Now().Format("2006-01-01")).
+		Count(&count)
+	return fmt.Sprintf("PPAY-%s-%04d", time.Now().Format("2006"), count+1)
 }
 
 // GetPurchases godoc
@@ -70,8 +218,15 @@ func GetPurchases(c *gin.Context) {
 	if status := c.Query("status"); status != "" {
 		query = query.Where("status = ?", status)
 	}
+	if paymentStatus := c.Query("payment_status"); paymentStatus != "" {
+		query = query.Where("payment_status = ?", paymentStatus)
+	}
 	if toRoomID := c.Query("to_room_id"); toRoomID != "" {
 		query = query.Where("to_room_id = ?", toRoomID)
+	}
+	if c.Query("overdue") == "true" {
+		today := time.Now().Format("2006-01-02")
+		query = query.Where("due_date IS NOT NULL AND due_date < ? AND payment_status <> ?", today, models.PurchasePaymentStatusPaid)
 	}
 
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
@@ -108,7 +263,7 @@ func GetPurchase(c *gin.Context) {
 	var purchase models.Purchase
 
 	if err := database.DB.Preload("ToRoom").Preload("Supplier").Preload("CreatedBy").Preload("ApprovedBy").Preload("ReceivedBy").
-		Preload("Items").Preload("Items.Inventory").Preload("Items.Medicine").
+		Preload("Items").Preload("Items.Inventory").Preload("Items.Medicine").Preload("Payments").Preload("Payments.RecordedBy").
 		First(&purchase, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Purchase not found"})
 		return
@@ -145,6 +300,25 @@ func CreatePurchase(c *gin.Context) {
 	database.DB.Model(&models.Purchase{}).Count(&count)
 	purchaseNumber := fmt.Sprintf("PO-%s-%04d", time.Now().Format("2006"), count+1)
 
+	if input.PaymentTermDays < 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Termin pembayaran tidak boleh negatif"})
+		return
+	}
+
+	invoiceDate, err := parseOptionalLocalDate(input.InvoiceDate)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Format tanggal faktur tidak valid"})
+		return
+	}
+
+	explicitDueDate, err := parseOptionalLocalDate(input.DueDate)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Format tanggal jatuh tempo tidak valid"})
+		return
+	}
+
+	paymentMethod := normalizePurchasePaymentMethod(input.PaymentMethod)
+
 	// Determine purchase type
 	purchaseType := "inventory"
 	if len(input.Items) > 0 && input.Items[0].MedicineID != nil {
@@ -154,8 +328,12 @@ func CreatePurchase(c *gin.Context) {
 	// Calculate total
 	var totalAmount float64
 	for _, item := range input.Items {
-		totalAmount += float64(item.QuantityOrdered) * item.UnitPrice
+		_, _, _, _, lineTotal := calculatePurchaseItemCommercials(item)
+		totalAmount += lineTotal
 	}
+
+	now := time.Now()
+	dueDate := derivePurchaseDueDate(invoiceDate, explicitDueDate, paymentMethod, input.PaymentTermDays, now)
 
 	purchase := models.Purchase{
 		PurchaseNumber:  purchaseNumber,
@@ -165,7 +343,15 @@ func CreatePurchase(c *gin.Context) {
 		SupplierContact: input.SupplierContact,
 		ToRoomID:        input.ToRoomID,
 		Status:          "draft",
+		InvoiceNumber:   strings.TrimSpace(input.InvoiceNumber),
+		InvoiceDate:     invoiceDate,
+		PaymentMethod:   paymentMethod,
+		PaymentTermDays: input.PaymentTermDays,
+		DueDate:         dueDate,
 		TotalAmount:     totalAmount,
+		PaidAmount:      0,
+		RemainingAmount: totalAmount,
+		PaymentStatus:   derivePurchasePaymentStatus(totalAmount, 0, dueDate, now),
 		CreatedByID:     userID.(uint),
 		Notes:           input.Notes,
 	}
@@ -180,6 +366,14 @@ func CreatePurchase(c *gin.Context) {
 
 	// Create items
 	for _, itemInput := range input.Items {
+		discountPercent, discountAmount, taxPercent, taxAmount, totalPrice := calculatePurchaseItemCommercials(itemInput)
+		expiryDate, err := parseOptionalLocalDate(itemInput.ExpiryDate)
+		if err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Format tanggal kedaluwarsa item tidak valid"})
+			return
+		}
+
 		item := models.PurchaseItem{
 			PurchaseID:      purchase.ID,
 			InventoryID:     itemInput.InventoryID,
@@ -187,7 +381,13 @@ func CreatePurchase(c *gin.Context) {
 			QuantityOrdered: itemInput.QuantityOrdered,
 			Unit:            itemInput.Unit,
 			UnitPrice:       itemInput.UnitPrice,
-			TotalPrice:      float64(itemInput.QuantityOrdered) * itemInput.UnitPrice,
+			DiscountPercent: discountPercent,
+			DiscountAmount:  discountAmount,
+			TaxPercent:      taxPercent,
+			TaxAmount:       taxAmount,
+			TotalPrice:      totalPrice,
+			BatchNumber:     strings.TrimSpace(itemInput.BatchNumber),
+			ExpiryDate:      expiryDate,
 			Notes:           itemInput.Notes,
 		}
 		if err := tx.Create(&item).Error; err != nil {
@@ -200,7 +400,7 @@ func CreatePurchase(c *gin.Context) {
 	tx.Commit()
 
 	// Reload with associations
-	database.DB.Preload("ToRoom").Preload("Supplier").Preload("CreatedBy").Preload("Items").
+	database.DB.Preload("ToRoom").Preload("Supplier").Preload("CreatedBy").Preload("Items").Preload("Payments").Preload("Payments.RecordedBy").
 		Preload("Items.Inventory").Preload("Items.Medicine").First(&purchase, purchase.ID)
 
 	c.JSON(http.StatusCreated, gin.H{"data": purchase})
@@ -225,8 +425,8 @@ func UpdatePurchase(c *gin.Context) {
 		return
 	}
 
-	if purchase.Status != "pending" && purchase.Status != "draft" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot update purchase that is not pending"})
+	if purchase.Status == "cancelled" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Pembelian yang dibatalkan tidak dapat diperbarui"})
 		return
 	}
 
@@ -236,24 +436,137 @@ func UpdatePurchase(c *gin.Context) {
 		return
 	}
 
-	updates := map[string]interface{}{}
-	if input.SupplierID != nil {
-		updates["supplier_id"] = input.SupplierID
-	}
-	if input.SupplierName != "" {
-		updates["supplier_name"] = input.SupplierName
-	}
-	if input.SupplierContact != "" {
-		updates["supplier_contact"] = input.SupplierContact
-	}
-	if input.Notes != "" {
-		updates["notes"] = input.Notes
+	if input.PaymentTermDays != nil && *input.PaymentTermDays < 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Termin pembayaran tidak boleh negatif"})
+		return
 	}
 
-	database.DB.Model(&purchase).Updates(updates)
+	financeDriversChanged := false
+	var dueDateOverride *time.Time
+
+	if input.SupplierID != nil {
+		purchase.SupplierID = input.SupplierID
+	}
+	if input.SupplierName != nil {
+		purchase.SupplierName = strings.TrimSpace(*input.SupplierName)
+	}
+	if input.SupplierContact != nil {
+		purchase.SupplierContact = strings.TrimSpace(*input.SupplierContact)
+	}
+	if input.InvoiceNumber != nil {
+		purchase.InvoiceNumber = strings.TrimSpace(*input.InvoiceNumber)
+	}
+	if input.InvoiceDate != nil {
+		parsedInvoiceDate, err := parseOptionalLocalDate(*input.InvoiceDate)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Format tanggal faktur tidak valid"})
+			return
+		}
+		purchase.InvoiceDate = parsedInvoiceDate
+		financeDriversChanged = true
+	}
+	if input.PaymentMethod != nil {
+		purchase.PaymentMethod = normalizePurchasePaymentMethod(*input.PaymentMethod)
+		financeDriversChanged = true
+	}
+	if input.PaymentTermDays != nil {
+		purchase.PaymentTermDays = *input.PaymentTermDays
+		financeDriversChanged = true
+	}
+	if input.DueDate != nil {
+		parsedDueDate, err := parseOptionalLocalDate(*input.DueDate)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Format tanggal jatuh tempo tidak valid"})
+			return
+		}
+		dueDateOverride = parsedDueDate
+		financeDriversChanged = true
+	}
+	if input.Notes != nil {
+		purchase.Notes = *input.Notes
+	}
+
+	var normalizedItems []models.PurchaseItem
+	if input.Items != nil {
+		if len(*input.Items) == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Minimal harus ada 1 item pembelian"})
+			return
+		}
+
+		purchaseType := "inventory"
+		if len(*input.Items) > 0 && (*input.Items)[0].MedicineID != nil {
+			purchaseType = "medicine"
+		}
+		purchase.PurchaseType = purchaseType
+
+		totalAmount := 0.0
+		normalizedItems = make([]models.PurchaseItem, 0, len(*input.Items))
+		for _, itemInput := range *input.Items {
+			discountPercent, discountAmount, taxPercent, taxAmount, totalPrice := calculatePurchaseItemCommercials(itemInput)
+			expiryDate, err := parseOptionalLocalDate(itemInput.ExpiryDate)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Format tanggal kedaluwarsa item tidak valid"})
+				return
+			}
+			totalAmount += totalPrice
+			normalizedItems = append(normalizedItems, models.PurchaseItem{
+				PurchaseID:      purchase.ID,
+				InventoryID:     itemInput.InventoryID,
+				MedicineID:      itemInput.MedicineID,
+				QuantityOrdered: itemInput.QuantityOrdered,
+				Unit:            itemInput.Unit,
+				UnitPrice:       itemInput.UnitPrice,
+				DiscountPercent: discountPercent,
+				DiscountAmount:  discountAmount,
+				TaxPercent:      taxPercent,
+				TaxAmount:       taxAmount,
+				TotalPrice:      totalPrice,
+				BatchNumber:     strings.TrimSpace(itemInput.BatchNumber),
+				ExpiryDate:      expiryDate,
+				Notes:           itemInput.Notes,
+			})
+		}
+		purchase.TotalAmount = totalAmount
+	}
+
+	if financeDriversChanged {
+		purchase.DueDate = derivePurchaseDueDate(purchase.InvoiceDate, dueDateOverride, purchase.PaymentMethod, purchase.PaymentTermDays, time.Now())
+	}
+	purchase.RemainingAmount = purchase.TotalAmount - purchase.PaidAmount
+	if purchase.RemainingAmount < 0 {
+		purchase.RemainingAmount = 0
+	}
+	purchase.PaymentStatus = derivePurchasePaymentStatus(purchase.TotalAmount, purchase.PaidAmount, purchase.DueDate, time.Now())
+
+	tx := database.DB.Begin()
+	if err := tx.Save(&purchase).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update purchase"})
+		return
+	}
+
+	if input.Items != nil {
+		if err := tx.Where("purchase_id = ?", purchase.ID).Delete(&models.PurchaseItem{}).Error; err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to replace purchase items"})
+			return
+		}
+		if len(normalizedItems) > 0 {
+			if err := tx.Create(&normalizedItems).Error; err != nil {
+				tx.Rollback()
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save purchase items"})
+				return
+			}
+		}
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update purchase"})
+		return
+	}
 
 	// Reload
-	database.DB.Preload("ToRoom").Preload("Supplier").Preload("CreatedBy").Preload("Items").
+	database.DB.Preload("ToRoom").Preload("Supplier").Preload("CreatedBy").Preload("Items").Preload("Payments").Preload("Payments.RecordedBy").
 		Preload("Items.Inventory").Preload("Items.Medicine").First(&purchase, purchase.ID)
 
 	c.JSON(http.StatusOK, gin.H{"data": purchase})
@@ -361,7 +674,7 @@ func ApprovePurchase(c *gin.Context) {
 
 	// Reload with associations
 	database.DB.Preload("ToRoom").Preload("Supplier").Preload("CreatedBy").Preload("ApprovedBy").
-		Preload("Items").Preload("Items.Inventory").Preload("Items.Medicine").First(&purchase, purchase.ID)
+		Preload("Items").Preload("Items.Inventory").Preload("Items.Medicine").Preload("Payments").Preload("Payments.RecordedBy").First(&purchase, purchase.ID)
 
 	c.JSON(http.StatusOK, gin.H{"data": purchase, "message": "Pembelian berhasil disetujui"})
 }
@@ -554,9 +867,96 @@ func ReceivePurchase(c *gin.Context) {
 
 	// Reload
 	database.DB.Preload("ToRoom").Preload("CreatedBy").Preload("ReceivedBy").
-		Preload("Items").Preload("Items.Inventory").Preload("Items.Medicine").First(&purchase, purchase.ID)
+		Preload("Items").Preload("Items.Inventory").Preload("Items.Medicine").Preload("Payments").Preload("Payments.RecordedBy").First(&purchase, purchase.ID)
 
 	c.JSON(http.StatusOK, gin.H{"data": purchase, "message": "Barang berhasil diterima dan stok ditambahkan"})
+}
+
+func RecordPurchasePayment(c *gin.Context) {
+	id := c.Param("id")
+	var purchase models.Purchase
+
+	if err := database.DB.First(&purchase, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Purchase not found"})
+		return
+	}
+
+	if purchase.Status == "cancelled" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Tidak dapat mencatat pembayaran untuk pembelian yang dibatalkan"})
+		return
+	}
+
+	var input RecordPurchasePaymentInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if input.Amount > purchase.TotalAmount-purchase.PaidAmount+0.0001 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Nominal pembayaran melebihi sisa hutang pembelian"})
+		return
+	}
+
+	userID, exists := c.Get("userID")
+	if !exists || userID == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	paymentDate := time.Now()
+	if strings.TrimSpace(input.PaymentDate) != "" {
+		parsedPaymentDate, err := ParseLocalDate(strings.TrimSpace(input.PaymentDate))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Format tanggal pembayaran tidak valid"})
+			return
+		}
+		paymentDate = parsedPaymentDate
+	}
+
+	paymentMethod := normalizePurchasePaymentMethod(input.PaymentMethod)
+
+	tx := database.DB.Begin()
+	payment := models.PurchasePayment{
+		PurchaseID:      purchase.ID,
+		PaymentNumber:   generatePurchasePaymentNumber(),
+		PaymentMethod:   paymentMethod,
+		Amount:          input.Amount,
+		PaymentDate:     paymentDate,
+		ReferenceNumber: strings.TrimSpace(input.ReferenceNumber),
+		Notes:           input.Notes,
+		RecordedByID:    userID.(uint),
+	}
+
+	if err := tx.Create(&payment).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal mencatat pembayaran pembelian"})
+		return
+	}
+
+	purchase.PaidAmount += input.Amount
+	purchase.RemainingAmount = purchase.TotalAmount - purchase.PaidAmount
+	if purchase.RemainingAmount < 0 {
+		purchase.RemainingAmount = 0
+	}
+	purchase.PaymentStatus = derivePurchasePaymentStatus(purchase.TotalAmount, purchase.PaidAmount, purchase.DueDate, time.Now())
+
+	if err := tx.Save(&purchase).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memperbarui status pembayaran pembelian"})
+		return
+	}
+
+	tx.Commit()
+
+	database.DB.Preload("ToRoom").Preload("Supplier").Preload("CreatedBy").Preload("ApprovedBy").Preload("ReceivedBy").
+		Preload("Items").Preload("Items.Inventory").Preload("Items.Medicine").Preload("Payments").Preload("Payments.RecordedBy").First(&purchase, purchase.ID)
+	database.DB.Preload("RecordedBy").First(&payment, payment.ID)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Pembayaran pembelian berhasil dicatat",
+		"payment": payment,
+		"data":    purchase,
+	})
 }
 
 // CancelPurchase godoc

@@ -8,7 +8,7 @@ import {
   CheckCheck,
   Pill,
   Package,
-  AlertTriangle,
+  ArrowLeft,
   Info,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -43,30 +43,38 @@ function SectionPanel({
   description,
   actions,
   children,
+  className,
+  headerClassName,
+  contentClassName,
 }: {
   icon: ComponentType<{ className?: string }>;
   title: string;
-  description: string;
+  description?: string;
   actions?: ReactNode;
   children: ReactNode;
+  className?: string;
+  headerClassName?: string;
+  contentClassName?: string;
 }) {
   return (
-    <div className="border border-border/70 bg-background/95 shadow-sm">
-      <div className="border-b border-border/70 bg-muted/20 px-4 py-3">
+    <div className={cn("border border-border/70 bg-background/95", className)}>
+      <div className={cn("border-b border-border/70 bg-muted/20 px-2.5 py-2 sm:px-3", headerClassName)}>
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-start gap-3">
-            <div className="border border-border/70 bg-background p-2">
+            <div className="border border-border/70 bg-background p-1.5">
               <Icon className="h-4 w-4 text-muted-foreground" />
             </div>
             <div>
               <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{title}</div>
-              <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+              {description ? (
+                <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+              ) : null}
             </div>
           </div>
           {actions}
         </div>
       </div>
-      <div className="p-3 sm:p-4">{children}</div>
+      <div className={cn("p-2.5 sm:p-3", contentClassName)}>{children}</div>
     </div>
   );
 }
@@ -95,6 +103,8 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
+const toInputDate = (value?: string) => (value ? value.slice(0, 10) : "");
+
 export default function PurchaseReceive() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -103,6 +113,8 @@ export default function PurchaseReceive() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [purchase, setPurchase] = useState<Purchase | null>(null);
+  const [bulkBatchNumber, setBulkBatchNumber] = useState("");
+  const [bulkExpiryDate, setBulkExpiryDate] = useState("");
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -146,8 +158,8 @@ export default function PurchaseReceive() {
               id: item.id,
               selected: remaining > 0,
               quantity_received: remaining,
-              batch_number: "",
-              expiry_date: "",
+              batch_number: item.batch_number || "",
+              expiry_date: toInputDate(item.expiry_date),
               item_name: itemName,
               item_code: itemCode || "",
               item_type: itemType as "medicine" | "inventory",
@@ -317,411 +329,408 @@ export default function PurchaseReceive() {
   }
 
   return (
-    <PageShell>
+    <PageShell className="lg:overflow-hidden">
       <PageHeader
         title={`Terima Barang ${purchase.purchase_number}`}
         description="Catat item yang datang dan selesaikan sisa penerimaan per item."
         actions={
-          <Button variant="outline" onClick={() => navigate(`/purchases/${id}`)}>
+          <Button variant="outline" size="sm" onClick={() => navigate(`/purchases/${id}`)}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
             Kembali
           </Button>
         }
       />
-      <PageContent className="flex-none pb-8">
+      <PageContent className="min-h-0 overflow-hidden pb-3">
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <div className="space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11">
-              <SectionPanel
-                icon={PackageCheck}
-                title="Informasi Pembelian"
-                description="Ringkasan pembelian sumber dan progres item yang sudah lengkap atau masih harus diterima."
-                actions={
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="h-5 text-[10px]">
-                      {completedItems} / {totalItems} Lengkap
-                    </Badge>
-                    {selectedCount > 0 && (
-                      <Badge className="bg-primary h-5 text-[10px]">
-                        {selectedCount} dipilih
-                      </Badge>
-                    )}
+          <form onSubmit={form.handleSubmit(onSubmit)} className="grid min-h-0 flex-1 gap-3 [&_label]:text-[10px] [&_label]:uppercase [&_label]:tracking-[0.08em] [&_label]:text-muted-foreground [&_input]:h-8 lg:grid-cols-[minmax(320px,380px)_minmax(0,1fr)] xl:grid-cols-[minmax(330px,390px)_minmax(0,1fr)]">
+            <div className="min-h-0 overflow-hidden">
+              <div className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto pr-1">
+                <SectionPanel
+                  icon={PackageCheck}
+                  title="Informasi Pembelian"
+                  description="Ringkasan pembelian"
+                >
+                  <div className="space-y-3 border-b border-border/70 pb-3">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <p className="text-xs text-muted-foreground">No. Pembelian</p>
+                        <p className="font-mono text-sm font-medium">{purchase.purchase_number}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Supplier</p>
+                        <p className="text-sm font-medium">{purchase.supplier_name}</p>
+                      </div>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Total Item</p>
+                        <p className="text-sm font-medium">{totalItems} item</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Sudah Lengkap</p>
+                        <p className="text-sm font-medium text-emerald-700">{completedItems} item</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Masih Sisa</p>
+                        <p className="text-sm font-medium text-amber-700">{itemsWithRemaining} item</p>
+                      </div>
+                    </div>
                   </div>
-                }
-              >
-                <div className="flex items-center gap-6">
-                  <div>
-                    <p className="text-xs text-muted-foreground">No. Pembelian</p>
-                    <p className="text-sm font-medium font-mono">{purchase.purchase_number}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Supplier</p>
-                    <p className="text-sm font-medium">{purchase.supplier_name}</p>
-                  </div>
-                </div>
-              </SectionPanel>
 
-              <SectionPanel
-                icon={Info}
-                title="Informasi Penerimaan"
-                description="Tentukan tanggal terima dan catatan singkat untuk proses penerimaan saat ini."
-              >
-                <div className="grid gap-4 md:grid-cols-2">
-                  <FormField
-                    control={form.control}
-                    name="receive_date"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Tanggal Penerimaan *</FormLabel>
-                        <FormControl>
-                          <Input type="date" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="notes"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Catatan</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="Catatan penerimaan (opsional)"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              </SectionPanel>
-
-              <SectionPanel
-                icon={CheckCheck}
-                title="Aksi Massal"
-                description="Pilih item yang ingin diterima sekaligus, lalu isi jumlah sisa atau data batch untuk obat terpilih."
-                actions={
-                  <div className="flex items-center gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={handleSelectAll}
-                    >
-                      <CheckCheck className="mr-1 h-4 w-4" />
-                      {selectedCount === itemsWithRemaining
-                        ? "Batal Pilih Semua"
-                        : "Pilih Semua"}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={handleFillAll}
-                      disabled={selectedCount === 0}
-                    >
-                      <PackageCheck className="mr-1 h-4 w-4" />
-                      Isi Sisa ke Terpilih
-                    </Button>
+                  <div className="space-y-3 pt-3">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <FormField
+                        control={form.control}
+                        name="receive_date"
+                        render={({ field }) => (
+                          <FormItem className="space-y-1">
+                            <FormLabel>Tanggal Penerimaan *</FormLabel>
+                            <FormControl>
+                              <Input type="date" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="notes"
+                        render={({ field }) => (
+                          <FormItem className="space-y-1">
+                            <FormLabel>Catatan</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Catatan penerimaan" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
                   </div>
-                }
-              >
-                {selectedMedicines > 0 && (
-                  <div className="space-y-4">
-                    <Alert>
-                      <Info className="h-4 w-4" />
-                      <AlertDescription>
-                        <strong>{selectedMedicines} obat</strong> terpilih. Anda
-                        dapat mengisi batch number dan tanggal kadaluarsa secara
-                        massal.
-                      </AlertDescription>
-                    </Alert>
-                    <div className="mt-4 grid gap-4 md:grid-cols-2">
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium">
-                          Batch Number untuk Semua Obat Terpilih
-                        </label>
-                        <div className="flex gap-2">
-                          <Input
-                            placeholder="Masukkan batch number..."
-                            id="bulk-batch"
-                          />
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            size="sm"
-                            onClick={() => {
-                              const input = document.getElementById(
-                                "bulk-batch"
-                              ) as HTMLInputElement;
-                              if (input?.value) {
-                                handleApplyBatchToSelected(input.value);
+                </SectionPanel>
+
+                <SectionPanel
+                  icon={CheckCheck}
+                  title="Aksi Massal"
+                  description="Pilih item aktif, isi sisa otomatis, lalu terapkan batch atau exp untuk obat terpilih."
+                  className="flex flex-col"
+                  contentClassName="space-y-3"
+                  actions={
+                    <div className="flex items-center gap-1.5">
+                      <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-[10px]" onClick={handleSelectAll}>
+                        <CheckCheck className="mr-1 h-3.5 w-3.5" />
+                        {selectedCount === itemsWithRemaining ? "Batal Pilih" : "Pilih Semua"}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 px-2 text-[10px]"
+                        onClick={handleFillAll}
+                        disabled={selectedCount === 0}
+                      >
+                        <PackageCheck className="mr-1 h-3.5 w-3.5" />
+                        Isi Sisa
+                      </Button>
+                    </div>
+                  }
+                >
+                  {selectedMedicines > 0 ? (
+                    <>
+                      <Alert className="border-border/70 px-3 py-2">
+                        <Info className="h-4 w-4" />
+                        <AlertDescription className="text-xs leading-5">
+                          <strong>{selectedMedicines} obat</strong> sedang dipilih. Batch dan tanggal kadaluarsa bisa diisi massal dari panel ini.
+                        </AlertDescription>
+                      </Alert>
+
+                      <div className="grid gap-3">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                            Batch Semua Obat Terpilih
+                          </label>
+                          <div className="flex gap-2">
+                            <Input
+                              placeholder="Masukkan batch"
+                              value={bulkBatchNumber}
+                              onChange={(e) => setBulkBatchNumber(e.target.value)}
+                            />
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              size="sm"
+                              className="h-8 px-3 text-[11px]"
+                              onClick={() => {
+                                if (!bulkBatchNumber) return;
+                                handleApplyBatchToSelected(bulkBatchNumber);
                                 toast({
                                   title: "Berhasil",
                                   description: `Batch number diterapkan ke ${selectedMedicines} obat.`,
                                 });
-                              }
-                            }}
-                          >
-                            Terapkan
-                          </Button>
+                              }}
+                            >
+                              Terapkan
+                            </Button>
+                          </div>
                         </div>
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium">
-                          Tanggal Kadaluarsa untuk Semua Obat Terpilih
-                        </label>
-                        <div className="flex gap-2">
-                          <Input type="date" id="bulk-expiry" />
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            size="sm"
-                            onClick={() => {
-                              const input = document.getElementById(
-                                "bulk-expiry"
-                              ) as HTMLInputElement;
-                              if (input?.value) {
-                                handleApplyExpiryToSelected(input.value);
+
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                            Exp. Semua Obat Terpilih
+                          </label>
+                          <div className="flex gap-2">
+                            <Input
+                              type="date"
+                              value={bulkExpiryDate}
+                              onChange={(e) => setBulkExpiryDate(e.target.value)}
+                            />
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              size="sm"
+                              className="h-8 px-3 text-[11px]"
+                              onClick={() => {
+                                if (!bulkExpiryDate) return;
+                                handleApplyExpiryToSelected(bulkExpiryDate);
                                 toast({
                                   title: "Berhasil",
                                   description: `Tanggal kadaluarsa diterapkan ke ${selectedMedicines} obat.`,
                                 });
-                              }
-                            }}
-                          >
-                            Terapkan
-                          </Button>
+                              }}
+                            >
+                              Terapkan
+                            </Button>
+                          </div>
                         </div>
                       </div>
+                    </>
+                  ) : (
+                    <div className="rounded-md border border-dashed border-border/70 bg-muted/10 px-3 py-4 text-xs text-muted-foreground">
+                      Pilih minimal satu item obat di tabel kanan agar aksi batch dan exp tersedia.
                     </div>
-                  </div>
-                )}
-              </SectionPanel>
+                  )}
+                </SectionPanel>
+              </div>
             </div>
 
-            <SectionPanel
-              icon={Package}
-              title="Daftar Item"
-              description={`Kelola penerimaan ${totalItems} item dengan memilih baris yang ingin diproses pada sesi ini.`}
-            >
-              <div className="-mx-3 -mb-4 px-1 sm:-mx-4">
-                <ScrollArea className="h-[500px]">
-                  <div className="divide-y">
-                    {fields.map((field, index) => {
-                      const item = watchItems?.[index];
-                      const isComplete = item?.remaining === 0;
-                      const isSelected = item?.selected;
-                      const isMedicine = item?.item_type === "medicine";
+            <div className="flex min-h-0 flex-col overflow-hidden">
+              <SectionPanel
+                icon={Package}
+                title="Daftar Item"
+                description={`Kelola penerimaan ${totalItems} item dari pembelian ini dalam tabel detail yang ringkas.`}
+                className="flex min-h-0 flex-1 flex-col overflow-hidden"
+                headerClassName="px-2.5 py-2 sm:px-3"
+                contentClassName="flex min-h-0 flex-1 flex-col overflow-hidden px-2.5 py-2.5 sm:px-3"
+                actions={
+                    <div className="flex items-center gap-1.5">
+                      <Badge variant="outline" className="h-5 px-2 text-[10px]">
+                        {completedItems} / {totalItems} lengkap
+                      </Badge>
+                      {selectedCount > 0 && (
+                        <Badge className="h-5 bg-primary px-2 text-[10px]">
+                          {selectedCount} dipilih
+                        </Badge>
+                      )}
+                    </div>
+                  }
+              >
+                <div className="min-h-0 flex-1 overflow-hidden rounded-lg border border-border/80 bg-background">
+                  <ScrollArea className="h-full">
+                    <table className="w-full table-fixed border-collapse text-sm">
+                      <thead className="sticky top-0 z-10 bg-background">
+                        <tr className="bg-muted/20">
+                          <th className="h-9 w-[7%] border-b border-r border-border/70 px-2 text-center text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Pilih</th>
+                          <th className="h-9 w-[31%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Item</th>
+                          <th className="h-9 w-[18%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Status</th>
+                          <th className="h-9 w-[30%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Detail Penerimaan</th>
+                          <th className="h-9 w-[14%] border-b border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Keterangan</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {fields.map((field, index) => {
+                          const item = watchItems?.[index];
+                          const isComplete = item?.remaining === 0;
+                          const isSelected = item?.selected;
+                          const isMedicine = item?.item_type === "medicine";
 
-                      return (
-                        <div
-                          key={field.id}
-                          className={cn(
-                            "p-4 transition-colors",
-                            isComplete && "bg-muted/30",
-                            isSelected && !isComplete && "bg-primary/5"
-                          )}
-                        >
-                          <div className="flex items-start gap-4">
-                          {/* Checkbox */}
-                          <div className="pt-1">
-                            <FormField
-                              control={form.control}
-                              name={`items.${index}.selected`}
-                              render={({ field: checkField }) => (
-                                <FormItem>
-                                  <FormControl>
-                                    <Checkbox
-                                      checked={checkField.value}
-                                      onCheckedChange={checkField.onChange}
-                                      disabled={isComplete}
-                                    />
-                                  </FormControl>
-                                </FormItem>
+                          return (
+                            <tr
+                              key={field.id}
+                              className={cn(
+                                "align-top transition-colors hover:bg-muted/10",
+                                isComplete && "bg-muted/20",
+                                isSelected && !isComplete && "bg-primary/5"
                               )}
-                            />
-                          </div>
-
-                          {/* Icon */}
-                          <div
-                            className={cn(
-                              "flex h-10 w-10 items-center justify-center rounded-full shrink-0",
-                              isComplete
-                                ? "bg-green-100"
-                                : isMedicine
-                                  ? "bg-blue-100"
-                                  : "bg-purple-100"
-                            )}
-                          >
-                            {isComplete ? (
-                              <PackageCheck className="h-5 w-5 text-green-600" />
-                            ) : isMedicine ? (
-                              <Pill className="h-5 w-5 text-blue-600" />
-                            ) : (
-                              <Package className="h-5 w-5 text-purple-600" />
-                            )}
-                          </div>
-
-                          {/* Item Info */}
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <p className="font-medium">{item?.item_name}</p>
-                              <Badge
-                                variant="outline"
-                                className={cn(
-                                  "text-[10px]",
-                                  isMedicine
-                                    ? "bg-blue-50 text-blue-700"
-                                    : "bg-purple-50 text-purple-700"
-                                )}
-                              >
-                                {isMedicine ? "Obat" : "Inventaris"}
-                              </Badge>
-                              {isComplete && (
-                                <Badge className="bg-green-100 text-green-800 text-[10px]">
-                                  Lengkap
-                                </Badge>
-                              )}
-                            </div>
-                            {item?.item_code && (
-                              <p className="text-xs text-muted-foreground">
-                                {item.item_code}
-                              </p>
-                            )}
-
-                            {/* Quantity Info */}
-                            <div className="flex items-center gap-4 mt-2 text-sm">
-                              <span>
-                                Dipesan:{" "}
-                                <strong>
-                                  {item?.quantity_ordered} {item?.unit}
-                                </strong>
-                              </span>
-                              <span>
-                                Diterima:{" "}
-                                <strong>{item?.already_received}</strong>
-                              </span>
-                              {!isComplete && (
-                                <span className="text-orange-600">
-                                  Sisa: <strong>{item?.remaining}</strong>
-                                </span>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Input Fields */}
-                          {!isComplete && isSelected && (
-                            <div className="flex flex-col gap-2 w-[280px]">
-                              <FormField
-                                control={form.control}
-                                name={`items.${index}.quantity_received`}
-                                render={({ field: qtyField }) => (
-                                  <FormItem>
-                                    <div className="flex items-center gap-2">
-                                      <FormLabel className="text-xs w-16 shrink-0">
-                                        Jumlah
-                                      </FormLabel>
+                            >
+                              <td className="border-b border-r border-border/60 px-2 py-2.5 text-center align-top">
+                                <FormField
+                                  control={form.control}
+                                  name={`items.${index}.selected`}
+                                  render={({ field: checkField }) => (
+                                    <FormItem className="flex items-center justify-center">
                                       <FormControl>
-                                        <Input
-                                          type="number"
-                                          min={0}
-                                          max={item?.remaining}
-                                          className="h-8"
-                                          {...qtyField}
-                                          onChange={(e) =>
-                                            qtyField.onChange(
-                                              parseInt(e.target.value) || 0
-                                            )
-                                          }
+                                        <Checkbox
+                                          checked={checkField.value}
+                                          onCheckedChange={checkField.onChange}
+                                          disabled={isComplete}
                                         />
                                       </FormControl>
+                                    </FormItem>
+                                  )}
+                                />
+                              </td>
+                              <td className="border-b border-r border-border/60 px-3 py-2.5 align-top">
+                                <div className="flex items-start gap-2.5">
+                                  <div
+                                    className={cn(
+                                      "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border",
+                                      isComplete
+                                        ? "border-emerald-200 bg-emerald-50"
+                                        : isMedicine
+                                          ? "border-blue-200 bg-blue-50"
+                                          : "border-amber-200 bg-amber-50"
+                                    )}
+                                  >
+                                    {isComplete ? (
+                                      <PackageCheck className="h-3.5 w-3.5 text-emerald-600" />
+                                    ) : isMedicine ? (
+                                      <Pill className="h-3.5 w-3.5 text-blue-600" />
+                                    ) : (
+                                      <Package className="h-3.5 w-3.5 text-amber-600" />
+                                    )}
+                                  </div>
+                                  <div className="min-w-0 space-y-0.5">
+                                    <p className="truncate text-xs font-semibold leading-4 text-foreground">{item?.item_name}</p>
+                                    {item?.item_code ? (
+                                      <p className="font-mono text-[11px] leading-4 text-muted-foreground">{item.item_code}</p>
+                                    ) : null}
+                                    <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                                      <Badge
+                                        variant="outline"
+                                        className={cn(
+                                          "h-5 px-1.5 text-[10px]",
+                                          isMedicine ? "bg-blue-50 text-blue-700" : "bg-amber-50 text-amber-700"
+                                        )}
+                                      >
+                                        {isMedicine ? "Obat" : "Inventaris"}
+                                      </Badge>
+                                      <span className="text-[11px] text-muted-foreground">Sat: {item?.unit}</span>
                                     </div>
-                                  </FormItem>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="border-b border-r border-border/60 px-3 py-2.5 align-top">
+                                <div className="space-y-1 rounded-md bg-muted/15 px-2.5 py-2 text-[11px] leading-4">
+                                  <p className="text-muted-foreground">Dipesan: <span className="font-medium text-foreground">{item?.quantity_ordered} {item?.unit}</span></p>
+                                  <p className="text-muted-foreground">Diterima: <span className="font-medium text-foreground">{item?.already_received}</span></p>
+                                  <p className={cn("font-medium", isComplete ? "text-emerald-700" : "text-amber-700")}>
+                                    Sisa: {item?.remaining}
+                                  </p>
+                                </div>
+                              </td>
+                              <td className="border-b border-r border-border/60 px-3 py-2.5 align-top">
+                                {isComplete ? (
+                                  <div className="rounded-md border border-dashed border-border/70 bg-muted/10 px-3 py-4 text-[11px] text-muted-foreground">
+                                    Item ini sudah diterima penuh.
+                                  </div>
+                                ) : isSelected ? (
+                                  <div className="grid gap-2 sm:grid-cols-2">
+                                    <FormField
+                                      control={form.control}
+                                      name={`items.${index}.quantity_received`}
+                                      render={({ field: qtyField }) => (
+                                        <FormItem className="space-y-1">
+                                          <FormLabel>Qty Diterima</FormLabel>
+                                          <FormControl>
+                                            <Input
+                                              type="number"
+                                              min={0}
+                                              max={item?.remaining}
+                                              {...qtyField}
+                                              onChange={(e) => qtyField.onChange(parseInt(e.target.value) || 0)}
+                                            />
+                                          </FormControl>
+                                        </FormItem>
+                                      )}
+                                    />
+
+                                    {isMedicine ? (
+                                      <>
+                                        <FormField
+                                          control={form.control}
+                                          name={`items.${index}.batch_number`}
+                                          render={({ field: batchField }) => (
+                                            <FormItem className="space-y-1">
+                                              <FormLabel>Batch</FormLabel>
+                                              <FormControl>
+                                                <Input placeholder="Nomor batch" {...batchField} />
+                                              </FormControl>
+                                            </FormItem>
+                                          )}
+                                        />
+                                        <FormField
+                                          control={form.control}
+                                          name={`items.${index}.expiry_date`}
+                                          render={({ field: expiryField }) => (
+                                            <FormItem className="space-y-1 sm:col-span-2">
+                                              <FormLabel>Tanggal Expired</FormLabel>
+                                              <FormControl>
+                                                <Input type="date" {...expiryField} />
+                                              </FormControl>
+                                            </FormItem>
+                                          )}
+                                        />
+                                      </>
+                                    ) : (
+                                      <div className="rounded-md border border-dashed border-border/70 bg-muted/10 px-3 py-3 text-[11px] text-muted-foreground">
+                                        Tidak memerlukan batch dan exp.
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div className="rounded-md border border-dashed border-border/70 bg-muted/10 px-3 py-4 text-[11px] text-muted-foreground">
+                                    Centang item ini untuk mulai input penerimaan.
+                                  </div>
                                 )}
-                              />
+                              </td>
+                              <td className="border-b border-border/60 px-3 py-2.5 align-top">
+                                <div className="space-y-1 text-[11px] leading-4 text-muted-foreground">
+                                  {isComplete ? (
+                                    <p className="font-medium text-emerald-700">Lengkap</p>
+                                  ) : isSelected ? (
+                                    <p className="font-medium text-primary">Siap diproses</p>
+                                  ) : (
+                                    <p>Belum dipilih</p>
+                                  )}
+                                  {isMedicine ? <p>Perlu batch dan exp bila tersedia.</p> : <p>Hanya memerlukan qty diterima.</p>}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </ScrollArea>
+                </div>
 
-                              {isMedicine && (
-                                <>
-                                  <FormField
-                                    control={form.control}
-                                    name={`items.${index}.batch_number`}
-                                    render={({ field: batchField }) => (
-                                      <FormItem>
-                                        <div className="flex items-center gap-2">
-                                          <FormLabel className="text-xs w-16 shrink-0">
-                                            Batch
-                                          </FormLabel>
-                                          <FormControl>
-                                            <Input
-                                              placeholder="Batch no."
-                                              className="h-8"
-                                              {...batchField}
-                                            />
-                                          </FormControl>
-                                        </div>
-                                      </FormItem>
-                                    )}
-                                  />
-                                  <FormField
-                                    control={form.control}
-                                    name={`items.${index}.expiry_date`}
-                                    render={({ field: expiryField }) => (
-                                      <FormItem>
-                                        <div className="flex items-center gap-2">
-                                          <FormLabel className="text-xs w-16 shrink-0">
-                                            Exp.
-                                          </FormLabel>
-                                          <FormControl>
-                                            <Input
-                                              type="date"
-                                              className="h-8"
-                                              {...expiryField}
-                                            />
-                                          </FormControl>
-                                        </div>
-                                      </FormItem>
-                                    )}
-                                  />
-                                </>
-                              )}
-                            </div>
-                          )}
-
-                          {!isComplete && !isSelected && (
-                            <div className="w-[280px] flex items-center justify-center text-muted-foreground text-sm">
-                              <AlertTriangle className="h-4 w-4 mr-2" />
-                              Centang untuk menerima
-                            </div>
-                          )}
-                        </div>
-                        </div>
-                      );
-                    })}
+                <div className="mt-2 flex shrink-0 items-center justify-between border-t border-border/70 px-0 pt-2.5">
+                  <p className="text-xs text-muted-foreground">{selectedCount} item akan diterima pada sesi ini</p>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => navigate(`/purchases/${id}`)}
+                    >
+                      Batal
+                    </Button>
+                    <Button size="sm" type="submit" disabled={submitting || selectedCount === 0}>
+                      <PackageCheck className="mr-2 h-4 w-4" />
+                      {submitting ? "Menyimpan..." : `Terima ${selectedCount} Item`}
+                    </Button>
                   </div>
-                </ScrollArea>
-              </div>
-            </SectionPanel>
-
-            <div className="sticky bottom-0 z-10 mt-4 flex items-center justify-between border-t bg-background py-3">
-              <p className="text-sm text-muted-foreground">
-                {selectedCount} item akan diterima
-              </p>
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => navigate(`/purchases/${id}`)}
-                >
-                  Batal
-                </Button>
-                <Button type="submit" disabled={submitting || selectedCount === 0}>
-                  <PackageCheck className="mr-2 h-4 w-4" />
-                  {submitting ? "Menyimpan..." : `Terima ${selectedCount} Item`}
-                </Button>
-              </div>
+                </div>
+              </SectionPanel>
             </div>
           </form>
         </Form>

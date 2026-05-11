@@ -42,6 +42,7 @@ const routeLabels: Record<string, string> = {
   'medicines': 'Obat',
   'inventories': 'Inventaris',
   'suppliers': 'Supplier',
+  'payables': 'Hutang Supplier',
   'front-office': 'Front Office',
   'eklaim': 'E-Klaim',
   'master': 'Master Data',

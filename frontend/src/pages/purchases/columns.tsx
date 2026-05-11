@@ -8,7 +8,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { type Purchase } from "@/lib/api/stock-requests";
+import {
+  purchasePaymentMethodLabels,
+  purchasePaymentStatusLabels,
+  type Purchase,
+} from "@/lib/api/stock-requests";
 
 interface CreateColumnsOptions {
   onView: (id: number) => void;
@@ -28,6 +32,13 @@ const statusLabels: Record<string, string> = {
   partial: "Sebagian",
   received: "Diterima",
   cancelled: "Dibatalkan",
+};
+
+const paymentStatusColors: Record<string, string> = {
+  unpaid: "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200",
+  partial: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
+  paid: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200",
+  overdue: "bg-rose-100 text-rose-800 dark:bg-rose-900 dark:text-rose-200",
 };
 
 export function createPurchaseColumns({
@@ -87,6 +98,47 @@ export function createPurchaseColumns({
           <span className="font-medium">
             Rp {amount.toLocaleString("id-ID")}
           </span>
+        );
+      },
+    },
+    {
+      accessorKey: "due_date",
+      header: "Jatuh Tempo",
+      cell: ({ row }) => {
+        const dueDate = row.original.due_date;
+        if (!dueDate) {
+          return <span>-</span>;
+        }
+
+        return (
+          <span>
+            {new Date(dueDate).toLocaleDateString("id-ID", {
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+            })}
+          </span>
+        );
+      },
+    },
+    {
+      accessorKey: "payment_method",
+      header: "Pembayaran",
+      cell: ({ row }) => (
+        <span>
+          {purchasePaymentMethodLabels[row.original.payment_method] || row.original.payment_method || "-"}
+        </span>
+      ),
+    },
+    {
+      accessorKey: "payment_status",
+      header: "Status Bayar",
+      cell: ({ row }) => {
+        const paymentStatus = row.original.payment_status || "unpaid";
+        return (
+          <Badge className={paymentStatusColors[paymentStatus] || paymentStatusColors.unpaid}>
+            {purchasePaymentStatusLabels[paymentStatus] || paymentStatus}
+          </Badge>
         );
       },
     },

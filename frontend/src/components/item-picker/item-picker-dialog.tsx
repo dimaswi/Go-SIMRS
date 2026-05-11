@@ -3,19 +3,22 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Label } from "@/components/ui/label";
-import { Search, Loader2, Package, Pill, Check, X } from "lucide-react";
+import { Search, Loader2, Package, Pill, Check, X, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  calculateCommercialTotals,
+  calculateLineTotal,
+  setDiscountAmount,
+  setDiscountPercent,
+  setTaxAmount,
+  setTaxPercent,
+  syncPurchaseItemCommercials,
+} from "./purchase-item-commercials";
 
 export interface SelectableItem {
   id: number;
@@ -31,6 +34,12 @@ export interface SelectableItem {
 export interface SelectedItemWithQty extends SelectableItem {
   quantity: number;
   unit_price?: number;
+  discount_percent?: number;
+  discount_amount?: number;
+  tax_percent?: number;
+  tax_amount?: number;
+  batch_number?: string;
+  expiry_date?: string;
   notes?: string;
 }
 
@@ -115,6 +124,12 @@ export function ItemPickerDialog({
         ...item,
         quantity: 1,
         unit_price: item.price || 0,
+        discount_percent: 0,
+        discount_amount: 0,
+        tax_percent: 0,
+        tax_amount: 0,
+        batch_number: "",
+        expiry_date: "",
         notes: "",
       });
     }
@@ -122,22 +137,12 @@ export function ItemPickerDialog({
     setTempSelected(newMap);
   };
 
-  const updateQuantity = (item: SelectableItem, quantity: number) => {
+  const updateSelectedItem = (item: SelectableItem, updates: Partial<SelectedItemWithQty>) => {
     const key = `${item.type}_${item.id}`;
     const existing = tempSelected.get(key);
     if (existing) {
       const newMap = new Map(tempSelected);
-      newMap.set(key, { ...existing, quantity: Math.max(1, quantity) });
-      setTempSelected(newMap);
-    }
-  };
-
-  const updatePrice = (item: SelectableItem, price: number) => {
-    const key = `${item.type}_${item.id}`;
-    const existing = tempSelected.get(key);
-    if (existing) {
-      const newMap = new Map(tempSelected);
-      newMap.set(key, { ...existing, unit_price: Math.max(0, price) });
+      newMap.set(key, syncPurchaseItemCommercials({ ...existing, ...updates }));
       setTempSelected(newMap);
     }
   };
@@ -156,6 +161,12 @@ export function ItemPickerDialog({
           ...item,
           quantity: 1,
           unit_price: item.price || 0,
+          discount_percent: 0,
+          discount_amount: 0,
+          tax_percent: 0,
+          tax_amount: 0,
+          batch_number: "",
+          expiry_date: "",
           notes: "",
         });
       }
@@ -170,6 +181,8 @@ export function ItemPickerDialog({
       newMap.delete(key);
     });
     setTempSelected(newMap);
+    setSearchTerm("");
+    setActiveTab(defaultTab);
   };
 
   const isSelected = (item: SelectableItem) => {
@@ -184,184 +197,366 @@ export function ItemPickerDialog({
     return tempSelected.get(`${item.type}_${item.id}`)?.unit_price || 0;
   };
 
-  const renderItemList = (itemList: SelectableItem[]) => (
-    <div className="divide-y">
-      {itemList.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-          <Package className="h-10 w-10 mb-2 opacity-50" />
-          <p className="text-sm">Tidak ada item ditemukan</p>
-        </div>
-      ) : (
-        itemList.map((item) => {
-          const selected = isSelected(item);
-          return (
-            <div
-              key={`${item.type}_${item.id}`}
-              className={cn(
-                "flex items-center gap-3 p-3 hover:bg-muted/50 cursor-pointer transition-colors",
-                selected && "bg-primary/5"
-              )}
-              onClick={() => toggleItem(item)}
-            >
-              <Checkbox
-                checked={selected}
-                onCheckedChange={() => toggleItem(item)}
-                onClick={(e) => e.stopPropagation()}
-              />
-              <div
-                className={cn(
-                  "flex h-9 w-9 items-center justify-center rounded-full shrink-0",
-                  item.type === "medicine" ? "bg-blue-100" : "bg-green-100"
-                )}
-              >
-                {item.type === "medicine" ? (
-                  <Pill className="h-4 w-4 text-blue-600" />
-                ) : (
-                  <Package className="h-4 w-4 text-green-600" />
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <p className="font-medium text-sm truncate">{item.name}</p>
-                  <Badge variant="outline" className="text-[10px] shrink-0">
-                    {item.code}
-                  </Badge>
-                </div>
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <span>{item.unit}</span>
-                  {showStock && item.current_stock !== undefined && (
-                    <>
-                      <span>•</span>
-                      <span>Stok: {item.current_stock}</span>
-                    </>
-                  )}
-                  {showPrice && item.price !== undefined && (
-                    <>
-                      <span>•</span>
-                      <span>Rp {item.price.toLocaleString("id-ID")}</span>
-                    </>
-                  )}
-                </div>
-              </div>
-              {selected && (
-                <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                  <div className="flex items-center gap-1">
-                    <Label className="text-xs text-muted-foreground">Qty:</Label>
-                    <Input
-                      type="number"
-                      min={1}
-                      value={getSelectedQuantity(item)}
-                      onChange={(e) => updateQuantity(item, parseInt(e.target.value) || 1)}
-                      className="w-16 h-8 text-sm"
-                      onClick={(e) => e.stopPropagation()}
-                    />
-                  </div>
-                  {showPrice && (
-                    <div className="flex items-center gap-1">
-                      <Label className="text-xs text-muted-foreground">Harga:</Label>
-                      <Input
-                        type="number"
-                        min={0}
-                        value={getSelectedPrice(item)}
-                        onChange={(e) => updatePrice(item, parseFloat(e.target.value) || 0)}
-                        className="w-24 h-8 text-sm"
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          );
-        })
-      )}
-    </div>
-  );
+  const getMaxQuantity = (item: SelectableItem) => {
+    if (typeof item.current_stock === "number" && item.current_stock > 0) {
+      return item.current_stock;
+    }
+
+    return 1;
+  };
+
+  const filteredTotals = useMemo(() => {
+    return calculateCommercialTotals(Array.from(tempSelected.values()).filter((selectedItem) => {
+      if (activeTab !== "all" && selectedItem.type !== activeTab) {
+        return false;
+      }
+      if (!searchTerm) {
+        return true;
+      }
+      const search = searchTerm.toLowerCase();
+      return selectedItem.name.toLowerCase().includes(search) || selectedItem.code.toLowerCase().includes(search);
+    }));
+  }, [activeTab, searchTerm, tempSelected]);
+
+  const formatCurrency = (value: number) => `Rp ${value.toLocaleString("id-ID")}`;
+  const showCommercialFields = showPrice;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
-        </DialogHeader>
+      <DialogContent className="flex h-[82vh] w-[95vw] max-w-[1320px] flex-col overflow-hidden border border-border/70 bg-background p-0">
+        <div className="border-b border-border/70 bg-muted/10 px-4 py-3 pr-14">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                <Sparkles className="h-3.5 w-3.5" />
+                {showCommercialFields ? "Konfigurasi Item Pembelian" : "Pilih Item Permintaan"}
+              </div>
+              <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
+              <DialogDescription className="max-w-3xl text-xs text-muted-foreground">
+                {description}
+              </DialogDescription>
+            </div>
 
-        <div className="flex-1 flex flex-col gap-3 overflow-hidden">
-          {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Cari nama atau kode item..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-
-          {/* Selection Count & Actions */}
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">
-              {filteredItems.length} item tersedia
-            </span>
-            <div className="flex items-center gap-1">
-              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={handleSelectAll}>
-                <Check className="h-3.5 w-3.5 mr-1" />
-                Pilih Semua
-              </Button>
-              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={handleDeselectAll}>
-                <X className="h-3.5 w-3.5 mr-1" />
-                Hapus Semua
-              </Button>
-              <Badge variant="secondary" className="ml-1">
+            <div className="flex max-w-full flex-wrap items-center gap-2">
+              <Badge variant="secondary" className="h-7 px-3 text-[10px]">
+                {filteredItems.length} item tampil
+              </Badge>
+              <Badge variant="outline" className="h-7 px-3 text-[10px]">
                 {tempSelected.size} dipilih
               </Badge>
             </div>
           </div>
 
-          {/* Item List */}
+          <div className="mt-3 flex flex-wrap items-center gap-2.5">
+            <div className="relative min-w-[280px] flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Cari nama atau kode item..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="h-9 rounded-none border-border/70 bg-background pl-10 pr-4 text-sm"
+              />
+            </div>
+
+            <Button variant="outline" size="sm" className="h-8 rounded-none px-3 text-[11px]" onClick={handleSelectAll}>
+              <Check className="mr-2 h-4 w-4" />
+              Pilih Semua
+            </Button>
+            <Button variant="outline" size="sm" className="h-8 rounded-none px-3 text-[11px]" onClick={handleDeselectAll}>
+              <X className="mr-2 h-4 w-4" />
+              Reset Filter Ini
+            </Button>
+          </div>
+
+          {showTabs ? (
+            <div className="mt-3 flex items-end gap-4 border-b border-border/70">
+              {[
+                { value: "all", label: `Semua Item (${items.length})` },
+                { value: "inventory", label: `Inventaris (${inventoryItems.length})` },
+                { value: "medicine", label: `Obat (${medicineItems.length})` },
+              ].map((tab) => (
+                <button
+                  key={tab.value}
+                  type="button"
+                  onClick={() => setActiveTab(tab.value)}
+                  className={cn(
+                    "relative -mb-px border-b-2 px-1 pb-2 text-xs font-medium transition-colors",
+                    activeTab === tab.value
+                      ? "border-foreground text-foreground"
+                      : "border-transparent text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 py-3">
           {loading ? (
-            <div className="flex items-center justify-center py-12">
+            <div className="flex flex-1 items-center justify-center">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
-          ) : showTabs ? (
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="all">Semua ({items.length})</TabsTrigger>
-                <TabsTrigger value="inventory">Inventaris ({inventoryItems.length})</TabsTrigger>
-                <TabsTrigger value="medicine">Obat ({medicineItems.length})</TabsTrigger>
-              </TabsList>
-              <TabsContent value="all" className="flex-1 overflow-hidden mt-2">
-                <ScrollArea className="h-[350px] border rounded-md">
-                  {renderItemList(filteredItems)}
-                </ScrollArea>
-              </TabsContent>
-              <TabsContent value="inventory" className="flex-1 overflow-hidden mt-2">
-                <ScrollArea className="h-[350px] border rounded-md">
-                  {renderItemList(filteredItems)}
-                </ScrollArea>
-              </TabsContent>
-              <TabsContent value="medicine" className="flex-1 overflow-hidden mt-2">
-                <ScrollArea className="h-[350px] border rounded-md">
-                  {renderItemList(filteredItems)}
-                </ScrollArea>
-              </TabsContent>
-            </Tabs>
+          ) : filteredItems.length === 0 ? (
+            <div className="flex flex-1 flex-col items-center justify-center border border-dashed border-border/70 bg-muted/10 text-muted-foreground">
+              <Package className="mb-3 h-10 w-10 opacity-50" />
+              <p className="text-sm">Tidak ada item ditemukan pada filter ini.</p>
+            </div>
           ) : (
-            <ScrollArea className="h-[400px] border rounded-md">
-              {renderItemList(filteredItems)}
-            </ScrollArea>
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden border border-border/70 bg-background">
+              <div className={cn("min-h-0 flex-1 overflow-auto", showCommercialFields ? "max-h-[44vh]" : "max-h-[46vh]")}>
+                <table className={cn("w-full border-collapse text-sm", showCommercialFields ? "min-w-[1180px]" : "min-w-[760px]")}>
+                  <thead className="sticky top-0 z-10 bg-background">
+                    <tr className="bg-muted/20">
+                      <th className="h-9 w-10 border-b border-r border-border/70 px-2 text-left">
+                        <span className="sr-only">Pilih</span>
+                      </th>
+                      <th className="h-9 min-w-[260px] border-b border-r border-border/70 px-2 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Nama Barang</th>
+                      {showStock ? (
+                        <th className="h-9 w-[96px] border-b border-r border-border/70 px-2 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Stok</th>
+                      ) : null}
+                      {showCommercialFields ? (
+                        <>
+                          <th className="h-9 min-w-[90px] border-b border-r border-border/70 px-2 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Batch</th>
+                          <th className="h-9 min-w-[96px] border-b border-r border-border/70 px-2 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Exp</th>
+                        </>
+                      ) : null}
+                      <th className="h-9 w-[88px] border-b border-r border-border/70 px-2 text-right text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Qty</th>
+                      {showCommercialFields ? (
+                        <>
+                          <th className="h-9 w-[112px] border-b border-r border-border/70 px-2 text-right text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Harga</th>
+                          <th className="h-9 w-[76px] border-b border-r border-border/70 px-2 text-right text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Disc %</th>
+                          <th className="h-9 w-[112px] border-b border-r border-border/70 px-2 text-right text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Disc Rp</th>
+                          <th className="h-9 w-[72px] border-b border-r border-border/70 px-2 text-right text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">PPN %</th>
+                          <th className="h-9 w-[112px] border-b border-r border-border/70 px-2 text-right text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">PPN Rp</th>
+                          <th className="h-9 w-[124px] border-b border-border/70 px-2 text-right text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Total</th>
+                        </>
+                      ) : (
+                        <th className="h-9 w-[112px] border-b border-border/70 px-2 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Tipe</th>
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredItems.map((item, index) => {
+                      const selected = isSelected(item);
+                      const isLastRow = index === filteredItems.length - 1;
+                      const maxQuantity = getMaxQuantity(item);
+                      const selectedItem = tempSelected.get(`${item.type}_${item.id}`) || syncPurchaseItemCommercials({
+                        ...item,
+                        quantity: 1,
+                        unit_price: item.price || 0,
+                        discount_percent: 0,
+                        discount_amount: 0,
+                        tax_percent: 0,
+                        tax_amount: 0,
+                        batch_number: "",
+                        expiry_date: "",
+                        notes: "",
+                      });
+
+                      return (
+                        <tr key={`${item.type}_${item.id}`} className={cn("transition-colors hover:bg-muted/10", selected && "bg-muted/20")}>
+                          <td className={cn("border-r border-border/60 px-2 py-2 align-top", !isLastRow && "border-b border-border/60")}>
+                            <Checkbox checked={selected} onCheckedChange={() => toggleItem(item)} />
+                          </td>
+                          <td className={cn("border-r border-border/60 px-2 py-2 align-top", !isLastRow && "border-b border-border/60")}>
+                            <div className="flex items-start gap-2.5">
+                              <div className={cn(
+                                "mt-0.5 flex h-7 w-7 items-center justify-center rounded-full border",
+                                item.type === "medicine"
+                                  ? "border-sky-200 bg-sky-50 text-sky-700"
+                                  : "border-emerald-200 bg-emerald-50 text-emerald-700"
+                              )}>
+                                {item.type === "medicine" ? <Pill className="h-3.5 w-3.5" /> : <Package className="h-3.5 w-3.5" />}
+                              </div>
+                              <div className="min-w-0 space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <p className="truncate text-sm font-medium leading-tight">{item.name}</p>
+                                  {showStock && item.current_stock !== undefined ? (
+                                    <Badge
+                                      variant="outline"
+                                      className={cn(
+                                        "text-[10px]",
+                                        item.current_stock > 0
+                                          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                                          : "border-rose-200 bg-rose-50 text-rose-700"
+                                      )}
+                                    >
+                                      {item.current_stock > 0 ? `Stok ${item.current_stock}` : "Stok habis"}
+                                    </Badge>
+                                  ) : null}
+                                </div>
+                                <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                                  <span>{item.unit}</span>
+                                  {showPrice && item.price !== undefined ? <span>Default {formatCurrency(item.price)}</span> : null}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          {showStock ? (
+                            <td className={cn("border-r border-border/60 px-2 py-2 align-top text-[11px] text-muted-foreground", !isLastRow && "border-b border-border/60")}>
+                              {item.current_stock?.toLocaleString("id-ID") ?? "-"}
+                            </td>
+                          ) : null}
+                          {showCommercialFields ? (
+                            <>
+                              <td className={cn("border-r border-border/60 px-2 py-2 align-top", !isLastRow && "border-b border-border/60")}>
+                                <Input
+                                  value={selectedItem.batch_number || ""}
+                                  disabled={!selected}
+                                  onChange={(e) => updateSelectedItem(item, { batch_number: e.target.value })}
+                                  className="h-7 border-0 bg-transparent px-0 text-[11px] shadow-none disabled:opacity-40"
+                                  placeholder="-"
+                                />
+                              </td>
+                              <td className={cn("border-r border-border/60 px-2 py-2 align-top", !isLastRow && "border-b border-border/60")}>
+                                <Input
+                                  type="date"
+                                  value={selectedItem.expiry_date || ""}
+                                  disabled={!selected}
+                                  onChange={(e) => updateSelectedItem(item, { expiry_date: e.target.value })}
+                                  className="h-7 border-0 bg-transparent px-0 text-[11px] shadow-none disabled:opacity-40"
+                                />
+                              </td>
+                            </>
+                          ) : null}
+                          <td className={cn("border-r border-border/60 px-2 py-2 align-top", !isLastRow && "border-b border-border/60")}>
+                            <Input
+                              type="number"
+                              min={1}
+                              max={maxQuantity}
+                              disabled={!selected}
+                              value={selected ? getSelectedQuantity(item) : ""}
+                              onChange={(e) => updateSelectedItem(item, { quantity: Math.min(maxQuantity, Math.max(1, Number(e.target.value) || 1)) })}
+                              className="h-7 border-0 bg-transparent px-0 text-right text-[11px] shadow-none disabled:opacity-40"
+                              placeholder="0"
+                            />
+                          </td>
+                          {showCommercialFields ? (
+                            <>
+                              <td className={cn("border-r border-border/60 px-2 py-2 align-top", !isLastRow && "border-b border-border/60")}>
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  disabled={!selected}
+                                  value={selected ? getSelectedPrice(item) : ""}
+                                  onChange={(e) => updateSelectedItem(item, { unit_price: Math.max(0, Number(e.target.value) || 0) })}
+                                  className="h-7 border-0 bg-transparent px-0 text-right text-[11px] shadow-none disabled:opacity-40"
+                                  placeholder="0"
+                                />
+                              </td>
+                              <td className={cn("border-r border-border/60 px-2 py-2 align-top", !isLastRow && "border-b border-border/60")}>
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  disabled={!selected}
+                                  value={selected ? selectedItem.discount_percent || 0 : ""}
+                                  onChange={(e) => updateSelectedItem(item, setDiscountPercent(selectedItem, Number(e.target.value) || 0))}
+                                  className="h-7 border-0 bg-transparent px-0 text-right text-[11px] shadow-none disabled:opacity-40"
+                                  placeholder="0"
+                                />
+                              </td>
+                              <td className={cn("border-r border-border/60 px-2 py-2 align-top", !isLastRow && "border-b border-border/60")}>
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  disabled={!selected}
+                                  value={selected ? selectedItem.discount_amount || 0 : ""}
+                                  onChange={(e) => updateSelectedItem(item, setDiscountAmount(selectedItem, Number(e.target.value) || 0))}
+                                  className="h-7 border-0 bg-transparent px-0 text-right text-[11px] shadow-none disabled:opacity-40"
+                                  placeholder="0"
+                                />
+                              </td>
+                              <td className={cn("border-r border-border/60 px-2 py-2 align-top", !isLastRow && "border-b border-border/60")}>
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  disabled={!selected}
+                                  value={selected ? selectedItem.tax_percent || 0 : ""}
+                                  onChange={(e) => updateSelectedItem(item, setTaxPercent(selectedItem, Number(e.target.value) || 0))}
+                                  className="h-7 border-0 bg-transparent px-0 text-right text-[11px] shadow-none disabled:opacity-40"
+                                  placeholder="0"
+                                />
+                              </td>
+                              <td className={cn("border-r border-border/60 px-2 py-2 align-top", !isLastRow && "border-b border-border/60")}>
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  disabled={!selected}
+                                  value={selected ? selectedItem.tax_amount || 0 : ""}
+                                  onChange={(e) => updateSelectedItem(item, setTaxAmount(selectedItem, Number(e.target.value) || 0))}
+                                  className="h-7 border-0 bg-transparent px-0 text-right text-[11px] shadow-none disabled:opacity-40"
+                                  placeholder="0"
+                                />
+                              </td>
+                              <td className={cn("px-2 py-2 text-right text-xs font-semibold", !isLastRow && "border-b border-border/60")}>
+                                {selected ? formatCurrency(calculateLineTotal(selectedItem)) : "-"}
+                              </td>
+                            </>
+                          ) : (
+                            <td className={cn("px-2 py-2 align-top text-[11px] text-muted-foreground", !isLastRow && "border-b border-border/60")}>
+                              <div className="space-y-1">
+                                <Badge variant="outline" className="text-[10px]">
+                                  {item.type === "inventory" ? "Inventaris" : "Obat"}
+                                </Badge>
+                                {showStock && item.current_stock !== undefined ? (
+                                  <p className={cn("text-[11px]", selectedItem.quantity >= maxQuantity ? "text-amber-700" : "text-muted-foreground")}>
+                                    Maks. {maxQuantity} {item.unit}
+                                  </p>
+                                ) : null}
+                              </div>
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="border-t border-border/70 bg-muted/10 px-3 py-2.5">
+                {showCommercialFields ? (
+                  <div className="grid gap-3 text-sm md:grid-cols-[1fr_auto]">
+                    <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
+                      <span>{tempSelected.size} item siap ditambahkan</span>
+                      <span>{filteredTotals.totalQuantity.toLocaleString("id-ID")} total qty terpilih</span>
+                      <span>Subtotal terpilih {formatCurrency(filteredTotals.subtotal)}</span>
+                    </div>
+                    <div className="grid min-w-[240px] gap-0.5 text-right text-[11px]">
+                      <div className="flex items-center justify-between gap-6"><span className="text-muted-foreground">Jumlah</span><span className="font-medium">{formatCurrency(filteredTotals.subtotal)}</span></div>
+                      <div className="flex items-center justify-between gap-6"><span className="text-muted-foreground">Diskon</span><span className="font-medium text-rose-600">{formatCurrency(filteredTotals.discount)}</span></div>
+                      <div className="flex items-center justify-between gap-6"><span className="text-muted-foreground">PPN</span><span className="font-medium text-sky-700">{formatCurrency(filteredTotals.tax)}</span></div>
+                      <div className="flex items-center justify-between gap-6 border-t border-border/70 pt-1 text-xs"><span className="font-semibold">Total</span><span className="font-semibold">{formatCurrency(filteredTotals.grandTotal)}</span></div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
+                    <span>{tempSelected.size} item siap ditambahkan</span>
+                    <span>{filteredTotals.totalQuantity.toLocaleString("id-ID")} total qty terpilih</span>
+                  </div>
+                )}
+              </div>
+            </div>
           )}
         </div>
 
-        <DialogFooter className="flex items-center justify-between sm:justify-between">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Batal
-          </Button>
-          <Button onClick={handleConfirm} disabled={tempSelected.size === 0}>
-            <Check className="h-4 w-4 mr-2" />
-            Tambahkan {tempSelected.size} Item
-          </Button>
-        </DialogFooter>
+        <div className="flex items-center justify-between border-t border-border/70 bg-background px-4 py-3">
+          <div className="text-xs text-muted-foreground">
+            {showCommercialFields
+              ? "Gunakan checkbox untuk memilih item, lalu isi nilai komersial langsung di tabel."
+              : "Pilih item dengan checkbox lalu tentukan jumlah yang ingin diminta langsung di tabel."}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" className="rounded-none" onClick={() => onOpenChange(false)}>
+              Batal
+            </Button>
+            <Button className="rounded-none" onClick={handleConfirm} disabled={tempSelected.size === 0}>
+              <Check className="mr-2 h-4 w-4" />
+              Simpan {tempSelected.size} Item
+            </Button>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   );

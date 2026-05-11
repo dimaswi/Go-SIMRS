@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Building2, Loader2, MapPin, Package, Plus, ShoppingCart } from "lucide-react";
+import { ArrowLeft, Building2, Loader2, Package, Plus, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -66,6 +66,11 @@ export default function PurchaseCreate() {
     supplier_name: "",
     supplier_contact: "",
     to_room_id: 0,
+    invoice_number: "",
+    invoice_date: new Date().toISOString().split("T")[0],
+    payment_method: "credit",
+    payment_term_days: 30,
+    due_date: "",
     notes: "",
   });
 
@@ -198,12 +203,23 @@ export default function PurchaseCreate() {
         supplier_name: formData.supplier_name || "",
         supplier_contact: formData.supplier_contact,
         to_room_id: formData.to_room_id,
+        invoice_number: formData.invoice_number || undefined,
+        invoice_date: formData.invoice_date || undefined,
+        payment_method: formData.payment_method,
+        payment_term_days: formData.payment_term_days,
+        due_date: formData.due_date || undefined,
         notes: formData.notes,
         items: selectedItems.map((item) => ({
           inventory_id: item.type === "inventory" ? item.id : undefined,
           medicine_id: item.type === "medicine" ? item.id : undefined,
           quantity_ordered: item.quantity,
           unit_price: item.unit_price || 0,
+          discount_percent: item.discount_percent || 0,
+          discount_amount: item.discount_amount || 0,
+          tax_percent: item.tax_percent || 0,
+          tax_amount: item.tax_amount || 0,
+          batch_number: item.batch_number || undefined,
+          expiry_date: item.expiry_date || undefined,
           unit: item.unit,
           notes: item.notes,
         })),
@@ -247,18 +263,21 @@ export default function PurchaseCreate() {
       <PageHeader
         title="Buat Pembelian"
         actions={
-          <Button variant="outline" onClick={() => navigate("/purchases")}>
+          <Button variant="outline" size="sm" onClick={() => navigate("/purchases")}>
             <ArrowLeft className="mr-2 h-4 w-4" />
             Kembali
           </Button>
         }
       />
-      <PageContent className="min-h-0 overflow-hidden pb-6">
-        <div className="grid min-h-0 flex-1 gap-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11 lg:grid-cols-[minmax(240px,20%)_minmax(0,1fr)]">
-          <div className="space-y-6 lg:overflow-hidden">
+      <PageContent className="min-h-0 overflow-hidden pb-3">
+        <div className="grid min-h-0 flex-1 gap-3 [&_label]:text-[10px] [&_label]:tracking-[0.08em] [&_label]:uppercase [&_label]:text-muted-foreground [&_input]:h-8 [&_[role=combobox]]:h-8 lg:grid-cols-[minmax(330px,390px)_minmax(0,1fr)] xl:grid-cols-[minmax(340px,400px)_minmax(0,1fr)]">
+          <div className="min-h-0 overflow-hidden">
             <SectionPanel
               icon={Building2}
-              title="Pemilihan Supplier"
+              title="Detail Pembelian"
+              className="flex h-full flex-col overflow-hidden"
+              headerClassName="px-2.5 py-2 sm:px-3"
+              contentClassName="flex min-h-0 flex-1 flex-col gap-3 px-2.5 py-2.5 sm:px-3"
               actions={
                 <Button
                   type="button"
@@ -272,59 +291,63 @@ export default function PurchaseCreate() {
                       setFormData({ ...formData, supplier_name: "", supplier_contact: "" });
                     }
                   }}
-                  className="h-7 px-2 text-[10px]"
+                  className="h-6 px-2 text-[10px]"
                 >
                   {useManualSupplier ? "Pilih dari Daftar" : "Input Manual"}
                 </Button>
               }
             >
-              {!useManualSupplier ? (
-                <div className="space-y-2">
-                  <Label>Supplier *</Label>
-                  <Select
-                    onValueChange={handleSupplierChange}
-                    value={formData.supplier_id?.toString() || ""}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Pilih supplier" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {suppliers.map((supplier) => (
-                        <SelectItem key={supplier.id} value={supplier.id.toString()}>
-                          {supplier.code} - {supplier.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>Nama Supplier *</Label>
-                    <Input
-                      placeholder="Masukkan nama supplier"
-                      value={formData.supplier_name}
-                      onChange={(e) => setFormData({ ...formData, supplier_name: e.target.value })}
-                    />
+              <div className="space-y-3 border-b border-border/70 pb-3">
+                {!useManualSupplier ? (
+                  <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_160px]">
+                    <div className="space-y-1">
+                      <Label>Supplier *</Label>
+                      <Combobox
+                        options={suppliers.map((supplier) => ({
+                          value: supplier.id.toString(),
+                          label: supplier.code ? `${supplier.code} - ${supplier.name}` : supplier.name,
+                        }))}
+                        value={formData.supplier_id?.toString() || ""}
+                        onValueChange={handleSupplierChange}
+                        placeholder="Pilih supplier"
+                        searchPlaceholder="Cari supplier..."
+                        emptyText="Supplier tidak ditemukan"
+                        className="h-8"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Kontak Supplier</Label>
+                      <Input
+                        placeholder="No. telepon"
+                        value={formData.supplier_contact}
+                        onChange={(e) => setFormData({ ...formData, supplier_contact: e.target.value })}
+                      />
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label>Kontak Supplier</Label>
-                    <Input
-                      placeholder="No. telepon supplier"
-                      value={formData.supplier_contact}
-                      onChange={(e) => setFormData({ ...formData, supplier_contact: e.target.value })}
-                    />
+                ) : (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1">
+                      <Label>Nama Supplier *</Label>
+                      <Input
+                        placeholder="Masukkan nama supplier"
+                        value={formData.supplier_name}
+                        onChange={(e) => setFormData({ ...formData, supplier_name: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Kontak Supplier</Label>
+                      <Input
+                        placeholder="No. telepon supplier"
+                        value={formData.supplier_contact}
+                        onChange={(e) => setFormData({ ...formData, supplier_contact: e.target.value })}
+                      />
+                    </div>
                   </div>
-                </div>
-              )}
-            </SectionPanel>
+                )}
+              </div>
 
-            <SectionPanel
-              icon={MapPin}
-              title="Tujuan Pembelian"
-            >
-              <div className="space-y-4">
-                <div className="space-y-2">
+              <div className="space-y-3 border-b border-border/70 pb-3">
+                <div className="space-y-1">
                   <Label>Ruangan Tujuan (Depo/Gudang) *</Label>
                   <Combobox
                     options={depoRooms}
@@ -333,33 +356,99 @@ export default function PurchaseCreate() {
                     placeholder="Pilih depo/gudang tujuan"
                     searchPlaceholder="Cari ruangan..."
                     emptyText="Tidak ada depo/gudang"
+                    className="h-8"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label>Catatan</Label>
+              </div>
+
+              <div className="space-y-3 border-b border-border/70 pb-3">
+                <div className="space-y-1">
+                  <Label>No. Faktur Supplier</Label>
                   <Input
-                    placeholder="Catatan tambahan (opsional)"
-                    value={formData.notes}
-                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                    placeholder="Nomor faktur atau invoice supplier"
+                    value={formData.invoice_number}
+                    onChange={(e) => setFormData({ ...formData, invoice_number: e.target.value })}
                   />
                 </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <Label>Tanggal Faktur</Label>
+                    <Input
+                      type="date"
+                      value={formData.invoice_date}
+                      onChange={(e) => setFormData({ ...formData, invoice_date: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label>Metode Pembayaran</Label>
+                    <Select
+                      value={formData.payment_method}
+                      onValueChange={(value) => setFormData({ ...formData, payment_method: value })}
+                    >
+                      <SelectTrigger className="h-8">
+                        <SelectValue placeholder="Pilih metode pembayaran" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="credit">Kredit / Termin</SelectItem>
+                        <SelectItem value="cash">Tunai</SelectItem>
+                        <SelectItem value="transfer">Transfer</SelectItem>
+                        <SelectItem value="cod">COD</SelectItem>
+                        <SelectItem value="cbd">CBD</SelectItem>
+                        <SelectItem value="consignment">Konsinyasi</SelectItem>
+                        <SelectItem value="installment">Cicilan</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <Label>Termin (Hari)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={formData.payment_term_days}
+                      onChange={(e) => setFormData({ ...formData, payment_term_days: Math.max(0, Number(e.target.value) || 0) })}
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label>Jatuh Tempo</Label>
+                    <Input
+                      type="date"
+                      value={formData.due_date}
+                      onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <Label>Catatan</Label>
+                <Input
+                  placeholder="Catatan tambahan (opsional)"
+                  value={formData.notes}
+                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                />
               </div>
             </SectionPanel>
           </div>
 
-          <div className="flex min-h-0 flex-col gap-6 overflow-hidden">
+          <div className="flex min-h-0 flex-col overflow-hidden">
             <SectionPanel
               icon={Package}
               title="Daftar Item"
-              description="Tambahkan inventaris atau obat yang akan dipesan, lalu sesuaikan jumlah dan harga satuannya."
               actions={
-                <Button variant="ghost" size="sm" onClick={() => setPickerOpen(true)} className="h-7 px-2 text-[10px]">
+                <Button variant="ghost" size="sm" onClick={() => setPickerOpen(true)} className="h-6 px-2 text-[10px]">
                   <Plus className="mr-1 h-3 w-3" />
                   Pilih Item
                 </Button>
               }
               className="flex min-h-0 flex-1 flex-col overflow-hidden"
-              contentClassName="flex min-h-0 flex-1 flex-col"
+              headerClassName="px-2.5 py-2 sm:px-3"
+              contentClassName="flex min-h-0 flex-1 flex-col px-2.5 py-2.5 sm:px-3"
             >
               <SelectedItemsTable
                 items={selectedItems}
@@ -367,25 +456,27 @@ export default function PurchaseCreate() {
                 onRemoveItem={handleRemoveItem}
                 onRemoveMultiple={handleRemoveMultiple}
                 showPrice={true}
+                showBatch={true}
+                showExpiry={true}
                 emptyMessage="Klik 'Pilih Item' untuk menambahkan item pembelian"
                 className="flex min-h-0 flex-1 flex-col"
-                scrollAreaClassName="min-h-0 flex-1"
+                scrollAreaClassName="min-h-0 h-full flex-1"
               />
-            </SectionPanel>
 
-            <div className="flex shrink-0 items-center justify-end gap-2 border-t bg-background pt-3">
-              <Button type="button" variant="outline" onClick={() => navigate("/purchases")}>
-                Batal
-              </Button>
-              <Button onClick={onSubmit} disabled={submitting}>
-                {submitting ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <ShoppingCart className="mr-2 h-4 w-4" />
-                )}
-                {submitting ? "Menyimpan..." : "Buat Pembelian"}
-              </Button>
-            </div>
+              <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border/70 pt-2.5">
+                <Button type="button" size="sm" variant="outline" onClick={() => navigate("/purchases")}>
+                  Batal
+                </Button>
+                <Button size="sm" onClick={onSubmit} disabled={submitting}>
+                  {submitting ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <ShoppingCart className="mr-2 h-4 w-4" />
+                  )}
+                  {submitting ? "Menyimpan..." : "Buat Pembelian"}
+                </Button>
+              </div>
+            </SectionPanel>
           </div>
         </div>
       </PageContent>
@@ -393,8 +484,8 @@ export default function PurchaseCreate() {
       <ItemPickerDialog
         open={pickerOpen}
         onOpenChange={setPickerOpen}
-        title="Pilih Item Pembelian"
-        description="Pilih item inventaris atau obat yang akan dibeli"
+        title="Rincian Item Pembelian"
+        description="Susun item pembelian dalam tabel besar, lengkap dengan batch, diskon, PPN, dan nilai total per baris."
         items={allItems}
         selectedItems={selectedItems}
         onConfirm={handleItemsConfirm}

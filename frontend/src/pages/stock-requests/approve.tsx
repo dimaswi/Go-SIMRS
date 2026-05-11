@@ -5,15 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Separator } from "@/components/ui/separator";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Dialog,
   DialogContent,
@@ -31,6 +23,7 @@ import {
 } from "@/lib/api/stock-requests";
 import { useToast } from "@/hooks/use-toast";
 import { setPageTitle } from "@/lib/page-title";
+import { cn } from "@/lib/utils";
 import {
   Loader2,
   Package,
@@ -42,6 +35,8 @@ import {
   FileText,
   ArrowLeft,
   CheckCheck,
+  User,
+  Calendar,
 } from "lucide-react";
 import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 
@@ -56,27 +51,38 @@ function SectionPanel({
   icon: Icon,
   title,
   description,
+  actions,
   children,
+  className,
+  headerClassName,
+  contentClassName,
 }: {
   icon: ComponentType<{ className?: string }>;
   title: string;
-  description: string;
+  description?: string;
+  actions?: ReactNode;
   children: ReactNode;
+  className?: string;
+  headerClassName?: string;
+  contentClassName?: string;
 }) {
   return (
-    <div className="border border-border/70 bg-background/95 shadow-sm">
-      <div className="border-b border-border/70 bg-muted/20 px-4 py-3">
-        <div className="flex items-start gap-3">
-          <div className="border border-border/70 bg-background p-2">
-            <Icon className="h-4 w-4 text-muted-foreground" />
+    <div className={cn("border border-border/70 bg-background/95", className)}>
+      <div className={cn("border-b border-border/70 bg-muted/20 px-2.5 py-2 sm:px-3", headerClassName)}>
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div className="border border-border/70 bg-background p-1.5">
+              <Icon className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{title}</div>
+              {description ? <p className="mt-1 text-xs text-muted-foreground">{description}</p> : null}
+            </div>
           </div>
-          <div>
-            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{title}</div>
-            <p className="mt-1 text-xs text-muted-foreground">{description}</p>
-          </div>
+          {actions}
         </div>
       </div>
-      <div className="p-3 sm:p-4">{children}</div>
+      <div className={cn("space-y-3 p-2.5 sm:p-3", contentClassName)}>{children}</div>
     </div>
   );
 }
@@ -90,6 +96,8 @@ interface ApprovalItem {
   unit: string;
   current_stock: number;
   quantity_requested: number;
+  quantity_already_approved: number;
+  quantity_remaining_request: number;
   quantity_approved: number;
 }
 
@@ -118,6 +126,7 @@ export default function StockRequestApprove() {
       // Map items for approval
       const approvalItems: ApprovalItem[] = (data.items || []).map((item) => {
         const itemData = item.inventory || item.medicine;
+        const quantityRemainingRequest = Math.max(0, item.quantity_requested - item.quantity_approved);
         return {
           id: item.id,
           inventory_id: item.inventory_id,
@@ -127,7 +136,9 @@ export default function StockRequestApprove() {
           unit: item.unit || itemData?.unit || "",
           current_stock: itemData?.current_stock || 0,
           quantity_requested: item.quantity_requested,
-          quantity_approved: item.quantity_requested, // Default to requested amount
+          quantity_already_approved: item.quantity_approved,
+          quantity_remaining_request: quantityRemainingRequest,
+          quantity_approved: Math.min(quantityRemainingRequest, itemData?.current_stock || 0),
         };
       });
       setItems(approvalItems);
@@ -152,7 +163,7 @@ export default function StockRequestApprove() {
     setItems(
       items.map((item) =>
         item.id === itemId
-          ? { ...item, quantity_approved: Math.max(0, quantity) }
+          ? { ...item, quantity_approved: Math.min(Math.max(0, quantity), Math.min(item.quantity_remaining_request, item.current_stock)) }
           : item
       )
     );
@@ -162,7 +173,7 @@ export default function StockRequestApprove() {
     setItems(
       items.map((item) => ({
         ...item,
-        quantity_approved: item.quantity_requested,
+        quantity_approved: Math.min(item.quantity_remaining_request, item.current_stock),
       }))
     );
   };
@@ -183,7 +194,7 @@ export default function StockRequestApprove() {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Setidaknya satu item harus memiliki jumlah yang disetujui.",
+        description: "Setidaknya satu item harus memiliki jumlah approval tambahan.",
       });
       return;
     }
@@ -269,7 +280,7 @@ export default function StockRequestApprove() {
     );
   }
 
-  if (request.status !== "pending") {
+  if (request.status !== "pending" && request.status !== "partial") {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4">
         <AlertTriangle className="h-12 w-12 text-yellow-500" />
@@ -283,224 +294,264 @@ export default function StockRequestApprove() {
     );
   }
 
+  const totalRequested = items.reduce((sum, item) => sum + item.quantity_requested, 0);
+  const totalAlreadyApproved = items.reduce((sum, item) => sum + item.quantity_already_approved, 0);
+  const totalApproveNow = items.reduce((sum, item) => sum + item.quantity_approved, 0);
+  const totalAfterApprove = totalAlreadyApproved + totalApproveNow;
+  const fullyCoveredCount = items.filter((item) => item.current_stock >= item.quantity_remaining_request).length;
+  const requestModeLabel = request.status === "partial" ? "Persetujuan Lanjutan" : "Persetujuan Awal";
+
   return (
-    <PageShell>
+    <PageShell className="lg:overflow-hidden">
       <PageHeader
         title="Proses Persetujuan"
         description="Nilai stok tersedia, tentukan jumlah yang disetujui, lalu selesaikan approval dengan catatan yang jelas."
-        icon={CheckCheck}
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => navigate(`/stock-requests/${id}`)}>
-              <ArrowLeft className="h-4 w-4" />
+              <ArrowLeft className="mr-2 h-4 w-4" />
               Kembali
             </Button>
             <Button variant="destructive" size="sm" onClick={() => setRejectDialogOpen(true)}>
-              <XCircle className="h-4 w-4" />
+              <XCircle className="mr-2 h-4 w-4" />
               Tolak
             </Button>
             <Button size="sm" onClick={handleApprove} disabled={submitting}>
-              {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-              <CheckCircle className="h-4 w-4" />
-              Setujui
+              {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {!submitting && <CheckCircle className="mr-2 h-4 w-4" />}
+              {request.status === "partial" ? "Setujui Lagi" : "Setujui"}
             </Button>
           </div>
         }
-      >
-        <div className="flex flex-wrap gap-2 pb-3">
-          <div className="border border-border/70 bg-background px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Approval item per item</div>
-          <div className="border border-border/70 bg-background px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Stok tersedia langsung terlihat</div>
-          <div className="border border-border/70 bg-background px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Setujui semua atau reset cepat</div>
-        </div>
-      </PageHeader>
+      />
 
-      <PageContent className="flex-none pb-8">
-        <div className="mb-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <div className="border border-border/70 bg-gradient-to-br from-background via-background to-sky-50/40 px-4 py-3 shadow-sm"><div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">No. Permintaan</div><div className="mt-1 text-sm font-semibold text-foreground">{request.request_number}</div></div>
-          <div className="border border-border/70 bg-gradient-to-br from-background via-background to-emerald-50/40 px-4 py-3 shadow-sm"><div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Prioritas</div><div className="mt-1 text-sm font-semibold text-foreground">{priorityLabels[request.priority]}</div></div>
-          <div className="border border-border/70 bg-gradient-to-br from-background via-background to-amber-50/50 px-4 py-3 shadow-sm"><div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Jumlah Item</div><div className="mt-1 text-sm font-semibold text-foreground">{items.length} item</div></div>
-          <div className="border border-border/70 bg-gradient-to-br from-background via-background to-rose-50/40 px-4 py-3 shadow-sm"><div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Ruang Pemohon</div><div className="mt-1 text-sm font-semibold text-foreground">{request.from_room?.name || "-"}</div></div>
-        </div>
-
-        <div className="flex-1 space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11">
-          <SectionPanel icon={CheckCheck} title="Informasi Permintaan" description="Lihat prioritas, ruangan asal-tujuan, dan alasan sebelum menyetujui distribusi stok.">
-            <div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-                <div className="space-y-1 lg:col-span-2">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <AlertTriangle className="h-4 w-4" />
-                    No. Permintaan & Prioritas
+      <PageContent className="min-h-0 overflow-hidden pb-3">
+        <div className="grid min-h-0 flex-1 gap-3 [&_label]:text-[10px] [&_label]:uppercase [&_label]:tracking-[0.08em] [&_label]:text-muted-foreground [&_input]:h-8 lg:grid-cols-[minmax(320px,390px)_minmax(0,1fr)] xl:grid-cols-[minmax(340px,410px)_minmax(0,1fr)]">
+          <div className="min-h-0 overflow-hidden">
+            <div className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto pr-1">
+              <SectionPanel
+                icon={CheckCheck}
+                title="Informasi Permintaan"
+                description="Lihat prioritas distribusi stok."
+              >
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="border border-border/70 bg-gradient-to-br from-background via-background to-sky-50/40 px-3 py-3">
+                    <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Mode</div>
+                    <div className="mt-1 text-sm font-semibold text-foreground">{requestModeLabel}</div>
                   </div>
-                  <div className="flex items-center gap-2 mt-1">
-                    <p className="font-medium font-mono text-base">{request.request_number}</p>
-                    <Badge variant="outline" className={priorityColors[request.priority]}>
-                      Prioritas: {priorityLabels[request.priority]}
-                    </Badge>
+                  <div className="border border-border/70 bg-gradient-to-br from-background via-background to-emerald-50/40 px-3 py-3">
+                    <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Prioritas</div>
+                    <div className="mt-1 text-sm font-semibold text-foreground">{priorityLabels[request.priority]}</div>
                   </div>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {requestTypeLabels[request.request_type]}
-                  </p>
-                </div>
-                {/* From Room */}
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Building className="h-4 w-4" />
-                    Dari Ruangan
+                  <div className="border border-border/70 bg-gradient-to-br from-background via-background to-amber-50/50 px-3 py-3">
+                    <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Qty Sudah Approved</div>
+                    <div className="mt-1 text-sm font-semibold text-foreground">{totalAlreadyApproved}</div>
                   </div>
-                  <p className="font-medium">
-                    {request.from_room?.code} - {request.from_room?.name}
-                  </p>
+                  <div className="border border-border/70 bg-gradient-to-br from-background via-background to-rose-50/40 px-3 py-3">
+                    <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Qty Belum Approved</div>
+                    <div className="mt-1 text-sm font-semibold text-foreground">{Math.max(0, totalRequested - totalAlreadyApproved)}</div>
+                  </div>
                 </div>
 
-                {/* To Room */}
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Building className="h-4 w-4" />
-                    Ke Ruangan (Anda)
-                  </div>
-                  <p className="font-medium">
-                    {request.to_room?.code} - {request.to_room?.name}
-                  </p>
-                </div>
-
-                {/* Requested By */}
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <FileText className="h-4 w-4" />
-                    Diminta Oleh
-                  </div>
-                  <p className="font-medium">{request.requested_by?.full_name || "-"}</p>
-                </div>
-              </div>
-
-              {request.reason && (
-                <>
-                  <Separator className="my-4" />
+                <div className="space-y-3 border-t border-border/70 pt-3">
                   <div className="space-y-1">
-                    <div className="text-sm text-muted-foreground">Alasan Permintaan</div>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <AlertTriangle className="h-4 w-4" />
+                      No. Permintaan & Prioritas
+                    </div>
+                    <div className="mt-1 flex items-center gap-2">
+                      <p className="font-mono text-sm font-medium">{request.request_number}</p>
+                      <Badge variant="outline" className={priorityColors[request.priority]}>
+                        Prioritas: {priorityLabels[request.priority]}
+                      </Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground">{requestTypeLabels[request.request_type]}</p>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Building className="h-4 w-4" />
+                        Dari Ruangan
+                      </div>
+                      <p className="text-sm font-medium">{request.from_room?.code} - {request.from_room?.name}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Building className="h-4 w-4" />
+                        Ke Ruangan (Anda)
+                      </div>
+                      <p className="text-sm font-medium">{request.to_room?.code} - {request.to_room?.name}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <User className="h-4 w-4" />
+                        Diminta Oleh
+                      </div>
+                      <p className="text-sm font-medium">{request.requested_by?.full_name || "-"}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Calendar className="h-4 w-4" />
+                        Tanggal Dibutuhkan
+                      </div>
+                      <p className="text-sm font-medium">{request.required_date ? new Date(request.required_date).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" }) : "-"}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {request.reason ? (
+                  <div className="space-y-1 border-t border-border/70 pt-3">
+                    <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">Alasan Permintaan</p>
                     <p className="text-sm">{request.reason}</p>
                   </div>
-                </>
-              )}
-            </div>
-          </SectionPanel>
+                ) : null}
+              </SectionPanel>
 
-          {/* Items Approval Card */}
-          <SectionPanel icon={request.request_type === "inventory" ? Package : Pill} title="Daftar Item" description="Tentukan jumlah yang disetujui berdasarkan stok yang benar-benar tersedia di ruangan Anda.">
-            <div className="flex items-center justify-between pb-3">
-              <div className="flex items-center justify-between flex-1">
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">Tentukan jumlah yang disetujui untuk setiap item</p>
+              <SectionPanel
+                icon={FileText}
+                title="Persetujuan"
+                description="Tambahkan catatan approval sebelum keputusan akhir dikirimkan."
+              >
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="border border-border/70 bg-gradient-to-br from-background via-background to-sky-50/40 px-3 py-3">
+                    <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Qty Diminta</div>
+                    <div className="mt-1 text-sm font-semibold text-foreground">{totalRequested}</div>
+                  </div>
+                  <div className="border border-border/70 bg-gradient-to-br from-background via-background to-emerald-50/40 px-3 py-3">
+                    <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Qty Approve Sekarang</div>
+                    <div className="mt-1 text-sm font-semibold text-foreground">{totalApproveNow}</div>
+                  </div>
+                  <div className="border border-border/70 bg-gradient-to-br from-background via-background to-amber-50/50 px-3 py-3">
+                    <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Qty Setelah Approve</div>
+                    <div className="mt-1 text-sm font-semibold text-foreground">{totalAfterApprove}</div>
+                  </div>
                 </div>
+
+                <div className="rounded-md border border-sky-200 bg-sky-50/70 px-3 py-3 text-xs leading-5 text-sky-800">
+                  Approval tambahan otomatis dibatasi ke stok tersedia dan tidak bisa melebihi sisa item yang belum disetujui. Distribusi tetap bisa berjalan parsial dari total approval yang sudah terkumpul.
+                </div>
+
+                <div className="rounded-md border border-amber-200 bg-amber-50/70 px-3 py-3 text-xs leading-5 text-amber-800">
+                  {fullyCoveredCount} dari {items.length} item dapat ditutup penuh pada sesi ini. Sisanya bisa tetap parsial dan di-approve lagi saat stok tersedia.
+                </div>
+
+                <div className="space-y-1">
+                  <Label>Catatan Persetujuan</Label>
+                  <Textarea
+                    placeholder="Catatan tambahan untuk persetujuan ini"
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    className="min-h-[120px] resize-none"
+                  />
+                </div>
+              </SectionPanel>
+            </div>
+          </div>
+
+          <div className="flex min-h-0 flex-col overflow-hidden">
+            <SectionPanel
+              icon={request.request_type === "inventory" ? Package : Pill}
+              title="Daftar Item"
+              description="Tentukan jumlah yang disetujui berdasarkan stok yang benar-benar tersedia di ruangan Anda."
+              className="flex min-h-0 flex-1 flex-col overflow-hidden"
+              headerClassName="px-2.5 py-2 sm:px-3"
+              contentClassName="flex min-h-0 flex-1 flex-col overflow-hidden px-2.5 py-2.5 sm:px-3"
+              actions={
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={handleApproveAll}>
+                  <Button variant="outline" size="sm" className="h-7 px-2 text-[10px]" onClick={handleApproveAll}>
                     Setujui Semua
                   </Button>
-                  <Button variant="outline" size="sm" onClick={handleClearAll}>
+                  <Button variant="outline" size="sm" className="h-7 px-2 text-[10px]" onClick={handleClearAll}>
                     Reset
                   </Button>
                 </div>
+              }
+            >
+              <div className="min-h-0 flex-1 overflow-hidden rounded-lg border border-border/80 bg-background">
+                <ScrollArea className="h-full">
+                  <table className="w-full table-fixed border-collapse text-sm">
+                    <thead className="sticky top-0 z-10 bg-background">
+                      <tr className="bg-muted/20">
+                        <th className="h-9 w-[30%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Item</th>
+                        <th className="h-9 w-[12%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Sat</th>
+                        <th className="h-9 w-[14%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Stok</th>
+                        <th className="h-9 w-[14%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Diminta</th>
+                        <th className="h-9 w-[14%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Sudah</th>
+                        <th className="h-9 w-[14%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Approve</th>
+                        <th className="h-9 w-[16%] border-b border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {items.map((item) => {
+                        const maxApproved = Math.min(item.quantity_remaining_request, item.current_stock);
+                        const stockEnough = item.current_stock >= item.quantity_remaining_request;
+                        const totalAfterItemApproval = item.quantity_already_approved + item.quantity_approved;
+                        return (
+                          <tr key={item.id} className="transition-colors hover:bg-muted/10">
+                            <td className="border-b border-r border-border/60 px-3 py-2.5 align-top">
+                              <div className="flex items-start gap-2">
+                                {item.inventory_id ? (
+                                  <Package className="mt-0.5 h-4 w-4 text-blue-500" />
+                                ) : (
+                                  <Pill className="mt-0.5 h-4 w-4 text-green-500" />
+                                )}
+                                <div className="min-w-0 space-y-0.5">
+                                  <p className="text-xs font-semibold leading-4 text-foreground">{item.name}</p>
+                                  <p className="font-mono text-[11px] leading-4 text-muted-foreground">{item.code}</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="border-b border-r border-border/60 px-3 py-2.5 align-top text-[11px] text-muted-foreground">
+                              {item.unit}
+                            </td>
+                            <td className="border-b border-r border-border/60 px-3 py-2.5 align-top">
+                              <Badge
+                                variant="outline"
+                                className={stockEnough ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-rose-200 bg-rose-50 text-rose-700"}
+                              >
+                                {item.current_stock}
+                              </Badge>
+                            </td>
+                            <td className="border-b border-r border-border/60 px-3 py-2.5 align-top text-sm font-medium text-foreground">
+                              {item.quantity_requested}
+                            </td>
+                            <td className="border-b border-r border-border/60 px-3 py-2.5 align-top text-sm font-medium text-foreground">
+                              {item.quantity_already_approved}
+                            </td>
+                            <td className="border-b border-r border-border/60 px-3 py-2.5 align-top">
+                              <div className="space-y-1">
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  max={maxApproved}
+                                  value={item.quantity_approved}
+                                  onChange={(e) => handleItemChange(item.id, parseInt(e.target.value) || 0)}
+                                  className="h-8 text-center text-xs"
+                                />
+                                <p className="text-[11px] text-muted-foreground">Maks. {maxApproved} dari sisa {item.quantity_remaining_request}</p>
+                              </div>
+                            </td>
+                            <td className="border-b border-border/60 px-3 py-2.5 align-top text-[11px] text-muted-foreground">
+                              {item.quantity_remaining_request === 0 ? (
+                                <span className="text-emerald-600">Sudah penuh</span>
+                              ) : item.quantity_approved === 0 ? (
+                                <span className="text-amber-600">Belum ada tambahan</span>
+                              ) : totalAfterItemApproval < item.quantity_requested ? (
+                                <span className="text-amber-600">Parsial ({item.quantity_requested - totalAfterItemApproval} belum approved)</span>
+                              ) : (
+                                <span className="text-emerald-600">Sesuai permintaan</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </ScrollArea>
               </div>
-            </div>
-            <div className="-mx-3 -mb-4 px-3 pb-4 sm:-mx-4 sm:px-4">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>No</TableHead>
-                    <TableHead>Kode</TableHead>
-                    <TableHead>Nama Item</TableHead>
-                    <TableHead className="text-center">Stok Tersedia</TableHead>
-                    <TableHead className="text-center">Qty Diminta</TableHead>
-                    <TableHead className="text-center">Qty Disetujui</TableHead>
-                    <TableHead>Satuan</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {items.map((item, index) => (
-                    <TableRow key={item.id}>
-                      <TableCell>{index + 1}</TableCell>
-                      <TableCell className="font-mono text-sm">{item.code}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          {item.inventory_id ? (
-                            <Package className="h-4 w-4 text-blue-500" />
-                          ) : (
-                            <Pill className="h-4 w-4 text-green-500" />
-                          )}
-                          {item.name}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Badge
-                          variant={
-                            item.current_stock >= item.quantity_requested
-                              ? "default"
-                              : "destructive"
-                          }
-                        >
-                          {item.current_stock}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-center font-medium">
-                        {item.quantity_requested}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex justify-center">
-                          <Input
-                            type="number"
-                            min={0}
-                            max={Math.min(item.quantity_requested, item.current_stock)}
-                            value={item.quantity_approved}
-                            onChange={(e) =>
-                              handleItemChange(item.id, parseInt(e.target.value) || 0)
-                            }
-                            className="w-24 text-center"
-                          />
-                        </div>
-                      </TableCell>
-                      <TableCell>{item.unit}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </SectionPanel>
-
-          <SectionPanel icon={FileText} title="Persetujuan" description="Tambahkan catatan approval sebelum keputusan akhir dikirimkan.">
-            <div>
-              {/* Notes */}
-              <div className="space-y-2">
-                <Label>Catatan Persetujuan</Label>
-                <Textarea
-                  placeholder="Catatan tambahan untuk persetujuan ini..."
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                />
-              </div>
-
-              {/* Sticky Footer Actions */}
-              <div className="shrink-0 sticky bottom-0 z-10 py-3 mt-4 flex items-center justify-end gap-4 border-t border-border/70 bg-background/95 backdrop-blur">
-                <Button
-                  variant="outline"
-                  onClick={() => navigate(`/stock-requests/${id}`)}
-                >
-                  Batal
-                </Button>
-                <Button
-                  variant="destructive"
-                  onClick={() => setRejectDialogOpen(true)}
-                >
-                  <XCircle className="mr-2 h-4 w-4" />
-                  Tolak
-                </Button>
-                <Button onClick={handleApprove} disabled={submitting}>
-                  {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  <CheckCircle className="mr-2 h-4 w-4" />
-                  Setujui
-                </Button>
-              </div>
-            </div>
-          </SectionPanel>
+            </SectionPanel>
+          </div>
         </div>
 
         {/* Reject Dialog */}

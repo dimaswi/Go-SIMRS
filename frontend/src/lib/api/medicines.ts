@@ -104,6 +104,137 @@ export interface MedicineListParams {
   is_active?: boolean;
 }
 
+export interface MedicineTraceabilityStats {
+  total_stock: number;
+  room_count: number;
+  purchase_count: number;
+  request_count: number;
+  distribution_count: number;
+  patient_usage_count: number;
+}
+
+export interface MedicineTraceabilityRoomStock {
+  room_id: number;
+  room_name: string;
+  room_code: string;
+  quantity: number;
+  min_quantity: number;
+  notes?: string;
+}
+
+export interface MedicineTraceabilityPurchase {
+  purchase_id: number;
+  purchase_number: string;
+  status: string;
+  supplier_name: string;
+  destination_room: string;
+  order_date?: string;
+  received_date?: string;
+  invoice_number: string;
+  payment_status: string;
+  quantity_ordered: number;
+  quantity_received: number;
+  unit: string;
+  unit_price: number;
+  total_price: number;
+  batch_number?: string;
+  expiry_date?: string;
+  recorded_by?: string;
+  remaining_quantity: number;
+}
+
+export interface MedicineTraceabilityRequest {
+  request_id: number;
+  request_number: string;
+  status: string;
+  priority: string;
+  request_date: string;
+  required_date?: string;
+  from_room: string;
+  to_room: string;
+  requested_by?: string;
+  quantity_requested: number;
+  quantity_approved: number;
+  quantity_fulfilled: number;
+  quantity_remaining_approval: number;
+  quantity_remaining_distribution: number;
+  notes?: string;
+}
+
+export interface MedicineTraceabilityDistribution {
+  distribution_id: number;
+  distribution_number: string;
+  status: string;
+  distribution_date: string;
+  from_room: string;
+  to_room: string;
+  request_number?: string;
+  distributed_by?: string;
+  received_by?: string;
+  received_date?: string;
+  quantity_sent: number;
+  unit: string;
+  notes?: string;
+}
+
+export interface MedicineTraceabilityAdministration {
+  scheduled_at: string;
+  status: string;
+  administered_at?: string;
+  reason_code?: string;
+  reason_detail?: string;
+  notes?: string;
+}
+
+export interface MedicineTraceabilityAdministrationSummary {
+  scheduled_count: number;
+  given_count: number;
+  held_count: number;
+  skipped_count: number;
+  refused_count: number;
+  unavailable_count: number;
+  last_administered_at?: string;
+  recent_administrations: MedicineTraceabilityAdministration[];
+}
+
+export interface MedicineTraceabilityPatientUsage {
+  order_item_id: number;
+  order_id: number;
+  order_number: string;
+  order_status: string;
+  item_status: string;
+  ordered_at: string;
+  delivered_at?: string;
+  patient_name: string;
+  patient_no_rm: string;
+  registration_number: string;
+  source_room: string;
+  pharmacy_room: string;
+  prescriber_name?: string;
+  fulfillment_type: string;
+  priority: string;
+  quantity_ordered: number;
+  quantity_dispensed: number;
+  quantity_returned: number;
+  unit: string;
+  dosage?: string;
+  frequency?: string;
+  route?: string;
+  duration?: string;
+  instructions?: string;
+  administration_summary: MedicineTraceabilityAdministrationSummary;
+}
+
+export interface MedicineTraceability {
+  medicine: Medicine;
+  stats: MedicineTraceabilityStats;
+  room_stocks: MedicineTraceabilityRoomStock[];
+  purchases: MedicineTraceabilityPurchase[];
+  requests: MedicineTraceabilityRequest[];
+  distributions: MedicineTraceabilityDistribution[];
+  patient_usages: MedicineTraceabilityPatientUsage[];
+}
+
 // Category labels
 export const medicineCategoryLabels: Record<MedicineCategory, string> = {
   generic: 'Obat Generik',
@@ -149,6 +280,11 @@ export const medicinesApi = {
   // Get single medicine
   getById: async (id: number) => {
     return api.get(`/medicines/${id}`);
+  },
+
+  // Get consolidated medicine traceability
+  getTraceability: async (id: number) => {
+    return api.get(`/medicines/${id}/traceability`);
   },
 
   // Create medicine

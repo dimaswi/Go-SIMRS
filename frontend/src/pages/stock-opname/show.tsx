@@ -16,20 +16,14 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { usePermission } from "@/hooks/usePermission";
 import { setPageTitle } from "@/lib/page-title";
+import { cn } from "@/lib/utils";
 import { stockOpnameApi, type StockOpname } from "@/lib/api/stock-requests";
 
 const statusLabels: Record<string, string> = {
@@ -54,30 +48,36 @@ function SectionPanel({
   description,
   actions,
   children,
+  className,
+  headerClassName,
+  contentClassName,
 }: {
   icon: ComponentType<{ className?: string }>;
   title: string;
-  description: string;
+  description?: string;
   actions?: ReactNode;
   children: ReactNode;
+  className?: string;
+  headerClassName?: string;
+  contentClassName?: string;
 }) {
   return (
-    <div className="border border-border/70 bg-background/95 shadow-sm">
-      <div className="border-b border-border/70 bg-muted/20 px-4 py-3">
+    <div className={cn("border border-border/70 bg-background/95", className)}>
+      <div className={cn("border-b border-border/70 bg-muted/20 px-2.5 py-2 sm:px-3", headerClassName)}>
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-start gap-3">
-            <div className="border border-border/70 bg-background p-2">
+            <div className="border border-border/70 bg-background p-1.5">
               <Icon className="h-4 w-4 text-muted-foreground" />
             </div>
             <div>
               <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{title}</div>
-              <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+              {description ? <p className="mt-1 text-xs text-muted-foreground">{description}</p> : null}
             </div>
           </div>
           {actions}
         </div>
       </div>
-      <div className="p-3 sm:p-4">{children}</div>
+      <div className={cn("space-y-3 p-2.5 sm:p-3", contentClassName)}>{children}</div>
     </div>
   );
 }
@@ -263,13 +263,13 @@ export default function StockOpnameShow() {
   const deficitItems = opname.items?.filter((item) => (item.difference || 0) < 0).length || 0;
 
   return (
-    <PageShell>
+    <PageShell className="lg:overflow-hidden">
       <PageHeader
         title={opname.opname_number}
         description="Lihat status opname, total selisih, dan rincian hasil hitung fisik per item."
         actions={
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => navigate("/stock-opname")}>
+            <Button size="sm" variant="outline" onClick={() => navigate("/stock-opname")}>
               <ArrowLeft className="mr-2 h-4 w-4" />
               Kembali
             </Button>
@@ -300,158 +300,162 @@ export default function StockOpnameShow() {
           </div>
         }
       />
-      <PageContent className="flex-none pb-8">
-        <div className="space-y-6">
-          <SectionPanel
-            icon={Building2}
-            title="Informasi Stock Opname"
-            description="Ringkasan ruangan, tanggal opname, petugas pembuat, dan akumulasi selisih stok."
-            actions={<Badge className={statusColors[status]}>{statusLabels[status]}</Badge>}
-          >
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 pb-4">
-              <SummaryCue label="Item Sesuai" value={`${matchedItems}`} tone="from-emerald-50 via-background to-background" />
-              <SummaryCue label="Surplus" value={`${surplusItems}`} tone="from-blue-50 via-background to-background" />
-              <SummaryCue label="Defisit" value={`${deficitItems}`} tone="from-rose-50 via-background to-background" />
-              <SummaryCue label="Total Selisih" value={totalDifference > 0 ? `+${totalDifference}` : `${totalDifference}`} tone="from-amber-50 via-background to-background" />
+      <PageContent className="min-h-0 overflow-hidden pb-3">
+        <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[minmax(320px,380px)_minmax(0,1fr)] xl:grid-cols-[minmax(330px,390px)_minmax(0,1fr)]">
+          <div className="min-h-0 overflow-hidden">
+            <div className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto pr-1">
+              <SectionPanel
+                icon={Building2}
+                title="Informasi Stock Opname"
+                description="Ringkasan ruangan."
+                actions={<Badge className={statusColors[status]}>{statusLabels[status]}</Badge>}
+              >
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <SummaryCue label="Item Sesuai" value={`${matchedItems}`} tone="from-emerald-50 via-background to-background" />
+                  <SummaryCue label="Surplus" value={`${surplusItems}`} tone="from-blue-50 via-background to-background" />
+                  <SummaryCue label="Defisit" value={`${deficitItems}`} tone="from-rose-50 via-background to-background" />
+                  <SummaryCue label="Total Selisih" value={totalDifference > 0 ? `+${totalDifference}` : `${totalDifference}`} tone="from-amber-50 via-background to-background" />
+                </div>
+
+                <div className="grid gap-3 border-t border-border/70 pt-3 sm:grid-cols-2">
+                  <div className="flex items-start gap-3">
+                    <Building2 className="mt-0.5 h-4 w-4 text-muted-foreground" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Ruangan</p>
+                      <p className="text-sm font-medium">{opname.room?.name || "-"}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <Calendar className="mt-0.5 h-4 w-4 text-muted-foreground" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Tanggal Opname</p>
+                      <p className="text-sm font-medium">{formatDate(opname.opname_date)}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <User className="mt-0.5 h-4 w-4 text-muted-foreground" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Dibuat Oleh</p>
+                      <p className="text-sm font-medium">{opname.conducted_by?.full_name || "-"}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <FileText className="mt-0.5 h-4 w-4 text-muted-foreground" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Jumlah Item</p>
+                      <p className="text-sm font-semibold text-foreground">{opname.items?.length || 0}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {opname.notes && (
+                  <div className="rounded-md border border-border/70 bg-muted/40 px-3 py-3">
+                    <p className="mb-1 text-xs uppercase tracking-[0.12em] text-muted-foreground">Catatan</p>
+                    <p className="text-sm">{opname.notes}</p>
+                  </div>
+                )}
+              </SectionPanel>
             </div>
+          </div>
 
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-              <div className="flex items-start gap-3">
-                <Building2 className="mt-0.5 h-5 w-5 text-muted-foreground" />
-                <div>
-                  <p className="text-sm text-muted-foreground">Ruangan</p>
-                  <p className="font-medium">{opname.room?.name || "-"}</p>
+          <div className="flex min-h-0 flex-col overflow-hidden">
+            <SectionPanel
+              icon={ClipboardList}
+              title="Daftar Item"
+              description="Bandingkan stok sistem dan fisik untuk setiap item, lengkap dengan selisih dan catatan lapangan."
+              className="flex min-h-0 flex-1 flex-col overflow-hidden"
+              headerClassName="px-2.5 py-2 sm:px-3"
+              contentClassName="flex min-h-0 flex-1 flex-col overflow-hidden px-2.5 py-2.5 sm:px-3"
+              actions={
+                <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                  <CircleAlert className="h-3.5 w-3.5" />
+                  Fokus item selisih non-zero
                 </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <Calendar className="mt-0.5 h-5 w-5 text-muted-foreground" />
-                <div>
-                  <p className="text-sm text-muted-foreground">Tanggal Opname</p>
-                  <p className="font-medium">{formatDate(opname.opname_date)}</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <User className="mt-0.5 h-5 w-5 text-muted-foreground" />
-                <div>
-                  <p className="text-sm text-muted-foreground">Dibuat Oleh</p>
-                  <p className="font-medium">{opname.created_by?.full_name || "-"}</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <FileText className="mt-0.5 h-5 w-5 text-muted-foreground" />
-                <div>
-                  <p className="text-sm text-muted-foreground">Jumlah Item</p>
-                  <p className="text-lg font-bold text-foreground">{opname.items?.length || 0}</p>
-                </div>
-              </div>
-            </div>
+              }
+            >
+              <div className="min-h-0 flex-1 overflow-hidden rounded-lg border border-border/80 bg-background">
+                <ScrollArea className="h-full">
+                  <table className="w-full table-fixed border-collapse text-sm">
+                    <thead className="sticky top-0 z-10 bg-background">
+                      <tr className="bg-muted/20">
+                        <th className="h-9 w-[32%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Item</th>
+                        <th className="h-9 w-[16%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Tipe</th>
+                        <th className="h-9 w-[14%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Sistem</th>
+                        <th className="h-9 w-[14%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Fisik</th>
+                        <th className="h-9 w-[10%] border-b border-r border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Selisih</th>
+                        <th className="h-9 w-[14%] border-b border-border/70 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground/80">Catatan</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {opname.items && opname.items.length > 0 ? (
+                        opname.items.map((item) => {
+                          const difference = item.difference || 0;
+                          const itemName = item.inventory?.name || item.medicine?.name || "-";
+                          const itemCode = item.inventory?.code || item.medicine?.code;
 
-            {opname.notes && (
-              <div className="mt-6 rounded-md border border-border/70 bg-muted/40 p-4">
-                <p className="mb-1 text-sm text-muted-foreground">Catatan</p>
-                <p className="text-sm">{opname.notes}</p>
+                          return (
+                            <tr key={item.id} className="transition-colors hover:bg-muted/10">
+                              <td className="border-b border-r border-border/60 px-3 py-2.5 align-top">
+                                <div className="space-y-0.5">
+                                  <p className="text-xs font-semibold leading-4 text-foreground">{itemName}</p>
+                                  {itemCode ? <p className="font-mono text-[11px] leading-4 text-muted-foreground">{itemCode}</p> : null}
+                                  <p className="text-[11px] leading-4 text-muted-foreground">Satuan: {item.unit}</p>
+                                </div>
+                              </td>
+                              <td className="border-b border-r border-border/60 px-3 py-2.5 align-top">
+                                <Badge variant="outline" className="gap-1 text-[10px]">
+                                  {item.inventory_id ? (
+                                    <>
+                                      <Package className="h-3 w-3" />
+                                      Inventaris
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Pill className="h-3 w-3" />
+                                      Obat
+                                    </>
+                                  )}
+                                </Badge>
+                              </td>
+                              <td className="border-b border-r border-border/60 px-3 py-2.5 align-top text-[11px] text-muted-foreground">
+                                <span className="font-medium text-foreground">{item.system_stock}</span> {item.unit}
+                              </td>
+                              <td className="border-b border-r border-border/60 px-3 py-2.5 align-top text-[11px] text-muted-foreground">
+                                <span className="font-medium text-foreground">{item.physical_stock}</span> {item.unit}
+                              </td>
+                              <td className="border-b border-r border-border/60 px-3 py-2.5 align-top">
+                                <Badge
+                                  variant="outline"
+                                  className={
+                                    difference === 0
+                                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                                      : difference > 0
+                                      ? "border-blue-200 bg-blue-50 text-blue-700"
+                                      : "border-rose-200 bg-rose-50 text-rose-700"
+                                  }
+                                >
+                                  {difference > 0 ? `+${difference}` : difference}
+                                </Badge>
+                              </td>
+                              <td className="border-b border-border/60 px-3 py-2.5 align-top text-[11px] text-muted-foreground">
+                                {item.notes || "-"}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      ) : (
+                        <tr>
+                          <td colSpan={6} className="px-3 py-8 text-center text-sm text-muted-foreground">
+                            Tidak ada item
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </ScrollArea>
               </div>
-            )}
-          </SectionPanel>
-
-          <SectionPanel
-            icon={ClipboardList}
-            title="Daftar Item"
-            description="Bandingkan stok sistem dan fisik untuk setiap item, lengkap dengan selisih dan catatan lapangan."
-            actions={
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <CircleAlert className="h-3.5 w-3.5" />
-                Fokus pada item dengan selisih non-zero
-              </div>
-            }
-          >
-            <div className="-mx-3 -mb-4 sm:-mx-4">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>No</TableHead>
-                    <TableHead>Nama Item</TableHead>
-                    <TableHead>Tipe</TableHead>
-                    <TableHead className="text-right">Stok Sistem</TableHead>
-                    <TableHead className="text-right">Stok Fisik</TableHead>
-                    <TableHead className="text-right">Selisih</TableHead>
-                    <TableHead>Catatan</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {opname.items && opname.items.length > 0 ? (
-                    opname.items.map((item, index) => {
-                      const difference = item.difference || 0;
-                      const itemName = item.inventory?.name || item.medicine?.name || "-";
-                      const itemCode = item.inventory?.code || item.medicine?.code;
-
-                      return (
-                        <TableRow key={item.id}>
-                          <TableCell>{index + 1}</TableCell>
-                          <TableCell>
-                            <div>
-                              <p className="font-medium">{itemName}</p>
-                              {itemCode && (
-                                <p className="text-xs text-muted-foreground">
-                                  {itemCode}
-                                </p>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="gap-1">
-                              {item.inventory_id ? (
-                                <>
-                                  <Package className="h-3 w-3" />
-                                  Inventaris
-                                </>
-                              ) : (
-                                <>
-                                  <Pill className="h-3 w-3" />
-                                  Obat
-                                </>
-                              )}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {item.system_stock} {item.unit}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {item.physical_stock} {item.unit}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex justify-end">
-                              <Badge
-                                variant="outline"
-                                className={
-                                  difference === 0
-                                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                                    : difference > 0
-                                    ? "border-blue-200 bg-blue-50 text-blue-700"
-                                    : "border-rose-200 bg-rose-50 text-rose-700"
-                                }
-                              >
-                                {difference > 0 ? `+${difference}` : difference}
-                              </Badge>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            {item.notes || "-"}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })
-                  ) : (
-                    <TableRow>
-                      <TableCell colSpan={7} className="py-8 text-center">
-                        <p className="text-muted-foreground">Tidak ada item</p>
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-          </SectionPanel>
+            </SectionPanel>
+          </div>
         </div>
       </PageContent>
 
