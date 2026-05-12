@@ -11,6 +11,7 @@ import { PageShell, PageHeader, PageContent } from "@/components/layout/page-she
 import {
   patientsApi,
   registrationApi,
+  bpjsApi,
   type Patient,
   type Registration,
   api
@@ -67,6 +68,7 @@ import {
   ArrowLeft,
   Briefcase,
   Dna,
+  Fingerprint,
 
 } from "lucide-react";
 import { format, parseISO, differenceInYears } from "date-fns";
@@ -331,6 +333,7 @@ export default function PatientSearchShow() {
   const [admissionRequests, setAdmissionRequests] = useState<AdmissionRequest[]>([]);
   const [loadingAdmissionRequests, setLoadingAdmissionRequests] = useState(false);
   const [registrationSheetOpen, setRegistrationSheetOpen] = useState(false);
+  const [launchingFingerprint, setLaunchingFingerprint] = useState(false);
   const [deleteSepId, setDeleteSepId] = useState<SEPLocal | null>(null);
   const [deletingSep, setDeletingSep] = useState(false);
   const [selectedSep, setSelectedSep] = useState<SEPLocal | null>(null);
@@ -1201,6 +1204,28 @@ export default function PatientSearchShow() {
     },
   }), [expandedRegistrations, visitsByRegistration, loadingVisits, navigate]);
 
+  const handleLaunchFingerprint = useCallback(async () => {
+    setLaunchingFingerprint(true);
+    try {
+      const response = await bpjsApi.launchFingerprintApp({});
+      toast({
+        variant: "success",
+        title: "Aplikasi sidik jari dibuka",
+        description: response.data.message,
+      });
+    } catch (error: any) {
+      const message = error.response?.data?.error || "Gagal membuka aplikasi sidik jari BPJS";
+      const detail = error.response?.data?.detail;
+      toast({
+        variant: "destructive",
+        title: "Gagal",
+        description: detail ? `${message}: ${detail}` : message,
+      });
+    } finally {
+      setLaunchingFingerprint(false);
+    }
+  }, [toast]);
+
   if (loading) {
     return (
       <div className="h-screen w-screen flex flex-col items-center justify-center bg-background">
@@ -1228,9 +1253,27 @@ export default function PatientSearchShow() {
                 <Pencil className="h-3.5 w-3.5 mr-1.5" /> Edit
               </Button>
               {patient.status === "Aktif" && (
-                <Button size="sm" onClick={() => setRegistrationSheetOpen(true)} className="h-8">
-                  <UserPlus className="h-3.5 w-3.5 mr-1.5" /> Daftar Baru
-                </Button>
+                <>
+                  <Button size="sm" onClick={() => setRegistrationSheetOpen(true)} className="h-8">
+                    <UserPlus className="h-3.5 w-3.5 mr-1.5" /> Daftar Baru
+                  </Button>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="outline"
+                    className="h-8 w-8"
+                    onClick={handleLaunchFingerprint}
+                    disabled={launchingFingerprint}
+                    title="Buka aplikasi sidik jari BPJS"
+                    aria-label="Buka aplikasi sidik jari BPJS"
+                  >
+                    {launchingFingerprint ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Fingerprint className="h-3.5 w-3.5" />
+                    )}
+                  </Button>
+                </>
               )}
             </div>
           }

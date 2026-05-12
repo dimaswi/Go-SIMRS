@@ -46,6 +46,7 @@ import {
   FileText,
   Wifi,
   WifiOff,
+  Fingerprint,
 } from "lucide-react";
 import {
   integrationsApi,
@@ -185,6 +186,9 @@ export default function IntegrationsConfigPage() {
   const [webhookUsername, setWebhookUsername] = useState("");
   const [webhookPassword, setWebhookPassword] = useState("");
   const [showWebhookPassword, setShowWebhookPassword] = useState(false);
+  const [fingerprintUsername, setFingerprintUsername] = useState("");
+  const [fingerprintPassword, setFingerprintPassword] = useState("");
+  const [showFingerprintPassword, setShowFingerprintPassword] = useState(false);
 
   // SatuSehat Config State
   const [ssConfig, setSsConfig] = useState<IntegrationConfigMap>({});
@@ -385,6 +389,7 @@ export default function IntegrationsConfigPage() {
     setShowUserKey(false);
     setShowSsClientSecret(false);
     setShowWebhookPassword(false);
+    setShowFingerprintPassword(false);
 
     if (isBPJSType(integrationId)) {
       // Load data from config for this specific BPJS service
@@ -417,6 +422,10 @@ export default function IntegrationsConfigPage() {
       if (integrationId === "bpjs-antrian") {
         setWebhookUsername(config.webhook_username?.value || "");
         setWebhookPassword(config.webhook_password?.value || "");
+      }
+      if (integrationId === "bpjs-vclaim") {
+        setFingerprintUsername(config.fingerprint_username?.value || "");
+        setFingerprintPassword(config.fingerprint_password?.value || "");
       }
     } else if (integrationId === "satusehat") {
       // Load SatuSehat config values
@@ -492,6 +501,10 @@ export default function IntegrationsConfigPage() {
       if (editingIntegration === "bpjs-antrian") {
         updateData.webhook_username = webhookUsername;
         updateData.webhook_password = webhookPassword;
+      }
+      if (editingIntegration === "bpjs-vclaim") {
+        updateData.fingerprint_username = fingerprintUsername;
+        updateData.fingerprint_password = fingerprintPassword;
       }
 
       // Update config for specific BPJS service
@@ -1158,6 +1171,72 @@ export default function IntegrationsConfigPage() {
                           }
                         >
                           {showWebhookPassword ? (
+                            <EyeOff className="h-4 w-4" />
+                          ) : (
+                            <Eye className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {editingIntegration === "bpjs-vclaim" && (
+              <>
+                <hr />
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <Fingerprint className="h-4 w-4 text-primary" />
+                    <h4 className="text-sm font-semibold">
+                      Kredensial Aplikasi Sidik Jari
+                    </h4>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Dipakai oleh tombol sidik jari di Patient Search Show untuk
+                    membuka After.exe dan mengisi login otomatis.
+                  </p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label
+                        htmlFor="fingerprintUsername"
+                        className="text-xs font-medium"
+                      >
+                        Username Sidik Jari
+                      </Label>
+                      <Input
+                        id="fingerprintUsername"
+                        placeholder="Masukkan username aplikasi sidik jari"
+                        value={fingerprintUsername}
+                        onChange={(e) => setFingerprintUsername(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label
+                        htmlFor="fingerprintPassword"
+                        className="text-xs font-medium"
+                      >
+                        Password Sidik Jari
+                      </Label>
+                      <div className="relative">
+                        <Input
+                          id="fingerprintPassword"
+                          type={showFingerprintPassword ? "text" : "password"}
+                          placeholder="Masukkan password aplikasi sidik jari"
+                          value={fingerprintPassword}
+                          onChange={(e) => setFingerprintPassword(e.target.value)}
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="absolute right-0 top-0 h-full px-3"
+                          onClick={() =>
+                            setShowFingerprintPassword(!showFingerprintPassword)
+                          }
+                        >
+                          {showFingerprintPassword ? (
                             <EyeOff className="h-4 w-4" />
                           ) : (
                             <Eye className="h-4 w-4" />

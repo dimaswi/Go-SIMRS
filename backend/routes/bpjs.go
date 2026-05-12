@@ -184,6 +184,12 @@ func SetupBPJSRoutes(api *gin.RouterGroup) {
 			icare.POST("/validate-manual", handlers.ICareValidateManual)
 		}
 
+		fingerprint := bpjs.Group("/fingerprint")
+		fingerprint.Use(middleware.RequirePermission("integrations.manage"))
+		{
+			fingerprint.POST("/launch", handlers.LaunchBPJSFingerprintApp)
+		}
+
 		// ==================== APOTEK ONLINE ====================
 		apotek := bpjs.Group("/apotek")
 		apotek.Use(middleware.RequirePermission("integrations.view"))

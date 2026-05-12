@@ -36,6 +36,21 @@ export interface BPJSConnectionTestResult {
   poli_count?: number;
 }
 
+export interface BPJSFingerprintLaunchRequest {
+  executable_path?: string;
+  username?: string;
+  password?: string;
+  auto_submit?: boolean;
+}
+
+export interface BPJSFingerprintLaunchResponse {
+  message: string;
+  data: {
+    executable_path: string;
+    auto_submit: boolean;
+  };
+}
+
 export interface BPJSSyncLog {
   id: number;
   endpoint: string;
@@ -191,6 +206,9 @@ export const bpjsApi = {
   
   testConnection: () => 
     api.get<BPJSConnectionTestResult>('/bpjs/test-connection'),
+
+  launchFingerprintApp: (data: BPJSFingerprintLaunchRequest) =>
+    api.post<BPJSFingerprintLaunchResponse>('/bpjs/fingerprint/launch', data),
 
   // Logs
   getLogs: (params?: { status?: string; date?: string; endpoint?: string; limit?: number }) => 

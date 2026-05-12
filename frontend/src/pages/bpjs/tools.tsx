@@ -5,6 +5,7 @@ import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import {
   Dialog,
@@ -31,6 +32,7 @@ import {
   Activity,
   Syringe,
   Filter,
+  Fingerprint,
   X,
   Eye,
   ClipboardList,
@@ -60,6 +62,8 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+
+const DEFAULT_BPJS_FINGERPRINT_EXECUTABLE = String.raw`C:\Program Files (x86)\BPJS Kesehatan\Aplikasi Sidik Jari BPJS Kesehatan\After.exe`;
 
 // Form schema for Get SEP
 const getSEPSchema = z.object({
@@ -380,6 +384,13 @@ export default function BPJSToolsPage() {
   const [icareUrl, setIcareUrl] = useState<string | null>(null);
   const [icareOpen, setIcareOpen] = useState(false);
 
+  const [fingerprintExecutablePath, setFingerprintExecutablePath] = useState(DEFAULT_BPJS_FINGERPRINT_EXECUTABLE);
+  const [fingerprintUsername, setFingerprintUsername] = useState("");
+  const [fingerprintPassword, setFingerprintPassword] = useState("");
+  const [fingerprintAutoSubmit, setFingerprintAutoSubmit] = useState(false);
+  const [fingerprintLoading, setFingerprintLoading] = useState(false);
+  const [fingerprintResult, setFingerprintResult] = useState<any>(null);
+
   // Apotek Online referensi state
   const [apotekLoading, setApotekLoading] = useState<string | null>(null);
   const [apotekKodeApotek, setApotekKodeApotek] = useState("");
@@ -675,6 +686,50 @@ export default function BPJSToolsPage() {
     }
   };
 
+  const handleLaunchFingerprintApp = async () => {
+    if (!fingerprintUsername.trim()) {
+      toast({ variant: "destructive", title: "Username wajib diisi" });
+      return;
+    }
+    if (!fingerprintPassword.trim()) {
+      toast({ variant: "destructive", title: "Password wajib diisi" });
+      return;
+    }
+
+    setFingerprintLoading(true);
+    setFingerprintResult(null);
+    try {
+      const res = await bpjsApi.launchFingerprintApp({
+        executable_path: fingerprintExecutablePath.trim() || DEFAULT_BPJS_FINGERPRINT_EXECUTABLE,
+        username: fingerprintUsername.trim(),
+        password: fingerprintPassword,
+        auto_submit: fingerprintAutoSubmit,
+      });
+      setFingerprintResult({
+        message: res.data.message,
+        executable_path: res.data.data.executable_path,
+        auto_submit: res.data.data.auto_submit,
+        catatan: "Backend harus berjalan pada sesi desktop Windows yang sama agar input keyboard bisa masuk ke aplikasi.",
+      });
+      toast({ title: "Berhasil", description: res.data.message });
+    } catch (error: any) {
+      const detail = error.response?.data?.detail;
+      const message = error.response?.data?.error || "Gagal membuka aplikasi sidik jari BPJS";
+      setFingerprintResult({
+        status: "error",
+        message,
+        detail,
+      });
+      toast({
+        variant: "destructive",
+        title: "Gagal",
+        description: detail ? `${message}: ${detail}` : message,
+      });
+    } finally {
+      setFingerprintLoading(false);
+    }
+  };
+
   const runApotekQuery = async (key: string, fn: () => Promise<any>) => {
     setApotekLoading(key);
     try {
@@ -814,6 +869,12 @@ export default function BPJSToolsPage() {
       label: "I-Care",
       icon: ExternalLink,
       items: [{ key: "icare", label: "Validasi I-Care", icon: Stethoscope }],
+    },
+    {
+      key: "fingerprint",
+      label: "Sidik Jari",
+      icon: Fingerprint,
+      items: [{ key: "fingerprint-launch", label: "Buka Aplikasi", icon: Fingerprint }],
     },
     {
       key: "apotek-online",
@@ -1320,6 +1381,83 @@ export default function BPJSToolsPage() {
                 />
               ) : (
                 <EmptyResult title="Belum ada sesi I-Care" message="Setelah validasi berhasil, status sesi akan ditampilkan di sini." />
+              )
+            }
+          />
+        )}
+
+        {activeTab === "fingerprint-launch" && (
+          <ToolWorkspace
+            eyebrow="Sidik Jari"
+            title="Aplikasi Sidik Jari BPJS"
+            description="Buka After.exe dari server Windows lokal lalu isi field username dan password secara otomatis. Fitur ini hanya bekerja bila backend berjalan di desktop Windows yang sama dengan aplikasi BPJS."
+            formTitle="Parameter login"
+            formDescription="Path executable bisa diubah bila aplikasi BPJS dipasang di lokasi lain."
+            form={
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="fingerprint-executable">Path After.exe</Label>
+                  <Input
+                    id="fingerprint-executable"
+                    value={fingerprintExecutablePath}
+                    onChange={(event) => setFingerprintExecutablePath(event.target.value)}
+                    placeholder={DEFAULT_BPJS_FINGERPRINT_EXECUTABLE}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="fingerprint-username">Username</Label>
+                  <Input
+                    id="fingerprint-username"
+                    value={fingerprintUsername}
+                    onChange={(event) => setFingerprintUsername(event.target.value)}
+                    placeholder="Masukkan username aplikasi BPJS"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="fingerprint-password">Password</Label>
+                  <Input
+                    id="fingerprint-password"
+                    type="password"
+                    value={fingerprintPassword}
+                    onChange={(event) => setFingerprintPassword(event.target.value)}
+                    placeholder="Masukkan password aplikasi BPJS"
+                  />
+                </div>
+                <div className="flex items-start gap-3 rounded-xl border bg-muted/10 px-4 py-3">
+                  <Checkbox
+                    id="fingerprint-auto-submit"
+                    checked={fingerprintAutoSubmit}
+                    onCheckedChange={(checked) => setFingerprintAutoSubmit(checked === true)}
+                  />
+                  <div className="space-y-1">
+                    <Label htmlFor="fingerprint-auto-submit" className="text-sm font-medium">
+                      Login otomatis setelah field terisi
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Jika tidak dicentang, sistem hanya membuka aplikasi dan mengisi username serta password.
+                    </p>
+                  </div>
+                </div>
+                <Button type="button" className="w-full" disabled={fingerprintLoading} onClick={handleLaunchFingerprintApp}>
+                  {fingerprintLoading ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Fingerprint className="mr-2 h-4 w-4" />
+                  )}
+                  Buka Aplikasi Sidik Jari
+                </Button>
+              </div>
+            }
+            resultTitle="Status eksekusi"
+            resultDescription="Status launch dan automasi input dari backend Windows lokal."
+            result={
+              fingerprintResult ? (
+                <FriendlyResult data={fingerprintResult} />
+              ) : (
+                <EmptyResult
+                  title="Belum dijalankan"
+                  message="Isi kredensial lalu jalankan tool untuk membuka aplikasi sidik jari BPJS."
+                />
               )
             }
           />

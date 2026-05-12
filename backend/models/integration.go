@@ -152,7 +152,11 @@ var BPJSConfigKeys = []IntegrationConfigKey{
 
 // Per-service BPJS Config Keys
 var BPJSAntrianConfigKeys = createBPJSConfigKeys(IntegrationTypeBPJSAntrian, "Antrian Online")
-var BPJSVClaimConfigKeys = createBPJSConfigKeys(IntegrationTypeBPJSVClaim, "VClaim")
+var BPJSVClaimConfigKeys = append(
+	createBPJSConfigKeys(IntegrationTypeBPJSVClaim, "VClaim"),
+	IntegrationConfigKey{Integration: IntegrationTypeBPJSVClaim, Key: "fingerprint_username", Description: "Username aplikasi sidik jari BPJS", IsEncrypted: false, IsSecret: false, Default: ""},
+	IntegrationConfigKey{Integration: IntegrationTypeBPJSVClaim, Key: "fingerprint_password", Description: "Password aplikasi sidik jari BPJS", IsEncrypted: false, IsSecret: true, Default: ""},
+)
 var BPJSICareConfigKeys = createBPJSConfigKeysCustomURL(IntegrationTypeBPJSICare, "I-Care", "https://apijkn-dev.bpjs-kesehatan.go.id/ihs_dev/api/rs", "https://apijkn.bpjs-kesehatan.go.id/wsihs/api/rs")
 var BPJSApotekConfigKeys = []IntegrationConfigKey{
 	{Integration: IntegrationTypeBPJSApotek, Key: "cons_id", Description: "Consumer ID Apotek Online", IsEncrypted: false, IsSecret: false, Default: "15545"},
