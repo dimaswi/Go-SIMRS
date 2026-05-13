@@ -2,9 +2,6 @@ import { useState, useEffect } from "react";
 import {
   Sheet,
   SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -43,6 +40,16 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { SearchModal } from "./search-modal";
+import {
+  BPJS_COMPACT_FIELD_CLASS,
+  BPJS_FOOTER_CLASS,
+  BPJSInfoGrid,
+  BPJS_SECTION_CLASS,
+  BPJSSectionHeader,
+  BPJSSheetHero,
+  BPJSStatePanel,
+  BPJS_SHEET_MONO_FAMILY,
+} from "./bpjs-sheet-chrome";
 
 interface SEPDetailSheetProps {
   open: boolean;
@@ -259,136 +266,99 @@ export function SEPDetailSheet({
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent className="w-[50%] sm:max-w-[50%] overflow-y-auto">
-          <SheetHeader className="pb-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <SheetTitle className="flex items-center gap-2">
-                  <ShieldCheck className="h-5 w-5 text-blue-600" />
-                  Detail SEP
-                </SheetTitle>
-                <SheetDescription className="font-mono">
-                  {sep.no_sep}
-                </SheetDescription>
-              </div>
-              {getStatusBadge(sep.status)}
-            </div>
-          </SheetHeader>
+        <SheetContent className="w-full overflow-y-auto p-0 sm:max-w-[820px]">
+          <BPJSSheetHero
+            eyebrow="Bridging BPJS"
+            title="Detail SEP"
+            description={<span className="font-mono text-xs">{sep.no_sep}</span>}
+            icon={ShieldCheck}
+            meta={getStatusBadge(sep.status)}
+          />
+
+          <div className="space-y-6 p-6">
 
           {/* Status Warning for Deleted SEP */}
           {sep.status === "deleted" && (
-            <div className="rounded-md border border-red-300 bg-red-50 p-3 mb-4">
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-red-600 shrink-0" />
-                <p className="text-sm text-red-600 font-medium">
-                  SEP ini telah dibatalkan dan tidak dapat digunakan untuk klaim.
-                </p>
-              </div>
-            </div>
+            <BPJSStatePanel
+              tone="danger"
+              icon={<AlertTriangle className="h-4 w-4" />}
+              title="SEP ini telah dibatalkan"
+              description="SEP tidak dapat digunakan lagi untuk proses klaim atau tindak lanjut layanan."
+            />
           )}
 
           {!isEditing ? (
             /* Detail View */
-            <div className="space-y-5">
+            <div className="space-y-6">
               {/* SEP Info */}
-              <div className="grid grid-cols-4 gap-4">
-                <div>
-                  <Label className="text-muted-foreground">No. SEP</Label>
-                  <p className="font-mono font-semibold text-primary">{sep.no_sep}</p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground">Tgl SEP</Label>
-                  <p>{sep.tgl_sep ? new Date(sep.tgl_sep).toLocaleDateString("id-ID") : "-"}</p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground">Jenis Pelayanan</Label>
-                  <p>{getJenisPelayanan(sep.jns_pelayanan)}</p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground">Kelas Rawat</Label>
-                  <p>{getKelasRawat(sep.kls_rawat_hak)}</p>
-                </div>
+              <div className={BPJS_SECTION_CLASS}>
+                <BPJSSectionHeader eyebrow="SEP" title="Informasi SEP" />
+                <BPJSInfoGrid
+                  columns={4}
+                  items={[
+                    { label: "No. SEP", value: sep.no_sep, mono: true },
+                    { label: "Tanggal SEP", value: sep.tgl_sep ? new Date(sep.tgl_sep).toLocaleDateString("id-ID") : "-" },
+                    { label: "Jenis Pelayanan", value: getJenisPelayanan(sep.jns_pelayanan) },
+                    { label: "Kelas Rawat", value: getKelasRawat(sep.kls_rawat_hak) },
+                  ]}
+                />
               </div>
-
-              <div className="h-px bg-border" />
 
               {/* Peserta Info */}
-              <div className="grid grid-cols-4 gap-4">
-                <div>
-                  <Label className="text-muted-foreground">No. Kartu BPJS</Label>
-                  <p className="font-mono">{sep.no_kartu}</p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground">Nama Peserta</Label>
-                  <p>{sep.nama_pasien}</p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground">No. RM</Label>
-                  <p className="font-mono">{sep.no_mr}</p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground">NIK</Label>
-                  <p className="font-mono">{sep.nik || "-"}</p>
-                </div>
+              <div className={BPJS_SECTION_CLASS}>
+                <BPJSSectionHeader eyebrow="Patient" title="Peserta" />
+                <BPJSInfoGrid
+                  columns={4}
+                  items={[
+                    { label: "No. Kartu BPJS", value: sep.no_kartu, mono: true },
+                    { label: "Nama Peserta", value: sep.nama_pasien },
+                    { label: "No. RM", value: sep.no_mr, mono: true },
+                    { label: "NIK", value: sep.nik || "-", mono: true },
+                  ]}
+                />
               </div>
-
-              <div className="h-px bg-border" />
 
               {/* Rujukan Info */}
-              <div className="grid grid-cols-4 gap-4">
-                <div>
-                  <Label className="text-muted-foreground">No. Rujukan</Label>
-                  <p className="font-mono">{sep.no_rujukan || "-"}</p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground">Tgl Rujukan</Label>
-                  <p>{sep.tgl_rujukan ? new Date(sep.tgl_rujukan).toLocaleDateString("id-ID") : "-"}</p>
-                </div>
-                <div className="col-span-2">
-                  <Label className="text-muted-foreground">Faskes Perujuk</Label>
-                  <p>{sep.nama_rujukan || sep.ppk_rujukan || "-"}</p>
-                </div>
+              <div className={BPJS_SECTION_CLASS}>
+                <BPJSSectionHeader eyebrow="Source" title="Rujukan" />
+                <BPJSInfoGrid
+                  columns={4}
+                  items={[
+                    { label: "No. Rujukan", value: sep.no_rujukan || "-", mono: true },
+                    { label: "Tanggal Rujukan", value: sep.tgl_rujukan ? new Date(sep.tgl_rujukan).toLocaleDateString("id-ID") : "-" },
+                    { label: "Faskes Perujuk", value: sep.nama_rujukan || sep.ppk_rujukan || "-", span: 2 },
+                  ]}
+                />
               </div>
 
-              <div className="h-px bg-border" />
-
               {/* Pelayanan Info */}
-              <div className="grid grid-cols-4 gap-4">
-                <div className="col-span-2">
-                  <Label className="text-muted-foreground">Poli Tujuan</Label>
-                  <p>{sep.nama_poli || "-"} {sep.kode_poli ? `(${sep.kode_poli})` : ""}</p>
-                </div>
-                <div className="col-span-2">
-                  <Label className="text-muted-foreground">Dokter DPJP</Label>
-                  <p>{sep.nama_dpjp || "-"} {sep.kode_dpjp ? `(${sep.kode_dpjp})` : ""}</p>
-                </div>
-                <div className="col-span-4">
-                  <Label className="text-muted-foreground">Diagnosa Awal</Label>
-                  <p>
-                    {sep.nama_diagnosa || sep.diag_awal || "-"}
-                    {sep.diag_awal && sep.nama_diagnosa && sep.diag_awal !== sep.nama_diagnosa && ` (${sep.diag_awal})`}
-                  </p>
-                </div>
+              <div className={BPJS_SECTION_CLASS}>
+                <BPJSSectionHeader eyebrow="Service" title="Pelayanan" />
+                <BPJSInfoGrid
+                  columns={4}
+                  items={[
+                    { label: "Poli Tujuan", value: <>{sep.nama_poli || "-"} {sep.kode_poli ? `(${sep.kode_poli})` : ""}</>, span: 2 },
+                    { label: "Dokter DPJP", value: <>{sep.nama_dpjp || "-"} {sep.kode_dpjp ? `(${sep.kode_dpjp})` : ""}</>, span: 2 },
+                    { label: "Diagnosa Awal", value: <>{sep.nama_diagnosa || sep.diag_awal || "-"}{sep.diag_awal && sep.nama_diagnosa && sep.diag_awal !== sep.nama_diagnosa && ` (${sep.diag_awal})`}</>, span: 4 },
+                  ]}
+                />
               </div>
 
               {sep.catatan && (
-                <>
-                  <div className="h-px bg-border" />
-                  <div>
-                    <Label className="text-muted-foreground">Catatan</Label>
-                    <p className="bg-muted/30 p-3 rounded mt-1">{sep.catatan}</p>
-                  </div>
-                </>
+                <div className={BPJS_SECTION_CLASS}>
+                  <BPJSSectionHeader eyebrow="Notes" title="Catatan" />
+                  <div className="border border-border/70 bg-muted/10 p-4 text-sm leading-relaxed text-foreground">{sep.catatan}</div>
+                </div>
               )}
 
               {/* Action Buttons */}
               {sep.status === "active" && (
-                <div className="flex justify-end gap-2 pt-4 border-t">
-                  <Button variant="outline" onClick={() => setIsEditing(true)}>
+                <div className="flex justify-end gap-2 border-t border-border/70 pt-4">
+                  <Button variant="outline" className="rounded-none border-border/70" onClick={() => setIsEditing(true)}>
                     <Pencil className="h-4 w-4 mr-2" />
                     Edit SEP
                   </Button>
-                  <Button variant="destructive" onClick={() => setDeleteDialogOpen(true)}>
+                  <Button variant="destructive" className="rounded-none" onClick={() => setDeleteDialogOpen(true)}>
                     <Trash2 className="h-4 w-4 mr-2" />
                     Hapus SEP
                   </Button>
@@ -397,13 +367,11 @@ export function SEPDetailSheet({
             </div>
           ) : (
             /* Edit View - dengan Search Modal seperti Create SEP */
-            <div className="space-y-5">
-              <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                <Pencil className="h-4 w-4" />
-                Edit SEP
-              </div>
+            <div className="space-y-6">
+              <BPJSSectionHeader eyebrow="Edit" title="Ubah Data SEP" />
 
               {/* Kelas Rawat */}
+              <div className={BPJS_SECTION_CLASS}>
               <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label>Naik Kelas</Label>
@@ -451,8 +419,10 @@ export function SEPDetailSheet({
                   />
                 </div>
               </div>
+              </div>
 
               {/* Poli Tujuan - dengan Search Modal */}
+              <div className={BPJS_SECTION_CLASS}>
               <div className="space-y-2">
                 <Label>Poli Tujuan *</Label>
                 <div className="flex gap-2">
@@ -460,15 +430,17 @@ export function SEPDetailSheet({
                     value={editForm.nama_poli ? `${editForm.nama_poli} (${editForm.poli_tujuan})` : editForm.poli_tujuan}
                     readOnly
                     placeholder="Pilih poli tujuan"
-                    className="flex-1"
+                    className={`flex-1 ${BPJS_COMPACT_FIELD_CLASS}`}
                   />
-                  <Button type="button" variant="outline" onClick={() => setPoliModalOpen(true)}>
+                  <Button type="button" variant="outline" className="rounded-none border-border/70" onClick={() => setPoliModalOpen(true)}>
                     <Search className="h-4 w-4" />
                   </Button>
                 </div>
               </div>
+              </div>
 
               {/* Dokter DPJP - dengan Search Modal */}
+              <div className={BPJS_SECTION_CLASS}>
               <div className="space-y-2">
                 <Label>Dokter DPJP</Label>
                 <div className="flex gap-2">
@@ -476,16 +448,18 @@ export function SEPDetailSheet({
                     value={editForm.nama_dpjp ? `${editForm.nama_dpjp} (${editForm.dpjp_layan})` : editForm.dpjp_layan}
                     readOnly
                     placeholder="Pilih dokter DPJP"
-                    className="flex-1"
+                    className={`flex-1 ${BPJS_COMPACT_FIELD_CLASS}`}
                   />
-                  <Button type="button" variant="outline" onClick={() => setDokterModalOpen(true)}>
+                  <Button type="button" variant="outline" className="rounded-none border-border/70" onClick={() => setDokterModalOpen(true)}>
                     <Search className="h-4 w-4" />
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground">Cari dengan kode spesialis: INT, BED, ANA, dll</p>
               </div>
+              </div>
 
               {/* Diagnosa Awal - dengan Search Modal */}
+              <div className={BPJS_SECTION_CLASS}>
               <div className="space-y-2">
                 <Label>Diagnosa Awal *</Label>
                 <div className="flex gap-2">
@@ -493,15 +467,17 @@ export function SEPDetailSheet({
                     value={editForm.nama_diagnosa ? `${editForm.diag_awal} - ${editForm.nama_diagnosa}` : editForm.diag_awal}
                     readOnly
                     placeholder="Pilih diagnosa awal"
-                    className="flex-1"
+                    className={`flex-1 ${BPJS_COMPACT_FIELD_CLASS}`}
                   />
-                  <Button type="button" variant="outline" onClick={() => setDiagnosaModalOpen(true)}>
+                  <Button type="button" variant="outline" className="rounded-none border-border/70" onClick={() => setDiagnosaModalOpen(true)}>
                     <Search className="h-4 w-4" />
                   </Button>
                 </div>
               </div>
+              </div>
 
               {/* Informasi Tambahan */}
+              <div className={BPJS_SECTION_CLASS}>
               <div className="grid grid-cols-4 gap-4">
                 <div className="space-y-2">
                   <Label>Poli Eksekutif</Label>
@@ -546,18 +522,23 @@ export function SEPDetailSheet({
                   </Select>
                 </div>
               </div>
+              </div>
 
               {/* No Telepon */}
+              <div className={BPJS_SECTION_CLASS}>
               <div className="space-y-2">
                 <Label>No. Telepon</Label>
                 <Input
                   value={editForm.no_telp}
                   onChange={(e) => setEditForm({ ...editForm, no_telp: e.target.value })}
                   placeholder="No. telepon pasien"
+                  className={BPJS_COMPACT_FIELD_CLASS}
                 />
+              </div>
               </div>
 
               {/* Catatan */}
+              <div className={BPJS_SECTION_CLASS}>
               <div className="space-y-2">
                 <Label>Catatan</Label>
                 <Textarea
@@ -565,22 +546,25 @@ export function SEPDetailSheet({
                   onChange={(e) => setEditForm({ ...editForm, catatan: e.target.value })}
                   rows={3}
                   placeholder="Catatan tambahan"
+                  className="rounded-none border-border/70"
                 />
+              </div>
               </div>
 
               {/* Action Buttons */}
-              <div className="flex justify-end gap-2 pt-4 border-t">
-                <Button variant="outline" onClick={() => setIsEditing(false)} disabled={updating}>
+              <div className="flex justify-end gap-2 border-t border-border/70 pt-4">
+                <Button variant="outline" className="rounded-none border-border/70" onClick={() => setIsEditing(false)} disabled={updating}>
                   <X className="h-4 w-4 mr-2" />
                   Batal
                 </Button>
-                <Button onClick={handleUpdate} disabled={updating}>
+                <Button className="rounded-none" onClick={handleUpdate} disabled={updating}>
                   {updating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
                   Simpan
                 </Button>
               </div>
             </div>
           )}
+          </div>
         </SheetContent>
       </Sheet>
 

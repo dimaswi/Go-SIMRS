@@ -21,6 +21,8 @@ type launchBPJSFingerprintRequest struct {
 	Username       string `json:"username"`
 	Password       string `json:"password"`
 	AutoSubmit     bool   `json:"auto_submit"`
+	BPJSCardNumber string `json:"bpjs_card_number"`
+	PatientNIK     string `json:"patient_nik"`
 }
 
 // LaunchBPJSFingerprintApp opens the BPJS fingerprint desktop app and fills the login form.
@@ -77,7 +79,11 @@ func LaunchBPJSFingerprintApp(c *gin.Context) {
 		return
 	}
 
-	script := buildBPJSFingerprintLaunchScript(executablePath, username, password, input.AutoSubmit)
+	bpjsCardNumber := strings.TrimSpace(input.BPJSCardNumber)
+	if bpjsCardNumber == "" {
+		bpjsCardNumber = strings.TrimSpace(input.PatientNIK)
+	}
+	script := buildBPJSFingerprintLaunchScript(executablePath, username, password, bpjsCardNumber, input.AutoSubmit)
 	cmd := exec.Command(
 		"powershell",
 		"-NoProfile",
@@ -101,22 +107,32 @@ func LaunchBPJSFingerprintApp(c *gin.Context) {
 	if input.AutoSubmit {
 		message = "Aplikasi sidik jari BPJS berhasil dibuka, field login terisi, dan login dikirim"
 	}
+	if bpjsCardNumber != "" {
+		message += ", lalu nomor kartu BPJS diisikan"
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": message,
 		"data": gin.H{
-			"executable_path": executablePath,
-			"auto_submit":     input.AutoSubmit,
+			"executable_path":  executablePath,
+			"auto_submit":      input.AutoSubmit,
+			"bpjs_card_number": bpjsCardNumber,
 		},
 	})
 }
 
-func buildBPJSFingerprintLaunchScript(executablePath, username, password string, autoSubmit bool) string {
+func buildBPJSFingerprintLaunchScript(executablePath, username, password, bpjsCardNumber string, autoSubmit bool) string {
 	usernameKeys := escapeSendKeys(username)
 	passwordKeys := escapeSendKeys(password)
 	submitLine := ""
 	if autoSubmit {
 		submitLine = "[System.Windows.Forms.SendKeys]::SendWait('{ENTER}')"
+	}
+	bpjsCardNumberBlock := ""
+	if autoSubmit && bpjsCardNumber != "" {
+		bpjsCardNumberBlock = fmt.Sprintf(`
+Start-Sleep -Milliseconds 5000
+[System.Windows.Forms.SendKeys]::SendWait(%s)`, quotePowerShellString(escapeSendKeys(bpjsCardNumber)))
 	}
 
 	return fmt.Sprintf(`$ErrorActionPreference = 'Stop'
@@ -140,12 +156,14 @@ for ($i = 0; $i -lt 40; $i++) {
 if (-not $activated) {
   throw 'Jendela aplikasi sidik jari tidak ditemukan. Pastikan backend berjalan pada desktop Windows yang sama dengan pengguna.'
 }
-Start-Sleep -Milliseconds 300
+Start-Sleep -Milliseconds 3000
 [System.Windows.Forms.SendKeys]::SendWait(%s)
 [System.Windows.Forms.SendKeys]::SendWait('{TAB}')
+Start-Sleep -Milliseconds 500
 [System.Windows.Forms.SendKeys]::SendWait(%s)
 %s
-`, quotePowerShellString(executablePath), quotePowerShellString(usernameKeys), quotePowerShellString(passwordKeys), submitLine)
+%s
+`, quotePowerShellString(executablePath), quotePowerShellString(usernameKeys), quotePowerShellString(passwordKeys), submitLine, bpjsCardNumberBlock)
 }
 
 func quotePowerShellString(value string) string {

@@ -3,9 +3,6 @@ import { format } from "date-fns";
 import {
   Sheet,
   SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
   SheetFooter,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -13,7 +10,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Switch } from "@/components/ui/switch";
 import {
   Select,
@@ -43,6 +39,18 @@ import {
   type PRBFormData,
 } from "@/lib/api/vclaim";
 import { PoliDokterSelector } from "./poli-dokter-selector";
+import {
+  BPJS_FIELD_CLASS,
+  BPJS_FOOTER_CLASS,
+  BPJSInfoGrid,
+  BPJS_MUTED_PANEL_CLASS,
+  BPJS_PANEL_CLASS,
+  BPJS_SECTION_CLASS,
+  BPJSSectionHeader,
+  BPJSSheetHero,
+  BPJSStatePanel,
+  BPJS_SHEET_MONO_FAMILY,
+} from "./bpjs-sheet-chrome";
 
 interface SuratKontrolFormSheetProps {
   open: boolean;
@@ -377,103 +385,91 @@ export function SuratKontrolFormSheet({
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent className="w-[50%] sm:max-w-[50%] flex flex-col p-0">
-          <SheetHeader className="p-6 pb-4 border-b bg-green-50/50">
-            <SheetTitle className="flex items-center gap-2 text-green-800">
-              <FileCheck className="h-5 w-5" />
-              Buat Surat Kontrol (SKDP)
-            </SheetTitle>
-            <SheetDescription>
-              Surat kontrol untuk pasien <strong>{patient.nama_lengkap}</strong> (RM: {patient.no_rm})
-            </SheetDescription>
-          </SheetHeader>
+        <SheetContent className="flex w-full flex-col p-0 sm:max-w-[760px]">
+          <BPJSSheetHero
+            eyebrow="Bridging BPJS"
+            title="Form Surat Kontrol"
+            description={<><strong>{patient.nama_lengkap}</strong> • RM {patient.no_rm}</>}
+            icon={FileCheck}
+            meta={
+              <Badge variant="outline" className="rounded-none px-2 py-1 text-[10px] uppercase tracking-[0.24em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
+                SKDP
+              </Badge>
+            }
+          />
 
           <ScrollArea className="flex-1">
-            <div className="p-6 space-y-5">
+            <div className="space-y-6 p-6">
               {/* === SEP AKTIF === */}
-              <div className="space-y-3">
-                <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Data SEP Aktif</h3>
-                
-                <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="text-xs text-green-600 font-medium">No. SEP</span>
-                      <p className="font-bold text-green-800">{activeSEP.no_sep}</p>
-                    </div>
-                    <div>
-                      <span className="text-xs text-green-600 font-medium">No. Kartu BPJS</span>
-                      <p className="font-bold text-green-800">{activeSEP.no_kartu}</p>
-                    </div>
-                    <div>
-                      <span className="text-xs text-green-600 font-medium">Tanggal SEP</span>
-                      <p className="font-medium">{activeSEP.tgl_sep}</p>
-                    </div>
-                    <div>
-                      <span className="text-xs text-green-600 font-medium">Poli Asal</span>
-                      <p className="font-medium">{activeSEP.nama_poli || activeSEP.kode_poli || "-"}</p>
-                    </div>
-                    <div className="col-span-2">
-                      <span className="text-xs text-green-600 font-medium">Diagnosa Awal</span>
-                      <p className="font-medium">{activeSEP.nama_diagnosa || activeSEP.diag_awal || "-"}</p>
-                    </div>
-                  </div>
-                </div>
+              <div className={BPJS_SECTION_CLASS}>
+                <BPJSSectionHeader eyebrow="Context" title="SEP Aktif" />
+                <BPJSInfoGrid
+                  items={[
+                    { label: "No. SEP", value: activeSEP.no_sep, mono: true },
+                    { label: "No. Kartu BPJS", value: activeSEP.no_kartu, mono: true },
+                    { label: "Tanggal SEP", value: activeSEP.tgl_sep },
+                    { label: "Poli Asal", value: activeSEP.nama_poli || activeSEP.kode_poli || "-" },
+                    { label: "Diagnosa Awal", value: activeSEP.nama_diagnosa || activeSEP.diag_awal || "-", span: 2 },
+                  ]}
+                />
               </div>
 
               {/* === KEPESERTAAN === */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Kepesertaan BPJS</h3>
+              <div className={BPJS_SECTION_CLASS}>
+                <BPJSSectionHeader eyebrow="Verification" title="Kepesertaan BPJS" action={
                   <Button 
                     size="sm" 
                     variant="outline"
                     onClick={handleCekPeserta} 
                     disabled={loadingPeserta}
-                    className="h-8 px-3"
+                    className="h-8 rounded-none border-border/70 px-3"
                   >
                     {loadingPeserta ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4 mr-1" />}
                     Cek Ulang
                   </Button>
-                </div>
+                } />
 
                 {loadingPeserta && (
-                  <div className="p-4 bg-muted/50 rounded-lg flex items-center justify-center">
-                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                    <span className="ml-2 text-sm text-muted-foreground">Mengecek kepesertaan...</span>
-                  </div>
+                  <BPJSStatePanel
+                    icon={<Loader2 className="h-4 w-4 animate-spin" />}
+                    title="Mengecek kepesertaan..."
+                    description="Hak kelas dan status peserta sedang diverifikasi dari BPJS."
+                  />
                 )}
 
                 {/* Status Peserta */}
                 {peserta && !loadingPeserta && (
-                  <div className="p-4 bg-green-50 border border-green-200 rounded-lg text-sm">
-                    <div className="flex items-center gap-2 mb-2">
-                      <CheckCircle2 className="h-4 w-4 text-green-600" />
-                      <span className="font-medium text-green-800">{peserta.nama}</span>
-                      <Badge variant="default" className="text-xs bg-green-600">{peserta.statusPeserta?.keterangan}</Badge>
-                    </div>
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-green-700">
-                      <span>NIK: {peserta.nik}</span>
-                      <span>Kelas Hak: {peserta.hakKelas?.keterangan}</span>
-                      <span>Jenis: {peserta.jenisPeserta?.keterangan}</span>
-                      <span>Faskes: {peserta.provUmum?.nmProvider || "-"}</span>
-                    </div>
-                  </div>
+                  <BPJSStatePanel
+                    tone="success"
+                    icon={<CheckCircle2 className="h-4 w-4" />}
+                    title={
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span>{peserta.nama}</span>
+                        <Badge variant="outline" className="rounded-none text-[10px] uppercase tracking-[0.18em]">{peserta.statusPeserta?.keterangan}</Badge>
+                      </div>
+                    }
+                    extra={
+                      <div className="grid grid-cols-1 gap-1 text-xs text-muted-foreground sm:grid-cols-2">
+                        <span>NIK: {peserta.nik}</span>
+                        <span>Kelas Hak: {peserta.hakKelas?.keterangan}</span>
+                        <span>Jenis: {peserta.jenisPeserta?.keterangan}</span>
+                        <span>Faskes: {peserta.provUmum?.nmProvider || "-"}</span>
+                      </div>
+                    }
+                  />
                 )}
                 {pesertaError && !loadingPeserta && (
-                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm flex items-center gap-2">
-                    <XCircle className="h-4 w-4 text-red-600" />
-                    <span className="text-red-700">{pesertaError}</span>
-                  </div>
+                  <BPJSStatePanel tone="danger" icon={<XCircle className="h-4 w-4" />} title="Data peserta tidak dapat diverifikasi" description={pesertaError} />
                 )}
               </div>
 
               {/* === FORM SURAT KONTROL === */}
-              <div className="space-y-4">
-                <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Data Rencana Kontrol</h3>
+              <div className={BPJS_SECTION_CLASS}>
+                <BPJSSectionHeader eyebrow="Planning" title="Rencana Kontrol" />
                 
                 {/* Tanggal Rencana Kontrol */}
                 <div className="space-y-2">
-                  <Label className="text-sm flex items-center gap-2">
+                  <Label className="text-sm flex items-center gap-2 uppercase tracking-[0.14em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
                     <Calendar className="h-4 w-4 text-muted-foreground" />
                     Tanggal Rencana Kontrol <span className="text-destructive">*</span>
                   </Label>
@@ -487,7 +483,7 @@ export function SuratKontrolFormSheet({
                       setNamaDokter("");
                     }}
                     min={getMinDate()}
-                    className="h-10"
+                    className={BPJS_FIELD_CLASS}
                   />
                   <p className="text-xs text-muted-foreground">
                     Tanggal kontrol bisa hari ini atau hari berikutnya
@@ -495,35 +491,37 @@ export function SuratKontrolFormSheet({
                 </div>
 
                 {/* Poli & Dokter Selector with Tabs */}
-                <PoliDokterSelector
-                  kodePoli={kodePoli}
-                  namaPoli={namaPoli}
-                  kodeDokter={kodeDokter}
-                  namaDokter={namaDokter}
-                  tglRencanaKontrol={tglRencanaKontrol}
-                  onPoliChange={(kode, nama) => {
-                    setKodePoli(kode);
-                    setNamaPoli(nama);
-                    setKodeDokter("");
-                    setNamaDokter("");
-                  }}
-                  onDokterChange={(kode, nama) => {
-                    setKodeDokter(kode);
-                    setNamaDokter(nama);
-                  }}
-                  searchPoliBPJS={handleSearchPoli}
-                  searchDokterBPJS={handleSearchDokter}
-                  poliModalTitle="Cari Poli Surat Kontrol BPJS"
-                  dokterModalTitle="Cari Dokter Surat Kontrol BPJS"
-                />
+                <div className={`${BPJS_PANEL_CLASS} p-4`}>
+                  <PoliDokterSelector
+                    kodePoli={kodePoli}
+                    namaPoli={namaPoli}
+                    kodeDokter={kodeDokter}
+                    namaDokter={namaDokter}
+                    tglRencanaKontrol={tglRencanaKontrol}
+                    onPoliChange={(kode, nama) => {
+                      setKodePoli(kode);
+                      setNamaPoli(nama);
+                      setKodeDokter("");
+                      setNamaDokter("");
+                    }}
+                    onDokterChange={(kode, nama) => {
+                      setKodeDokter(kode);
+                      setNamaDokter(nama);
+                    }}
+                    searchPoliBPJS={handleSearchPoli}
+                    searchDokterBPJS={handleSearchDokter}
+                    poliModalTitle="Cari Poli Surat Kontrol BPJS"
+                    dokterModalTitle="Cari Dokter Surat Kontrol BPJS"
+                  />
+                </div>
               </div>
 
               {/* === PRB (Program Rujuk Balik) === */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide flex items-center gap-2">
+              <div className={BPJS_SECTION_CLASS}>
+                <div className="flex items-center justify-between border-b border-border/70 pb-3">
+                  <h3 className="font-semibold text-sm uppercase tracking-[0.18em] text-foreground/80 flex items-center gap-2" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
                     <HeartPulse className="h-4 w-4" />
-                    Program Rujuk Balik (PRB)
+                    Program Rujuk Balik
                   </h3>
                   <div className="flex items-center gap-2">
                     <Label htmlFor="is-prb" className="text-sm">Aktifkan PRB</Label>
@@ -542,7 +540,7 @@ export function SuratKontrolFormSheet({
                 </div>
 
                 {isPRB && (
-                  <div className="space-y-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                  <div className={`${BPJS_MUTED_PANEL_CLASS} space-y-4 p-4`}>
                     {/* Status PRB */}
                     <div className="space-y-2">
                       <Label className="text-sm">Jenis Penyakit PRB <span className="text-destructive">*</span></Label>
@@ -576,7 +574,7 @@ export function SuratKontrolFormSheet({
                                   value={dataPRB[field.field]?.toString() || ""}
                                   onValueChange={(value) => handlePRBDataChange(field.field, value === "" ? null : parseInt(value))}
                                 >
-                                  <SelectTrigger className="h-9">
+                                  <SelectTrigger className="h-9 rounded-none border-border/70">
                                     <SelectValue placeholder="Pilih" />
                                   </SelectTrigger>
                                   <SelectContent>
@@ -593,7 +591,7 @@ export function SuratKontrolFormSheet({
                                   value={dataPRB[field.field] ?? ""}
                                   onChange={(e) => handlePRBDataChange(field.field, e.target.value === "" ? null : parseFloat(e.target.value))}
                                   placeholder={`${field.min} - ${field.max}`}
-                                  className="h-9"
+                                  className="h-9 rounded-none border-border/70"
                                 />
                               )}
                             </div>
@@ -606,9 +604,9 @@ export function SuratKontrolFormSheet({
               </div>
 
               {/* === ANTREAN MJKN (Optional) === */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide flex items-center gap-2">
+              <div className={BPJS_SECTION_CLASS}>
+                <div className="flex items-center justify-between border-b border-border/70 pb-3">
+                  <h3 className="font-semibold text-sm uppercase tracking-[0.18em] text-foreground/80 flex items-center gap-2" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
                     <Smartphone className="h-4 w-4" />
                     Antrean Mobile JKN
                   </h3>
@@ -622,23 +620,26 @@ export function SuratKontrolFormSheet({
                   </div>
                 </div>
                 {buatkanAntrean && (
-                  <Alert className="bg-blue-50 border-blue-200">
-                    <Smartphone className="h-4 w-4 text-blue-600" />
-                    <AlertDescription className="text-blue-700 text-sm">
+                  <BPJSStatePanel
+                    icon={<Smartphone className="h-4 w-4" />}
+                    title="Antrean Mobile JKN akan dibuat"
+                    description={
+                      <>
                       Antrean akan didaftarkan ke BPJS Antrian Online sehingga pasien dapat melihat jadwal kontrol di aplikasi Mobile JKN.
                       Pastikan mapping poli dan dokter BPJS sudah dikonfigurasi.
-                    </AlertDescription>
-                  </Alert>
+                      </>
+                    }
+                  />
                 )}
               </div>
 
               {/* === INFO RINGKASAN === */}
               {tglRencanaKontrol && kodePoli && kodeDokter && (
-                <Alert className="bg-green-50 border-green-200">
-                  <ClipboardList className="h-4 w-4 text-green-600" />
-                  <AlertTitle className="text-green-700">Ringkasan Surat Kontrol</AlertTitle>
-                  <AlertDescription className="text-green-700 mt-2">
-                    <div className="grid grid-cols-2 gap-2 text-sm">
+                <BPJSStatePanel
+                  icon={<ClipboardList className="h-4 w-4" />}
+                  title="Ringkasan Surat Kontrol"
+                  extra={
+                    <div className="grid grid-cols-2 gap-2 text-sm text-muted-foreground">
                       <div>Tanggal Kontrol: <strong>{tglRencanaKontrol}</strong></div>
                       <div>Poli: <strong>{namaPoli || kodePoli}</strong></div>
                       <div className="col-span-2">Dokter: <strong>{namaDokter || kodeDokter}</strong></div>
@@ -651,20 +652,20 @@ export function SuratKontrolFormSheet({
                         Antrean MJKN: <strong>{buatkanAntrean ? "Ya, buatkan antrean" : "Tidak"}</strong>
                       </div>
                     </div>
-                  </AlertDescription>
-                </Alert>
+                  }
+                />
               )}
             </div>
           </ScrollArea>
 
-          <SheetFooter className="p-4 border-t bg-muted/30">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <SheetFooter className={BPJS_FOOTER_CLASS}>
+            <Button variant="outline" className="rounded-none border-border/70" onClick={() => onOpenChange(false)}>
               Batal
             </Button>
             <Button
               onClick={handleSubmitSuratKontrol}
               disabled={loadingSubmit || !peserta || !tglRencanaKontrol || !kodePoli || !kodeDokter || (isPRB && !kdStatusPRB)}
-              className="bg-green-600 hover:bg-green-700"
+              className="rounded-none"
             >
               {loadingSubmit ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />

@@ -41,6 +41,8 @@ export interface BPJSFingerprintLaunchRequest {
   username?: string;
   password?: string;
   auto_submit?: boolean;
+  bpjs_card_number?: string;
+  patient_nik?: string;
 }
 
 export interface BPJSFingerprintLaunchResponse {
@@ -48,6 +50,8 @@ export interface BPJSFingerprintLaunchResponse {
   data: {
     executable_path: string;
     auto_submit: boolean;
+    bpjs_card_number?: string;
+    patient_nik?: string;
   };
 }
 

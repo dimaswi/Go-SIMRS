@@ -1207,7 +1207,10 @@ export default function PatientSearchShow() {
   const handleLaunchFingerprint = useCallback(async () => {
     setLaunchingFingerprint(true);
     try {
-      const response = await bpjsApi.launchFingerprintApp({});
+      const response = await bpjsApi.launchFingerprintApp({
+        auto_submit: true,
+        bpjs_card_number: patient?.no_bpjs || undefined,
+      });
       toast({
         variant: "success",
         title: "Aplikasi sidik jari dibuka",
@@ -1224,7 +1227,7 @@ export default function PatientSearchShow() {
     } finally {
       setLaunchingFingerprint(false);
     }
-  }, [toast]);
+  }, [patient?.no_bpjs, toast]);
 
   if (loading) {
     return (

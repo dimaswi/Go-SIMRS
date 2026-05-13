@@ -2,8 +2,6 @@ import { useState } from "react";
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,7 +14,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Search } from "lucide-react";
+import { Database, Loader2, Search } from "lucide-react";
+import {
+  BPJS_COMPACT_FIELD_CLASS,
+  BPJS_ICON_BUTTON_CLASS,
+  BPJSSectionHeader,
+  BPJSSheetHero,
+  BPJSStatePanel,
+  BPJS_SHEET_MONO_FAMILY,
+} from "./bpjs-sheet-chrome";
 
 export interface SearchColumn {
   key: string;
@@ -90,12 +96,16 @@ export function SearchModal({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-        </DialogHeader>
+      <DialogContent className="flex max-h-[85vh] max-w-4xl flex-col gap-0 overflow-hidden rounded-none border border-border/70 p-0">
+        <BPJSSheetHero
+          eyebrow="Pencarian Referensi"
+          title={title}
+          description="Cari data bridging BPJS dan pilih hasil yang sesuai dari daftar di bawah."
+          icon={Database}
+        />
 
-        <div className="space-y-4">
+        <div className="space-y-4 px-6 py-4">
+          <BPJSSectionHeader eyebrow="Query" title="Pencarian" />
           {/* Search Input */}
           <div className="flex gap-2">
             <div className="flex-1">
@@ -105,11 +115,13 @@ export function SearchModal({
                 onChange={(e) => setKeyword(e.target.value)}
                 onKeyDown={handleKeyDown}
                 autoFocus
+                className={BPJS_COMPACT_FIELD_CLASS}
               />
             </div>
             <Button 
               onClick={handleSearch} 
               disabled={loading || keyword.length < minSearchLength}
+              className={BPJS_ICON_BUTTON_CLASS}
             >
               {loading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -120,16 +132,16 @@ export function SearchModal({
           </div>
 
           {/* Results Table */}
-          <ScrollArea className="h-[400px] border rounded-md">
+          <ScrollArea className="h-[400px] border border-border/70">
             <Table>
               <TableHeader>
                 <TableRow>
                   {columns.map((col) => (
-                    <TableHead key={col.key} style={{ width: col.width }}>
+                    <TableHead key={col.key} style={{ width: col.width, fontFamily: BPJS_SHEET_MONO_FAMILY }} className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
                       {col.label}
                     </TableHead>
                   ))}
-                  <TableHead className="w-20">Aksi</TableHead>
+                  <TableHead className="w-20 text-[10px] uppercase tracking-[0.24em] text-muted-foreground" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Aksi</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -142,8 +154,12 @@ export function SearchModal({
                   </TableRow>
                 ) : results.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={columns.length + 1} className="text-center py-8 text-muted-foreground">
-                      {searched ? "Tidak ada data ditemukan" : "Masukkan kata kunci dan klik Cari"}
+                    <TableCell colSpan={columns.length + 1} className="p-0">
+                      <BPJSStatePanel
+                        title={searched ? "Tidak ada data ditemukan" : "Masukkan kata kunci untuk mulai mencari"}
+                        description={searched ? "Coba ubah kata kunci atau gunakan istilah yang lebih spesifik." : `Minimal ${minSearchLength} karakter diperlukan sebelum pencarian dijalankan.`}
+                        className="border-0"
+                      />
                     </TableCell>
                   </TableRow>
                 ) : renderRow ? (
@@ -155,7 +171,7 @@ export function SearchModal({
                         <TableCell key={col.key}>{item[col.key] || "-"}</TableCell>
                       ))}
                       <TableCell>
-                        <Button size="sm" variant="outline" onClick={() => handleSelect(item)}>
+                        <Button size="sm" variant="outline" className="rounded-none border-border/70" onClick={() => handleSelect(item)}>
                           Pilih
                         </Button>
                       </TableCell>
@@ -167,7 +183,7 @@ export function SearchModal({
           </ScrollArea>
 
           {results.length > 0 && (
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
               Ditemukan {results.length} data. Klik "Pilih" untuk memilih.
             </p>
           )}

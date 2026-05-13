@@ -3,9 +3,6 @@ import { format } from "date-fns";
 import {
   Sheet,
   SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
   SheetFooter,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -30,9 +27,20 @@ import {
 } from "@/lib/api/vclaim";
 import { SEP_OPTIONS, type SEPOptionItem } from "@/lib/sep-options";
 import { formatPatientName } from "@/lib/print-utils";
+import { cn } from "@/lib/utils";
 import { SearchModal } from "./search-modal";
 import { RujukanModal, type RujukanData } from "./rujukan-modal";
 import { SKDPModal, type SKDPData } from "./skdp-modal";
+import {
+  BPJS_COMPACT_FIELD_CLASS,
+  BPJS_FOOTER_CLASS,
+  BPJS_ICON_BUTTON_CLASS,
+  BPJS_SECTION_CLASS,
+  BPJSSectionHeader,
+  BPJSSheetHero,
+  BPJSStatePanel,
+  BPJS_SHEET_MONO_FAMILY,
+} from "./bpjs-sheet-chrome";
 
 // Helper to convert options to Combobox format
 function toComboOptions(options: SEPOptionItem[]) {
@@ -473,90 +481,95 @@ export function SEPFormSheet({
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent className="w-[50%] sm:max-w-[50%] flex flex-col p-0">
-          <SheetHeader className="p-6 pb-4 border-b bg-muted/30">
-            <SheetTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              Buat SEP BPJS
-            </SheetTitle>
-            <SheetDescription>
-              Surat Eligibilitas Peserta untuk <strong>{formatPatientName(patient.nama_lengkap, patient.jenis_kelamin, patient.status_perkawinan, patient.tanggal_lahir)}</strong> (RM: {patient.no_rm})
-            </SheetDescription>
-          </SheetHeader>
+        <SheetContent className="flex w-full flex-col p-0 sm:max-w-[820px]">
+          <BPJSSheetHero
+            eyebrow="Bridging BPJS"
+            title="Form SEP"
+            description={<><strong>{formatPatientName(patient.nama_lengkap, patient.jenis_kelamin, patient.status_perkawinan, patient.tanggal_lahir)}</strong> • RM {patient.no_rm}</>}
+            icon={FileText}
+            meta={
+              <Badge variant="outline" className="rounded-none px-2 py-1 text-[10px] uppercase tracking-[0.24em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
+                SEP
+              </Badge>
+            }
+          />
 
           <ScrollArea className="flex-1">
-            <div className="p-6 space-y-5">
+            <div className="space-y-6 p-6">
               {/* === KEPESERTAAN === */}
-              <div className="space-y-3">
-                <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Kepesertaan</h3>
+              <div className={BPJS_SECTION_CLASS}>
+                <BPJSSectionHeader eyebrow="Verification" title="Kepesertaan" />
                 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <Label className="text-xs">No. Kartu BPJS *</Label>
+                    <Label className="text-xs uppercase tracking-[0.18em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>No. Kartu BPJS *</Label>
                     <div className="flex gap-2">
                       <Input
                         value={noKartu}
                         onChange={(e) => setNoKartu(e.target.value)}
                         placeholder="13 digit"
-                        className="h-9"
+                        className={BPJS_COMPACT_FIELD_CLASS}
                       />
                       <Button 
                         size="sm" 
                         onClick={handleCekPeserta} 
                         disabled={loadingPeserta || !noKartu}
-                        className="h-9 px-3"
+                        className={BPJS_ICON_BUTTON_CLASS}
                       >
                         {loadingPeserta ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
                       </Button>
                     </div>
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Tanggal SEP *</Label>
+                    <Label className="text-xs uppercase tracking-[0.18em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Tanggal SEP *</Label>
                     <Input
                       type="date"
                       value={tglSEP}
                       onChange={(e) => setTglSEP(e.target.value)}
-                      className="h-9"
+                      className={BPJS_COMPACT_FIELD_CLASS}
                     />
                   </div>
                 </div>
 
                 {/* Status Peserta */}
                 {peserta && (
-                  <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-sm">
-                    <div className="flex items-center gap-2 mb-2">
-                      <CheckCircle2 className="h-4 w-4 text-green-600" />
-                      <span className="font-medium text-green-800">{peserta.nama}</span>
-                      <Badge variant="default" className="text-xs">{peserta.statusPeserta?.keterangan}</Badge>
-                    </div>
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-green-700">
-                      <span>NIK: {peserta.nik}</span>
-                      <span>Kelas: {peserta.hakKelas?.keterangan}</span>
-                      <span>Jenis: {peserta.jenisPeserta?.keterangan}</span>
-                      <span>Faskes: {peserta.provUmum?.nmProvider || "-"}</span>
-                    </div>
-                  </div>
+                  <BPJSStatePanel
+                    tone="success"
+                    icon={<CheckCircle2 className="h-4 w-4" />}
+                    title={
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span>{peserta.nama}</span>
+                        <Badge variant="outline" className="rounded-none text-[10px] uppercase tracking-[0.18em]">
+                          {peserta.statusPeserta?.keterangan}
+                        </Badge>
+                      </div>
+                    }
+                    extra={
+                      <div className="grid grid-cols-1 gap-1 text-xs text-muted-foreground sm:grid-cols-2">
+                        <span>NIK: {peserta.nik}</span>
+                        <span>Kelas: {peserta.hakKelas?.keterangan}</span>
+                        <span>Jenis: {peserta.jenisPeserta?.keterangan}</span>
+                        <span>Faskes: {peserta.provUmum?.nmProvider || "-"}</span>
+                      </div>
+                    }
+                  />
                 )}
                 {pesertaError && (
-                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm flex items-center gap-2">
-                    <XCircle className="h-4 w-4 text-red-600" />
-                    <span className="text-red-700">{pesertaError}</span>
-                  </div>
+                  <BPJSStatePanel tone="danger" icon={<XCircle className="h-4 w-4" />} title="Peserta tidak ditemukan" description={pesertaError} />
                 )}
               </div>
 
               {/* === RUJUKAN === */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Rujukan</h3>
-                  {isIGD && (
+              <div className={BPJS_SECTION_CLASS}>
+                <BPJSSectionHeader eyebrow="Source" title="Rujukan" action={
+                  isIGD ? (
                     <Badge variant="secondary" className="text-xs">Tidak wajib untuk IGD</Badge>
-                  )}
-                </div>
+                  ) : null
+                } />
                 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Jenis Pelayanan *</Label>
+                    <Label className="text-xs uppercase tracking-[0.18em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Jenis Pelayanan *</Label>
                     <Combobox
                       options={toComboOptions(SEP_OPTIONS.jenisPelayanan)}
                       value={jnsPelayanan}
@@ -566,7 +579,7 @@ export function SEPFormSheet({
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Asal Rujukan {!isIGD && "*"}</Label>
+                    <Label className="text-xs uppercase tracking-[0.18em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Asal Rujukan {!isIGD && "*"}</Label>
                     <Combobox
                       options={toComboOptions(SEP_OPTIONS.asalRujukan)}
                       value={asalRujukan}
@@ -580,7 +593,7 @@ export function SEPFormSheet({
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <Label className="text-xs">
+                    <Label className="text-xs uppercase tracking-[0.18em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
                       {jnsPelayanan === "1" ? "No. Rujukan" : (noSuratKontrol ? "No. SEP Asal" : "No. Rujukan")} {!isIGD && "*"}
                     </Label>
                     <div className="flex gap-2">
@@ -589,38 +602,38 @@ export function SEPFormSheet({
                         onChange={(e) => setNoRujukan(e.target.value)}
                         disabled={isIGD || jnsPelayanan === "1"}
                         placeholder={jnsPelayanan === "1" ? "Auto-generated" : (noSuratKontrol ? "No. SEP asal kontrol" : "Nomor rujukan")}
-                        className="h-9"
+                        className={BPJS_COMPACT_FIELD_CLASS}
                       />
                       <Button 
                         size="sm" 
                         variant="outline"
                         onClick={() => setRujukanModalOpen(true)}
                         disabled={!noKartu || isIGD || jnsPelayanan === "1"}
-                        className="h-9 px-3"
+                        className={BPJS_ICON_BUTTON_CLASS}
                       >
                         <Search className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs">{jnsPelayanan === "1" ? "Tanggal Rujukan" : (noSuratKontrol ? "Tanggal SEP Asal" : "Tanggal Rujukan")}</Label>
+                    <Label className="text-xs uppercase tracking-[0.18em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>{jnsPelayanan === "1" ? "Tanggal Rujukan" : (noSuratKontrol ? "Tanggal SEP Asal" : "Tanggal Rujukan")}</Label>
                     <Input
                       type="date"
                       value={tglRujukan}
                       onChange={(e) => setTglRujukan(e.target.value)}
-                      className="h-9"
+                      className={BPJS_COMPACT_FIELD_CLASS}
                       disabled={isIGD || jnsPelayanan === "1"}
                     />
                   </div>
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label className="text-xs">PPK Perujuk</Label>
+                  <Label className="text-xs uppercase tracking-[0.18em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>PPK Perujuk</Label>
                   <Input
                     value={jnsPelayanan === "1" ? "(Diisi otomatis dari config)" : namaRujukan}
                     onChange={(e) => setNamaRujukan(e.target.value)}
                     placeholder="Nama faskes perujuk"
-                    className="h-9"
+                    className={BPJS_COMPACT_FIELD_CLASS}
                     disabled={isIGD || jnsPelayanan === "1"}
                   />
                 </div>
@@ -628,20 +641,20 @@ export function SEPFormSheet({
                 {/* SKDP / Surat Kontrol - untuk rawat inap dan rawat jalan */}
                 {(jnsPelayanan === "1" || jnsPelayanan === "2") && (
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Nomor Surat Kontrol / SPRI</Label>
+                    <Label className="text-xs uppercase tracking-[0.18em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Nomor Surat Kontrol / SPRI</Label>
                     <div className="flex gap-2">
                       <Input
                         value={noSuratKontrol}
                         onChange={(e) => setNoSuratKontrol(e.target.value)}
                         placeholder="Nomor surat kontrol"
-                        className="h-9"
+                        className={BPJS_COMPACT_FIELD_CLASS}
                       />
                       <Button 
                         size="sm" 
                         variant="outline"
                         onClick={() => setSkdpModalOpen(true)}
                         disabled={!noKartu}
-                        className="h-9 px-3"
+                        className={BPJS_ICON_BUTTON_CLASS}
                       >
                         <Calendar className="h-4 w-4" />
                       </Button>
@@ -659,12 +672,12 @@ export function SEPFormSheet({
               </div>
 
               {/* === PELAYANAN === */}
-              <div className="space-y-3">
-                <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Pelayanan</h3>
+              <div className={BPJS_SECTION_CLASS}>
+                <BPJSSectionHeader eyebrow="Service" title="Pelayanan" />
                 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Kelas Rawat Hak *</Label>
+                    <Label className="text-xs uppercase tracking-[0.18em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Kelas Rawat Hak *</Label>
                     <Combobox
                       options={toComboOptions(SEP_OPTIONS.kelasRawat)}
                       value={klsRawatHak}
@@ -674,7 +687,7 @@ export function SEPFormSheet({
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Naik Kelas</Label>
+                    <Label className="text-xs uppercase tracking-[0.18em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Naik Kelas</Label>
                     <Combobox
                       options={toComboOptions(SEP_OPTIONS.kelasRawatNaik)}
                       value={klsRawatNaik}
@@ -691,7 +704,7 @@ export function SEPFormSheet({
 
                 {klsRawatNaik && (
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Pembiayaan Naik Kelas</Label>
+                    <Label className="text-xs uppercase tracking-[0.18em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Pembiayaan Naik Kelas</Label>
                     <Combobox
                       options={toComboOptions(SEP_OPTIONS.pembiayaanNaikKelas)}
                       value={pembiayaan}
@@ -706,26 +719,26 @@ export function SEPFormSheet({
                 {jnsPelayanan !== "1" && (
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
-                      <Label className="text-xs">Poli Tujuan *</Label>
+                      <Label className="text-xs uppercase tracking-[0.18em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Poli Tujuan *</Label>
                       <div className="flex gap-2">
                         <Input
                           value={namaPoli ? `${kodePoli} - ${namaPoli}` : ""}
                           placeholder="Pilih poli"
                           readOnly
-                          className="h-9 bg-muted/50"
+                          className={cn(BPJS_COMPACT_FIELD_CLASS, "bg-muted/20")}
                         />
                         <Button 
                           size="sm" 
                           variant="outline"
                           onClick={() => setPoliModalOpen(true)}
-                          className="h-9 px-3"
+                          className={BPJS_ICON_BUTTON_CLASS}
                         >
                           <Search className="h-4 w-4" />
                         </Button>
                       </div>
                     </div>
                     <div className="space-y-1.5">
-                      <Label className="text-xs">Poli Eksekutif</Label>
+                      <Label className="text-xs uppercase tracking-[0.18em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Poli Eksekutif</Label>
                       <Combobox
                         options={toComboOptions(SEP_OPTIONS.yaTidak)}
                         value={poliEksekutif}
@@ -738,20 +751,20 @@ export function SEPFormSheet({
                 )}
 
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Dokter DPJP {jnsPelayanan === "2" ? "*" : ""}</Label>
+                  <Label className="text-xs uppercase tracking-[0.18em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Dokter DPJP {jnsPelayanan === "2" ? "*" : ""}</Label>
                   <div className="flex gap-2">
                     <Input
                       value={namaDPJP ? `${kodeDPJP} - ${namaDPJP}` : ""}
                       placeholder={kodePoli ? "Pilih dokter" : "Pilih poli dulu"}
                       readOnly
-                      className="h-9 bg-muted/50"
+                      className={cn(BPJS_COMPACT_FIELD_CLASS, "bg-muted/20")}
                     />
                     <Button 
                       size="sm" 
                       variant="outline"
                       onClick={() => setDokterModalOpen(true)}
                       disabled={!kodePoli}
-                      className="h-9 px-3"
+                      className={BPJS_ICON_BUTTON_CLASS}
                     >
                       <Search className="h-4 w-4" />
                     </Button>
@@ -759,19 +772,19 @@ export function SEPFormSheet({
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Diagnosa Awal (ICD-10) *</Label>
+                  <Label className="text-xs uppercase tracking-[0.18em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Diagnosa Awal (ICD-10) *</Label>
                   <div className="flex gap-2">
                     <Input
                       value={namaDiagnosa ? `${diagAwal} - ${namaDiagnosa}` : ""}
                       placeholder="Pilih diagnosa"
                       readOnly
-                      className="h-9 bg-muted/50"
+                      className={cn(BPJS_COMPACT_FIELD_CLASS, "bg-muted/20")}
                     />
                     <Button 
                       size="sm" 
                       variant="outline"
                       onClick={() => setDiagnosaModalOpen(true)}
-                      className="h-9 px-3"
+                      className={BPJS_ICON_BUTTON_CLASS}
                     >
                       <Search className="h-4 w-4" />
                     </Button>
@@ -780,12 +793,12 @@ export function SEPFormSheet({
               </div>
 
               {/* === JAMINAN === */}
-              <div className="space-y-3">
-                <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Jaminan & Lainnya</h3>
+              <div className={BPJS_SECTION_CLASS}>
+                <BPJSSectionHeader eyebrow="Coverage" title="Jaminan & Lainnya" />
                 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Kecelakaan Lalu Lintas</Label>
+                    <Label className="text-xs uppercase tracking-[0.18em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Kecelakaan Lalu Lintas</Label>
                     <Combobox
                       options={toComboOptions(SEP_OPTIONS.lakaLantas)}
                       value={lakaLantas}
@@ -795,7 +808,7 @@ export function SEPFormSheet({
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Tujuan Kunjungan</Label>
+                    <Label className="text-xs uppercase tracking-[0.18em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Tujuan Kunjungan</Label>
                     <Combobox
                       options={toComboOptions(SEP_OPTIONS.tujuanKunjungan)}
                       value={tujuanKunj}
@@ -809,7 +822,7 @@ export function SEPFormSheet({
                 {tujuanKunj === "1" && (
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
-                      <Label className="text-xs">Flag Procedure</Label>
+                      <Label className="text-xs uppercase tracking-[0.18em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Flag Procedure</Label>
                       <Combobox
                         options={toComboOptions(SEP_OPTIONS.flagProcedure)}
                         value={flagProcedure}
@@ -819,7 +832,7 @@ export function SEPFormSheet({
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <Label className="text-xs">Penunjang</Label>
+                      <Label className="text-xs uppercase tracking-[0.18em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Penunjang</Label>
                       <Combobox
                         options={toComboOptions(SEP_OPTIONS.kdPenunjang)}
                         value={kdPenunjang}
@@ -833,7 +846,7 @@ export function SEPFormSheet({
 
                 {(tujuanKunj === "2" || tujuanKunj === "0") && (
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Assessment Pelayanan</Label>
+                    <Label className="text-xs uppercase tracking-[0.18em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Assessment Pelayanan</Label>
                     <Combobox
                       options={toComboOptions(SEP_OPTIONS.assesmentPelayanan)}
                       value={assesmentPel}
@@ -845,36 +858,37 @@ export function SEPFormSheet({
                 )}
 
                 <div className="space-y-1.5">
-                  <Label className="text-xs">No. Telepon</Label>
+                  <Label className="text-xs uppercase tracking-[0.18em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>No. Telepon</Label>
                   <Input
                     value={noTelp}
                     onChange={(e) => setNoTelp(e.target.value)}
                     placeholder="08xxxxxxxxxx"
-                    className="h-9"
+                    className={BPJS_COMPACT_FIELD_CLASS}
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Catatan</Label>
+                  <Label className="text-xs uppercase tracking-[0.18em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Catatan</Label>
                   <Textarea
                     value={catatan}
                     onChange={(e) => setCatatan(e.target.value)}
                     placeholder="Catatan tambahan..."
                     rows={2}
-                    className="resize-none"
+                    className="resize-none rounded-none border-border/70 bg-background shadow-none"
                   />
                 </div>
               </div>
             </div>
           </ScrollArea>
 
-          <SheetFooter className="p-4 border-t bg-muted/30">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <SheetFooter className={BPJS_FOOTER_CLASS}>
+            <Button variant="outline" className="rounded-none border-border/70" onClick={() => onOpenChange(false)}>
               Batal
             </Button>
             <Button
               onClick={handleSubmitSEP}
               disabled={loadingSubmit || !peserta || !kodePoli || !diagAwal}
+              className="rounded-none"
             >
               {loadingSubmit ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
