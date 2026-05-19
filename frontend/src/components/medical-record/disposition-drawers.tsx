@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Dialog,
   DialogContent,
@@ -16,10 +16,7 @@ import {
 import {
   Sheet,
   SheetContent,
-  SheetDescription,
   SheetFooter,
-  SheetHeader,
-  SheetTitle,
 } from "@/components/ui/sheet";
 import {
   Save,
@@ -37,9 +34,19 @@ import {
   QrCode,
   Plus,
   Search,
+  type LucideIcon,
 } from "lucide-react";
 import { Combobox } from "@/components/ui/combobox";
 import { SearchModal } from "@/components/sep/search-modal";
+import {
+  BPJS_FIELD_CLASS,
+  BPJS_FOOTER_CLASS,
+  BPJS_PANEL_CLASS,
+  BPJSSectionHeader,
+  BPJSStatePanel,
+  BPJS_SHEET_FONT_FAMILY,
+  BPJS_SHEET_MONO_FAMILY,
+} from "@/components/sep/bpjs-sheet-chrome";
 import { cn } from "@/lib/utils";
 import { CheckInQRCode } from "@/components/qrcode/checkin-qrcode";
 import { BPJSControlSection } from "@/components/medical-record/bpjs-control-section";
@@ -128,6 +135,236 @@ interface FollowUpRegData {
   patient_name?: string;
 }
 
+const DISPOSITION_SHEET_CLASS = "flex w-full flex-col p-0 sm:w-[78vw] sm:max-w-[1180px] xl:w-[72vw]";
+const DISPOSITION_BODY_CLASS = "mx-auto flex max-w-[900px] flex-col gap-5 [&_input]:rounded-none [&_input]:border-border/70 [&_input]:bg-background [&_textarea]:rounded-none [&_textarea]:border-border/70 [&_textarea]:bg-background [&_[role=combobox]]:h-10 [&_[role=combobox]]:rounded-none [&_[role=combobox]]:border-border/70 [&_[role=combobox]]:bg-background [&_[role=combobox]]:shadow-none";
+const DISPOSITION_TEXTAREA_CLASS = "min-h-[96px] resize-y";
+const DISPOSITION_HELP_CLASS = "text-xs leading-relaxed text-muted-foreground";
+
+function DispositionWorkbenchHero({
+  eyebrow,
+  title,
+  description,
+  icon: Icon,
+  metaLabel,
+}: {
+  eyebrow: string;
+  title: string;
+  description: ReactNode;
+  icon: LucideIcon;
+  metaLabel: string;
+}) {
+  return (
+    <div className="border-b border-border/70 bg-muted/10 px-5 py-3 sm:px-6">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div className="space-y-2">
+          <div className="text-[10px] uppercase tracking-[0.28em] text-muted-foreground" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
+            {eyebrow}
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-none border border-border/70 bg-background">
+              <Icon className="h-4 w-4 text-foreground/80" />
+            </div>
+            <div className="space-y-1">
+              <h2 className="text-base font-semibold tracking-tight text-foreground sm:text-lg">{title}</h2>
+              <div className="text-sm text-muted-foreground">{description}</div>
+            </div>
+          </div>
+        </div>
+        <Badge
+          variant="outline"
+          className="h-fit rounded-none px-2 py-1 text-[10px] uppercase tracking-[0.24em]"
+          style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}
+        >
+          {metaLabel}
+        </Badge>
+      </div>
+    </div>
+  );
+}
+
+interface DispositionSheetShellProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  eyebrow: string;
+  title: string;
+  description: ReactNode;
+  icon: LucideIcon;
+  metaLabel: string;
+  railTitle: string;
+  railDescription: ReactNode;
+  railPoints: string[];
+  railStatus?: ReactNode;
+  footer: ReactNode;
+  children: ReactNode;
+}
+
+function DispositionSheetShell({
+  open,
+  onOpenChange,
+  eyebrow,
+  title,
+  description,
+  icon,
+  metaLabel,
+  railTitle,
+  railDescription,
+  railPoints,
+  railStatus,
+  footer,
+  children,
+}: DispositionSheetShellProps) {
+  const railContent = (
+    <div className={cn(BPJS_PANEL_CLASS, "overflow-hidden bg-muted/10")}>
+      <div className="border-b border-border/70 px-4 py-3">
+        <div className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
+          Workflow Rail
+        </div>
+        <div className="mt-2 text-sm font-semibold text-foreground">{railTitle}</div>
+      </div>
+      <div className="space-y-4 px-4 py-4">
+        <div className={DISPOSITION_HELP_CLASS}>{railDescription}</div>
+        {railStatus ? <div>{railStatus}</div> : null}
+        <div className="space-y-2">
+          {railPoints.map((point, index) => (
+            <div key={`${metaLabel}-${index}`} className="flex items-start gap-3 border-l border-border/70 pl-3">
+              <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-none border border-border/70 bg-background text-[10px] font-semibold text-foreground/70">
+                {index + 1}
+              </div>
+              <p className="text-xs leading-relaxed text-muted-foreground">{point}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className={DISPOSITION_SHEET_CLASS} style={{ fontFamily: BPJS_SHEET_FONT_FAMILY }}>
+        <DispositionWorkbenchHero
+          eyebrow={eyebrow}
+          title={title}
+          description={description}
+          icon={icon}
+          metaLabel={metaLabel}
+        />
+
+        <div className="flex min-h-0 flex-1">
+          <aside className="hidden w-[272px] shrink-0 border-r border-border/70 bg-muted/10 px-4 py-4 xl:block">
+            {railContent}
+          </aside>
+
+          <ScrollArea className="flex-1">
+            <div className="space-y-4 p-4 sm:p-5 xl:p-6">
+              <div className="xl:hidden">{railContent}</div>
+              <div className={DISPOSITION_BODY_CLASS}>{children}</div>
+            </div>
+          </ScrollArea>
+        </div>
+
+        <SheetFooter className={BPJS_FOOTER_CLASS}>{footer}</SheetFooter>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+interface DispositionSectionProps {
+  eyebrow: string;
+  title: string;
+  description?: ReactNode;
+  action?: ReactNode;
+  children: ReactNode;
+  className?: string;
+}
+
+function DispositionSection({ eyebrow, title, description, action, children, className }: DispositionSectionProps) {
+  return (
+    <div className={cn(BPJS_PANEL_CLASS, "space-y-4 p-4 sm:p-5", className)}>
+      <BPJSSectionHeader eyebrow={eyebrow} title={title} action={action} />
+      {description ? <div className={DISPOSITION_HELP_CLASS}>{description}</div> : null}
+      {children}
+    </div>
+  );
+}
+
+type SelectionCardTone = "neutral" | "blue" | "green" | "amber" | "rose";
+
+interface SelectionCardOption {
+  value: string;
+  title: string;
+  description: string;
+  icon?: ReactNode;
+  tone?: SelectionCardTone;
+  disabled?: boolean;
+  note?: ReactNode;
+}
+
+interface SelectionCardGridProps {
+  value: string;
+  onChange: (value: string) => void;
+  options: SelectionCardOption[];
+  columns?: 2 | 3 | 4;
+  disabled?: boolean;
+}
+
+function SelectionCardGrid({ value, onChange, options, columns = 3, disabled = false }: SelectionCardGridProps) {
+  const gridClass = {
+    2: "grid-cols-1 md:grid-cols-2",
+    3: "grid-cols-1 md:grid-cols-2 xl:grid-cols-3",
+    4: "grid-cols-1 md:grid-cols-2 xl:grid-cols-4",
+  }[columns];
+
+  const toneClass: Record<SelectionCardTone, { selected: string; icon: string }> = {
+    neutral: { selected: "border-slate-400 bg-slate-50/80", icon: "text-slate-600" },
+    blue: { selected: "border-sky-400 bg-sky-50/80", icon: "text-sky-600" },
+    green: { selected: "border-emerald-400 bg-emerald-50/80", icon: "text-emerald-600" },
+    amber: { selected: "border-amber-400 bg-amber-50/80", icon: "text-amber-600" },
+    rose: { selected: "border-rose-400 bg-rose-50/80", icon: "text-rose-600" },
+  };
+
+  return (
+    <div className={cn("grid gap-3", gridClass)}>
+      {options.map((option) => {
+        const tone = toneClass[option.tone || "neutral"];
+        const isSelected = value === option.value;
+        const isUnavailable = disabled || option.disabled;
+
+        return (
+          <button
+            key={option.value}
+            type="button"
+            aria-pressed={isSelected}
+            onClick={() => onChange(option.value)}
+            disabled={isUnavailable}
+            className={cn(
+              BPJS_PANEL_CLASS,
+              "min-h-[124px] p-4 text-left transition-colors",
+              isSelected ? tone.selected : "hover:border-foreground/30 hover:bg-muted/10",
+              isUnavailable && "cursor-not-allowed opacity-55 hover:border-border/70 hover:bg-background",
+            )}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                  {option.icon ? <span className={cn("shrink-0", tone.icon)}>{option.icon}</span> : null}
+                  <span>{option.title}</span>
+                </div>
+                <p className={DISPOSITION_HELP_CLASS}>{option.description}</p>
+              </div>
+              {isSelected ? (
+                <Badge variant="outline" className="rounded-none border-border/70 text-[10px] uppercase tracking-[0.18em]">
+                  Dipilih
+                </Badge>
+              ) : null}
+            </div>
+            {option.note ? <div className="mt-3 text-xs leading-relaxed text-muted-foreground">{option.note}</div> : null}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 // Props for the discharge drawer (pulang/aps)
 interface DischargeDrawerProps {
   open: boolean;
@@ -198,120 +435,100 @@ export function DischargeDrawer({
   // Show SIMRS follow-up form after BPJS Surat Kontrol is created
   const showBPJSFollowUpSync = !isAPS && kontrolType === "bpjs" && !!suratKontrolResult;
 
+  const footer = (
+    <div className="flex w-full justify-end gap-3">
+      <Button variant="outline" onClick={() => onOpenChange(false)} className="rounded-none border-border/70">
+        Batal
+      </Button>
+      <Button onClick={onSubmit} disabled={saving || isDisabled} className="rounded-none">
+        {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+        Simpan & Pulangkan
+      </Button>
+    </div>
+  );
+
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full sm:w-1/2 sm:max-w-none p-0 flex flex-col">
-        <SheetHeader className="border-b px-6 py-4">
-          <div className="flex items-center gap-3">
-            {formData.disposition_type === "pulang" ? (
-              <Home className="h-5 w-5 text-green-600" />
-            ) : (
-              <ExternalLink className="h-5 w-5 text-orange-600" />
-            )}
-            <div>
-              <SheetTitle>
-                {formData.disposition_type === "pulang" ? "Pulang" : "Atas Permintaan Sendiri"}
-              </SheetTitle>
-              <SheetDescription>
-                {formData.disposition_type === "pulang"
-                  ? "Pasien pulang dalam keadaan baik"
-                  : "Pasien pulang atas permintaan sendiri"}
-              </SheetDescription>
-            </div>
-          </div>
-        </SheetHeader>
-
-        <ScrollArea className="flex-1 px-6 py-4">
-          <div className="space-y-6">
+    <DispositionSheetShell
+      open={open}
+      onOpenChange={onOpenChange}
+      eyebrow="Pasien Pulang"
+      title={formData.disposition_type === "pulang" ? "Pemulangan Pasien" : "Atas Permintaan Sendiri"}
+      description={
+        formData.disposition_type === "pulang"
+          ? "Ringkas pemulangan, kontrol lanjutan, dan instruksi pasien dalam satu alur yang aman."
+          : "Dokumentasikan pasien pulang atas permintaan sendiri dengan kondisi keluar yang jelas."
+      }
+      icon={formData.disposition_type === "pulang" ? Home : ExternalLink}
+      metaLabel={formData.disposition_type === "pulang" ? "DISCHARGE" : "APS"}
+      railTitle={formData.disposition_type === "pulang" ? "Checklist Pemulangan" : "Checklist APS"}
+      railDescription={formData.disposition_type === "pulang"
+        ? "Pendekatan baru drawer ini memisahkan keputusan kontrol, kondisi keluar, dan edukasi pasien dalam satu workbench yang tetap memakai field yang sama."
+        : "APS tetap memakai field yang sama, tetapi fokus workbench diarahkan ke dokumentasi kondisi keluar dan edukasi pasien."}
+      railPoints={formData.disposition_type === "pulang"
+        ? [
+            "Tentukan dulu apakah pasien butuh kontrol, lalu pilih jalur SIMRS atau BPJS sesuai kesiapan data.",
+            "Pastikan kondisi keluar terpilih agar ringkasan pemulangan tidak ambigu saat ditinjau ulang.",
+            "Lengkapi instruksi pasien dan obat pulang dengan bahasa operasional, bukan singkatan internal.",
+          ]
+        : [
+            "Dokumentasikan bahwa pasien pulang atas permintaan sendiri pada mode APS ini.",
+            "Tentukan kondisi keluar dengan jelas sebelum instruksi pasien diisi.",
+            "Gunakan instruksi pemulangan untuk menuliskan risiko, edukasi, dan tindak lanjut yang diberikan.",
+          ]}
+      railStatus={!isAPS && kontrolType === "bpjs" ? (
+        <BPJSStatePanel
+          tone={patientNoBpjs ? "success" : "danger"}
+          title={patientNoBpjs ? "Jalur BPJS aktif" : "Data BPJS belum siap"}
+          description={patientNoBpjs ? "Pastikan SEP aktif dan surat kontrol BPJS dibuat sebelum menutup drawer." : "Nomor BPJS belum tersedia, sehingga mode BPJS tidak bisa dijalankan dari drawer ini."}
+        />
+      ) : undefined}
+      footer={footer}
+    >
             {!isAPS && (
-              <div className="space-y-3">
-                <Label className="text-sm font-semibold">Jenis Surat Kontrol</Label>
-                <RadioGroup
+              <DispositionSection
+                eyebrow="Mode Kontrol"
+                title="Pilih Jalur Kontrol"
+                description="Gunakan pilihan yang benar-benar bisa dijalankan untuk pasien ini. Mode yang tidak siap akan dibuat tidak aktif agar proses pemulangan lebih aman."
+              >
+                <SelectionCardGrid
                   value={kontrolType}
-                  onValueChange={(value) => setKontrolType(value as "none" | "simrs" | "bpjs")}
+                  onChange={(value) => setKontrolType(value as "none" | "simrs" | "bpjs")}
                   disabled={isDisabled}
-                  className="space-y-2"
-                >
-                  <label
-                    htmlFor="kontrol-none"
-                    className={cn(
-                      "flex items-start space-x-3 p-4 rounded-lg border-2 transition-all cursor-pointer",
-                      kontrolType === "none"
-                        ? "border-gray-500 bg-gray-50"
-                        : "border-muted hover:border-gray-300",
-                      isDisabled && "opacity-50 cursor-not-allowed"
-                    )}
-                  >
-                    <RadioGroupItem value="none" id="kontrol-none" className="mt-0.5" />
-                    <div className="space-y-1">
-                      <span className="text-sm font-medium">Tidak Ada Kontrol</span>
-                      <p className="text-xs text-muted-foreground">
-                        Pasien tidak memerlukan jadwal kontrol
-                      </p>
-                    </div>
-                  </label>
-
-                  <label
-                    htmlFor="kontrol-simrs"
-                    className={cn(
-                      "flex items-start space-x-3 p-4 rounded-lg border-2 transition-all cursor-pointer",
-                      kontrolType === "simrs"
-                        ? "border-blue-500 bg-blue-50"
-                        : "border-muted hover:border-blue-300",
-                      isDisabled && "opacity-50 cursor-not-allowed"
-                    )}
-                  >
-                    <RadioGroupItem value="simrs" id="kontrol-simrs" className="mt-0.5" />
-                    <div className="space-y-1">
-                      <span className="text-sm font-medium flex items-center gap-2">
-                        <Calendar className="h-4 w-4 text-blue-600" />
-                        Surat Kontrol SIMRS (Umum)
-                      </span>
-                      <p className="text-xs text-muted-foreground">
-                        Buat jadwal kunjungan ulang melalui SIMRS untuk pasien umum/non-BPJS
-                      </p>
-                    </div>
-                  </label>
-
-                  <label
-                    htmlFor="kontrol-bpjs"
-                    className={cn(
-                      "flex items-start space-x-3 p-4 rounded-lg border-2 transition-all cursor-pointer",
-                      kontrolType === "bpjs"
-                        ? "border-green-500 bg-green-50"
-                        : "border-muted hover:border-green-300",
-                      isDisabled && "opacity-50 cursor-not-allowed",
-                      !patientNoBpjs && "opacity-60"
-                    )}
-                  >
-                    <RadioGroupItem value="bpjs" id="kontrol-bpjs" className="mt-0.5" />
-                    <div className="space-y-1">
-                      <span className="text-sm font-medium flex items-center gap-2">
-                        <Calendar className="h-4 w-4 text-green-600" />
-                        Surat Kontrol BPJS
-                      </span>
-                      <p className="text-xs text-muted-foreground">
-                        Buat surat kontrol melalui bridging BPJS VClaim
-                      </p>
-                      {!patientNoBpjs && (
-                        <p className="text-xs text-amber-600">
-                          Pasien belum memiliki nomor BPJS
-                        </p>
-                      )}
-                    </div>
-                  </label>
-                </RadioGroup>
-              </div>
+                  options={[
+                    {
+                      value: "none",
+                      title: "Tanpa Kontrol",
+                      description: "Pemulangan selesai tanpa jadwal kunjungan ulang.",
+                      tone: "neutral",
+                    },
+                    {
+                      value: "simrs",
+                      title: "Kontrol SIMRS",
+                      description: "Jadwalkan kontrol umum atau non-BPJS langsung di SIMRS.",
+                      icon: <Calendar className="h-4 w-4" />,
+                      tone: "blue",
+                    },
+                    {
+                      value: "bpjs",
+                      title: "Kontrol BPJS",
+                      description: "Buat surat kontrol melalui VClaim untuk pasien BPJS.",
+                      icon: <Calendar className="h-4 w-4" />,
+                      tone: "green",
+                      disabled: !patientNoBpjs,
+                      note: !patientNoBpjs ? "Nomor BPJS belum tersedia pada data pasien." : undefined,
+                    },
+                  ]}
+                />
+              </DispositionSection>
             )}
 
             {isAPS && (
-              <Alert>
-                <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>APS tanpa kontrol</AlertTitle>
-                <AlertDescription>
-                  Untuk APS, form hanya memerlukan kondisi keluar pasien tanpa pembuatan kontrol atau follow-up.
-                </AlertDescription>
-              </Alert>
+              <BPJSStatePanel
+                tone="danger"
+                icon={<AlertTriangle className="h-4 w-4" />}
+                title="APS tanpa kontrol lanjutan"
+                description="Mode APS hanya memerlukan dokumentasi kondisi keluar dan instruksi pasien. Kontrol lanjutan tidak dibuat dari drawer ini."
+              />
             )}
 
             {/* BPJS Control Section - Surat Kontrol */}
@@ -576,8 +793,7 @@ export function DischargeDrawer({
 
             {/* Discharge Condition */}
             {showDischargeCondition && (
-              <div className="space-y-2">
-                <Label className="text-sm font-semibold">Kondisi Keluar</Label>
+              <DispositionSection eyebrow="Status Keluar" title="Kondisi Pasien Saat Pulang">
                 <Combobox
                   options={dischargeConditionOptions}
                   value={formData.discharge_condition}
@@ -586,16 +802,17 @@ export function DischargeDrawer({
                   searchPlaceholder="Cari kondisi..."
                   emptyText="Kondisi tidak ditemukan"
                   disabled={isDisabled}
+                  className={BPJS_FIELD_CLASS}
                 />
-              </div>
+              </DispositionSection>
             )}
 
             {/* Discharge Instructions */}
-            <div className="space-y-4 pt-4 border-t">
-              <div className="flex items-center gap-2">
-                <ClipboardList className="h-4 w-4 text-primary" />
-                <Label className="text-sm font-semibold">Instruksi Pemulangan</Label>
-              </div>
+            <DispositionSection
+              eyebrow="Edukasi Pasien"
+              title="Instruksi Pemulangan"
+              description="Pastikan edukasi pasien dan obat pulang ditulis dengan bahasa yang operasional untuk petugas dan mudah dipahami pasien."
+            >
               <div className="space-y-2">
                 <Label htmlFor="discharge_instruction_drawer" className="text-sm">
                   Instruksi untuk Pasien
@@ -605,7 +822,7 @@ export function DischargeDrawer({
                   placeholder="Instruksi yang harus diikuti pasien setelah pulang..."
                   value={formData.discharge_instruction}
                   onChange={(e) => onFormChange("discharge_instruction", e.target.value)}
-                  className="min-h-[100px] resize-none"
+                  className={DISPOSITION_TEXTAREA_CLASS}
                   disabled={isDisabled}
                 />
               </div>
@@ -618,25 +835,12 @@ export function DischargeDrawer({
                   placeholder="Daftar obat yang dibawa pulang beserta aturan pakai..."
                   value={formData.discharge_medication}
                   onChange={(e) => onFormChange("discharge_medication", e.target.value)}
-                  className="min-h-[80px] resize-none"
+                  className={DISPOSITION_TEXTAREA_CLASS}
                   disabled={isDisabled}
                 />
               </div>
-            </div>
-          </div>
-        </ScrollArea>
-
-        <SheetFooter className="border-t px-6 py-4">
-          <div className="flex justify-end gap-3 w-full">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
-            <Button onClick={onSubmit} disabled={saving || isDisabled}>
-              {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-              Simpan & Pulangkan
-            </Button>
-          </div>
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+            </DispositionSection>
+    </DispositionSheetShell>
   );
 }
 
@@ -693,81 +897,74 @@ export function AdmissionDrawer({
   const showBPJSSPRI = spriType === "bpjs";
   const showSIMRSForm = spriType === "simrs";
 
+  const footer = (
+    <div className="flex w-full justify-end gap-3">
+      <Button variant="outline" onClick={() => onOpenChange(false)} className="rounded-none border-border/70">
+        Batal
+      </Button>
+      <Button onClick={onSubmit} disabled={saving || isDisabled} className="rounded-none">
+        {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+        {hasBPJSSPRI ? "Simpan Disposisi" : "Kirim Permintaan"}
+      </Button>
+    </div>
+  );
+
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full sm:w-1/2 sm:max-w-none p-0 flex flex-col">
-        <SheetHeader className="border-b px-6 py-4">
-          <div className="flex items-center gap-3">
-            <Hospital className="h-5 w-5 text-blue-600" />
-            <div>
-              <SheetTitle>Rawat Inap</SheetTitle>
-              <SheetDescription>Pasien memerlukan rawat inap</SheetDescription>
-            </div>
-          </div>
-        </SheetHeader>
-
-        <ScrollArea className="flex-1 px-6 py-4">
-          <div className="space-y-6">
+    <DispositionSheetShell
+      open={open}
+      onOpenChange={onOpenChange}
+      eyebrow="Pasien Pulang"
+      title="Rencana Rawat Inap"
+      description="Satukan keputusan rawat inap, dokumen BPJS, dan permintaan admisi dalam drawer yang lebih lega dan terstruktur."
+      icon={Hospital}
+      metaLabel="ADMISI"
+      railTitle="Checklist Rawat Inap"
+      railDescription="Drawer admisi dirombak menjadi workbench dua kolom: rel panduan di kiri, field tetap di kanan. Tidak ada field yang dihapus atau diganti." 
+      railPoints={[
+        "Pilih jalur admisi terlebih dahulu: SIMRS untuk umum, SPRI untuk BPJS.",
+        "Lengkapi tipe rawat inap, prioritas, dan indikasi klinis sebelum permintaan dikirim.",
+        "Jika SPRI sudah dibuat, pastikan data SIMRS tetap diisi agar admisi bisa menindaklanjuti.",
+      ]}
+      railStatus={spriType === "bpjs" ? (
+        <BPJSStatePanel
+          tone={patientNoBpjs ? "success" : "danger"}
+          title={patientNoBpjs ? "SPRI siap diproses" : "SPRI belum bisa diproses"}
+          description={patientNoBpjs ? "Bridging BPJS dapat digunakan bila data pasien lengkap." : "Nomor BPJS pasien belum tersedia, jadi jalur SPRI dinonaktifkan."}
+        />
+      ) : undefined}
+      footer={footer}
+    >
             {/* Pilihan Jenis Rawat Inap */}
-            <div className="space-y-3">
-              <Label className="text-sm font-semibold">Jenis Rawat Inap</Label>
-              <RadioGroup
+            <DispositionSection
+              eyebrow="Mode Admisi"
+              title="Pilih Jalur Permintaan Rawat Inap"
+              description="Gunakan SIMRS untuk pasien umum dan aktifkan SPRI BPJS hanya saat data kepesertaan pasien sudah siap."
+            >
+              <SelectionCardGrid
                 value={spriType}
-                onValueChange={(value) => setSpriType(value as "simrs" | "bpjs")}
+                onChange={(value) => setSpriType(value as "simrs" | "bpjs")}
                 disabled={isDisabled}
-                className="space-y-2"
-              >
-                <label
-                  htmlFor="spri-simrs"
-                  className={cn(
-                    "flex items-start space-x-3 p-4 rounded-lg border-2 transition-all cursor-pointer",
-                    spriType === "simrs"
-                      ? "border-blue-500 bg-blue-50"
-                      : "border-muted hover:border-blue-300",
-                    isDisabled && "opacity-50 cursor-not-allowed"
-                  )}
-                >
-                  <RadioGroupItem value="simrs" id="spri-simrs" className="mt-0.5" />
-                  <div className="space-y-1">
-                    <span className="text-sm font-medium flex items-center gap-2">
-                      <Hospital className="h-4 w-4 text-blue-600" />
-                      Rawat Inap SIMRS (Umum)
-                    </span>
-                    <p className="text-xs text-muted-foreground">
-                      Permintaan rawat inap untuk pasien umum/non-BPJS melalui SIMRS
-                    </p>
-                  </div>
-                </label>
-
-                <label
-                  htmlFor="spri-bpjs"
-                  className={cn(
-                    "flex items-start space-x-3 p-4 rounded-lg border-2 transition-all cursor-pointer",
-                    spriType === "bpjs"
-                      ? "border-green-500 bg-green-50"
-                      : "border-muted hover:border-green-300",
-                    isDisabled && "opacity-50 cursor-not-allowed",
-                    !patientNoBpjs && "opacity-60"
-                  )}
-                >
-                  <RadioGroupItem value="bpjs" id="spri-bpjs" className="mt-0.5" />
-                  <div className="space-y-1">
-                    <span className="text-sm font-medium flex items-center gap-2">
-                      <Hospital className="h-4 w-4 text-green-600" />
-                      SPRI BPJS
-                    </span>
-                    <p className="text-xs text-muted-foreground">
-                      Surat Permintaan Rawat Inap melalui bridging BPJS VClaim
-                    </p>
-                    {!patientNoBpjs && (
-                      <p className="text-xs text-amber-600">
-                        Pasien belum memiliki nomor BPJS
-                      </p>
-                    )}
-                  </div>
-                </label>
-              </RadioGroup>
-            </div>
+                columns={2}
+                options={[
+                  {
+                    value: "simrs",
+                    title: "Admisi SIMRS",
+                    description: "Permintaan rawat inap umum langsung ke pendaftaran atau admisi.",
+                    icon: <Hospital className="h-4 w-4" />,
+                    tone: "blue",
+                  },
+                  {
+                    value: "bpjs",
+                    title: "SPRI BPJS",
+                    description: "Bangun permintaan rawat inap dari bridging VClaim lalu sinkronkan ke SIMRS.",
+                    icon: <Hospital className="h-4 w-4" />,
+                    tone: "green",
+                    disabled: !patientNoBpjs,
+                    note: !patientNoBpjs ? "Nomor BPJS belum tersedia pada data pasien." : undefined,
+                  },
+                ]}
+              />
+            </DispositionSection>
 
             {/* BPJS Control Section - SPRI (tidak memerlukan SEP) */}
             {showBPJSSPRI && (
@@ -874,6 +1071,7 @@ export function AdmissionDrawer({
                     searchPlaceholder="Cari kelas..."
                     emptyText="Tidak ada kelas"
                     disabled={isDisabled}
+                    className={BPJS_FIELD_CLASS}
                   />
                   <p className="text-xs text-muted-foreground">
                     Opsional. Bagian admisi akan menyesuaikan dengan ketersediaan kamar.
@@ -888,7 +1086,7 @@ export function AdmissionDrawer({
                     placeholder="Jelaskan alasan klinis pasien perlu dirawat inap..."
                     value={formData.admission_reason}
                     onChange={(e) => onFormChange("admission_reason", e.target.value)}
-                    className="min-h-[100px] resize-none"
+                    className={DISPOSITION_TEXTAREA_CLASS}
                     disabled={isDisabled}
                   />
                 </div>
@@ -899,7 +1097,7 @@ export function AdmissionDrawer({
                     placeholder="Catatan khusus untuk bagian admisi (misal: perlu ruang isolasi, pasien bariatrik, dll)..."
                     value={formData.special_notes || ""}
                     onChange={(e) => onFormChange("special_notes", e.target.value)}
-                    className="min-h-[80px] resize-none"
+                    className={DISPOSITION_TEXTAREA_CLASS}
                     disabled={isDisabled}
                   />
                 </div>
@@ -997,6 +1195,7 @@ export function AdmissionDrawer({
                       searchPlaceholder="Cari kelas..."
                       emptyText="Tidak ada kelas"
                       disabled={isDisabled}
+                      className={BPJS_FIELD_CLASS}
                     />
                     <p className="text-xs text-muted-foreground">
                       Opsional. Bagian admisi akan menyesuaikan dengan ketersediaan kamar.
@@ -1011,7 +1210,7 @@ export function AdmissionDrawer({
                       placeholder="Jelaskan alasan klinis pasien perlu dirawat inap..."
                       value={formData.admission_reason}
                       onChange={(e) => onFormChange("admission_reason", e.target.value)}
-                      className="min-h-[100px] resize-none bg-background"
+                      className={DISPOSITION_TEXTAREA_CLASS}
                       disabled={isDisabled}
                     />
                   </div>
@@ -1022,27 +1221,14 @@ export function AdmissionDrawer({
                       placeholder="Catatan khusus untuk bagian admisi (misal: perlu ruang isolasi, pasien bariatrik, dll)..."
                       value={formData.special_notes || ""}
                       onChange={(e) => onFormChange("special_notes", e.target.value)}
-                      className="min-h-[80px] resize-none bg-background"
+                      className={DISPOSITION_TEXTAREA_CLASS}
                       disabled={isDisabled}
                     />
                   </div>
                 </div>
               </>
             )}
-          </div>
-        </ScrollArea>
-
-        <SheetFooter className="border-t px-6 py-4">
-          <div className="flex justify-end gap-3 w-full">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
-            <Button onClick={onSubmit} disabled={saving || isDisabled}>
-              {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-              {hasBPJSSPRI ? "Simpan Disposisi" : "Kirim Permintaan"}
-            </Button>
-          </div>
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+    </DispositionSheetShell>
   );
 }
 
@@ -1415,99 +1601,82 @@ export function ReferralDrawer({
     }
   };
 
+  const footer = (
+    <div className="flex w-full justify-end gap-3">
+      <Button variant="outline" onClick={() => onOpenChange(false)} className="rounded-none border-border/70">
+        Batal
+      </Button>
+      <Button onClick={onSubmit} disabled={saving || isDisabled} className="rounded-none">
+        {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+        Simpan Rujukan
+      </Button>
+    </div>
+  );
+
   return (
     <>
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full sm:w-1/2 sm:max-w-none p-0 flex flex-col">
-        <SheetHeader className="border-b px-6 py-4">
-          <div className="flex items-center gap-3">
-            <Ambulance className="h-5 w-5 text-amber-600" />
-            <div>
-              <SheetTitle>Rujuk</SheetTitle>
-              <SheetDescription>Pasien dirujuk ke fasilitas kesehatan lain</SheetDescription>
-            </div>
-          </div>
-        </SheetHeader>
-
-        <ScrollArea className="flex-1 px-6 py-4">
-          <div className="space-y-6">
-            <div className="space-y-3">
-              <Label className="text-sm font-semibold">Mode Rujukan</Label>
-              <RadioGroup
+    <DispositionSheetShell
+      open={open}
+      onOpenChange={onOpenChange}
+      eyebrow="Pasien Pulang"
+      title="Rujukan Pasien"
+      description="Pisahkan jalur rujukan manual, BPJS reguler, dan BPJS khusus dengan pilihan yang lebih jelas sebelum data klinis diisi."
+      icon={Ambulance}
+      metaLabel="RUJUK"
+      railTitle="Checklist Rujukan"
+      railDescription="Pendekatan drawer diubah menjadi meja kerja rujukan: mode dipilih di awal, lalu field rujukan yang sama tetap digunakan di panel kanan." 
+      railPoints={[
+        "Tentukan lebih dulu mode rujukan agar petugas tidak mencampur alur manual dengan bridging BPJS.",
+        "Lengkapi tujuan, diagnosis, dan alasan rujukan dengan istilah yang siap dibaca fasilitas tujuan.",
+        "Untuk BPJS, simpan rujukan bridging dulu sebelum menutup disposisi pasien pulang.",
+      ]}
+      railStatus={referralMode !== "manual" ? (
+        <BPJSStatePanel
+          tone="success"
+          title="Mode bridging aktif"
+          description="Pastikan nomor SEP, PPK, diagnosis, dan tipe rujukan sudah terisi sebelum menyimpan." 
+        />
+      ) : undefined}
+      footer={footer}
+    >
+            <DispositionSection
+              eyebrow="Mode Rujukan"
+              title="Pilih Jalur Rujukan"
+              description="Setiap mode memiliki dokumen dan validasi sendiri. Pilihan dibuat eksplisit agar petugas tidak salah jalur saat memulangkan pasien."
+            >
+              <SelectionCardGrid
                 value={referralMode}
-                onValueChange={(value) => onFormChange("referral_mode", value)}
+                onChange={(value) => onFormChange("referral_mode", value)}
                 disabled={isDisabled}
-                className="space-y-2"
-              >
-                <label
-                  htmlFor="mode-manual"
-                  className={cn(
-                    "flex items-start space-x-3 p-4 rounded-lg border-2 transition-all cursor-pointer",
-                    referralMode === "manual"
-                      ? "border-amber-500 bg-amber-50"
-                      : "border-muted hover:border-amber-300",
-                    isDisabled && "opacity-50 cursor-not-allowed"
-                  )}
-                >
-                  <RadioGroupItem value="manual" id="mode-manual" className="mt-0.5" />
-                  <div className="space-y-1">
-                    <span className="text-sm font-medium">Manual SIMRS</span>
-                    <p className="text-xs text-muted-foreground">Rujukan internal SIMRS tanpa bridging BPJS.</p>
-                  </div>
-                </label>
-
-                <label
-                  htmlFor="mode-v1"
-                  className={cn(
-                    "flex items-start space-x-3 p-4 rounded-lg border-2 transition-all cursor-pointer",
-                    referralMode === "bpjs_v1"
-                      ? "border-blue-500 bg-blue-50"
-                      : "border-muted hover:border-blue-300",
-                    isDisabled && "opacity-50 cursor-not-allowed"
-                  )}
-                >
-                  <RadioGroupItem value="bpjs_v1" id="mode-v1" className="mt-0.5" />
-                  <div className="space-y-1">
-                    <span className="text-sm font-medium">BPJS V1</span>
-                    <p className="text-xs text-muted-foreground">Rujukan VClaim versi 1 untuk alur BPJS.</p>
-                  </div>
-                </label>
-
-                <label
-                  htmlFor="mode-v2"
-                  className={cn(
-                    "flex items-start space-x-3 p-4 rounded-lg border-2 transition-all cursor-pointer",
-                    referralMode === "bpjs_v2"
-                      ? "border-green-500 bg-green-50"
-                      : "border-muted hover:border-green-300",
-                    isDisabled && "opacity-50 cursor-not-allowed"
-                  )}
-                >
-                  <RadioGroupItem value="bpjs_v2" id="mode-v2" className="mt-0.5" />
-                  <div className="space-y-1">
-                    <span className="text-sm font-medium">BPJS V2</span>
-                    <p className="text-xs text-muted-foreground">Rujukan VClaim versi 2 dengan rencana kunjungan.</p>
-                  </div>
-                </label>
-
-                <label
-                  htmlFor="mode-khusus"
-                  className={cn(
-                    "flex items-start space-x-3 p-4 rounded-lg border-2 transition-all cursor-pointer",
-                    referralMode === "bpjs_khusus"
-                      ? "border-purple-500 bg-purple-50"
-                      : "border-muted hover:border-purple-300",
-                    isDisabled && "opacity-50 cursor-not-allowed"
-                  )}
-                >
-                  <RadioGroupItem value="bpjs_khusus" id="mode-khusus" className="mt-0.5" />
-                  <div className="space-y-1">
-                    <span className="text-sm font-medium">BPJS Khusus</span>
-                    <p className="text-xs text-muted-foreground">Rujukan khusus untuk kasus/prosedur tertentu BPJS.</p>
-                  </div>
-                </label>
-              </RadioGroup>
-            </div>
+                columns={4}
+                options={[
+                  {
+                    value: "manual",
+                    title: "Manual SIMRS",
+                    description: "Rujukan internal tanpa bridging BPJS.",
+                    tone: "amber",
+                  },
+                  {
+                    value: "bpjs_v1",
+                    title: "BPJS V1",
+                    description: "Pakai alur VClaim versi 1 untuk rujukan reguler.",
+                    tone: "blue",
+                  },
+                  {
+                    value: "bpjs_v2",
+                    title: "BPJS V2",
+                    description: "Pakai alur VClaim versi 2 dengan rencana kunjungan.",
+                    tone: "green",
+                  },
+                  {
+                    value: "bpjs_khusus",
+                    title: "BPJS Khusus",
+                    description: "Buat rujukan kasus atau prosedur khusus BPJS.",
+                    tone: "rose",
+                  },
+                ]}
+              />
+            </DispositionSection>
 
             {(referralMode === "bpjs_v1" || referralMode === "bpjs_v2" || referralMode === "bpjs_khusus") && (
               <Alert className="bg-blue-50 border-blue-200">
@@ -1565,7 +1734,7 @@ export function ReferralDrawer({
               </div>
               <div className="space-y-2">
                 <Label className="text-sm">Urgensi Rujukan</Label>
-                <Combobox
+                  <Combobox
                   options={[
                     { value: "cito", label: "CITO" },
                     { value: "urgent", label: "Urgent" },
@@ -1577,6 +1746,7 @@ export function ReferralDrawer({
                   searchPlaceholder="Cari..."
                   emptyText="Tidak ditemukan"
                   disabled={isDisabled}
+                    className={BPJS_FIELD_CLASS}
                 />
               </div>
               <div className="space-y-2 md:col-span-2">
@@ -1587,7 +1757,7 @@ export function ReferralDrawer({
                   placeholder="Alasan pasien dirujuk ke fasilitas lain..."
                   value={formData.referral_reason}
                   onChange={(e) => onFormChange("referral_reason", e.target.value)}
-                  className="min-h-[80px] resize-none"
+                  className={DISPOSITION_TEXTAREA_CLASS}
                   disabled={isDisabled}
                 />
               </div>
@@ -1597,7 +1767,7 @@ export function ReferralDrawer({
                   placeholder="Diagnosis dan ringkasan kondisi klinis pasien..."
                   value={formData.referral_diagnosis}
                   onChange={(e) => onFormChange("referral_diagnosis", e.target.value)}
-                  className="min-h-[80px] resize-none"
+                  className={DISPOSITION_TEXTAREA_CLASS}
                   disabled={isDisabled}
                 />
               </div>
@@ -1607,7 +1777,7 @@ export function ReferralDrawer({
                   placeholder="Terapi dan tindakan yang sudah dilakukan..."
                   value={formData.referral_therapy}
                   onChange={(e) => onFormChange("referral_therapy", e.target.value)}
-                  className="min-h-[60px] resize-none"
+                  className={DISPOSITION_TEXTAREA_CLASS}
                   disabled={isDisabled}
                 />
               </div>
@@ -1617,7 +1787,7 @@ export function ReferralDrawer({
                   placeholder="Hasil lab, radiologi, atau pemeriksaan penunjang lainnya..."
                   value={formData.referral_lab_result}
                   onChange={(e) => onFormChange("referral_lab_result", e.target.value)}
-                  className="min-h-[60px] resize-none"
+                  className={DISPOSITION_TEXTAREA_CLASS}
                   disabled={isDisabled}
                 />
               </div>
@@ -1627,7 +1797,7 @@ export function ReferralDrawer({
                   placeholder="Catatan tambahan yang perlu diketahui RS tujuan..."
                   value={formData.referral_notes}
                   onChange={(e) => onFormChange("referral_notes", e.target.value)}
-                  className="min-h-[60px] resize-none"
+                  className={DISPOSITION_TEXTAREA_CLASS}
                   disabled={isDisabled}
                 />
               </div>
@@ -1696,6 +1866,7 @@ export function ReferralDrawer({
                       searchPlaceholder="Cari PPK..."
                       emptyText="PPK tidak ditemukan"
                       disabled={isDisabled}
+                      className={BPJS_FIELD_CLASS}
                     />
                   </div>
 
@@ -1709,6 +1880,7 @@ export function ReferralDrawer({
                       searchPlaceholder="Cari..."
                       emptyText="Tidak ada opsi"
                       disabled={isDisabled}
+                      className={BPJS_FIELD_CLASS}
                     />
                   </div>
                   <div className="space-y-2">
@@ -1721,6 +1893,7 @@ export function ReferralDrawer({
                       searchPlaceholder="Cari..."
                       emptyText="Tidak ada opsi"
                       disabled={isDisabled}
+                      className={BPJS_FIELD_CLASS}
                     />
                   </div>
 
@@ -1775,7 +1948,7 @@ export function ReferralDrawer({
                   <Textarea
                     value={formData.referral_reason}
                     onChange={(e) => onFormChange("referral_reason", e.target.value)}
-                    className="min-h-[70px]"
+                    className={DISPOSITION_TEXTAREA_CLASS}
                     placeholder="Catatan klinis rujukan"
                     disabled={isDisabled}
                   />
@@ -1868,7 +2041,7 @@ export function ReferralDrawer({
                     placeholder="Diagnosis dan ringkasan kondisi klinis pasien..."
                     value={formData.referral_diagnosis}
                     onChange={(e) => onFormChange("referral_diagnosis", e.target.value)}
-                    className="min-h-[80px] resize-none"
+                    className={DISPOSITION_TEXTAREA_CLASS}
                     disabled={isDisabled}
                   />
                 </div>
@@ -1878,7 +2051,7 @@ export function ReferralDrawer({
                     placeholder="Terapi dan tindakan yang sudah dilakukan..."
                     value={formData.referral_therapy}
                     onChange={(e) => onFormChange("referral_therapy", e.target.value)}
-                    className="min-h-[60px] resize-none"
+                    className={DISPOSITION_TEXTAREA_CLASS}
                     disabled={isDisabled}
                   />
                 </div>
@@ -1888,26 +2061,13 @@ export function ReferralDrawer({
                     placeholder="Hasil lab, radiologi, atau pemeriksaan penunjang lainnya..."
                     value={formData.referral_lab_result}
                     onChange={(e) => onFormChange("referral_lab_result", e.target.value)}
-                    className="min-h-[60px] resize-none"
+                    className={DISPOSITION_TEXTAREA_CLASS}
                     disabled={isDisabled}
                   />
                 </div>
               </div>
             )}
-          </div>
-        </ScrollArea>
-
-        <SheetFooter className="border-t px-6 py-4">
-          <div className="flex justify-end gap-3 w-full">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
-            <Button onClick={onSubmit} disabled={saving || isDisabled}>
-              {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-              Simpan Rujukan
-            </Button>
-          </div>
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+    </DispositionSheetShell>
 
     <SearchModal
       open={diagnosaModalOpen}
@@ -2003,21 +2163,36 @@ export function DeathDrawer({
   saving,
   isDisabled,
 }: DeathDrawerProps) {
-  return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full sm:w-1/2 sm:max-w-none p-0 flex flex-col">
-        <SheetHeader className="border-b px-6 py-4">
-          <div className="flex items-center gap-3">
-            <FileText className="h-5 w-5 text-gray-600" />
-            <div>
-              <SheetTitle>Meninggal</SheetTitle>
-              <SheetDescription>Pasien meninggal dunia</SheetDescription>
-            </div>
-          </div>
-        </SheetHeader>
+  const footer = (
+    <div className="flex w-full justify-end gap-3">
+      <Button variant="outline" onClick={() => onOpenChange(false)} className="rounded-none border-border/70">
+        Batal
+      </Button>
+      <Button onClick={onSubmit} disabled={saving || isDisabled} className="rounded-none">
+        {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+        Simpan
+      </Button>
+    </div>
+  );
 
-        <ScrollArea className="flex-1 px-6 py-4">
-          <div className="space-y-6">
+  return (
+    <DispositionSheetShell
+      open={open}
+      onOpenChange={onOpenChange}
+      eyebrow="Pasien Pulang"
+      title="Dokumentasi Kematian"
+      description="Catat waktu meninggal dan sebab klinis secara ringkas sebelum dokumen lanjutan dilengkapi di surat kematian."
+      icon={FileText}
+      metaLabel="DEATH"
+      railTitle="Checklist Kematian"
+      railDescription="Field tetap dipertahankan, tetapi drawer dibuat lebih fokus dengan rel panduan untuk memastikan pencatatan awal tidak terlewat." 
+      railPoints={[
+        "Isi waktu kematian terlebih dahulu agar kronologi kunjungan tetap konsisten.",
+        "Tuliskan sebab kematian klinis secara ringkas namun dapat dipahami tim berikutnya.",
+        "Lanjutkan detail formal pada tab surat kematian setelah drawer ini disimpan.",
+      ]}
+      footer={footer}
+    >
             <Alert className="border-muted-foreground/20 bg-muted/30">
               <AlertDescription className="text-sm text-muted-foreground">
                 Untuk detail lengkap surat kematian (penyebab ICD-10, saksi, dll), silakan buka tab <strong>"Surat Kematian"</strong> di menu sebelah kiri.
@@ -2039,25 +2214,12 @@ export function DeathDrawer({
                   placeholder="Penyebab kematian pasien..."
                   value={formData.death_cause}
                   onChange={(e) => onFormChange("death_cause", e.target.value)}
-                  className="min-h-[80px] resize-none"
+                  className={DISPOSITION_TEXTAREA_CLASS}
                   disabled={isDisabled}
                 />
               </div>
             </div>
-          </div>
-        </ScrollArea>
-
-        <SheetFooter className="border-t px-6 py-4">
-          <div className="flex justify-end gap-3 w-full">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
-            <Button onClick={onSubmit} disabled={saving || isDisabled}>
-              {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-              Simpan
-            </Button>
-          </div>
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+    </DispositionSheetShell>
   );
 }
 
@@ -2090,21 +2252,47 @@ export function OutpatientTransferDrawer({
   availableDoctors,
   loadingDoctors,
 }: OutpatientTransferDrawerProps) {
-  return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full sm:w-1/2 sm:max-w-none p-0 flex flex-col">
-        <SheetHeader className="border-b px-6 py-4">
-          <div className="flex items-center gap-3">
-            <Hospital className="h-5 w-5 text-blue-600" />
-            <div>
-              <SheetTitle>Rujuk ke Rawat Jalan</SheetTitle>
-              <SheetDescription>Pasien tidak gawat darurat, dirujuk ke poli rawat jalan</SheetDescription>
-            </div>
-          </div>
-        </SheetHeader>
+  const footer = (
+    <div className="flex w-full justify-end gap-3">
+      <Button variant="outline" onClick={() => onOpenChange(false)} className="rounded-none border-border/70">
+        Batal
+      </Button>
+      <Button
+        onClick={onSubmit}
+        disabled={saving || isDisabled || !(formData as any).outpatient_room_id || !(formData as any).outpatient_doctor_id}
+        className="rounded-none"
+      >
+        {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+        Transfer ke Rawat Jalan
+      </Button>
+    </div>
+  );
 
-        <ScrollArea className="flex-1 px-6 py-4">
-          <div className="space-y-6">
+  return (
+    <DispositionSheetShell
+      open={open}
+      onOpenChange={onOpenChange}
+      eyebrow="Pasien Pulang"
+      title="Transfer ke Rawat Jalan"
+      description="Alihkan pasien dari UGD ke poli rawat jalan dengan pilihan poli dan dokter yang lebih jelas untuk petugas triase dan pendaftaran."
+      icon={Hospital}
+      metaLabel="TRANSFER"
+      railTitle="Checklist Transfer"
+      railDescription="Drawer transfer kini memakai rel panduan di kiri agar petugas tetap melihat konteks billing dan antrian sambil mengisi field yang sama." 
+      railPoints={[
+        "Pilih poli tujuan lebih dulu agar daftar dokter yang muncul benar-benar relevan.",
+        "Tentukan dokter tujuan sebelum catatan transfer ditulis agar ringkasan lebih akurat.",
+        "Gunakan alasan rujuk dan catatan tambahan untuk menjelaskan konteks klinis perpindahan pasien.",
+      ]}
+      railStatus={(formData as any).outpatient_room_id && (formData as any).outpatient_doctor_id ? (
+        <BPJSStatePanel
+          tone="success"
+          title="Transfer siap dikirim"
+          description="Poli dan dokter sudah dipilih, sehingga antrian rawat jalan bisa dibuat otomatis setelah submit." 
+        />
+      ) : undefined}
+      footer={footer}
+    >
             <Alert className="bg-blue-50 border-blue-200">
               <Send className="h-4 w-4 text-blue-600" />
               <AlertDescription className="text-blue-700">
@@ -2129,6 +2317,7 @@ export function OutpatientTransferDrawer({
                 searchPlaceholder="Cari poli..."
                 emptyText="Poli tidak ditemukan"
                 disabled={isDisabled}
+                className={BPJS_FIELD_CLASS}
               />
             </div>
 
@@ -2181,7 +2370,7 @@ export function OutpatientTransferDrawer({
                 placeholder="Alasan pasien dirujuk ke rawat jalan..."
                 value={(formData as any).transfer_reason || ""}
                 onChange={(e) => onFormChange("transfer_reason", e.target.value)}
-                className="min-h-[80px] resize-none"
+                className={DISPOSITION_TEXTAREA_CLASS}
                 disabled={isDisabled}
               />
             </div>
@@ -2193,7 +2382,7 @@ export function OutpatientTransferDrawer({
                 placeholder="Catatan tambahan..."
                 value={formData.disposition_note}
                 onChange={(e) => onFormChange("disposition_note", e.target.value)}
-                className="min-h-[60px] resize-none"
+                className={DISPOSITION_TEXTAREA_CLASS}
                 disabled={isDisabled}
               />
             </div>
@@ -2213,22 +2402,6 @@ export function OutpatientTransferDrawer({
                 </AlertDescription>
               </Alert>
             )}
-          </div>
-        </ScrollArea>
-
-        <SheetFooter className="border-t px-6 py-4">
-          <div className="flex justify-end gap-3 w-full">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
-            <Button 
-              onClick={onSubmit} 
-              disabled={saving || isDisabled || !(formData as any).outpatient_room_id || !(formData as any).outpatient_doctor_id}
-            >
-              {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
-              Transfer ke Rawat Jalan
-            </Button>
-          </div>
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+    </DispositionSheetShell>
   );
 }

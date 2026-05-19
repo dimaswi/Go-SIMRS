@@ -241,7 +241,7 @@ export default function LoginPage() {
   const [savedAccounts, setSavedAccounts] = useState<SavedAuthAccount[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [appName, setAppName] = useState('StarterKits');
+  const [appName, setAppName] = useState('SIMRS');
   const [appLogo, setAppLogo] = useState('');
   const [appSubtitle, setAppSubtitle] = useState('');
 

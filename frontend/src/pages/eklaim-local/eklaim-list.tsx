@@ -5,7 +5,6 @@ import { PageShell, PageHeader, PageContent } from '@/components/layout/page-she
 import { DataTable } from '@/components/ui/data-table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import {
   Dialog,
   DialogContent,
@@ -25,9 +24,10 @@ import { eklaimLocalApi, eklaimLocalStatusLabels, eklaimLocalStatusColors } from
 import type { EKlaimLocal, EKlaimLocalStatus } from '@/lib/api/eklaim-local';
 import { useToast } from '@/hooks/use-toast';
 import { setPageTitle } from '@/lib/page-title';
-import { Loader2, Eye, FilterX, SlidersHorizontal, Search, UserRoundPen, Printer } from 'lucide-react';
+import { Loader2, Eye, FilterX, SlidersHorizontal, UserRoundPen } from 'lucide-react';
 import { format } from 'date-fns';
 import { id as localeId } from 'date-fns/locale';
+import { Input } from '@/components/ui/input';
 
 const ALL = 'all';
 
@@ -50,7 +50,6 @@ export default function EklaimListPage() {
   const [tglFrom, setTglFrom] = useState('');
   const [tglTo, setTglTo] = useState('');
 
-  const [draftSearchTerm, setDraftSearchTerm] = useState('');
   const [draftStatusFilter, setDraftStatusFilter] = useState<string>(ALL);
   const [draftJenisRawatFilter, setDraftJenisRawatFilter] = useState<string>(ALL);
   const [draftKelasRawatFilter, setDraftKelasRawatFilter] = useState<string>(ALL);
@@ -64,15 +63,14 @@ export default function EklaimListPage() {
   useEffect(() => {
     if (!filterDialogOpen) return;
 
-    setDraftSearchTerm(searchTerm);
     setDraftStatusFilter(statusFilter);
     setDraftJenisRawatFilter(jenisRawatFilter);
     setDraftKelasRawatFilter(kelasRawatFilter);
     setDraftTglFrom(tglFrom);
     setDraftTglTo(tglTo);
-  }, [filterDialogOpen, searchTerm, statusFilter, jenisRawatFilter, kelasRawatFilter, tglFrom, tglTo]);
+  }, [filterDialogOpen, statusFilter, jenisRawatFilter, kelasRawatFilter, tglFrom, tglTo]);
 
-  const hasActiveFilters = statusFilter !== ALL || jenisRawatFilter !== ALL || kelasRawatFilter !== ALL || tglFrom !== '' || tglTo !== '' || searchTerm !== '';
+  const hasActiveFilters = statusFilter !== ALL || jenisRawatFilter !== ALL || kelasRawatFilter !== ALL || tglFrom !== '' || tglTo !== '';
 
   const resetFilters = () => {
     setSearchTerm('');
@@ -121,51 +119,60 @@ export default function EklaimListPage() {
 
   const columns: ColumnDef<EKlaimLocal>[] = useMemo(() => [
     {
-      accessorKey: 'no_sep',
-      header: 'No. SEP',
+      id: 'claim_identity',
+      header: 'Klaim',
       cell: ({ row }) => (
-        <span className="font-mono text-sm">{row.original.no_sep}</span>
+        <div className="min-w-0 space-y-1">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">No. SEP</p>
+          <p className="max-w-[190px] break-all font-mono text-xs font-semibold leading-snug text-foreground">
+            {row.original.no_sep || '-'}
+          </p>
+        </div>
       ),
     },
     {
       accessorKey: 'nama_pasien',
       header: 'Pasien',
       cell: ({ row }) => (
-        <div>
-          <p className="font-medium">{row.original.nama_pasien}</p>
-          <p className="text-xs text-muted-foreground font-mono">{row.original.no_kartu}</p>
+        <div className="min-w-0 space-y-1">
+          <p className="max-w-[240px] truncate text-sm font-semibold leading-tight">{row.original.nama_pasien}</p>
+          <p className="font-mono text-xs text-muted-foreground">{row.original.no_kartu}</p>
         </div>
       ),
     },
     {
-      accessorKey: 'jenis_rawat',
-      header: 'Jenis',
+      id: 'care_type',
+      header: 'Rawat',
       cell: ({ row }) => {
         const jr = row.original.jenis_rawat;
+        const kr = row.original.kelas_rawat;
         return (
-          <Badge variant="outline">
-            {jr === '1' ? 'Ranap' : jr === '2' ? 'Rajal' : jr || '-'}
-          </Badge>
+          <div className="flex min-w-[92px] flex-col items-start gap-1.5">
+            <Badge variant="outline" className="h-6 rounded-md px-2 text-[11px]">
+              {jr === '1' ? 'Ranap' : jr === '2' ? 'Rajal' : jr || '-'}
+            </Badge>
+            <span className="whitespace-nowrap text-xs text-muted-foreground">
+              {kr ? `Kelas ${kr}` : 'Kelas -'}
+            </span>
+          </div>
         );
       },
     },
     {
-      accessorKey: 'kelas_rawat',
-      header: 'Kelas',
-      cell: ({ row }) => {
-        const kr = row.original.kelas_rawat;
-        return kr ? <span className="text-sm">Kelas {kr}</span> : <span className="text-muted-foreground">-</span>;
-      },
-    },
-    {
-      accessorKey: 'tgl_masuk',
-      header: 'Tgl Masuk',
-      cell: ({ row }) => <span className="text-sm">{formatDate(row.original.tgl_masuk)}</span>,
-    },
-    {
-      accessorKey: 'tgl_pulang',
-      header: 'Tgl Pulang',
-      cell: ({ row }) => <span className="text-sm">{formatDate(row.original.tgl_pulang)}</span>,
+      id: 'period',
+      header: 'Periode',
+      cell: ({ row }) => (
+        <div className="min-w-[118px] space-y-1 text-xs">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-muted-foreground">Masuk</span>
+            <span className="whitespace-nowrap font-medium">{formatDate(row.original.tgl_masuk)}</span>
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-muted-foreground">Pulang</span>
+            <span className="whitespace-nowrap font-medium">{formatDate(row.original.tgl_pulang)}</span>
+          </div>
+        </div>
+      ),
     },
     {
       accessorKey: 'status',
@@ -173,7 +180,7 @@ export default function EklaimListPage() {
       cell: ({ row }) => {
         const status = row.original.status as EKlaimLocalStatus;
         return (
-          <Badge className={eklaimLocalStatusColors[status] || ''}>
+          <Badge className={`${eklaimLocalStatusColors[status] || ''} whitespace-nowrap`}>
             {eklaimLocalStatusLabels[status] || status}
           </Badge>
         );
@@ -188,10 +195,14 @@ export default function EklaimListPage() {
         const desc = d.inacbg_cbg_description || d.idrg_description || d.cbg_description;
         const source = d.inacbg_cbg_code ? 'INACBG' : d.idrg_code ? 'iDRG' : d.cbg_code ? 'CBG' : '';
         return code ? (
-          <div>
-            <p className="font-mono text-sm font-medium">{code}</p>
-            <p className="text-xs text-muted-foreground truncate max-w-[200px]">{desc}</p>
-            {source && <Badge variant="outline" className="text-[10px] mt-0.5">{source}</Badge>}
+          <div className="min-w-0 space-y-1">
+            <div className="flex max-w-[260px] items-center gap-2">
+              <p className="truncate font-mono text-sm font-semibold">{code}</p>
+              {source && <Badge variant="outline" className="h-5 shrink-0 rounded-md px-1.5 text-[10px]">{source}</Badge>}
+            </div>
+            <p className="max-w-[260px] truncate text-xs leading-relaxed text-muted-foreground" title={desc || undefined}>
+              {desc || '-'}
+            </p>
           </div>
         ) : (
           <span className="text-muted-foreground">-</span>
@@ -206,7 +217,7 @@ export default function EklaimListPage() {
         const tarif = d.inacbg_tariff ? parseFloat(d.inacbg_tariff) : (d.cbg_tariff || 0);
         const costWeight = d.idrg_cost_weight;
         return (
-          <div className="font-mono text-sm">
+          <div className="min-w-[112px] text-right font-mono text-sm">
             {tarif > 0 ? (
               <p className="font-medium">{formatCurrency(tarif)}</p>
             ) : costWeight ? (
@@ -220,13 +231,13 @@ export default function EklaimListPage() {
     },
     {
       id: 'rm_actions',
-      header: 'Aksi Rekam Medis',
+      header: 'Aksi',
       cell: ({ row }) => (
-        <div className="flex items-center gap-1">
+        <div className="flex min-w-[80px] items-center justify-end gap-1.5">
           <Button
             variant="outline"
             size="sm"
-            className="h-8 px-2"
+            className="h-8 w-8 px-0"
             title="Edit Rekam Medis Casemix"
             onClick={() => navigate(`/eklaim/data-klaim/${row.original.id}/rekam-medis`)}
           >
@@ -235,16 +246,8 @@ export default function EklaimListPage() {
           <Button
             variant="outline"
             size="sm"
-            className="h-8 px-2"
-            title="Lihat Cetakan Berkas"
-            onClick={() => navigate(`/eklaim/data-klaim/${row.original.id}/cetakan`)}
-          >
-            <Printer className="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 px-2"
+            className="h-8 w-8 px-0"
+            title="Detail Klaim"
             onClick={() => navigate(`/eklaim/data-klaim/${row.original.id}`)}
           >
             <Eye className="h-3.5 w-3.5" />
@@ -261,7 +264,7 @@ export default function EklaimListPage() {
         description="Daftar klaim lokal BPJS beserta hasil grouper dan tarif"
         count={total}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             {hasActiveFilters && (
               <Button variant="ghost" size="sm" className="h-9 text-muted-foreground" onClick={resetFilters}>
                 <FilterX className="mr-1 h-4 w-4" /> Reset
@@ -282,27 +285,12 @@ export default function EklaimListPage() {
             <div className="border-b border-border bg-muted/20 px-4 py-4">
               <DialogTitle>Filter Data Klaim</DialogTitle>
               <DialogDescription className="mt-1">
-                Saring data klaim berdasarkan pencarian, status, jenis rawat, kelas rawat, dan tanggal masuk.
+                Saring data klaim berdasarkan status, jenis rawat, kelas rawat, dan tanggal masuk.
               </DialogDescription>
             </div>
           </DialogHeader>
 
           <div className="divide-y divide-border">
-            <div className="grid gap-3 px-4 py-3 md:grid-cols-[170px_minmax(0,1fr)] md:items-start">
-              <div>
-                <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Pencarian</p>
-              </div>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Cari No. SEP, nama pasien, no. BPJS, kode CBG/iDRG..."
-                  value={draftSearchTerm}
-                  onChange={(e) => setDraftSearchTerm(e.target.value)}
-                  className="pl-9"
-                />
-              </div>
-            </div>
-
             <div className="grid gap-3 px-4 py-3 md:grid-cols-[170px_minmax(0,1fr)] md:items-start">
               <div>
                 <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Status</p>
@@ -379,7 +367,6 @@ export default function EklaimListPage() {
               size="sm"
               className="h-8 px-2 text-xs"
               onClick={() => {
-                setDraftSearchTerm('');
                 setDraftStatusFilter(ALL);
                 setDraftJenisRawatFilter(ALL);
                 setDraftKelasRawatFilter(ALL);
@@ -396,7 +383,6 @@ export default function EklaimListPage() {
               size="sm"
               className="h-8 text-xs"
               onClick={() => {
-                setSearchTerm(draftSearchTerm);
                 setStatusFilter(draftStatusFilter);
                 setJenisRawatFilter(draftJenisRawatFilter);
                 setKelasRawatFilter(draftKelasRawatFilter);
@@ -416,22 +402,31 @@ export default function EklaimListPage() {
           <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
             Daftar Klaim E-Klaim Lokal
           </div>
-          <div className="p-3 sm:p-4">
-            {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <div className="relative p-3 sm:p-4">
+            {loading && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/70 backdrop-blur-[1px]">
+                <div className="flex items-center gap-2 rounded-md border border-border/70 bg-background px-3 py-2 text-sm text-muted-foreground shadow-sm">
+                  <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                  Memuat data klaim...
+                </div>
               </div>
-            ) : (
+            )}
+            <div className={loading ? "pointer-events-none" : undefined}>
               <DataTable
                 columns={columns}
                 data={data}
-                searchPlaceholder="Cari No. SEP, nama pasien, kode..."
+                searchPlaceholder="Cari No. SEP, pasien, no. BPJS, kode..."
                 pageSize={20}
                 tableId="eklaim-local-list"
-                showSearch={false}
+                showSearch={true}
                 showPagination={true}
+                globalFilterValue={searchTerm}
+                onGlobalFilterValueChange={(value) => {
+                  setSearchTerm(value);
+                  setPage(1);
+                }}
               />
-            )}
+            </div>
           </div>
         </div>
       </PageContent>

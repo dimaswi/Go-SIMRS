@@ -36,7 +36,7 @@ const BASE_URL = getBaseUrl();
 export default function SettingsPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [appName, setAppName] = useState("StarterKits");
+  const [appName, setAppName] = useState("SIMRS");
   const [appSubtitle, setAppSubtitle] = useState("Hospital System");
   const [appLogo, setAppLogo] = useState("");
   const [appFavicon, setAppFavicon] = useState("");
@@ -331,7 +331,7 @@ export default function SettingsPage() {
                         id="appName"
                         value={appName}
                         onChange={(e) => setAppName(e.target.value)}
-                        placeholder="StarterKits"
+                        placeholder="SIMRS"
                       />
                       <p className="text-[10px] text-muted-foreground">Muncul di sidebar dan judul halaman</p>
                     </div>

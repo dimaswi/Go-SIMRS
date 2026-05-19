@@ -1380,3 +1380,4 @@ func SendAllLabResourcesToSatuSehat(c *gin.Context) {
 		"results": results,
 	})
 }
+

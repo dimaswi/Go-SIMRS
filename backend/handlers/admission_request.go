@@ -419,7 +419,7 @@ func ProcessAdmissionRequest(c *gin.Context) {
 	})
 
 	// Update Aplicare bed availability (async, after response)
-	bpjsService.UpdateRoomBedAvailability(input.RoomID)
+	bpjsService.UpdateRoomBedAvailability(input.RoomID, "admission_request_approved")
 }
 
 // RejectAdmissionRequest rejects an admission request

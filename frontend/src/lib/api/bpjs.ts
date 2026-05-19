@@ -344,8 +344,8 @@ export const bpjsApi = {
     api.get<{ data: AplicareRoom[] }>('/bpjs/aplicare/rooms'),
 
   // Daftarkan ruangan baru ke Aplicare
-  aplicareCreateRoom: (roomId: number) =>
-    api.post<{ message: string; data: AplicareBedRequest }>('/bpjs/aplicare/bed/create', { room_id: roomId }),
+  aplicareCreateRoom: (payload: AplicareCreateRoomPayload | number) =>
+    api.post<{ message: string; data: AplicareBedRequest }>('/bpjs/aplicare/bed/create', typeof payload === 'number' ? { room_id: payload } : payload),
 
   // Update ketersediaan tempat tidur
   aplicareUpdateRoom: (roomId: number) =>
@@ -578,6 +578,10 @@ export interface AplicareBedRequest {
   tersediapria: string;
   tersediawanita: string;
   tersediapriawanita: string;
+}
+
+export interface AplicareCreateRoomPayload extends Partial<AplicareBedRequest> {
+  room_id: number;
 }
 
 export interface AplicareRoom {

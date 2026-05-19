@@ -16,8 +16,7 @@ func GetFallRiskAssessments(c *gin.Context) {
 	visitID := c.Param("id")
 
 	var records []models.FallRiskAssessment
-	query := database.DB.
-		Where("visit_id = ?", visitID).
+	query := scopedRMQuery(c, visitID).
 		Preload("AssessedBy").
 		Order("record_date DESC, created_at DESC")
 
@@ -39,8 +38,8 @@ func GetFallRiskAssessment(c *gin.Context) {
 	assessmentID := c.Param("assessmentId")
 
 	var record models.FallRiskAssessment
-	if err := database.DB.
-		Where("visit_id = ? AND id = ?", visitID, assessmentID).
+	if err := scopedRMQuery(c, visitID).
+		Where("id = ?", assessmentID).
 		Preload("AssessedBy").
 		First(&record).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Data pengkajian risiko jatuh tidak ditemukan"})
@@ -53,6 +52,7 @@ func GetFallRiskAssessment(c *gin.Context) {
 // CreateFallRiskAssessment creates a new fall risk assessment
 func CreateFallRiskAssessment(c *gin.Context) {
 	visitID := c.Param("id")
+	isCasemix := c.Query("is_casemix") == "true"
 	userIDVal, _ := c.Get("userID")
 	userID, _ := userIDVal.(uint)
 
@@ -89,15 +89,17 @@ func CreateFallRiskAssessment(c *gin.Context) {
 	}
 
 	assessment := models.FallRiskAssessment{
-		VisitID:      uint(visitIDUint),
-		RecordDate:   recordDate,
-		ScaleType:    input.ScaleType,
-		ItemsJSON:    input.ItemsJSON,
-		TotalScore:   input.TotalScore,
-		RiskLevel:    input.RiskLevel,
-		RiskAction:   input.RiskAction,
-		Notes:        input.Notes,
-		AssessedByID: assessedByID,
+		VisitID:         uint(visitIDUint),
+		IsCasemix:       isCasemix,
+		CasemixEklaimID: getCasemixEklaimID(c),
+		RecordDate:      recordDate,
+		ScaleType:       input.ScaleType,
+		ItemsJSON:       input.ItemsJSON,
+		TotalScore:      input.TotalScore,
+		RiskLevel:       input.RiskLevel,
+		RiskAction:      input.RiskAction,
+		Notes:           input.Notes,
+		AssessedByID:    assessedByID,
 	}
 
 	if err := database.DB.Create(&assessment).Error; err != nil {
@@ -116,8 +118,8 @@ func UpdateFallRiskAssessment(c *gin.Context) {
 	assessmentID := c.Param("assessmentId")
 
 	var assessment models.FallRiskAssessment
-	if err := database.DB.
-		Where("visit_id = ? AND id = ?", visitID, assessmentID).
+	if err := scopedRMQuery(c, visitID).
+		Where("id = ?", assessmentID).
 		First(&assessment).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Data pengkajian risiko jatuh tidak ditemukan"})
 		return
@@ -169,8 +171,8 @@ func DeleteFallRiskAssessment(c *gin.Context) {
 	assessmentID := c.Param("assessmentId")
 
 	var assessment models.FallRiskAssessment
-	if err := database.DB.
-		Where("visit_id = ? AND id = ?", visitID, assessmentID).
+	if err := scopedRMQuery(c, visitID).
+		Where("id = ?", assessmentID).
 		First(&assessment).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Data pengkajian risiko jatuh tidak ditemukan"})
 		return

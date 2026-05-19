@@ -3,6 +3,10 @@ package bpjs
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"strconv"
+	"time"
 )
 
 // ===============================
@@ -43,6 +47,86 @@ type ListResponse struct {
 	List json.RawMessage `json:"list"`
 }
 
+type referensiEnvelope struct {
+	MetaData struct {
+		Code    interface{} `json:"code"`
+		Message string      `json:"message"`
+	} `json:"metadata"`
+	Response interface{} `json:"response"`
+}
+
+func (c *Client) requestReferensiList(endpoint string) (json.RawMessage, error) {
+	timestamp := strconv.FormatInt(time.Now().Unix(), 10)
+	signature := c.GenerateSignature(timestamp)
+
+	req, err := http.NewRequest("GET", c.BaseURL+endpoint, nil)
+	if err != nil {
+		return nil, fmt.Errorf("create referensi request: %w", err)
+	}
+
+	req.Header.Set("X-cons-id", c.ConsID)
+	req.Header.Set("X-timestamp", timestamp)
+	req.Header.Set("X-signature", signature)
+	req.Header.Set("user_key", c.UserKey)
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("execute referensi request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read referensi response: %w", err)
+	}
+
+	if resp.StatusCode >= http.StatusBadRequest {
+		return nil, fmt.Errorf("server BPJS mengembalikan status: %d", resp.StatusCode)
+	}
+
+	var envelope referensiEnvelope
+	if err := json.Unmarshal(body, &envelope); err != nil {
+		return nil, fmt.Errorf("parse referensi envelope: %w", err)
+	}
+
+	code := 0
+	switch v := envelope.MetaData.Code.(type) {
+	case float64:
+		code = int(v)
+	case string:
+		code, _ = strconv.Atoi(v)
+	case int:
+		code = v
+	}
+
+	if code != 1 && code != 200 {
+		return nil, fmt.Errorf("BPJS error [%d]: %s", code, envelope.MetaData.Message)
+	}
+
+	var responseBody []byte
+	switch v := envelope.Response.(type) {
+	case string:
+		decrypted, err := c.DecryptResponse(v, timestamp)
+		if err != nil {
+			return nil, fmt.Errorf("decrypt referensi response: %w", err)
+		}
+		responseBody = decrypted
+	default:
+		responseBody, err = json.Marshal(v)
+		if err != nil {
+			return nil, fmt.Errorf("marshal referensi response: %w", err)
+		}
+	}
+
+	var listResp ListResponse
+	if err := json.Unmarshal(responseBody, &listResp); err == nil && len(listResp.List) > 0 {
+		return listResp.List, nil
+	}
+
+	return responseBody, nil
+}
+
 // ===============================
 // REFERENSI ENDPOINTS
 // ===============================
@@ -50,24 +134,13 @@ type ListResponse struct {
 // GetReferensiPoli mengambil semua data poli dari BPJS
 // GET {BASE URL}/{Service Name}/ref/poli
 func (c *Client) GetReferensiPoli() ([]BPJSPoli, error) {
-	respBody, _, err := c.Request("GET", "/ref/poli", nil)
+	respBody, err := c.requestReferensiList("/ref/poli")
 	if err != nil {
 		return nil, err
 	}
 
-	// Parse response
-	var listResp ListResponse
-	if err := json.Unmarshal(respBody, &listResp); err != nil {
-		// Mungkin langsung array
-		var polis []BPJSPoli
-		if err := json.Unmarshal(respBody, &polis); err != nil {
-			return nil, fmt.Errorf("parse poli response: %w", err)
-		}
-		return polis, nil
-	}
-
 	var polis []BPJSPoli
-	if err := json.Unmarshal(listResp.List, &polis); err != nil {
+	if err := json.Unmarshal(respBody, &polis); err != nil {
 		return nil, fmt.Errorf("parse poli list: %w", err)
 	}
 
@@ -77,23 +150,13 @@ func (c *Client) GetReferensiPoli() ([]BPJSPoli, error) {
 // GetReferensiDokter mengambil semua data dokter dari BPJS
 // GET {BASE URL}/{Service Name}/ref/dokter
 func (c *Client) GetReferensiDokter() ([]BPJSDokter, error) {
-	respBody, _, err := c.Request("GET", "/ref/dokter", nil)
+	respBody, err := c.requestReferensiList("/ref/dokter")
 	if err != nil {
 		return nil, err
 	}
 
-	// Parse response
-	var listResp ListResponse
-	if err := json.Unmarshal(respBody, &listResp); err != nil {
-		var dokters []BPJSDokter
-		if err := json.Unmarshal(respBody, &dokters); err != nil {
-			return nil, fmt.Errorf("parse dokter response: %w", err)
-		}
-		return dokters, nil
-	}
-
 	var dokters []BPJSDokter
-	if err := json.Unmarshal(listResp.List, &dokters); err != nil {
+	if err := json.Unmarshal(respBody, &dokters); err != nil {
 		return nil, fmt.Errorf("parse dokter list: %w", err)
 	}
 
@@ -106,23 +169,13 @@ func (c *Client) GetReferensiDokter() ([]BPJSDokter, error) {
 func (c *Client) GetJadwalDokter(kodePoli, tanggal string) ([]BPJSJadwalDokter, error) {
 	endpoint := fmt.Sprintf("/jadwaldokter/kodepoli/%s/tanggal/%s", kodePoli, tanggal)
 
-	respBody, _, err := c.Request("GET", endpoint, nil)
+	respBody, err := c.requestReferensiList(endpoint)
 	if err != nil {
 		return nil, err
 	}
 
-	// Parse response
-	var listResp ListResponse
-	if err := json.Unmarshal(respBody, &listResp); err != nil {
-		var jadwals []BPJSJadwalDokter
-		if err := json.Unmarshal(respBody, &jadwals); err != nil {
-			return nil, fmt.Errorf("parse jadwal response: %w", err)
-		}
-		return jadwals, nil
-	}
-
 	var jadwals []BPJSJadwalDokter
-	if err := json.Unmarshal(listResp.List, &jadwals); err != nil {
+	if err := json.Unmarshal(respBody, &jadwals); err != nil {
 		return nil, fmt.Errorf("parse jadwal list: %w", err)
 	}
 

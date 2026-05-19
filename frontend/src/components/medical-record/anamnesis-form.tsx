@@ -209,7 +209,10 @@ export function AnamnesisForm({
 
   // Load patient allergies
   const loadAllergies = useCallback(async () => {
-    if (useExternalData || !patientId) return;
+    if (useExternalData || !patientId) {
+      setLoadingAllergies(false);
+      return;
+    }
     try {
       setLoadingAllergies(true);
       const response = await patientAllergyApi.getByPatient(patientId);

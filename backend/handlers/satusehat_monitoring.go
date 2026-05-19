@@ -30,7 +30,7 @@ func GetEncounterSatuSehatStatus(c *gin.Context) {
 
 	// ========== DIAGNOSIS ==========
 	var diagnoses []models.Diagnosis
-	database.DB.Where("visit_id = ?", visitID).Order("type ASC").Find(&diagnoses)
+	originalRMVisitQuery(visitID).Order("type ASC").Find(&diagnoses)
 
 	diagnosisItems := []gin.H{}
 	diagnosisSentCount := 0
@@ -55,7 +55,7 @@ func GetEncounterSatuSehatStatus(c *gin.Context) {
 
 	// ========== VITAL SIGNS ==========
 	var physicalExam models.PhysicalExamination
-	database.DB.Where("visit_id = ?", visitID).First(&physicalExam)
+	originalRMVisitQuery(visitID).First(&physicalExam)
 
 	vitalItems := []gin.H{}
 	if physicalExam.ID > 0 {
@@ -87,7 +87,7 @@ func GetEncounterSatuSehatStatus(c *gin.Context) {
 
 	// ========== PROCEDURES ==========
 	var procedures []models.VisitProcedure
-	database.DB.Where("visit_id = ?", visitID).Preload("Procedure").Find(&procedures)
+	originalRMVisitQuery(visitID).Preload("Procedure").Find(&procedures)
 
 	procedureItems := []gin.H{}
 	procedureSentCount := 0
@@ -117,7 +117,7 @@ func GetEncounterSatuSehatStatus(c *gin.Context) {
 	var procedureOrderItems []models.ProcedureOrderItem
 	database.DB.Preload("Procedure").Preload("ProcedureOrder").Preload("Results").
 		Joins("JOIN procedure_orders ON procedure_orders.id = procedure_order_items.procedure_order_id").
-		Where("procedure_orders.source_visit_id = ?", visitID).
+		Where("procedure_orders.source_visit_id = ? AND procedure_orders.is_casemix = ?", visitID, false).
 		Where("procedure_orders.order_type IN ?", []string{"laboratory", "radiology"}).
 		Find(&procedureOrderItems)
 
@@ -170,18 +170,18 @@ func GetEncounterSatuSehatStatus(c *gin.Context) {
 	var medicationTotal, medicationSent int64
 	database.DB.Table("medicine_order_items").
 		Joins("JOIN medicine_orders ON medicine_orders.id = medicine_order_items.medicine_order_id").
-		Where("medicine_orders.source_visit_id = ?", visitID).
+		Where("medicine_orders.source_visit_id = ? AND medicine_orders.is_casemix = ?", visitID, false).
 		Count(&medicationTotal)
 	database.DB.Table("medicine_order_items").
 		Joins("JOIN medicine_orders ON medicine_orders.id = medicine_order_items.medicine_order_id").
-		Where("medicine_orders.source_visit_id = ? AND medicine_order_items.satusehat_medication_request_id != ''", visitID).
+		Where("medicine_orders.source_visit_id = ? AND medicine_orders.is_casemix = ? AND medicine_order_items.satusehat_medication_request_id != ''", visitID, false).
 		Count(&medicationSent)
 
 	// Load medication items detail
 	var medications []models.MedicineOrderItem
 	database.DB.Preload("Medicine").
 		Joins("JOIN medicine_orders ON medicine_orders.id = medicine_order_items.medicine_order_id").
-		Where("medicine_orders.source_visit_id = ?", visitID).
+		Where("medicine_orders.source_visit_id = ? AND medicine_orders.is_casemix = ?", visitID, false).
 		Find(&medications)
 
 	medicationItems := []gin.H{}
@@ -207,18 +207,18 @@ func GetEncounterSatuSehatStatus(c *gin.Context) {
 	var dispenseTotal, dispenseSent int64
 	database.DB.Table("medicine_order_items").
 		Joins("JOIN medicine_orders ON medicine_orders.id = medicine_order_items.medicine_order_id").
-		Where("medicine_orders.source_visit_id = ? AND medicine_order_items.dispensed_qty > 0", visitID).
+		Where("medicine_orders.source_visit_id = ? AND medicine_orders.is_casemix = ? AND medicine_order_items.dispensed_qty > 0", visitID, false).
 		Count(&dispenseTotal)
 	database.DB.Table("medicine_order_items").
 		Joins("JOIN medicine_orders ON medicine_orders.id = medicine_order_items.medicine_order_id").
-		Where("medicine_orders.source_visit_id = ? AND medicine_order_items.dispensed_qty > 0 AND medicine_order_items.satusehat_medication_dispense_id != ''", visitID).
+		Where("medicine_orders.source_visit_id = ? AND medicine_orders.is_casemix = ? AND medicine_order_items.dispensed_qty > 0 AND medicine_order_items.satusehat_medication_dispense_id != ''", visitID, false).
 		Count(&dispenseSent)
 
 	// Load dispensed medication items detail
 	var dispensedMedications []models.MedicineOrderItem
 	database.DB.Preload("Medicine").Preload("DispensedBy").
 		Joins("JOIN medicine_orders ON medicine_orders.id = medicine_order_items.medicine_order_id").
-		Where("medicine_orders.source_visit_id = ? AND medicine_order_items.dispensed_qty > 0", visitID).
+		Where("medicine_orders.source_visit_id = ? AND medicine_orders.is_casemix = ? AND medicine_order_items.dispensed_qty > 0", visitID, false).
 		Find(&dispensedMedications)
 
 	dispenseItems := []gin.H{}
@@ -253,7 +253,7 @@ func GetEncounterSatuSehatStatus(c *gin.Context) {
 
 	// ========== QUESTIONNAIRE RESPONSE ==========
 	var medicineOrders []models.MedicineOrder
-	database.DB.Where("source_visit_id = ?", visitID).Preload("ReviewedBy").Find(&medicineOrders)
+	originalRMSourceVisitQuery(visitID).Preload("ReviewedBy").Find(&medicineOrders)
 
 	qrItems := []gin.H{}
 	var qrSentCount int64 = 0
@@ -287,11 +287,11 @@ func GetEncounterSatuSehatStatus(c *gin.Context) {
 	var adminTotal, adminSent int64
 	database.DB.Table("medicine_order_items").
 		Joins("JOIN medicine_orders ON medicine_orders.id = medicine_order_items.medicine_order_id").
-		Where("medicine_orders.source_visit_id = ? AND medicine_order_items.dispensed_qty > 0", visitID).
+		Where("medicine_orders.source_visit_id = ? AND medicine_orders.is_casemix = ? AND medicine_order_items.dispensed_qty > 0", visitID, false).
 		Count(&adminTotal)
 	database.DB.Table("medicine_order_items").
 		Joins("JOIN medicine_orders ON medicine_orders.id = medicine_order_items.medicine_order_id").
-		Where("medicine_orders.source_visit_id = ? AND medicine_order_items.satusehat_medication_administration_id != ''", visitID).
+		Where("medicine_orders.source_visit_id = ? AND medicine_orders.is_casemix = ? AND medicine_order_items.satusehat_medication_administration_id != ''", visitID, false).
 		Count(&adminSent)
 
 	adminItems := []gin.H{}
@@ -336,13 +336,13 @@ func GetEncounterSatuSehatStatus(c *gin.Context) {
 
 	// ========== CLINICAL IMPRESSION ==========
 	var diagSummary models.DiagnosisSummary
-	database.DB.Where("visit_id = ?", visitID).First(&diagSummary)
+	originalRMVisitQuery(visitID).First(&diagSummary)
 
 	var assessmentPlan models.AssessmentPlan
-	database.DB.Where("visit_id = ?", visitID).First(&assessmentPlan)
+	originalRMVisitQuery(visitID).First(&assessmentPlan)
 
 	var triage models.Triage
-	database.DB.Where("visit_id = ?", visitID).First(&triage)
+	originalRMVisitQuery(visitID).First(&triage)
 
 	clinicalImpressionItems := []gin.H{}
 	ciSentCount := 0
@@ -456,7 +456,7 @@ func GetEncounterSatuSehatStatus(c *gin.Context) {
 
 	// ========== MEDICATION STATEMENT (Riwayat Obat) ==========
 	var anamnesis models.Anamnesis
-	database.DB.Where("visit_id = ?", visitID).First(&anamnesis)
+	originalRMVisitQuery(visitID).First(&anamnesis)
 
 	medicationStatementItems := []gin.H{}
 	medicationStatementSentCount := 0
@@ -482,7 +482,7 @@ func GetEncounterSatuSehatStatus(c *gin.Context) {
 	// ========== CAREPLAN ==========
 	// CarePlan from CPPT (Plan/Instruction)
 	var cppts []models.CPPT
-	database.DB.Where("visit_id = ?", visitID).
+	originalRMVisitQuery(visitID).
 		Where("plan != '' OR instruction != ''").
 		Preload("CreatedBy").
 		Order("record_date DESC").
@@ -490,11 +490,11 @@ func GetEncounterSatuSehatStatus(c *gin.Context) {
 
 	// CarePlan from Disposition (RTL/Discharge Plan)
 	var disposition models.Disposition
-	database.DB.Where("visit_id = ?", visitID).First(&disposition)
+	originalRMVisitQuery(visitID).First(&disposition)
 
 	// CarePlan from AssessmentPlan (Rencana Pengobatan - untuk Rawat Jalan/IGD)
 	var assessmentPlanForCarePlan models.AssessmentPlan
-	database.DB.Where("visit_id = ?", visitID).First(&assessmentPlanForCarePlan)
+	originalRMVisitQuery(visitID).First(&assessmentPlanForCarePlan)
 
 	carePlanItems := []gin.H{}
 	carePlanSentCount := 0

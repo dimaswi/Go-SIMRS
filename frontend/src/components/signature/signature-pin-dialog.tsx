@@ -21,6 +21,8 @@ interface SignaturePINDialogProps {
   visitId?: number;
   documentTitle?: string;
   patientName?: string;
+  requiredSignatures?: number;
+  signatureSlot?: string;
   onSuccess?: (signatureHash: string) => void;
   onCancel?: () => void;
 }
@@ -33,6 +35,8 @@ export function SignaturePINDialog({
   visitId,
   documentTitle,
   patientName,
+  requiredSignatures,
+  signatureSlot,
   onSuccess,
   onCancel,
 }: SignaturePINDialogProps) {
@@ -116,6 +120,8 @@ export function SignaturePINDialog({
         document_type: documentType,
         document_id: documentId,
         visit_id: visitId,
+        required_signatures: requiredSignatures,
+        signature_slot: signatureSlot,
       });
 
       toast({

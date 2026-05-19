@@ -389,24 +389,25 @@ export default function EklaimDetailPage({ mode }: { mode?: 'rekam-medis' | 'cet
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
+    <div className="flex min-h-0 flex-1 flex-col bg-muted/20">
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex min-h-0 w-full flex-1 flex-col">
         {!mode && (
           <div
             ref={mainStickyHeaderRef}
-          className="sticky top-0 z-40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/85 space-y-2"
+          className="sticky top-0 z-40 border-b border-border/70 bg-background/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/85"
         >
           {/* Header */}
           <div
-            className="flex items-center justify-between gap-3 pt-2 cursor-pointer"
+            className="flex cursor-pointer flex-col gap-4 border-b border-border/70 bg-muted/10 px-4 py-4 md:px-6 lg:flex-row lg:items-start lg:justify-between"
             onClick={() => setShowHeaderPanels((prev) => !prev)}
             title="Klik header untuk sembunyikan/tampilkan ringkasan"
           >
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 items-start gap-3">
           <Button
             variant="outline"
             size="icon"
+            className="mt-0.5 shrink-0 rounded-none"
             onClick={(e) => {
               e.stopPropagation();
               navigate('/eklaim/data-klaim');
@@ -414,23 +415,33 @@ export default function EklaimDetailPage({ mode }: { mode?: 'rekam-medis' | 'cet
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <div>
-            <h1 className="text-lg font-semibold flex items-center gap-2">
-              <FileText className="h-5 w-5" />
+          <div className="min-w-0 flex-1">
+            <h1 className="flex min-w-0 items-center gap-2 text-xl font-semibold leading-tight tracking-tight text-foreground">
+              <span className="border border-border/70 bg-background p-2">
+                <FileText className="h-4 w-4 text-muted-foreground" />
+              </span>
               Detail E-Klaim
             </h1>
-            <p className="text-sm text-muted-foreground">
+            <p className="mt-1 max-w-3xl truncate text-sm leading-relaxed text-muted-foreground">
               {detail.nama_pasien} - <span className="font-mono">{detail.no_sep}</span>
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-          {showHeaderPanels ? (
-            <ChevronDown className="h-4 w-4 text-muted-foreground" />
-          ) : (
-            <ChevronRight className="h-4 w-4 text-muted-foreground" />
-          )}
-          <Badge className={`text-sm px-3 py-1 ${eklaimLocalStatusColors[status] || ''}`}>
+        <div className="flex shrink-0 flex-wrap items-center gap-2 lg:max-w-[55%] lg:justify-end" onClick={(e) => e.stopPropagation()}>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className="h-8 w-8 rounded-none"
+            onClick={() => setShowHeaderPanels((prev) => !prev)}
+          >
+            {showHeaderPanels ? (
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            ) : (
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            )}
+          </Button>
+          <Badge className={`rounded-none px-3 py-1 text-sm ${eklaimLocalStatusColors[status] || ''}`}>
             {eklaimLocalStatusLabels[status] || status}
           </Badge>
 
@@ -438,6 +449,7 @@ export default function EklaimDetailPage({ mode }: { mode?: 'rekam-medis' | 'cet
           {status === 'draft' && (
             <Button
               size="sm"
+              className="rounded-none"
               disabled={submitting}
               onClick={() => handleAction('new_claim')}
             >
@@ -448,6 +460,7 @@ export default function EklaimDetailPage({ mode }: { mode?: 'rekam-medis' | 'cet
           {detail.buttons?.final_claim && (
             <Button
               size="sm"
+              className="rounded-none"
               disabled={submitting}
               onClick={() => handleAction('final')}
             >
@@ -459,6 +472,7 @@ export default function EklaimDetailPage({ mode }: { mode?: 'rekam-medis' | 'cet
             <Button
               size="sm"
               variant="outline"
+              className="rounded-none"
               disabled={submitting || !detail.claim_final_success}
               onClick={handlePrintClaim}
             >
@@ -470,6 +484,7 @@ export default function EklaimDetailPage({ mode }: { mode?: 'rekam-medis' | 'cet
             <Button
               size="sm"
               variant="outline"
+              className="rounded-none"
               disabled={submitting}
               onClick={() => handleAction('claim_send')}
             >
@@ -481,7 +496,7 @@ export default function EklaimDetailPage({ mode }: { mode?: 'rekam-medis' | 'cet
           {/* Secondary actions dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon" className="h-8 w-8">
+              <Button variant="outline" size="icon" className="h-8 w-8 rounded-none">
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -550,7 +565,7 @@ export default function EklaimDetailPage({ mode }: { mode?: 'rekam-medis' | 'cet
 
       {/* Error Banner */}
       {showHeaderPanels && detail.last_error && (
-        <div className="flex items-start gap-2 p-3 rounded-md bg-destructive/10 border border-destructive/20">
+        <div className="mx-4 mt-3 flex items-start gap-2 border border-destructive/20 bg-destructive/10 p-3 md:mx-6">
           <AlertTriangle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
           <div>
             <p className="text-sm font-medium text-destructive">Error terakhir</p>
@@ -564,7 +579,7 @@ export default function EklaimDetailPage({ mode }: { mode?: 'rekam-medis' | 'cet
 
       {/* Progress Timeline - compact, DRY */}
       {showHeaderPanels && (
-      <div className="py-1">
+      <div className="px-4 py-3 md:px-6">
       {(() => {
         const ORDER: EKlaimLocalStatus[] = ['draft', 'new_claim', 'set_claim_data', 'idrg_coded', 'idrg_grouped', 'idrg_final', 'inacbg_imported', 'inacbg_coded', 'inacbg_grouped', 'inacbg_final', 'claim_final', 'claim_sent'];
         const currentIdx = ORDER.indexOf(status);
@@ -576,7 +591,7 @@ export default function EklaimDetailPage({ mode }: { mode?: 'rekam-medis' | 'cet
           'claim_final', 'claim_sent',
         ];
         return (
-          <div className="rounded-lg border p-3 space-y-2">
+          <div className="space-y-2 border border-border/70 bg-background/95 p-3 shadow-sm">
             {/* Progress steps - single flow */}
             <div className="flex flex-wrap items-center gap-1">
               {allSteps.map((s, i) => (
@@ -594,7 +609,7 @@ export default function EklaimDetailPage({ mode }: { mode?: 'rekam-medis' | 'cet
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                 {/* iDRG result */}
                 {detail.idrg_code && (
-                  <div className="px-3 py-2 rounded-md bg-indigo-50 dark:bg-indigo-950/20 text-xs">
+                  <div className="border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs dark:border-indigo-900/60 dark:bg-indigo-950/20">
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-indigo-600 dark:text-indigo-400 font-semibold text-[10px] uppercase">iDRG Result</span>
                       <Badge variant={detail.idrg_status_cd === 'normal' ? 'default' : 'destructive'} className="text-[10px] px-1.5 py-0 h-4">
@@ -613,7 +628,7 @@ export default function EklaimDetailPage({ mode }: { mode?: 'rekam-medis' | 'cet
 
                 {/* INACBG result */}
                 {detail.inacbg_cbg_code && (
-                  <div className="px-3 py-2 rounded-md bg-orange-50 dark:bg-orange-950/20 text-xs">
+                  <div className="border border-orange-100 bg-orange-50 px-3 py-2 text-xs dark:border-orange-900/60 dark:bg-orange-950/20">
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-orange-600 dark:text-orange-400 font-semibold text-[10px] uppercase">INACBG Result</span>
                       <span className="font-mono font-medium text-green-700 dark:text-green-400">{formatCurrency(parseFloat(detail.inacbg_tariff) || 0)}</span>
@@ -630,7 +645,7 @@ export default function EklaimDetailPage({ mode }: { mode?: 'rekam-medis' | 'cet
 
                 {/* Legacy CBG */}
                 {detail.cbg_code && !detail.idrg_code && !detail.inacbg_cbg_code && (
-                  <div className="px-3 py-2 rounded-md bg-muted/50 text-xs">
+                  <div className="border border-border/70 bg-muted/50 px-3 py-2 text-xs">
                     <div className="flex items-baseline gap-2">
                       <span className="font-mono font-bold">{detail.cbg_code}</span>
                       <span className="text-muted-foreground truncate">{detail.cbg_description || '-'}</span>
@@ -650,13 +665,13 @@ export default function EklaimDetailPage({ mode }: { mode?: 'rekam-medis' | 'cet
       )}
 
         {!mode && (
-          <TabsList className="bg-transparent border-b rounded-none w-full justify-start h-auto p-0 gap-0">
-            <TabsTrigger value="claim-data" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5">Data Klaim</TabsTrigger>
-            <TabsTrigger value="idrg" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5">Coding iDRG</TabsTrigger>
+          <TabsList className="h-auto w-full justify-start gap-2 overflow-x-auto rounded-none border-0 bg-background px-4 py-3 md:px-6">
+            <TabsTrigger value="claim-data" className="rounded-none border border-border/70 bg-background px-3 py-2 text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground shadow-none data-[state=active]:border-foreground data-[state=active]:bg-foreground data-[state=active]:text-background data-[state=active]:shadow-none">Data Klaim</TabsTrigger>
+            <TabsTrigger value="idrg" className="rounded-none border border-border/70 bg-background px-3 py-2 text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground shadow-none data-[state=active]:border-foreground data-[state=active]:bg-foreground data-[state=active]:text-background data-[state=active]:shadow-none">Coding iDRG</TabsTrigger>
             {detail.idrg_final_success && (
-              <TabsTrigger value="inacbg" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5">Coding INACBG</TabsTrigger>
+              <TabsTrigger value="inacbg" className="rounded-none border border-border/70 bg-background px-3 py-2 text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground shadow-none data-[state=active]:border-foreground data-[state=active]:bg-foreground data-[state=active]:text-background data-[state=active]:shadow-none">Coding INACBG</TabsTrigger>
             )}
-            <TabsTrigger value="status" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-2.5">Status</TabsTrigger>
+            <TabsTrigger value="status" className="rounded-none border border-border/70 bg-background px-3 py-2 text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground shadow-none data-[state=active]:border-foreground data-[state=active]:bg-foreground data-[state=active]:text-background data-[state=active]:shadow-none">Status</TabsTrigger>
           </TabsList>
         )}
         </div>
@@ -666,13 +681,13 @@ export default function EklaimDetailPage({ mode }: { mode?: 'rekam-medis' | 'cet
 
         {/* Mode: Cetakan */}
         {(mode === 'cetakan' || activeTab === 'cetakan') && (
-          <div className="py-6">
+          <div className="px-4 py-4 md:px-6">
             <CetakanTab detail={detail} originalRM={originalRM} />
           </div>
         )}
 
         {/* Tab: Claim Data */}
-        <TabsContent value="claim-data" className="space-y-4">
+        <TabsContent value="claim-data" className="mt-0 space-y-4 px-4 py-4 md:px-6">
           <ClaimDataTab
             detail={detail}
             originalRM={originalRM}
@@ -685,24 +700,24 @@ export default function EklaimDetailPage({ mode }: { mode?: 'rekam-medis' | 'cet
         </TabsContent>
 
         {/* Tab: Coding iDRG */}
-        <TabsContent value="idrg" className="space-y-6">
+        <TabsContent value="idrg" className="mt-0 space-y-6 px-4 py-4 md:px-6">
           <IDRGCodingTab detail={detail} onRefresh={refreshData} />
         </TabsContent>
 
         {/* Tab: Coding INACBG */}
         {detail.idrg_final_success && (
-          <TabsContent value="inacbg" className="space-y-6">
+          <TabsContent value="inacbg" className="mt-0 space-y-6 px-4 py-4 md:px-6">
             <INACBGCodingTab detail={detail} onRefresh={refreshData} />
           </TabsContent>
         )}
 
         {/* Tab: Cetakan */}
-        <TabsContent value="cetakan" className="space-y-6">
+        <TabsContent value="cetakan" className="mt-0 space-y-6 px-4 py-4 md:px-6">
           <CetakanTab detail={detail} originalRM={originalRM} />
         </TabsContent>
 
         {/* Tab: Status (tracking only) */}
-        <TabsContent value="status" className="space-y-6">
+        <TabsContent value="status" className="mt-0 space-y-6 px-4 py-4 md:px-6">
           <div className="space-y-3">
             <div>
               <h3 className="text-sm font-medium">Tracking Status Klaim</h3>

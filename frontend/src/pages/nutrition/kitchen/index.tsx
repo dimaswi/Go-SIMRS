@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { PageShell, PageHeader, PageContent, FilterBar, FilterPill } from "@/components/layout/page-shell";
 import {
   Dialog,
   DialogContent,
@@ -42,6 +43,7 @@ import {
 } from "@/lib/api/nutrition";
 import { printApi } from "@/lib/api/print";
 import { cn } from "@/lib/utils";
+import { NutritionSectionPanel } from "../shared-page-chrome";
 
 interface KitchenStats {
   Confirmed: number;
@@ -253,123 +255,79 @@ export default function KitchenDashboardPage() {
   const pendingCount = stats.Confirmed + stats.Preparing;
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] p-4 md:p-6 overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between shrink-0 mb-4">
-        <div>
-          <h1 className="text-lg font-semibold flex items-center gap-2">
-            <ChefHat className="h-5 w-5" />
-            Dashboard Dapur
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Kelola pesanan makanan pasien rawat inap
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-40 h-9" />
-          <Button variant="outline" size="icon" className="h-9 w-9" onClick={loadData} disabled={loading}>
-            <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
-          </Button>
-        </div>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-4 gap-3 shrink-0 mb-4">
-        <button
-          onClick={() => setFilterStatus("all")}
-          className={cn(
-            "p-3 rounded-lg border text-left transition-colors",
-            filterStatus === "all" ? "border-primary bg-primary/5" : "hover:bg-muted/50"
-          )}
-        >
-          <div className="text-xs text-muted-foreground mb-1">Total Pesanan</div>
-          <div className="text-2xl font-bold">{stats.Total}</div>
-        </button>
-        <button
-          onClick={() => setFilterStatus("confirmed")}
-          className={cn(
-            "p-3 rounded-lg border text-left transition-colors",
-            filterStatus === "confirmed" ? "border-blue-500 bg-blue-50 dark:bg-blue-950/30" : "hover:bg-muted/50"
-          )}
-        >
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
-            <CircleDot className="h-3 w-3 text-blue-500" /> Menunggu
-          </div>
-          <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{stats.Confirmed}</div>
-        </button>
-        <button
-          onClick={() => setFilterStatus("preparing")}
-          className={cn(
-            "p-3 rounded-lg border text-left transition-colors",
-            filterStatus === "preparing" ? "border-amber-500 bg-amber-50 dark:bg-amber-950/30" : "hover:bg-muted/50"
-          )}
-        >
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
-            <ChefHat className="h-3 w-3 text-amber-500" /> Diproses
-          </div>
-          <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">{stats.Preparing}</div>
-        </button>
-        <button
-          onClick={() => setFilterStatus("delivered")}
-          className={cn(
-            "p-3 rounded-lg border text-left transition-colors",
-            filterStatus === "delivered" ? "border-green-500 bg-green-50 dark:bg-green-950/30" : "hover:bg-muted/50"
-          )}
-        >
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
-            <CheckCircle2 className="h-3 w-3 text-green-500" /> Terkirim
-          </div>
-          <div className="text-2xl font-bold text-green-600 dark:text-green-400">{stats.Delivered}</div>
-        </button>
-      </div>
-
-      {/* Main content area */}
-      <div className="rounded-lg border flex-1 flex flex-col min-h-0 overflow-hidden p-4">
-        {/* Search & filter bar */}
-        <div className="flex items-center gap-3 shrink-0 mb-4">
-          <div className="relative max-w-md flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Cari ruangan atau pasien..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 h-9"
-            />
-          </div>
-          {(filterStatus !== "all" || searchQuery) && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-9 text-xs"
-              onClick={() => { setFilterStatus("all"); setSearchQuery(""); }}
-            >
-              Reset Filter
+    <PageShell>
+      <PageHeader
+        title="Dashboard Dapur"
+        description="Kelola pesanan makanan pasien rawat inap per ruangan."
+        icon={ChefHat}
+        className="[&>div:first-child]:px-4 [&>div:first-child]:py-3 md:[&>div:first-child]:px-6 md:[&>div:first-child]:py-3"
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-9 w-40" />
+            <Button variant="outline" size="sm" onClick={loadData} disabled={loading}>
+              <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+              Refresh
             </Button>
-          )}
-          <div className="ml-auto text-xs text-muted-foreground">
-            {filteredRoomGroups.length} ruangan · {filteredOrders.length} pesanan
-            {pendingCount > 0 && filterStatus === "all" && (
-              <span className="ml-2 text-amber-600 dark:text-amber-400 font-medium">
-                · {pendingCount} perlu ditangani
-              </span>
-            )}
           </div>
-        </div>
+        }
+      />
 
-        {/* Room Cards Grid */}
-        {loading ? (
-          <div className="flex items-center justify-center flex-1">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <PageContent className="pb-4 pt-3">
+
+        <NutritionSectionPanel icon={ChefHat} title="Antrian Produksi dan Distribusi" description="Saring pesanan berdasarkan status, cari ruangan atau pasien, lalu buka detail ruangan untuk memproses, mengirim, atau mencetak etiket.">
+          <FilterBar className="justify-between gap-3 border-0 bg-transparent px-0 py-0">
+            <div className="flex flex-1 flex-wrap items-center gap-2">
+              <FilterPill active={filterStatus === "all"} onClick={() => setFilterStatus("all")} count={stats.Total}>Semua</FilterPill>
+              <FilterPill active={filterStatus === "confirmed"} onClick={() => setFilterStatus("confirmed")} count={stats.Confirmed}>Menunggu</FilterPill>
+              <FilterPill active={filterStatus === "preparing"} onClick={() => setFilterStatus("preparing")} count={stats.Preparing}>Diproses</FilterPill>
+              <FilterPill active={filterStatus === "delivered"} onClick={() => setFilterStatus("delivered")} count={stats.Delivered}>Terkirim</FilterPill>
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {filteredRoomGroups.length} ruangan · {filteredOrders.length} pesanan
+              {pendingCount > 0 && filterStatus === "all" && (
+                <span className="ml-2 font-medium text-amber-600 dark:text-amber-400">· {pendingCount} perlu ditangani</span>
+              )}
+            </div>
+          </FilterBar>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative max-w-md flex-1 min-w-[240px]">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Cari ruangan atau pasien..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9 h-10"
+              />
+            </div>
+            {(filterStatus !== "all" || searchQuery) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-10 text-xs"
+                onClick={() => { setFilterStatus("all"); setSearchQuery(""); }}
+              >
+                Reset Filter
+              </Button>
+            )}
+            <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+              Auto refresh 30 detik
+            </div>
           </div>
-        ) : filteredRoomGroups.length === 0 ? (
-          <div className="flex flex-col items-center justify-center flex-1 text-muted-foreground">
-            <ChefHat className="h-10 w-10 mb-3 opacity-20" />
-            <p className="text-sm">
-              {orders.length === 0 ? "Tidak ada pesanan untuk tanggal ini" : "Tidak ada pesanan dengan filter ini"}
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 overflow-y-auto flex-1 pr-1">
+
+          {loading ? (
+            <div className="flex min-h-[240px] items-center justify-center">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : filteredRoomGroups.length === 0 ? (
+            <div className="flex min-h-[240px] flex-col items-center justify-center text-muted-foreground">
+              <ChefHat className="mb-3 h-10 w-10 opacity-20" />
+              <p className="text-sm">
+                {orders.length === 0 ? "Tidak ada pesanan untuk tanggal ini" : "Tidak ada pesanan dengan filter ini"}
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {filteredRoomGroups.map((group) => {
               const mealTimes = getRoomMealTimeSummary(group);
               const hasAllergy = group.orders.some((o) => o.allergy_notes);
@@ -494,8 +452,8 @@ export default function KitchenDashboardPage() {
               );
             })}
           </div>
-        )}
-      </div>
+          )}
+        </NutritionSectionPanel>
 
       {/* Room Detail Dialog */}
       <Dialog open={!!selectedRoom} onOpenChange={(open) => !open && setSelectedRoom(null)}>
@@ -773,6 +731,7 @@ export default function KitchenDashboardPage() {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+      </PageContent>
+    </PageShell>
   );
 }

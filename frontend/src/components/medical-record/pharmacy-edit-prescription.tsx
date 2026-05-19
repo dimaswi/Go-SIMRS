@@ -70,6 +70,7 @@ interface PharmacyEditPrescriptionProps {
   readOnly?: boolean;
   rmDuplicateMode?: boolean;
   apiAdapter?: PharmacyEditAdapter;
+  onCreateDuplicateOrder?: (payload?: { prescriber_id?: number; order_date?: string }) => Promise<MedicineOrder>;
   duplicateDoctorOptions?: { id: number; name: string }[];
   onUpdateDuplicateOrderMeta?: (
     runtimeOrderId: number,
@@ -233,6 +234,7 @@ export function PharmacyEditPrescription({
   readOnly = false,
   rmDuplicateMode = false,
   apiAdapter,
+  onCreateDuplicateOrder,
   duplicateDoctorOptions = [],
   onUpdateDuplicateOrderMeta,
 }: PharmacyEditPrescriptionProps) {
@@ -244,6 +246,7 @@ export function PharmacyEditPrescription({
   const [submitting, setSubmitting] = useState(false);
   const [orders, setOrders] = useState<MedicineOrder[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<MedicineOrder | null>(null);
+  const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null);
   const [roomMedicines, setRoomMedicines] = useState<RoomMedicine[]>([]);
   const [searchResults, setSearchResults] = useState<RoomMedicine[]>([]);
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -254,10 +257,13 @@ export function PharmacyEditPrescription({
   const [savingRowId, setSavingRowId] = useState<number | null>(null);
   const [doctorModalOpen, setDoctorModalOpen] = useState(false);
   const [dateModalOpen, setDateModalOpen] = useState(false);
+  const [createOrderDialogOpen, setCreateOrderDialogOpen] = useState(false);
   const [orderPickerOpen, setOrderPickerOpen] = useState(false);
   const [doctorSearch, setDoctorSearch] = useState("");
   const [pendingDoctorName, setPendingDoctorName] = useState("");
   const [pendingOrderDate, setPendingOrderDate] = useState("");
+  const [pendingCreateDoctorId, setPendingCreateDoctorId] = useState("auto");
+  const [pendingCreateOrderDate, setPendingCreateOrderDate] = useState(() => new Date().toISOString().slice(0, 16));
   const [showRacikanDialog, setShowRacikanDialog] = useState(false);
   const [racikanSearchTerm, setRacikanSearchTerm] = useState("");
   const [racikanItems, setRacikanItems] = useState<RoomMedicine[]>([]);
@@ -318,6 +324,10 @@ export function PharmacyEditPrescription({
       if (!rmDuplicateMode) return;
       void createDuplicateOrder();
     };
+    const handleAddMedicine = () => {
+      if (!rmDuplicateMode) return;
+      void handleQuickCreateOrder();
+    };
 
     if (!rmDuplicateMode) {
       window.addEventListener("refresh-final-visit", handleRefreshOrders);
@@ -325,6 +335,7 @@ export function PharmacyEditPrescription({
     }
     window.addEventListener("rm-duplicate-open-pharmacy-order-picker", handleOpenOrderPicker);
     window.addEventListener("rm-duplicate-create-pharmacy-order", handleCreateOrder);
+    window.addEventListener("rm-duplicate-add-pharmacy-medicine", handleAddMedicine);
 
     return () => {
       if (!rmDuplicateMode) {
@@ -333,6 +344,7 @@ export function PharmacyEditPrescription({
       }
       window.removeEventListener("rm-duplicate-open-pharmacy-order-picker", handleOpenOrderPicker);
       window.removeEventListener("rm-duplicate-create-pharmacy-order", handleCreateOrder);
+      window.removeEventListener("rm-duplicate-add-pharmacy-medicine", handleAddMedicine);
     };
   }, [orders.length, rmDuplicateMode, selectedOrder?.id]);
 
@@ -340,6 +352,22 @@ export function PharmacyEditPrescription({
     if (!selectedOrder?.pharmacy_room_id || rmDuplicateMode) return;
     loadRoomMedicines(selectedOrder.pharmacy_room_id);
   }, [selectedOrder?.pharmacy_room_id, rmDuplicateMode]);
+
+  useEffect(() => {
+    if (!rmDuplicateMode) return;
+    if (orders.length === 0) {
+      setExpandedOrderId(null);
+      return;
+    }
+    if (!selectedOrder) return;
+    if (expandedOrderId === null) {
+      setExpandedOrderId(selectedOrder.id);
+      return;
+    }
+    if (!orders.some((order) => order.id === expandedOrderId)) {
+      setExpandedOrderId(selectedOrder.id);
+    }
+  }, [rmDuplicateMode, orders, selectedOrder, expandedOrderId]);
 
   useEffect(() => {
     const next: Record<number, RowEditData> = {};
@@ -493,8 +521,14 @@ export function PharmacyEditPrescription({
           data.find((order) => order.status !== "cancelled") ||
           data[0];
         setSelectedOrder(nextOrder);
+        if (rmDuplicateMode && expandedOrderId === null) {
+          setExpandedOrderId(nextOrder.id);
+        }
       } else {
         setSelectedOrder(null);
+        if (rmDuplicateMode) {
+          setExpandedOrderId(null);
+        }
       }
     } catch (error) {
       console.error("Error loading orders:", error);
@@ -520,14 +554,26 @@ export function PharmacyEditPrescription({
     }
   };
 
-  const createDuplicateOrder = async () => {
-    if (!rmDuplicateMode || !apiAdapter?.create) return;
+  const createDuplicateOrder = async (payload?: { prescriber_id?: number; order_date?: string }): Promise<MedicineOrder | null> => {
+    if (!rmDuplicateMode) return null;
+    const adapterCreate = apiAdapter?.create;
+    const createFn = onCreateDuplicateOrder
+      ? async () => onCreateDuplicateOrder(payload)
+      : adapterCreate
+        ? async () => {
+            const res = await adapterCreate({
+              fake_date: payload?.order_date
+                ? `${payload.order_date.replace("T", " ")}:00`
+                : new Date().toISOString().slice(0, 19),
+            });
+            return res.data;
+          }
+        : null;
+    if (!createFn) return null;
+
     setSubmitting(true);
     try {
-      const res = await apiAdapter.create({
-        fake_date: new Date().toISOString().slice(0, 19),
-      });
-      const createdOrder = res.data;
+      const createdOrder = await createFn();
       setOrders((prev) => {
         const existingIndex = prev.findIndex((order) => order.id === createdOrder.id);
         if (existingIndex >= 0) {
@@ -538,21 +584,50 @@ export function PharmacyEditPrescription({
         return [...prev, createdOrder];
       });
       setSelectedOrder(createdOrder);
+      if (rmDuplicateMode) {
+        setExpandedOrderId(createdOrder.id);
+      }
       setOrderPickerOpen(false);
       toast({ title: "Berhasil", description: "Resep baru berhasil ditambahkan" });
       if (!rmDuplicateMode) {
         window.dispatchEvent(new CustomEvent("refresh-print-options"));
         window.dispatchEvent(new CustomEvent("refresh-final-visit"));
       }
+      return createdOrder;
     } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Error",
         description: error?.response?.data?.error || "Gagal menambah resep baru",
       });
+      return null;
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleQuickCreateOrder = async () => {
+    if (!rmDuplicateMode || !canEdit) return;
+    setPendingCreateDoctorId("auto");
+    setPendingCreateOrderDate(new Date().toISOString().slice(0, 16));
+    setCreateOrderDialogOpen(true);
+  };
+
+  const handleCreateOrderFromDialog = async () => {
+    if (!rmDuplicateMode || !canEdit) {
+      setCreateOrderDialogOpen(false);
+      return;
+    }
+    const payload: { prescriber_id?: number; order_date?: string } = {};
+    if (pendingCreateDoctorId !== "auto") {
+      payload.prescriber_id = Number(pendingCreateDoctorId);
+    }
+    if (pendingCreateOrderDate) {
+      payload.order_date = pendingCreateOrderDate;
+    }
+    const created = await createDuplicateOrder(payload);
+    if (!created) return;
+    setCreateOrderDialogOpen(false);
   };
 
   const openAddDialog = () => {
@@ -1207,7 +1282,9 @@ export function PharmacyEditPrescription({
   };
 
   const patient = selectedOrder?.source_visit?.registration?.patient || selectedOrder?.registration?.patient;
-  const canEdit = hasPermission("pharmacy.edit") && !readOnly;
+  const canEdit =
+    !readOnly &&
+    (hasPermission("pharmacy.edit") || (rmDuplicateMode && hasPermission("eklaim.edit")));
   const isEditable =
     rmDuplicateMode ||
     selectedOrder?.status === "pending" ||
@@ -1262,6 +1339,10 @@ export function PharmacyEditPrescription({
     ? getRowEditData(editingRacikanFirstItem, editingRacikanFirstIndex >= 0 ? editingRacikanFirstIndex : 0)
     : null;
   const editingRacikanLocked = editingRacikanItems.some((item) => Boolean(item.dispensed_qty) && item.dispensed_qty > 0);
+  const showEmptyOrderState = !selectedOrder && (!rmDuplicateMode || orders.length === 0);
+  const showSelectedOrderEditor = Boolean(selectedOrder) && (!rmDuplicateMode || expandedOrderId === selectedOrder?.id);
+  const getOrderActiveItemCount = (order: MedicineOrder) =>
+    (order.items || []).filter((item) => item.status !== "cancelled").length;
 
   if (loading) {
     return (
@@ -1275,12 +1356,68 @@ export function PharmacyEditPrescription({
   return (
     <>
       <div className="space-y-3">
-        {!selectedOrder ? (
-          <div className="py-8 text-center text-muted-foreground border rounded-lg">
+        {rmDuplicateMode && orders.length > 0 && (
+          <div className="border border-border/70 bg-background">
+            <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              Daftar Resep
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[760px] text-sm">
+                <thead className="bg-muted/40">
+                  <tr className="border-b border-border/70 text-left text-xs uppercase tracking-[0.12em] text-muted-foreground">
+                    <th className="px-3 py-2 font-medium">No. Resep</th>
+                    <th className="px-3 py-2 font-medium">Dokter</th>
+                    <th className="px-3 py-2 font-medium">Tanggal</th>
+                    <th className="px-3 py-2 font-medium">Item</th>
+                    <th className="px-3 py-2 font-medium">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {orders.map((order) => {
+                    const isExpanded = expandedOrderId === order.id;
+                    const isSelected = selectedOrder?.id === order.id;
+                    return (
+                      <tr
+                        key={order.id}
+                        className={cn(
+                          "cursor-pointer border-b border-border/60 hover:bg-muted/30",
+                          isSelected && "bg-primary/5",
+                        )}
+                        onClick={() => {
+                          setSelectedOrder(order);
+                          setExpandedOrderId((prev) => (prev === order.id ? null : order.id));
+                        }}
+                      >
+                        <td className="px-3 py-2 font-medium">{order.order_number || "-"}</td>
+                        <td className="px-3 py-2">{order.prescriber?.nama_lengkap || "-"}</td>
+                        <td className="px-3 py-2">{order.created_at ? new Date(order.created_at).toLocaleString("id-ID") : "-"}</td>
+                        <td className="px-3 py-2">{getOrderActiveItemCount(order)}</td>
+                        <td className="px-3 py-2">
+                          <div className="flex items-center gap-2">
+                            <span className={cn("h-1.5 w-1.5 rounded-full", getStatusDotClass(order.status))} />
+                            <span>{ORDER_STATUS_LABELS[order.status]?.label || order.status}</span>
+                            <span className="text-xs text-muted-foreground">{isExpanded ? "▼" : "▶"}</span>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {showEmptyOrderState ? (
+          <div
+            className={cn(
+              "py-8 text-center border rounded-lg border-border/70 bg-background text-muted-foreground",
+            )}
+          >
             <Pill className="h-10 w-10 mx-auto mb-3 opacity-50" />
             <p>Belum ada resep obat.</p>
           </div>
-        ) : (
+        ) : showSelectedOrderEditor && selectedOrder ? (
           <>
             {!isEditable && (
               <div className="border border-yellow-200 bg-yellow-50 dark:bg-yellow-950/30 rounded p-3 mb-4">
@@ -1620,6 +1757,10 @@ export function PharmacyEditPrescription({
               </div>
             </div>
           </>
+        ) : (
+          <div className="py-6 text-center text-sm text-muted-foreground border border-border/70 bg-background">
+            Klik resep pada tabel untuk membuka detail.
+          </div>
         )}
       </div>
 
@@ -2365,6 +2506,54 @@ export function PharmacyEditPrescription({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {rmDuplicateMode && (
+        <Dialog open={createOrderDialogOpen} onOpenChange={setCreateOrderDialogOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Tambah Resep Duplikat</DialogTitle>
+              <DialogDescription>
+                Isi detail resep terlebih dulu, lalu tambah obat dari resep yang sudah dibuat.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label>Dokter Pengirim</Label>
+                <Select value={pendingCreateDoctorId} onValueChange={setPendingCreateDoctorId}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="Pilih dokter" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="auto">Ikuti dokter visit asal</SelectItem>
+                    {duplicateDoctorOptions.map((doc) => (
+                      <SelectItem key={doc.id} value={String(doc.id)}>
+                        {doc.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Tanggal Pengirim</Label>
+                <Input
+                  type="datetime-local"
+                  value={pendingCreateOrderDate}
+                  onChange={(e) => setPendingCreateOrderDate(e.target.value)}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setCreateOrderDialogOpen(false)}>
+                Batal
+              </Button>
+              <Button type="button" onClick={handleCreateOrderFromDialog} disabled={submitting}>
+                {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Simpan Resep
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {rmDuplicateMode && selectedOrder && (
         <Dialog open={orderPickerOpen} onOpenChange={setOrderPickerOpen}>

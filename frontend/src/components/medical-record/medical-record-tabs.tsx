@@ -55,6 +55,7 @@ interface MedicalRecordTabsProps {
   isSurgery?: boolean; // Show surgery workstation tabs for surgery visits
   showProcedureTab?: boolean; // Show procedure tab for rawat_jalan, rawat_inap, gawat_darurat
   isInpatient?: boolean; // Show inpatient tabs (CPPT, Fluid Balance) for rawat_inap
+  casemixMode?: boolean; // E-Klaim RM duplicate mode has a fixed tab set.
 }
 
 type TabIndicatorStatus = "empty" | "progress" | "complete" | "neutral";
@@ -73,6 +74,7 @@ export function MedicalRecordTabs({
   isSurgery = false,
   showProcedureTab = false,
   isInpatient = false,
+  casemixMode = false,
 }: MedicalRecordTabsProps) {
   const { hasPermission } = usePermission();
   const user = useAuthStore((state) => state.user);
@@ -84,6 +86,7 @@ export function MedicalRecordTabs({
   const [dragOverTabId, setDragOverTabId] = useState<string | null>(null);
   const [dragOverPosition, setDragOverPosition] = useState<"before" | "after">("before");
   const showsInpatientOrEmergencyCareTabs = isInpatient || isEmergency;
+  const showTriageTab = isEmergency || casemixMode;
 
   // Tabs for pharmacy visits
   const pharmacyTabs: Tab[] = [
@@ -191,7 +194,7 @@ export function MedicalRecordTabs({
 
   // Tabs for clinical visits
   const clinicalTabs: Tab[] = [
-    ...(isEmergency ? [{
+    ...(showTriageTab ? [{
       id: "triage",
       label: "Triase",
       icon: <AlertTriangle />,
@@ -371,7 +374,110 @@ export function MedicalRecordTabs({
     },
   ];
 
-  const allTabs = isPharmacy
+  const casemixClinicalTabs: Tab[] = [
+    {
+      id: "triage",
+      label: "Triase",
+      icon: <AlertTriangle />,
+      permission: "medical_records.triage",
+      section: "assessment",
+    },
+    {
+      id: "anamnesis",
+      label: "Anamnesis",
+      icon: <FileText />,
+      permission: "medical_records.anamnesis",
+      section: "assessment",
+    },
+    {
+      id: "physical-exam",
+      label: "Pemeriksaan Fisik",
+      icon: <Stethoscope />,
+      permission: "medical_records.physical_exam",
+      section: "assessment",
+    },
+    {
+      id: "body-marker",
+      label: "Marker Tubuh",
+      icon: <MapPin />,
+      permission: "medical_records.physical_exam",
+      section: "assessment",
+    },
+    {
+      id: "diagnosis",
+      label: "Diagnosis",
+      icon: <Activity />,
+      permission: "medical_records.diagnosis",
+      section: "assessment",
+    },
+    {
+      id: "assessment-plan",
+      label: "Assessment & Plan",
+      icon: <ClipboardList />,
+      permission: "medical_records.assessment_plan",
+      section: "assessment",
+    },
+    {
+      id: "procedure",
+      label: "Tindakan",
+      icon: <Scissors />,
+      permission: "medical_records.procedure",
+      section: "care",
+    },
+    {
+      id: "prescription-edit",
+      label: "Edit Farmasi",
+      icon: <Pill />,
+      permission: "pharmacy.edit",
+      section: "pharmacy",
+    },
+    {
+      id: "cppt",
+      label: "CPPT",
+      icon: <ClipboardCheck />,
+      permission: "medical_records.cppt",
+      section: "care",
+    },
+    {
+      id: "nursing-care",
+      label: "Asuhan Keperawatan",
+      icon: <HeartPulse />,
+      permission: "medical_records.nursing_care",
+      section: "care",
+    },
+    {
+      id: "fall-risk",
+      label: "Risiko Jatuh",
+      icon: <AlertTriangle />,
+      permission: "medical_records.fall_risk",
+      section: "care",
+    },
+    {
+      id: "o2-usage",
+      label: "Oksigen",
+      icon: <Wind />,
+      permission: "medical_records.nursing_care",
+      section: "care",
+    },
+    {
+      id: "fluid-balance",
+      label: "Balance Cairan",
+      icon: <Droplets />,
+      permission: "medical_records.fluid_balance",
+      section: "care",
+    },
+    {
+      id: "discharge-planning",
+      label: "Discharge Planning",
+      icon: <ClipboardCheck />,
+      permission: "medical_records.disposition",
+      section: "administrative",
+    },
+  ];
+
+  const allTabs = casemixMode
+    ? casemixClinicalTabs
+    : isPharmacy
     ? pharmacyTabs
     : isRadiology
     ? radiologyTabs
@@ -389,7 +495,9 @@ export function MedicalRecordTabs({
   const tabIds = useMemo(() => (tabIdsKey ? tabIdsKey.split("|") : []), [tabIdsKey]);
 
   const tabOrderStorageMode = useMemo(() => {
-    const mode = isPharmacy
+    const mode = casemixMode
+      ? "casemix"
+      : isPharmacy
       ? "pharmacy"
       : isRadiology
       ? "radiology"
@@ -402,7 +510,7 @@ export function MedicalRecordTabs({
       : `clinical-${isEmergency ? "emergency" : "regular"}-${isInpatient ? "inpatient" : "noninpatient"}-${showProcedureTab ? "procedure" : "noprocedure"}`;
 
     return mode;
-  }, [isConsultation, isEmergency, isInpatient, isLaboratory, isPharmacy, isRadiology, isSurgery, showProcedureTab]);
+  }, [casemixMode, isConsultation, isEmergency, isInpatient, isLaboratory, isPharmacy, isRadiology, isSurgery, showProcedureTab]);
 
   const userScopedTabOrderKey = useMemo(() => {
     const userKey = user?.id ? `u${user.id}` : user?.username ? `name:${user.username}` : "guest";

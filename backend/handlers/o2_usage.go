@@ -17,8 +17,7 @@ func GetO2UsageRecords(c *gin.Context) {
 	visitID := c.Param("id")
 
 	var records []models.O2UsageRecord
-	if err := database.DB.
-		Where("visit_id = ?", visitID).
+	if err := scopedRMQuery(c, visitID).
 		Preload("CreatedBy").
 		Preload("StoppedBy").
 		Order("started_at DESC").
@@ -44,8 +43,8 @@ func GetO2UsageRecord(c *gin.Context) {
 	recordID := c.Param("recordId")
 
 	var record models.O2UsageRecord
-	if err := database.DB.
-		Where("visit_id = ? AND id = ?", visitID, recordID).
+	if err := scopedRMQuery(c, visitID).
+		Where("id = ?", recordID).
 		Preload("CreatedBy").
 		Preload("StoppedBy").
 		First(&record).Error; err != nil {
@@ -59,6 +58,7 @@ func GetO2UsageRecord(c *gin.Context) {
 // StartO2Usage starts a new O2 usage session
 func StartO2Usage(c *gin.Context) {
 	visitID := c.Param("id")
+	isCasemix := c.Query("is_casemix") == "true"
 	userIDVal, _ := c.Get("userID")
 	userID, _ := userIDVal.(uint)
 
@@ -93,17 +93,18 @@ func StartO2Usage(c *gin.Context) {
 		createdByID = &userID
 	}
 
-
 	record := models.O2UsageRecord{
-		VisitID:        uint(visitIDUint),
-		TankType:       input.TankType,
-		FlowRate:       input.FlowRate,
-		DeliveryMethod: input.DeliveryMethod,
-		StartedAt:      startedAt,
-		BasePrice:      input.BasePrice,
-		TotalCharge:    0, // Will be computed on stop
-		Notes:          input.Notes,
-		CreatedByID:    createdByID,
+		VisitID:         uint(visitIDUint),
+		IsCasemix:       isCasemix,
+		CasemixEklaimID: getCasemixEklaimID(c),
+		TankType:        input.TankType,
+		FlowRate:        input.FlowRate,
+		DeliveryMethod:  input.DeliveryMethod,
+		StartedAt:       startedAt,
+		BasePrice:       input.BasePrice,
+		TotalCharge:     0, // Will be computed on stop
+		Notes:           input.Notes,
+		CreatedByID:     createdByID,
 	}
 
 	if err := database.DB.Create(&record).Error; err != nil {
@@ -123,8 +124,8 @@ func StopO2Usage(c *gin.Context) {
 	userID, _ := userIDVal.(uint)
 
 	var record models.O2UsageRecord
-	if err := database.DB.
-		Where("visit_id = ? AND id = ?", visitID, recordID).
+	if err := scopedRMQuery(c, visitID).
+		Where("id = ?", recordID).
 		First(&record).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Data penggunaan oksigen tidak ditemukan"})
 		return
@@ -191,8 +192,8 @@ func UpdateO2Usage(c *gin.Context) {
 	recordID := c.Param("recordId")
 
 	var record models.O2UsageRecord
-	if err := database.DB.
-		Where("visit_id = ? AND id = ?", visitID, recordID).
+	if err := scopedRMQuery(c, visitID).
+		Where("id = ?", recordID).
 		First(&record).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Data penggunaan oksigen tidak ditemukan"})
 		return
@@ -268,8 +269,8 @@ func DeleteO2Usage(c *gin.Context) {
 	recordID := c.Param("recordId")
 
 	var record models.O2UsageRecord
-	if err := database.DB.
-		Where("visit_id = ? AND id = ?", visitID, recordID).
+	if err := scopedRMQuery(c, visitID).
+		Where("id = ?", recordID).
 		First(&record).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Data penggunaan oksigen tidak ditemukan"})
 		return

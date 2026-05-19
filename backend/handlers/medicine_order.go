@@ -13,7 +13,6 @@ import (
 	"gorm.io/gorm"
 )
 
-
 // ===========================================================================
 // MEDICINE ORDER HANDLERS
 // ===========================================================================
@@ -61,11 +60,7 @@ func GetMedicineOrders(c *gin.Context) {
 		Preload("Items.Medicine")
 
 	// ALWAYS filter out casemix orders from normal queue/listing unless explicitly requested
-	if c.Query("is_casemix") == "true" {
-		query = query.Where("is_casemix = ?", true)
-	} else {
-		query = query.Where("is_casemix = ?", false)
-	}
+	query = applyCasemixEklaimScope(c, query.Where("is_casemix = ?", requestUsesCasemix(c)))
 
 	// Filter by source visit
 	if sourceVisitID := c.Query("source_visit_id"); sourceVisitID != "" {
@@ -126,7 +121,7 @@ func GetMedicineOrder(c *gin.Context) {
 	id := c.Param("id")
 	var order models.MedicineOrder
 
-	if err := database.DB.
+	query := database.DB.
 		Preload("SourceVisit").
 		Preload("SourceVisit.Registration").
 		Preload("SourceVisit.Registration.Patient").
@@ -139,8 +134,9 @@ func GetMedicineOrder(c *gin.Context) {
 		Preload("DeliveredBy").
 		Preload("Items").
 		Preload("Items.Medicine").
-		Preload("Items.MedicineBatch").
-		First(&order, id).Error; err != nil {
+		Preload("Items.MedicineBatch")
+	query = applyCasemixEklaimScope(c, query.Where("is_casemix = ?", requestUsesCasemix(c)))
+	if err := query.First(&order, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Medicine order not found"})
 		return
 	}
@@ -279,7 +275,7 @@ func CreateMedicineOrder(c *gin.Context) {
 
 	order := models.MedicineOrder{
 		OrderNumber:      orderNumber,
-		IsCasemix:        c.Query("is_casemix") == "true",
+		IsCasemix:        requestUsesCasemix(c),
 		CasemixEklaimID:  getCasemixEklaimID(c),
 		SourceVisitID:    input.SourceVisitID,
 		SourceRoomID:     sourceVisit.RoomID,
@@ -344,8 +340,8 @@ func CreateMedicineOrder(c *gin.Context) {
 
 		orderItem := models.MedicineOrderItem{
 			MedicineOrderID: order.ID,
-			IsCasemix:        c.Query("is_casemix") == "true",
-			CasemixEklaimID:  getCasemixEklaimID(c),
+			IsCasemix:       order.IsCasemix,
+			CasemixEklaimID: getCasemixEklaimID(c),
 			MedicineID:      item.MedicineID,
 			ItemType:        itemType,
 			RacikanGroup:    racikanGroup,
@@ -852,7 +848,7 @@ func UpdateMedicineOrderItem(c *gin.Context) {
 	}
 
 	var input struct {
-		MedicineID    *uint   `json:"medicine_id"`
+		MedicineID   *uint   `json:"medicine_id"`
 		Quantity     *int    `json:"quantity"`
 		Unit         *string `json:"unit"`
 		Dosage       *string `json:"dosage"`
@@ -1549,5 +1545,3 @@ func GetPharmacyRoomMedicines(c *gin.Context) {
 
 	c.JSON(http.StatusOK, roomMedicines)
 }
-
-

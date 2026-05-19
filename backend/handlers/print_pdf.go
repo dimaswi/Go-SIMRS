@@ -32,6 +32,18 @@ func getClinicalDB(c *gin.Context) *gorm.DB {
 	return database.DB
 }
 
+func useCasemixClinicalData(c *gin.Context) bool {
+	return c.Query("rm_duplicate_id") != "" || c.Query("is_casemix") == "true"
+}
+
+func clinicalVisitQuery(c *gin.Context, visitID interface{}) *gorm.DB {
+	return applyCasemixEklaimScope(c, getClinicalDB(c).Where("visit_id = ? AND is_casemix = ?", visitID, useCasemixClinicalData(c)))
+}
+
+func clinicalSourceVisitQuery(c *gin.Context, visitID interface{}) *gorm.DB {
+	return applyCasemixEklaimScope(c, getClinicalDB(c).Where("source_visit_id = ? AND is_casemix = ?", visitID, useCasemixClinicalData(c)))
+}
+
 // formatInpatientClass converts kelas_1 etc to display format
 func formatInpatientClass(class string) string {
 	classMap := map[string]string{
@@ -968,6 +980,14 @@ func resolveAssignedUserNameFromEmployee(emp *models.Employee, fallback string) 
 // resolveSignedUserName returns signer employee name when available,
 // then falls back to signer snapshot in signature log.
 func resolveSignedUserName(sig models.SignatureLog, fallback string) string {
+	meta := parseSignatureMeta(sig.Notes)
+	if meta.role == "kosong" {
+		return fallback
+	}
+	if meta.role == "pasien" && strings.TrimSpace(meta.name) != "" {
+		return meta.name
+	}
+
 	if sig.SignerEmployeeID != nil {
 		var emp models.Employee
 		if err := database.DB.Select("nama_lengkap").Where("id = ?", *sig.SignerEmployeeID).First(&emp).Error; err == nil {
@@ -982,6 +1002,62 @@ func resolveSignedUserName(sig models.SignatureLog, fallback string) string {
 	}
 
 	return fallback
+}
+
+type signatureMetaInfo struct {
+	role     string
+	location string
+	date     string
+	name     string
+}
+
+func parseSignatureMeta(notes string) signatureMetaInfo {
+	out := signatureMetaInfo{}
+	n := strings.TrimSpace(notes)
+	start := strings.LastIndex(n, "signature_meta[")
+	if start < 0 {
+		return out
+	}
+	chunk := n[start+len("signature_meta["):]
+	end := strings.Index(chunk, "]")
+	if end < 0 {
+		return out
+	}
+	for _, part := range strings.Split(chunk[:end], ";") {
+		kv := strings.SplitN(strings.TrimSpace(part), "=", 2)
+		if len(kv) != 2 {
+			continue
+		}
+		k := strings.ToLower(strings.TrimSpace(kv[0]))
+		v := strings.TrimSpace(kv[1])
+		switch k {
+		case "role":
+			out.role = strings.ToLower(v)
+		case "location":
+			out.location = v
+		case "date":
+			out.date = v
+		case "name":
+			out.name = v
+		}
+	}
+	return out
+}
+
+func signatureLabelFromMeta(sig models.SignatureLog) string {
+	meta := parseSignatureMeta(sig.Notes)
+	switch meta.role {
+	case "pasien":
+		return "Pasien,"
+	case "perawat":
+		return "Perawat,"
+	case "dpjp":
+		return "Dokter DPJP,"
+	case "kosong":
+		return ""
+	default:
+		return ""
+	}
 }
 
 // signatureLookup is an alternate document_type + document_id pair for signature lookup
@@ -1003,7 +1079,19 @@ func getCachedPDF(docType string, docID uint) ([]byte, string, bool) {
 		First(&cache).Error; err != nil {
 		return nil, "", false
 	}
-	return cache.PDFData, cache.FileName, true
+
+	// Prefer file-based cache when path is available.
+	if strings.TrimSpace(cache.FilePath) != "" {
+		if b, err := os.ReadFile(cache.FilePath); err == nil && len(b) > 0 {
+			return b, cache.FileName, true
+		}
+	}
+
+	// Backward compatibility for legacy DB blob cache.
+	if len(cache.PDFData) > 0 {
+		return cache.PDFData, cache.FileName, true
+	}
+	return nil, "", false
 }
 
 // storeCachedPDF saves a generated PDF blob to the cache table.
@@ -1011,36 +1099,108 @@ func getCachedPDF(docType string, docID uint) ([]byte, string, bool) {
 func storeCachedPDF(docType string, docID uint, pdfData []byte, fileName string) {
 	now := time.Now()
 	fileSize := int64(len(pdfData))
+	cachePath, pathErr := writePDFCacheToFile(docType, docID, pdfData)
+	if pathErr != nil {
+		return
+	}
 
 	var existing models.DocumentPDFCache
 	err := database.DB.
 		Where("document_type = ? AND document_id = ?", docType, docID).
 		First(&existing).Error
 
+	sigCount, sigTarget := getSignatureCounts(docType, docID)
 	if err == nil {
 		database.DB.Model(&existing).Updates(map[string]interface{}{
-			"pdf_data":     pdfData,
-			"file_name":    fileName,
-			"file_size":    fileSize,
-			"generated_at": now,
+			"pdf_data":         nil, // keep new records file-based; old blob still readable
+			"file_path":        cachePath,
+			"file_name":        fileName,
+			"file_size":        fileSize,
+			"generated_at":     now,
+			"signature_count":  sigCount,
+			"signature_target": sigTarget,
 		})
 	} else {
 		database.DB.Create(&models.DocumentPDFCache{
-			DocumentType: docType,
-			DocumentID:   docID,
-			PDFData:      pdfData,
-			FileName:     fileName,
-			FileSize:     fileSize,
-			GeneratedAt:  now,
+			DocumentType:    docType,
+			DocumentID:      docID,
+			PDFData:         nil,
+			FilePath:        cachePath,
+			FileName:        fileName,
+			FileSize:        fileSize,
+			GeneratedAt:     now,
+			SignatureCount:  sigCount,
+			SignatureTarget: sigTarget,
 		})
 	}
 }
 
 // invalidatePDFCache removes cached PDF for a specific document type and ID.
 func invalidatePDFCache(docType string, docID uint) {
+	var cache models.DocumentPDFCache
+	if err := database.DB.Where("document_type = ? AND document_id = ?", docType, docID).First(&cache).Error; err == nil {
+		if strings.TrimSpace(cache.FilePath) != "" {
+			_ = os.Remove(cache.FilePath)
+		}
+	}
 	database.DB.
 		Where("document_type = ? AND document_id = ?", docType, docID).
 		Delete(&models.DocumentPDFCache{})
+}
+
+func cacheRootDir() string {
+	dir := os.Getenv("SIGNED_PDF_CACHE_DIR")
+	if strings.TrimSpace(dir) == "" {
+		dir = filepath.Join("uploads", "signed-pdf")
+	}
+	return dir
+}
+
+func safeCacheSegment(value string) string {
+	v := strings.ToLower(strings.TrimSpace(value))
+	v = strings.ReplaceAll(v, "..", "")
+	v = strings.ReplaceAll(v, "\\", "_")
+	v = strings.ReplaceAll(v, "/", "_")
+	v = strings.ReplaceAll(v, " ", "_")
+	if v == "" {
+		return "unknown"
+	}
+	return v
+}
+
+func writePDFCacheToFile(docType string, docID uint, pdfData []byte) (string, error) {
+	base := cacheRootDir()
+	docDir := filepath.Join(base, safeCacheSegment(docType))
+	if err := os.MkdirAll(docDir, 0o755); err != nil {
+		return "", err
+	}
+
+	tmpPath := filepath.Join(docDir, fmt.Sprintf("%d.tmp", docID))
+	finalPath := filepath.Join(docDir, fmt.Sprintf("%d.pdf", docID))
+	if err := os.WriteFile(tmpPath, pdfData, 0o644); err != nil {
+		return "", err
+	}
+	if err := os.Rename(tmpPath, finalPath); err != nil {
+		_ = os.Remove(tmpPath)
+		return "", err
+	}
+	return finalPath, nil
+}
+
+func getSignatureCounts(docType string, docID uint) (int, int) {
+	sigDB := database.DB
+	if strings.HasPrefix(docType, "rm_dup_") && database.CasemixDB != nil {
+		sigDB = database.CasemixDB
+	}
+	var docSig models.DocumentSignature
+	if err := sigDB.Where("document_type = ? AND document_id = ?", docType, docID).First(&docSig).Error; err == nil {
+		required := docSig.RequiredSignatures
+		if required <= 0 {
+			required = 1
+		}
+		return docSig.SignedSignatures, required
+	}
+	return 0, 1
 }
 
 // invalidateAllPDFCachesForSignature removes cached PDFs for a signature document type
@@ -1062,6 +1222,8 @@ func invalidateAllPDFCachesForSignature(sigDocType string, docID uint) {
 		}
 	case models.DocTypeCPPT:
 		invalidatePDFCache("fluid_balance", docID)
+	case models.DocTypeFluidBalance:
+		invalidatePDFCache(models.DocTypeFluidBalance, docID)
 	case models.DocTypeLabResult:
 		invalidatePDFCache("lab_order", docID)
 	}
@@ -1070,6 +1232,13 @@ func invalidateAllPDFCachesForSignature(sigDocType string, docID uint) {
 // InvalidateRMDuplicatePDFCaches removes ALL cached PDFs for a given RM Duplicate.
 // Call this when RM Duplicate data is updated.
 func InvalidateRMDuplicatePDFCaches(rmDuplicateID uint) {
+	var caches []models.DocumentPDFCache
+	database.DB.Where("document_type LIKE ? AND document_id = ?", "rm_dup_%", rmDuplicateID).Find(&caches)
+	for _, cache := range caches {
+		if strings.TrimSpace(cache.FilePath) != "" {
+			_ = os.Remove(cache.FilePath)
+		}
+	}
 	database.DB.
 		Where("document_type LIKE ? AND document_id = ?", "rm_dup_%", rmDuplicateID).
 		Delete(&models.DocumentPDFCache{})
@@ -1196,6 +1365,20 @@ func addSignature(pdf *gofpdf.Fpdf, city, doctorName, patientLabel, docType stri
 
 	// Check active digital signature from current signature state first.
 	signatureLog, isSigned := findSignatureLog(lookups...)
+	rmDuplicateSignature := hasRMDuplicateSignatureLookup(lookups...)
+	if rmDuplicateSignature {
+		leftLog, leftSigned := findSignatureLogBySlot("left", lookups...)
+		rightLog, rightSigned := findSignatureLogBySlot("right", lookups...)
+		if !leftSigned && !rightSigned {
+			return
+		}
+		isSigned = leftSigned || rightSigned
+		if rightSigned {
+			signatureLog = rightLog
+		} else {
+			signatureLog = leftLog
+		}
+	}
 	if isSigned {
 		signedDate := formatDateIndonesian(signatureLog.SignedAt)
 		if city != "" {
@@ -1214,72 +1397,70 @@ func addSignature(pdf *gofpdf.Fpdf, city, doctorName, patientLabel, docType stri
 	checkPageBreak(pdf, requiredHeight)
 
 	pdf.SetY(pdf.GetY() + 10)
-
-	sigAreaWidth := 70.0
-	sigAreaX := marginLeft + contentWidth - sigAreaWidth
-
-	// City and Date
-	pdf.SetFont("Arial", "", 10)
-	pdf.SetX(sigAreaX)
-	pdf.CellFormat(sigAreaWidth, 6, dateStr, "", 1, "C", false, 0, "")
-
-	// Label
-	pdf.SetX(sigAreaX)
-	if patientLabel != "" {
-		pdf.CellFormat(sigAreaWidth, 6, patientLabel+",", "", 1, "C", false, 0, "")
-	} else {
-		pdf.CellFormat(sigAreaWidth, 6, "Dokter Pemeriksa,", "", 1, "C", false, 0, "")
-	}
-
-	// ============ Signature space with QR if signed ============
-	if isSigned {
-		qrSize := 20.0
-		spaceStartY := pdf.GetY()
-
-		// Generate QR code
-		appURL := os.Getenv("APP_URL")
-		if appURL == "" {
-			appURL = "http://localhost:5173"
-		}
-		verifyURL := fmt.Sprintf("%s/verify/%s", appURL, signatureLog.SignatureHash)
-		qrImgBytes := generateQRCode(verifyURL)
-
-		if qrImgBytes != nil {
-			imgName := fmt.Sprintf("qr_%s_%d", docType, docID)
-			reader := bytes.NewReader(qrImgBytes)
-			pdf.RegisterImageReader(imgName, "PNG", reader)
-
-			// QR code centered in signature space
-			qrX := sigAreaX + (sigAreaWidth-qrSize)/2
-			qrY := spaceStartY + (25-qrSize)/2
-			pdf.Image(imgName, qrX, qrY, qrSize, qrSize, false, "PNG", 0, "")
-
-			// Overlay hospital logo on top of QR code center
-			addLogoOverlayOnQR(pdf, qrX, qrY, qrSize)
-		}
-
-		pdf.SetY(spaceStartY + 25)
-	} else {
-		// Empty signature space
-		pdf.SetY(pdf.GetY() + 25)
-	}
-
-	// Doctor name with underline
-	pdf.SetFont("Arial", "B", 10)
-	pdf.SetX(sigAreaX)
-	pdf.CellFormat(sigAreaWidth, 6, doctorName, "B", 1, "C", false, 0, "")
-
-	// SIP info if signed
-	if isSigned && signatureLog.SignerSIP != "" {
-		pdf.SetFont("Arial", "", 7)
-		pdf.SetX(sigAreaX)
-		pdf.CellFormat(sigAreaWidth, 4, "SIP: "+signatureLog.SignerSIP, "", 1, "C", false, 0, "")
-	}
+	drawUniversalTwoSignatureSlots(pdf, city, dateStr, docType, docID, lookups...)
 
 	// ============ DIGITAL SIGNATURE FOOTER on last page ============
 	if isSigned {
 		addDigitalSignatureFooter(pdf, signatureLog, docType, docID)
 	}
+}
+
+func drawUniversalTwoSignatureSlots(pdf *gofpdf.Fpdf, city, dateStr, docType string, docID uint, lookups ...signatureLookup) {
+	leftX := marginLeft + 10
+	slotW := 70.0
+	gap := 30.0
+	rightX := leftX + slotW + gap
+	startY := pdf.GetY()
+
+	leftLog, leftSigned := findSignatureLogBySlot("left", lookups...)
+	rightLog, rightSigned := findSignatureLogBySlot("right", lookups...)
+	rmDuplicateSignature := hasRMDuplicateSignatureLookup(lookups...)
+
+	drawSlot := func(x float64, title, fallbackName, slot string, sig models.SignatureLog, signed bool) {
+		pdf.SetXY(x, startY)
+		pdf.SetFont("Arial", "", 10)
+		pdf.CellFormat(slotW, 6, dateStr, "", 1, "C", false, 0, "")
+		pdf.SetXY(x, startY+6)
+		pdf.CellFormat(slotW, 6, title, "", 1, "C", false, 0, "")
+		if signed {
+			addSignatureQR(pdf, sig, x+slotW/2, startY+22, 16.0, fmt.Sprintf("%s_%s_%d", slot, docType, docID))
+		}
+		name := fallbackName
+		if signed {
+			name = resolveSignedUserName(sig, fallbackName)
+		}
+		pdf.SetFont("Arial", "B", 10)
+		pdf.SetXY(x, startY+34)
+		pdf.CellFormat(slotW, 6, name, "B", 1, "C", false, 0, "")
+	}
+
+	leftTitle := ""
+	rightTitle := ""
+	leftName := "(............................)"
+	rightName := "(............................)"
+	if leftSigned {
+		leftTitle = signatureLabelFromMeta(leftLog)
+	}
+	if rightSigned {
+		rightTitle = signatureLabelFromMeta(rightLog)
+	}
+
+	if !rmDuplicateSignature || leftSigned {
+		drawSlot(leftX, leftTitle, leftName, "left", leftLog, leftSigned)
+	}
+	if !rmDuplicateSignature || rightSigned {
+		drawSlot(rightX, rightTitle, rightName, "right", rightLog, rightSigned)
+	}
+	pdf.SetY(startY + 44)
+}
+
+func hasRMDuplicateSignatureLookup(lookups ...signatureLookup) bool {
+	for _, lk := range lookups {
+		if strings.HasPrefix(strings.TrimSpace(lk.DocType), "rm_dup_") {
+			return true
+		}
+	}
+	return false
 }
 
 // addDualSignature menambahkan area tanda tangan ganda: Pasien/Keluarga di kiri, Dokter di kanan
@@ -1298,6 +1479,20 @@ func addDualSignature(pdf *gofpdf.Fpdf, city, doctorName, docType string, docID 
 
 	// Check active digital signature from current signature state first.
 	signatureLog, isSigned := findSignatureLog(lookups...)
+	rmDuplicateSignature := hasRMDuplicateSignatureLookup(lookups...)
+	if rmDuplicateSignature {
+		leftLog, leftSigned := findSignatureLogBySlot("left", lookups...)
+		rightLog, rightSigned := findSignatureLogBySlot("right", lookups...)
+		if !leftSigned && !rightSigned {
+			return
+		}
+		isSigned = leftSigned || rightSigned
+		if rightSigned {
+			signatureLog = rightLog
+		} else {
+			signatureLog = leftLog
+		}
+	}
 	if isSigned {
 		signedDate := formatDateIndonesian(signatureLog.SignedAt)
 		if city != "" {
@@ -1316,6 +1511,13 @@ func addDualSignature(pdf *gofpdf.Fpdf, city, doctorName, docType string, docID 
 	checkPageBreak(pdf, requiredHeight)
 
 	pdf.SetY(pdf.GetY() + 10)
+	if rmDuplicateSignature {
+		drawUniversalTwoSignatureSlots(pdf, city, dateStr, docType, docID, lookups...)
+		if isSigned {
+			addDigitalSignatureFooter(pdf, signatureLog, docType, docID)
+		}
+		return
+	}
 
 	sigAreaWidth := 70.0
 	leftX := marginLeft + 10
@@ -1429,6 +1631,20 @@ func findSignatureLog(lookups ...signatureLookup) (models.SignatureLog, bool) {
 			continue
 		}
 
+		// Prefer slot-configured signatures first (if configured for this document type).
+		rules := loadDocumentSignatureRules()
+		for _, rule := range rules {
+			if rule.DocumentType != lk.DocType || len(rule.Slots) == 0 {
+				continue
+			}
+			for _, slot := range rule.Slots {
+				if slotLog, ok := findSignatureLogBySlot(slot, lk); ok {
+					return slotLog, true
+				}
+			}
+			break
+		}
+
 		// Prefer active signature state to avoid stale signer names from old/revoked logs.
 		var docSig models.DocumentSignature
 		sigDB := database.DB
@@ -1458,10 +1674,72 @@ func findSignatureLog(lookups ...signatureLookup) (models.SignatureLog, bool) {
 	return signatureLog, false
 }
 
+func signatureDBForDocType(docType string) *gorm.DB {
+	if strings.HasPrefix(docType, "rm_dup_") && database.CasemixDB != nil {
+		return database.CasemixDB
+	}
+	return database.DB
+}
+
+// findSignatureLogBySlot resolves active signature by slot key (e.g. doctor_dpjp, nurse)
+// from document_signature_signers, then resolves the corresponding sign log by signature_hash.
+func findSignatureLogBySlot(slot string, lookups ...signatureLookup) (models.SignatureLog, bool) {
+	var signatureLog models.SignatureLog
+	slot = canonicalSignatureSlot(slot)
+	if slot == "" {
+		return signatureLog, false
+	}
+
+	for _, lk := range lookups {
+		if strings.TrimSpace(lk.DocType) == "" || lk.DocID == 0 {
+			continue
+		}
+
+		sigDB := signatureDBForDocType(lk.DocType)
+		var signerState models.DocumentSignatureSigner
+		if err := sigDB.
+			Where("document_type = ? AND document_id = ? AND (signer_key = ? OR signer_key LIKE ?) AND signed_at IS NOT NULL AND is_active = ?",
+				lk.DocType, lk.DocID, slot, slot+":%", true).
+			Order("updated_at DESC").
+			First(&signerState).Error; err != nil {
+			continue
+		}
+
+		if strings.TrimSpace(signerState.SignatureHash) == "" {
+			continue
+		}
+
+		if err := sigDB.
+			Where("signature_hash = ? AND action = ?", signerState.SignatureHash, models.SignActionSign).
+			Order("signed_at DESC").
+			First(&signatureLog).Error; err == nil {
+			return signatureLog, true
+		}
+	}
+
+	return signatureLog, false
+}
+
+func canonicalSignatureSlot(slot string) string {
+	switch strings.ToLower(strings.TrimSpace(slot)) {
+	case "left", "1", "nurse", "perawat":
+		return "left"
+	case "right", "2", "doctor_dpjp", "dokter", "dpjp":
+		return "right"
+	default:
+		return strings.ToLower(strings.TrimSpace(slot))
+	}
+}
+
 // addSignatureQR renders a QR code at the given position for a signed document.
 // It places the QR code centered in the area (centerX, centerY) with given size.
 // Also adds digital signature footer at the bottom of the page.
 func addSignatureQR(pdf *gofpdf.Fpdf, sigLog models.SignatureLog, centerX, centerY, qrSize float64, imgSuffix string) {
+	meta := parseSignatureMeta(sigLog.Notes)
+	if meta.role == "pasien" || meta.role == "kosong" {
+		return
+	}
+
 	appURL := os.Getenv("APP_URL")
 	if appURL == "" {
 		appURL = "http://localhost:5173"
@@ -1829,7 +2107,6 @@ func PrintOutpatientResume(c *gin.Context) {
 	}
 
 	patient := visit.Registration.Patient
-	clinicalDB := getClinicalDB(c)
 
 	// Data structures (will be populated from RM Duplicate or Visit)
 	type AnamnesisData struct {
@@ -1927,7 +2204,7 @@ func PrintOutpatientResume(c *gin.Context) {
 
 	// Load from clinicalDB (either Main DB or Casemix DB)
 	var anamnesisModel models.Anamnesis
-	clinicalDB.Where("visit_id = ?", visitID).First(&anamnesisModel)
+	clinicalVisitQuery(c, visitID).First(&anamnesisModel)
 	anamnesis = AnamnesisData{
 		ID:                      anamnesisModel.ID,
 		ChiefComplaint:          anamnesisModel.ChiefComplaint,
@@ -1936,7 +2213,7 @@ func PrintOutpatientResume(c *gin.Context) {
 	}
 
 	var physicalExamModel models.PhysicalExamination
-	clinicalDB.Where("visit_id = ?", visitID).First(&physicalExamModel)
+	clinicalVisitQuery(c, visitID).First(&physicalExamModel)
 	physicalExam = PhysicalExamData{
 		ID:                physicalExamModel.ID,
 		GeneralCondition:  physicalExamModel.GeneralCondition,
@@ -1981,7 +2258,7 @@ func PrintOutpatientResume(c *gin.Context) {
 	}
 
 	var diagnosesList []models.Diagnosis
-	clinicalDB.Where("visit_id = ?", visitID).Order("type ASC, sequence ASC").Find(&diagnosesList)
+	clinicalVisitQuery(c, visitID).Order("type ASC, sequence ASC").Find(&diagnosesList)
 	for _, d := range diagnosesList {
 		diagnoses = append(diagnoses, DiagnosisData{
 			Type:      d.Type,
@@ -1991,7 +2268,7 @@ func PrintOutpatientResume(c *gin.Context) {
 	}
 
 	var assessmentPlanModel models.AssessmentPlan
-	clinicalDB.Where("visit_id = ?", visitID).First(&assessmentPlanModel)
+	clinicalVisitQuery(c, visitID).First(&assessmentPlanModel)
 	assessmentPlan = AssessmentPlanData{
 		ID:               assessmentPlanModel.ID,
 		MedicationPlan:   assessmentPlanModel.MedicationPlan,
@@ -2004,7 +2281,7 @@ func PrintOutpatientResume(c *gin.Context) {
 	}
 
 	var dispositionModel models.Disposition
-	clinicalDB.Where("visit_id = ?", visitID).First(&dispositionModel)
+	clinicalVisitQuery(c, visitID).First(&dispositionModel)
 	disposition = DispositionData{
 		ID:                   dispositionModel.ID,
 		DispositionType:      dispositionModel.DispositionType,
@@ -2020,7 +2297,7 @@ func PrintOutpatientResume(c *gin.Context) {
 	}
 
 	var medicineOrders []models.MedicineOrder
-	clinicalDB.Where("source_visit_id = ? AND status <> ?", visitID, models.OrderStatusCancelled).
+	clinicalSourceVisitQuery(c, visitID).Where("status <> ?", models.OrderStatusCancelled).
 		Preload("Items.Medicine").
 		Find(&medicineOrders)
 	for _, order := range medicineOrders {
@@ -2730,7 +3007,6 @@ func PrintInpatientResume(c *gin.Context) {
 	}
 
 	patient := visit.Registration.Patient
-	clinicalDB := getClinicalDB(c)
 
 	// Data structures
 	var anamnesisChiefComplaint, anamnesisHistory, anamnesisAllergies string
@@ -2754,13 +3030,13 @@ func PrintInpatientResume(c *gin.Context) {
 
 	// Load from clinicalDB (either Main DB or Casemix DB)
 	var anamnesisModel models.Anamnesis
-	clinicalDB.Where("visit_id = ?", visitID).First(&anamnesisModel)
+	clinicalVisitQuery(c, visitID).First(&anamnesisModel)
 	anamnesisChiefComplaint = anamnesisModel.ChiefComplaint
 	anamnesisHistory = anamnesisModel.HistoryOfPresentIllness
 	anamnesisAllergies = anamnesisModel.Allergies
 
 	var physExamModel models.PhysicalExamination
-	clinicalDB.Where("visit_id = ?", visitID).First(&physExamModel)
+	clinicalVisitQuery(c, visitID).First(&physExamModel)
 	physicalExam.ID = physExamModel.ID
 	physicalExam.GeneralCondition = physExamModel.GeneralCondition
 	physicalExam.Consciousness = physExamModel.Consciousness
@@ -2799,13 +3075,13 @@ func PrintInpatientResume(c *gin.Context) {
 	physicalExam.PainLocation = physExamModel.PainLocation
 
 	var dList []models.Diagnosis
-	clinicalDB.Where("visit_id = ?", visitID).Order("type ASC, sequence ASC").Find(&dList)
+	clinicalVisitQuery(c, visitID).Order("type ASC, sequence ASC").Find(&dList)
 	for _, d := range dList {
 		diagnosesList = append(diagnosesList, DiagData{Type: d.Type, ICD10Code: d.ICD10Code, ICD10Name: d.ICD10Name})
 	}
 
 	var dispModel models.Disposition
-	clinicalDB.Where("visit_id = ?", visitID).First(&dispModel)
+	clinicalVisitQuery(c, visitID).First(&dispModel)
 	dispType = dispModel.DispositionType
 	dispStatus = dispModel.DischargeStatus
 	dispInstruction = dispModel.DischargeInstruction
@@ -2813,7 +3089,7 @@ func PrintInpatientResume(c *gin.Context) {
 	dispFollowUpDate = dispModel.FollowUpDate
 
 	var medicineOrders []models.MedicineOrder
-	clinicalDB.Where("source_visit_id = ? AND status <> ?", visitID, models.OrderStatusCancelled).
+	clinicalSourceVisitQuery(c, visitID).Where("status <> ?", models.OrderStatusCancelled).
 		Where("(fulfillment_type = ?) OR (COALESCE(fulfillment_type, '') = '' AND prescription_type = ?)", models.FulfillmentTypeTakeHome, "discharge").
 		Preload("Items.Medicine").Find(&medicineOrders)
 	for _, order := range medicineOrders {
@@ -4814,12 +5090,10 @@ func PrintTriageForm(c *gin.Context) {
 		triagerName      string
 	)
 
-	clinicalDB := getClinicalDB(c)
-
 	// Load from clinicalDB (either Main DB or Casemix DB)
 	var triage models.Triage
 	visitIDUint, _ := strconv.ParseUint(visitID, 10, 64)
-	err := clinicalDB.Where("visit_id = ?", uint(visitIDUint)).Preload("TriagedBy").First(&triage).Error
+	err := clinicalVisitQuery(c, uint(visitIDUint)).Preload("TriagedBy").First(&triage).Error
 	if err == nil {
 		arrivalMode = triage.ArrivalMode
 		triageComplaint = triage.TriageComplaint
@@ -5324,7 +5598,7 @@ func PrintEmergencySummary(c *gin.Context) {
 		// findTriageForVisit uses Main DB, so if we are in Casemix mode, we should try Casemix DB first
 		if clinicalDB == database.CasemixDB {
 			var tx models.Triage
-			if clinicalDB.Where("visit_id = ?", uint(visitIDUint)).First(&tx).Error == nil {
+			if clinicalVisitQuery(c, uint(visitIDUint)).First(&tx).Error == nil {
 				triage = tx
 			} else {
 				triage = *triagePtr
@@ -5335,25 +5609,25 @@ func PrintEmergencySummary(c *gin.Context) {
 	}
 
 	var anamnesis models.Anamnesis
-	clinicalDB.Where("visit_id = ?", visitID).First(&anamnesis)
+	clinicalVisitQuery(c, visitID).First(&anamnesis)
 
 	var physicalExam models.PhysicalExamination
-	clinicalDB.Where("visit_id = ?", visitID).First(&physicalExam)
+	clinicalVisitQuery(c, visitID).First(&physicalExam)
 
 	var diagnoses []models.Diagnosis
-	clinicalDB.Where("visit_id = ?", visitID).Order("type ASC, sequence ASC").Find(&diagnoses)
+	clinicalVisitQuery(c, visitID).Order("type ASC, sequence ASC").Find(&diagnoses)
 
 	var disposition models.Disposition
-	clinicalDB.Where("visit_id = ?", visitID).First(&disposition)
+	clinicalVisitQuery(c, visitID).First(&disposition)
 
 	var medicineOrders []models.MedicineOrder
-	clinicalDB.Preload("Items.Medicine").Where("source_visit_id = ? OR visit_id = ?", visitID, visitID).Find(&medicineOrders)
+	applyCasemixEklaimScope(c, getClinicalDB(c).Preload("Items.Medicine").Where("(source_visit_id = ? OR visit_id = ?) AND is_casemix = ?", visitID, visitID, useCasemixClinicalData(c))).Find(&medicineOrders)
 
 	var procedureOrders []models.ProcedureOrder
-	clinicalDB.Where("source_visit_id = ? OR visit_id = ?", visitID, visitID).Find(&procedureOrders)
+	applyCasemixEklaimScope(c, getClinicalDB(c).Where("(source_visit_id = ? OR visit_id = ?) AND is_casemix = ?", visitID, visitID, useCasemixClinicalData(c))).Find(&procedureOrders)
 
 	var visitProcedures []models.VisitProcedure
-	clinicalDB.Preload("Procedure").Where("visit_id = ?", visitID).Find(&visitProcedures)
+	clinicalVisitQuery(c, visitID).Preload("Procedure").Find(&visitProcedures)
 
 	// Create PDF
 	pdf := gofpdf.New("P", "mm", "A4", "")
@@ -5564,10 +5838,8 @@ func PrintCPPT(c *gin.Context) {
 		return
 	}
 
-	clinicalDB := getClinicalDB(c)
 	var cpptRecords []models.CPPT
-	if err := clinicalDB.Preload("CreatedBy").Preload("VerifiedBy").
-		Where("visit_id = ?", visitID).
+	if err := clinicalVisitQuery(c, visitID).Preload("CreatedBy").Preload("VerifiedBy").
 		Order("record_date ASC").
 		Find(&cpptRecords).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memuat data CPPT"})
@@ -5827,10 +6099,8 @@ func PrintNursingCare(c *gin.Context) {
 		return
 	}
 
-	clinicalDB := getClinicalDB(c)
 	var nursingCares []models.NursingCare
-	if err := clinicalDB.Preload("CreatedBy").
-		Where("visit_id = ?", visitID).
+	if err := clinicalVisitQuery(c, visitID).Preload("CreatedBy").
 		Order("record_date ASC").
 		Find(&nursingCares).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memuat data asuhan keperawatan"})
@@ -5960,7 +6230,7 @@ func PrintNursingCare(c *gin.Context) {
 		addTableRow(pdf, "Status Masalah", safeString(statusStr), 45)
 		addTableEnd(pdf)
 
-		// Signature
+		// Signature (dynamic columns based on document-signature settings)
 		nurseName := "-"
 		if nc.CreatedBy != nil {
 			nurseName = nc.CreatedBy.FullName
@@ -5969,13 +6239,23 @@ func PrintNursingCare(c *gin.Context) {
 		if visit.Doctor != nil {
 			doctorName = resolveAssignedUserNameFromEmployee(visit.Doctor, doctorName)
 		}
-		// Override names if signed via rm_dup
-		ncSigLog, ncIsSigned := findSignatureLog(
+		patientName := safeString(patient.NamaLengkap)
+		if strings.TrimSpace(patientName) == "" {
+			patientName = "-"
+		}
+		ncLookups := []signatureLookup{
 			rmDupSignatureLookup(c, models.DocTypeRMDupNursingCare),
-			signatureLookup{models.DocTypeNursingCare, visit.ID},
-		)
-		if ncIsSigned {
-			doctorName = resolveSignedUserName(ncSigLog, doctorName)
+			{models.DocTypeNursingCare, visit.ID},
+		}
+		doctorSigLog, doctorSigned := findSignatureLogBySlot("doctor_dpjp", ncLookups...)
+		nurseSigLog, nurseSigned := findSignatureLogBySlot("nurse", ncLookups...)
+		anySigned := doctorSigned || nurseSigned
+
+		if doctorSigned {
+			doctorName = resolveSignedUserName(doctorSigLog, doctorName)
+		}
+		if nurseSigned {
+			nurseName = resolveSignedUserName(nurseSigLog, nurseName)
 		}
 
 		pdf.SetY(pdf.GetY() + 5)
@@ -5986,34 +6266,99 @@ func PrintNursingCare(c *gin.Context) {
 		leftX := marginLeft
 		rightX := marginLeft + contentWidth - signWidth
 		startY := pdf.GetY()
+		columnSlots := []string{"doctor_dpjp", "nurse"} // default layout
+		for _, rule := range loadDocumentSignatureRules() {
+			if rule.DocumentType != models.DocTypeNursingCare || len(rule.Slots) == 0 {
+				continue
+			}
+			columnSlots = append([]string{}, rule.Slots...)
+			break
+		}
+		if len(columnSlots) < 2 {
+			columnSlots = append(columnSlots, "none")
+		}
 
-		// Doctor column (left)
+		type slotRender struct {
+			label  string
+			name   string
+			signed bool
+			log    models.SignatureLog
+		}
+		resolveSlot := func(slot string) slotRender {
+			switch strings.TrimSpace(strings.ToLower(slot)) {
+			case "doctor_dpjp":
+				return slotRender{
+					label:  "Dokter Penanggung Jawab,",
+					name:   doctorName,
+					signed: doctorSigned,
+					log:    doctorSigLog,
+				}
+			case "nurse":
+				return slotRender{
+					label:  "Perawat,",
+					name:   nurseName,
+					signed: nurseSigned,
+					log:    nurseSigLog,
+				}
+			case "patient":
+				return slotRender{
+					label:  "Pasien,",
+					name:   patientName,
+					signed: false,
+				}
+			default:
+				return slotRender{
+					label:  "",
+					name:   "",
+					signed: false,
+				}
+			}
+		}
+
+		left := resolveSlot(columnSlots[0])
+		right := resolveSlot(columnSlots[1])
+		if left.signed {
+			left.label = signatureLabelFromMeta(left.log)
+		}
+		if right.signed {
+			right.label = signatureLabelFromMeta(right.log)
+		}
+
+		// Left column
 		pdf.SetXY(leftX, startY)
 		pdf.CellFormat(signWidth, 6, hospitalInfo.City+", "+formatDateIndonesian(nc.RecordDate), "", 1, "C", false, 0, "")
-		pdf.SetX(leftX)
-		pdf.CellFormat(signWidth, 6, "Dokter Penanggung Jawab,", "", 1, "C", false, 0, "")
-		if ncIsSigned {
-			addSignatureQR(pdf, ncSigLog, leftX+signWidth/2, startY+12+10, 18.0, fmt.Sprintf("nc_%d", nc.ID))
+		pdf.SetXY(leftX, startY+6)
+		pdf.CellFormat(signWidth, 6, left.label, "", 1, "C", false, 0, "")
+		if left.signed {
+			addSignatureQR(pdf, left.log, leftX+signWidth/2, startY+22, 16.0, fmt.Sprintf("nc_left_%d", nc.ID))
 		}
-		pdf.SetY(startY + 26)
+		pdf.SetY(startY + 34)
 		pdf.SetFont("Arial", "B", 10)
 		pdf.SetX(leftX)
-		pdf.CellFormat(signWidth, 6, doctorName, "B", 1, "C", false, 0, "")
+		pdf.CellFormat(signWidth, 6, left.name, "B", 1, "C", false, 0, "")
 
-		// Nurse column (right)
+		// Right column
 		pdf.SetFont("Arial", "", 10)
 		pdf.SetXY(rightX, startY)
 		pdf.CellFormat(signWidth, 6, hospitalInfo.City+", "+formatDateIndonesian(nc.RecordDate), "", 1, "C", false, 0, "")
-		pdf.SetX(rightX)
-		pdf.CellFormat(signWidth, 6, "Perawat,", "", 1, "C", false, 0, "")
-		pdf.SetY(startY + 26)
+		pdf.SetXY(rightX, startY+6)
+		pdf.CellFormat(signWidth, 6, right.label, "", 1, "C", false, 0, "")
+		if right.signed {
+			addSignatureQR(pdf, right.log, rightX+signWidth/2, startY+22, 16.0, fmt.Sprintf("nc_right_%d", nc.ID))
+		}
+		pdf.SetY(startY + 34)
 		pdf.SetFont("Arial", "B", 10)
 		pdf.SetX(rightX)
-		pdf.CellFormat(signWidth, 6, nurseName, "B", 1, "C", false, 0, "")
+		pdf.CellFormat(signWidth, 6, right.name, "B", 1, "C", false, 0, "")
 
 		// Digital signature footer
-		if ncIsSigned {
-			addDigitalSignatureFooter(pdf, ncSigLog, models.DocTypeNursingCare, visit.ID)
+		if anySigned {
+			// Prefer showing nurse signature footer when available, otherwise doctor.
+			if nurseSigned {
+				addDigitalSignatureFooter(pdf, nurseSigLog, models.DocTypeNursingCare, visit.ID)
+			} else {
+				addDigitalSignatureFooter(pdf, doctorSigLog, models.DocTypeNursingCare, visit.ID)
+			}
 		}
 	}
 
@@ -6057,7 +6402,7 @@ func PrintFluidBalance(c *gin.Context) {
 		}
 	} else {
 		vid, _ := strconv.ParseUint(visitID, 10, 32)
-		if pdfData, fileName, found := getCachedPDF("fluid_balance", uint(vid)); found {
+		if pdfData, fileName, found := getCachedPDF(models.DocTypeFluidBalance, uint(vid)); found {
 			c.Header("Content-Type", "application/pdf")
 			c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", fileName))
 			c.Data(http.StatusOK, "application/pdf", pdfData)
@@ -6076,10 +6421,8 @@ func PrintFluidBalance(c *gin.Context) {
 		return
 	}
 
-	clinicalDB := getClinicalDB(c)
 	var fluidBalances []models.FluidBalance
-	if err := clinicalDB.Preload("CreatedBy").
-		Where("visit_id = ?", visitID).
+	if err := clinicalVisitQuery(c, visitID).Preload("CreatedBy").
 		Order("record_date ASC").
 		Find(&fluidBalances).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memuat data balance cairan"})
@@ -6219,36 +6562,71 @@ func PrintFluidBalance(c *gin.Context) {
 		pdf.CellFormat(colSign, rowH, signName, "1", 1, "L", false, 0, "")
 	}
 
-	// Doctor Signature at bottom
-	doctorName := "-"
-	if visit.Doctor != nil {
-		doctorName = resolveAssignedUserNameFromEmployee(visit.Doctor, doctorName)
-	}
-	// Override if signed via rm_dup
-	fbSigLog, fbIsSigned := findSignatureLog(
+	// Signature block (2 slot: kiri/kanan) - konsisten dengan alur TTD slot.
+	fbLookups := []signatureLookup{
 		rmDupSignatureLookup(c, models.DocTypeRMDupFluidBalance),
-		signatureLookup{models.DocTypeCPPT, visit.ID},
-	)
-	if fbIsSigned {
-		doctorName = resolveSignedUserName(fbSigLog, doctorName)
+		signatureLookup{models.DocTypeFluidBalance, visit.ID},
+		signatureLookup{models.DocTypeCPPT, visit.ID}, // legacy fallback from old implementation
 	}
+	leftSigLog, leftSigned := findSignatureLogBySlot("left", fbLookups...)
+	rightSigLog, rightSigned := findSignatureLogBySlot("right", fbLookups...)
+
+	leftName := "(............................)"
+	rightName := "(............................)"
+	leftLabel := ""
+	rightLabel := ""
+	if leftSigned {
+		leftName = resolveSignedUserName(leftSigLog, leftName)
+		leftLabel = signatureLabelFromMeta(leftSigLog)
+	}
+	if rightSigned {
+		rightName = resolveSignedUserName(rightSigLog, rightName)
+		rightLabel = signatureLabelFromMeta(rightSigLog)
+	}
+
 	pdf.SetY(pdf.GetY() + 10)
 	sigStartY := pdf.GetY()
 	pdf.SetFont("Arial", "", 10)
-	rightX := 277.0 - 70.0 // Right side for landscape
-	pdf.SetX(rightX)
-	pdf.CellFormat(70, 6, hospitalInfo.City+", "+formatDateIndonesian(fluidBalances[len(fluidBalances)-1].RecordDate), "", 1, "C", false, 0, "")
-	pdf.SetX(rightX)
-	pdf.CellFormat(70, 6, "Dokter Penanggung Jawab,", "", 1, "C", false, 0, "")
-	if fbIsSigned {
-		addSignatureQR(pdf, fbSigLog, rightX+35, sigStartY+12+8, 16.0, fmt.Sprintf("fb_%d", visit.ID))
+
+	slotW := 70.0
+	leftX := 10.0 + 120.0
+	rightX := leftX + slotW + 10.0
+	dateLabel := hospitalInfo.City + ", " + formatDateIndonesian(fluidBalances[len(fluidBalances)-1].RecordDate)
+
+	// Left slot
+	pdf.SetXY(leftX, sigStartY)
+	pdf.CellFormat(slotW, 6, dateLabel, "", 1, "C", false, 0, "")
+	pdf.SetXY(leftX, sigStartY+6)
+	pdf.CellFormat(slotW, 6, leftLabel, "", 1, "C", false, 0, "")
+	if leftSigned {
+		addSignatureQR(pdf, leftSigLog, leftX+slotW/2, sigStartY+22, 16.0, fmt.Sprintf("fb_left_%d", visit.ID))
 	}
-	pdf.SetY(sigStartY + 25)
+	pdf.SetY(sigStartY + 34)
+	pdf.SetFont("Arial", "B", 10)
+	pdf.SetX(leftX)
+	pdf.CellFormat(slotW, 6, leftName, "B", 1, "C", false, 0, "")
+
+	// Right slot
+	pdf.SetFont("Arial", "", 10)
+	pdf.SetXY(rightX, sigStartY)
+	pdf.CellFormat(slotW, 6, dateLabel, "", 1, "C", false, 0, "")
+	pdf.SetXY(rightX, sigStartY+6)
+	pdf.CellFormat(slotW, 6, rightLabel, "", 1, "C", false, 0, "")
+	if rightSigned {
+		addSignatureQR(pdf, rightSigLog, rightX+slotW/2, sigStartY+22, 16.0, fmt.Sprintf("fb_right_%d", visit.ID))
+	}
+	pdf.SetY(sigStartY + 34)
 	pdf.SetFont("Arial", "B", 10)
 	pdf.SetX(rightX)
-	pdf.CellFormat(70, 6, doctorName, "B", 1, "C", false, 0, "")
-	if fbIsSigned {
-		addDigitalSignatureFooter(pdf, fbSigLog, models.DocTypeCPPT, visit.ID)
+	pdf.CellFormat(slotW, 6, rightName, "B", 1, "C", false, 0, "")
+
+	// Digital footer: pilih slot kanan dulu, fallback kiri, lalu legacy.
+	if rightSigned {
+		addDigitalSignatureFooter(pdf, rightSigLog, models.DocTypeFluidBalance, visit.ID)
+	} else if leftSigned {
+		addDigitalSignatureFooter(pdf, leftSigLog, models.DocTypeFluidBalance, visit.ID)
+	} else if legacyLog, ok := findSignatureLog(fbLookups...); ok {
+		addDigitalSignatureFooter(pdf, legacyLog, models.DocTypeFluidBalance, visit.ID)
 	}
 
 	// Output PDF
@@ -6265,8 +6643,8 @@ func PrintFluidBalance(c *gin.Context) {
 			go storeCachedPDF(models.DocTypeRMDupFluidBalance, uint(rmDupID), buf.Bytes(), filename)
 		}
 	} else {
-		if _, isSigned := findSignatureLog(signatureLookup{models.DocTypeCPPT, visit.ID}); isSigned {
-			go storeCachedPDF("fluid_balance", visit.ID, buf.Bytes(), filename)
+		if _, isSigned := findSignatureLog(signatureLookup{models.DocTypeFluidBalance, visit.ID}, signatureLookup{models.DocTypeCPPT, visit.ID}); isSigned {
+			go storeCachedPDF(models.DocTypeFluidBalance, visit.ID, buf.Bytes(), filename)
 		}
 	}
 	c.Header("Content-Type", "application/pdf")
@@ -6278,6 +6656,26 @@ func PrintFluidBalance(c *gin.Context) {
 // GET /api/print/bed-transfer/:visitId
 func PrintBedTransfer(c *gin.Context) {
 	visitID := c.Param("visitId")
+	vid, _ := strconv.ParseUint(visitID, 10, 32)
+	rmDupCacheIDStr := c.Query("rm_duplicate_id")
+
+	// Cache check (signed documents only)
+	if rmDupCacheIDStr != "" {
+		rmDupID, _ := strconv.ParseUint(rmDupCacheIDStr, 10, 32)
+		if pdfData, fileName, found := getCachedPDF(models.DocTypeRMDupBedTransfer, uint(rmDupID)); found {
+			c.Header("Content-Type", "application/pdf")
+			c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", fileName))
+			c.Data(http.StatusOK, "application/pdf", pdfData)
+			return
+		}
+	} else {
+		if pdfData, fileName, found := getCachedPDF(models.DocTypeBedTransfer, uint(vid)); found {
+			c.Header("Content-Type", "application/pdf")
+			c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", fileName))
+			c.Data(http.StatusOK, "application/pdf", pdfData)
+			return
+		}
+	}
 
 	// Load visit with relations
 	var visit models.Visit
@@ -6420,7 +6818,7 @@ func PrintBedTransfer(c *gin.Context) {
 	if visit.Doctor != nil {
 		btDoctorName = resolveAssignedUserNameFromEmployee(visit.Doctor, btDoctorName)
 	}
-	addSignature(pdf, hospitalInfo.City, btDoctorName, "Perawat", "", 0,
+	addSignature(pdf, hospitalInfo.City, btDoctorName, "Perawat", models.DocTypeBedTransfer, visit.ID,
 		rmDupSignatureLookup(c, models.DocTypeRMDupBedTransfer))
 
 	// Output PDF
@@ -6431,6 +6829,16 @@ func PrintBedTransfer(c *gin.Context) {
 	}
 
 	filename := fmt.Sprintf("Mutasi_Pasien_%s.pdf", visit.VisitNumber)
+	if rmDupCacheIDStr != "" {
+		rmDupID, _ := strconv.ParseUint(rmDupCacheIDStr, 10, 32)
+		if _, isSigned := findSignatureLog(signatureLookup{models.DocTypeRMDupBedTransfer, uint(rmDupID)}); isSigned {
+			go storeCachedPDF(models.DocTypeRMDupBedTransfer, uint(rmDupID), buf.Bytes(), filename)
+		}
+	} else {
+		if _, isSigned := findSignatureLog(signatureLookup{models.DocTypeBedTransfer, visit.ID}); isSigned {
+			go storeCachedPDF(models.DocTypeBedTransfer, visit.ID, buf.Bytes(), filename)
+		}
+	}
 	c.Header("Content-Type", "application/pdf")
 	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", filename))
 	c.Data(http.StatusOK, "application/pdf", buf.Bytes())
@@ -6563,12 +6971,20 @@ func PrintUnitTransfer(c *gin.Context) {
 // GET /api/print/vital-sign-chart/:visitId
 func PrintVitalSignChart(c *gin.Context) {
 	visitID := c.Param("visitId")
+	vid, _ := strconv.ParseUint(visitID, 10, 32)
 
 	// Cache check for RM duplicate mode
 	rmDupCacheIDStr := c.Query("rm_duplicate_id")
 	if rmDupCacheIDStr != "" {
 		rmDupID, _ := strconv.ParseUint(rmDupCacheIDStr, 10, 32)
 		if pdfData, fileName, found := getCachedPDF(models.DocTypeRMDupVitalSign, uint(rmDupID)); found {
+			c.Header("Content-Type", "application/pdf")
+			c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", fileName))
+			c.Data(http.StatusOK, "application/pdf", pdfData)
+			return
+		}
+	} else {
+		if pdfData, fileName, found := getCachedPDF(models.DocTypeVitalSign, uint(vid)); found {
 			c.Header("Content-Type", "application/pdf")
 			c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", fileName))
 			c.Data(http.StatusOK, "application/pdf", pdfData)
@@ -6624,7 +7040,7 @@ func PrintVitalSignChart(c *gin.Context) {
 	}
 	if len(cppts) == 0 && rmDupIDStr == "" {
 		if err := database.DB.Preload("CreatedBy").
-			Where("visit_id = ?", visitID).
+			Where("visit_id = ? AND is_casemix = ?", visitID, false).
 			Where("(blood_pressure != '' AND blood_pressure IS NOT NULL) OR heart_rate > 0 OR respiratory_rate > 0 OR (temperature != '' AND temperature IS NOT NULL) OR oxygen_saturation > 0 OR pain_scale > 0").
 			Order("record_date ASC").
 			Find(&cppts).Error; err != nil {
@@ -6760,7 +7176,7 @@ func PrintVitalSignChart(c *gin.Context) {
 	if visit.Doctor != nil {
 		vsDoctorName = resolveAssignedUserNameFromEmployee(visit.Doctor, vsDoctorName)
 	}
-	addSignature(pdf, hospitalInfo.City, vsDoctorName, "Perawat", "", 0,
+	addSignature(pdf, hospitalInfo.City, vsDoctorName, "Perawat", models.DocTypeVitalSign, visit.ID,
 		rmDupSignatureLookup(c, models.DocTypeRMDupVitalSign))
 
 	// Output PDF
@@ -6775,6 +7191,10 @@ func PrintVitalSignChart(c *gin.Context) {
 		rmDupID, _ := strconv.ParseUint(rmDupCacheIDStr, 10, 32)
 		if _, isSigned := findSignatureLog(signatureLookup{models.DocTypeRMDupVitalSign, uint(rmDupID)}); isSigned {
 			go storeCachedPDF(models.DocTypeRMDupVitalSign, uint(rmDupID), buf.Bytes(), filename)
+		}
+	} else {
+		if _, isSigned := findSignatureLog(signatureLookup{models.DocTypeVitalSign, visit.ID}); isSigned {
+			go storeCachedPDF(models.DocTypeVitalSign, visit.ID, buf.Bytes(), filename)
 		}
 	}
 	c.Header("Content-Type", "application/pdf")
@@ -6800,7 +7220,7 @@ func GetAvailableDocs(c *gin.Context) {
 
 	// Triage (UGD)
 	var triageCount int64
-	database.DB.Model(&models.Triage{}).Where("visit_id = ?", visitID).Count(&triageCount)
+	database.DB.Model(&models.Triage{}).Where("visit_id = ? AND is_casemix = ?", visitID, false).Count(&triageCount)
 	if triageCount > 0 {
 		docs = append(docs, "triage")
 		docs = append(docs, "emergency_summary")
@@ -6808,21 +7228,21 @@ func GetAvailableDocs(c *gin.Context) {
 
 	// CPPT
 	var cpptCount int64
-	database.DB.Model(&models.CPPT{}).Where("visit_id = ?", visitID).Count(&cpptCount)
+	database.DB.Model(&models.CPPT{}).Where("visit_id = ? AND is_casemix = ?", visitID, false).Count(&cpptCount)
 	if cpptCount > 0 {
 		docs = append(docs, "cppt")
 	}
 
 	// Nursing Care
 	var nursingCount int64
-	database.DB.Model(&models.NursingCare{}).Where("visit_id = ?", visitID).Count(&nursingCount)
+	database.DB.Model(&models.NursingCare{}).Where("visit_id = ? AND is_casemix = ?", visitID, false).Count(&nursingCount)
 	if nursingCount > 0 {
 		docs = append(docs, "nursing_care")
 	}
 
 	// Fluid Balance
 	var fluidCount int64
-	database.DB.Model(&models.FluidBalance{}).Where("visit_id = ?", visitID).Count(&fluidCount)
+	database.DB.Model(&models.FluidBalance{}).Where("visit_id = ? AND is_casemix = ?", visitID, false).Count(&fluidCount)
 	if fluidCount > 0 {
 		docs = append(docs, "fluid_balance")
 	}
@@ -6837,7 +7257,7 @@ func GetAvailableDocs(c *gin.Context) {
 	// Vital Sign Chart (from CPPT with vital signs)
 	var vitalCount int64
 	database.DB.Model(&models.CPPT{}).
-		Where("visit_id = ?", visitID).
+		Where("visit_id = ? AND is_casemix = ?", visitID, false).
 		Where("(blood_pressure != '' AND blood_pressure IS NOT NULL) OR heart_rate > 0 OR respiratory_rate > 0 OR (temperature != '' AND temperature IS NOT NULL) OR oxygen_saturation > 0 OR pain_scale > 0").
 		Count(&vitalCount)
 	if vitalCount > 0 {
@@ -6846,7 +7266,7 @@ func GetAvailableDocs(c *gin.Context) {
 
 	// Referral Letter (disposition type = rujuk)
 	var referralCount int64
-	database.DB.Model(&models.Disposition{}).Where("visit_id = ? AND disposition_type = ?", visitID, "rujuk").Count(&referralCount)
+	database.DB.Model(&models.Disposition{}).Where("visit_id = ? AND is_casemix = ? AND disposition_type = ?", visitID, false, "rujuk").Count(&referralCount)
 	if referralCount > 0 {
 		docs = append(docs, "referral_letter")
 	}
@@ -6899,16 +7319,15 @@ func PrintReferralLetter(c *gin.Context) {
 	hospitalInfo := getHospitalInfo()
 
 	// Load disposition with referral data
-	clinicalDB := getClinicalDB(c)
 	var disposition models.Disposition
-	if err := clinicalDB.Where("visit_id = ? AND disposition_type = ?", visitID, "rujuk").First(&disposition).Error; err != nil {
+	if err := clinicalVisitQuery(c, visitID).Where("disposition_type = ?", "rujuk").First(&disposition).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Data rujukan tidak ditemukan. Pastikan disposisi pasien adalah 'Rujuk'."})
 		return
 	}
 
 	// Load diagnoses
 	var diagnoses []models.Diagnosis
-	clinicalDB.Where("visit_id = ?", visitID).Find(&diagnoses)
+	clinicalVisitQuery(c, visitID).Find(&diagnoses)
 
 	// Create PDF
 	pdf := gofpdf.New("P", "mm", "A4", "")
@@ -7103,9 +7522,8 @@ func PrintInpatientCertificate(c *gin.Context) {
 	hospitalInfo := getHospitalInfo()
 
 	// Load primary diagnosis
-	clinicalDB := getClinicalDB(c)
 	var diagnosis models.Diagnosis
-	clinicalDB.Where("visit_id = ? AND type = ?", visitID, "primary").First(&diagnosis)
+	clinicalVisitQuery(c, visitID).Where("type = ?", "primary").First(&diagnosis)
 
 	// Create PDF
 	pdf := gofpdf.New("P", "mm", "A4", "")
@@ -9339,28 +9757,26 @@ func PrintInformedConsent(c *gin.Context) {
 	pdf.CellFormat(contentWidth, lineH, locationDate, "", 1, "R", false, 0, "")
 	pdf.SetY(pdf.GetY() + 3)
 
-	// Two column signatures
+	// Two column signatures (dynamic from document-signature settings)
 	sigWidth := 80.0
 	gap := contentWidth - sigWidth*2
 	startY := pdf.GetY()
+	columnSlots := []string{"patient", "nurse"} // default layout
+	for _, rule := range loadDocumentSignatureRules() {
+		if rule.DocumentType != models.DocTypeInformedConsent || len(rule.Slots) == 0 {
+			continue
+		}
+		columnSlots = append([]string{}, rule.Slots...)
+		break
+	}
+	if len(columnSlots) < 2 {
+		columnSlots = append(columnSlots, "none")
+	}
 
-	// Left: Pasien/Wali
-	pdf.SetXY(marginLeft, startY)
-	pdf.SetFont("Arial", "B", 9)
-	pdf.CellFormat(sigWidth, lineH, "Yang Menyatakan,", "", 1, "C", false, 0, "")
-	pdf.SetFont("Arial", "", 9)
-	pdf.SetX(marginLeft)
-	pdf.CellFormat(sigWidth, lineH, "Pasien / Wali *)", "", 1, "C", false, 0, "")
-
-	// Signature space
-	pdf.SetY(startY + 35)
-	pdf.SetX(marginLeft)
-	pdf.SetFont("Arial", "B", 9)
 	patientName := patient.NamaLengkap
 	if patientName == "" {
 		patientName = "(...................................)"
 	}
-	pdf.CellFormat(sigWidth, lineH, patientName, "T", 1, "C", false, 0, "")
 
 	// Override staff name if signed via rm_dup
 	consentSigLog, consentIsSigned := findSignatureLog(
@@ -9370,27 +9786,81 @@ func PrintInformedConsent(c *gin.Context) {
 	if consentIsSigned {
 		staffName = resolveSignedUserName(consentSigLog, staffName)
 	}
+	if strings.TrimSpace(staffName) == "" {
+		staffName = "(...................................)"
+	}
 
-	// Right: Petugas RS
+	type consentSlotRender struct {
+		title  string
+		sub    string
+		name   string
+		signed bool
+		log    models.SignatureLog
+	}
+	resolveConsentSlot := func(slot string) consentSlotRender {
+		switch strings.TrimSpace(strings.ToLower(slot)) {
+		case "patient":
+			return consentSlotRender{
+				title: "Yang Menyatakan,",
+				sub:   "Pasien / Wali *)",
+				name:  patientName,
+			}
+		case "doctor_dpjp":
+			return consentSlotRender{
+				title:  "Dokter Penanggung Jawab,",
+				sub:    "",
+				name:   staffName,
+				signed: consentIsSigned,
+				log:    consentSigLog,
+			}
+		case "nurse":
+			return consentSlotRender{
+				title:  "Petugas Rumah Sakit,",
+				sub:    "",
+				name:   staffName,
+				signed: consentIsSigned,
+				log:    consentSigLog,
+			}
+		default:
+			return consentSlotRender{}
+		}
+	}
+	left := resolveConsentSlot(columnSlots[0])
+	right := resolveConsentSlot(columnSlots[1])
+	left.title = "Slot 1 (Kiri),"
+	right.title = "Slot 2 (Kanan),"
+
+	// Left column
+	pdf.SetXY(marginLeft, startY)
+	pdf.SetFont("Arial", "B", 9)
+	pdf.CellFormat(sigWidth, lineH, left.title, "", 1, "C", false, 0, "")
+	pdf.SetFont("Arial", "", 9)
+	pdf.SetX(marginLeft)
+	pdf.CellFormat(sigWidth, lineH, strings.TrimSpace(left.sub), "", 1, "C", false, 0, "")
+	if left.signed {
+		addSignatureQR(pdf, left.log, marginLeft+sigWidth/2, startY+lineH+12, 16.0, fmt.Sprintf("consent_left_%d", patient.ID))
+	}
+	pdf.SetY(startY + 35)
+	pdf.SetX(marginLeft)
+	pdf.SetFont("Arial", "B", 9)
+	pdf.CellFormat(sigWidth, lineH, left.name, "T", 1, "C", false, 0, "")
+
+	// Right column
 	rightSigX := marginLeft + sigWidth + gap
 	pdf.SetXY(rightSigX, startY)
 	pdf.SetFont("Arial", "B", 9)
-	pdf.CellFormat(sigWidth, lineH, "Petugas Rumah Sakit,", "", 1, "C", false, 0, "")
+	pdf.CellFormat(sigWidth, lineH, right.title, "", 1, "C", false, 0, "")
 	pdf.SetFont("Arial", "", 9)
 	pdf.SetXY(rightSigX, startY+lineH)
-	pdf.CellFormat(sigWidth, lineH, "", "", 1, "C", false, 0, "")
-	if consentIsSigned {
-		addSignatureQR(pdf, consentSigLog, rightSigX+sigWidth/2, startY+lineH+12, 16.0, fmt.Sprintf("consent_%d", patient.ID))
+	pdf.CellFormat(sigWidth, lineH, strings.TrimSpace(right.sub), "", 1, "C", false, 0, "")
+	if right.signed {
+		addSignatureQR(pdf, right.log, rightSigX+sigWidth/2, startY+lineH+12, 16.0, fmt.Sprintf("consent_right_%d", patient.ID))
 	}
 
 	// Signature space
 	pdf.SetXY(rightSigX, startY+35)
 	pdf.SetFont("Arial", "B", 9)
-	staffLabel := "(...................................)"
-	if staffName != "" {
-		staffLabel = staffName
-	}
-	pdf.CellFormat(sigWidth, lineH, staffLabel, "T", 1, "C", false, 0, "")
+	pdf.CellFormat(sigWidth, lineH, right.name, "T", 1, "C", false, 0, "")
 
 	// Footer note
 	pdf.SetY(pdf.GetY() + 5)
@@ -9508,9 +9978,8 @@ func PrintAdmissionDischargeSummary(c *gin.Context) {
 	}
 
 	// Load discharge medicine orders (from any visit under registration)
-	clinicalDB := getClinicalDB(c)
 	var dischargeMedicineOrders []models.MedicineOrder
-	clinicalDB.Where("source_visit_id IN ? AND status <> ?", visitIDs, models.OrderStatusCancelled).
+	applyCasemixEklaimScope(c, getClinicalDB(c).Where("source_visit_id IN ? AND status <> ? AND is_casemix = ?", visitIDs, models.OrderStatusCancelled, useCasemixClinicalData(c))).
 		Where("(fulfillment_type = ?) OR (COALESCE(fulfillment_type, '') = '' AND prescription_type = ?)", models.FulfillmentTypeTakeHome, "discharge").
 		Preload("Items.Medicine").Find(&dischargeMedicineOrders)
 
@@ -9772,27 +10241,26 @@ func PrintAdmissionDischargeSummary(c *gin.Context) {
 		pdf.SetFont("Arial", "", 9)
 
 		// ---- Load per-visit medical data ----
-		clinicalDB := getClinicalDB(c)
 		var mvAnamnesis models.Anamnesis
-		clinicalDB.Where("visit_id = ?", mv.ID).First(&mvAnamnesis)
+		clinicalVisitQuery(c, mv.ID).First(&mvAnamnesis)
 
 		var mvPhysicalExam models.PhysicalExamination
-		clinicalDB.Where("visit_id = ?", mv.ID).First(&mvPhysicalExam)
+		clinicalVisitQuery(c, mv.ID).First(&mvPhysicalExam)
 
 		var mvDiagnoses []models.Diagnosis
-		clinicalDB.Where("visit_id = ?", mv.ID).Order("type ASC, created_at ASC").Find(&mvDiagnoses)
+		clinicalVisitQuery(c, mv.ID).Order("type ASC, created_at ASC").Find(&mvDiagnoses)
 
 		var mvDisposition models.Disposition
-		clinicalDB.Where("visit_id = ?", mv.ID).First(&mvDisposition)
+		clinicalVisitQuery(c, mv.ID).First(&mvDisposition)
 
 		var mvVisitProcedures []models.VisitProcedure
-		clinicalDB.Where("visit_id = ?", mv.ID).Preload("Procedure").Find(&mvVisitProcedures)
+		clinicalVisitQuery(c, mv.ID).Preload("Procedure").Find(&mvVisitProcedures)
 
 		var mvProcedureOrders []models.ProcedureOrder
-		clinicalDB.Where("source_visit_id = ?", mv.ID).Find(&mvProcedureOrders)
+		clinicalSourceVisitQuery(c, mv.ID).Find(&mvProcedureOrders)
 
 		var mvMedicineOrders []models.MedicineOrder
-		clinicalDB.Where("source_visit_id = ? AND status <> ?", mv.ID, models.OrderStatusCancelled).
+		clinicalSourceVisitQuery(c, mv.ID).Where("status <> ?", models.OrderStatusCancelled).
 			Where("(COALESCE(fulfillment_type, '') != ?) AND (prescription_type IS NULL OR prescription_type != ?)", models.FulfillmentTypeTakeHome, "discharge").
 			Preload("Items.Medicine").Find(&mvMedicineOrders)
 
@@ -10224,7 +10692,7 @@ func PrintAdmissionDischargeSummary(c *gin.Context) {
 	// Find disposition from last main visit that has one
 	var finalDisposition models.Disposition
 	for i := len(mainVisits) - 1; i >= 0; i-- {
-		database.DB.Where("visit_id = ?", mainVisits[i].ID).First(&finalDisposition)
+		clinicalVisitQuery(c, mainVisits[i].ID).First(&finalDisposition)
 		if finalDisposition.ID > 0 {
 			break
 		}
@@ -10734,27 +11202,63 @@ func PrintRegistrationReceipt(c *gin.Context) {
 		sigDateStr = formatDateIndonesian(sigLog.SignedAt)
 	}
 
+	columnSlots := []string{"nurse", "patient"} // default layout for registration receipt
+	for _, rule := range loadDocumentSignatureRules() {
+		if rule.DocumentType != models.DocTypeRegistration || len(rule.Slots) == 0 {
+			continue
+		}
+		columnSlots = append([]string{}, rule.Slots...)
+		break
+	}
+	if len(columnSlots) < 2 {
+		columnSlots = append(columnSlots, "none")
+	}
+
+	type regSlotRender struct {
+		label  string
+		name   string
+		signed bool
+	}
+	resolveRegSlot := func(slot string) regSlotRender {
+		switch strings.TrimSpace(strings.ToLower(slot)) {
+		case "nurse":
+			return regSlotRender{label: "Petugas Pendaftaran", name: "( " + registeredBy + " )", signed: isSigned}
+		case "doctor_dpjp":
+			return regSlotRender{label: "Dokter DPJP", name: "( " + doctorName + " )", signed: isSigned}
+		case "patient":
+			return regSlotRender{label: "Pasien / Keluarga Pasien", name: "( " + patient.NamaLengkap + " )", signed: false}
+		default:
+			return regSlotRender{label: "", name: "", signed: false}
+		}
+	}
+	left := resolveRegSlot(columnSlots[0])
+	right := resolveRegSlot(columnSlots[1])
+
 	pdf.SetFont("Arial", "", 9)
 	pdf.SetXY(marginLeft, signY)
 	pdf.CellFormat(signColWidth, 5, hospitalInfo.City+", "+sigDateStr, "", 1, "C", false, 0, "")
 
-	// Left: Petugas Pendaftaran
+	// Left column
 	pdf.SetXY(marginLeft, signY+5)
-	pdf.CellFormat(signColWidth, 5, "Petugas Pendaftaran", "", 1, "C", false, 0, "")
+	pdf.CellFormat(signColWidth, 5, "Slot 1 (Kiri)", "", 1, "C", false, 0, "")
+	pdf.SetXY(marginLeft, signY+10)
+	pdf.CellFormat(signColWidth, 5, left.label, "", 1, "C", false, 0, "")
 
 	// QR code in left signature area if signed
-	if isSigned {
+	if left.signed {
 		addSignatureQR(pdf, sigLog, marginLeft+signColWidth/2, signY+20, 18.0, fmt.Sprintf("reg_%d", registration.ID))
 	}
 
 	pdf.SetXY(marginLeft, signY+30)
-	pdf.CellFormat(signColWidth, 5, "( "+registeredBy+" )", "", 1, "C", false, 0, "")
+	pdf.CellFormat(signColWidth, 5, left.name, "", 1, "C", false, 0, "")
 
-	// Right: Pasien/Keluarga Pasien
+	// Right column
 	pdf.SetXY(marginLeft+signColWidth, signY+5)
-	pdf.CellFormat(signColWidth, 5, "Pasien / Keluarga Pasien", "", 1, "C", false, 0, "")
+	pdf.CellFormat(signColWidth, 5, "Slot 2 (Kanan)", "", 1, "C", false, 0, "")
+	pdf.SetXY(marginLeft+signColWidth, signY+10)
+	pdf.CellFormat(signColWidth, 5, right.label, "", 1, "C", false, 0, "")
 	pdf.SetXY(marginLeft+signColWidth, signY+30)
-	pdf.CellFormat(signColWidth, 5, "( "+patient.NamaLengkap+" )", "", 1, "C", false, 0, "")
+	pdf.CellFormat(signColWidth, 5, right.name, "", 1, "C", false, 0, "")
 
 	// Dashed line for signatures
 	pdf.SetDrawColor(150, 150, 150)
@@ -11036,6 +11540,17 @@ func PrintDPJPRequest(c *gin.Context) {
 	// Tanda Tangan - 3 kolom
 	signY := pdf.GetY()
 	signColWidth := contentWidth / 3
+	columnSlots := []string{"patient", "nurse"} // configurable first 2 columns
+	for _, rule := range loadDocumentSignatureRules() {
+		if rule.DocumentType != models.DocTypeInformedConsent || len(rule.Slots) == 0 {
+			continue
+		}
+		columnSlots = append([]string{}, rule.Slots...)
+		break
+	}
+	if len(columnSlots) < 2 {
+		columnSlots = append(columnSlots, "none")
+	}
 
 	pdf.SetFont("Arial", "", 9)
 	dateStr := hospitalInfo.City + ", " + formatDateIndonesian(time.Now())
@@ -11044,17 +11559,49 @@ func PrintDPJPRequest(c *gin.Context) {
 	pdf.SetY(pdf.GetY() + 2)
 	signY = pdf.GetY()
 
-	// Col 1: Pasien / Keluarga
-	pdf.SetXY(marginLeft, signY)
-	pdf.CellFormat(signColWidth, 5, "Pasien / Keluarga Pasien", "", 1, "C", false, 0, "")
-	pdf.SetXY(marginLeft, signY+28)
-	pdf.CellFormat(signColWidth, 5, "( "+truncateText(patient.NamaLengkap, 22)+" )", "", 1, "C", false, 0, "")
+	type staticSlotRender struct {
+		label string
+		name  string
+	}
+	resolveStaticSlot := func(slot string) staticSlotRender {
+		switch strings.TrimSpace(strings.ToLower(slot)) {
+		case "patient":
+			return staticSlotRender{
+				label: "Pasien / Keluarga Pasien",
+				name:  "( " + truncateText(patient.NamaLengkap, 22) + " )",
+			}
+		case "doctor_dpjp":
+			return staticSlotRender{
+				label: "Dokter DPJP",
+				name:  "( " + truncateText(dpjpName, 22) + " )",
+			}
+		case "nurse":
+			return staticSlotRender{
+				label: "Perawat / Petugas",
+				name:  "( ................................ )",
+			}
+		default:
+			return staticSlotRender{}
+		}
+	}
+	left := resolveStaticSlot(columnSlots[0])
+	mid := resolveStaticSlot(columnSlots[1])
 
-	// Col 2: Perawat
+	// Col 1: dynamic
+	pdf.SetXY(marginLeft, signY)
+	pdf.CellFormat(signColWidth, 5, "Slot 1 (Kiri)", "", 1, "C", false, 0, "")
+	pdf.SetXY(marginLeft, signY+5)
+	pdf.CellFormat(signColWidth, 5, left.label, "", 1, "C", false, 0, "")
+	pdf.SetXY(marginLeft, signY+28)
+	pdf.CellFormat(signColWidth, 5, left.name, "", 1, "C", false, 0, "")
+
+	// Col 2: dynamic
 	pdf.SetXY(marginLeft+signColWidth, signY)
-	pdf.CellFormat(signColWidth, 5, "Perawat / Petugas", "", 1, "C", false, 0, "")
+	pdf.CellFormat(signColWidth, 5, "Slot 2 (Kanan)", "", 1, "C", false, 0, "")
+	pdf.SetXY(marginLeft+signColWidth, signY+5)
+	pdf.CellFormat(signColWidth, 5, mid.label, "", 1, "C", false, 0, "")
 	pdf.SetXY(marginLeft+signColWidth, signY+28)
-	pdf.CellFormat(signColWidth, 5, "( ................................ )", "", 1, "C", false, 0, "")
+	pdf.CellFormat(signColWidth, 5, mid.name, "", 1, "C", false, 0, "")
 
 	// Col 3: DPJP
 	pdf.SetXY(marginLeft+signColWidth*2, signY)
@@ -11141,7 +11688,7 @@ func PrintInformedConsentReceipt(c *gin.Context) {
 
 	// Load diagnoses for this visit
 	var diagnoses []models.Diagnosis
-	database.DB.Where("visit_id = ?", visit.ID).Order("type ASC, id ASC").Find(&diagnoses)
+	database.DB.Where("visit_id = ? AND is_casemix = ?", visit.ID, false).Order("type ASC, id ASC").Find(&diagnoses)
 
 	hospitalInfo := getHospitalInfo()
 
@@ -11384,6 +11931,17 @@ func PrintInformedConsentReceipt(c *gin.Context) {
 	// Tanda Tangan - 3 kolom
 	signY := pdf.GetY()
 	signColWidth := contentWidth / 3
+	columnSlots := []string{"patient", "nurse"} // configurable first 2 columns
+	for _, rule := range loadDocumentSignatureRules() {
+		if rule.DocumentType != models.DocTypeInformedConsent || len(rule.Slots) == 0 {
+			continue
+		}
+		columnSlots = append([]string{}, rule.Slots...)
+		break
+	}
+	if len(columnSlots) < 2 {
+		columnSlots = append(columnSlots, "none")
+	}
 
 	pdf.SetFont("Arial", "", 9)
 	dateStr := hospitalInfo.City + ", " + formatDateIndonesian(time.Now())
@@ -11392,17 +11950,49 @@ func PrintInformedConsentReceipt(c *gin.Context) {
 	pdf.SetY(pdf.GetY() + 2)
 	signY = pdf.GetY()
 
-	// Col 1: Pasien / Keluarga
-	pdf.SetXY(marginLeft, signY)
-	pdf.CellFormat(signColWidth, 5, "Pasien / Keluarga Pasien", "", 1, "C", false, 0, "")
-	pdf.SetXY(marginLeft, signY+28)
-	pdf.CellFormat(signColWidth, 5, "( "+truncateText(patient.NamaLengkap, 22)+" )", "", 1, "C", false, 0, "")
+	type staticSlotRender struct {
+		label string
+		name  string
+	}
+	resolveStaticSlot := func(slot string) staticSlotRender {
+		switch strings.TrimSpace(strings.ToLower(slot)) {
+		case "patient":
+			return staticSlotRender{
+				label: "Pasien / Keluarga Pasien",
+				name:  "( " + truncateText(patient.NamaLengkap, 22) + " )",
+			}
+		case "doctor_dpjp":
+			return staticSlotRender{
+				label: "DPJP / Dokter",
+				name:  "( " + truncateText(dpjpName, 22) + " )",
+			}
+		case "nurse":
+			return staticSlotRender{
+				label: "Saksi / Petugas",
+				name:  "( ................................ )",
+			}
+		default:
+			return staticSlotRender{}
+		}
+	}
+	left := resolveStaticSlot(columnSlots[0])
+	mid := resolveStaticSlot(columnSlots[1])
 
-	// Col 2: Saksi
+	// Col 1: dynamic
+	pdf.SetXY(marginLeft, signY)
+	pdf.CellFormat(signColWidth, 5, "Slot 1 (Kiri)", "", 1, "C", false, 0, "")
+	pdf.SetXY(marginLeft, signY+5)
+	pdf.CellFormat(signColWidth, 5, left.label, "", 1, "C", false, 0, "")
+	pdf.SetXY(marginLeft, signY+28)
+	pdf.CellFormat(signColWidth, 5, left.name, "", 1, "C", false, 0, "")
+
+	// Col 2: dynamic
 	pdf.SetXY(marginLeft+signColWidth, signY)
-	pdf.CellFormat(signColWidth, 5, "Saksi", "", 1, "C", false, 0, "")
+	pdf.CellFormat(signColWidth, 5, "Slot 2 (Kanan)", "", 1, "C", false, 0, "")
+	pdf.SetXY(marginLeft+signColWidth, signY+5)
+	pdf.CellFormat(signColWidth, 5, mid.label, "", 1, "C", false, 0, "")
 	pdf.SetXY(marginLeft+signColWidth, signY+28)
-	pdf.CellFormat(signColWidth, 5, "( ................................ )", "", 1, "C", false, 0, "")
+	pdf.CellFormat(signColWidth, 5, mid.name, "", 1, "C", false, 0, "")
 
 	// Col 3: DPJP
 	pdf.SetXY(marginLeft+signColWidth*2, signY)

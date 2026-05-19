@@ -65,12 +65,39 @@ type DocumentSignature struct {
 	SignedBy      *User      `gorm:"foreignKey:SignedByID" json:"signed_by,omitempty"`
 	SignatureHash string     `gorm:"size:128" json:"signature_hash,omitempty"`
 
+	// Multi-signature status
+	RequiredSignatures int  `gorm:"default:1" json:"required_signatures"` // total signatures required
+	SignedSignatures   int  `gorm:"default:0" json:"signed_signatures"`   // currently signed signatures
+	IsFullySigned      bool `gorm:"default:false" json:"is_fully_signed"` // true when SignedSignatures >= RequiredSignatures
+
 	// Is document locked from further edits?
 	IsLocked bool `gorm:"default:false" json:"is_locked"`
 }
 
 func (DocumentSignature) TableName() string {
 	return "document_signatures"
+}
+
+// DocumentSignatureSigner stores signer-level state for multi-signature documents.
+type DocumentSignatureSigner struct {
+	ID        uint           `gorm:"primarykey" json:"id"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
+
+	DocumentType string `gorm:"size:50;not null;uniqueIndex:idx_doc_signer_unique" json:"document_type"`
+	DocumentID   uint   `gorm:"not null;uniqueIndex:idx_doc_signer_unique" json:"document_id"`
+	SignerKey    string `gorm:"size:100;not null;uniqueIndex:idx_doc_signer_unique" json:"signer_key"` // employee:{id} or user:{id}
+
+	SignedAt      *time.Time `json:"signed_at,omitempty"`
+	SignedByID    *uint      `gorm:"index" json:"signed_by_id,omitempty"`
+	SignedBy      *User      `gorm:"foreignKey:SignedByID" json:"signed_by,omitempty"`
+	SignatureHash string     `gorm:"size:128" json:"signature_hash,omitempty"`
+	IsActive      bool       `gorm:"default:true" json:"is_active"`
+}
+
+func (DocumentSignatureSigner) TableName() string {
+	return "document_signature_signers"
 }
 
 // Document type constants for signature
@@ -90,6 +117,9 @@ const (
 	DocTypeInformedConsent    = "informed_consent"    // Informed Consent
 	DocTypeCPPT               = "cppt"                // CPPT
 	DocTypeNursingCare        = "nursing_care"        // Asuhan Keperawatan
+	DocTypeFluidBalance       = "fluid_balance"       // Balance Cairan
+	DocTypeBedTransfer        = "bed_transfer"        // Mutasi Pasien
+	DocTypeVitalSign          = "vital_sign"          // Grafik Tanda Vital
 	DocTypeTriage             = "triage"              // Form Triage
 	DocTypeEmergencySummary   = "emergency_summary"   // Ringkasan UGD
 	DocTypeOperativeReport    = "operative_report"    // Laporan Operasi
@@ -144,13 +174,16 @@ type DocumentPDFCache struct {
 	DocumentID   uint   `gorm:"not null;uniqueIndex:idx_pdf_cache_doc" json:"document_id"`
 
 	// PDF blob data
-	PDFData []byte `gorm:"type:bytea;not null" json:"-"`
+	PDFData  []byte `gorm:"type:bytea" json:"-"`
+	FilePath string `gorm:"size:500" json:"file_path,omitempty"` // absolute/relative file path for file-based cache
 
 	// Metadata
-	FileName    string `gorm:"size:200" json:"file_name"`
-	FileSize    int64  `gorm:"default:0" json:"file_size"`       // Size in bytes
-	GeneratedAt time.Time `json:"generated_at"`                  // When this PDF was generated
-	SignedAt    *time.Time `json:"signed_at,omitempty"`           // Signature state at generation time
+	FileName        string     `gorm:"size:200" json:"file_name"`
+	FileSize        int64      `gorm:"default:0" json:"file_size"` // Size in bytes
+	GeneratedAt     time.Time  `json:"generated_at"`               // When this PDF was generated
+	SignedAt        *time.Time `json:"signed_at,omitempty"`        // Signature state at generation time
+	SignatureCount  int        `gorm:"default:0" json:"signature_count"`
+	SignatureTarget int        `gorm:"default:1" json:"signature_target"`
 
 	// Version tracking — hash of input data to detect staleness
 	ContentHash string `gorm:"size:64" json:"content_hash,omitempty"` // SHA256 of key input data

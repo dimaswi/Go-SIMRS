@@ -64,6 +64,8 @@ import { id as idLocale } from "date-fns/locale";
 interface ProcedureFormProps {
   visitId: number;
   readOnly?: boolean;
+  externalData?: VisitProcedure[];
+  useExternalData?: boolean;
 }
 
 // Check if procedure has parameters
@@ -71,7 +73,7 @@ function procedureHasParameters(procedure: VisitProcedure): boolean {
   return (procedure.procedure?.parameters && procedure.procedure.parameters.length > 0) || false;
 }
 
-export function ProcedureForm({ visitId, readOnly = false }: ProcedureFormProps) {
+export function ProcedureForm({ visitId, readOnly = false, externalData, useExternalData = false }: ProcedureFormProps) {
   const { toast } = useToast();
   const { hasPermission } = usePermission();
 
@@ -93,13 +95,19 @@ export function ProcedureForm({ visitId, readOnly = false }: ProcedureFormProps)
   const [procedureToDelete, setProcedureToDelete] = useState<number | null>(null);
 
   // Permissions
-  const canCreate = hasPermission("medical_records.procedure");
-  const canEdit = hasPermission("medical_records.procedure");
-  const canDelete = hasPermission("medical_records.procedure");
+  const canCreate = hasPermission("medical_records.procedure") && !useExternalData;
+  const canEdit = hasPermission("medical_records.procedure") && !useExternalData;
+  const canDelete = hasPermission("medical_records.procedure") && !useExternalData;
 
   // Load data
   const loadData = useCallback(async (focusProcedureId?: number) => {
     setLoading(true);
+    if (useExternalData) {
+      setRoomProcedures([]);
+      setVisitProcedures(externalData || []);
+      setLoading(false);
+      return;
+    }
     try {
       const [roomProcRes, visitProcRes] = await Promise.all([
         visitProceduresApi.getRoomProcedures(visitId),
@@ -136,7 +144,7 @@ export function ProcedureForm({ visitId, readOnly = false }: ProcedureFormProps)
     } finally {
       setLoading(false);
     }
-  }, [visitId, toast]);
+  }, [externalData, useExternalData, visitId, toast]);
 
   useEffect(() => {
     loadData();

@@ -24,7 +24,46 @@ func getCasemixEklaimID(c *gin.Context) *uint {
 			return &uid
 		}
 	}
+
+	if idStr := c.Query("rm_duplicate_id"); idStr != "" {
+		if id, err := strconv.ParseUint(idStr, 10, 32); err == nil {
+			var rmDup models.EKlaimRMDuplicate
+			if err := database.DB.Select("e_klaim_local_id").First(&rmDup, uint(id)).Error; err == nil {
+				uid := rmDup.EKlaimLocalID
+				return &uid
+			}
+		}
+	}
+
 	return nil
+}
+
+func requestUsesCasemix(c *gin.Context) bool {
+	return c.Query("is_casemix") == "true" || c.Query("casemix_eklaim_id") != "" || c.Query("rm_duplicate_id") != ""
+}
+
+func applyCasemixEklaimScope(c *gin.Context, query *gorm.DB) *gorm.DB {
+	if !requestUsesCasemix(c) {
+		return query
+	}
+
+	if casemixEklaimID := getCasemixEklaimID(c); casemixEklaimID != nil {
+		return query.Where("casemix_eklaim_id = ?", *casemixEklaimID)
+	}
+
+	return query.Where("casemix_eklaim_id IS NULL")
+}
+
+func scopedRMQuery(c *gin.Context, visitID interface{}) *gorm.DB {
+	isCasemix := requestUsesCasemix(c)
+	query := database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, isCasemix)
+	return applyCasemixEklaimScope(c, query)
+}
+
+func scopedSourceVisitQuery(c *gin.Context, visitID interface{}) *gorm.DB {
+	isCasemix := requestUsesCasemix(c)
+	query := database.DB.Where("source_visit_id = ? AND is_casemix = ?", visitID, isCasemix)
+	return applyCasemixEklaimScope(c, query)
 }
 
 // ===========================================================================
@@ -36,7 +75,7 @@ func GetTriage(c *gin.Context) {
 	visitID := c.Param("id")
 
 	var triage models.Triage
-	if err := database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").Preload("TriagedBy").First(&triage).Error; err != nil {
+	if err := scopedRMQuery(c, visitID).Preload("TriagedBy").First(&triage).Error; err != nil {
 		// Return empty object if not found
 		c.JSON(http.StatusOK, gin.H{"visit_id": visitID})
 		return
@@ -114,7 +153,7 @@ func SaveTriage(c *gin.Context) {
 
 	// Find or create triage
 	var triage models.Triage
-	err := database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").First(&triage).Error
+	err := scopedRMQuery(c, visitID).First(&triage).Error
 
 	var triagerID *uint
 	if userID > 0 {
@@ -197,7 +236,7 @@ func GetAnamnesis(c *gin.Context) {
 	visitID := c.Param("id")
 
 	var anamnesis models.Anamnesis
-	if err := database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").Preload("RecordedBy").First(&anamnesis).Error; err != nil {
+	if err := scopedRMQuery(c, visitID).Preload("RecordedBy").First(&anamnesis).Error; err != nil {
 		// Return empty object if not found
 		c.JSON(http.StatusOK, gin.H{"visit_id": visitID})
 		return
@@ -236,7 +275,7 @@ func SaveAnamnesis(c *gin.Context) {
 	}
 
 	var anamnesis models.Anamnesis
-	err := database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").First(&anamnesis).Error
+	err := scopedRMQuery(c, visitID).First(&anamnesis).Error
 
 	var recorderID *uint
 	if userID > 0 {
@@ -282,7 +321,7 @@ func GetPhysicalExam(c *gin.Context) {
 	visitID := c.Param("id")
 
 	var physExam models.PhysicalExamination
-	if err := database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").Preload("ExaminedBy").First(&physExam).Error; err != nil {
+	if err := scopedRMQuery(c, visitID).Preload("ExaminedBy").First(&physExam).Error; err != nil {
 		// Return empty object if not found
 		c.JSON(http.StatusOK, gin.H{"visit_id": visitID})
 		return
@@ -367,7 +406,7 @@ func SavePhysicalExam(c *gin.Context) {
 	}
 
 	var physExam models.PhysicalExamination
-	err := database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").First(&physExam).Error
+	err := scopedRMQuery(c, visitID).First(&physExam).Error
 
 	var examinerID *uint
 	if userID > 0 {
@@ -541,14 +580,14 @@ func GetDiagnoses(c *gin.Context) {
 	visitID := c.Param("id")
 
 	var diagnoses []models.Diagnosis
-	if err := database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").Preload("DiagnosedBy").Find(&diagnoses).Error; err != nil {
+	if err := scopedRMQuery(c, visitID).Preload("DiagnosedBy").Find(&diagnoses).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
 	// Get diagnosis summary
 	var summary models.DiagnosisSummary
-	database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").First(&summary)
+	scopedRMQuery(c, visitID).First(&summary)
 
 	// Transform to frontend expected format
 	items := make([]gin.H, 0)
@@ -636,7 +675,7 @@ func SaveDiagnoses(c *gin.Context) {
 	}
 
 	// Delete existing diagnoses for this visit
-	database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").Delete(&models.Diagnosis{})
+	scopedRMQuery(c, visitID).Delete(&models.Diagnosis{})
 
 	// Create new diagnoses
 	var diagUserID *uint
@@ -750,12 +789,15 @@ func SaveDiagnoses(c *gin.Context) {
 
 	// Save or update diagnosis summary (clinical impression & differential diagnosis)
 	var summary models.DiagnosisSummary
-	database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").First(&summary)
+	isCasemix := c.Query("is_casemix") == "true"
+	scopedRMQuery(c, visitID).First(&summary)
 
 	if summary.ID == 0 {
 		summary = models.DiagnosisSummary{
-			VisitID: visit.ID,
-			CreatedByID: diagUserID,
+			VisitID:         visit.ID,
+			IsCasemix:       isCasemix,
+			CasemixEklaimID: getCasemixEklaimID(c),
+			CreatedByID:     diagUserID,
 		}
 	}
 	summary.ClinicalImpression = input.ClinicalImpression
@@ -784,7 +826,7 @@ func GetAssessmentPlan(c *gin.Context) {
 	visitID := c.Param("id")
 
 	var assessmentPlan models.AssessmentPlan
-	if err := database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").Preload("AssessedBy").First(&assessmentPlan).Error; err != nil {
+	if err := scopedRMQuery(c, visitID).Preload("AssessedBy").First(&assessmentPlan).Error; err != nil {
 		// Return empty object if not found
 		c.JSON(http.StatusOK, gin.H{"visit_id": visitID})
 		return
@@ -824,7 +866,7 @@ func SaveAssessmentPlan(c *gin.Context) {
 	}
 
 	var assessmentPlan models.AssessmentPlan
-	err := database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").First(&assessmentPlan).Error
+	err := scopedRMQuery(c, visitID).First(&assessmentPlan).Error
 
 	var assessorID *uint
 	if userID > 0 {
@@ -919,7 +961,7 @@ func GetDischargePlanning(c *gin.Context) {
 	visitID := c.Param("id")
 
 	var planning models.DischargePlanning
-	if err := database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").Preload("UpdatedBy").First(&planning).Error; err != nil {
+	if err := scopedRMQuery(c, visitID).Preload("UpdatedBy").First(&planning).Error; err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"visit_id": visitID,
 			"items":    []dischargePlanningItemPayload{},
@@ -973,7 +1015,7 @@ func SaveDischargePlanning(c *gin.Context) {
 	}
 
 	var planning models.DischargePlanning
-	err = database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").First(&planning).Error
+	err = scopedRMQuery(c, visitID).First(&planning).Error
 
 	var updatedByID *uint
 	if userID > 0 {
@@ -1017,7 +1059,7 @@ func GetBodyMarkers(c *gin.Context) {
 	visitID := c.Param("id")
 
 	var marker models.BodyMarker
-	if err := database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").Preload("UpdatedBy").First(&marker).Error; err != nil {
+	if err := scopedRMQuery(c, visitID).Preload("UpdatedBy").First(&marker).Error; err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"visit_id": visitID,
 			"items":    []bodyMarkerItemPayload{},
@@ -1071,7 +1113,7 @@ func SaveBodyMarkers(c *gin.Context) {
 	}
 
 	var marker models.BodyMarker
-	err = database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").First(&marker).Error
+	err = scopedRMQuery(c, visitID).First(&marker).Error
 
 	var updatedByID *uint
 	if userID > 0 {
@@ -1274,6 +1316,7 @@ func CheckPendingOrders(c *gin.Context) {
 func SaveDisposition(c *gin.Context) {
 	visitID := c.Param("id")
 	userID := c.GetUint("user_id")
+	isCasemix := c.Query("is_casemix") == "true"
 
 	fmt.Printf("DEBUG SaveDisposition ENTRY: visitID=%s, userID=%d\n", visitID, userID)
 
@@ -1343,8 +1386,9 @@ func SaveDisposition(c *gin.Context) {
 		return
 	}
 
-	// Validate: For discharge (pulang), check for pending orders
-	if input.DispositionType == "pulang" {
+	// Validate: For real discharge (pulang), check for pending orders.
+	// Casemix edits are claim-only clinical copies and must not affect live queues.
+	if !isCasemix && input.DispositionType == "pulang" {
 		var pendingMedicineOrders int64
 		database.DB.Model(&models.MedicineOrder{}).
 			Where("source_visit_id = ? AND status NOT IN ('delivered', 'cancelled')", visitID).
@@ -1378,8 +1422,9 @@ func SaveDisposition(c *gin.Context) {
 	}
 
 	var disposition models.Disposition
-	// Use Unscoped to find soft-deleted records too
-	err := database.DB.Unscoped().Where("visit_id = ?", visitID).First(&disposition).Error
+	// Use Unscoped to find soft-deleted records too, but keep original RM and casemix RM isolated.
+	err := applyCasemixEklaimScope(c, database.DB.Unscoped().Where("visit_id = ? AND is_casemix = ?", visitID, isCasemix)).
+		First(&disposition).Error
 
 	var dischargerID *uint
 	if userID > 0 {
@@ -1390,7 +1435,7 @@ func SaveDisposition(c *gin.Context) {
 		// No existing disposition, create new
 		disposition = models.Disposition{
 			VisitID:         visit.ID,
-			IsCasemix:       c.Query("is_casemix") == "true",
+			IsCasemix:       isCasemix,
 			CasemixEklaimID: getCasemixEklaimID(c),
 			DischargedByID:  dischargerID,
 		}
@@ -1448,7 +1493,7 @@ func SaveDisposition(c *gin.Context) {
 	disposition.DeathCause = input.DeathCause
 
 	// Handle rawat inap admission
-	if input.DispositionType == "rawat_inap" && input.CreateAdmission && input.AdmissionRoomID != nil {
+	if !isCasemix && input.DispositionType == "rawat_inap" && input.CreateAdmission && input.AdmissionRoomID != nil {
 		inpatientVisit, err := createInpatientVisit(database.DB, &visit, input.AdmissionRoomID, input.AdmissionBedID, input.AdmissionDoctorID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat kunjungan rawat inap: " + err.Error()})
@@ -1458,7 +1503,7 @@ func SaveDisposition(c *gin.Context) {
 	}
 
 	// Handle rawat jalan transfer (UGD → Rawat Jalan)
-	if input.DispositionType == "rawat_jalan" && input.OutpatientRoomID != nil {
+	if !isCasemix && input.DispositionType == "rawat_jalan" && input.OutpatientRoomID != nil {
 		outpatientVisit, err := createOutpatientVisit(database.DB, &visit, input.OutpatientRoomID, input.OutpatientDoctorID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat kunjungan rawat jalan: " + err.Error()})
@@ -1470,7 +1515,7 @@ func SaveDisposition(c *gin.Context) {
 	}
 
 	// Handle kontrol/follow-up registration
-	if input.CreateFollowUp && followUpDate != nil && input.FollowUpRoomID != nil {
+	if !isCasemix && input.CreateFollowUp && followUpDate != nil && input.FollowUpRoomID != nil {
 		followUpReg, err := createFollowUpRegistration(database.DB, &visit, followUpDate, input.FollowUpRoomID, input.FollowUpDoctorID, userID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat jadwal kontrol: " + err.Error()})
@@ -1489,7 +1534,7 @@ func SaveDisposition(c *gin.Context) {
 
 	// All disposition types complete the current visit and queue
 	// (pulang, rujuk, rawat_inap, meninggal, dod)
-	if input.DispositionType != "" {
+	if !isCasemix && input.DispositionType != "" {
 		now := time.Now()
 
 		// If this is an inpatient visit being discharged, free up the bed
@@ -1514,7 +1559,7 @@ func SaveDisposition(c *gin.Context) {
 				// Update Aplicare bed availability (async)
 				var releasedBed models.Bed
 				if err := database.DB.Preload("RoomUnit").First(&releasedBed, *bedIDToRelease).Error; err == nil && releasedBed.RoomUnit != nil {
-					bpjs.UpdateRoomBedAvailability(releasedBed.RoomUnit.RoomID)
+					bpjs.UpdateRoomBedAvailability(releasedBed.RoomUnit.RoomID, "disposition_discharge_release_bed")
 				}
 			}
 		}
@@ -1701,7 +1746,7 @@ func CancelDisposition(c *gin.Context) {
 
 	var disposition models.Disposition
 	dispositionFound := true
-	if err := database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").First(&disposition).Error; err != nil {
+	if err := scopedRMQuery(c, visitID).First(&disposition).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			dispositionFound = false
 		} else {
@@ -1826,7 +1871,7 @@ func CancelFollowUpRegistration(c *gin.Context) {
 	visitID := c.Param("id")
 
 	var disposition models.Disposition
-	if err := database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").First(&disposition).Error; err != nil {
+	if err := scopedRMQuery(c, visitID).First(&disposition).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Disposisi tidak ditemukan"})
 		return
 	}
@@ -1986,7 +2031,7 @@ func createInpatientVisit(tx *gorm.DB, sourceVisit *models.Visit, roomID *uint, 
 
 		// Update Aplicare bed availability (async)
 		if roomID != nil {
-			bpjs.UpdateRoomBedAvailability(*roomID)
+			bpjs.UpdateRoomBedAvailability(*roomID, "medical_record_inpatient_admission")
 		}
 	}
 
@@ -2429,25 +2474,25 @@ func GetMedicalRecordSummary(c *gin.Context) {
 
 	// Get all components
 	var triage models.Triage
-	database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").Preload("TriagedBy").First(&triage)
+	scopedRMQuery(c, visitID).Preload("TriagedBy").First(&triage)
 
 	var anamnesis models.Anamnesis
-	database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").Preload("RecordedBy").First(&anamnesis)
+	scopedRMQuery(c, visitID).Preload("RecordedBy").First(&anamnesis)
 
 	var physExam models.PhysicalExamination
-	database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").Preload("ExaminedBy").First(&physExam)
+	scopedRMQuery(c, visitID).Preload("ExaminedBy").First(&physExam)
 
 	var diagnoses []models.Diagnosis
-	database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").Preload("DiagnosedBy").Find(&diagnoses)
+	scopedRMQuery(c, visitID).Preload("DiagnosedBy").Find(&diagnoses)
 
 	var diagnosisSummary models.DiagnosisSummary
-	database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").First(&diagnosisSummary)
+	scopedRMQuery(c, visitID).First(&diagnosisSummary)
 
 	var assessmentPlan models.AssessmentPlan
-	database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").Preload("AssessedBy").First(&assessmentPlan)
+	scopedRMQuery(c, visitID).Preload("AssessedBy").First(&assessmentPlan)
 
 	var disposition models.Disposition
-	database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").Preload("DischargedBy").First(&disposition)
+	scopedRMQuery(c, visitID).Preload("DischargedBy").First(&disposition)
 
 	var visitMedicineItems []models.VisitMedicineItem
 	database.DB.Where("visit_id = ? AND status != ?", visitID, models.VisitMedicineStatusCancelled).
@@ -2457,7 +2502,7 @@ func GetMedicalRecordSummary(c *gin.Context) {
 		Find(&visitMedicineItems)
 
 	var bodyMarker models.BodyMarker
-	database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, c.Query("is_casemix") == "true").Preload("UpdatedBy").First(&bodyMarker)
+	scopedRMQuery(c, visitID).Preload("UpdatedBy").First(&bodyMarker)
 	bodyMarkerItems := make([]bodyMarkerItemPayload, 0)
 	if strings.TrimSpace(bodyMarker.ItemsJSON) != "" {
 		_ = json.Unmarshal([]byte(bodyMarker.ItemsJSON), &bodyMarkerItems)
@@ -2465,19 +2510,19 @@ func GetMedicalRecordSummary(c *gin.Context) {
 
 	// Rawat Inap data counts (for print availability)
 	var cpptCount int64
-	database.DB.Model(&models.CPPT{}).Where("visit_id = ?", visitID).Count(&cpptCount)
+	scopedRMQuery(c, visitID).Model(&models.CPPT{}).Count(&cpptCount)
 
 	var nursingCareCount int64
-	database.DB.Model(&models.NursingCare{}).Where("visit_id = ?", visitID).Count(&nursingCareCount)
+	scopedRMQuery(c, visitID).Model(&models.NursingCare{}).Count(&nursingCareCount)
 
 	var fluidBalanceCount int64
-	database.DB.Model(&models.FluidBalance{}).Where("visit_id = ?", visitID).Count(&fluidBalanceCount)
+	scopedRMQuery(c, visitID).Model(&models.FluidBalance{}).Count(&fluidBalanceCount)
 
 	var bedTransferCount int64
-	database.DB.Model(&models.BedTransfer{}).Where("visit_id = ?", visitID).Count(&bedTransferCount)
+	scopedRMQuery(c, visitID).Model(&models.BedTransfer{}).Count(&bedTransferCount)
 
 	var vitalSignCount int64
-	database.DB.Model(&models.VitalSign{}).Where("visit_id = ?", visitID).Count(&vitalSignCount)
+	scopedRMQuery(c, visitID).Model(&models.VitalSign{}).Count(&vitalSignCount)
 
 	// Build diagnosis in same format as GetDiagnoses endpoint
 	diagnosisItems := make([]gin.H, 0)
@@ -2594,7 +2639,7 @@ func SaveConsultation(c *gin.Context) {
 
 	// Simpan sebagai Consultation
 	consultation := models.Consultation{
-		VisitID: visit.ID,
+		VisitID:          visit.ID,
 		ProcedureOrderID: procedureOrderID,
 		Subjective:       input.Subjective,
 		Objective:        input.Objective,
@@ -3590,4 +3635,3 @@ func GetMedicalRecordEditLogs(c *gin.Context) {
 
 	c.JSON(http.StatusOK, logs)
 }
-

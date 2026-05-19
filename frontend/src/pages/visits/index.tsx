@@ -51,8 +51,8 @@ import {
   ChevronsUpDown,
   SlidersHorizontal,
   Tv,
-  ExternalLink,
   Volume2,
+  ExternalLink,
   ScreenShare,
 } from "lucide-react";
 import { roomQueuesApi, roomsApi, visitsApi } from "@/lib/api";
@@ -60,6 +60,57 @@ import type { Room } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { formatPatientName } from "@/lib/print-utils";
 import { useAuthStore } from "@/lib/store";
+import { queueSharedAnnouncement } from "@/lib/shared-queue-announcer";
+
+const INDONESIAN_SPEECH_MAP: Record<string, string> = {
+  A: "a",
+  B: "be",
+  C: "ce",
+  D: "de",
+  E: "e",
+  F: "ef",
+  G: "ge",
+  H: "ha",
+  I: "i",
+  J: "je",
+  K: "ka",
+  L: "el",
+  M: "em",
+  N: "en",
+  O: "o",
+  P: "pe",
+  Q: "kiu",
+  R: "er",
+  S: "es",
+  T: "te",
+  U: "u",
+  V: "ve",
+  W: "we",
+  X: "eks",
+  Y: "ye",
+  Z: "zet",
+  "0": "nol",
+  "1": "satu",
+  "2": "dua",
+  "3": "tiga",
+  "4": "empat",
+  "5": "lima",
+  "6": "enam",
+  "7": "tujuh",
+  "8": "delapan",
+  "9": "sembilan",
+};
+
+const spellQueueNumberForSpeech = (value: string) =>
+  value
+    .trim()
+    .split("")
+    .map((char) => INDONESIAN_SPEECH_MAP[char.toUpperCase()] || "")
+    .filter(Boolean)
+    .join(" ");
+
+const getRoomQueueAnnouncementVersion = (queue: { id: number; called_at?: string; updated_at?: string; created_at?: string }) =>
+  queue.called_at || queue.updated_at || queue.created_at || new Date().toISOString();
 
 
 // ── Tab definitions ─────────────────────────────────────────────────────────
@@ -245,6 +296,12 @@ export default function VisitsIndex() {
     [tabBadgeCounts],
   );
 
+  const buildRoomAnnouncementText = useCallback((queueNumber: string) => {
+    const queueText = spellQueueNumberForSpeech(queueNumber);
+    const roomName = rooms.find((room) => String(room.id) === selectedRoom)?.name || "ruangan";
+    return `Nomor antrean ${queueText}. Silakan menuju ${roomName}.`;
+  }, [rooms, selectedRoom]);
+
   useEffect(() => {
     try {
       [
@@ -423,7 +480,15 @@ export default function VisitsIndex() {
 
     setCallingId(visit.id);
     try {
-      await roomQueuesApi.callQueue(visit.room_queue.id);
+      const response = await roomQueuesApi.callQueue(visit.room_queue.id);
+
+      if (response.data) {
+        queueSharedAnnouncement({
+          id: `${response.data.id}-${getRoomQueueAnnouncementVersion(response.data)}`,
+          kind: "room",
+          speechText: buildRoomAnnouncementText(response.data.queue_number),
+        });
+      }
 
       toast({
         title: "Antrian Dipanggil",
@@ -454,7 +519,15 @@ export default function VisitsIndex() {
 
     setRecallingId(visit.id);
     try {
-      await roomQueuesApi.callQueue(visit.room_queue.id);
+      const response = await roomQueuesApi.callQueue(visit.room_queue.id);
+
+      if (response.data) {
+        queueSharedAnnouncement({
+          id: `${response.data.id}-${getRoomQueueAnnouncementVersion(response.data)}`,
+          kind: "room",
+          speechText: buildRoomAnnouncementText(response.data.queue_number),
+        });
+      }
 
       toast({
         title: "Antrian Dipanggil Ulang",
@@ -910,6 +983,7 @@ export default function VisitsIndex() {
             data={visits}
             searchPlaceholder="Cari nomor RM, nama pasien, nomor kunjungan..."
             pageSize={10}
+            tableId={`visits-${activeTab}`}
           />
             )}
           </div>

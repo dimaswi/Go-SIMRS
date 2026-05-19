@@ -578,10 +578,10 @@ export function NursingCareForm({
   const [activeFormTab, setActiveFormTab] = useState("pengkajian");
 
   // Permissions
-  const canCreate = hasPermission("medical_records.nursing_care") && !readOnly;
-  const canEdit = hasPermission("medical_records.nursing_care") && !readOnly;
-  const canDelete = hasPermission("medical_records.nursing_care") && !readOnly;
-  const canVerify = hasPermission("medical_records.nursing_care") && !readOnly;
+  const canCreate = hasPermission("medical_records.nursing_care") && !readOnly && !useExternalData;
+  const canEdit = hasPermission("medical_records.nursing_care") && !readOnly && !useExternalData;
+  const canDelete = hasPermission("medical_records.nursing_care") && !readOnly && !useExternalData;
+  const canVerify = hasPermission("medical_records.nursing_care") && !readOnly && !useExternalData;
 
   // Load data
   const loadData = useCallback(async () => {

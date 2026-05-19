@@ -231,9 +231,9 @@ func duplicateRMLogic(visitID uint, eklaimLocalID uint) error {
 	return database.DB.Transaction(func(tx *gorm.DB) error {
 		// 1. Delete old Casemix records
 		tables := []string{
-			"triages", "anamneses", "physical_examinations", "diagnoses",
+			"triages", "anamneses", "physical_examinations", "diagnoses", "diagnosis_summaries",
 			"assessment_plans", "dispositions", "cppts", "fluid_balances",
-			"nursing_cares", "visit_procedures", "procedure_orders",
+			"nursing_cares", "body_markers", "visit_procedures", "procedure_orders",
 			"medicine_orders",
 		}
 		for _, t := range tables {
@@ -267,6 +267,16 @@ func duplicateRMLogic(visitID uint, eklaimLocalID uint) error {
 			tx.Create(&newDiags[i])
 		}
 
+		// Diagnosis Summary
+		var diagSummaries, newDiagSummaries []models.DiagnosisSummary
+		duplicateRecords(&diagSummaries, &newDiagSummaries, "visit_id")
+		for i := range newDiagSummaries {
+			newDiagSummaries[i].ID = 0
+			newDiagSummaries[i].IsCasemix = true
+			newDiagSummaries[i].CasemixEklaimID = &eklaimLocalID
+			tx.Create(&newDiagSummaries[i])
+		}
+
 		// Anamnesis
 		var anm, newAnm []models.Anamnesis
 		duplicateRecords(&anm, &newAnm, "visit_id")
@@ -285,6 +295,18 @@ func duplicateRMLogic(visitID uint, eklaimLocalID uint) error {
 			newTrg[i].IsCasemix = true
 			newTrg[i].CasemixEklaimID = &eklaimLocalID
 			tx.Create(&newTrg[i])
+		}
+		if len(newTrg) == 0 {
+			if triagePtr, ok := findTriageForVisit(visitID); ok {
+				triageCopy := *triagePtr
+				triageCopy.ID = 0
+				// Keep the RM Casemix record scoped to the claim visit, even when
+				// the source triage came from a same-registration UGD visit.
+				triageCopy.VisitID = visitID
+				triageCopy.IsCasemix = true
+				triageCopy.CasemixEklaimID = &eklaimLocalID
+				tx.Create(&triageCopy)
+			}
 		}
 
 		// Physical Examination
@@ -305,6 +327,16 @@ func duplicateRMLogic(visitID uint, eklaimLocalID uint) error {
 			newAp[i].IsCasemix = true
 			newAp[i].CasemixEklaimID = &eklaimLocalID
 			tx.Create(&newAp[i])
+		}
+
+		// Body Markers
+		var bm, newBm []models.BodyMarker
+		duplicateRecords(&bm, &newBm, "visit_id")
+		for i := range newBm {
+			newBm[i].ID = 0
+			newBm[i].IsCasemix = true
+			newBm[i].CasemixEklaimID = &eklaimLocalID
+			tx.Create(&newBm[i])
 		}
 
 		// Disposition
@@ -369,7 +401,7 @@ func duplicateRMLogic(visitID uint, eklaimLocalID uint) error {
 	})
 }
 
-// CreateClaimFromSEP creates EKlaimLocal + DuplicateRM + sends new_claim in one step.
+// CreateClaimFromSEP creates EKlaimLocal + sends new_claim in one step.
 // POST /eklaim-local/list-sep/:sepId/create-claim
 // Body (optional overrides): { nomor_kartu, nomor_sep, nomor_rm, nama_pasien, tgl_lahir, gender }
 func CreateClaimFromSEP(c *gin.Context) {
@@ -438,10 +470,7 @@ func CreateClaimFromSEP(c *gin.Context) {
 		return
 	}
 
-	// Step 2: Duplicate RM to Casemix
-	duplicateRMLogic(*sep.VisitID, eklaimLocal.ID)
-
-	// Step 3: Build new_claim data (use overrides if provided, else from SEP)
+	// Step 2: Build new_claim data (use overrides if provided, else from SEP)
 	nomorKartu := sep.NoKartu
 	if req.NomorKartu != "" {
 		nomorKartu = req.NomorKartu
@@ -486,7 +515,7 @@ func CreateClaimFromSEP(c *gin.Context) {
 		Gender:     gender,
 	}
 
-	// Step 4: Send new_claim to E-Klaim server
+	// Step 3: Send new_claim to E-Klaim server
 	client, clientErr := eklaimSvc.NewClient()
 	if clientErr != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal koneksi ke server E-Klaim: " + clientErr.Error()})
@@ -4280,28 +4309,105 @@ func GetEKlaimLocalDetail(c *gin.Context) {
 	originalRM := gin.H{}
 
 	var anamnesis models.Anamnesis
-	if err := database.DB.Where("visit_id = ?", visitID).First(&anamnesis).Error; err == nil {
+	if err := database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, false).First(&anamnesis).Error; err == nil {
 		originalRM["anamnesis"] = anamnesis
 	}
 
 	var physicalExam models.PhysicalExamination
-	if err := database.DB.Where("visit_id = ?", visitID).First(&physicalExam).Error; err == nil {
+	if err := database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, false).First(&physicalExam).Error; err == nil {
 		originalRM["physical_examination"] = physicalExam
 	}
 
 	var diagnoses []models.Diagnosis
-	if err := database.DB.Where("visit_id = ?", visitID).Order("type ASC, id ASC").Find(&diagnoses).Error; err == nil {
+	if err := database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, false).Order("type ASC, id ASC").Find(&diagnoses).Error; err == nil {
 		originalRM["diagnoses"] = diagnoses
 	}
 
 	var assessmentPlan models.AssessmentPlan
-	if err := database.DB.Where("visit_id = ?", visitID).First(&assessmentPlan).Error; err == nil {
+	if err := database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, false).First(&assessmentPlan).Error; err == nil {
 		originalRM["assessment_plan"] = assessmentPlan
 	}
 
 	var disposition models.Disposition
-	if err := database.DB.Where("visit_id = ?", visitID).First(&disposition).Error; err == nil {
+	if err := database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, false).First(&disposition).Error; err == nil {
 		originalRM["disposition"] = disposition
+	}
+
+	var dischargePlanning models.DischargePlanning
+	if err := database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, false).First(&dischargePlanning).Error; err == nil {
+		items := make([]dischargePlanningItemPayload, 0)
+		if strings.TrimSpace(dischargePlanning.ItemsJSON) != "" {
+			_ = json.Unmarshal([]byte(dischargePlanning.ItemsJSON), &items)
+		}
+		if len(items) > 0 {
+			originalRM["discharge_planning"] = gin.H{
+				"id":            dischargePlanning.ID,
+				"visit_id":      dischargePlanning.VisitID,
+				"items":         items,
+				"updated_by_id": dischargePlanning.UpdatedByID,
+				"created_at":    dischargePlanning.CreatedAt,
+				"updated_at":    dischargePlanning.UpdatedAt,
+			}
+		}
+	}
+
+	var bodyMarker models.BodyMarker
+	if err := database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, false).First(&bodyMarker).Error; err == nil {
+		items := make([]bodyMarkerItemPayload, 0)
+		if strings.TrimSpace(bodyMarker.ItemsJSON) != "" {
+			_ = json.Unmarshal([]byte(bodyMarker.ItemsJSON), &items)
+		}
+		if len(items) > 0 {
+			originalRM["body_marker"] = gin.H{
+				"id":         bodyMarker.ID,
+				"visit_id":   bodyMarker.VisitID,
+				"items":      items,
+				"created_at": bodyMarker.CreatedAt,
+				"updated_at": bodyMarker.UpdatedAt,
+			}
+		}
+	}
+
+	var visitProcedures []models.VisitProcedure
+	if err := database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, false).
+		Preload("Procedure").Preload("Procedure.Parameters").Preload("Results").Preload("Results.Parameter").
+		Order("created_at ASC").Find(&visitProcedures).Error; err == nil && len(visitProcedures) > 0 {
+		originalRM["visit_procedures"] = visitProcedures
+	}
+
+	var cppts []models.CPPT
+	if err := database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, false).
+		Preload("CreatedBy").Preload("VerifiedBy").
+		Order("record_date ASC, id ASC").Find(&cppts).Error; err == nil && len(cppts) > 0 {
+		originalRM["cppts"] = cppts
+	}
+
+	var nursingCares []models.NursingCare
+	if err := database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, false).
+		Preload("CreatedBy").Preload("VerifiedBy").
+		Order("record_date ASC, id ASC").Find(&nursingCares).Error; err == nil && len(nursingCares) > 0 {
+		originalRM["nursing_cares"] = nursingCares
+	}
+
+	var fluidBalances []models.FluidBalance
+	if err := database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, false).
+		Preload("CreatedBy").Preload("VerifiedBy").
+		Order("record_date ASC, id ASC").Find(&fluidBalances).Error; err == nil && len(fluidBalances) > 0 {
+		originalRM["fluid_balances"] = fluidBalances
+	}
+
+	var fallRisks []models.FallRiskAssessment
+	if err := database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, false).
+		Preload("AssessedBy").
+		Order("record_date ASC, id ASC").Find(&fallRisks).Error; err == nil && len(fallRisks) > 0 {
+		originalRM["fall_risks"] = fallRisks
+	}
+
+	var o2Usages []models.O2UsageRecord
+	if err := database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, false).
+		Preload("CreatedBy").Preload("StoppedBy").
+		Order("started_at ASC, id ASC").Find(&o2Usages).Error; err == nil && len(o2Usages) > 0 {
+		originalRM["o2_usages"] = o2Usages
 	}
 
 	// Lab results from procedure orders
@@ -4346,8 +4452,9 @@ func GetEKlaimLocalDetail(c *gin.Context) {
 
 	// Medicine orders
 	var medicineOrders []models.MedicineOrder
-	if err := database.DB.Where("source_visit_id = ? AND status IN ?", visitID, []string{models.OrderStatusDelivered, models.OrderStatusPartial}).
+	if err := database.DB.Where("source_visit_id = ? AND is_casemix = ?", visitID, false).
 		Preload("Items").Preload("Items.Medicine").
+		Order("created_at ASC, id ASC").
 		Find(&medicineOrders).Error; err == nil && len(medicineOrders) > 0 {
 		originalRM["medicine_orders"] = medicineOrders
 	}
@@ -4406,7 +4513,7 @@ func GetEKlaimLocalDetail(c *gin.Context) {
 func findTriageForVisit(visitID uint) (*models.Triage, bool) {
 	var triage models.Triage
 	// Direct match first
-	if database.DB.Where("visit_id = ?", visitID).First(&triage).Error == nil {
+	if database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, false).First(&triage).Error == nil {
 		return &triage, true
 	}
 	// Fallback: find via same registration's emergency visit
@@ -4424,7 +4531,7 @@ func findTriageForVisit(visitID uint) (*models.Triage, bool) {
 	if len(emergencyVisitIDs) == 0 {
 		return nil, false
 	}
-	if database.DB.Where("visit_id IN ?", emergencyVisitIDs).First(&triage).Error == nil {
+	if database.DB.Where("visit_id IN ? AND is_casemix = ?", emergencyVisitIDs, false).First(&triage).Error == nil {
 		return &triage, true
 	}
 	return nil, false
@@ -4505,6 +4612,483 @@ func SyncBillingTarif(c *gin.Context) {
 	})
 }
 
+// CreateCasemixPharmacyOrder creates one empty editable pharmacy order in casemix scope.
+// This is used when original RM has no pharmacy order but casemix user still needs
+// to add/edit duplicate medicines without affecting original stock/order.
+// POST /eklaim-local/:id/create-pharmacy-order
+func CreateCasemixPharmacyOrder(c *gin.Context) {
+	var input struct {
+		PrescriberID *uint  `json:"prescriber_id"`
+		OrderDate    string `json:"order_date"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Payload tidak valid: " + err.Error()})
+		return
+	}
+
+	eklaimID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+		return
+	}
+
+	var eklaimLocal models.EKlaimLocal
+	if err := database.DB.First(&eklaimLocal, eklaimID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Eklaim local tidak ditemukan"})
+		return
+	}
+
+	visitID := eklaimLocal.VisitID
+	if visitID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "EKlaim local belum terhubung dengan visit"})
+		return
+	}
+
+	if err := duplicateRMLogic(visitID, eklaimLocal.ID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyiapkan RM Duplikat: " + err.Error()})
+		return
+	}
+
+	var sourceVisit models.Visit
+	if err := database.DB.First(&sourceVisit, visitID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Visit sumber tidak ditemukan"})
+		return
+	}
+
+	prescriberID := uint(0)
+	if input.PrescriberID != nil && *input.PrescriberID > 0 {
+		var selectedPrescriber models.Employee
+		if err := database.DB.First(&selectedPrescriber, *input.PrescriberID).Error; err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Dokter pengirim tidak ditemukan"})
+			return
+		}
+		prescriberID = selectedPrescriber.ID
+	}
+
+	if sourceVisit.DoctorID != nil && *sourceVisit.DoctorID > 0 {
+		if prescriberID == 0 {
+			prescriberID = *sourceVisit.DoctorID
+		}
+	}
+
+	if prescriberID == 0 {
+		userID := getUserIDValue(c)
+		if userID > 0 {
+			var user models.User
+			if err := database.DB.First(&user, userID).Error; err == nil && user.EmployeeID != nil && *user.EmployeeID > 0 {
+				prescriberID = *user.EmployeeID
+			}
+		}
+	}
+
+	if prescriberID == 0 {
+		var doctor models.Employee
+		if err := database.DB.
+			Where("tipe_karyawan = ?", models.EmployeeTypeDokter).
+			Order("id ASC").
+			First(&doctor).Error; err == nil {
+			prescriberID = doctor.ID
+		}
+	}
+
+	if prescriberID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Dokter penanggung jawab tidak ditemukan untuk membuat resep duplikat"})
+		return
+	}
+
+	pharmacyRoomID := uint(0)
+	var sourceOrder models.MedicineOrder
+	if err := database.DB.
+		Where("source_visit_id = ? AND is_casemix = ?", visitID, false).
+		Order("created_at DESC, id DESC").
+		First(&sourceOrder).Error; err == nil && sourceOrder.PharmacyRoomID > 0 {
+		pharmacyRoomID = sourceOrder.PharmacyRoomID
+	}
+
+	if pharmacyRoomID == 0 {
+		var pharmacyRoom models.Room
+		if err := database.DB.
+			Where("service_type = ? AND room_type <> ? AND is_active = ?", "farmasi", "depo_farmasi", true).
+			Order("id ASC").
+			First(&pharmacyRoom).Error; err == nil {
+			pharmacyRoomID = pharmacyRoom.ID
+		}
+	}
+
+	if pharmacyRoomID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Ruangan farmasi tidak ditemukan"})
+		return
+	}
+
+	orderNumber := fmt.Sprintf("RXCMX%s%09d", time.Now().Format("20060102150405"), time.Now().Nanosecond())
+	var manualOrderDate time.Time
+	if strings.TrimSpace(input.OrderDate) != "" {
+		layouts := []string{
+			"2006-01-02T15:04",
+			"2006-01-02 15:04:05",
+			time.RFC3339,
+		}
+		for _, layout := range layouts {
+			if t, parseErr := time.ParseInLocation(layout, strings.TrimSpace(input.OrderDate), time.Local); parseErr == nil {
+				manualOrderDate = t
+				break
+			}
+		}
+		if manualOrderDate.IsZero() {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Format tanggal order tidak valid"})
+			return
+		}
+	}
+
+	order := models.MedicineOrder{
+		OrderNumber:      orderNumber,
+		SourceVisitID:    sourceVisit.ID,
+		PharmacyVisitID:  nil,
+		IsCasemix:        true,
+		CasemixEklaimID:  &eklaimLocal.ID,
+		SourceRoomID:     sourceVisit.RoomID,
+		PharmacyRoomID:   pharmacyRoomID,
+		RegistrationID:   sourceVisit.RegistrationID,
+		PrescriberID:     prescriberID,
+		PrescriptionType: "regular",
+		FulfillmentType:  models.FulfillmentTypeTakeHome,
+		Priority:         "normal",
+		Diagnosis:        sourceVisit.Diagnosis,
+		Status:           models.OrderStatusPending,
+		Notes:            "Resep duplikat casemix (editable, tidak memengaruhi stok)",
+	}
+	if !manualOrderDate.IsZero() {
+		order.CreatedAt = manualOrderDate
+		order.UpdatedAt = manualOrderDate
+	}
+
+	if err := database.DB.Create(&order).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat resep duplikat: " + err.Error()})
+		return
+	}
+
+	if err := database.DB.
+		Preload("Items").
+		Preload("SourceVisit").
+		Preload("SourceVisit.Registration").
+		Preload("SourceVisit.Registration.Patient").
+		Preload("Registration").
+		Preload("Registration.Patient").
+		Preload("Prescriber").
+		Preload("PharmacyRoom").
+		Preload("SourceRoom").
+		First(&order, order.ID).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Resep duplikat berhasil dibuat tapi gagal dimuat ulang: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Resep duplikat farmasi berhasil dibuat",
+		"data":    order,
+	})
+}
+
+// SyncSinglePharmacyOrderFromVisit copies one selected original pharmacy order
+// into casemix scope as a separate editable recipe.
+// POST /eklaim-local/:id/sync-pharmacy-order-from-visit
+func SyncSinglePharmacyOrderFromVisit(c *gin.Context) {
+	var input struct {
+		SourceOrderID uint `json:"source_order_id" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "source_order_id wajib diisi"})
+		return
+	}
+
+	eklaimID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+		return
+	}
+
+	var eklaimLocal models.EKlaimLocal
+	if err := database.DB.First(&eklaimLocal, eklaimID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Eklaim local tidak ditemukan"})
+		return
+	}
+
+	visitID := eklaimLocal.VisitID
+	if visitID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "EKlaim local belum terhubung dengan visit"})
+		return
+	}
+
+	if err := duplicateRMLogic(visitID, eklaimLocal.ID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyiapkan RM Duplikat: " + err.Error()})
+		return
+	}
+
+	var src models.MedicineOrder
+	if err := database.DB.
+		Where("id = ? AND source_visit_id = ? AND is_casemix = ?", input.SourceOrderID, visitID, false).
+		Preload("Items", func(db *gorm.DB) *gorm.DB { return db.Order("id ASC") }).
+		First(&src).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Order farmasi asli tidak ditemukan"})
+		return
+	}
+
+	fulfillmentType := src.FulfillmentType
+	if fulfillmentType != models.FulfillmentTypeInRoom && fulfillmentType != models.FulfillmentTypeTakeHome {
+		fulfillmentType = models.FulfillmentTypeTakeHome
+	}
+	prescriptionType := strings.TrimSpace(src.PrescriptionType)
+	if prescriptionType == "" {
+		prescriptionType = "regular"
+	}
+	priority := strings.TrimSpace(src.Priority)
+	if priority == "" {
+		priority = "normal"
+	}
+
+	orderNumber := fmt.Sprintf("RXCMX%s%09d", time.Now().Format("20060102150405"), time.Now().Nanosecond())
+	casemixOrder := models.MedicineOrder{
+		OrderNumber:      orderNumber,
+		SourceVisitID:    src.SourceVisitID,
+		PharmacyVisitID:  nil,
+		IsCasemix:        true,
+		CasemixEklaimID:  &eklaimLocal.ID,
+		SourceRoomID:     src.SourceRoomID,
+		PharmacyRoomID:   src.PharmacyRoomID,
+		RegistrationID:   src.RegistrationID,
+		PrescriberID:     src.PrescriberID,
+		PrescriptionType: prescriptionType,
+		FulfillmentType:  fulfillmentType,
+		Priority:         priority,
+		Diagnosis:        src.Diagnosis,
+		Notes:            src.Notes,
+		Status:           models.OrderStatusPending,
+		CreatedAt:        src.CreatedAt,
+		UpdatedAt:        src.CreatedAt,
+	}
+
+	tx := database.DB.Begin()
+	if err := tx.Create(&casemixOrder).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat order casemix: " + err.Error()})
+		return
+	}
+
+	createdItems := 0
+	for _, srcItem := range src.Items {
+		if srcItem.Status == models.ItemStatusCancelled {
+			continue
+		}
+
+		itemType := strings.TrimSpace(srcItem.ItemType)
+		if itemType == "" {
+			itemType = models.MedicineOrderItemTypeNonRacikan
+		}
+		casemixItem := models.MedicineOrderItem{
+			MedicineOrderID: casemixOrder.ID,
+			IsCasemix:       true,
+			CasemixEklaimID: &eklaimLocal.ID,
+			MedicineID:      srcItem.MedicineID,
+			ItemType:        itemType,
+			RacikanGroup:    srcItem.RacikanGroup,
+			RacikanName:     srcItem.RacikanName,
+			RacikanType:     srcItem.RacikanType,
+			RacikanQty:      srcItem.RacikanQty,
+			RacikanUnit:     srcItem.RacikanUnit,
+			Quantity:        srcItem.Quantity,
+			Unit:            srcItem.Unit,
+			Dosage:          srcItem.Dosage,
+			Frequency:       srcItem.Frequency,
+			Route:           srcItem.Route,
+			Duration:        srcItem.Duration,
+			Instructions:    srcItem.Instructions,
+			Status:          models.ItemStatusOrdered,
+			Notes:           srcItem.Notes,
+			AddedByPharmacy: srcItem.AddedByPharmacy,
+		}
+		if err := tx.Create(&casemixItem).Error; err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat item order casemix: " + err.Error()})
+			return
+		}
+		createdItems++
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan sinkronisasi farmasi: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":          "Resep farmasi asli berhasil disalin ke mode casemix",
+		"source_order_id":  src.ID,
+		"created_order_id": casemixOrder.ID,
+		"created_items":    createdItems,
+	})
+}
+
+// SyncPharmacyFromVisit copies all original pharmacy orders to casemix pharmacy orders
+// for editable RM Duplicate workflow.
+// POST /eklaim-local/:id/sync-pharmacy-from-visit
+func SyncPharmacyFromVisit(c *gin.Context) {
+	eklaimID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+		return
+	}
+
+	var eklaimLocal models.EKlaimLocal
+	if err := database.DB.First(&eklaimLocal, eklaimID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Eklaim local tidak ditemukan"})
+		return
+	}
+
+	visitID := eklaimLocal.VisitID
+	if visitID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "EKlaim local belum terhubung dengan visit"})
+		return
+	}
+
+	// Ensure draft RM duplicate exists (keeps workflow consistent for casemix users).
+	if err := duplicateRMLogic(visitID, eklaimLocal.ID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyiapkan RM Duplikat: " + err.Error()})
+		return
+	}
+
+	var sourceOrders []models.MedicineOrder
+	if err := database.DB.
+		Where("source_visit_id = ? AND is_casemix = ?", visitID, false).
+		Preload("Items", func(db *gorm.DB) *gorm.DB { return db.Order("id ASC") }).
+		Order("created_at ASC, id ASC").
+		Find(&sourceOrders).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memuat order farmasi asli: " + err.Error()})
+		return
+	}
+
+	tx := database.DB.Begin()
+
+	// Replace previous casemix pharmacy orders for this visit + eklaim scope.
+	var existingOrderIDs []uint
+	if err := tx.Model(&models.MedicineOrder{}).
+		Where("source_visit_id = ? AND is_casemix = ? AND casemix_eklaim_id = ?", visitID, true, eklaimLocal.ID).
+		Pluck("id", &existingOrderIDs).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memuat order casemix lama: " + err.Error()})
+		return
+	}
+	if len(existingOrderIDs) > 0 {
+		if err := tx.Unscoped().Where("medicine_order_id IN ?", existingOrderIDs).Delete(&models.MedicineOrderItem{}).Error; err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menghapus item order casemix lama: " + err.Error()})
+			return
+		}
+		if err := tx.Unscoped().Where("id IN ?", existingOrderIDs).Delete(&models.MedicineOrder{}).Error; err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menghapus order casemix lama: " + err.Error()})
+			return
+		}
+	}
+
+	createdOrders := 0
+	createdItems := 0
+	orderStamp := time.Now().Format("20060102150405")
+
+	for idx, src := range sourceOrders {
+		fulfillmentType := src.FulfillmentType
+		if fulfillmentType != models.FulfillmentTypeInRoom && fulfillmentType != models.FulfillmentTypeTakeHome {
+			fulfillmentType = models.FulfillmentTypeTakeHome
+		}
+
+		prescriptionType := src.PrescriptionType
+		if strings.TrimSpace(prescriptionType) == "" {
+			prescriptionType = "regular"
+		}
+
+		priority := src.Priority
+		if strings.TrimSpace(priority) == "" {
+			priority = "normal"
+		}
+
+		orderNumber := fmt.Sprintf("RXCMX%s%03d", orderStamp, idx+1)
+
+		casemixOrder := models.MedicineOrder{
+			OrderNumber:      orderNumber,
+			SourceVisitID:    src.SourceVisitID,
+			PharmacyVisitID:  nil,
+			IsCasemix:        true,
+			CasemixEklaimID:  &eklaimLocal.ID,
+			SourceRoomID:     src.SourceRoomID,
+			PharmacyRoomID:   src.PharmacyRoomID,
+			RegistrationID:   src.RegistrationID,
+			PrescriberID:     src.PrescriberID,
+			PrescriptionType: prescriptionType,
+			FulfillmentType:  fulfillmentType,
+			Priority:         priority,
+			Diagnosis:        src.Diagnosis,
+			Notes:            src.Notes,
+			Status:           models.OrderStatusPending,
+		}
+
+		if err := tx.Create(&casemixOrder).Error; err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat order casemix: " + err.Error()})
+			return
+		}
+		createdOrders++
+
+		for _, srcItem := range src.Items {
+			if srcItem.Status == models.ItemStatusCancelled {
+				continue
+			}
+
+			itemType := srcItem.ItemType
+			if strings.TrimSpace(itemType) == "" {
+				itemType = models.MedicineOrderItemTypeNonRacikan
+			}
+
+			casemixItem := models.MedicineOrderItem{
+				MedicineOrderID: casemixOrder.ID,
+				IsCasemix:       true,
+				CasemixEklaimID: &eklaimLocal.ID,
+				MedicineID:      srcItem.MedicineID,
+				ItemType:        itemType,
+				RacikanGroup:    srcItem.RacikanGroup,
+				RacikanName:     srcItem.RacikanName,
+				RacikanType:     srcItem.RacikanType,
+				RacikanQty:      srcItem.RacikanQty,
+				RacikanUnit:     srcItem.RacikanUnit,
+				Quantity:        srcItem.Quantity,
+				Unit:            srcItem.Unit,
+				Dosage:          srcItem.Dosage,
+				Frequency:       srcItem.Frequency,
+				Route:           srcItem.Route,
+				Duration:        srcItem.Duration,
+				Instructions:    srcItem.Instructions,
+				Status:          models.ItemStatusOrdered,
+				Notes:           srcItem.Notes,
+				AddedByPharmacy: srcItem.AddedByPharmacy,
+			}
+
+			if err := tx.Create(&casemixItem).Error; err != nil {
+				tx.Rollback()
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal membuat item order casemix: " + err.Error()})
+				return
+			}
+			createdItems++
+		}
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan sinkronisasi farmasi: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":        "Order farmasi asli berhasil disalin ke mode casemix",
+		"created_orders": createdOrders,
+		"created_items":  createdItems,
+	})
+}
+
 // SyncRMFromVisit pulls all clinical data from the original visit/RM into the RM Duplicate.
 // POST /eklaim-local/:id/sync-rm-from-visit
 // This OVERWRITES all clinical fields, diagnoses, procedures, and tarif in the RM Duplicate.
@@ -4581,30 +5165,39 @@ func SyncRMFromVisit(c *gin.Context) {
 		return
 	}
 
-	if eklaimLocal.RMDuplicate == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "RM Duplikat belum dibuat"})
-		return
-	}
-
 	visitID := eklaimLocal.VisitID
 	if visitID == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "EKlaim local belum terhubung dengan visit"})
 		return
 	}
 
+	if err := duplicateRMLogic(visitID, eklaimLocal.ID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyalin RM asli ke draft Casemix: " + err.Error()})
+		return
+	}
+
+	if eklaimLocal.RMDuplicate == nil {
+		c.JSON(http.StatusOK, gin.H{
+			"message":   "RM asli berhasil disalin ke draft Casemix",
+			"visit_id":  visitID,
+			"eklaim_id": eklaimLocal.ID,
+		})
+		return
+	}
+
 	// Load original RM data
 	var anm models.Anamnesis
-	database.DB.Where("visit_id = ?", visitID).First(&anm)
+	database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, false).First(&anm)
 	var pe models.PhysicalExamination
-	database.DB.Where("visit_id = ?", visitID).First(&pe)
+	database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, false).First(&pe)
 	var ap models.AssessmentPlan
-	database.DB.Where("visit_id = ?", visitID).First(&ap)
+	database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, false).First(&ap)
 	var disp models.Disposition
-	database.DB.Where("visit_id = ?", visitID).First(&disp)
+	database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, false).First(&disp)
 	var diags []models.Diagnosis
-	database.DB.Where("visit_id = ?", visitID).Order("type ASC, created_at ASC").Find(&diags)
+	database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, false).Order("type ASC, created_at ASC").Find(&diags)
 	var vps []models.VisitProcedure
-	database.DB.Where("visit_id = ?", visitID).Preload("Procedure").Find(&vps)
+	database.DB.Where("visit_id = ? AND is_casemix = ?", visitID, false).Preload("Procedure").Find(&vps)
 	triagePtr, hasTriage := findTriageForVisit(visitID)
 	var triageData models.Triage
 	if hasTriage {

@@ -42,27 +42,24 @@ export function PageHeader({
   children,
 }: PageHeaderProps) {
   return (
-    <div className={cn("overflow-hidden border-b border-border/70 bg-background/95 backdrop-blur", className)}>
+    <div className={cn("border-b border-border/70 bg-background/95 backdrop-blur", className)}>
       <div className="border-b border-border/70 bg-muted/10 px-4 py-4 md:px-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="min-w-0 space-y-2">
+          <div className="min-w-0 flex-1 space-y-2">
             <div className="flex min-w-0 items-start gap-3">
               {Icon && (
                 <div className="mt-0.5 flex-shrink-0 border border-border/70 bg-background p-2">
                   <Icon className="h-4 w-4 text-muted-foreground" />
                 </div>
               )}
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h1 className="truncate text-xl font-semibold leading-tight tracking-tight text-foreground">
-                    <div className="flex flex-wrap justify-between">
-                        {title}
-                    </div>
-
+                  <h1 className="min-w-0 text-xl font-semibold leading-tight tracking-tight text-foreground break-words">
+                    {title}
                   </h1>
                 </div>
                 {description && (
-                  <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
+                  <p className="mt-1 max-w-3xl text-sm leading-relaxed text-muted-foreground">
                     {description}
                   </p>
                 )}
@@ -71,7 +68,7 @@ export function PageHeader({
           </div>
 
           {actions && (
-            <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+            <div className="flex shrink-0 flex-wrap items-center gap-2 lg:max-w-[45%] lg:justify-end">
               {actions}
             </div>
           )}

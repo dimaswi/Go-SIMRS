@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { signatureApi } from "@/lib/api/signature";
 import { employeesApi, type Employee } from "@/lib/api/employees";
-import { Loader2, ShieldCheck, Search, Check } from "lucide-react";
+import { Loader2, ShieldCheck, Search, Check, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface SignOnBehalfDialogProps {
@@ -21,6 +21,13 @@ interface SignOnBehalfDialogProps {
   documentId: number;
   visitId?: number;
   signerHint: string;
+  signerTypeFilter?: "Dokter" | "Perawat";
+  signatureSlot?: string;
+  slotLabels?: {
+    left?: string;
+    right?: string;
+  };
+  requiredSignatures?: number;
   documentTitle: string;
   visitDoctor?: { id: number; nama_lengkap: string; spesialisasi?: string; no_sip?: string; no_str?: string };
   onSuccess?: () => void;
@@ -33,6 +40,10 @@ export function SignOnBehalfDialog({
   documentId,
   visitId,
   signerHint,
+  signerTypeFilter: _signerTypeFilter,
+  signatureSlot,
+  slotLabels,
+  requiredSignatures,
   documentTitle,
   visitDoctor,
   onSuccess,
@@ -44,7 +55,15 @@ export function SignOnBehalfDialog({
   const [searchQuery, setSearchQuery] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [pin, setPin] = useState(["", "", "", "", "", ""]);
+  const [slot, setSlot] = useState<"left" | "right">("left");
+  const [step, setStep] = useState<"pick" | "form">("pick");
+  const [role, setRole] = useState<"dpjp" | "perawat" | "pasien" | "kosong">("kosong");
+  const [signatureName, setSignatureName] = useState("");
+  const [location, setLocation] = useState("");
+  const [signatureDate, setSignatureDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [loading, setLoading] = useState(false);
+  const [loadingStatus, setLoadingStatus] = useState(false);
+  const [signedSlots, setSignedSlots] = useState<{ left: boolean; right: boolean }>({ left: false, right: false });
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const searchRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -55,6 +74,30 @@ export function SignOnBehalfDialog({
     setSearchQuery("");
     setDropdownOpen(false);
     setPin(["", "", "", "", "", ""]);
+    setSlot((signatureSlot || "left") === "right" || signatureSlot === "2" ? "right" : "left");
+    setStep("pick");
+    setRole("dpjp");
+    setSignatureName("");
+    setLocation("");
+    setSignatureDate(new Date().toISOString().slice(0, 10));
+    setSignedSlots({ left: false, right: false });
+
+    const loadStatus = async () => {
+      setLoadingStatus(true);
+      try {
+        const res = await signatureApi.getDocumentSignature(documentType, documentId);
+        const slots = res.data?.signed_slots || {};
+        setSignedSlots({
+          left: !!slots.left,
+          right: !!slots.right,
+        });
+      } catch {
+        setSignedSlots({ left: false, right: false });
+      } finally {
+        setLoadingStatus(false);
+      }
+    };
+    loadStatus();
 
     const loadEmployees = async () => {
       setLoadingEmployees(true);
@@ -84,7 +127,7 @@ export function SignOnBehalfDialog({
       }
     };
     loadEmployees();
-  }, [open, visitDoctor]);
+  }, [open, visitDoctor?.id, signatureSlot, documentType, documentId]);
 
   useEffect(() => {
     if (visitDoctor && employees.length > 0 && !selectedEmployeeId) {
@@ -93,7 +136,7 @@ export function SignOnBehalfDialog({
         setSelectedEmployeeId(found.id.toString());
       }
     }
-  }, [visitDoctor, employees, selectedEmployeeId]);
+  }, [visitDoctor?.id, employees, selectedEmployeeId]);
 
   useEffect(() => {
     if (selectedEmployeeId && inputRefs.current[0]) {
@@ -125,6 +168,10 @@ export function SignOnBehalfDialog({
   const selectedEmployee = useMemo(() => {
     return employees.find((e) => e.id.toString() === selectedEmployeeId);
   }, [employees, selectedEmployeeId]);
+
+  const leftSlotLabel = slotLabels?.left || "Slot 1 (Kiri)";
+  const rightSlotLabel = slotLabels?.right || "Slot 2 (Kanan)";
+  const selectedSlotLabel = slot === "left" ? leftSlotLabel : rightSlotLabel;
 
   const handleSelectEmployee = useCallback((emp: Employee) => {
     setSelectedEmployeeId(emp.id.toString());
@@ -161,32 +208,44 @@ export function SignOnBehalfDialog({
 
   const handleSign = async () => {
     const pinValue = pin.join("");
-    if (pinValue.length !== 6) {
+    const needEmployee = role !== "pasien" && role !== "kosong";
+    const needPin = role !== "pasien" && role !== "kosong";
+    if (needPin && pinValue.length !== 6) {
       toast({ variant: "destructive", title: "PIN harus 6 digit" });
       return;
     }
-    if (!selectedEmployeeId) {
+    if (needEmployee && !selectedEmployeeId) {
       toast({ variant: "destructive", title: "Pilih penandatangan terlebih dahulu" });
       return;
     }
+    // Allow replacing an already signed slot (Ganti TTD).
 
     setLoading(true);
     try {
       await signatureApi.signDocument({
-        pin: pinValue,
+        pin: needPin ? pinValue : "",
         document_type: documentType,
         document_id: documentId,
         visit_id: visitId,
-        signer_employee_id: parseInt(selectedEmployeeId),
+        signer_employee_id: needEmployee ? parseInt(selectedEmployeeId) : undefined,
+        required_signatures: requiredSignatures,
+        signature_slot: slot,
+        signature_role: role,
+        signature_location: location,
+        signature_date: signatureDate,
+        signature_name: role === "pasien" ? signatureName : "",
       });
 
       const emp = employees.find((e) => e.id.toString() === selectedEmployeeId);
       toast({
         variant: "success",
         title: "Berhasil ditandatangani",
-        description: `Dokumen ditandatangani atas nama ${emp?.nama_lengkap || ""}`,
+        description: `Dokumen ditandatangani atas nama ${role === "pasien" ? signatureName : (emp?.nama_lengkap || "")}`,
       });
-      onOpenChange(false);
+      setSignedSlots((prev) => ({ ...prev, [slot]: true }));
+      setSelectedEmployeeId("");
+      setPin(["", "", "", "", "", ""]);
+      setStep("pick");
       onSuccess?.();
     } catch (err: any) {
       const msg = err?.response?.data?.error || "Gagal menandatangani dokumen";
@@ -223,8 +282,91 @@ export function SignOnBehalfDialog({
           <p className="text-xs text-muted-foreground">
             Rekomendasi: <strong>{signerHint}</strong>
           </p>
+          <div className="space-y-2">
+            <Label className="text-xs">Pilih Slot TTD</Label>
+            <div className="rounded-md border-2 p-4">
+              <div className="grid grid-cols-2 gap-4">
+              <Button
+                type="button"
+                variant={slot === "left" ? "default" : "outline"}
+                className={cn(
+                  "h-28 justify-center border-2 text-base font-semibold",
+                  signedSlots.left && "border-green-600 text-green-700"
+                )}
+                disabled={loading || loadingStatus}
+                onClick={() => {
+                  setSlot("left");
+                  setStep("form");
+                }}
+              >
+                <span className="flex flex-col items-center gap-1">
+                  {signedSlots.left ? <CheckCircle2 className="h-7 w-7 text-green-600" /> : <ShieldCheck className="h-7 w-7" />}
+                  <span>{signedSlots.left ? `${leftSlotLabel} Selesai` : leftSlotLabel}</span>
+                  {signedSlots.left && <span className="text-xs font-normal">Ganti TTD</span>}
+                </span>
+              </Button>
+              <Button
+                type="button"
+                variant={slot === "right" ? "default" : "outline"}
+                className={cn(
+                  "h-28 justify-center border-2 text-base font-semibold",
+                  signedSlots.right && "border-green-600 text-green-700"
+                )}
+                disabled={loading || loadingStatus}
+                onClick={() => {
+                  setSlot("right");
+                  setStep("form");
+                }}
+              >
+                <span className="flex flex-col items-center gap-1">
+                  {signedSlots.right ? <CheckCircle2 className="h-7 w-7 text-green-600" /> : <ShieldCheck className="h-7 w-7" />}
+                  <span>{signedSlots.right ? `${rightSlotLabel} Selesai` : rightSlotLabel}</span>
+                  {signedSlots.right && <span className="text-xs font-normal">Ganti TTD</span>}
+                </span>
+              </Button>
+              </div>
+            </div>
+          </div>
+          {step === "form" && (
+            <>
+              <div className="flex items-center justify-between rounded-md border bg-muted/20 px-3 py-2">
+                <span className="text-sm font-medium">
+                  Isi Detail {selectedSlotLabel}
+                </span>
+                <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setStep("pick")}>
+                  Kembali
+                </Button>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-xs">Peran</Label>
+                  <select className="h-9 w-full rounded-md border bg-background px-2 text-sm" value={role} onChange={(e) => setRole(e.target.value as any)}>
+                    <option value="dpjp">DPJP</option>
+                    <option value="perawat">Perawat</option>
+                    <option value="pasien">Pasien</option>
+                    <option value="kosong">Kosong</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Tanggal</Label>
+                  <Input type="date" value={signatureDate} onChange={(e) => setSignatureDate(e.target.value)} className="h-9" />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Lokasi</Label>
+                <Input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Contoh: Bojonegoro" className="h-9" />
+              </div>
+              {role === "pasien" && (
+                <div className="space-y-1">
+                  <Label className="text-xs">Nama Pasien</Label>
+                  <Input value={signatureName} onChange={(e) => setSignatureName(e.target.value)} placeholder="Masukkan nama pasien" className="h-9" />
+                </div>
+              )}
+            </>
+          )}
 
           {/* Searchable employee dropdown — no portal, inline */}
+          {step === "form" && role !== "pasien" && role !== "kosong" && (
           <div className="space-y-1">
             <Label className="text-xs">Penandatangan</Label>
             {loadingEmployees ? (
@@ -243,7 +385,7 @@ export function SignOnBehalfDialog({
                       type="text"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder="Ketik nama dokter..."
+                      placeholder="Ketik nama penandatangan..."
                       className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground min-w-0"
                       autoFocus
                     />
@@ -257,7 +399,7 @@ export function SignOnBehalfDialog({
                     <span className="truncate flex-1">
                       {selectedEmployee
                         ? `${selectedEmployee.nama_lengkap}${selectedEmployee.spesialisasi ? ` - ${selectedEmployee.spesialisasi}` : ""}`
-                        : <span className="text-muted-foreground">Pilih dokter/petugas...</span>}
+                        : <span className="text-muted-foreground">Pilih penandatangan...</span>}
                     </span>
                   </button>
                 )}
@@ -295,9 +437,10 @@ export function SignOnBehalfDialog({
               </div>
             )}
           </div>
+          )}
 
           {/* PIN input */}
-          {selectedEmployeeId && !dropdownOpen && (
+          {step === "form" && role !== "pasien" && role !== "kosong" && !dropdownOpen && (
             <div className="space-y-1">
               <Label className="text-xs">PIN Anda (6 digit)</Label>
               <div className="flex gap-1.5 justify-center">
@@ -327,7 +470,14 @@ export function SignOnBehalfDialog({
             <Button
               size="sm"
               onClick={handleSign}
-              disabled={loading || !selectedEmployeeId || pin.join("").length !== 6}
+              disabled={
+                step !== "form" ||
+                loading ||
+                loadingStatus ||
+                (role !== "pasien" && role !== "kosong" && !selectedEmployeeId) ||
+                (role === "pasien" && signatureName.trim() === "") ||
+                (role !== "pasien" && role !== "kosong" && pin.join("").length !== 6)
+              }
             >
               {loading && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
               Tandatangani

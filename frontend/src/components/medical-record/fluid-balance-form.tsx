@@ -525,7 +525,7 @@ export function FluidBalanceForm({
             <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
               <div className="flex items-center justify-between">
                 <span>Daftar Balance Cairan</span>
-                {!readOnly && (
+                {!readOnly && !useExternalData && (
                   <Button onClick={handleOpenCreate} size="sm">
                     <Plus className="h-4 w-4" />
                   </Button>
@@ -550,7 +550,7 @@ export function FluidBalanceForm({
                       key={balance.id}
                       balance={balance}
                       onEdit={handleOpenEdit}
-                      readOnly={readOnly}
+                      readOnly={readOnly || useExternalData}
                     />
                   ))}
                 </div>
@@ -562,6 +562,8 @@ export function FluidBalanceForm({
                 <p className="text-sm mt-1">
                   {readOnly
                     ? "Belum ada catatan balance cairan pada RM duplikat."
+                    : useExternalData
+                    ? "Tidak ada data balance cairan pada RM asli."
                     : 'Klik "Tambah Balance" untuk menambahkan catatan.'}
                 </p>
               </div>

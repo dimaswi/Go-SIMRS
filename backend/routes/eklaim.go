@@ -73,6 +73,9 @@ func RegisterEKlaimRoutes(r *gin.RouterGroup) {
 		eklaimLocal.PUT("/:id/rm-duplicate/anamnesis", middleware.RequirePermission("eklaim.edit"), handlers.UpdateRMDuplicateAnamnesis)
 		eklaimLocal.POST("/:id/rm-duplicate/:rm_id/recalculate-billing", middleware.RequirePermission("eklaim.edit"), handlers.RecalculateRMDuplicateBilling)
 		eklaimLocal.POST("/:id/sync-rm-from-visit", middleware.RequirePermission("eklaim.edit"), handlers.SyncRMFromVisit)
+		eklaimLocal.POST("/:id/create-pharmacy-order", middleware.RequirePermission("eklaim.edit"), handlers.CreateCasemixPharmacyOrder)
+		eklaimLocal.POST("/:id/sync-pharmacy-order-from-visit", middleware.RequirePermission("eklaim.edit"), handlers.SyncSinglePharmacyOrderFromVisit)
+		eklaimLocal.POST("/:id/sync-pharmacy-from-visit", middleware.RequirePermission("eklaim.edit"), handlers.SyncPharmacyFromVisit)
 		eklaimLocal.POST("/:id/sync-billing-tarif", middleware.RequirePermission("eklaim.edit"), handlers.SyncBillingTarif)
 
 		// E-Klaim Local Server API calls

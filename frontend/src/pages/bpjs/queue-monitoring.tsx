@@ -64,6 +64,7 @@ import { bpjsApi, type BPJSQueue, type BPJSPendaftaranAntreanItem, type BPJSList
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { BPJSPageFrame, BPJSSectionPanel } from "./shared-page-chrome";
 
 interface TaskLog {
   task_id: number;
@@ -434,21 +435,11 @@ export default function BPJSQueueMonitoringPage() {
   });
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <div className="flex-1">
-          <h1 className="text-lg font-semibold flex items-center gap-2">
-            Monitoring Antrian BPJS
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Pantau dan kelola antrian BPJS lokal maupun dari server BPJS
-          </p>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="rounded-lg border p-6">
+    <BPJSPageFrame
+      title="Monitoring Antrian BPJS"
+      description="Pantau antrean lokal dan antrean online BPJS dalam satu workspace yang lebih konsisten dan tidak memakan tinggi halaman."
+    >
+      <BPJSSectionPanel title="Workspace Monitoring">
         <Tabs value={mainTab} onValueChange={setMainTab} variant="inline" className="w-full">
           <TabsList>
             <TabsTrigger value="lokal">
@@ -1050,7 +1041,7 @@ export default function BPJSQueueMonitoringPage() {
             )}
           </TabsContent>
         </Tabs>
-      </div>
+      </BPJSSectionPanel>
 
       {/* Batal Antrean Confirmation */}
       <AlertDialog open={!!antreanCancelConfirm} onOpenChange={(open) => { if (!open) { setAntreanCancelConfirm(null); setAntreanCancelKeterangan(""); } }}>
@@ -1170,6 +1161,6 @@ export default function BPJSQueueMonitoringPage() {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+    </BPJSPageFrame>
   );
 }

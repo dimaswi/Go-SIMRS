@@ -3,7 +3,7 @@
  * @param pageTitle - The title of the current page
  */
 export const setPageTitle = (pageTitle: string) => {
-  const appName = localStorage.getItem('appName') || 'Starter Kits';
+  const appName = localStorage.getItem('appName') || 'Aplikasi';
   document.title = `${pageTitle} - ${appName}`;
 };
 
@@ -11,14 +11,14 @@ export const setPageTitle = (pageTitle: string) => {
  * Get application name from localStorage
  */
 export const getAppName = () => {
-  return localStorage.getItem('appName') || 'Starter Kits';
+  return localStorage.getItem('appName') || 'Aplikasi';
 };
 
 /**
  * Get application subtitle from localStorage
  */
 export const getAppSubtitle = () => {
-  return localStorage.getItem('appSubtitle') || 'Your Application Subtitle';
+  return localStorage.getItem('appSubtitle') || '';
 };
 
 /**

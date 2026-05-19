@@ -89,8 +89,7 @@ func GetVisitProcedures(c *gin.Context) {
 	visitID := c.Param("id")
 
 	var visitProcedures []models.VisitProcedure
-	if err := database.DB.
-		Where("visit_id = ?", visitID).
+	if err := scopedRMQuery(c, visitID).
 		Preload("Procedure").
 		Preload("Procedure.Parameters", func(db *gorm.DB) *gorm.DB {
 			return db.Where("is_active = ?", true).Order("sort_order ASC")
@@ -114,8 +113,8 @@ func GetVisitProcedure(c *gin.Context) {
 	procedureID := c.Param("procedureId")
 
 	var visitProcedure models.VisitProcedure
-	if err := database.DB.
-		Where("visit_id = ? AND id = ?", visitID, procedureID).
+	if err := scopedRMQuery(c, visitID).
+		Where("id = ?", procedureID).
 		Preload("Procedure").
 		Preload("Procedure.Parameters", func(db *gorm.DB) *gorm.DB {
 			return db.Where("is_active = ?", true).Order("sort_order ASC")
@@ -135,6 +134,7 @@ func GetVisitProcedure(c *gin.Context) {
 // CreateVisitProcedure adds a new procedure to a visit
 func CreateVisitProcedure(c *gin.Context) {
 	visitID := c.Param("id")
+	isCasemix := c.Query("is_casemix") == "true"
 	userIDVal, _ := c.Get("userID")
 	userID, _ := userIDVal.(uint)
 
@@ -186,11 +186,13 @@ func CreateVisitProcedure(c *gin.Context) {
 	}
 
 	visitProcedure := models.VisitProcedure{
-		VisitID:     visit.ID,
-		ProcedureID: input.ProcedureID,
-		Status:      models.VisitProcedureStatusPending,
-		Notes:       input.Notes,
-		CreatedByID: createdByID,
+		VisitID:         visit.ID,
+		ProcedureID:     input.ProcedureID,
+		IsCasemix:       isCasemix,
+		CasemixEklaimID: getCasemixEklaimID(c),
+		Status:          models.VisitProcedureStatusPending,
+		Notes:           input.Notes,
+		CreatedByID:     createdByID,
 	}
 
 	if err := database.DB.Create(&visitProcedure).Error; err != nil {
@@ -236,8 +238,8 @@ func SaveVisitProcedureResults(c *gin.Context) {
 
 	// Get visit procedure
 	var visitProcedure models.VisitProcedure
-	if err := database.DB.
-		Where("visit_id = ? AND id = ?", visitID, procedureID).
+	if err := scopedRMQuery(c, visitID).
+		Where("id = ?", procedureID).
 		Preload("Procedure.Parameters").
 		First(&visitProcedure).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Data tindakan tidak ditemukan"})
@@ -332,17 +334,18 @@ func SaveVisitProcedureResults(c *gin.Context) {
 func DeleteVisitProcedure(c *gin.Context) {
 	visitID := c.Param("id")
 	procedureID := c.Param("procedureId")
+	isCasemix := c.Query("is_casemix") == "true"
 
 	var visitProcedure models.VisitProcedure
-	if err := database.DB.
-		Where("visit_id = ? AND id = ?", visitID, procedureID).
+	if err := scopedRMQuery(c, visitID).
+		Where("id = ?", procedureID).
 		First(&visitProcedure).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Data tindakan tidak ditemukan"})
 		return
 	}
 
-	// Only allow deletion if status is pending
-	if visitProcedure.Status != models.VisitProcedureStatusPending {
+	// Original RM keeps the stricter rule; Casemix duplicate may be replaced from the import flow.
+	if !isCasemix && visitProcedure.Status != models.VisitProcedureStatusPending {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Tindakan yang sudah dikerjakan tidak dapat dihapus"})
 		return
 	}
@@ -395,8 +398,8 @@ func UpdateVisitProcedureStatus(c *gin.Context) {
 	}
 
 	var visitProcedure models.VisitProcedure
-	if err := database.DB.
-		Where("visit_id = ? AND id = ?", visitID, procedureID).
+	if err := scopedRMQuery(c, visitID).
+		Where("id = ?", procedureID).
 		First(&visitProcedure).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Data tindakan tidak ditemukan"})
 		return

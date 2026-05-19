@@ -5,7 +5,8 @@ import { PageShell, PageHeader, PageContent } from '@/components/layout/page-she
 
 import { DataTable } from '@/components/ui/data-table';
 import { createRoomColumns } from './columns';
-import { roomsApi, masterDataApi, type Room, type MasterData } from '@/lib/api';
+import { bpjsApi, roomsApi, masterDataApi, type Room, type MasterData } from '@/lib/api';
+import type { AplicareBedItem } from '@/lib/api/bpjs';
 import { usePermission } from '@/hooks/usePermission';
 import { useToast } from '@/hooks/use-toast';
 import { ConfirmDialog } from '@/components/confirm-dialog';
@@ -21,6 +22,16 @@ export default function RoomsPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [roomToDelete, setRoomToDelete] = useState<number | null>(null);
   const [masterData, setMasterData] = useState<Record<string, MasterData[]>>({});
+  const [aplicareMappings, setAplicareMappings] = useState<AplicareBedItem[]>([]);
+
+  const loadAplicareMappings = useCallback(async () => {
+    try {
+      const response = await bpjsApi.aplicareReadBed(1, 500);
+      setAplicareMappings(response.data.data || []);
+    } catch {
+      setAplicareMappings([]);
+    }
+  }, []);
 
   const loadData = useCallback(async () => {
     try {
@@ -44,7 +55,8 @@ export default function RoomsPage() {
   useEffect(() => {
     setPageTitle('Ruangan');
     loadData();
-  }, [loadData]);
+    loadAplicareMappings();
+  }, [loadAplicareMappings, loadData]);
 
   const confirmDelete = async () => {
     if (!roomToDelete) return;
@@ -97,6 +109,9 @@ export default function RoomsPage() {
     navigate(`/bed-monitoring/${id}`);
   };
 
+  const isAplicareMapped = (room: Room) =>
+    aplicareMappings.some((item) => item.koderuang === room.code);
+
   const columns = createRoomColumns({
     onView: handleView,
     onEdit: handleEdit,
@@ -106,6 +121,7 @@ export default function RoomsPage() {
     hasViewPermission: hasPermission('rooms.view'),
     hasEditPermission: hasPermission('rooms.update'),
     hasDeletePermission: hasPermission('rooms.delete'),
+    isAplicareMapped,
     getMasterDataName,
   });
 

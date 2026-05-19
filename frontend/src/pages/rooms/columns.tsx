@@ -20,10 +20,22 @@ interface ColumnOptions {
   hasEditPermission: boolean;
   hasDeletePermission: boolean;
   getMasterDataName: (category: string, code: string) => string;
+  isAplicareMapped: (room: Room) => boolean;
 }
 
 export function createRoomColumns(options: ColumnOptions): ColumnDef<Room>[] {
-  const { onView, onEdit, onDelete, onViewQueue, onViewMonitoring, hasViewPermission, hasEditPermission, hasDeletePermission, getMasterDataName } = options;
+  const {
+    onView,
+    onEdit,
+    onDelete,
+    onViewQueue,
+    onViewMonitoring,
+    hasViewPermission,
+    hasEditPermission,
+    hasDeletePermission,
+    isAplicareMapped,
+    getMasterDataName,
+  } = options;
 
   return [
     {
@@ -150,6 +162,7 @@ export function createRoomColumns(options: ColumnOptions): ColumnDef<Room>[] {
         const hasBed = row.original.has_bed;
         const hasSchedule = row.original.has_schedule;
         const kodeKelasBpjs = row.original.kode_kelas_bpjs;
+        const isMappedAplicare = isAplicareMapped(row.original);
         return (
           <div className="flex items-center gap-1">
             {hasBed && (
@@ -167,6 +180,11 @@ export function createRoomColumns(options: ColumnOptions): ColumnDef<Room>[] {
             {kodeKelasBpjs && (
               <Badge className="text-xs bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-950/30 dark:text-emerald-400">
                 BPJS: {kodeKelasBpjs}
+              </Badge>
+            )}
+            {isMappedAplicare && (
+              <Badge className="text-xs bg-sky-100 text-sky-700 border-sky-300 dark:bg-sky-950/30 dark:text-sky-400">
+                Aplicare Aktif
               </Badge>
             )}
           </div>

@@ -62,6 +62,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { BPJSPageFrame, BPJSSectionPanel } from "./shared-page-chrome";
 
 const DEFAULT_BPJS_FINGERPRINT_EXECUTABLE = String.raw`C:\Program Files (x86)\BPJS Kesehatan\Aplikasi Sidik Jari BPJS Kesehatan\After.exe`;
 
@@ -898,8 +899,13 @@ export default function BPJSToolsPage() {
     moduleMenus.find((module) => module.items.some((item) => item.key === activeTab)) ?? moduleMenus[0];
 
   return (
-    <div className="flex flex-1 flex-col px-4 pb-6">
-      <div className="border-b">
+    <BPJSPageFrame
+      title="Tools BPJS"
+      description="Seluruh utilitas BPJS dihimpun dalam workspace yang konsisten agar navigasi modul lebih mudah dibaca dan dipakai."
+      className="pb-6"
+    >
+      <BPJSSectionPanel bodyClassName="p-0">
+      <div className="border-b border-border/70 bg-muted/10 px-4 sm:px-5">
         <div className="flex flex-wrap gap-6">
           {moduleMenus.map((module) => (
             <button
@@ -920,8 +926,8 @@ export default function BPJSToolsPage() {
         </div>
       </div>
 
-      <div className="mt-6 grid gap-8 lg:grid-cols-[220px_minmax(0,1fr)]">
-        <aside className="lg:top-20 self-start">
+      <div className="grid gap-6 p-4 lg:grid-cols-[220px_minmax(0,1fr)] lg:p-5">
+        <aside className="self-start">
           <div className="space-y-1">
             {activeModule.items.map((item) => (
               <button
@@ -953,7 +959,6 @@ export default function BPJSToolsPage() {
             form={
               <form onSubmit={form.handleSubmit(handleGetSEP)} className="space-y-3">
                 <div>
-                  <Label htmlFor="sep-search">Nomor SEP</Label>
                   <Input id="sep-search" placeholder="Masukkan nomor SEP" {...form.register("noSEP")} />
                   {form.formState.errors.noSEP && (
                     <p className="mt-1 text-xs text-destructive">{form.formState.errors.noSEP.message}</p>
@@ -1944,6 +1949,7 @@ export default function BPJSToolsPage() {
         )}
         </div>
       </div>
+      </BPJSSectionPanel>
 
       {/* Batal Antrean Confirmation */}
       <AlertDialog open={!!antreanCancelConfirm} onOpenChange={(open) => { if (!open) { setAntreanCancelConfirm(null); setAntreanCancelKeterangan(""); } }}>
@@ -2130,6 +2136,6 @@ export default function BPJSToolsPage() {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </BPJSPageFrame>
   );
 }

@@ -27,6 +27,8 @@ import { emitMedicalRecordTabIndicator } from "./tab-indicator";
 
 interface FallRiskFormProps {
   visitId: number;
+  externalData?: FallRiskAssessment[];
+  useExternalData?: boolean;
 }
 
 const morseScaleParameters = [
@@ -210,7 +212,7 @@ function FallRiskCollapsibleRow({ record, onDelete }: { record: FallRiskAssessme
   );
 }
 
-export function FallRiskForm({ visitId }: FallRiskFormProps) {
+export function FallRiskForm({ visitId, externalData, useExternalData = false }: FallRiskFormProps) {
   const { toast } = useToast();
   const [assessments, setAssessments] = useState<FallRiskAssessment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -228,6 +230,11 @@ export function FallRiskForm({ visitId }: FallRiskFormProps) {
   const riskInfo = getMorseRiskLevel(totalScore);
 
   const fetchAssessments = async () => {
+    if (useExternalData) {
+      setAssessments(externalData || []);
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       const res = await fallRiskApi.getAll(visitId);
@@ -243,7 +250,7 @@ export function FallRiskForm({ visitId }: FallRiskFormProps) {
 
   useEffect(() => {
     fetchAssessments();
-  }, [visitId]);
+  }, [visitId, useExternalData, externalData]);
 
   useEffect(() => {
     if (!loading) {
@@ -328,10 +335,12 @@ export function FallRiskForm({ visitId }: FallRiskFormProps) {
           <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
             <div className="flex items-center justify-between">
               <span>Pengkajian Risiko Jatuh</span>
-              <Button onClick={handleOpenCreate} size="sm" className="h-6 px-2 py-0 text-[10px]">
-                <Plus className="h-3.5 w-3.5 mr-1" />
-                Tambah
-              </Button>
+              {!useExternalData && (
+                <Button onClick={handleOpenCreate} size="sm" className="h-6 px-2 py-0 text-[10px]">
+                  <Plus className="h-3.5 w-3.5 mr-1" />
+                  Tambah
+                </Button>
+              )}
             </div>
           </div>
           {assessments.length > 0 ? (
@@ -359,7 +368,7 @@ export function FallRiskForm({ visitId }: FallRiskFormProps) {
               <AlertTriangle className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p className="font-medium text-sm">Belum ada catatan risiko jatuh</p>
               <p className="text-xs mt-1">
-                Klik tombol "Tambah" untuk membuat pengkajian baru.
+                {useExternalData ? "Tidak ada data risiko jatuh pada RM asli." : 'Klik tombol "Tambah" untuk membuat pengkajian baru.'}
               </p>
             </div>
           )}

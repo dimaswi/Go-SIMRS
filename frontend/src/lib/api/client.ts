@@ -62,8 +62,14 @@ api.interceptors.request.use(
       restoreCasemixContext();
     }
 
-    // Inject casemix parameters for visit-related routes
-    if (globalIsCasemix && config.url?.includes('/visits/')) {
+    // Inject casemix parameters for visit/order routes used in RM Duplicate workflows
+    const requestUrl = config.url || '';
+    const supportsCasemixScope =
+      requestUrl.includes('/visits/') ||
+      requestUrl.includes('/medicine-orders') ||
+      requestUrl.includes('/procedure-orders');
+
+    if (globalIsCasemix && supportsCasemixScope) {
       config.params = {
         ...config.params,
         is_casemix: 'true',

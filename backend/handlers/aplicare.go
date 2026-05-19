@@ -60,7 +60,15 @@ func AplicareReadBed(c *gin.Context) {
 // AplicareCreateRoom mendaftarkan ruangan ke BPJS Aplicare
 func AplicareCreateRoom(c *gin.Context) {
 	var input struct {
-		RoomID uint `json:"room_id" binding:"required"`
+		RoomID               uint   `json:"room_id" binding:"required"`
+		KodeKelas            string `json:"kodekelas"`
+		KodeRuang            string `json:"koderuang"`
+		NamaRuang            string `json:"namaruang"`
+		Kapasitas            string `json:"kapasitas"`
+		Tersedia             string `json:"tersedia"`
+		TersediaPria         string `json:"tersediapria"`
+		TersediaWanita       string `json:"tersediawanita"`
+		TersediaPriaWanita   string `json:"tersediapriawanita"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -103,6 +111,36 @@ func AplicareCreateRoom(c *gin.Context) {
 		TersediaPria:       "0",
 		TersediaWanita:     "0",
 		TersediaPriaWanita: "0",
+	}
+
+	if input.KodeKelas != "" {
+		req.KodeKelas = input.KodeKelas
+	}
+	if input.KodeRuang != "" {
+		req.KodeRuang = input.KodeRuang
+	}
+	if input.NamaRuang != "" {
+		req.NamaRuang = input.NamaRuang
+	}
+	if input.Kapasitas != "" {
+		req.Kapasitas = input.Kapasitas
+	}
+	if input.Tersedia != "" {
+		req.Tersedia = input.Tersedia
+	}
+	if input.TersediaPria != "" {
+		req.TersediaPria = input.TersediaPria
+	}
+	if input.TersediaWanita != "" {
+		req.TersediaWanita = input.TersediaWanita
+	}
+	if input.TersediaPriaWanita != "" {
+		req.TersediaPriaWanita = input.TersediaPriaWanita
+	}
+
+	if req.KodeKelas == "" || req.KodeRuang == "" || req.NamaRuang == "" || req.Kapasitas == "" || req.Tersedia == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Field request Aplicare belum lengkap"})
+		return
 	}
 
 	if err := client.CreateBed(req); err != nil {

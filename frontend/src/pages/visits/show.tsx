@@ -1759,24 +1759,18 @@ export default function VisitShow() {
         <main className="mr-main flex min-h-0 min-w-0 flex-col overflow-hidden bg-card">
           <div className="mr-toolbar sticky top-0 z-20 shrink-0 border-b bg-background px-3 py-2 sm:px-4">
             <div className="flex items-center justify-end gap-2">
-              {/* Casemix Mode Banner */}
               {isCasemixMode && (
-                <>
-                  <span className="text-xs font-semibold text-orange-600 bg-orange-50 border border-orange-200 px-2 py-1 rounded-none">
-                    MODE CASEMIX
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 rounded-none text-xs"
-                    onClick={() => {
-                      setCasemixContext(false);
-                      navigate(`/eklaim/data-klaim/${casemixEklaimId}`);
-                    }}
-                  >
-                    ← Kembali ke E-Klaim
-                  </Button>
-                </>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 rounded-none text-xs"
+                  onClick={() => {
+                    setCasemixContext(false);
+                    navigate(`/eklaim/data-klaim/${casemixEklaimId}`);
+                  }}
+                >
+                  Kembali ke E-Klaim
+                </Button>
               )}
               <TooltipProvider delayDuration={200}>
                 {showHeaderFinalAction && (

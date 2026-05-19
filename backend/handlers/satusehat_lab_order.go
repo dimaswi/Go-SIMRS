@@ -1110,3 +1110,4 @@ func GetLabResourceStatusFromOrder(c *gin.Context) {
 		},
 	})
 }
+

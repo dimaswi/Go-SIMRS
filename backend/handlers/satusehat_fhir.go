@@ -1397,7 +1397,7 @@ func SendEncounterWithDiagnosisToSatuSehat(c *gin.Context) {
 
 	// Load diagnoses for this visit
 	var diagnoses []models.Diagnosis
-	if err := database.DB.Where("visit_id = ?", id).Order("type ASC, id ASC").Find(&diagnoses).Error; err != nil {
+	if err := originalRMVisitQuery(id).Order("type ASC, id ASC").Find(&diagnoses).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memuat diagnosis"})
 		return
 	}
@@ -1615,7 +1615,7 @@ func SendEncounterWithDiagnosisToSatuSehat(c *gin.Context) {
 	}
 
 	// Reload diagnoses untuk mendapatkan Condition ID yang sudah diupdate
-	database.DB.Where("visit_id = ?", id).Order("type ASC, id ASC").Find(&diagnoses)
+	originalRMVisitQuery(id).Order("type ASC, id ASC").Find(&diagnoses)
 
 	// ========================================================================
 	// STEP 3: PUT Encounter dengan status "finished" + diagnosis array
@@ -1727,7 +1727,7 @@ func GetVisitDiagnoses(c *gin.Context) {
 	visitID := c.Param("id")
 
 	var diagnoses []models.Diagnosis
-	if err := database.DB.Where("visit_id = ?", visitID).Order("type ASC, id ASC").Find(&diagnoses).Error; err != nil {
+	if err := originalRMVisitQuery(visitID).Order("type ASC, id ASC").Find(&diagnoses).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memuat diagnosis"})
 		return
 	}
@@ -1786,7 +1786,7 @@ func PreviewEncounterFHIR(c *gin.Context) {
 
 	// Load diagnoses
 	var diagnoses []models.Diagnosis
-	if err := database.DB.Where("visit_id = ?", visitID).Order("type ASC, id ASC").Find(&diagnoses).Error; err != nil {
+	if err := originalRMVisitQuery(visitID).Order("type ASC, id ASC").Find(&diagnoses).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal memuat diagnosis"})
 		return
 	}
@@ -1959,7 +1959,7 @@ func SendVitalSignsToSatuSehat(c *gin.Context) {
 
 	// Load physical exam data
 	var physicalExam models.PhysicalExamination
-	if err := database.DB.Preload("ExaminedBy.Employee").Where("visit_id = ?", visitID).First(&physicalExam).Error; err != nil {
+	if err := originalRMVisitQuery(visitID).Preload("ExaminedBy.Employee").First(&physicalExam).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Data pemeriksaan fisik tidak ditemukan"})
 		return
 	}
@@ -2548,7 +2548,7 @@ func SendMedicationRequestToSatuSehat(c *gin.Context) {
 	var diagnosisConditionID string
 	var diagnosisDisplay string
 	var diagnosis models.Diagnosis
-	if err := database.DB.Where("visit_id = ? AND satusehat_condition_id != ''", visit.ID).
+	if err := database.DB.Where("visit_id = ? AND is_casemix = ? AND satusehat_condition_id != ''", visit.ID, false).
 		Order("type ASC"). // primary first
 		First(&diagnosis).Error; err == nil {
 		diagnosisConditionID = diagnosis.SatuSehatConditionID
@@ -4757,18 +4757,18 @@ func SendCompositionToSatuSehat(c *gin.Context) {
 
 	// Load diagnoses
 	var diagnoses []models.Diagnosis
-	database.DB.Where("visit_id = ?", visit.ID).Find(&diagnoses)
+	originalRMVisitQuery(visit.ID).Find(&diagnoses)
 
 	// Load medication items
 	var medicationItems []models.MedicineOrderItem
 	database.DB.Preload("Medicine").
 		Joins("JOIN medicine_orders ON medicine_orders.id = medicine_order_items.medicine_order_id").
-		Where("medicine_orders.source_visit_id = ?", visit.ID).
+		Where("medicine_orders.source_visit_id = ? AND medicine_orders.is_casemix = ?", visit.ID, false).
 		Find(&medicationItems)
 
 	// Load procedures
 	var procedures []models.VisitProcedure
-	database.DB.Preload("Procedure").Where("visit_id = ?", visit.ID).Find(&procedures)
+	originalRMVisitQuery(visit.ID).Preload("Procedure").Find(&procedures)
 
 	// Build FHIR Composition
 	composition, err := BuildFHIRComposition(BuildFHIRCompositionParams{
@@ -5154,7 +5154,7 @@ func SendClinicalImpressionToSatuSehat(c *gin.Context) {
 	case ClinicalImpressionTypeHistory:
 		// Get DiagnosisSummary
 		var diagSummary models.DiagnosisSummary
-		if err := database.DB.Where("visit_id = ?", visit.ID).First(&diagSummary).Error; err != nil {
+		if err := originalRMVisitQuery(visit.ID).First(&diagSummary).Error; err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error":       "Data kesan klinis (riwayat perjalanan penyakit) belum diisi",
 				"visit_id":    visit.ID,
@@ -5186,7 +5186,7 @@ func SendClinicalImpressionToSatuSehat(c *gin.Context) {
 
 		// Optionally append anamnesis data
 		var anamnesis models.Anamnesis
-		if err := database.DB.Where("visit_id = ?", visit.ID).First(&anamnesis).Error; err == nil {
+		if err := originalRMVisitQuery(visit.ID).First(&anamnesis).Error; err == nil {
 			if anamnesis.ChiefComplaint != "" && !strings.Contains(summary, anamnesis.ChiefComplaint) {
 				summary = fmt.Sprintf("Keluhan Utama: %s. %s", anamnesis.ChiefComplaint, summary)
 			}
@@ -5197,7 +5197,7 @@ func SendClinicalImpressionToSatuSehat(c *gin.Context) {
 	case ClinicalImpressionTypeRationale:
 		// Get AssessmentPlan
 		var assessmentPlan models.AssessmentPlan
-		if err := database.DB.Where("visit_id = ?", visit.ID).First(&assessmentPlan).Error; err != nil {
+		if err := originalRMVisitQuery(visit.ID).First(&assessmentPlan).Error; err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error":       "Data asesmen klinis belum diisi",
 				"visit_id":    visit.ID,
@@ -5232,7 +5232,7 @@ func SendClinicalImpressionToSatuSehat(c *gin.Context) {
 	case ClinicalImpressionTypePrognosis:
 		// Get AssessmentPlan for prognosis
 		var assessmentPlan models.AssessmentPlan
-		if err := database.DB.Where("visit_id = ?", visit.ID).First(&assessmentPlan).Error; err != nil {
+		if err := originalRMVisitQuery(visit.ID).First(&assessmentPlan).Error; err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error":       "Data prognosis belum diisi",
 				"visit_id":    visit.ID,
@@ -5266,7 +5266,7 @@ func SendClinicalImpressionToSatuSehat(c *gin.Context) {
 	case ClinicalImpressionTypeTriage:
 		// Get Triage data (IGD only)
 		var triage models.Triage
-		if err := database.DB.Where("visit_id = ?", visit.ID).First(&triage).Error; err != nil {
+		if err := originalRMVisitQuery(visit.ID).First(&triage).Error; err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error":       "Data triage tidak ditemukan",
 				"visit_id":    visit.ID,
@@ -5360,7 +5360,7 @@ func SendClinicalImpressionToSatuSehat(c *gin.Context) {
 	switch impressionType {
 	case ClinicalImpressionTypeHistory:
 		updateErr = database.DB.Model(&models.DiagnosisSummary{}).
-			Where("visit_id = ?", visit.ID).
+			Where("visit_id = ? AND is_casemix = ?", visit.ID, false).
 			Updates(map[string]interface{}{
 				"satusehat_clinical_impression_history_id": clinicalImpressionID,
 				"satusehat_clinical_impression_history_at": now,
@@ -5368,7 +5368,7 @@ func SendClinicalImpressionToSatuSehat(c *gin.Context) {
 
 	case ClinicalImpressionTypeRationale:
 		updateErr = database.DB.Model(&models.AssessmentPlan{}).
-			Where("visit_id = ?", visit.ID).
+			Where("visit_id = ? AND is_casemix = ?", visit.ID, false).
 			Updates(map[string]interface{}{
 				"satusehat_clinical_impression_rationale_id": clinicalImpressionID,
 				"satusehat_clinical_impression_rationale_at": now,
@@ -5376,7 +5376,7 @@ func SendClinicalImpressionToSatuSehat(c *gin.Context) {
 
 	case ClinicalImpressionTypePrognosis:
 		updateErr = database.DB.Model(&models.AssessmentPlan{}).
-			Where("visit_id = ?", visit.ID).
+			Where("visit_id = ? AND is_casemix = ?", visit.ID, false).
 			Updates(map[string]interface{}{
 				"satusehat_clinical_impression_prognosis_id": clinicalImpressionID,
 				"satusehat_clinical_impression_prognosis_at": now,
@@ -5384,7 +5384,7 @@ func SendClinicalImpressionToSatuSehat(c *gin.Context) {
 
 	case ClinicalImpressionTypeTriage:
 		updateErr = database.DB.Model(&models.Triage{}).
-			Where("visit_id = ?", visit.ID).
+			Where("visit_id = ? AND is_casemix = ?", visit.ID, false).
 			Updates(map[string]interface{}{
 				"satusehat_clinical_impression_triage_id": clinicalImpressionID,
 				"satusehat_clinical_impression_triage_at": now,
@@ -5473,7 +5473,7 @@ func GetClinicalImpressionStatus(c *gin.Context) {
 		TypeDisplay: "Riwayat Perjalanan Penyakit",
 		DataField:   "diagnosis_summary.clinical_impression",
 	}
-	if err := database.DB.Where("visit_id = ?", visit.ID).First(&diagSummary).Error; err == nil {
+	if err := originalRMVisitQuery(visit.ID).First(&diagSummary).Error; err == nil {
 		historyStatus.DataExists = diagSummary.ClinicalImpression != ""
 		historyStatus.Sent = diagSummary.SatusehatClinicalImpressionHistoryID != ""
 		historyStatus.SatuSehatID = diagSummary.SatusehatClinicalImpressionHistoryID
@@ -5495,7 +5495,7 @@ func GetClinicalImpressionStatus(c *gin.Context) {
 
 	// 2. Rasional Klinis
 	var assessmentPlan models.AssessmentPlan
-	database.DB.Where("visit_id = ?", visit.ID).First(&assessmentPlan)
+	originalRMVisitQuery(visit.ID).First(&assessmentPlan)
 
 	rationaleStatus := ClinicalImpressionTypeStatus{
 		Type:        ClinicalImpressionTypeRationale,
@@ -5551,7 +5551,7 @@ func GetClinicalImpressionStatus(c *gin.Context) {
 		TypeDisplay: "Asesmen Triage (IGD)",
 		DataField:   "triage.triage_assessment",
 	}
-	if err := database.DB.Where("visit_id = ?", visit.ID).First(&triage).Error; err == nil {
+	if err := originalRMVisitQuery(visit.ID).First(&triage).Error; err == nil {
 		triageStatus.DataExists = triage.TriageAssessment != ""
 		triageStatus.Sent = triage.SatusehatClinicalImpressionTriageID != ""
 		triageStatus.SatuSehatID = triage.SatusehatClinicalImpressionTriageID

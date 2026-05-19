@@ -379,6 +379,22 @@ func (c *AplicareClient) DeleteBed(kodeKelas, kodeRuang string) error {
 	return err
 }
 
+// IsRoomMappedInAplicare checks whether a SIMRS room code already exists in Aplicare.
+func (c *AplicareClient) IsRoomMappedInAplicare(roomCode string) (bool, *AplicareBedItem, error) {
+	items, err := c.ReadBed(1, 500)
+	if err != nil {
+		return false, nil, err
+	}
+
+	for i := range items {
+		if items[i].KodeRuang == roomCode {
+			return true, &items[i], nil
+		}
+	}
+
+	return false, nil, nil
+}
+
 // MapRoomClassToAplicare maps SIMRS room class to BPJS Aplicare kode kelas
 func MapRoomClassToAplicare(roomClass string) string {
 	switch strings.ToLower(roomClass) {
@@ -399,38 +415,53 @@ func MapRoomClassToAplicare(roomClass string) string {
 	}
 }
 
-// UpdateRoomBedAvailability menghitung ketersediaan bed pada suatu room dan update ke Aplicare
-// Dipanggil secara async setelah pasien masuk/keluar
-func UpdateRoomBedAvailability(roomID uint) {
+// UpdateRoomBedAvailability menghitung ketersediaan bed pada suatu room dan update ke Aplicare.
+// source menjelaskan pemicu sinkronisasi agar jejak log lebih mudah dibaca.
+func UpdateRoomBedAvailability(roomID uint, source string) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				fmt.Printf("[Aplicare] Panic saat update bed availability: %v\n", r)
+				fmt.Printf("[Aplicare] Panic saat update bed availability roomID=%d source=%s: %v\n", roomID, source, r)
 			}
 		}()
 
 		var room models.Room
 		if err := database.DB.First(&room, roomID).Error; err != nil {
-			fmt.Printf("[Aplicare] Gagal load room %d: %v\n", roomID, err)
+			fmt.Printf("[Aplicare] Gagal load room %d source=%s: %v\n", roomID, source, err)
 			return
 		}
 
 		// Hanya room rawat inap yang perlu di-update
 		if !room.HasBed {
+			fmt.Printf("[Aplicare] Skip update room %s source=%s karena room tidak memiliki bed\n", room.Code, source)
 			return
 		}
 
 		room.ComputeBedStats(database.DB)
+		fmt.Printf("[Aplicare] Mulai sync room %s source=%s kapasitas=%d tersedia=%d\n", room.Code, source, room.TotalBeds, room.AvailableBeds)
 
 		client, err := NewAplicareClient()
 		if err != nil {
-			fmt.Printf("[Aplicare] Gagal init client untuk update bed: %v\n", err)
+			fmt.Printf("[Aplicare] Gagal init client untuk update bed room %s source=%s: %v\n", room.Code, source, err)
+			return
+		}
+
+		mapped, existingRoom, err := client.IsRoomMappedInAplicare(room.Code)
+		if err != nil {
+			fmt.Printf("[Aplicare] Gagal cek mapping room %s source=%s: %v\n", room.Code, source, err)
+			return
+		}
+		if !mapped {
+			fmt.Printf("[Aplicare] Skip update room %s source=%s karena belum termapping di Aplicare\n", room.Code, source)
 			return
 		}
 
 		kodeKelas := room.KodeKelasBPJS
 		if kodeKelas == "" {
 			kodeKelas = MapRoomClassToAplicare(room.RoomClass)
+		}
+		if existingRoom != nil && existingRoom.KodeKelas != "" {
+			kodeKelas = existingRoom.KodeKelas
 		}
 
 		req := AplicareBedRequest{
@@ -445,10 +476,10 @@ func UpdateRoomBedAvailability(roomID uint) {
 		}
 
 		if err := client.UpdateBed(req); err != nil {
-			fmt.Printf("[Aplicare] Gagal update bed availability room %s: %v\n", room.Code, err)
+			fmt.Printf("[Aplicare] Gagal update bed availability room %s source=%s: %v\n", room.Code, source, err)
 			return
 		}
 
-		fmt.Printf("[Aplicare] Berhasil update bed availability room %s: kapasitas=%d tersedia=%d\n", room.Code, room.TotalBeds, room.AvailableBeds)
+		fmt.Printf("[Aplicare] Berhasil update bed availability room %s source=%s: kapasitas=%d tersedia=%d\n", room.Code, source, room.TotalBeds, room.AvailableBeds)
 	}()
 }

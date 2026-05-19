@@ -6,13 +6,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { employeesApi } from "@/lib/api";
-import { type DischargePlanningItem, medicalRecordsApi } from "@/lib/api/medical-records";
+import { type DischargePlanning, type DischargePlanningItem, medicalRecordsApi } from "@/lib/api/medical-records";
 import { useAuthStore } from "@/lib/store";
 import { emitMedicalRecordTabIndicator, emitMedicalRecordTabSaved } from "./tab-indicator";
 
 interface DischargePlanningFormProps {
   visitId: number;
   readOnly?: boolean;
+  footerSaveOnly?: boolean;
+  externalData?: DischargePlanning | DischargePlanningItem[];
+  useExternalData?: boolean;
 }
 
 interface DischargePlanningItemTemplate {
@@ -164,7 +167,18 @@ const createDefaultRows = (): DischargePlanningRow[] => {
   );
 };
 
-export function DischargePlanningForm({ visitId, readOnly = false }: DischargePlanningFormProps) {
+const getExternalPlanningItems = (externalData?: DischargePlanning | DischargePlanningItem[]) => {
+  if (Array.isArray(externalData)) return externalData;
+  return externalData?.items;
+};
+
+export function DischargePlanningForm({
+  visitId,
+  readOnly = false,
+  footerSaveOnly = false,
+  externalData,
+  useExternalData = false,
+}: DischargePlanningFormProps) {
   const { toast } = useToast();
   const user = useAuthStore((state) => state.user);
   const [rows, setRows] = useState<DischargePlanningRow[]>(() => createDefaultRows());
@@ -242,10 +256,10 @@ export function DischargePlanningForm({ visitId, readOnly = false }: DischargePl
     const load = async () => {
       setLoading(true);
       try {
-        const response = await medicalRecordsApi.getDischargePlanning(visitId);
+        const response = useExternalData ? null : await medicalRecordsApi.getDischargePlanning(visitId);
         if (!active) return;
-        setRows(mergeRowsFromApi(response.data?.items));
-        emitMedicalRecordTabSaved("discharge-planning", true);
+        setRows(mergeRowsFromApi(useExternalData ? getExternalPlanningItems(externalData) : response?.data?.items));
+        emitMedicalRecordTabSaved("discharge-planning", !useExternalData);
       } catch {
         if (!active) return;
         setRows(createDefaultRows());
@@ -266,10 +280,10 @@ export function DischargePlanningForm({ visitId, readOnly = false }: DischargePl
     return () => {
       active = false;
     };
-  }, [visitId, toast]);
+  }, [externalData, useExternalData, visitId, toast]);
 
   useEffect(() => {
-    if (!employeeName) return;
+    if (!employeeName || useExternalData) return;
     setRows((prev) =>
       prev.map((row) =>
         row.checked && !row.officerName.trim()
@@ -280,7 +294,7 @@ export function DischargePlanningForm({ visitId, readOnly = false }: DischargePl
           : row,
       ),
     );
-  }, [employeeName]);
+  }, [employeeName, useExternalData]);
 
   const totalItems = rows.length;
   const checkedItems = rows.filter((row) => row.checked).length;
@@ -313,7 +327,8 @@ export function DischargePlanningForm({ visitId, readOnly = false }: DischargePl
 
   useEffect(() => {
     emitMedicalRecordTabIndicator("discharge-planning", `${checkedItems}/${totalItems}`);
-  }, [checkedItems, totalItems]);
+    if (useExternalData) emitMedicalRecordTabSaved("discharge-planning", false);
+  }, [checkedItems, totalItems, useExternalData]);
 
   const handleReset = () => {
     setRows(createDefaultRows());
@@ -377,7 +392,13 @@ export function DischargePlanningForm({ visitId, readOnly = false }: DischargePl
   }
 
   return (
-    <div className="space-y-4">
+    <form
+      className="space-y-4"
+      onSubmit={(event) => {
+        event.preventDefault();
+        handleSave();
+      }}
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-1">
           <p className="text-base font-semibold">Discharge Planning Rawat Inap</p>
@@ -389,9 +410,9 @@ export function DischargePlanningForm({ visitId, readOnly = false }: DischargePl
           <span className="inline-flex h-7 items-center rounded-md border px-2.5 text-xs font-medium">
             {checkedItems}/{totalItems} selesai
           </span>
-          {!readOnly && (
+          {!readOnly && !useExternalData && (
             <>
-              <Button type="button" size="sm" onClick={handleSave} disabled={saving}>
+              <Button type="button" size="sm" onClick={handleSave} disabled={saving} className={footerSaveOnly ? "hidden" : undefined}>
                 {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Simpan
               </Button>
@@ -433,7 +454,7 @@ export function DischargePlanningForm({ visitId, readOnly = false }: DischargePl
                       <div className="flex items-center gap-2 rounded-md border px-2.5 py-2">
                         <Checkbox
                           checked={row.checked}
-                          disabled={readOnly}
+                          disabled={readOnly || useExternalData}
                           onCheckedChange={(value) => handleCheckChange(row.id, Boolean(value))}
                         />
                         <Label className="text-xs text-muted-foreground">{row.checked ? "Sudah" : "Belum"}</Label>
@@ -442,7 +463,7 @@ export function DischargePlanningForm({ visitId, readOnly = false }: DischargePl
                     <td className="px-4 py-3">
                       <Input
                         value={row.officerName}
-                        disabled={readOnly || !row.checked}
+                        disabled={readOnly || useExternalData || !row.checked}
                         onChange={(event) => updateRow(row.id, { officerName: event.target.value })}
                         placeholder={row.checked ? "Nama petugas / TTD" : "Centang checklist untuk isi otomatis"}
                         className="h-9"
@@ -455,6 +476,6 @@ export function DischargePlanningForm({ visitId, readOnly = false }: DischargePl
           </tbody>
         </table>
       </div>
-    </div>
+    </form>
   );
 }

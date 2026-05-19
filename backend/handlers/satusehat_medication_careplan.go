@@ -1122,3 +1122,4 @@ func GetCarePlanMonitoring(c *gin.Context) {
 		"total": len(items),
 	})
 }
+

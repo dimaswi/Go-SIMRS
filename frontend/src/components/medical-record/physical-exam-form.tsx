@@ -66,6 +66,7 @@ interface PhysicalExamFormProps {
   isPatientDischarged?: boolean;
   externalData?: Partial<PhysicalExam>;
   useExternalData?: boolean;
+  footerSaveOnly?: boolean;
 }
 
 // Physical exam sections
@@ -353,6 +354,7 @@ export function PhysicalExamForm({
   isPatientDischarged = false,
   externalData,
   useExternalData = false,
+  footerSaveOnly = false,
 }: PhysicalExamFormProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
@@ -2729,7 +2731,7 @@ Kesimpulan: EKG dalam batas normal`}
             </div>
 
             {/* Submit Button */}
-            {!isFormDisabled && (
+            {!isFormDisabled && !footerSaveOnly && (
               <div className="flex flex-col sm:flex-row sm:justify-end gap-2 sm:gap-3 pt-4 border-t">
                 <Button type="submit" className="gap-2 w-full sm:w-auto">
                   <Save className="h-4 w-4" />

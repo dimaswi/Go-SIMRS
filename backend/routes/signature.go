@@ -2,6 +2,7 @@ package routes
 
 import (
 	"starter/backend/handlers"
+	"starter/backend/middleware"
 
 	"github.com/gin-gonic/gin"
 )
@@ -23,6 +24,9 @@ func SetupSignatureRoutes(protected *gin.RouterGroup) {
 		signature.GET("/can-sign", handlers.CanSignDocument)                 // Check if current user can sign a document
 		signature.POST("/batch-status", handlers.BatchSignatureStatus)       // Batch check signature status
 		signature.GET("/check-required", handlers.CheckSignaturePINRequired) // Check if PIN is required
+		signature.GET("/document-settings", middleware.RequirePermission("document_signature_settings.manage"), handlers.GetDocumentSignatureSettings)
+		signature.PUT("/document-settings", middleware.RequirePermission("document_signature_settings.manage"), handlers.UpdateDocumentSignatureSettings)
+		signature.GET("/document-settings/preview", middleware.RequirePermission("document_signature_settings.manage"), handlers.PreviewDocumentSignatureTemplate)
 
 		// Audit Logs (Admin/Manajemen)
 		signature.GET("/logs", handlers.GetSignatureLogs)                             // Signature activity logs

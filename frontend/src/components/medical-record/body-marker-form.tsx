@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 
 import { useToast } from "@/hooks/use-toast";
 import { emitMedicalRecordTabIndicator, emitMedicalRecordTabSaved } from "./tab-indicator";
-import { masterDataApi, medicalRecordsApi, type BodyMarkerItem, type BodyMarkerPoint, type MasterData } from "@/lib/api";
+import { masterDataApi, medicalRecordsApi, type BodyMarkerData, type BodyMarkerItem, type BodyMarkerPoint, type MasterData } from "@/lib/api";
 import { resolveBackendFileUrl } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -18,6 +18,9 @@ interface BodyMarkerFormProps {
   visitId: number;
   readOnly?: boolean;
   isPatientDischarged?: boolean;
+  externalData?: BodyMarkerData | BodyMarkerItem[];
+  useExternalData?: boolean;
+  footerSaveOnly?: boolean;
 }
 
 interface MarkerImageOption {
@@ -101,7 +104,19 @@ const mapBodyMarkerItems = (items: BodyMarkerItem[] | undefined): BodyMarkerItem
   }));
 };
 
-export function BodyMarkerForm({ visitId, readOnly = false, isPatientDischarged = false }: BodyMarkerFormProps) {
+const getExternalMarkerItems = (externalData?: BodyMarkerData | BodyMarkerItem[]) => {
+  if (Array.isArray(externalData)) return externalData;
+  return externalData?.items;
+};
+
+export function BodyMarkerForm({
+  visitId,
+  readOnly = false,
+  isPatientDischarged = false,
+  externalData,
+  useExternalData = false,
+  footerSaveOnly = false,
+}: BodyMarkerFormProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -125,7 +140,7 @@ export function BodyMarkerForm({ visitId, readOnly = false, isPatientDischarged 
 
   const imageRef = useRef<HTMLImageElement | null>(null);
 
-  const isFormDisabled = readOnly || isPatientDischarged;
+  const isFormDisabled = readOnly || isPatientDischarged || useExternalData;
 
   const totalMarkers = useMemo(
     () => items.reduce((acc, item) => acc + (Array.isArray(item.markers) ? item.markers.length : 0), 0),
@@ -170,18 +185,17 @@ export function BodyMarkerForm({ visitId, readOnly = false, isPatientDischarged 
 
   useEffect(() => {
     emitMedicalRecordTabIndicator("body-marker", String(totalMarkers));
-    emitMedicalRecordTabSaved("body-marker", items.length > 0 || totalMarkers > 0);
-  }, [items, totalMarkers]);
+    emitMedicalRecordTabSaved("body-marker", useExternalData ? false : items.length > 0 || totalMarkers > 0);
+  }, [items, totalMarkers, useExternalData]);
 
   useEffect(() => {
     let active = true;
     const loadData = async () => {
       setLoading(true);
       try {
-        const [categoryRes, imageRes, markerRes] = await Promise.all([
+        const [categoryRes, imageRes] = await Promise.all([
           masterDataApi.getByCategory("body_marker_category", { include_inactive: true }),
           masterDataApi.getByCategory("body_marker_image", { include_inactive: true }),
-          medicalRecordsApi.getBodyMarkers(visitId),
         ]);
         if (!active) return;
         setCategories((categoryRes.data?.data || []).map((cat) => ({ id: cat.id, code: cat.code, name: cat.name })));
@@ -192,7 +206,12 @@ export function BodyMarkerForm({ visitId, readOnly = false, isPatientDischarged 
           })
           .filter((img) => Boolean(img.imageUrl));
         setImages(imageData);
-        const savedItems = mapBodyMarkerItems(markerRes.data?.items);
+
+        const markerItems = useExternalData
+          ? getExternalMarkerItems(externalData)
+          : (await medicalRecordsApi.getBodyMarkers(visitId)).data?.items;
+        if (!active) return;
+        const savedItems = mapBodyMarkerItems(markerItems);
         setItems(savedItems);
         if (savedItems.length > 0) setActiveItemId(String(savedItems[0].id || ""));
       } catch {
@@ -204,7 +223,7 @@ export function BodyMarkerForm({ visitId, readOnly = false, isPatientDischarged 
     };
     loadData();
     return () => { active = false; };
-  }, [visitId, toast]);
+  }, [externalData, useExternalData, visitId, toast]);
 
   const addImageToItems = () => {
     if (!selectedImageMasterId) return;
@@ -375,12 +394,18 @@ export function BodyMarkerForm({ visitId, readOnly = false, isPatientDischarged 
 
   return (
     <>
-      <div className="space-y-3">
+      <form
+        className="space-y-3"
+        onSubmit={(event) => {
+          event.preventDefault();
+          handleSave();
+        }}
+      >
         <div className="rounded-lg border border-border/70 bg-background overflow-hidden">
           <div className="border-b border-border/70 bg-muted/30 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
             <div className="flex items-center justify-between">
               <span>Marker Bagian Tubuh</span>
-              {!isFormDisabled && <Button onClick={openEditModal} size="sm" className="h-6 px-2 py-0 text-[10px]"><Plus className="h-3.5 w-3.5 mr-1" />Tambah</Button>}
+              {!isFormDisabled && <Button type="button" onClick={openEditModal} size="sm" className="h-6 px-2 py-0 text-[10px]"><Plus className="h-3.5 w-3.5 mr-1" />Tambah</Button>}
             </div>
           </div>
           {items.length > 0 ? (
@@ -394,14 +419,14 @@ export function BodyMarkerForm({ visitId, readOnly = false, isPatientDischarged 
                   return (
                     <Collapsible key={iid} className="group">
                       <div className="flex items-center gap-2 px-4 py-2 hover:bg-muted/30 transition-colors">
-                        <CollapsibleTrigger asChild><Button variant="ghost" size="sm" className="h-6 w-6 p-0 rounded-none shrink-0"><ChevronRight className="h-4 w-4 group-data-[state=open]:hidden" /><ChevronDown className="h-4 w-4 hidden group-data-[state=open]:block" /></Button></CollapsibleTrigger>
+                        <CollapsibleTrigger asChild><Button type="button" variant="ghost" size="sm" className="h-6 w-6 p-0 rounded-none shrink-0"><ChevronRight className="h-4 w-4 group-data-[state=open]:hidden" /><ChevronDown className="h-4 w-4 hidden group-data-[state=open]:block" /></Button></CollapsibleTrigger>
                         <div className="flex-1 grid grid-cols-12 gap-2 items-center text-sm">
                           <div className="col-span-4 text-xs font-medium truncate">{item.image_name}</div>
                           <div className="col-span-2 text-xs text-muted-foreground truncate">{item.category_name || "-"}</div>
                           <div className="col-span-2"><Badge variant="secondary" className="text-[10px]">{item.markers.length}</Badge></div>
                           <div className="col-span-4 flex items-center justify-end gap-1">
-                            <Button variant="ghost" size="icon" className="h-6 w-6 rounded-none" onClick={() => openViewModal(iid)}><Eye className="h-3.5 w-3.5" /></Button>
-                            {!isFormDisabled && <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:bg-destructive/10 rounded-none" onClick={() => removeImageFromItems(iid)}><Trash2 className="h-3.5 w-3.5" /></Button>}
+                            <Button type="button" variant="ghost" size="icon" className="h-6 w-6 rounded-none" onClick={() => openViewModal(iid)}><Eye className="h-3.5 w-3.5" /></Button>
+                            {!isFormDisabled && <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:bg-destructive/10 rounded-none" onClick={() => removeImageFromItems(iid)}><Trash2 className="h-3.5 w-3.5" /></Button>}
                           </div>
                         </div>
                       </div>
@@ -419,11 +444,11 @@ export function BodyMarkerForm({ visitId, readOnly = false, isPatientDischarged 
             <div className="py-12 text-center text-muted-foreground">
               <ImageIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p className="font-medium text-sm">Belum ada marker tubuh</p>
-              <p className="text-xs mt-1">Klik "Tambah" untuk memulai.</p>
+              <p className="text-xs mt-1">{useExternalData ? "Tidak ada data marker tubuh pada RM asli." : 'Klik "Tambah" untuk memulai.'}</p>
             </div>
           )}
         </div>
-      </div>
+      </form>
 
       {/* EDIT MODAL */}
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
@@ -433,8 +458,8 @@ export function BodyMarkerForm({ visitId, readOnly = false, isPatientDischarged 
               <ImageIcon className="h-4 w-4" />{editModalStep === "pick" ? "Pilih Gambar Tubuh" : activeItem?.image_name || "Marker"}
             </DialogTitle>
             <div className="flex items-center gap-2">
-              {editModalStep === "canvas" && <Button variant="outline" size="sm" className="rounded-none h-7 text-[10px]" onClick={() => setEditModalStep("pick")}><ArrowLeft className="h-3 w-3 mr-1" />Ganti Gambar</Button>}
-              <Button variant="ghost" size="icon" onClick={() => setIsEditModalOpen(false)} className="h-6 w-6 rounded-none"><X className="h-4 w-4" /></Button>
+              {editModalStep === "canvas" && <Button type="button" variant="outline" size="sm" className="rounded-none h-7 text-[10px]" onClick={() => setEditModalStep("pick")}><ArrowLeft className="h-3 w-3 mr-1" />Ganti Gambar</Button>}
+              <Button type="button" variant="ghost" size="icon" onClick={() => setIsEditModalOpen(false)} className="h-6 w-6 rounded-none"><X className="h-4 w-4" /></Button>
             </div>
           </DialogHeader>
           {editModalStep === "pick" ? (
@@ -442,7 +467,7 @@ export function BodyMarkerForm({ visitId, readOnly = false, isPatientDischarged 
               <div className="w-full max-w-lg space-y-6">
                 <div className="space-y-2"><Label className="text-xs uppercase text-muted-foreground font-semibold">Kategori</Label><Combobox options={categoryOptions} value={selectedCategoryId} onValueChange={(v) => setSelectedCategoryId(v || "all")} placeholder="Semua kategori" searchPlaceholder="Cari..." emptyText="Tidak ditemukan" className="h-11" /></div>
                 <div className="space-y-2"><Label className="text-xs uppercase text-muted-foreground font-semibold">Gambar Tubuh</Label><Combobox options={bodyPartOptions} value={selectedImageMasterId} onValueChange={(v) => setSelectedImageMasterId(v || "")} placeholder="Pilih bagian tubuh" searchPlaceholder="Cari..." emptyText="Tidak ditemukan" disabled={filteredImages.length === 0} className="h-11" /></div>
-                <Button className="w-full h-11" onClick={addImageToItems} disabled={!selectedImageMasterId}><Plus className="mr-2 h-4 w-4" />Pilih & Lanjutkan</Button>
+                <Button type="button" className="w-full h-11" onClick={addImageToItems} disabled={!selectedImageMasterId}><Plus className="mr-2 h-4 w-4" />Pilih & Lanjutkan</Button>
               </div>
             </div>
           ) : activeItem ? (
@@ -458,8 +483,12 @@ export function BodyMarkerForm({ visitId, readOnly = false, isPatientDischarged 
             </div>
           ) : null}
           <div className="shrink-0 border-t bg-background p-3 flex items-center justify-end gap-2">
-            <Button variant="outline" className="rounded-none w-28 text-xs h-9" onClick={() => setIsEditModalOpen(false)}>Batal</Button>
-            <Button className="rounded-none w-28 text-xs h-9" onClick={handleSave} disabled={saving}>{saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}Simpan</Button>
+            <Button type="button" variant="outline" className="rounded-none w-28 text-xs h-9" onClick={() => setIsEditModalOpen(false)}>Batal</Button>
+            {footerSaveOnly ? (
+              <Button type="button" className="rounded-none w-28 text-xs h-9" onClick={() => setIsEditModalOpen(false)}>Selesai</Button>
+            ) : (
+              <Button type="button" className="rounded-none w-28 text-xs h-9" onClick={handleSave} disabled={saving}>{saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}Simpan</Button>
+            )}
           </div>
         </DialogContent>
       </Dialog>
@@ -469,7 +498,7 @@ export function BodyMarkerForm({ visitId, readOnly = false, isPatientDischarged 
         <DialogContent className="!max-w-[100vw] !w-[100vw] !h-[100dvh] !max-h-[100dvh] !rounded-none !border-none !p-0 !m-0 !fixed !top-0 !left-0 !translate-x-0 !translate-y-0 bg-background overflow-hidden flex flex-col [&>button]:hidden">
           <DialogHeader className="px-4 py-3 border-b bg-muted/30 shrink-0 flex flex-row items-center justify-between">
             <DialogTitle className="flex items-center gap-2 text-sm uppercase tracking-wider text-muted-foreground"><Eye className="h-4 w-4" />{viewItem?.image_name || "Detail"}</DialogTitle>
-            <Button variant="ghost" size="icon" onClick={() => setIsViewModalOpen(false)} className="h-6 w-6 rounded-none"><X className="h-4 w-4" /></Button>
+            <Button type="button" variant="ghost" size="icon" onClick={() => setIsViewModalOpen(false)} className="h-6 w-6 rounded-none"><X className="h-4 w-4" /></Button>
           </DialogHeader>
           {viewItem && (
             <div className="flex-1 flex min-h-0">

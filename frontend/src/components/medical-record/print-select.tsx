@@ -3,7 +3,7 @@
  * Button dengan dropdown menu untuk mencetak dokumen rekam medis
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -29,7 +29,7 @@ import { Loader2, Printer, ShieldCheck, ShieldX, FileText, FolderOpen, CheckCirc
 import { authApi, visitsApi, medicalRecordsApi, medicineOrdersApi, procedureOrdersApi, printApi, signatureApi, DOCUMENT_TYPES } from "@/lib/api";
 import { unitTransferApi } from "@/lib/api/inpatient";
 import { vclaimApi, type SPRILocal, type SuratKontrolLocal } from "@/lib/api/vclaim";
-import { SignaturePINDialog } from "@/components/signature/signature-pin-dialog";
+import { SignOnBehalfDialog } from "@/components/signature/sign-on-behalf-dialog";
 import { RevokePINDialog } from "@/components/signature/revoke-pin-dialog";
 import { useAuthStore } from "@/lib/store";
 import { format } from "date-fns";
@@ -53,6 +53,7 @@ interface PrintOption {
   documentId?: number;   // For signature
   sourceVisitId?: number; // For order-based docs: the orderer's visit
 }
+
 
 const ORDER_DOC_TYPES = new Set<string>([
   DOCUMENT_TYPES.LAB_RESULT,
@@ -107,12 +108,14 @@ export function MedicalRecordPrintSelect({
   const [suratKontrolDoc, setSuratKontrolDoc] = useState<SuratKontrolLocal | null>(null);
   
   // Signature state
-  const [signatureStatuses, setSignatureStatuses] = useState<Record<string, { is_signed: boolean; signer_name?: string }>>({});
+  const [signatureStatuses, setSignatureStatuses] = useState<Record<string, { is_signed: boolean; signer_name?: string; required_signatures?: number; signed_signatures?: number; is_fully_signed?: boolean; signed_slots?: Record<string, boolean> }>>({});
   const [signEligibility, setSignEligibility] = useState<Record<string, { allowed: boolean; reason?: string }>>({});
-  const [showSignatureDialog, setShowSignatureDialog] = useState(false);
-  const [signatureDoc, setSignatureDoc] = useState<{ type: string; id: number; title: string } | null>(null);
+  const [showSignOnBehalfDialog, setShowSignOnBehalfDialog] = useState(false);
+  const [signOnBehalfDoc, setSignOnBehalfDoc] = useState<{ type: string; id: number; title: string; requiredSignatures?: number; signatureSlot?: string; signerTypeFilter?: "Dokter" | "Perawat" } | null>(null);
   const [showRevokeDialog, setShowRevokeDialog] = useState(false);
   const [revokeDoc, setRevokeDoc] = useState<{ type: string; id: number; title: string } | null>(null);
+  const statusFetchAtRef = useRef<Record<string, number>>({});
+  const lastBatchRef = useRef<{ key: string; at: number }>({ key: "", at: 0 });
 
   // Load data when component mounts or refreshTrigger changes
   useEffect(() => {
@@ -120,6 +123,7 @@ export function MedicalRecordPrintSelect({
       loadData();
     }
   }, [visitId, refreshTrigger]);
+
 
   // Listen for custom event to refresh print options
   useEffect(() => {
@@ -303,73 +307,21 @@ export function MedicalRecordPrintSelect({
   };
 
   // Check signature status for a document
-  const checkSignatureStatus = async (docType: string, docId: number) => {
+  const checkSignatureStatus = async (docType: string, docId: number, force = false) => {
+    if (!open) return;
+    const key = `${docType}-${docId}`;
+    const now = Date.now();
+    const prevAt = statusFetchAtRef.current[key] || 0;
+    if (!force && now-prevAt < 8000) return; // dedupe aggressive polling
+    statusFetchAtRef.current[key] = now;
     try {
       const res = await signatureApi.getDocumentSignature(docType, docId);
-      setSignatureStatuses(prev => ({ ...prev, [`${docType}-${docId}`]: res.data }));
+      setSignatureStatuses(prev => ({ ...prev, [key]: res.data }));
     } catch {
-      setSignatureStatuses(prev => ({ ...prev, [`${docType}-${docId}`]: { is_signed: false } }));
+      setSignatureStatuses(prev => ({ ...prev, [key]: { is_signed: false } }));
     }
   };
 
-  // Check signatures for visit-level documents
-  useEffect(() => {
-    if (visitId) {
-      // Check resume signature
-      checkSignatureStatus(DOCUMENT_TYPES.VISIT_RESUME, visitId);
-      // Check triage + emergency summary if UGD
-      if (isEmergency) {
-        checkSignatureStatus(DOCUMENT_TYPES.TRIAGE, visitId);
-        checkSignatureStatus(DOCUMENT_TYPES.EMERGENCY_SUMMARY, visitId);
-      }
-      // Check referral if exists
-      if (medicalRecord?.disposition?.disposition_type === "rujuk") {
-        checkSignatureStatus(DOCUMENT_TYPES.REFERRAL_LETTER, visitId);
-      }
-      // Check inpatient cert
-      if (isInpatient) {
-        checkSignatureStatus(DOCUMENT_TYPES.INPATIENT_CERT, visitId);
-      }
-    }
-  }, [visitId, medicalRecord, isEmergency, isInpatient]);
-
-  // Check signatures for order-level documents  
-  useEffect(() => {
-    medicineOrders.forEach((order) => {
-      if (order.status === "completed" || order.status === "dispensed") {
-        checkSignatureStatus(DOCUMENT_TYPES.PRESCRIPTION, order.id);
-      }
-    });
-    procedureOrders.forEach((order) => {
-      const hasCompletedOrValidatedItems =
-        order.items?.some((i: any) => i.status === "completed" || i.status === "validated") || false;
-
-      if (
-        order.order_type === "laboratory" &&
-        (order.status === "completed" || order.status === "validated" || hasCompletedOrValidatedItems)
-      ) {
-        checkSignatureStatus(DOCUMENT_TYPES.LAB_RESULT, order.id);
-      }
-      if (
-        order.order_type === "radiology" &&
-        (order.status === "completed" || order.status === "validated" || hasCompletedOrValidatedItems)
-      ) {
-        checkSignatureStatus(DOCUMENT_TYPES.RADIOLOGY_RESULT, order.id);
-      }
-      if (
-        order.order_type === "surgery" &&
-        (order.status === "completed" || order.status === "validated" || hasCompletedOrValidatedItems)
-      ) {
-        checkSignatureStatus(DOCUMENT_TYPES.OPERATIVE_REPORT, order.id);
-      }
-      if (
-        order.order_type === "consultation" &&
-        (order.status === "completed" || order.status === "validated" || hasCompletedOrValidatedItems)
-      ) {
-        checkSignatureStatus(DOCUMENT_TYPES.CONSULTATION_RESULT, order.id);
-      }
-    });
-  }, [medicineOrders, procedureOrders]);
 
   useEffect(() => {
     let active = true;
@@ -431,43 +383,16 @@ export function MedicalRecordPrintSelect({
     };
   }, [procedureOrders, spriDoc?.id, suratKontrolDoc?.id]);
 
-  useEffect(() => {
-    sickLetters.forEach((letter) => {
-      checkSignatureStatus(DOCUMENT_TYPES.SICK_LETTER, letter.id);
+  const handleSignDocument = (docType: string, docId: number, title: string, slot?: "left" | "right") => {
+    setSignOnBehalfDoc({
+      type: docType,
+      id: docId,
+      title,
+      requiredSignatures: 2,
+      signatureSlot: slot,
+      signerTypeFilter: undefined,
     });
-    healthCertificates.forEach((cert) => {
-      checkSignatureStatus(DOCUMENT_TYPES.HEALTH_CERTIFICATE, cert.id);
-    });
-    birthCertificates.forEach((cert) => {
-      checkSignatureStatus(DOCUMENT_TYPES.BIRTH_CERTIFICATE, cert.id);
-    });
-    leaveCertificates.forEach((cert) => {
-      checkSignatureStatus(DOCUMENT_TYPES.LEAVE_CERTIFICATE, cert.id);
-    });
-    mcuCertificates.forEach((cert) => {
-      checkSignatureStatus(DOCUMENT_TYPES.MCU_CERTIFICATE, cert.id);
-    });
-    deathCertificates.forEach((cert) => {
-      checkSignatureStatus(DOCUMENT_TYPES.DEATH_CERTIFICATE, cert.id);
-    });
-    if (spriDoc?.id) {
-      checkSignatureStatus(DOCUMENT_TYPES.SPRI, spriDoc.id);
-    }
-    if (suratKontrolDoc?.id) {
-      checkSignatureStatus(DOCUMENT_TYPES.SURAT_KONTROL, suratKontrolDoc.id);
-    }
-  }, [sickLetters, healthCertificates, birthCertificates, leaveCertificates, mcuCertificates, deathCertificates, spriDoc, suratKontrolDoc]);
-
-  const handleSignDocument = (docType: string, docId: number, title: string) => {
-    setSignatureDoc({ type: docType, id: docId, title });
-    setShowSignatureDialog(true);
-  };
-
-  const handleSignatureSuccess = () => {
-    if (signatureDoc) {
-      checkSignatureStatus(signatureDoc.type, signatureDoc.id);
-    }
-    setSignatureDoc(null);
+    setShowSignOnBehalfDialog(true);
   };
 
   const handleRevokeDocument = (docType: string, docId: number, title: string) => {
@@ -477,13 +402,23 @@ export function MedicalRecordPrintSelect({
 
   const handleRevokeSuccess = () => {
     if (revokeDoc) {
-      checkSignatureStatus(revokeDoc.type, revokeDoc.id);
+      checkSignatureStatus(revokeDoc.type, revokeDoc.id, true);
     }
     setRevokeDoc(null);
   };
 
   const isDocumentSigned = (docType: string, docId: number) => {
-    return signatureStatuses[`${docType}-${docId}`]?.is_signed || false;
+    const status = signatureStatuses[`${docType}-${docId}`];
+    return status?.is_fully_signed ?? status?.is_signed ?? false;
+  };
+
+  const getSignatureProgress = (docType?: string, docId?: number) => {
+    if (!docType || !docId) return { signed: 0, required: 1 };
+    const key = `${docType}-${docId}`;
+    const status = signatureStatuses[key];
+    const required = status?.required_signatures || 2;
+    const signed = status?.signed_signatures || (status?.is_signed ? required : 0);
+    return { signed, required };
   };
 
   const canSignDocument = (docType?: string, docId?: number) => {
@@ -664,41 +599,51 @@ export function MedicalRecordPrintSelect({
       if (cpptCount > 0) {
         options.push({
           value: "cppt",
-          label: `CPPT (${cpptCount})`,
+          label: `CPPT (${cpptCount} entri)`,
           category: "Rawat Inap",
           handler: () => printApi.cppt(visitId),
+          documentType: DOCUMENT_TYPES.CPPT,
+          documentId: visitId,
         });
       }
       if (nursingCareCount > 0) {
         options.push({
           value: "nursing-care",
-          label: `Asuhan Keperawatan (${nursingCareCount})`,
+          label: `Asuhan Keperawatan (${nursingCareCount} entri)`,
           category: "Rawat Inap",
           handler: () => printApi.nursingCare(visitId),
+          documentType: DOCUMENT_TYPES.NURSING_CARE,
+          documentId: visitId,
         });
       }
       if (fluidBalanceCount > 0) {
         options.push({
           value: "fluid-balance",
-          label: `Balance Cairan (${fluidBalanceCount})`,
+          label: `Balance Cairan (${fluidBalanceCount} entri)`,
           category: "Rawat Inap",
           handler: () => printApi.fluidBalance(visitId),
+          documentType: DOCUMENT_TYPES.FLUID_BALANCE,
+          documentId: visitId,
         });
       }
       if (vitalSignCount > 0) {
         options.push({
           value: "vital-sign",
-          label: `Grafik Vital Sign (${vitalSignCount})`,
+          label: `Grafik Vital Sign (${vitalSignCount} entri)`,
           category: "Rawat Inap",
           handler: () => printApi.vitalSignChart(visitId),
+          documentType: DOCUMENT_TYPES.VITAL_SIGN,
+          documentId: visitId,
         });
       }
       if (bedTransferCount > 0) {
         options.push({
           value: "bed-transfer",
-          label: `Mutasi Pasien (${bedTransferCount})`,
+          label: `Mutasi Pasien (${bedTransferCount} entri)`,
           category: "Rawat Inap",
           handler: () => printApi.bedTransfer(visitId),
+          documentType: DOCUMENT_TYPES.BED_TRANSFER,
+          documentId: visitId,
         });
       }
     }
@@ -911,7 +856,73 @@ export function MedicalRecordPrintSelect({
     return options;
   };
 
-  const printOptions = buildPrintOptions();
+  const printOptions = useMemo(() => buildPrintOptions(), [
+    hasAnyMedicalData,
+    isUGDVisit,
+    hasTriage,
+    isInpatientVisit,
+    medicalRecord,
+    completedMedicineOrders,
+    completedLabOrders,
+    completedRadiologyOrders,
+    completedSurgeryOrders,
+    completedConsultationOrders,
+    sickLetters,
+    healthCertificates,
+    birthCertificates,
+    leaveCertificates,
+    mcuCertificates,
+    deathCertificates,
+    hasReferral,
+    suratKontrolDoc,
+    followUpRegistrationId,
+    spriDoc,
+    visitId,
+    unitTransfers.length,
+  ]);
+
+  const batchDocs = useMemo(
+    () =>
+      printOptions
+        .filter((o) => o.documentType && o.documentId)
+        .map((o) => ({ document_type: o.documentType as string, document_id: o.documentId as number })),
+    [printOptions]
+  );
+  const batchDocsKey = useMemo(
+    () => batchDocs.map((d) => `${d.document_type}:${d.document_id}`).sort().join("|"),
+    [batchDocs]
+  );
+
+  // Keep signature status in sync for every row shown in drawer.
+  useEffect(() => {
+    if (!open || batchDocs.length === 0) return;
+    const now = Date.now();
+    if (lastBatchRef.current.key === batchDocsKey && now-lastBatchRef.current.at < 8000) {
+      return;
+    }
+    lastBatchRef.current = { key: batchDocsKey, at: now };
+
+    let active = true;
+    signatureApi.batchSignatureStatus(batchDocs)
+      .then((res) => {
+        if (!active) return;
+        const statuses = res.data?.statuses || {};
+        const mapped: Record<string, { is_signed: boolean; signer_name?: string; required_signatures?: number; signed_signatures?: number; is_fully_signed?: boolean; signed_slots?: Record<string, boolean> }> = {};
+        Object.entries(statuses).forEach(([key, val]: any) => {
+          const [docType, docId] = key.split(":");
+          if (!docType || !docId) return;
+          mapped[`${docType}-${docId}`] = val || { is_signed: false };
+        });
+        setSignatureStatuses((prev) => ({ ...prev, ...mapped }));
+      })
+      .catch(() => {
+        // Keep previous status map if batch refresh fails.
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [open, batchDocsKey]);
 
   // Group options by category
   const groupedOptions = printOptions.reduce((acc, option) => {
@@ -1089,11 +1100,14 @@ export function MedicalRecordPrintSelect({
                     </TableHeader>
                     <TableBody>
                       {groupedOptions[category].map((option) => {
-                        const isSigned = option.documentType && option.documentId
-                          ? isDocumentSigned(option.documentType, option.documentId)
-                          : false;
                         const canSign = canSignDocument(option.documentType, option.documentId);
                         const signReason = getSignReason(option.documentType, option.documentId);
+                        const signProgress = getSignatureProgress(option.documentType, option.documentId);
+                        const isCompleted = signProgress.signed >= signProgress.required;
+                        const isSigned = option.documentType && option.documentId ? isCompleted : false;
+                        const status = option.documentType && option.documentId ? signatureStatuses[`${option.documentType}-${option.documentId}`] : undefined;
+                        const slotLeftSigned = !!status?.signed_slots?.left;
+                        const slotRightSigned = !!status?.signed_slots?.right;
                         const isOrderDoc = option.documentType ? ORDER_DOC_TYPES.has(option.documentType) : false;
                         const isOrdererView = isOrderDoc && option.sourceVisitId === visitId;
                         const isRestrictedDoc = option.documentType ? ELIGIBILITY_DOC_TYPES.has(option.documentType) : false;
@@ -1123,12 +1137,12 @@ export function MedicalRecordPrintSelect({
                                 isSigned ? (
                                   <Badge className="gap-1 bg-green-600 hover:bg-green-600">
                                     <ShieldCheck className="h-3 w-3" />
-                                    Signed
+                                    Signed {Math.min(signProgress.signed, signProgress.required)}/{signProgress.required}
                                   </Badge>
                                 ) : (
                                   <Badge variant="outline" className="gap-1 text-muted-foreground">
                                     <ShieldX className="h-3 w-3" />
-                                    Belum
+                                    Belum {signProgress.signed}/{signProgress.required}
                                   </Badge>
                                 )
                               ) : (
@@ -1137,12 +1151,17 @@ export function MedicalRecordPrintSelect({
                             </TableCell>
                             <TableCell className="px-4 py-3">
                               <div className="flex flex-wrap items-center justify-start gap-1.5 sm:justify-end">
-                                {option.documentType && option.documentId && !isSigned && canSign && (
+                                {option.documentType && option.documentId && !isSigned && canSign && (!slotLeftSigned || !slotRightSigned) && (
                                   <Button
                                     variant="outline"
                                     size="sm"
                                     className="h-8 px-2 text-xs"
-                                    onClick={() => handleSignDocument(option.documentType!, option.documentId!, option.label)}
+                                    onClick={() => handleSignDocument(
+                                      option.documentType!,
+                                      option.documentId!,
+                                      option.label,
+                                      !slotLeftSigned ? "left" : "right"
+                                    )}
                                   >
                                     <ShieldCheck className="h-3.5 w-3.5" />
                                     TTD
@@ -1188,15 +1207,28 @@ export function MedicalRecordPrintSelect({
     </Sheet>
 
     {/* Signature Dialog */}
-    {signatureDoc && (
-      <SignaturePINDialog
-        open={showSignatureDialog}
-        onOpenChange={setShowSignatureDialog}
-        documentType={signatureDoc.type}
-        documentId={signatureDoc.id}
+    {signOnBehalfDoc && (
+      <SignOnBehalfDialog
+        open={showSignOnBehalfDialog}
+        onOpenChange={(open) => {
+          setShowSignOnBehalfDialog(open);
+        }}
+        documentType={signOnBehalfDoc.type}
+        documentId={signOnBehalfDoc.id}
         visitId={visitId}
-        documentTitle={signatureDoc.title}
-        onSuccess={handleSignatureSuccess}
+        documentTitle={signOnBehalfDoc.title}
+        signerHint="Pilih penandatangan"
+        signerTypeFilter={signOnBehalfDoc.signerTypeFilter}
+        signatureSlot={signOnBehalfDoc.signatureSlot}
+        requiredSignatures={signOnBehalfDoc.requiredSignatures}
+        visitDoctor={visit?.doctor ? {
+          id: visit.doctor.id,
+          nama_lengkap: visit.doctor.nama_lengkap,
+        } : undefined}
+        onSuccess={() => {
+          checkSignatureStatus(signOnBehalfDoc.type, signOnBehalfDoc.id, true);
+          setSignOnBehalfDoc(null);
+        }}
       />
     )}
 

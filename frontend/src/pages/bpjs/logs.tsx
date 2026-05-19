@@ -26,7 +26,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { setPageTitle } from "@/lib/page-title";
 import {
-  ArrowLeft,
   Loader2,
   RefreshCw,
   CheckCircle,
@@ -43,6 +42,7 @@ import {
   CollapsibleContent,
 } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
+import { BPJSMetricCue, BPJSPageFrame, BPJSSectionPanel } from "./shared-page-chrome";
 
 export default function BPJSLogsPage() {
   //const navigate = useNavigate();
@@ -240,63 +240,38 @@ export default function BPJSLogsPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center gap-4">
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => window.history.back()}
-          className="h-9 w-9"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div className="flex-1">
-          <h1 className="text-lg font-semibold flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            Log Request BPJS
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Pantau semua request ke API BPJS (Antrian Online, VClaim, dll)
-          </p>
+    <BPJSPageFrame
+      title="Log Request BPJS"
+      description="Pantau seluruh request bridging BPJS dari Antrian Online, VClaim, dan layanan terkait dalam satu ruang kerja yang lebih rapi."
+      actions={
+        <>
+          <Button variant="outline" size="sm" onClick={loadLogs} disabled={loading}>
+            {loading ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4 mr-2" />
+            )}
+            Refresh
+          </Button>
+          <Button variant="outline" size="sm" className="h-9" onClick={() => setFilterOpen(!filterOpen)}>
+            <SlidersHorizontal className="h-4 w-4 mr-2" />
+            Filter
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <BPJSMetricCue label="Total Request" value={stats.total} hint="Semua request yang tercatat" />
+          <BPJSMetricCue label="Sukses" value={<span className="text-green-600">{stats.success}</span>} hint="Request dengan respons berhasil" />
+          <BPJSMetricCue label="Gagal" value={<span className="text-red-600">{stats.failed}</span>} hint="Request yang perlu ditinjau" />
+          <BPJSMetricCue label="Rata-rata Durasi" value={`${stats.avgDuration}ms`} hint="Respons rata-rata dari API" />
         </div>
-        <Button variant="outline" size="sm" onClick={loadLogs} disabled={loading}>
-          {loading ? (
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-          ) : (
-            <RefreshCw className="h-4 w-4 mr-2" />
-          )}
-          Refresh
-        </Button>
-        <Button variant="outline" size="sm" className="h-9" onClick={() => setFilterOpen(!filterOpen)}>
-          <SlidersHorizontal className="h-4 w-4 mr-2" />
-          Filter
-        </Button>
-      </div>
 
-      {/* Stats Bar */}
-      <div className="grid grid-cols-4 gap-4 p-4 border rounded-lg">
-        <div className="text-center">
-          <p className="text-2xl font-bold">{stats.total}</p>
-          <p className="text-xs text-muted-foreground">Total Request</p>
-        </div>
-        <div className="text-center">
-          <p className="text-2xl font-bold text-green-600">{stats.success}</p>
-          <p className="text-xs text-muted-foreground">Sukses</p>
-        </div>
-        <div className="text-center">
-          <p className="text-2xl font-bold text-red-600">{stats.failed}</p>
-          <p className="text-xs text-muted-foreground">Gagal</p>
-        </div>
-        <div className="text-center">
-          <p className="text-2xl font-bold">{stats.avgDuration}ms</p>
-          <p className="text-xs text-muted-foreground">Rata-rata Durasi</p>
-        </div>
-      </div>
-
-      {/* Filter */}
-      <Collapsible open={filterOpen} onOpenChange={setFilterOpen}>
-        <CollapsibleContent>
-          <div className="p-4 border rounded-lg mt-2 flex flex-wrap items-end gap-4">
+        <BPJSSectionPanel title="Daftar Log">
+          <Collapsible open={filterOpen} onOpenChange={setFilterOpen}>
+            <CollapsibleContent>
+              <div className="mb-4 flex flex-wrap items-end gap-4 border border-border/70 bg-muted/20 p-4">
             <div className="space-y-1">
               <Label className="text-xs">Status</Label>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -355,17 +330,19 @@ export default function BPJSLogsPage() {
               <Search className="h-4 w-4 mr-2" />
               Terapkan
             </Button>
-          </div>
-        </CollapsibleContent>
-      </Collapsible>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
 
-      <DataTable
-        columns={columns}
-        data={filteredLogs}
-        pageSize={15}
-        tableId="bpjs-logs"
-        showSearch={false}
-      />
+          <DataTable
+            columns={columns}
+            data={filteredLogs}
+            pageSize={15}
+            tableId="bpjs-logs"
+            showSearch={false}
+          />
+        </BPJSSectionPanel>
+      </div>
 
       {/* Log Detail Dialog */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
@@ -443,6 +420,6 @@ export default function BPJSLogsPage() {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+    </BPJSPageFrame>
   );
 }

@@ -1383,6 +1383,7 @@ export default function RegistrationIndex() {
                   data={admissionRequests}
                   searchPlaceholder="Cari no. request, nama pasien, atau RM..."
                   pageSize={10}
+                  tableId="registrations-admission-requests"
                 />
               ) : (
                 <DataTable
@@ -1390,6 +1391,7 @@ export default function RegistrationIndex() {
                   data={registrations}
                   searchPlaceholder="Cari no. registrasi, nama pasien, atau no. RM..."
                   pageSize={10}
+                  tableId={`registrations-${activeTab}`}
                 />
               )
             )}

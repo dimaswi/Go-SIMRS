@@ -1,5 +1,6 @@
 import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 import { useEffect, useState, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
 import { DataTable } from "@/components/ui/data-table";
@@ -19,24 +20,77 @@ import {
   Tv,
   ExternalLink,
   DoorOpen,
+
   DoorClosed,
   ScreenShare,
   X,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import { queueSharedAnnouncement } from "@/lib/shared-queue-announcer";
+
+const INDONESIAN_SPEECH_MAP: Record<string, string> = {
+  A: "a",
+  B: "be",
+  C: "ce",
+  D: "de",
+  E: "e",
+  F: "ef",
+  G: "ge",
+  H: "ha",
+  I: "i",
+  J: "je",
+  K: "ka",
+  L: "el",
+  M: "em",
+  N: "en",
+  O: "o",
+  P: "pe",
+  Q: "kiu",
+  R: "er",
+  S: "es",
+  T: "te",
+  U: "u",
+  V: "ve",
+  W: "we",
+  X: "eks",
+  Y: "ye",
+  Z: "zet",
+  "0": "nol",
+  "1": "satu",
+  "2": "dua",
+  "3": "tiga",
+  "4": "empat",
+  "5": "lima",
+  "6": "enam",
+  "7": "tujuh",
+  "8": "delapan",
+  "9": "sembilan",
+};
+
+const spellQueueNumberForSpeech = (value: string) =>
+  value
+    .trim()
+    .split("")
+    .map((char) => INDONESIAN_SPEECH_MAP[char.toUpperCase()] || "")
+    .filter(Boolean)
+    .join(" ");
+
+const getQueueAnnouncementVersion = (queue: Queue) =>
+  queue.called_at || queue.updated_at || queue.created_at || new Date().toISOString();
 
 
 export default function QueueIndex() {
   const { hasPermission } = usePermission();
   const { toast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [queues, setQueues] = useState<Queue[]>([]);
   const [counters, setCounters] = useState<Counter[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingCounters, setLoadingCounters] = useState(true);
-  const [selectedCounter, setSelectedCounter] = useState<string>("all");
-  const [selectedStatus, setSelectedStatus] = useState<string>("all");
-  const [selectedDate, setSelectedDate] = useState<string>(""); // Empty = show all data
+  const [selectedCounter, setSelectedCounter] = useState<string>(() => searchParams.get("counter") || sessionStorage.getItem("queues_counter") || "all");
+  const [selectedStatus, setSelectedStatus] = useState<string>(() => searchParams.get("status") || sessionStorage.getItem("queues_status") || "all");
+  const [selectedDate, setSelectedDate] = useState<string>(() => searchParams.get("date") || sessionStorage.getItem("queues_date") || ""); // Empty = show all data
   const [skipId, setSkipId] = useState<number | null>(null);
   const [cancelId, setCancelId] = useState<number | null>(null);
   const [registerQueue, setRegisterQueue] = useState<{
@@ -46,6 +100,12 @@ export default function QueueIndex() {
   const [counterPanelOpen, setCounterPanelOpen] = useState(false);
   const [displayPanelOpen, setDisplayPanelOpen] = useState(false);
   const [togglingCounterId, setTogglingCounterId] = useState<number | null>(null);
+
+  const buildCounterAnnouncementText = useCallback((queue: Queue) => {
+    const queueText = spellQueueNumberForSpeech(queue.queue_number);
+    const counterName = queue.counter?.name || counters.find((counter) => counter.id === queue.counter_id)?.name || "loket";
+    return `Nomor antrean ${queueText}. Silakan menuju ${counterName}.`;
+  }, [counters]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -93,6 +153,37 @@ export default function QueueIndex() {
     };
     loadCounters();
   }, [toast]);
+
+  useEffect(() => {
+    const nextCounter = searchParams.get("counter") || sessionStorage.getItem("queues_counter") || "all";
+    const nextStatus = searchParams.get("status") || sessionStorage.getItem("queues_status") || "all";
+    const nextDate = searchParams.get("date") || sessionStorage.getItem("queues_date") || "";
+
+    setSelectedCounter((prev) => (prev === nextCounter ? prev : nextCounter));
+    setSelectedStatus((prev) => (prev === nextStatus ? prev : nextStatus));
+    setSelectedDate((prev) => (prev === nextDate ? prev : nextDate));
+  }, [searchParams]);
+
+  useEffect(() => {
+    const nextParams = new URLSearchParams(searchParams);
+
+    if (selectedCounter !== "all") nextParams.set("counter", selectedCounter);
+    else nextParams.delete("counter");
+
+    if (selectedStatus !== "all") nextParams.set("status", selectedStatus);
+    else nextParams.delete("status");
+
+    if (selectedDate) nextParams.set("date", selectedDate);
+    else nextParams.delete("date");
+
+    if (nextParams.toString() !== searchParams.toString()) {
+      setSearchParams(nextParams, { replace: true });
+    }
+
+    sessionStorage.setItem("queues_counter", selectedCounter);
+    sessionStorage.setItem("queues_status", selectedStatus);
+    sessionStorage.setItem("queues_date", selectedDate);
+  }, [searchParams, selectedCounter, selectedDate, selectedStatus, setSearchParams]);
 
   const handleToggleCounter = async (counterId: number) => {
     setTogglingCounterId(counterId);
@@ -152,9 +243,19 @@ export default function QueueIndex() {
   const handleCall = async (id: number) => {
     try {
       const response = await queueApi.call(id);
+      const calledQueue = response.data.data;
+
+      if (calledQueue) {
+        queueSharedAnnouncement({
+          id: `${calledQueue.id}-${getQueueAnnouncementVersion(calledQueue)}`,
+          kind: "counter",
+          speechText: buildCounterAnnouncementText(calledQueue),
+        });
+      }
+
       toast({
         title: "Antrean Dipanggil",
-        description: `Nomor ${response.data.data.queue_number} berhasil dipanggil.`,
+        description: `Nomor ${calledQueue.queue_number} berhasil dipanggil.`,
       });
       loadData();
     } catch (error: any) {
@@ -169,9 +270,19 @@ export default function QueueIndex() {
   const handleRecall = async (id: number) => {
     try {
       const response = await queueApi.call(id);
+      const calledQueue = response.data.data;
+
+      if (calledQueue) {
+        queueSharedAnnouncement({
+          id: `${calledQueue.id}-${getQueueAnnouncementVersion(calledQueue)}`,
+          kind: "counter",
+          speechText: buildCounterAnnouncementText(calledQueue),
+        });
+      }
+
       toast({
         title: "Antrean Dipanggil Ulang",
-        description: `Nomor ${response.data.data.queue_number} berhasil dipanggil ulang.`,
+        description: `Nomor ${calledQueue.queue_number} berhasil dipanggil ulang.`,
       });
       loadData();
     } catch (error: any) {

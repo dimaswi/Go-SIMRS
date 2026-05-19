@@ -497,10 +497,10 @@ export function CPPTForm({
   const [cpptToDelete, setCpptToDelete] = useState<number | null>(null);
 
   // Permissions
-  const canCreate = hasPermission("medical_records.cppt") && !readOnly;
-  const canEdit = hasPermission("medical_records.cppt") && !readOnly;
-  const canDelete = hasPermission("medical_records.cppt") && !readOnly;
-  const canVerify = hasPermission("medical_records.cppt") && !readOnly;
+  const canCreate = hasPermission("medical_records.cppt") && !readOnly && !useExternalData;
+  const canEdit = hasPermission("medical_records.cppt") && !readOnly && !useExternalData;
+  const canDelete = hasPermission("medical_records.cppt") && !readOnly && !useExternalData;
+  const canVerify = hasPermission("medical_records.cppt") && !readOnly && !useExternalData;
 
   // Load data
   const loadData = useCallback(async () => {

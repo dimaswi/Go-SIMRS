@@ -2,10 +2,27 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
-import { roomsApi, masterDataApi, type Room, type RoomUnit, type Bed, type RoomStaff, type MasterData, type Schedule, type DoctorSchedule } from "@/lib/api";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { bpjsApi, roomsApi, masterDataApi, type Room, type RoomUnit, type Bed, type RoomStaff, type MasterData, type Schedule, type DoctorSchedule } from "@/lib/api";
+import type { AplicareBedItem, AplicareRefKelasItem } from "@/lib/api/bpjs";
 import { roomProceduresApi } from "@/lib/api/procedures";
 import type { RoomProcedure } from "@/lib/api/procedures";
 import { roomInventoriesApi, type RoomInventory } from "@/lib/api/inventories";
@@ -47,6 +64,29 @@ import { ClinicalPackageAssignmentPanel } from "./components/clinical-package-as
 import { StaffAssignmentPanel } from "./components/staff/staff-assignment-panel";
 import { RoomTariffPanel } from "./components/tariff/room-tariff-panel";
 
+function mapRoomClassToAplicare(roomClass?: string) {
+  switch ((roomClass || "").toLowerCase()) {
+    case "vvip":
+      return "VVP";
+    case "vip":
+      return "VIP";
+    case "kelas_1":
+      return "KLS1";
+    case "kelas_2":
+      return "KLS2";
+    case "kelas_3":
+      return "KLS3";
+    case "icu":
+      return "ICU";
+    case "iccu":
+      return "ICCU";
+    case "isolasi":
+      return "ISO";
+    default:
+      return "";
+  }
+}
+
 export default function RoomShow() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
@@ -58,6 +98,23 @@ export default function RoomShow() {
   const [staff, setStaff] = useState<RoomStaff[]>([]);
   const [masterData, setMasterData] = useState<Record<string, MasterData[]>>({});
   const [loading, setLoading] = useState(true);
+  const [registeringAplicare, setRegisteringAplicare] = useState(false);
+  const [aplicareMapping, setAplicareMapping] = useState<AplicareBedItem | null>(null);
+  const [aplicareDialogOpen, setAplicareDialogOpen] = useState(false);
+  const [aplicareDeleteDialogOpen, setAplicareDeleteDialogOpen] = useState(false);
+  const [aplicareRefKelas, setAplicareRefKelas] = useState<AplicareRefKelasItem[]>([]);
+  const [aplicareRefKelasLoading, setAplicareRefKelasLoading] = useState(false);
+  const [useGenderAvailability, setUseGenderAvailability] = useState(false);
+  const [aplicareForm, setAplicareForm] = useState({
+    kodekelas: "",
+    koderuang: "",
+    namaruang: "",
+    kapasitas: "0",
+    tersedia: "0",
+    tersediapria: "0",
+    tersediawanita: "0",
+    tersediapriawanita: "0",
+  });
 
   // Selected unit for bed management
   const [selectedUnit, setSelectedUnit] = useState<RoomUnit | null>(null);
@@ -193,9 +250,90 @@ export default function RoomShow() {
     }
   }, [id, navigate, toast, selectedUnit?.id]);
 
+  const loadAplicareMapping = useCallback(async () => {
+    if (!id || !room?.code) return;
+
+    try {
+      const response = await bpjsApi.aplicareReadBed(1, 500);
+      const items = response.data.data || [];
+      const mappedRoom = items.find((item) => item.koderuang === room.code) || null;
+      setAplicareMapping(mappedRoom);
+    } catch {
+      setAplicareMapping(null);
+    }
+  }, [id, room?.code]);
+
+  const loadAplicareRefKelas = useCallback(async () => {
+    try {
+      setAplicareRefKelasLoading(true);
+      const response = await bpjsApi.aplicareGetRefKelas();
+      setAplicareRefKelas(response.data.data || []);
+    } catch {
+      setAplicareRefKelas([]);
+      toast({
+        variant: "destructive",
+        title: "Gagal memuat referensi kelas Aplicare",
+        description: "Daftar kelas BPJS dari Aplicare tidak berhasil diambil.",
+      });
+    } finally {
+      setAplicareRefKelasLoading(false);
+    }
+  }, [toast]);
+
+  const initializeAplicareForm = useCallback(() => {
+    if (!room) return;
+
+    const tersediapria = String(aplicareMapping?.tersediapria ?? 0);
+    const tersediawanita = String(aplicareMapping?.tersediawanita ?? 0);
+    const tersediapriawanita = String(aplicareMapping?.tersediapriawanita ?? 0);
+
+    setUseGenderAvailability(
+      (aplicareMapping?.tersediapria ?? 0) > 0 ||
+      (aplicareMapping?.tersediawanita ?? 0) > 0
+    );
+
+    setAplicareForm({
+      kodekelas: aplicareMapping?.kodekelas || room.kode_kelas_bpjs || mapRoomClassToAplicare(room.room_class),
+      koderuang: aplicareMapping?.koderuang || room.code || "",
+      namaruang: aplicareMapping?.namaruang || room.name || "",
+      kapasitas: String(aplicareMapping?.kapasitas ?? room.total_beds ?? 0),
+      tersedia: String(aplicareMapping?.tersedia ?? room.available_beds ?? 0),
+      tersediapria: tersediapria,
+      tersediawanita: tersediawanita,
+      tersediapriawanita: tersediapriawanita,
+    });
+  }, [aplicareMapping, room]);
+
+  const handleGenderAvailabilityChange = (checked: boolean) => {
+    setUseGenderAvailability(checked);
+    if (!checked) {
+      setAplicareForm((current) => ({
+        ...current,
+        tersediapria: "0",
+        tersediawanita: "0",
+        tersediapriawanita: "0",
+      }));
+    }
+  };
+
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (room?.code) {
+      loadAplicareMapping();
+    }
+  }, [loadAplicareMapping, room?.code]);
+
+  useEffect(() => {
+    if (aplicareDialogOpen && room) {
+      initializeAplicareForm();
+      if (!aplicareMapping && aplicareRefKelas.length === 0) {
+        loadAplicareRefKelas();
+      }
+    }
+  }, [aplicareDialogOpen, aplicareMapping, aplicareRefKelas.length, initializeAplicareForm, loadAplicareRefKelas, room]);
 
   // Reload when selectedUnit changes (to refresh bed data)
   useEffect(() => {
@@ -531,8 +669,102 @@ export default function RoomShow() {
     return null;
   }
 
+  const handleRegisterAplicare = async () => {
+    if (!room) return;
+    try {
+      setRegisteringAplicare(true);
+      const response = await bpjsApi.aplicareCreateRoom({
+        room_id: room.id,
+        ...aplicareForm,
+      });
+      toast({
+        variant: "success",
+        title: "Berhasil!",
+        description: response.data.message || "Ruangan berhasil didaftarkan ke Aplicare.",
+      });
+      setAplicareDialogOpen(false);
+      await loadAplicareMapping();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Gagal mendaftarkan ruangan",
+        description: error.response?.data?.error || "Ruangan gagal didaftarkan ke Aplicare.",
+      });
+    } finally {
+      setRegisteringAplicare(false);
+    }
+  };
+
+  const handleDeleteAplicare = async () => {
+    if (!aplicareMapping) return;
+
+    try {
+      setRegisteringAplicare(true);
+      const response = await bpjsApi.aplicareDeleteRoom(aplicareMapping.kodekelas, aplicareMapping.koderuang);
+      toast({
+        variant: "success",
+        title: "Berhasil!",
+        description: response.data.message || "Ruangan berhasil dihapus dari Aplicare.",
+      });
+      setAplicareMapping(null);
+      setAplicareDeleteDialogOpen(false);
+      setAplicareDialogOpen(false);
+      await loadAplicareMapping();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Gagal menghapus ruangan dari Aplicare",
+        description: error.response?.data?.error || "Ruangan gagal dihapus dari Aplicare.",
+      });
+    } finally {
+      setRegisteringAplicare(false);
+    }
+  };
+
   const totalBeds = room.total_beds || 0;
   const availableBeds = room.available_beds || 0;
+  const aplicareKodeKelas = room.kode_kelas_bpjs || mapRoomClassToAplicare(room.room_class);
+  const aplicareSummary = aplicareMapping
+    ? {
+        kodeRuang: aplicareMapping.koderuang || room.code,
+        namaRuang: aplicareMapping.namaruang || room.name,
+        kodeKelas: aplicareMapping.kodekelas || aplicareKodeKelas,
+        ketersediaan: `${aplicareMapping.tersedia || 0} / ${aplicareMapping.kapasitas || 0}`,
+      }
+    : {
+        kodeRuang: aplicareForm.koderuang || room.code,
+        namaRuang: aplicareForm.namaruang || room.name,
+        kodeKelas: aplicareForm.kodekelas || aplicareKodeKelas,
+        ketersediaan: `${aplicareForm.tersedia || 0} / ${aplicareForm.kapasitas || 0}`,
+      };
+  const aplicareValidations = [
+    {
+      label: "Ruangan memiliki bed",
+      passed: room.has_bed,
+      value: room.has_bed ? "Siap" : "Ruangan belum mendukung bed",
+    },
+    {
+      label: "Kode ruangan tersedia",
+      passed: Boolean(room.code),
+      value: room.code || "-",
+    },
+    {
+      label: "Nama ruangan tersedia",
+      passed: Boolean(room.name),
+      value: room.name || "-",
+    },
+    {
+      label: "Kode kelas BPJS tersedia",
+      passed: Boolean(aplicareForm.kodekelas || aplicareKodeKelas),
+      value: aplicareForm.kodekelas || aplicareKodeKelas || "Belum ada mapping kelas",
+    },
+    {
+      label: "Kapasitas bed siap dikirim",
+      passed: Number(aplicareForm.kapasitas) > 0,
+      value: `${aplicareForm.kapasitas || 0} total bed`,
+    },
+  ];
+  const canSubmitAplicare = aplicareValidations.every((item) => item.passed);
 
   return (
     <PageShell>
@@ -558,6 +790,21 @@ export default function RoomShow() {
               >
                 <Monitor className="mr-2 h-4 w-4" />
                 Monitoring
+              </Button>
+            )}
+            {hasPermission("integrations.manage") && room.has_bed && (
+              <Button
+                onClick={() => setAplicareDialogOpen(true)}
+                size="sm"
+                variant="outline"
+                disabled={registeringAplicare}
+              >
+                {registeringAplicare ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <BedDouble className="mr-2 h-4 w-4" />
+                )}
+                {aplicareMapping ? "Detail Aplicare" : "Tambah ke Aplicare"}
               </Button>
             )}
             {hasPermission("rooms.update") && (
@@ -1302,6 +1549,262 @@ export default function RoomShow() {
             onConfirm={confirmDeleteRoomMedicine}
             title="Hapus Obat"
             description="Apakah Anda yakin ingin menghapus obat ini dari ruangan?"
+            confirmText="Hapus"
+            cancelText="Batal"
+            variant="destructive"
+          />
+
+          <Dialog open={aplicareDialogOpen} onOpenChange={setAplicareDialogOpen}>
+            <DialogContent className="max-h-[85vh] overflow-hidden sm:max-w-[720px]">
+              <DialogHeader>
+                <DialogTitle>
+                  {aplicareMapping ? "Detail Mapping Aplicare" : "Validasi Pendaftaran ke Aplicare"}
+                </DialogTitle>
+                <DialogDescription>
+                  {aplicareMapping
+                    ? "Detail mapping ruangan yang sudah terdaftar di BPJS Aplicare."
+                    : "Periksa data ruangan sebelum didaftarkan ke BPJS Aplicare."}
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="max-h-[calc(85vh-10rem)] space-y-4 overflow-y-auto pr-1">
+                <div className="grid gap-3 rounded-lg border border-border/70 bg-muted/20 p-4 sm:grid-cols-2">
+                  <div>
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Kode Ruangan</div>
+                    <div className="mt-1 text-sm font-medium text-foreground">{aplicareSummary.kodeRuang || "-"}</div>
+                  </div>
+                  <div>
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Nama Ruangan</div>
+                    <div className="mt-1 text-sm font-medium text-foreground">{aplicareSummary.namaRuang || "-"}</div>
+                  </div>
+                  <div>
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Kode Kelas BPJS</div>
+                    <div className="mt-1 text-sm font-medium text-foreground">{aplicareSummary.kodeKelas || "-"}</div>
+                  </div>
+                  <div>
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Ketersediaan Bed</div>
+                    <div className="mt-1 text-sm font-medium text-foreground">{aplicareSummary.ketersediaan}</div>
+                  </div>
+                </div>
+
+                {!aplicareMapping ? (
+                  <div className="space-y-4">
+                    <div className="rounded-lg border border-border/70 bg-background p-4">
+                      <div className="mb-4">
+                        <div className="text-sm font-semibold text-foreground">Form Request Aplicare</div>
+                        <div className="text-xs text-muted-foreground">Sesuaikan payload yang akan dikirim ke BPJS sebelum ruangan didaftarkan.</div>
+                      </div>
+
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="space-y-2">
+                          <div className="text-xs font-medium text-muted-foreground">Kode Kelas</div>
+                          <div className="rounded-md border border-border/70 bg-muted/20 p-2">
+                              <Select
+                                value={aplicareForm.kodekelas}
+                                onValueChange={(value) => setAplicareForm((current) => ({ ...current, kodekelas: value }))}
+                                disabled={aplicareRefKelasLoading || aplicareRefKelas.length === 0}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue
+                                    placeholder={aplicareRefKelasLoading ? "Memuat kelas Aplicare..." : "Pilih kelas Aplicare"}
+                                  />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {aplicareRefKelas.map((item) => (
+                                    <SelectItem key={item.kodekelas} value={item.kodekelas}>
+                                      {item.kodekelas} - {item.namakelas}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                          </div>
+                          {!aplicareRefKelasLoading && aplicareRefKelas.length === 0 ? (
+                            <div className="text-[11px] text-amber-600">Referensi kelas Aplicare belum tersedia.</div>
+                          ) : null}
+                        </div>
+                        <div className="space-y-2">
+                          <div className="text-xs font-medium text-muted-foreground">Kode Ruang</div>
+                          <div className="rounded-md border border-border/70 bg-muted/20 p-2">
+                            <Input
+                              value={aplicareForm.koderuang}
+                              onChange={(event) => setAplicareForm((current) => ({ ...current, koderuang: event.target.value.toUpperCase() }))}
+                              placeholder="Kode ruangan di Aplicare"
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-2 sm:col-span-2">
+                          <div className="text-xs font-medium text-muted-foreground">Nama Ruang</div>
+                          <div className="rounded-md border border-border/70 bg-muted/20 p-2">
+                            <Input
+                              value={aplicareForm.namaruang}
+                              onChange={(event) => setAplicareForm((current) => ({ ...current, namaruang: event.target.value }))}
+                              placeholder="Nama ruangan yang dikirim ke Aplicare"
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="text-xs font-medium text-muted-foreground">Kapasitas</div>
+                          <div className="rounded-md border border-border/70 bg-muted/20 p-2">
+                            <Input
+                              type="number"
+                              min="0"
+                              value={aplicareForm.kapasitas}
+                              onChange={(event) => setAplicareForm((current) => ({ ...current, kapasitas: event.target.value }))}
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="text-xs font-medium text-muted-foreground">Tersedia</div>
+                          <div className="rounded-md border border-border/70 bg-muted/20 p-2">
+                            <Input
+                              type="number"
+                              min="0"
+                              value={aplicareForm.tersedia}
+                              onChange={(event) => setAplicareForm((current) => ({ ...current, tersedia: event.target.value }))}
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-3 sm:col-span-2">
+                          <div className="flex items-start gap-3 rounded-md border border-border/70 bg-muted/20 p-3">
+                            <Checkbox
+                              id="aplicare-gender-availability"
+                              checked={useGenderAvailability}
+                              onCheckedChange={(checked) => handleGenderAvailabilityChange(checked === true)}
+                            />
+                            <div className="space-y-1">
+                              <div className="text-xs font-medium text-foreground">Pisahkan ketersediaan pria dan wanita</div>
+                              <div className="text-[11px] text-muted-foreground">
+                                Jika dicentang, tampilkan input ketersediaan pria dan wanita. Jika tidak, keduanya dikirim default `0`.
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        {useGenderAvailability ? (
+                          <>
+                            <div className="space-y-2">
+                              <div className="text-xs font-medium text-muted-foreground">Tersedia Pria</div>
+                              <div className="rounded-md border border-border/70 bg-muted/20 p-2">
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  value={aplicareForm.tersediapria}
+                                  onChange={(event) => setAplicareForm((current) => ({ ...current, tersediapria: event.target.value, tersediapriawanita: "0" }))}
+                                />
+                              </div>
+                            </div>
+                            <div className="space-y-2">
+                              <div className="text-xs font-medium text-muted-foreground">Tersedia Wanita</div>
+                              <div className="rounded-md border border-border/70 bg-muted/20 p-2">
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  value={aplicareForm.tersediawanita}
+                                  onChange={(event) => setAplicareForm((current) => ({ ...current, tersediawanita: event.target.value, tersediapriawanita: "0" }))}
+                                />
+                              </div>
+                            </div>
+                          </>
+                        ) : null}
+                        <div className="hidden">
+                          <div className="rounded-md border border-border/70 bg-muted/20 p-2">
+                            <Input
+                              type="number"
+                              min="0"
+                              value={aplicareForm.tersediapriawanita}
+                              onChange={(event) => setAplicareForm((current) => ({ ...current, tersediapriawanita: event.target.value }))}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg border border-border/70 bg-background p-4">
+                      <div className="mb-4">
+                        <div className="text-sm font-semibold text-foreground">Checklist Validasi</div>
+                        <div className="text-xs text-muted-foreground">Ruangan hanya bisa didaftarkan jika seluruh syarat minimum sudah terpenuhi.</div>
+                      </div>
+
+                      <div className="space-y-3">
+                        {aplicareValidations.map((item) => (
+                          <div key={item.label} className="flex items-start justify-between gap-3 rounded-lg border border-border/70 bg-background px-4 py-3">
+                            <div>
+                              <div className="text-sm font-medium text-foreground">{item.label}</div>
+                              <div className="mt-1 text-xs text-muted-foreground">{item.value}</div>
+                            </div>
+                            <Badge variant={item.passed ? "default" : "secondary"} className={item.passed ? "bg-green-600 hover:bg-green-600" : ""}>
+                              {item.passed ? "Valid" : "Perlu dicek"}
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-border/70 bg-background p-4">
+                    <div className="mb-4">
+                      <div className="text-sm font-semibold text-foreground">Detail Mapping Aplicare</div>
+                      <div className="text-xs text-muted-foreground">Informasi ruangan yang saat ini sudah terdaftar di BPJS Aplicare.</div>
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Kode Ruang Aplicare</div>
+                      <div className="mt-1 text-sm font-medium text-foreground">{aplicareMapping.koderuang}</div>
+                    </div>
+                    <div>
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Nama Ruang Aplicare</div>
+                      <div className="mt-1 text-sm font-medium text-foreground">{aplicareMapping.namaruang}</div>
+                    </div>
+                    <div>
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Kelas Aplicare</div>
+                      <div className="mt-1 text-sm font-medium text-foreground">{aplicareMapping.namakelas || aplicareMapping.kodekelas}</div>
+                    </div>
+                    <div>
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Kapasitas / Tersedia</div>
+                      <div className="mt-1 text-sm font-medium text-foreground">{aplicareMapping.tersedia} / {aplicareMapping.kapasitas}</div>
+                    </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <DialogFooter>
+                {aplicareMapping ? (
+                  <>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      onClick={() => setAplicareDeleteDialogOpen(true)}
+                      disabled={registeringAplicare}
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Hapus dari Aplicare
+                    </Button>
+                    <Button type="button" variant="outline" onClick={() => setAplicareDialogOpen(false)}>
+                      Tutup
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button type="button" variant="outline" onClick={() => setAplicareDialogOpen(false)}>
+                      Batal
+                    </Button>
+                    <Button type="button" onClick={handleRegisterAplicare} disabled={!canSubmitAplicare || registeringAplicare}>
+                      {registeringAplicare ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BedDouble className="mr-2 h-4 w-4" />}
+                      Daftarkan ke Aplicare
+                    </Button>
+                  </>
+                )}
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          <ConfirmDialog
+            open={aplicareDeleteDialogOpen}
+            onOpenChange={setAplicareDeleteDialogOpen}
+            onConfirm={handleDeleteAplicare}
+            title="Hapus Ruangan dari Aplicare"
+            description={`Ruangan ${room.name} akan dihapus dari BPJS Aplicare.`}
             confirmText="Hapus"
             cancelText="Batal"
             variant="destructive"

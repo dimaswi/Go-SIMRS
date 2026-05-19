@@ -76,16 +76,15 @@ interface ClaimDataTabProps {
   submitting?: boolean;
 }
 
-// Flat section divider header (no card)
+// Flat card section header, matching the medicines show page style.
 function SectionHeader({ title, children }: { title: string; children?: React.ReactNode }) {
   return (
-    <>
-      <Separator className="my-3" />
-      <div className="flex items-center justify-between py-1">
-        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{title}</h4>
+    <div className="mt-3 border-x border-t border-border/70 bg-muted/20 px-3 py-2 first:mt-0">
+      <div className="flex items-center justify-between gap-3">
+        <h4 className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{title}</h4>
         {children && <div className="flex items-center gap-2">{children}</div>}
       </div>
-    </>
+    </div>
   );
 }
 
@@ -449,32 +448,28 @@ export default function ClaimDataTab({ detail, originalRM, onBuildPayload, onRef
   );
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       {disabled && (
-        <div className="rounded-md bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 p-3">
-          <p className="text-sm text-amber-800 dark:text-amber-200">Data klaim terkunci karena iDRG sudah di-finalisasi. Untuk mengubah, lakukan Edit Ulang iDRG terlebih dahulu.</p>
+        <div className="border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-800 dark:bg-amber-950/20">
+          <p className="text-xs leading-5 text-amber-800 dark:text-amber-200">Data klaim terkunci karena iDRG sudah di-finalisasi. Untuk mengubah, lakukan Edit Ulang iDRG terlebih dahulu.</p>
         </div>
       )}
       {detail.set_claim_data_success && (
-        <div className="flex items-center gap-2 p-3 rounded-md bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800">
-          <CheckCircle className="h-4 w-4 text-green-600 shrink-0" />
-          <div>
-            <p className="text-sm font-medium text-green-800 dark:text-green-200">Data klaim sudah dikirim ke E-Klaim</p>
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border border-green-200 bg-green-50 px-3 py-2 dark:border-green-800 dark:bg-green-950/20">
+          <CheckCircle className="h-3.5 w-3.5 shrink-0 text-green-600" />
+          <p className="text-xs font-medium leading-5 text-green-800 dark:text-green-200">Data klaim sudah dikirim ke E-Klaim</p>
             {detail.set_claim_data_sent_at && (
-              <p className="text-xs text-green-600 dark:text-green-400">
+              <p className="text-[11px] leading-5 text-green-600 dark:text-green-400">
                 Terakhir dikirim: {(() => { try { return format(new Date(detail.set_claim_data_sent_at), 'dd MMM yyyy HH:mm', { locale: localeId }); } catch { return detail.set_claim_data_sent_at; } })()}
               </p>
             )}
-          </div>
         </div>
       )}
       {detail.form_data_saved && !detail.set_claim_data_success && (
-        <div className="flex items-center gap-2 p-3 rounded-md bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800">
-          <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
-          <div>
-            <p className="text-sm font-medium text-amber-800 dark:text-amber-200">Data klaim tersimpan lokal, tapi belum berhasil dikirim ke E-Klaim</p>
-            <p className="text-xs text-amber-600 dark:text-amber-400">Klik &quot;Kirim Data Klaim&quot; untuk mengirim ulang ke server E-Klaim</p>
-          </div>
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-800 dark:bg-amber-950/20">
+          <AlertCircle className="h-3.5 w-3.5 shrink-0 text-amber-600" />
+          <p className="text-xs font-medium leading-5 text-amber-800 dark:text-amber-200">Data klaim tersimpan lokal, tapi belum berhasil dikirim ke E-Klaim.</p>
+          <p className="text-[11px] leading-5 text-amber-600 dark:text-amber-400">Klik &quot;Kirim Data Klaim&quot; untuk mengirim ulang.</p>
         </div>
       )}
 
@@ -482,7 +477,7 @@ export default function ClaimDataTab({ detail, originalRM, onBuildPayload, onRef
 
       {/* ===================== Data Umum ===================== */}
       <SectionHeader title="Data Umum" />
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-4 border-x border-b border-border/70 bg-background/95 p-3 shadow-sm md:grid-cols-3 sm:p-4">
         <div className="space-y-1.5">
           <Label>Tanggal &amp; Jam Masuk</Label>
           <Input type="datetime-local" step="1" value={tglMasuk} onChange={(e) => setTglMasuk(e.target.value)} />
@@ -533,7 +528,7 @@ export default function ClaimDataTab({ detail, originalRM, onBuildPayload, onRef
 
       {/* ===================== Dokter & Coder ===================== */}
       <SectionHeader title="Dokter &amp; Coder" />
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 border-x border-b border-border/70 bg-background/95 p-3 shadow-sm md:grid-cols-2 sm:p-4">
         <div className="space-y-1.5">
           <Label>Nama Dokter</Label>
           <Input value={namaDokter} onChange={(e) => setNamaDokter(e.target.value)} placeholder="Nama dokter penanggung jawab" />
@@ -547,7 +542,7 @@ export default function ClaimDataTab({ detail, originalRM, onBuildPayload, onRef
 
       {/* ===================== Tarif & Payor ===================== */}
       <SectionHeader title="Tarif &amp; Payor" />
-      <div className="space-y-4">
+      <div className="space-y-4 border-x border-b border-border/70 bg-background/95 p-3 shadow-sm sm:p-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="space-y-1.5">
             <Label>Kode Tarif</Label>
@@ -613,7 +608,7 @@ export default function ClaimDataTab({ detail, originalRM, onBuildPayload, onRef
           ['Sewa Alat', rm.tarif_sewa_alat],
         ] as [string, number][];
         return (
-          <div className="space-y-1">
+          <div className="space-y-1 border-x border-b border-border/70 bg-background/95 p-3 shadow-sm sm:p-4">
             <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
               {rows.map(([label, val]) => (
                 <div key={label} className="flex justify-between items-center py-0.5 text-sm">
@@ -641,12 +636,12 @@ export default function ClaimDataTab({ detail, originalRM, onBuildPayload, onRef
           </div>
         );
       })() : (
-        <p className="text-sm text-muted-foreground">Belum ada data tarif. Isi di tab RM Duplikat.</p>
+        <p className="border-x border-b border-border/70 bg-background/95 p-3 text-sm text-muted-foreground shadow-sm sm:p-4">Belum ada data tarif. Isi di tab RM Duplikat.</p>
       )}
 
       {/* ===================== ICU & Ventilator ===================== */}
       <SectionHeader title="ICU &amp; Ventilator" />
-      <div className="space-y-4">
+      <div className="space-y-4 border-x border-b border-border/70 bg-background/95 p-3 shadow-sm sm:p-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="space-y-1.5">
             <Label>ICU Indikator</Label>
@@ -705,7 +700,7 @@ export default function ClaimDataTab({ detail, originalRM, onBuildPayload, onRef
 
       {/* ===================== Tekanan Darah ===================== */}
       <SectionHeader title="Tekanan Darah" />
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 border-x border-b border-border/70 bg-background/95 p-3 shadow-sm md:grid-cols-2 sm:p-4">
         <div className="space-y-1.5">
           <Label>Sistole (mmHg)</Label>
           <Input type="number" value={sistole} onChange={(e) => setSistole(e.target.value)} />
@@ -718,7 +713,7 @@ export default function ClaimDataTab({ detail, originalRM, onBuildPayload, onRef
 
       {/* ===================== Neonatus & ADL ===================== */}
       <SectionHeader title="Neonatus &amp; ADL" />
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-4 border-x border-b border-border/70 bg-background/95 p-3 shadow-sm md:grid-cols-3 sm:p-4">
         <div className="space-y-1.5">
           <Label>Berat Lahir (gram)</Label>
           <Input type="number" value={birthWeight} onChange={(e) => setBirthWeight(e.target.value)} />
@@ -737,7 +732,7 @@ export default function ClaimDataTab({ detail, originalRM, onBuildPayload, onRef
 
       {/* ===================== Upgrade Kelas ===================== */}
       <SectionHeader title="Upgrade Kelas" />
-      <div className="space-y-4">
+      <div className="space-y-4 border-x border-b border-border/70 bg-background/95 p-3 shadow-sm sm:p-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-1.5">
             <Label>Naik Kelas?</Label>
@@ -788,7 +783,7 @@ export default function ClaimDataTab({ detail, originalRM, onBuildPayload, onRef
 
       {/* ===================== Field Khusus ===================== */}
       <SectionHeader title="Field Khusus (COVID/BBL/Hemodialisa/Stroke)" />
-      <div className="space-y-4">
+      <div className="space-y-4 border-x border-b border-border/70 bg-background/95 p-3 shadow-sm sm:p-4">
         {payorId === '71' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
@@ -850,7 +845,7 @@ export default function ClaimDataTab({ detail, originalRM, onBuildPayload, onRef
 
       {/* ===================== APGAR Score ===================== */}
       <SectionHeader title="APGAR Score (Neonatus)" />
-      <div className="space-y-4">
+      <div className="space-y-4 border-x border-b border-border/70 bg-background/95 p-3 shadow-sm sm:p-4">
         <p className="text-xs text-muted-foreground">Diperhitungkan untuk pasien berumur {'\u2264'} 1 hari. Setiap komponen diisi nilai 0, 1, atau 2.</p>
         <div>
           <p className="text-xs font-medium mb-2">Menit ke-1</p>
@@ -883,7 +878,7 @@ export default function ClaimDataTab({ detail, originalRM, onBuildPayload, onRef
 
       {/* ===================== Persalinan ===================== */}
       <SectionHeader title="Persalinan" />
-      <div className="space-y-4">
+      <div className="space-y-4 border-x border-b border-border/70 bg-background/95 p-3 shadow-sm sm:p-4">
         <p className="text-xs text-muted-foreground">Diperhitungkan untuk rawat inap dengan diagnosa persalinan.</p>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <div className="space-y-1.5">
@@ -921,7 +916,7 @@ export default function ClaimDataTab({ detail, originalRM, onBuildPayload, onRef
             </Button>
           </div>
           {deliveries.map((del, idx) => (
-            <div key={idx} className="rounded-md border p-3 space-y-3 bg-muted/30">
+            <div key={idx} className="space-y-3 border border-border/70 bg-muted/30 p-3">
               <div className="flex items-center justify-between">
                 <p className="text-xs font-medium">Bayi #{del.delivery_sequence}</p>
                 <Button type="button" variant="ghost" size="sm" className="h-7 text-destructive" onClick={() => removeDelivery(idx)}>
@@ -1023,8 +1018,7 @@ export default function ClaimDataTab({ detail, originalRM, onBuildPayload, onRef
       </div>
 
       {/* Submit Button */}
-      <Separator className="my-4" />
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3 border border-border/70 bg-background/95 p-3 shadow-sm sm:p-4">
         <div className="text-sm text-muted-foreground">
           {!detail.new_claim_success && 'Buat klaim baru terlebih dahulu sebelum mengirim data.'}
           {detail.new_claim_success && disabled && 'Form terkunci setelah iDRG final. Reedit iDRG untuk mengubah.'}

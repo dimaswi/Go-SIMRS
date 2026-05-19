@@ -12,6 +12,8 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Loader2, Pencil, Flame, Beef, Droplets, Wheat, UtensilsCrossed } from "lucide-react";
 import { setPageTitle } from "@/lib/page-title";
+import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
+import { NutritionSectionPanel, NutritionSummaryCue } from "../shared-page-chrome";
 
 export default function NutritionMealPackageShow() {
   const navigate = useNavigate();
@@ -49,26 +51,40 @@ export default function NutritionMealPackageShow() {
     new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(v);
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => window.history.back()}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div>
-            <h1 className="text-lg font-semibold">{pkg.name}</h1>
-            <p className="text-sm text-muted-foreground font-mono">{pkg.code}</p>
+    <PageShell>
+      <PageHeader
+        title={pkg.name}
+        description="Tinjau identitas paket makanan, komposisi menu, nilai gizi total, dan status operasional dalam pola halaman yang sama dengan modul master data lain."
+        icon={UtensilsCrossed}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => navigate("/nutrition/meal-packages")}>
+              <ArrowLeft className="h-4 w-4" />
+              Kembali
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => navigate(`/nutrition/meal-packages/${id}/edit`)}>
+              <Pencil className="h-4 w-4" />
+              Edit
+            </Button>
           </div>
+        }
+      >
+        <div className="flex flex-wrap gap-2 pb-3">
+          <div className="border border-border/70 bg-background px-2 py-1 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">{pkg.code}</div>
+          <div className="border border-border/70 bg-background px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">{pkg.items?.length || 0} item menu</div>
         </div>
-        <Button size="sm" variant="outline" onClick={() => navigate(`/nutrition/meal-packages/${id}/edit`)}>
-          <Pencil className="mr-2 h-4 w-4" /> Edit
-        </Button>
-      </div>
+      </PageHeader>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <PageContent className="flex-none pb-8">
+        <div className="mb-4 grid gap-3 lg:grid-cols-3">
+          <NutritionSummaryCue label="Jenis Diet" description={nutritionDietTypeLabels[pkg.diet_type] || pkg.diet_type} tone="from-background via-background to-emerald-50/50" />
+          <NutritionSummaryCue label="Waktu Makan" description={nutritionMealTimeLabels[pkg.meal_time] || pkg.meal_time} tone="from-background via-background to-sky-50/40" />
+          <NutritionSummaryCue label="Harga Paket" description={pkg.price > 0 ? fmt(pkg.price) : "Belum diisi"} tone="from-background via-background to-amber-50/50" />
+        </div>
+
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
         {/* Info */}
-        <div className="rounded-lg border p-4 space-y-3">
-          <h3 className="font-medium flex items-center gap-2"><UtensilsCrossed className="h-4 w-4" /> Informasi Paket</h3>
+        <NutritionSectionPanel icon={UtensilsCrossed} title="Informasi Paket" description="Identitas paket, diet, waktu makan, harga, status, dan deskripsi singkat paket makanan.">
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Jenis Diet</span>
@@ -92,11 +108,10 @@ export default function NutritionMealPackageShow() {
               <p className="text-sm text-muted-foreground">{pkg.description}</p>
             </div>
           )}
-        </div>
+        </NutritionSectionPanel>
 
         {/* Nutrition Totals */}
-        <div className="rounded-lg border p-4 space-y-3">
-          <h3 className="font-medium flex items-center gap-2"><Flame className="h-4 w-4" /> Total Nilai Gizi</h3>
+        <NutritionSectionPanel icon={Flame} title="Total Nilai Gizi" description="Akumulasi nutrisi seluruh menu dalam paket sebagai dasar evaluasi kebutuhan diet pasien.">
           <div className="grid grid-cols-2 gap-3">
             <div className="bg-orange-50 dark:bg-orange-950 rounded-lg p-3 text-center">
               <Flame className="h-5 w-5 mx-auto mb-1 text-orange-500" />
@@ -119,12 +134,12 @@ export default function NutritionMealPackageShow() {
               <div className="text-xs text-muted-foreground">Karbohidrat</div>
             </div>
           </div>
-        </div>
+        </NutritionSectionPanel>
       </div>
 
       {/* Items */}
-      <div className="rounded-lg border p-4 space-y-3">
-        <h3 className="font-medium">Item Menu ({pkg.items?.length || 0})</h3>
+      <NutritionSectionPanel title="Item Menu" description={`Daftar menu yang membentuk paket ini beserta jumlah porsi dan ringkasan kalori per item.`}>
+        <h3 className="text-sm font-medium text-foreground">Item Menu ({pkg.items?.length || 0})</h3>
         {pkg.items && pkg.items.length > 0 ? (
           <div className="space-y-2">
             {pkg.items.map((item) => (
@@ -146,14 +161,14 @@ export default function NutritionMealPackageShow() {
         ) : (
           <p className="text-sm text-muted-foreground">Tidak ada item.</p>
         )}
-      </div>
+      </NutritionSectionPanel>
 
       {pkg.notes && (
-        <div className="rounded-lg border p-4 space-y-2">
-          <h3 className="font-medium">Catatan</h3>
+        <NutritionSectionPanel title="Catatan" description="Keterangan tambahan dari tim gizi untuk paket makanan ini.">
           <p className="text-sm text-muted-foreground">{pkg.notes}</p>
-        </div>
+        </NutritionSectionPanel>
       )}
-    </div>
+    </PageContent>
+    </PageShell>
   );
 }

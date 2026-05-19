@@ -6,6 +6,8 @@ import { nutritionMenuApi, type NutritionMenu, nutritionCategoryLabels, nutritio
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Loader2, Pencil, Flame, Beef, Droplets, Wheat } from "lucide-react";
 import { setPageTitle } from "@/lib/page-title";
+import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
+import { NutritionSectionPanel, NutritionSummaryCue } from "../shared-page-chrome";
 
 export default function NutritionMenuShow() {
   const navigate = useNavigate();
@@ -45,26 +47,39 @@ export default function NutritionMenuShow() {
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => window.history.back()}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div>
-            <h1 className="text-lg font-semibold">{menu.name}</h1>
-            <p className="text-sm text-muted-foreground font-mono">{menu.code}</p>
+    <PageShell>
+      <PageHeader
+        title={menu.name}
+        description="Tinjau detail menu gizi, kandungan nutrisi per porsi, kecocokan diet, dan status operasionalnya dalam format yang sama dengan halaman master lain."
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => navigate("/nutrition/menus")}>
+              <ArrowLeft className="h-4 w-4" />
+              Kembali
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => navigate(`/nutrition/menus/${id}/edit`)}>
+              <Pencil className="h-4 w-4" />
+              Edit
+            </Button>
           </div>
+        }
+      >
+        <div className="flex flex-wrap gap-2 pb-3">
+          <div className="border border-border/70 bg-background px-2 py-1 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">{menu.code}</div>
+          <div className="border border-border/70 bg-background px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">{menu.is_active ? "Menu aktif" : "Menu nonaktif"}</div>
         </div>
-        <Button size="sm" variant="outline" onClick={() => navigate(`/nutrition/menus/${id}/edit`)}>
-          <Pencil className="mr-2 h-4 w-4" /> Edit
-        </Button>
-      </div>
+      </PageHeader>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <PageContent className="flex-none pb-8">
+        <div className="mb-4 grid gap-3 lg:grid-cols-3">
+          <NutritionSummaryCue label="Kategori" description={nutritionCategoryLabels[menu.category] || menu.category} tone="from-background via-background to-emerald-50/50" />
+          <NutritionSummaryCue label="Ukuran Porsi" description={menu.serving_size || "Belum diisi"} tone="from-background via-background to-sky-50/40" />
+          <NutritionSummaryCue label="Harga" description={menu.unit_price > 0 ? new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(menu.unit_price) : "Belum diisi"} tone="from-background via-background to-amber-50/50" />
+        </div>
+
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
         {/* Basic Info */}
-        <div className="rounded-lg border p-4 space-y-3">
-          <h3 className="font-medium">Informasi Menu</h3>
+        <NutritionSectionPanel title="Informasi Menu" description="Ringkasan identitas menu, kategori, ukuran porsi, harga, status, dan deskripsi singkat.">
           <div className="space-y-2 text-sm">
             <div className="flex justify-between"><span className="text-muted-foreground">Kategori</span>
               <Badge variant="outline" className={nutritionCategoryColors[menu.category] || ''}>{nutritionCategoryLabels[menu.category] || menu.category}</Badge>
@@ -82,11 +97,10 @@ export default function NutritionMenuShow() {
               <p className="text-sm text-muted-foreground">{menu.description}</p>
             </div>
           )}
-        </div>
+        </NutritionSectionPanel>
 
         {/* Nutrition */}
-        <div className="rounded-lg border p-4 space-y-3">
-          <h3 className="font-medium flex items-center gap-2"><Flame className="h-4 w-4" /> Informasi Gizi</h3>
+        <NutritionSectionPanel icon={Flame} title="Informasi Gizi" description="Nilai nutrisi per porsi untuk kebutuhan analisis diet dan penyusunan paket makanan.">
           <div className="grid grid-cols-2 gap-3">
             <div className="bg-orange-50 dark:bg-orange-950 rounded-lg p-3 text-center">
               <Flame className="h-5 w-5 mx-auto mb-1 text-orange-500" />
@@ -113,27 +127,26 @@ export default function NutritionMenuShow() {
             <div className="flex justify-between"><span className="text-muted-foreground">Serat</span><span>{menu.fiber}g</span></div>
             <div className="flex justify-between"><span className="text-muted-foreground">Natrium</span><span>{menu.sodium}mg</span></div>
           </div>
-        </div>
+        </NutritionSectionPanel>
       </div>
 
       {/* Diet Types */}
       {dietTypes.length > 0 && (
-        <div className="rounded-lg border p-4 space-y-2">
-          <h3 className="font-medium">Jenis Diet yang Cocok</h3>
+        <NutritionSectionPanel title="Jenis Diet yang Cocok" description="Daftar diet yang direkomendasikan untuk menu ini agar pemilihan paket lebih tepat.">
           <div className="flex flex-wrap gap-2">
             {dietTypes.map((dt) => (
               <Badge key={dt} variant="outline">{nutritionDietTypeLabels[dt] || dt}</Badge>
             ))}
           </div>
-        </div>
+        </NutritionSectionPanel>
       )}
 
       {menu.notes && (
-        <div className="rounded-lg border p-4 space-y-2">
-          <h3 className="font-medium">Catatan</h3>
+        <NutritionSectionPanel title="Catatan" description="Keterangan operasional tambahan dari tim gizi untuk menu ini.">
           <p className="text-sm text-muted-foreground">{menu.notes}</p>
-        </div>
+        </NutritionSectionPanel>
       )}
-    </div>
+    </PageContent>
+    </PageShell>
   );
 }

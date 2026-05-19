@@ -20,6 +20,8 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Loader2, Plus, Trash2, UtensilsCrossed, Flame, Search } from "lucide-react";
 import { setPageTitle } from "@/lib/page-title";
+import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
+import { NutritionSectionPanel, NutritionSummaryCue } from "../shared-page-chrome";
 
 interface PackageItem {
   menu_id: number;
@@ -194,21 +196,40 @@ export default function NutritionMealPackageEdit() {
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => window.history.back()}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div>
-          <h1 className="text-lg font-semibold">Edit Paket Makanan</h1>
-          <p className="text-sm text-muted-foreground font-mono">{code}</p>
+    <PageShell>
+      <PageHeader
+        title="Edit Paket Makanan"
+        description="Perbarui komposisi paket makanan, jadwal saji, diet, dan total nutrisi agar tetap konsisten dengan kebutuhan operasional gizi."
+        icon={UtensilsCrossed}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => navigate("/nutrition/meal-packages")}>
+              <ArrowLeft className="h-4 w-4" />
+              Kembali
+            </Button>
+            <Button type="submit" form="nutrition-package-edit-form" size="sm" disabled={saving}>
+              {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+              Simpan Perubahan
+            </Button>
+          </div>
+        }
+      >
+        <div className="flex flex-wrap gap-2 pb-3">
+          <div className="border border-border/70 bg-background px-2 py-1 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">{code}</div>
+          <div className="border border-border/70 bg-background px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">{isActive ? "Paket aktif" : "Paket nonaktif"}</div>
         </div>
-      </div>
+      </PageHeader>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <PageContent className="flex-none pb-8">
+        <div className="mb-4 grid gap-3 lg:grid-cols-3">
+          <NutritionSummaryCue label="Identitas Paket" description="Nama paket, diet, dan waktu makan harus tetap jelas agar distribusi layanan tidak salah." tone="from-background via-background to-emerald-50/50" />
+          <NutritionSummaryCue label="Komposisi Menu" description="Perubahan item akan memengaruhi total gizi dan harga layanan paket makanan." tone="from-background via-background to-sky-50/40" />
+          <NutritionSummaryCue label="Status Operasional" description="Gunakan status aktif untuk mengendalikan ketersediaan paket di modul gizi." tone="from-background via-background to-amber-50/50" />
+        </div>
+
+      <form id="nutrition-package-edit-form" onSubmit={handleSubmit} className="space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11">
         {/* Basic Info */}
-        <div className="rounded-lg border p-4 space-y-4">
-          <h3 className="font-medium flex items-center gap-2"><UtensilsCrossed className="h-4 w-4" /> Informasi Paket</h3>
+        <NutritionSectionPanel icon={UtensilsCrossed} title="Informasi Paket" description="Perbarui identitas paket, diet, waktu makan, harga, status aktif, dan deskripsi singkat.">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2 md:col-span-2">
               <Label>Nama Paket *</Label>
@@ -235,11 +256,10 @@ export default function NutritionMealPackageEdit() {
               <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} />
             </div>
           </div>
-        </div>
+        </NutritionSectionPanel>
 
         {/* Menu Items */}
-        <div className="rounded-lg border p-4 space-y-4">
-          <h3 className="font-medium flex items-center gap-2"><Plus className="h-4 w-4" /> Item Menu</h3>
+        <NutritionSectionPanel icon={Plus} title="Item Menu" description="Kelola item paket, jumlah porsi, dan catatan per menu sambil memantau total gizi secara langsung.">
 
           {/* Search */}
           <div className="relative">
@@ -328,13 +348,13 @@ export default function NutritionMealPackageEdit() {
               </div>
             </div>
           )}
-        </div>
+        </NutritionSectionPanel>
 
         {/* Notes */}
-        <div className="rounded-lg border p-4 space-y-4">
+        <NutritionSectionPanel title="Catatan" description="Catatan tambahan paket untuk kebutuhan penyiapan dan distribusi layanan gizi.">
           <Label>Catatan</Label>
           <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
-        </div>
+        </NutritionSectionPanel>
 
         {/* Submit */}
         <div className="flex justify-end gap-3">
@@ -344,6 +364,7 @@ export default function NutritionMealPackageEdit() {
           </Button>
         </div>
       </form>
-    </div>
+      </PageContent>
+    </PageShell>
   );
 }

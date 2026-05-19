@@ -2,9 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import {
   Sheet,
   SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
+  SheetFooter,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Combobox } from "@/components/ui/combobox";
 import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { roomsApi, registrationApi, api } from "@/lib/api";
 import { roomClinicalPackagesApi, type RoomClinicalPackage } from "@/lib/api/clinical-packages";
@@ -26,8 +24,20 @@ import { SEPFormSheet } from "@/components/sep/sep-form-sheet";
 import { OrderRoomSelection } from "@/components/registration/order-room-selection";
 import { mapClinicalPackageToRegistrationSelections, mergeRoomMedicinesWithClinicalPackage, mergeRoomProceduresWithClinicalPackage } from "@/lib/clinical-package-utils";
 import { useNavigate } from "react-router-dom";
+import {
+  BPJS_FIELD_CLASS,
+  BPJS_FOOTER_CLASS,
+  BPJSInfoGrid,
+  BPJS_PANEL_CLASS,
+  BPJS_SECTION_CLASS,
+  BPJSSectionHeader,
+  BPJSSheetHero,
+  BPJSStatePanel,
+  BPJS_SHEET_MONO_FAMILY,
+} from "@/components/sep/bpjs-sheet-chrome";
 
 const normalizeRoomType = (value?: string) => (value || "").trim().toLowerCase();
+const REGISTRATION_LABEL_CLASS = "flex items-center gap-2 text-sm uppercase tracking-[0.14em]";
 
 interface RegistrationSheetProps {
   open: boolean;
@@ -743,15 +753,44 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
     ? rooms.filter(room => room.service_type === selectedServiceType)
     : [];
 
+  const patientDisplayName = formatPatientName(
+    patient.nama_lengkap,
+    patient.jenis_kelamin,
+    patient.status_perkawinan,
+    patient.tanggal_lahir,
+  );
+
+  const patientInfoItems = [
+    { label: "Nama Pasien", value: patientDisplayName },
+    { label: "No. RM", value: patient.no_rm, mono: true },
+    { label: "NIK", value: patient.nik || "-", mono: true },
+    { label: "Tanggal Lahir", value: patient.tanggal_lahir || "-" },
+    { label: "No. BPJS", value: patient.no_bpjs || "-", mono: true },
+    { label: "Status", value: patient.status || "-" },
+  ];
+
   if (checkingRegistration) {
     return (
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent className="w-[50%] sm:max-w-[50%]">
-          <div className="flex items-center justify-center h-full">
-            <div className="flex flex-col items-center gap-4">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <p className="text-muted-foreground">Memeriksa status pendaftaran...</p>
-            </div>
+        <SheetContent className="flex w-full flex-col p-0 sm:max-w-[820px]">
+          <BPJSSheetHero
+            eyebrow="Registrasi"
+            title="Pendaftaran Pasien"
+            description={<><strong>{patient.nama_lengkap}</strong> • RM {patient.no_rm}</>}
+            icon={UserPlus}
+            meta={
+              <Badge variant="outline" className="rounded-none px-2 py-1 text-[10px] uppercase tracking-[0.24em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
+                Checking
+              </Badge>
+            }
+          />
+          <div className="flex flex-1 items-center justify-center p-6">
+            <BPJSStatePanel
+              icon={<Loader2 className="h-4 w-4 animate-spin" />}
+              title="Memeriksa status pendaftaran"
+              description="Sistem sedang mengecek apakah pasien masih memiliki registrasi aktif sebelum membuat pendaftaran baru."
+              className="w-full max-w-xl"
+            />
           </div>
         </SheetContent>
       </Sheet>
@@ -782,126 +821,90 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
 
     return (
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent className="w-[50%] sm:max-w-[50%]">
-          <SheetHeader>
-            <SheetTitle className="flex items-center gap-2 text-orange-600">
-              <AlertCircle className="h-5 w-5" />
-              Pasien Sudah Terdaftar
-            </SheetTitle>
-            <SheetDescription>
-              Pasien ini masih memiliki pendaftaran aktif yang belum diselesaikan
-            </SheetDescription>
-          </SheetHeader>
+        <SheetContent className="flex w-full flex-col p-0 sm:max-w-[820px]">
+          <BPJSSheetHero
+            eyebrow="Registrasi"
+            title="Pasien Sudah Terdaftar"
+            description={<><strong>{patient.nama_lengkap}</strong> masih memiliki registrasi aktif</>}
+            icon={AlertCircle}
+            meta={
+              <Badge variant={getStatusVariant(activeRegistration.status)} className="rounded-none px-2 py-1 text-[10px] uppercase tracking-[0.24em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
+                {getStatusLabel(activeRegistration.status)}
+              </Badge>
+            }
+          />
 
-          <div className="space-y-6 mt-6">
-            {/* Patient Info Card */}
-            <div className="rounded-lg border bg-muted/30 p-4">
-              <div className="flex items-center gap-4">
-                <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
-                  {patient.foto ? (
-                    <img
-                      src={`/${patient.foto}`}
-                      alt={patient.nama_lengkap}
-                      className="h-12 w-12 rounded-full object-cover"
-                    />
-                  ) : (
-                    <User className="h-6 w-6 text-muted-foreground" />
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h4 className="font-semibold truncate">{formatPatientName(patient.nama_lengkap, patient.jenis_kelamin, patient.status_perkawinan, patient.tanggal_lahir)}</h4>
-                  <div className="text-xs text-muted-foreground mt-1">
-                    <span className="font-mono font-medium text-foreground">{patient.no_rm}</span>
-                    {" • "}
-                    {patient.jenis_kelamin === "L" ? "Laki-laki" : "Perempuan"}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Active Registration Info */}
-            <div className="rounded-lg border border-orange-200 bg-orange-50 dark:border-orange-800 dark:bg-orange-950/20 p-4 space-y-4">
-              <div className="flex items-center justify-between">
-                <h4 className="font-semibold text-orange-700 dark:text-orange-400">
-                  Pendaftaran Aktif
-                </h4>
-                <Badge variant={getStatusVariant(activeRegistration.status)}>
-                  {getStatusLabel(activeRegistration.status)}
-                </Badge>
+          <ScrollArea className="flex-1">
+            <div className="space-y-6 p-6">
+              <div className={BPJS_SECTION_CLASS}>
+                <BPJSSectionHeader eyebrow="Context" title="Data Pasien" />
+                <BPJSInfoGrid items={patientInfoItems} />
               </div>
 
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <label className="text-xs text-muted-foreground">No. Registrasi</label>
-                  <p className="font-mono font-medium">{activeRegistration.registration_number || "-"}</p>
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground">Tanggal</label>
-                  <p className="font-medium">
-                    {(activeRegistration.CreatedAt || activeRegistration.created_at || activeRegistration.registration_date)
-                      ? new Date(activeRegistration.CreatedAt || activeRegistration.created_at || activeRegistration.registration_date).toLocaleDateString("id-ID", {
-                          day: "2-digit",
-                          month: "long",
-                          year: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })
-                      : "-"}
-                  </p>
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground">Ruangan Tujuan</label>
-                  <p className="font-medium">{activeRegistration.destination_room?.name || "-"}</p>
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground">Dokter</label>
-                  <p className="font-medium">{activeRegistration.doctor?.nama_lengkap || activeRegistration.doctor?.name || "-"}</p>
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground">Metode Pembayaran</label>
-                  <p className="font-medium uppercase">{activeRegistration.payment_method || "-"}</p>
-                </div>
-                {activeRegistration.sep_number && (
-                  <div>
-                    <label className="text-xs text-muted-foreground">No. SEP</label>
-                    <p className="font-mono font-medium">{activeRegistration.sep_number}</p>
+              <div className={BPJS_SECTION_CLASS}>
+                <BPJSSectionHeader eyebrow="Status" title="Pendaftaran Aktif" />
+                <BPJSStatePanel
+                  tone="danger"
+                  icon={<AlertCircle className="h-4 w-4" />}
+                  title="Registrasi aktif harus diselesaikan atau dibatalkan lebih dulu"
+                  description="Pasien ini belum dapat dibuatkan registrasi baru karena masih ada kunjungan yang berjalan."
+                />
+                <BPJSInfoGrid
+                  items={[
+                    { label: "No. Registrasi", value: activeRegistration.registration_number || "-", mono: true },
+                    {
+                      label: "Tanggal",
+                      value: (activeRegistration.CreatedAt || activeRegistration.created_at || activeRegistration.registration_date)
+                        ? new Date(activeRegistration.CreatedAt || activeRegistration.created_at || activeRegistration.registration_date).toLocaleDateString("id-ID", {
+                            day: "2-digit",
+                            month: "long",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })
+                        : "-",
+                    },
+                    { label: "Ruangan Tujuan", value: activeRegistration.destination_room?.name || "-" },
+                    { label: "Dokter", value: activeRegistration.doctor?.nama_lengkap || activeRegistration.doctor?.name || "-" },
+                    { label: "Metode Bayar", value: (activeRegistration.payment_method || "-").toUpperCase() },
+                    ...(activeRegistration.sep_number
+                      ? [{ label: "No. SEP", value: activeRegistration.sep_number, mono: true }]
+                      : []),
+                  ]}
+                />
+                {activeRegistration.complaint && (
+                  <div className={BPJS_PANEL_CLASS}>
+                    <div className="space-y-1 px-4 py-3">
+                      <div className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
+                        Keluhan
+                      </div>
+                      <div className="text-sm text-foreground">{activeRegistration.complaint}</div>
+                    </div>
                   </div>
                 )}
               </div>
-
-              {activeRegistration.complaint && (
-                <div>
-                  <label className="text-xs text-muted-foreground">Keluhan</label>
-                  <p className="text-sm">{activeRegistration.complaint}</p>
-                </div>
-              )}
             </div>
+          </ScrollArea>
 
-            {/* Actions */}
-            <div className="flex flex-col gap-3">
-              <Button
-                className="w-full"
-                onClick={() => {
-                  onOpenChange(false);
-                  navigate(`/registrations/${activeRegistration.ID || activeRegistration.id}`);
-                }}
-              >
-                <ExternalLink className="mr-2 h-4 w-4" />
-                Lihat Detail Pendaftaran
-              </Button>
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => onOpenChange(false)}
-              >
-                Tutup
-              </Button>
-            </div>
-
-            <p className="text-xs text-muted-foreground text-center">
-              Untuk membuat pendaftaran baru, selesaikan atau batalkan pendaftaran aktif terlebih dahulu.
-            </p>
-          </div>
+          <SheetFooter className={BPJS_FOOTER_CLASS}>
+            <Button
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              className="rounded-none border-border/70"
+            >
+              Tutup
+            </Button>
+            <Button
+              className="rounded-none"
+              onClick={() => {
+                onOpenChange(false);
+                navigate(`/registrations/${activeRegistration.ID || activeRegistration.id}`);
+              }}
+            >
+              <ExternalLink className="mr-2 h-4 w-4" />
+              Lihat Detail Pendaftaran
+            </Button>
+          </SheetFooter>
         </SheetContent>
       </Sheet>
     );
@@ -910,86 +913,59 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent className="flex h-full w-[50%] flex-col overflow-hidden sm:max-w-[50%]">
-          <SheetHeader>
-            <SheetTitle className="flex items-center gap-2">
-              <UserPlus className="h-5 w-5" />
-              Pendaftaran Pasien
-            </SheetTitle>
-            <SheetDescription>
-              Buat pendaftaran baru untuk pasien
-            </SheetDescription>
-          </SheetHeader>
+        <SheetContent className="flex w-full flex-col p-0 sm:max-w-[820px]">
+          <BPJSSheetHero
+            eyebrow="Registrasi"
+            title="Pendaftaran Pasien"
+            description={<><strong>{patient.nama_lengkap}</strong> • RM {patient.no_rm}</>}
+            icon={UserPlus}
+            meta={
+              <Badge variant="outline" className="rounded-none px-2 py-1 text-[10px] uppercase tracking-[0.24em]" style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>
+                {paymentMethod.toUpperCase()}
+              </Badge>
+            }
+          />
 
-          <form onSubmit={handleSubmit} className="mt-6 flex min-h-0 flex-1 flex-col">
-            <div className="flex-1 space-y-4 overflow-y-auto pr-1">
+          <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+            <ScrollArea className="flex-1">
+              <div className="space-y-6 p-6">
               {scheduledFollowUps.length > 0 && (
-                <Alert className="border-amber-200 bg-amber-50 text-amber-900">
-                  <AlertTriangle className="h-4 w-4 text-amber-700" />
-                  <AlertTitle className="text-amber-800">Pasien Memiliki Jadwal Kontrol Aktif</AlertTitle>
-                  <AlertDescription className="space-y-2 text-amber-800">
-                    <p>
-                      Pendaftaran baru tetap diperbolehkan. Jadwal kontrol tidak dibatalkan dan tetap bisa di-reschedule dari monitoring.
-                    </p>
-                    <div className="space-y-1">
+                <BPJSStatePanel
+                  icon={<AlertTriangle className="h-4 w-4" />}
+                  title="Pasien memiliki jadwal kontrol aktif"
+                  description="Pendaftaran baru tetap diperbolehkan. Jadwal kontrol tidak dibatalkan dan tetap bisa di-reschedule dari monitoring."
+                  className="border-amber-200 bg-amber-50/80"
+                  extra={
+                    <div className="space-y-1 text-xs text-amber-900/90">
                       {scheduledFollowUps.slice(0, 3).map((registration) => (
-                        <div key={registration.id || registration.ID} className="text-xs">
+                        <div key={registration.id || registration.ID}>
                           Jadwal {formatScheduledDate(registration.scheduled_date)}
                           {registration.destination_room?.name ? ` di ${registration.destination_room.name}` : ""}
                           {registration.doctor?.nama_lengkap ? `, DPJP ${registration.doctor.nama_lengkap}` : ""}
                         </div>
                       ))}
                       {scheduledFollowUps.length > 3 && (
-                        <div className="text-xs">+{scheduledFollowUps.length - 3} jadwal kontrol aktif lainnya</div>
+                        <div>+{scheduledFollowUps.length - 3} jadwal kontrol aktif lainnya</div>
+                      )}
+                      {selectedServiceType === "gawat_darurat" && (
+                        <div className="font-medium">Mode UGD tetap diperbolehkan walaupun pasien masih punya jadwal kontrol mendatang.</div>
                       )}
                     </div>
-                    {selectedServiceType === "gawat_darurat" && (
-                      <p className="text-xs font-medium">Mode UGD tetap diperbolehkan walaupun pasien masih punya jadwal kontrol mendatang.</p>
-                    )}
-                  </AlertDescription>
-                </Alert>
+                  }
+                />
               )}
 
-              {/* Patient Info Card */}
-              <div className="rounded-lg border bg-muted/30 p-4">
-                <div className="flex items-center gap-4">
-                  <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
-                    {patient.foto ? (
-                      <img
-                        src={`/${patient.foto}`}
-                        alt={patient.nama_lengkap}
-                        className="h-12 w-12 rounded-full object-cover"
-                      />
-                    ) : (
-                      <User className="h-6 w-6 text-muted-foreground" />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h4 className="font-semibold truncate">{formatPatientName(patient.nama_lengkap, patient.jenis_kelamin, patient.status_perkawinan, patient.tanggal_lahir)}</h4>
-                    <div className="grid grid-cols-3 gap-2 text-xs text-muted-foreground mt-1">
-                      <div>
-                        <span className="block">No. RM:</span>
-                        <span className="font-mono font-medium text-foreground">{patient.no_rm}</span>
-                      </div>
-                      <div>
-                        <span className="block">NIK:</span>
-                        <span className="font-medium text-foreground">{patient.nik || "-"}</span>
-                      </div>
-                      <div>
-                        <span className="block">Tgl Lahir:</span>
-                        <span className="font-medium text-foreground">{patient.tanggal_lahir || "-"}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <Badge variant="outline">{patient.status}</Badge>
-                </div>
+              <div className={BPJS_SECTION_CLASS}>
+                <BPJSSectionHeader eyebrow="Context" title="Data Pasien" />
+                <BPJSInfoGrid items={patientInfoItems} />
               </div>
 
-              {/* Registration Form - Grid Layout */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className={BPJS_SECTION_CLASS}>
+                <BPJSSectionHeader eyebrow="Planning" title="Detail Registrasi" />
+                <div className={`${BPJS_PANEL_CLASS} grid grid-cols-1 gap-4 p-4 md:grid-cols-2`}>
               {/* Tipe Layanan */}
               <div className="space-y-2">
-                <Label className="text-sm">Tipe Layanan *</Label>
+                <Label className={REGISTRATION_LABEL_CLASS} style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Tipe Layanan *</Label>
                 <Combobox
                   options={[
                     { value: "rawat_jalan", label: "Rawat Jalan" },
@@ -1001,12 +977,13 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
                   value={selectedServiceType}
                   onValueChange={handleServiceTypeChange}
                   placeholder="Pilih tipe layanan"
+                  className={BPJS_FIELD_CLASS}
                 />
               </div>
 
               {/* Ruangan Tujuan */}
               <div className="space-y-2">
-                <Label className="text-sm">Ruangan Tujuan *</Label>
+                <Label className={REGISTRATION_LABEL_CLASS} style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Ruangan Tujuan *</Label>
                 <Combobox
                   options={filteredRooms.map(room => ({
                     value: room.id.toString(),
@@ -1017,12 +994,13 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
                   placeholder={!selectedServiceType ? "Pilih tipe layanan dulu" : "Pilih ruangan"}
                   disabled={!selectedServiceType}
                   loading={loadingRooms}
+                  className={BPJS_FIELD_CLASS}
                 />
               </div>
 
               {/* Metode Pembayaran */}
               <div className="space-y-2">
-                <Label className="text-sm">Metode Pembayaran *</Label>
+                <Label className={REGISTRATION_LABEL_CLASS} style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Metode Pembayaran *</Label>
                 <Combobox
                   options={[
                     { value: "cash", label: "Tunai" },
@@ -1032,12 +1010,13 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
                   value={paymentMethod}
                   onValueChange={(value) => setPaymentMethod(value as any)}
                   placeholder="Pilih metode"
+                  className={BPJS_FIELD_CLASS}
                 />
               </div>
 
               {/* Prioritas */}
               <div className="space-y-2">
-                <Label className="text-sm">Prioritas</Label>
+                <Label className={REGISTRATION_LABEL_CLASS} style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Prioritas</Label>
                 <Combobox
                   options={[
                     { value: "normal", label: "Normal" },
@@ -1047,13 +1026,14 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
                   value={priority}
                   onValueChange={(value) => setPriority(value as any)}
                   placeholder="Pilih prioritas"
+                  className={BPJS_FIELD_CLASS}
                 />
               </div>
 
               {/* Dokter */}
               {destinationRoomId && (
-                <div className="col-span-2 space-y-2">
-                  <Label className="text-sm">Dokter {doctorRequired ? "*" : "(Opsional)"}</Label>
+                <div className="space-y-2 md:col-span-2">
+                  <Label className={REGISTRATION_LABEL_CLASS} style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Dokter {doctorRequired ? "*" : "(Opsional)"}</Label>
                   {roomStaff.length > 0 ? (
                     <Combobox
                       options={roomStaff.map(staff => ({
@@ -1063,30 +1043,39 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
                       value={doctorId?.toString() || ""}
                       onValueChange={(value) => setDoctorId(value ? Number(value) : null)}
                       placeholder="Pilih dokter"
+                      className={BPJS_FIELD_CLASS}
                     />
                   ) : (
                     <Input
                       disabled
                       placeholder={doctorRequired ? "Tidak ada dokter di ruangan ini" : "Dokter tidak wajib untuk layanan ini"}
-                      className="bg-muted text-sm"
+                      className={`${BPJS_FIELD_CLASS} bg-muted text-sm`}
                     />
                   )}
                 </div>
               )}
 
+                </div>
+              </div>
+
               {destinationRoomId && (
-                <div className="col-span-2">
+                <div className={BPJS_SECTION_CLASS}>
+                  <BPJSSectionHeader eyebrow="Package" title="Paket Klinis" />
+                  <div className={`${BPJS_PANEL_CLASS} p-4`}>
                   <ClinicalPackageSelector
                     assignments={roomClinicalPackages}
                     selectedPackageId={selectedClinicalPackageId}
                     onValueChange={handleClinicalPackageChange}
                     loading={loadingRoomItems}
                   />
+                  </div>
                 </div>
               )}
 
               {destinationRoomId && (loadingRoomItems || availableRoomProcedures.length > 0 || availableRoomMedicines.length > 0) && (
-                <div className="col-span-2">
+                <div className={BPJS_SECTION_CLASS}>
+                  <BPJSSectionHeader eyebrow="Orders" title="Tindakan Dan Obat" />
+                  <div className={`${BPJS_PANEL_CLASS} p-4`}>
                   <OrderRoomSelection
                     loading={loadingRoomItems}
                     procedures={availableRoomProcedures}
@@ -1102,48 +1091,51 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
                     onUpdateMedicineQuantity={updateMedicineQuantity}
                     onRemoveMedicine={removeMedicine}
                   />
+                  </div>
                 </div>
               )}
 
               {/* BPJS Fields */}
               {paymentMethod === "bpjs" && (
-                <div className="col-span-2 space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
+                <div className={BPJS_SECTION_CLASS}>
+                  <BPJSSectionHeader eyebrow="Payment" title="BPJS" />
+                  <div className={`${BPJS_PANEL_CLASS} space-y-4 p-4`}>
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                     <div className="space-y-2">
-                      <Label className="text-sm">Nomor BPJS *</Label>
+                      <Label className={REGISTRATION_LABEL_CLASS} style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Nomor BPJS *</Label>
                       <Input
                         value={bpjsNumber}
                         onChange={(e) => setBpjsNumber(e.target.value)}
                         placeholder={patient?.no_bpjs || "Nomor BPJS"}
-                        className="text-sm"
+                        className={`${BPJS_FIELD_CLASS} text-sm`}
                       />
                     </div>
                     {patient?.kelas_bpjs && (
                       <div className="space-y-2">
-                        <Label className="text-sm">Kelas</Label>
+                        <Label className={REGISTRATION_LABEL_CLASS} style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Kelas</Label>
                         <Input
                           value={patient.kelas_bpjs}
                           disabled
-                          className="bg-muted text-sm"
+                          className={`${BPJS_FIELD_CLASS} bg-muted text-sm`}
                         />
                       </div>
                     )}
                   </div>
 
                   {/* SEP Section */}
-                  <div className="border rounded-lg p-3 bg-blue-50/50">
+                  <div className="rounded-none border border-border/70 bg-muted/10 p-4">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <FileText className="h-4 w-4 text-blue-600" />
-                        <span className="text-sm font-medium text-blue-900">SEP (Surat Eligibilitas Peserta)</span>
+                        <span className="text-sm font-medium text-foreground">SEP (Surat Eligibilitas Peserta)</span>
                       </div>
                       {sepNumber ? (
-                        <Badge variant="secondary" className="bg-green-100 text-green-800">
+                        <Badge variant="secondary" className="rounded-none bg-green-100 text-green-800">
                           <CheckCircle2 className="h-3 w-3 mr-1" />
                           {sepNumber}
                         </Badge>
                       ) : (
-                        <Badge variant="outline" className="text-orange-600 border-orange-300">
+                        <Badge variant="outline" className="rounded-none border-orange-300 text-orange-600">
                           Belum Ada
                         </Badge>
                       )}
@@ -1165,7 +1157,7 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
                       type="button"
                       variant={sepNumber ? "outline" : "default"}
                       size="sm"
-                      className="mt-3 w-full"
+                      className="mt-3 w-full rounded-none"
                       onClick={() => setSepSheetOpen(true)}
                       disabled={!bpjsNumber}
                     >
@@ -1173,53 +1165,61 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
                       {sepNumber ? "Lihat / Edit SEP" : "Buat SEP"}
                     </Button>
                   </div>
+                  </div>
                 </div>
               )}
 
               {/* Insurance Fields */}
               {paymentMethod === "insurance" && (
-                <div className="col-span-2 grid grid-cols-2 gap-3">
+                <div className={BPJS_SECTION_CLASS}>
+                  <BPJSSectionHeader eyebrow="Payment" title="Asuransi" />
+                  <div className={`${BPJS_PANEL_CLASS} grid grid-cols-1 gap-3 p-4 md:grid-cols-2`}>
                   <div className="space-y-2">
-                    <Label className="text-sm">Nama Asuransi *</Label>
+                    <Label className={REGISTRATION_LABEL_CLASS} style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Nama Asuransi *</Label>
                     <Input
                       value={insuranceName}
                       onChange={(e) => setInsuranceName(e.target.value)}
                       placeholder="Nama asuransi"
-                      className="text-sm"
+                      className={`${BPJS_FIELD_CLASS} text-sm`}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-sm">Nomor Polis *</Label>
+                    <Label className={REGISTRATION_LABEL_CLASS} style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Nomor Polis *</Label>
                     <Input
                       value={insuranceNumber}
                       onChange={(e) => setInsuranceNumber(e.target.value)}
                       placeholder="Nomor polis"
-                      className="text-sm"
+                      className={`${BPJS_FIELD_CLASS} text-sm`}
                     />
+                  </div>
                   </div>
                 </div>
               )}
 
               {/* Keluhan */}
-              <div className="col-span-2 space-y-2">
-                <Label className="text-sm">Keluhan (Opsional)</Label>
+              <div className={BPJS_SECTION_CLASS}>
+                <BPJSSectionHeader eyebrow="Notes" title="Keluhan" />
+                <div className={`${BPJS_PANEL_CLASS} p-4`}>
+                <div className="space-y-2">
+                <Label className={REGISTRATION_LABEL_CLASS} style={{ fontFamily: BPJS_SHEET_MONO_FAMILY }}>Keluhan (Opsional)</Label>
                 <Textarea
                   value={complaint}
                   onChange={(e) => setComplaint(e.target.value)}
                   placeholder="Keluhan pasien"
                   rows={2}
-                  className="text-sm"
+                  className="rounded-none border-border/70 bg-background text-sm shadow-none"
                 />
               </div>
-            </div>
-            </div>
+                </div>
+              </div>
+              </div>
+            </ScrollArea>
 
-            {/* Submit Button */}
-            <div className="sticky bottom-0 mt-4 flex justify-end gap-2 border-t bg-background/95 pt-4 pb-1 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            <SheetFooter className={BPJS_FOOTER_CLASS}>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="rounded-none border-border/70">
                 Batal
               </Button>
-              <Button type="submit" disabled={loading || loadingRooms}>
+              <Button type="submit" disabled={loading || loadingRooms} className="rounded-none">
                 {loading ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
@@ -1227,7 +1227,7 @@ export function RegistrationSheet({ open, onOpenChange, patient, onSuccess, onSE
                 )}
                 Simpan Pendaftaran
               </Button>
-            </div>
+            </SheetFooter>
           </form>
         </SheetContent>
       </Sheet>

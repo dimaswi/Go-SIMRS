@@ -9,6 +9,7 @@ import (
 
 	"starter/backend/database"
 	"starter/backend/models"
+	bpjsService "starter/backend/services/bpjs"
 
 	"github.com/gin-gonic/gin"
 )
@@ -48,8 +49,7 @@ func GetCPPTs(c *gin.Context) {
 	}
 
 	var cppts []models.CPPT
-	query := database.DB.
-		Where("visit_id = ?", visitID).
+	query := scopedRMQuery(c, visitID).
 		Preload("CreatedBy").
 		Preload("VerifiedBy").
 		Order("record_date DESC, created_at DESC")
@@ -87,8 +87,8 @@ func GetCPPT(c *gin.Context) {
 	cpptID := c.Param("cpptId")
 
 	var cppt models.CPPT
-	if err := database.DB.
-		Where("visit_id = ? AND id = ?", visitID, cpptID).
+	if err := scopedRMQuery(c, visitID).
+		Where("id = ?", cpptID).
 		Preload("CreatedBy").
 		Preload("VerifiedBy").
 		First(&cppt).Error; err != nil {
@@ -105,6 +105,7 @@ func GetCPPT(c *gin.Context) {
 // CreateCPPT creates a new CPPT record
 func CreateCPPT(c *gin.Context) {
 	visitID := c.Param("id")
+	isCasemix := c.Query("is_casemix") == "true"
 	userIDVal, _ := c.Get("userID")
 	userID, _ := userIDVal.(uint)
 
@@ -159,6 +160,8 @@ func CreateCPPT(c *gin.Context) {
 
 	cppt := models.CPPT{
 		VisitID:          uint(visitIDUint),
+		IsCasemix:        isCasemix,
+		CasemixEklaimID:  getCasemixEklaimID(c),
 		RecordDate:       recordDate,
 		Profession:       input.Profession,
 		CPPTFormat:       cpptFormat,
@@ -193,8 +196,8 @@ func UpdateCPPT(c *gin.Context) {
 	cpptID := c.Param("cpptId")
 
 	var cppt models.CPPT
-	if err := database.DB.
-		Where("visit_id = ? AND id = ?", visitID, cpptID).
+	if err := scopedRMQuery(c, visitID).
+		Where("id = ?", cpptID).
 		First(&cppt).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Data CPPT tidak ditemukan"})
 		return
@@ -281,8 +284,8 @@ func VerifyCPPT(c *gin.Context) {
 	userID, _ := userIDVal.(uint)
 
 	var cppt models.CPPT
-	if err := database.DB.
-		Where("visit_id = ? AND id = ?", visitID, cpptID).
+	if err := scopedRMQuery(c, visitID).
+		Where("id = ?", cpptID).
 		First(&cppt).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Data CPPT tidak ditemukan"})
 		return
@@ -317,8 +320,8 @@ func DeleteCPPT(c *gin.Context) {
 	cpptID := c.Param("cpptId")
 
 	var cppt models.CPPT
-	if err := database.DB.
-		Where("visit_id = ? AND id = ?", visitID, cpptID).
+	if err := scopedRMQuery(c, visitID).
+		Where("id = ?", cpptID).
 		First(&cppt).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Data CPPT tidak ditemukan"})
 		return
@@ -358,8 +361,7 @@ func GetFluidBalances(c *gin.Context) {
 	}
 
 	var balances []models.FluidBalance
-	query := database.DB.
-		Where("visit_id = ?", visitID).
+	query := scopedRMQuery(c, visitID).
 		Preload("CreatedBy").
 		Order("record_date DESC, shift_type ASC")
 
@@ -390,8 +392,8 @@ func GetFluidBalance(c *gin.Context) {
 	balanceID := c.Param("balanceId")
 
 	var balance models.FluidBalance
-	if err := database.DB.
-		Where("visit_id = ? AND id = ?", visitID, balanceID).
+	if err := scopedRMQuery(c, visitID).
+		Where("id = ?", balanceID).
 		Preload("CreatedBy").
 		First(&balance).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Data balance cairan tidak ditemukan"})
@@ -413,9 +415,8 @@ func GetFluidBalanceSummary(c *gin.Context) {
 	}
 
 	var summaries []DailySummary
-	err := database.DB.Model(&models.FluidBalance{}).
+	err := scopedRMQuery(c, visitID).Model(&models.FluidBalance{}).
 		Select("DATE(record_date) as date, SUM(total_intake) as total_intake, SUM(total_output) as total_output, SUM(balance) as balance").
-		Where("visit_id = ?", visitID).
 		Group("DATE(record_date)").
 		Order("date DESC").
 		Scan(&summaries).Error
@@ -431,6 +432,7 @@ func GetFluidBalanceSummary(c *gin.Context) {
 // CreateFluidBalance creates a new fluid balance record
 func CreateFluidBalance(c *gin.Context) {
 	visitID := c.Param("id")
+	isCasemix := c.Query("is_casemix") == "true"
 	userIDVal, _ := c.Get("userID")
 	userID, _ := userIDVal.(uint)
 
@@ -491,8 +493,8 @@ func CreateFluidBalance(c *gin.Context) {
 
 	// Check for duplicate (same date and shift)
 	var existingCount int64
-	database.DB.Model(&models.FluidBalance{}).
-		Where("visit_id = ? AND DATE(record_date) = DATE(?) AND shift_type = ?", visitIDUint, recordDate, input.ShiftType).
+	scopedRMQuery(c, visitIDUint).Model(&models.FluidBalance{}).
+		Where("DATE(record_date) = DATE(?) AND shift_type = ?", recordDate, input.ShiftType).
 		Count(&existingCount)
 	if existingCount > 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Data balance cairan untuk tanggal dan shift ini sudah ada"})
@@ -506,6 +508,8 @@ func CreateFluidBalance(c *gin.Context) {
 
 	balance := models.FluidBalance{
 		VisitID:         uint(visitIDUint),
+		IsCasemix:       isCasemix,
+		CasemixEklaimID: getCasemixEklaimID(c),
 		RecordDate:      recordDate,
 		ShiftType:       input.ShiftType,
 		OralDrink:       input.OralDrink,
@@ -557,8 +561,8 @@ func UpdateFluidBalance(c *gin.Context) {
 	balanceID := c.Param("balanceId")
 
 	var balance models.FluidBalance
-	if err := database.DB.
-		Where("visit_id = ? AND id = ?", visitID, balanceID).
+	if err := scopedRMQuery(c, visitID).
+		Where("id = ?", balanceID).
 		First(&balance).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Data balance cairan tidak ditemukan"})
 		return
@@ -659,8 +663,8 @@ func DeleteFluidBalance(c *gin.Context) {
 	balanceID := c.Param("balanceId")
 
 	var balance models.FluidBalance
-	if err := database.DB.
-		Where("visit_id = ? AND id = ?", visitID, balanceID).
+	if err := scopedRMQuery(c, visitID).
+		Where("id = ?", balanceID).
 		First(&balance).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Data balance cairan tidak ditemukan"})
 		return
@@ -696,8 +700,7 @@ func GetNursingCares(c *gin.Context) {
 	}
 
 	var records []models.NursingCare
-	query := database.DB.
-		Where("visit_id = ?", visitID).
+	query := scopedRMQuery(c, visitID).
 		Preload("CreatedBy").
 		Preload("VerifiedBy").
 		Order("record_date DESC, created_at DESC")
@@ -734,8 +737,8 @@ func GetNursingCare(c *gin.Context) {
 	nursingID := c.Param("nursingId")
 
 	var record models.NursingCare
-	if err := database.DB.
-		Where("visit_id = ? AND id = ?", visitID, nursingID).
+	if err := scopedRMQuery(c, visitID).
+		Where("id = ?", nursingID).
 		Preload("CreatedBy").
 		Preload("VerifiedBy").
 		First(&record).Error; err != nil {
@@ -749,6 +752,7 @@ func GetNursingCare(c *gin.Context) {
 // CreateNursingCare creates a new nursing care record
 func CreateNursingCare(c *gin.Context) {
 	visitID := c.Param("id")
+	isCasemix := c.Query("is_casemix") == "true"
 	userIDVal, _ := c.Get("userID")
 	userID, _ := userIDVal.(uint)
 
@@ -829,6 +833,8 @@ func CreateNursingCare(c *gin.Context) {
 
 	record := models.NursingCare{
 		VisitID:                 uint(visitIDUint),
+		IsCasemix:               isCasemix,
+		CasemixEklaimID:         getCasemixEklaimID(c),
 		RecordDate:              recordDate,
 		ShiftType:               input.ShiftType,
 		ChiefComplaint:          input.ChiefComplaint,
@@ -889,8 +895,8 @@ func UpdateNursingCare(c *gin.Context) {
 	nursingID := c.Param("nursingId")
 
 	var record models.NursingCare
-	if err := database.DB.
-		Where("visit_id = ? AND id = ?", visitID, nursingID).
+	if err := scopedRMQuery(c, visitID).
+		Where("id = ?", nursingID).
 		First(&record).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Data asuhan keperawatan tidak ditemukan"})
 		return
@@ -1022,8 +1028,8 @@ func VerifyNursingCare(c *gin.Context) {
 	userID, _ := userIDVal.(uint)
 
 	var record models.NursingCare
-	if err := database.DB.
-		Where("visit_id = ? AND id = ?", visitID, nursingID).
+	if err := scopedRMQuery(c, visitID).
+		Where("id = ?", nursingID).
 		First(&record).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Data asuhan keperawatan tidak ditemukan"})
 		return
@@ -1058,8 +1064,8 @@ func DeleteNursingCare(c *gin.Context) {
 	nursingID := c.Param("nursingId")
 
 	var record models.NursingCare
-	if err := database.DB.
-		Where("visit_id = ? AND id = ?", visitID, nursingID).
+	if err := scopedRMQuery(c, visitID).
+		Where("id = ?", nursingID).
 		First(&record).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Data asuhan keperawatan tidak ditemukan"})
 		return
@@ -1271,6 +1277,11 @@ func CreateBedTransfer(c *gin.Context) {
 	}
 
 	tx.Commit()
+
+	if !isInitialPlacement && transfer.FromRoomID > 0 {
+		bpjsService.UpdateRoomBedAvailability(transfer.FromRoomID, "inpatient_bed_transfer_from_room")
+	}
+	bpjsService.UpdateRoomBedAvailability(input.ToRoomID, "inpatient_bed_transfer_to_room")
 
 	// Reload transfer with relations
 	database.DB.

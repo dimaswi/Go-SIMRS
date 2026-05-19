@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { Fragment, useState, useEffect, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -40,23 +40,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { usePermission } from "@/hooks/usePermission";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { setPageTitle } from "@/lib/page-title";
+import { cn } from "@/lib/utils";
 import {
   bpjsApi,
   type BPJSPoliMapping,
@@ -65,6 +53,7 @@ import {
   type BPJSReferensiDokter,
   type BPJSJadwalDokter,
 } from "@/lib/api/bpjs";
+import { vclaimApi } from "@/lib/api/vclaim";
 import { roomsApi, type Room } from "@/lib/api/rooms";
 import { employeesApi, type Employee } from "@/lib/api/employees";
 import {
@@ -73,29 +62,27 @@ import {
   Building2,
   Edit,
   Trash2,
-  Download,
   Search,
   AlertCircle,
-  Clock,
   Users,
   RefreshCw,
   Check,
   ChevronsUpDown,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
-
+import { BPJSMetricCue, BPJSPageFrame, BPJSSectionPanel } from "../shared-page-chrome";
 export default function BPJSMappingPage() {
   const { toast } = useToast();
   const { hasPermission } = usePermission();
   const canManage = hasPermission("integrations.manage");
 
-  // Loading states
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [loadingPolis, setLoadingPolis] = useState(false);
   const [loadingDokters, setLoadingDokters] = useState(false);
   const [loadingJadwal, setLoadingJadwal] = useState(false);
 
-  // Data states
   const [poliMappings, setPoliMappings] = useState<BPJSPoliMapping[]>([]);
   const [doctorMappings, setDoctorMappings] = useState<BPJSDoctorMapping[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -104,25 +91,23 @@ export default function BPJSMappingPage() {
   const [bpjsDokters, setBpjsDokters] = useState<BPJSReferensiDokter[]>([]);
   const [jadwalDokters, setJadwalDokters] = useState<BPJSJadwalDokter[]>([]);
 
-  // UI states
   const [selectedPoliMapping] = useState<BPJSPoliMapping | null>(null);
   const [searchPoli, setSearchPoli] = useState("");
-  const [bpjsPoliOpen, setBpjsPoliOpen] = useState(false); // Combobox popover state
-  const [bpjsDokterOpen, setBpjsDokterOpen] = useState(false); // Combobox popover state
+  const [expandedPoliIds, setExpandedPoliIds] = useState<number[]>([]);
+  const [bpjsPoliOpen, setBpjsPoliOpen] = useState(false);
+  const [bpjsPoliQuery, setBpjsPoliQuery] = useState("");
+  const [bpjsDokterOpen, setBpjsDokterOpen] = useState(false);
 
-  // Dialog states - Poli
   const [poliDialogOpen, setPoliDialogOpen] = useState(false);
   const [editingPoli, setEditingPoli] = useState<BPJSPoliMapping | null>(null);
   const [deletePoliDialogOpen, setDeletePoliDialogOpen] = useState(false);
   const [poliToDelete, setPoliToDelete] = useState<BPJSPoliMapping | null>(null);
 
-  // Dialog states - Dokter
   const [dokterDialogOpen, setDokterDialogOpen] = useState(false);
   const [editingDokter, setEditingDokter] = useState<BPJSDoctorMapping | null>(null);
   const [deleteDokterDialogOpen, setDeleteDokterDialogOpen] = useState(false);
   const [dokterToDelete, setDokterToDelete] = useState<BPJSDoctorMapping | null>(null);
 
-  // Form states
   const [poliForm, setPoliForm] = useState({
     room_id: "",
     kode_poli_bpjs: "",
@@ -142,7 +127,6 @@ export default function BPJSMappingPage() {
     is_active: true,
   });
 
-  // Load initial data
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
@@ -152,11 +136,10 @@ export default function BPJSMappingPage() {
         roomsApi.getAll({ limit: 200 }),
         employeesApi.getAll({ tipe_karyawan: "dokter", limit: 200 }),
       ]);
-      
+
       setPoliMappings(poliRes.data.data || []);
       setDoctorMappings(dokterRes.data.data || []);
-      
-      // Filter rooms yang punya jadwal (poliklinik)
+
       const poliRooms = (roomsRes.data.data || []).filter(
         (r: Room) => r.has_schedule && r.service_type === "rawat_jalan"
       );
@@ -173,18 +156,23 @@ export default function BPJSMappingPage() {
     }
   }, [toast]);
 
-  // Load referensi poli dari BPJS
-  const loadBPJSPolis = async () => {
+  const loadBPJSPolis = async (query: string) => {
+    const normalizedQuery = query.trim();
+    if (normalizedQuery.length < 2) {
+      setBpjsPolis([]);
+      return;
+    }
+
     try {
       setLoadingPolis(true);
-      const response = await bpjsApi.getReferensiPoli();
-      setBpjsPolis(response.data.data || []);
-      toast({
-        variant: "success",
-        title: "Berhasil!",
-        description: `${response.data.count || (response.data.data?.length || 0)} poli berhasil diambil dari BPJS.`,
-      });
+      const response = await vclaimApi.searchPoli(normalizedQuery);
+      const normalizedPolis: BPJSReferensiPoli[] = (response.data.data || []).map((item) => ({
+        kdpoli: item.kode,
+        nmpoli: item.nama,
+      }));
+      setBpjsPolis(normalizedPolis);
     } catch (error: any) {
+      setBpjsPolis([]);
       toast({
         variant: "destructive",
         title: "Gagal mengambil data poli BPJS",
@@ -195,7 +183,6 @@ export default function BPJSMappingPage() {
     }
   };
 
-  // Load referensi dokter dari BPJS
   const loadBPJSDokters = async () => {
     try {
       setLoadingDokters(true);
@@ -217,7 +204,6 @@ export default function BPJSMappingPage() {
     }
   };
 
-  // Load jadwal dokter berdasarkan poli
   const loadJadwalDokter = async (kodePoli: string) => {
     if (!kodePoli) return;
     try {
@@ -238,7 +224,18 @@ export default function BPJSMappingPage() {
     loadData();
   }, [loadData]);
 
-  // Load jadwal when poli selected in dokter form
+  useEffect(() => {
+    if (!poliDialogOpen || !bpjsPoliOpen) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      loadBPJSPolis(bpjsPoliQuery);
+    }, 300);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [bpjsPoliOpen, bpjsPoliQuery, poliDialogOpen]);
+
   useEffect(() => {
     if (dokterForm.poli_mapping_id) {
       const poliMapping = poliMappings.find(
@@ -250,6 +247,14 @@ export default function BPJSMappingPage() {
     }
   }, [dokterForm.poli_mapping_id, poliMappings]);
 
+  useEffect(() => {
+    if (!dokterDialogOpen || !bpjsDokterOpen || jadwalDokters.length > 0 || bpjsDokters.length > 0) {
+      return;
+    }
+
+    loadBPJSDokters();
+  }, [bpjsDokterOpen, bpjsDokters.length, dokterDialogOpen, jadwalDokters.length]);
+
   // ========== POLI HANDLERS ==========
   const resetPoliForm = () => {
     setPoliForm({
@@ -258,6 +263,8 @@ export default function BPJSMappingPage() {
       nama_poli_bpjs: "",
       is_active: true,
     });
+    setBpjsPoliQuery("");
+    setBpjsPolis([]);
     setEditingPoli(null);
   };
 
@@ -537,6 +544,16 @@ export default function BPJSMappingPage() {
     return doctorMappings.filter((d) => d.poli_mapping_id === poliMappingId);
   };
 
+  const togglePoliExpanded = (poliId: number, open: boolean) => {
+    setExpandedPoliIds((current) => {
+      if (open) {
+        return current.includes(poliId) ? current : [...current, poliId];
+      }
+
+      return current.filter((id) => id !== poliId);
+    });
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -546,51 +563,27 @@ export default function BPJSMappingPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center gap-4">
-        <div className="flex-1">
-          <h1 className="text-lg font-semibold flex items-center gap-2">
-            Mapping Poli & Dokter BPJS
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Petakan ruangan poliklinik dan dokter SIMRS dengan kode BPJS untuk antrian online
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
+    <BPJSPageFrame
+      title="Mapping Poli & Dokter"
+      description="Petakan poli dan dokter SIMRS ke kode BPJS dalam tata letak yang lebih ringkas agar area daftar mapping tetap luas."
+      actions={
+        <>
           <Button variant="outline" size="sm" onClick={loadData} disabled={loading}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
           </Button>
-          <Button variant="outline" size="sm" onClick={loadBPJSPolis} disabled={loadingPolis}>
-            {loadingPolis ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-            Sync Poli
-          </Button>
-          <Button variant="outline" size="sm" onClick={loadBPJSDokters} disabled={loadingDokters}>
-            {loadingDokters ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-            Sync Dokter
-          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <BPJSMetricCue label="Poli Ter-mapping" value={<span className="text-green-600">{poliMappings.filter(p => p.is_active).length}</span>} hint="Poli aktif yang siap bridging" />
+          <BPJSMetricCue label="Belum Di-mapping" value={<span className="text-orange-500">{unmappedPolis.length}</span>} hint="Poli SIMRS yang belum dipasangkan" />
+          <BPJSMetricCue label="Dokter Ter-mapping" value={<span className="text-blue-600">{doctorMappings.filter(d => d.is_active).length}</span>} hint="Dokter aktif yang tersambung" />
+          <BPJSMetricCue label="Referensi Poli" value="VClaim" hint="Poli dipilih lewat pencarian langsung ke referensi VClaim" />
         </div>
-      </div>
-      <div className="rounded-lg border p-4">
-          {/* Mapping Summary */}
-          <div className="grid grid-cols-4 gap-4 mb-4 p-3 bg-muted/30 rounded-lg border">
-            <div className="text-center">
-              <p className="text-2xl font-bold text-green-600">{poliMappings.filter(p => p.is_active).length}</p>
-              <p className="text-xs text-muted-foreground">Poli Ter-mapping</p>
-            </div>
-            <div className="text-center">
-              <p className="text-2xl font-bold text-orange-500">{unmappedPolis.length}</p>
-              <p className="text-xs text-muted-foreground">Belum Di-mapping</p>
-            </div>
-            <div className="text-center">
-              <p className="text-2xl font-bold text-blue-600">{doctorMappings.filter(d => d.is_active).length}</p>
-              <p className="text-xs text-muted-foreground">Dokter Ter-mapping</p>
-            </div>
-            <div className="text-center">
-              <p className="text-2xl font-bold">{bpjsPolis.length}</p>
-              <p className="text-xs text-muted-foreground">Ref. Poli BPJS</p>
-            </div>
-          </div>
+
+        <BPJSSectionPanel title="Daftar Mapping">
 
           {/* Unmapped Polis Warning */}
           {unmappedPolis.length > 0 && (
@@ -611,7 +604,7 @@ export default function BPJSMappingPage() {
           )}
 
           {/* Search and Add */}
-          <div className="flex items-center justify-between mb-4">
+          <div className="mb-4 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <div className="relative">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -634,189 +627,211 @@ export default function BPJSMappingPage() {
             )}
           </div>
 
-          {/* Poli List */}
-          <ScrollArea className="h-[calc(100vh-300px)]">
+          <div className="-mx-4 max-h-[calc(100vh-18rem)] min-h-[22rem] overflow-auto bg-background sm:-mx-5">
             {filteredPoliMappings.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                <Building2 className="h-12 w-12 mb-4 opacity-50" />
+              <div className="flex flex-col items-center justify-center px-4 py-12 text-muted-foreground sm:px-5">
+                <Building2 className="mb-4 h-12 w-12 opacity-50" />
                 <p className="text-lg font-medium">Belum ada mapping poli</p>
                 <p className="text-sm">Klik "Tambah Poli" untuk mulai mapping</p>
               </div>
             ) : (
-              <Accordion type="multiple" className="w-full">
-                {filteredPoliMappings.map((poli) => {
-                  const doctors = getDoctorsForPoli(poli.id);
-                  return (
-                    <AccordionItem key={poli.id} value={String(poli.id)} className="border rounded-lg mb-2 px-0">
-                      <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-muted/50 rounded-t-lg">
-                        <div className="flex items-center justify-between w-full pr-4">
-                          <div className="flex items-center gap-3">
-                            <div className="text-left">
-                              <div className="flex items-center gap-2">
-                                <span className="font-medium">{poli.room_name}</span>
+              <div className="px-4 py-3 sm:px-5">
+                <Table containerClassName="rounded-none border border-border/70">
+                  <TableHeader>
+                    <TableRow className="bg-muted/30">
+                      <TableHead>Poliklinik SIMRS</TableHead>
+                      <TableHead>Mapping BPJS</TableHead>
+                      <TableHead>Ringkasan</TableHead>
+                      <TableHead className="text-center">Status</TableHead>
+                      {canManage && <TableHead className="w-[180px] text-right">Aksi</TableHead>}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredPoliMappings.map((poli) => {
+                      const doctors = getDoctorsForPoli(poli.id);
+                      const activeDoctors = doctors.filter((doc) => doc.is_active);
+                      const totalKuotaJkn = doctors.reduce((sum, doc) => sum + (doc.kuota_jkn || 0), 0);
+                      const totalKuotaNonJkn = doctors.reduce((sum, doc) => sum + (doc.kuota_non_jkn || 0), 0);
+                      const isExpanded = expandedPoliIds.includes(poli.id);
+
+                      return (
+                        <Fragment key={poli.id}>
+                          <TableRow className="align-top hover:bg-muted/20">
+                            <TableCell>
+                              <button
+                                type="button"
+                                className="flex w-full items-start gap-2 text-left"
+                                onClick={() => togglePoliExpanded(poli.id, !isExpanded)}
+                              >
+                                {isExpanded ? (
+                                  <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                                ) : (
+                                  <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                                )}
+                                <div className="space-y-1">
+                                  <div className="font-medium text-foreground">{poli.room_name}</div>
+                                  <div className="text-xs text-muted-foreground">Room ID: {poli.room_id}</div>
+                                </div>
+                              </button>
+                            </TableCell>
+                            <TableCell>
+                              <div className="space-y-1.5">
                                 <Badge variant="outline" className="font-mono text-xs">
                                   {poli.kode_poli_bpjs}
                                 </Badge>
-                                {!poli.is_active && (
-                                  <Badge variant="secondary" className="text-xs">Nonaktif</Badge>
-                                )}
+                                <div className="text-sm text-foreground">{poli.nama_poli_bpjs}</div>
                               </div>
-                              <p className="text-xs text-muted-foreground">
-                                {poli.nama_poli_bpjs}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <Badge variant={doctors.length > 0 ? "default" : "secondary"} className="text-xs">
-                              <Users className="mr-1 h-3 w-3" />
-                              {doctors.length} dokter
-                            </Badge>
-                            {canManage && (
-                              <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-7 w-7"
-                                        onClick={() => handleOpenPoliDialog(poli)}
-                                      >
-                                        <Edit className="h-3 w-3" />
-                                      </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>Edit Poli</TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-7 w-7 text-destructive hover:text-destructive"
-                                        onClick={() => {
-                                          setPoliToDelete(poli);
-                                          setDeletePoliDialogOpen(true);
-                                        }}
-                                      >
-                                        <Trash2 className="h-3 w-3" />
-                                      </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>Hapus Poli</TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
+                            </TableCell>
+                            <TableCell>
+                              <div className="space-y-2 text-xs">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <Badge variant={activeDoctors.length > 0 ? "default" : "secondary"} className="text-xs">
+                                    <Users className="mr-1 h-3 w-3" />
+                                    {doctors.length} dokter
+                                  </Badge>
+                                  <span className="text-muted-foreground">{activeDoctors.length} aktif</span>
+                                </div>
+                                <div className="text-muted-foreground">
+                                  Kuota JKN {totalKuotaJkn} · Non-JKN {totalKuotaNonJkn}
+                                </div>
+                                <div className="text-muted-foreground">
+                                  {isExpanded ? "Klik untuk sembunyikan detail mapping dokter" : "Klik untuk lihat detail mapping dokter"}
+                                </div>
                               </div>
-                            )}
-                          </div>
-                        </div>
-                      </AccordionTrigger>
-                      <AccordionContent className="px-4 pb-4">
-                        <div className="space-y-3">
-                          <div className="flex items-center justify-between">
-                            <h4 className="text-sm font-medium text-muted-foreground">Daftar Dokter</h4>
-                            {canManage && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleOpenDokterDialog(undefined, poli)}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Badge
+                                variant={poli.is_active ? "default" : "secondary"}
+                                className={cn("text-xs", poli.is_active && "bg-green-600 hover:bg-green-600")}
                               >
-                                <Plus className="mr-2 h-3 w-3" />
-                                Tambah Dokter
-                              </Button>
+                                {poli.is_active ? "Aktif" : "Nonaktif"}
+                              </Badge>
+                            </TableCell>
+                            {canManage && (
+                              <TableCell>
+                                <div className="flex justify-end gap-1.5">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleOpenDokterDialog(undefined, poli)}
+                                  >
+                                    <Plus className="mr-1.5 h-3.5 w-3.5" />
+                                    Dokter
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={() => handleOpenPoliDialog(poli)}
+                                  >
+                                    <Edit className="h-3.5 w-3.5" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-destructive hover:text-destructive"
+                                    onClick={() => {
+                                      setPoliToDelete(poli);
+                                      setDeletePoliDialogOpen(true);
+                                    }}
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
+                              </TableCell>
                             )}
-                          </div>
-                          {doctors.length === 0 ? (
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground py-4 px-3 bg-muted/30 rounded-lg">
-                              <AlertCircle className="h-4 w-4" />
-                              Belum ada dokter yang dimapping untuk poli ini
-                            </div>
-                          ) : (
-                            <div className="rounded-lg border">
-                              <Table>
-                                <TableHeader>
-                                  <TableRow>
-                                    <TableHead>Dokter SIMRS</TableHead>
-                                    <TableHead>Kode BPJS</TableHead>
-                                    <TableHead>Nama BPJS</TableHead>
-                                    <TableHead>Jadwal</TableHead>
-                                    <TableHead>Kuota</TableHead>
-                                    <TableHead>Status</TableHead>
-                                    {canManage && <TableHead className="w-[80px]">Aksi</TableHead>}
-                                  </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                  {doctors.map((doc) => (
-                                    <TableRow key={doc.id}>
-                                      <TableCell className="font-medium">{doc.employee_name}</TableCell>
-                                      <TableCell>
-                                        <Badge variant="outline" className="font-mono text-xs">
-                                          {doc.kode_dokter_bpjs}
-                                        </Badge>
-                                      </TableCell>
-                                      <TableCell className="text-sm">{doc.nama_dokter_bpjs}</TableCell>
-                                      <TableCell>
-                                        {doc.jadwal_hari && doc.jam_praktek ? (
-                                          <div className="text-xs">
-                                            <div className="flex items-center gap-1">
-                                              <Clock className="h-3 w-3" />
-                                              {doc.jadwal_hari}
+                          </TableRow>
+
+                          {isExpanded && (
+                            <TableRow className="bg-muted/10 hover:bg-muted/10">
+                              <TableCell colSpan={canManage ? 5 : 4} className="p-0">
+                                <div className="space-y-4 px-4 py-4">
+                                  {doctors.length === 0 ? (
+                                    <div className="rounded-lg border border-dashed border-border/70 bg-background px-4 py-6 text-center">
+                                      <p className="text-sm font-medium text-foreground">Belum ada dokter yang dimapping</p>
+                                      <p className="mt-1 text-xs text-muted-foreground">
+                                        Tambahkan dokter untuk menghubungkan jadwal dan kuota BPJS pada poli ini.
+                                      </p>
+                                    </div>
+                                  ) : (
+                                    <div className="grid gap-3 xl:grid-cols-2">
+                                      {doctors.map((doc) => (
+                                        <div key={doc.id} className="rounded-lg border border-border/70 bg-background p-4 shadow-sm">
+                                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                            <div className="space-y-1">
+                                              <div className="text-sm font-semibold text-foreground">{doc.employee_name}</div>
+                                              <div className="text-xs text-muted-foreground">
+                                                Dokter BPJS: {doc.nama_dokter_bpjs || "Belum diisi"}
+                                              </div>
+                                              <div className="text-xs text-muted-foreground">Kode BPJS: {doc.kode_dokter_bpjs}</div>
                                             </div>
-                                            <span className="text-muted-foreground">{doc.jam_praktek}</span>
+                                            <div className="flex flex-wrap items-center gap-2">
+                                              <Badge variant={doc.is_active ? "default" : "secondary"} className={cn("text-xs", doc.is_active && "bg-blue-600 hover:bg-blue-600")}>
+                                                {doc.is_active ? "Aktif" : "Nonaktif"}
+                                              </Badge>
+                                              {canManage && (
+                                                <>
+                                                  <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-8 w-8"
+                                                    onClick={() => handleOpenDokterDialog(doc)}
+                                                  >
+                                                    <Edit className="h-3.5 w-3.5" />
+                                                  </Button>
+                                                  <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-8 w-8 text-destructive hover:text-destructive"
+                                                    onClick={() => {
+                                                      setDokterToDelete(doc);
+                                                      setDeleteDokterDialogOpen(true);
+                                                    }}
+                                                  >
+                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                  </Button>
+                                                </>
+                                              )}
+                                            </div>
                                           </div>
-                                        ) : (
-                                          <span className="text-muted-foreground text-xs">-</span>
-                                        )}
-                                      </TableCell>
-                                      <TableCell>
-                                        <span className="text-xs">{doc.kuota_jkn || 0}</span>
-                                      </TableCell>
-                                      <TableCell>
-                                        {doc.is_active ? (
-                                          <Badge variant="default" className="bg-green-500 text-xs">Aktif</Badge>
-                                        ) : (
-                                          <Badge variant="secondary" className="text-xs">Nonaktif</Badge>
-                                        )}
-                                      </TableCell>
-                                      {canManage && (
-                                        <TableCell>
-                                          <div className="flex gap-1">
-                                            <Button
-                                              variant="ghost"
-                                              size="icon"
-                                              className="h-7 w-7"
-                                              onClick={() => handleOpenDokterDialog(doc)}
-                                            >
-                                              <Edit className="h-3 w-3" />
-                                            </Button>
-                                            <Button
-                                              variant="ghost"
-                                              size="icon"
-                                              className="h-7 w-7 text-destructive hover:text-destructive"
-                                              onClick={() => {
-                                                setDokterToDelete(doc);
-                                                setDeleteDokterDialogOpen(true);
-                                              }}
-                                            >
-                                              <Trash2 className="h-3 w-3" />
-                                            </Button>
+
+                                          <div className="mt-4 grid gap-3 md:grid-cols-3">
+                                            <div className="rounded-md bg-muted/30 px-3 py-2">
+                                              <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Hari Praktik</div>
+                                              <div className="mt-1 text-sm font-medium text-foreground">
+                                                {doc.jadwal_hari || "Belum diatur"}
+                                              </div>
+                                            </div>
+                                            <div className="rounded-md bg-muted/30 px-3 py-2">
+                                              <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Jam Praktik</div>
+                                              <div className="mt-1 text-sm font-medium text-foreground">
+                                                {doc.jam_praktek || "Belum diatur"}
+                                              </div>
+                                            </div>
+                                            <div className="rounded-md bg-muted/30 px-3 py-2">
+                                              <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Kuota</div>
+                                              <div className="mt-1 text-sm font-medium text-foreground">
+                                                JKN {doc.kuota_jkn || 0} · Non-JKN {doc.kuota_non_jkn || 0}
+                                              </div>
+                                            </div>
                                           </div>
-                                        </TableCell>
-                                      )}
-                                    </TableRow>
-                                  ))}
-                                </TableBody>
-                              </Table>
-                            </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              </TableCell>
+                            </TableRow>
                           )}
-                        </div>
-                      </AccordionContent>
-                    </AccordionItem>
-                  );
-                })}
-              </Accordion>
+                        </Fragment>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
             )}
-          </ScrollArea>
+          </div>
+        </BPJSSectionPanel>
       </div>
 
       {/* Poli Dialog */}
@@ -848,9 +863,8 @@ export default function BPJSMappingPage() {
               </Select>
             </div>
 
-            {uniqueBpjsPolis.length > 0 && (
-              <div className="space-y-2">
-                <Label>Pilih dari Referensi BPJS ({uniqueBpjsPolis.length} poli tersedia)</Label>
+            <div className="space-y-2">
+                <Label>Pilih dari Referensi Poli VClaim</Label>
                 <Popover open={bpjsPoliOpen} onOpenChange={setBpjsPoliOpen}>
                   <PopoverTrigger asChild>
                     <Button
@@ -867,9 +881,19 @@ export default function BPJSMappingPage() {
                   </PopoverTrigger>
                   <PopoverContent className="w-[400px] p-0" align="start">
                     <Command>
-                      <CommandInput placeholder="Ketik nama atau kode poli..." />
+                      <CommandInput
+                        placeholder="Ketik minimal 2 huruf nama atau kode poli..."
+                        value={bpjsPoliQuery}
+                        onValueChange={setBpjsPoliQuery}
+                      />
                       <CommandList>
-                        <CommandEmpty>Poli tidak ditemukan.</CommandEmpty>
+                        <CommandEmpty>
+                          {loadingPolis
+                            ? "Mencari poli VClaim..."
+                            : bpjsPoliQuery.trim().length < 2
+                              ? "Ketik minimal 2 huruf untuk mencari poli."
+                              : "Poli tidak ditemukan."}
+                        </CommandEmpty>
                         <CommandGroup className="max-h-[300px] overflow-y-auto">
                           {uniqueBpjsPolis.map((poli) => (
                             <CommandItem
@@ -894,8 +918,10 @@ export default function BPJSMappingPage() {
                     </Command>
                   </PopoverContent>
                 </Popover>
+                <p className="text-xs text-muted-foreground">
+                  Data kode dan nama poli diambil dari endpoint VClaim referensi/poli/[parameter].
+                </p>
               </div>
-            )}
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -991,12 +1017,11 @@ export default function BPJSMappingPage() {
               </Select>
             </div>
 
-            {(jadwalDokters.length > 0 || uniqueBpjsDokters.length > 0) && (
-              <div className="space-y-2">
+            <div className="space-y-2">
                 <Label>
                   Pilih dari {jadwalDokters.length > 0 ? "Jadwal BPJS" : "Referensi BPJS"} 
                   ({jadwalDokters.length > 0 ? jadwalDokters.length : uniqueBpjsDokters.length} tersedia)
-                  {loadingJadwal && <Loader2 className="ml-2 h-3 w-3 inline animate-spin" />}
+                  {(loadingJadwal || loadingDokters) && <Loader2 className="ml-2 h-3 w-3 inline animate-spin" />}
                 </Label>
                 <Popover open={bpjsDokterOpen} onOpenChange={setBpjsDokterOpen}>
                   <PopoverTrigger asChild>
@@ -1016,7 +1041,11 @@ export default function BPJSMappingPage() {
                     <Command>
                       <CommandInput placeholder="Ketik nama atau kode dokter..." />
                       <CommandList>
-                        <CommandEmpty>Dokter tidak ditemukan.</CommandEmpty>
+                        <CommandEmpty>
+                          {loadingDokters
+                            ? "Memuat referensi dokter BPJS..."
+                            : "Dokter tidak ditemukan."}
+                        </CommandEmpty>
                         <CommandGroup className="max-h-[300px] overflow-y-auto">
                           {jadwalDokters.length > 0
                             ? jadwalDokters.map((dok) => (
@@ -1060,8 +1089,12 @@ export default function BPJSMappingPage() {
                     </Command>
                   </PopoverContent>
                 </Popover>
+                {jadwalDokters.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    Jika jadwal poli belum tersedia, daftar dokter BPJS akan dimuat otomatis saat dropdown dibuka.
+                  </p>
+                ) : null}
               </div>
-            )}
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -1168,6 +1201,7 @@ export default function BPJSMappingPage() {
         cancelText="Batal"
         variant="destructive"
       />
-    </div>
+
+    </BPJSPageFrame>
   );
 }

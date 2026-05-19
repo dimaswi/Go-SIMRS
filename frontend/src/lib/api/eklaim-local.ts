@@ -1212,6 +1212,23 @@ export const eklaimLocalApi = {
     return response.data;
   },
 
+  syncPharmacyFromVisit: async (id: number) => {
+    const response = await api.post(`/eklaim-local/${id}/sync-pharmacy-from-visit`);
+    return response.data;
+  },
+
+  syncPharmacyOrderFromVisit: async (id: number, sourceOrderId: number) => {
+    const response = await api.post(`/eklaim-local/${id}/sync-pharmacy-order-from-visit`, {
+      source_order_id: sourceOrderId,
+    });
+    return response.data;
+  },
+
+  createPharmacyOrder: async (id: number, data?: { prescriber_id?: number; order_date?: string }) => {
+    const response = await api.post(`/eklaim-local/${id}/create-pharmacy-order`, data || {});
+    return response.data;
+  },
+
   syncBillingTarif: async (id: number) => {
     const response = await api.post(`/eklaim-local/${id}/sync-billing-tarif`);
     return response.data;

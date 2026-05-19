@@ -11,6 +11,57 @@ import { Phone, Clock, CheckCircle, XCircle, Pause, AlertCircle, Smartphone } fr
 import { toast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { formatPatientName } from '@/lib/print-utils';
+import { queueSharedAnnouncement } from '@/lib/shared-queue-announcer';
+
+const INDONESIAN_SPEECH_MAP: Record<string, string> = {
+  A: 'a',
+  B: 'be',
+  C: 'ce',
+  D: 'de',
+  E: 'e',
+  F: 'ef',
+  G: 'ge',
+  H: 'ha',
+  I: 'i',
+  J: 'je',
+  K: 'ka',
+  L: 'el',
+  M: 'em',
+  N: 'en',
+  O: 'o',
+  P: 'pe',
+  Q: 'kiu',
+  R: 'er',
+  S: 'es',
+  T: 'te',
+  U: 'u',
+  V: 've',
+  W: 'we',
+  X: 'eks',
+  Y: 'ye',
+  Z: 'zet',
+  '0': 'nol',
+  '1': 'satu',
+  '2': 'dua',
+  '3': 'tiga',
+  '4': 'empat',
+  '5': 'lima',
+  '6': 'enam',
+  '7': 'tujuh',
+  '8': 'delapan',
+  '9': 'sembilan',
+};
+
+const spellQueueNumberForSpeech = (value: string) =>
+  value
+    .trim()
+    .split('')
+    .map((char) => INDONESIAN_SPEECH_MAP[char.toUpperCase()] || '')
+    .filter(Boolean)
+    .join(' ');
+
+const getRoomQueueAnnouncementVersion = (queue: RoomQueue) =>
+  queue.called_at || queue.updated_at || queue.created_at || new Date().toISOString();
 
 export default function RoomQueueManagement() {
   const { roomId: paramRoomId } = useParams<{ roomId: string }>();
@@ -33,6 +84,12 @@ export default function RoomQueueManagement() {
   };
   
   const today = getTodayString();
+
+  const buildRoomAnnouncementText = (queue: RoomQueue) => {
+    const queueText = spellQueueNumberForSpeech(queue.queue_number);
+    const roomName = queue.room?.name || `ruangan ${roomId}`;
+    return `Nomor antrean ${queueText}. Silakan menuju ${roomName}.`;
+  };
 
   const fetchData = async () => {
     if (!roomId) return;
@@ -77,9 +134,19 @@ export default function RoomQueueManagement() {
 
     try {
       const response = await roomQueuesApi.callNext(parseInt(roomId));
+      const calledQueue = response.data;
+
+      if (calledQueue) {
+        queueSharedAnnouncement({
+          id: `${calledQueue.id}-${getRoomQueueAnnouncementVersion(calledQueue)}`,
+          kind: 'room',
+          speechText: buildRoomAnnouncementText(calledQueue),
+        });
+      }
+
       toast({
         title: 'Queue Called',
-        description: `Queue ${response.data.queue_number} has been called`,
+        description: `Queue ${calledQueue.queue_number} has been called`,
       });
       fetchData();
     } catch (error: any) {
@@ -94,9 +161,19 @@ export default function RoomQueueManagement() {
   const handleCallSpecific = async (id: number) => {
     try {
       const response = await roomQueuesApi.callQueue(id);
+      const calledQueue = response.data;
+
+      if (calledQueue) {
+        queueSharedAnnouncement({
+          id: `${calledQueue.id}-${getRoomQueueAnnouncementVersion(calledQueue)}`,
+          kind: 'room',
+          speechText: buildRoomAnnouncementText(calledQueue),
+        });
+      }
+
       toast({
         title: 'Queue Called',
-        description: `Queue ${response.data.queue_number} has been called`,
+        description: `Queue ${calledQueue.queue_number} has been called`,
       });
       fetchData();
     } catch (error: any) {

@@ -74,6 +74,7 @@ import procedureOrdersApi from "@/lib/api/procedure-orders";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { BPJSPageFrame, BPJSSectionPanel } from "./shared-page-chrome";
 
 const statusConfig: Record<string, { label: string; className: string }> = {
   active: { label: "Aktif", className: "bg-green-50 text-green-700 border-green-200" },
@@ -358,14 +359,11 @@ export default function SuratKontrolMonitoringPage() {
   };
 
   return (
-    <div className="flex flex-1 flex-col px-4 gap-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold">Monitoring Surat Kontrol</h1>
-          <p className="text-sm text-muted-foreground">Pantau Surat Kontrol BPJS dan kontrol umum SIMRS berdasarkan tanggal</p>
-        </div>
-        <div className="flex items-center gap-2">
+    <BPJSPageFrame
+      title="Monitoring Surat Kontrol"
+      description="Pantau surat kontrol BPJS dan kontrol SIMRS dalam tata letak yang lebih padat agar tabel dan aksi tetap mudah terlihat."
+      actions={
+        <>
           <Button variant="outline" size="sm" onClick={loadData} disabled={loading}>
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
             <span className="ml-2">Refresh</span>
@@ -374,13 +372,13 @@ export default function SuratKontrolMonitoringPage() {
             <SlidersHorizontal className="h-4 w-4 mr-2" />
             Filter
           </Button>
-        </div>
-      </div>
-
-      {/* Filter Panel */}
+        </>
+      }
+    >
+      <BPJSSectionPanel title="Daftar Surat Kontrol">
       <Collapsible open={filterOpen} onOpenChange={setFilterOpen}>
         <CollapsibleContent>
-          <div className="p-4 border rounded-lg mt-2 flex flex-wrap items-end gap-4">
+          <div className="mb-4 flex flex-wrap items-end gap-4 border border-border/70 bg-muted/20 p-4">
             <div className="space-y-1">
               <Label className="text-xs">Tanggal Terbit (Dari)</Label>
               <Input type="date" value={tglTerbitFrom} onChange={e => setTglTerbitFrom(e.target.value)} className="h-9" />
@@ -433,18 +431,30 @@ export default function SuratKontrolMonitoringPage() {
         </CollapsibleContent>
       </Collapsible>
 
-      {/* Result Summary */}
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
           {loading ? "Memuat..." : `${list.length} data kontrol ditemukan`}
         </p>
       </div>
 
-      {/* Table */}
-      <div className="rounded-lg border overflow-hidden">
+      {loading ? (
+        <div className="flex min-h-[220px] items-center justify-center border-y border-border/70 bg-muted/10">
+          <div className="text-center">
+            <Loader2 className="mx-auto h-6 w-6 animate-spin text-muted-foreground" />
+            <p className="mt-2 text-sm text-muted-foreground">Memuat data...</p>
+          </div>
+        </div>
+      ) : list.length === 0 ? (
+        <div className="flex min-h-[220px] flex-col items-center justify-center border-y border-border/70 bg-muted/10 text-center">
+          <FileText className="mb-2 h-8 w-8 text-muted-foreground/50" />
+          <p className="text-sm font-medium text-muted-foreground">Tidak ada data Surat Kontrol</p>
+          <p className="text-xs text-muted-foreground">Coba ubah filter pencarian</p>
+        </div>
+      ) : (
+      <div className="overflow-hidden border-y border-border/70 bg-background">
         <Table>
           <TableHeader>
-            <TableRow className="bg-muted/50">
+            <TableRow className="bg-muted/40">
               <TableHead className="w-12 text-center">#</TableHead>
               <TableHead>No. Surat Kontrol</TableHead>
               <TableHead>Nama / No. Kartu</TableHead>
@@ -459,23 +469,7 @@ export default function SuratKontrolMonitoringPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={11} className="text-center py-12">
-                  <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
-                  <p className="text-sm text-muted-foreground mt-2">Memuat data...</p>
-                </TableCell>
-              </TableRow>
-            ) : list.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={11} className="text-center py-12">
-                  <FileText className="h-8 w-8 mx-auto text-muted-foreground/50 mb-2" />
-                  <p className="text-sm text-muted-foreground">Tidak ada data Surat Kontrol</p>
-                  <p className="text-xs text-muted-foreground">Coba ubah filter pencarian</p>
-                </TableCell>
-              </TableRow>
-            ) : (
-              list.map((item, idx) => (
+            {list.map((item, idx) => (
                 <TableRow key={item.id} className="hover:bg-muted/30">
                   <TableCell className="text-center text-muted-foreground text-sm">{idx + 1}</TableCell>
                   <TableCell className="font-mono text-sm font-semibold text-purple-700">
@@ -568,11 +562,12 @@ export default function SuratKontrolMonitoringPage() {
                     </div>
                   </TableCell>
                 </TableRow>
-              ))
-            )}
+              ))}
           </TableBody>
         </Table>
       </div>
+      )}
+      </BPJSSectionPanel>
 
       {/* Detail Dialog */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
@@ -784,6 +779,6 @@ export default function SuratKontrolMonitoringPage() {
           </SheetFooter>
         </SheetContent>
       </Sheet>
-    </div>
+    </BPJSPageFrame>
   );
 }

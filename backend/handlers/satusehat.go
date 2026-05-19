@@ -623,3 +623,4 @@ func GetSatuSehatHistory(c *gin.Context) {
 		},
 	})
 }
+

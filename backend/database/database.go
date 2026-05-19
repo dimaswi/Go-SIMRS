@@ -298,9 +298,10 @@ func Migrate() error {
 		&models.Notification{}, &models.UserTabPreference{},
 		&models.EKlaimLocalLog{}, // E-Klaim Local Communication Logs
 		// Digital Signatures & Audit Trail
-		&models.SignatureLog{},      // Signature Activity Logs
-		&models.DocumentSignature{}, // Document Signature Status
-		&models.DocumentPDFCache{},  // Cached PDF blobs for cetakan
+		&models.SignatureLog{},            // Signature Activity Logs
+		&models.DocumentSignature{},       // Document Signature Status
+		&models.DocumentSignatureSigner{}, // Signer-level status for multi-signature
+		&models.DocumentPDFCache{},        // Cached PDF blobs for cetakan
 		// Nutrition/Gizi Management
 		&models.NutritionMenu{},        // Master Menu Makanan
 		&models.NutritionPackage{},     // Master Paket Makanan
@@ -348,9 +349,10 @@ func Migrate() error {
 			&models.FallRiskAssessment{},   // Fall Risk
 			&models.BedTransfer{},          // Bed Transfer/Mutation
 			// Digital Signatures & Audit Trail
-			&models.SignatureLog{},      // Signature Activity Logs
-			&models.DocumentSignature{}, // Document Signature Status
-			&models.DocumentPDFCache{},  // Cached PDF blobs for cetakan
+			&models.SignatureLog{},            // Signature Activity Logs
+			&models.DocumentSignature{},       // Document Signature Status
+			&models.DocumentSignatureSigner{}, // Signer-level status for multi-signature
+			&models.DocumentPDFCache{},        // Cached PDF blobs for cetakan
 			// Nutrition/Gizi Management
 			&models.NutritionMenu{},        // Master Menu Makanan
 			&models.NutritionPackage{},     // Master Paket Makanan
@@ -607,7 +609,36 @@ func createPartialUniqueIndexes() {
 	DB.Exec("DROP INDEX IF EXISTS idx_counters_code")
 	DB.Exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_counters_code_unique ON counters(code) WHERE deleted_at IS NULL")
 
+	createMedicalRecordCasemixIndexes()
+
 	log.Println("Partial unique indexes created for soft delete support")
+}
+
+func createMedicalRecordCasemixIndexes() {
+	// Older deployments created unique indexes on visit_id for one-to-one RM
+	// tables. Casemix records intentionally share the same visit_id as the
+	// original RM, so uniqueness must be scoped by source.
+	tables := []string{
+		"triages",
+		"anamneses",
+		"physical_examinations",
+		"assessment_plans",
+		"dispositions",
+		"discharge_plannings",
+		"body_markers",
+		"diagnosis_summaries",
+	}
+
+	for _, table := range tables {
+		oldIndex := fmt.Sprintf("idx_%s_visit_id", table)
+		DB.Exec(fmt.Sprintf("ALTER TABLE %s DROP CONSTRAINT IF EXISTS %s", table, oldIndex))
+		DB.Exec(fmt.Sprintf("DROP INDEX IF EXISTS %s", oldIndex))
+		DB.Exec(fmt.Sprintf("CREATE INDEX IF NOT EXISTS %s ON %s(visit_id)", oldIndex, table))
+		DB.Exec(fmt.Sprintf("CREATE UNIQUE INDEX IF NOT EXISTS idx_%s_original_visit_unique ON %s(visit_id) WHERE deleted_at IS NULL AND is_casemix = false", table, table))
+		DB.Exec(fmt.Sprintf("CREATE UNIQUE INDEX IF NOT EXISTS idx_%s_casemix_visit_unique ON %s(visit_id, casemix_eklaim_id) WHERE deleted_at IS NULL AND is_casemix = true", table, table))
+	}
+
+	log.Println("Medical record casemix indexes normalized")
 }
 
 // CleanMigrate drops all tables and recreates them for fresh database structure
@@ -651,6 +682,7 @@ func SeedData() error {
 		{Name: "permissions.create", Module: "Permission Management", Category: "Permissions", Description: "Create new permissions", Actions: `["create"]`},
 		{Name: "permissions.update", Module: "Permission Management", Category: "Permissions", Description: "Update existing permissions", Actions: `["update"]`},
 		{Name: "permissions.delete", Module: "Permission Management", Category: "Permissions", Description: "Delete permissions", Actions: `["delete"]`},
+		{Name: "document_signature_settings.manage", Module: "Document Signature Settings", Category: "Signatures", Description: "Manage per-document signature rules", Actions: `["read","update"]`},
 
 		// Employees Management
 		{Name: "employees.view", Module: "Employee Management", Category: "Employees", Description: "View employees list and details", Actions: `["read"]`},
@@ -891,6 +923,46 @@ func SeedData() error {
 
 // seedRolesAndAdmin creates default roles and admin user
 func seedRolesAndAdmin() error {
+	assignPermissionsToRoles := func(roleNames []string, permissions []models.Permission, replace bool) {
+		if len(roleNames) == 0 || len(permissions) == 0 {
+			return
+		}
+
+		var roles []models.Role
+		if err := DB.Where("name IN ?", roleNames).Find(&roles).Error; err != nil {
+			log.Printf("Failed loading roles for permission seed (%v): %v", roleNames, err)
+			return
+		}
+		if len(roles) == 0 {
+			return
+		}
+
+		for _, role := range roles {
+			assoc := DB.Model(&role).Association("Permissions")
+			if replace {
+				if err := assoc.Replace(permissions); err != nil {
+					log.Printf("Failed replacing permissions for role %s: %v", role.Name, err)
+				}
+				continue
+			}
+
+			if err := assoc.Append(permissions); err != nil {
+				log.Printf("Failed appending permissions for role %s: %v", role.Name, err)
+			}
+		}
+	}
+
+	loadPermissionsByNames := func(permissionNames []string) []models.Permission {
+		if len(permissionNames) == 0 {
+			return nil
+		}
+		var permissions []models.Permission
+		if err := DB.Where("name IN ?", permissionNames).Find(&permissions).Error; err != nil {
+			log.Printf("Failed loading permissions for seed (%v): %v", permissionNames, err)
+			return nil
+		}
+		return permissions
+	}
 
 	// Create default roles
 	var adminRole models.Role
@@ -909,7 +981,7 @@ func seedRolesAndAdmin() error {
 	var allPermissions []models.Permission
 	DB.Find(&allPermissions)
 	if len(allPermissions) > 0 {
-		DB.Model(&adminRole).Association("Permissions").Replace(allPermissions)
+		assignPermissionsToRoles([]string{"admin", "Admin", "Super Admin"}, allPermissions, true)
 	}
 
 	// Assign limited permissions to user role
@@ -918,6 +990,18 @@ func seedRolesAndAdmin() error {
 	if len(limitedPermissions) > 0 {
 		DB.Model(&userRole).Association("Permissions").Replace(limitedPermissions)
 	}
+
+	// Seed default permissions for casemix workflow on Rekam Medis role.
+	// Append only (non-destructive) so custom role configs are preserved.
+	rekamMedisDefaultPermissions := loadPermissionsByNames([]string{
+		"eklaim.view",
+		"eklaim.create",
+		"eklaim.edit",
+		"eklaim.grouping",
+		"pharmacy.view",
+		"pharmacy.edit",
+	})
+	assignPermissionsToRoles([]string{"Rekam Medis"}, rekamMedisDefaultPermissions, false)
 
 	// Create default admin user
 	var adminUser models.User
@@ -938,7 +1022,7 @@ func seedRolesAndAdmin() error {
 	// Create default settings - only if key doesn't exist
 	// Uses Unscoped to also check soft-deleted records
 	defaultSettings := []models.Setting{
-		{Key: "app_name", Value: "StarterKits"},
+		{Key: "app_name", Value: "SIMRS"},
 		{Key: "app_subtitle", Value: "Hospital System"},
 		// Hospital / Facility info (untuk kop cetakan)
 		{Key: "hospital_name", Value: "RS Contoh Sejahtera"},

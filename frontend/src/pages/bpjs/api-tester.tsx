@@ -38,6 +38,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
+import { BPJSPageFrame, BPJSSectionPanel } from "./shared-page-chrome";
 
 interface BPJSConfig {
   cons_id: string;
@@ -275,36 +276,19 @@ export default function BPJSAPITesterPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      {/* Header */}
-      <div className="rounded-lg border">
-        <div className="flex items-center p-4">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => window.history.back()}
-              className="h-9 w-9"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-              <Stethoscope className="h-5 w-5 text-primary" />
-            </div>
-            <div className="flex-1">
-              <h1 className="text-lg font-semibold">
-                API Tester BPJS
-              </h1>
-              <p className="text-sm text-muted-foreground">
-                Test request ke BPJS Antrian Online seperti Postman
-              </p>
-            </div>
-            <Button variant="outline" size="sm" onClick={loadConfig}>
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Reload Config
-            </Button>
-        </div>
-
-        <div className="rounded-lg border p-6 space-y-6 mx-4 mb-4">
+    <BPJSPageFrame
+      title="API Tester BPJS"
+      description="Uji request BPJS seperti Postman dengan header yang lebih ringkas dan area kerja yang tetap lapang."
+      actions={
+        <Button variant="outline" size="sm" onClick={loadConfig}>
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Reload Config
+        </Button>
+      }
+    >
+      <div className="space-y-4">
+        <BPJSSectionPanel title="Request Builder">
+        <div className="space-y-6">
           {/* Config Info dari Database */}
           <div className="grid gap-4 md:grid-cols-2">
             <Card className="bg-slate-50 dark:bg-slate-900 border-dashed">
@@ -495,10 +479,11 @@ export default function BPJSAPITesterPage() {
             </div>
           )}
         </div>
-      </div>
+        </BPJSSectionPanel>
 
       {/* Result */}
       {result && (
+        <BPJSSectionPanel title="Hasil Pengujian">
         <div className="grid gap-4 lg:grid-cols-2">
           {/* Request Details */}
           <Card>
@@ -632,7 +617,9 @@ export default function BPJSAPITesterPage() {
             </CardContent>
           </Card>
         </div>
+        </BPJSSectionPanel>
       )}
-    </div>
+      </div>
+    </BPJSPageFrame>
   );
 }

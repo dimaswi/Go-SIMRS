@@ -10,6 +10,8 @@ import { nutritionMenuApi, nutritionCategoryLabels, nutritionDietTypeLabels } fr
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Loader2, UtensilsCrossed, Tag, DollarSign, FileText, Flame, Beef, Droplets, Wheat } from "lucide-react";
 import { setPageTitle } from "@/lib/page-title";
+import { PageShell, PageHeader, PageContent } from "@/components/layout/page-shell";
+import { NutritionSectionPanel, NutritionSummaryCue } from "../shared-page-chrome";
 
 export default function NutritionMenuEdit() {
   const navigate = useNavigate();
@@ -112,21 +114,42 @@ export default function NutritionMenuEdit() {
   }
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => window.history.back()}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div>
-          <h1 className="text-lg font-semibold">Edit Menu Makanan</h1>
-          <p className="text-sm text-muted-foreground">Ubah data menu: {formData.name}</p>
+    <PageShell>
+      <PageHeader
+        title="Edit Menu Makanan"
+        description={`Perbarui menu gizi ${formData.name || ""} agar identitas, kecocokan diet, dan nilai gizinya tetap sinkron dengan operasional layanan.`}
+        icon={UtensilsCrossed}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => navigate("/nutrition/menus")}>
+              <ArrowLeft className="h-4 w-4" />
+              Kembali
+            </Button>
+            <Button type="submit" form="nutrition-menu-edit-form" size="sm" disabled={loading}>
+              {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+              Simpan Perubahan
+            </Button>
+          </div>
+        }
+      >
+        <div className="flex flex-wrap gap-2 pb-3">
+          <div className="border border-border/70 bg-background px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Kode menu read only</div>
+          <div className="border border-border/70 bg-background px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Diet cocok tetap multi-pilih</div>
+          <div className="border border-border/70 bg-background px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Status operasional menu</div>
         </div>
-      </div>
+      </PageHeader>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <PageContent className="flex-none pb-8">
+        <div className="mb-4 grid gap-3 lg:grid-cols-3">
+          <NutritionSummaryCue label="Menu Aktif" description="Pastikan nama, kategori, dan ukuran porsi tetap sesuai dengan menu yang disajikan." tone="from-background via-background to-emerald-50/50" />
+          <NutritionSummaryCue label="Diet dan Gizi" description="Perubahan kecocokan diet dan nutrisi akan memengaruhi paket makanan serta order gizi terkait." tone="from-background via-background to-sky-50/40" />
+          <NutritionSummaryCue label="Harga dan Status" description="Jaga harga porsi dan status aktif agar daftar menu yang dipilih petugas tetap relevan." tone="from-background via-background to-amber-50/50" />
+        </div>
+
+        <div className="flex-1 space-y-6 [&_label]:tracking-[0.01em] [&_input]:h-11 [&_[role=combobox]]:h-11">
+      <form id="nutrition-menu-edit-form" onSubmit={handleSubmit} className="space-y-6">
         {/* Basic Info */}
-        <div className="rounded-lg border p-4 space-y-4">
-          <h3 className="font-medium flex items-center gap-2"><UtensilsCrossed className="h-4 w-4" /> Informasi Menu</h3>
+        <NutritionSectionPanel icon={UtensilsCrossed} title="Informasi Menu" description="Perbarui identitas menu, kategori layanan, ukuran porsi, dan kecocokan diet pasien.">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="code"><Tag className="inline h-3 w-3 mr-1" />Kode Menu</Label>
@@ -171,11 +194,10 @@ export default function NutritionMenuEdit() {
             <Label htmlFor="description"><FileText className="inline h-3 w-3 mr-1" />Deskripsi</Label>
             <Textarea id="description" value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} rows={2} />
           </div>
-        </div>
+        </NutritionSectionPanel>
 
         {/* Nutritional Info */}
-        <div className="rounded-lg border p-4 space-y-4">
-          <h3 className="font-medium flex items-center gap-2"><Flame className="h-4 w-4" /> Informasi Gizi (per porsi)</h3>
+        <NutritionSectionPanel icon={Flame} title="Informasi Gizi" description="Sesuaikan nilai gizi per porsi agar kalkulasi total nutrisi pada paket tetap akurat.">
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label><Flame className="inline h-3 w-3 mr-1" />Kalori (kkal)</Label>
@@ -202,11 +224,10 @@ export default function NutritionMenuEdit() {
               <Input type="number" step="0.01" min="0" value={formData.sodium || ""} onChange={(e) => setFormData({ ...formData, sodium: parseFloat(e.target.value) || 0 })} />
             </div>
           </div>
-        </div>
+        </NutritionSectionPanel>
 
         {/* Price & Status */}
-        <div className="rounded-lg border p-4 space-y-4">
-          <h3 className="font-medium flex items-center gap-2"><DollarSign className="h-4 w-4" /> Harga & Status</h3>
+        <NutritionSectionPanel icon={DollarSign} title="Harga dan Status" description="Kelola harga per porsi, status aktif, dan catatan internal menu gizi.">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Harga per Porsi</Label>
@@ -221,9 +242,9 @@ export default function NutritionMenuEdit() {
             <Label>Catatan</Label>
             <Textarea value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} rows={2} />
           </div>
-        </div>
+        </NutritionSectionPanel>
 
-        <div className="flex gap-3">
+        <div className="flex justify-end gap-3">
           <Button type="button" variant="outline" onClick={() => navigate("/nutrition/menus")}>Batal</Button>
           <Button type="submit" disabled={loading}>
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -232,5 +253,7 @@ export default function NutritionMenuEdit() {
         </div>
       </form>
     </div>
+      </PageContent>
+    </PageShell>
   );
 }

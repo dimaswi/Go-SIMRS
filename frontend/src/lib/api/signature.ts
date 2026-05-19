@@ -30,6 +30,12 @@ export interface SignDocumentRequest {
   visit_id?: number;
   notes?: string;
   signer_employee_id?: number; // Sign on behalf of another employee
+  required_signatures?: number;
+  signature_slot?: string;
+  signature_role?: string;
+  signature_location?: string;
+  signature_date?: string;
+  signature_name?: string;
 }
 
 // ==================== Response Types ====================
@@ -50,6 +56,15 @@ export interface DocumentSignatureStatus {
     id: number;
     full_name: string;
   };
+  signed_slots?: Record<string, boolean>;
+}
+
+export interface DocumentSignatureRule {
+  document_type: string;
+  label: string;
+  required_signatures: number;
+  slots?: string[];
+  layout_hint?: string;
 }
 
 export interface CanSignResponse {
@@ -162,6 +177,9 @@ export const DOCUMENT_TYPES = {
   INFORMED_CONSENT: 'informed_consent',
   CPPT: 'cppt',
   NURSING_CARE: 'nursing_care',
+  FLUID_BALANCE: 'fluid_balance',
+  BED_TRANSFER: 'bed_transfer',
+  VITAL_SIGN: 'vital_sign',
   TRIAGE: 'triage',
   EMERGENCY_SUMMARY: 'emergency_summary',
   OPERATIVE_REPORT: 'operative_report',
@@ -210,6 +228,9 @@ export const DOCUMENT_TYPE_LABELS: Record<string, string> = {
   informed_consent: 'Informed Consent',
   cppt: 'CPPT',
   nursing_care: 'Asuhan Keperawatan',
+  fluid_balance: 'Balance Cairan',
+  bed_transfer: 'Mutasi Pasien',
+  vital_sign: 'Grafik Tanda Vital',
   triage: 'Form Triage',
   emergency_summary: 'Ringkasan UGD',
   operative_report: 'Laporan Operasi',
@@ -257,10 +278,22 @@ export const signatureApi = {
     api.get<{ signature_pin_required: boolean }>('/signature/check-required'),
 
   batchSignatureStatus: (documents: { document_type: string; document_id: number }[]) =>
-    api.post<{ statuses: Record<string, { is_signed: boolean; signer_name?: string; signed_at?: string }> }>(
+    api.post<{ statuses: Record<string, { is_signed: boolean; signer_name?: string; signed_at?: string; required_signatures?: number; signed_signatures?: number; is_fully_signed?: boolean; signed_slots?: Record<string, boolean> }> }>(
       '/signature/batch-status',
       { documents }
     ),
+
+  getDocumentSignatureSettings: () =>
+    api.get<{ data: DocumentSignatureRule[] }>('/signature/document-settings'),
+
+  updateDocumentSignatureSettings: (rules: DocumentSignatureRule[]) =>
+    api.put<{ message: string; data: DocumentSignatureRule[] }>('/signature/document-settings', { rules }),
+
+  getDocumentSignaturePreview: (params: { document_type: string; column_1?: string; column_2?: string }) =>
+    api.get('/signature/document-settings/preview', {
+      params,
+      responseType: 'blob',
+    }),
 
   // Audit Logs
   getSignatureLogs: (params?: {

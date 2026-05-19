@@ -66,13 +66,17 @@ const paymentColors: Record<string, string> = {
   insurance: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
 };
 
+const columnHeader = (label: string, className = "") => (
+  <div className={className}>{label}</div>
+);
+
 export function createRegistrationColumns(
   options: ColumnOptions
 ): ColumnDef<Registration>[] {
   return [
     {
       accessorKey: "registration_number",
-      header: "No. Registrasi",
+      header: () => columnHeader("No. Registrasi", "min-w-[138px]"),
       cell: ({ row }) => {
         const regId = getRegistrationId(row.original);
         const mjknQueue = options.mjknQueueMap.get(regId);
@@ -102,12 +106,12 @@ export function createRegistrationColumns(
     },
     {
       accessorKey: "registration_date",
-      header: "Tanggal",
+      header: () => columnHeader("Tanggal", "min-w-[108px]"),
       cell: ({ row }) => {
         const reg = row.original;
         const queueNumber = reg.visit?.room_queue?.queue_number;
         return (
-          <div>
+          <div className="min-w-[100px]">
             <div className="text-sm">
               {format(new Date(reg.registration_date), "dd MMM yyyy", {
                 locale: localeId,
@@ -124,17 +128,17 @@ export function createRegistrationColumns(
     },
     {
       accessorKey: "patient",
-      header: "Pasien",
+      header: () => columnHeader("Pasien", "min-w-[220px]"),
       cell: ({ row }) => {
         const patient = row.original.patient;
         if (!patient) return "-";
         const name = formatPatientName(patient.nama_lengkap || patient.name, patient.jenis_kelamin, undefined, patient.tanggal_lahir) || "-";
         const mrn = patient.no_rm || patient.medical_record_number || "";
         return (
-          <div>
-            <div className="font-medium text-sm">{name}</div>
+          <div className="min-w-[200px] max-w-[250px]">
+            <div className="font-medium text-sm leading-5 truncate">{name}</div>
             {mrn && (
-              <div className="text-xs text-muted-foreground font-mono">
+              <div className="text-xs text-muted-foreground font-mono truncate">
                 {mrn}
               </div>
             )}
@@ -144,7 +148,7 @@ export function createRegistrationColumns(
     },
     {
       accessorKey: "destination_room",
-      header: "Poli/Ruangan",
+      header: () => columnHeader("Poli/Ruangan", "min-w-[200px]"),
       cell: ({ row }) => {
         const room = row.original.destination_room;
         if (!room) return "-";
@@ -155,16 +159,16 @@ export function createRegistrationColumns(
         );
 
         return (
-          <div>
-            <div className="text-sm">{room.name}</div>
+          <div className="min-w-[180px] max-w-[240px]">
+            <div className="text-sm leading-5 truncate">{room.name}</div>
             {inpatientVisit ? (
-              <div className="text-xs text-orange-600 dark:text-orange-400 font-medium flex items-center gap-1">
-                <BedDouble className="h-3 w-3" />
-                {room.name} → {inpatientVisit.room?.name || "Rawat Inap"}
+              <div className="text-xs text-orange-600 dark:text-orange-400 font-medium flex items-center gap-1 leading-4">
+                <BedDouble className="h-3 w-3 shrink-0" />
+                <span className="truncate">{room.name} → {inpatientVisit.room?.name || "Rawat Inap"}</span>
               </div>
             ) : (
               room.code && (
-                <div className="text-xs text-muted-foreground">{room.code}</div>
+                <div className="text-xs text-muted-foreground truncate">{room.code}</div>
               )
             )}
           </div>
@@ -173,22 +177,22 @@ export function createRegistrationColumns(
     },
     {
       accessorKey: "doctor",
-      header: "Dokter",
+      header: () => columnHeader("Dokter", "min-w-[180px]"),
       cell: ({ row }) => {
         const doctor = row.original.doctor;
         if (!doctor) return <span className="text-muted-foreground">-</span>;
         const name = doctor.nama_lengkap || doctor.nama || doctor.name || "-";
         return (
-          <div className="flex items-center gap-1.5">
+          <div className="flex min-w-[160px] max-w-[210px] items-center gap-1.5">
             <Stethoscope className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-            <span className="text-sm">{name}</span>
+            <span className="text-sm leading-5 truncate">{name}</span>
           </div>
         );
       },
     },
     {
       accessorKey: "payment_method",
-      header: "Pembayaran",
+      header: () => columnHeader("Pembayaran", "min-w-[190px]"),
       cell: ({ row }) => {
         const reg = row.original;
         const canEdit = reg.status !== "cancelled" && reg.status !== "completed";
@@ -196,17 +200,27 @@ export function createRegistrationColumns(
         const isBPJSInpatient = reg.payment_method === "bpjs" && reg.registration_type === "inpatient";
         const spriData = options.spriMap.get(regId);
         const sepRanapNo = options.sepRanapMap.get(regId);
+        const paymentDetail = reg.payment_method === "bpjs"
+          ? reg.bpjs_number || "Nomor BPJS belum diisi"
+          : reg.payment_method === "insurance"
+            ? [reg.insurance_name, reg.insurance_number].filter(Boolean).join(" • ") || "Penjamin belum diisi"
+            : "Pembayaran umum";
         return (
-          <div className="flex flex-col gap-1.5">
-            <Badge
-              className={`${paymentColors[reg.payment_method]} ${canEdit ? "cursor-pointer hover:opacity-80" : ""} w-fit`}
-              onClick={canEdit ? () => options.onEditPayment(reg) : undefined}
-            >
-              {paymentMethodLabels[reg.payment_method]}
-              {canEdit && <Pencil className="h-2.5 w-2.5 ml-1" />}
-            </Badge>
+          <div className="min-w-[180px] max-w-[220px] space-y-1">
+            <div className="flex items-center gap-1.5">
+              <Badge
+                className={`${paymentColors[reg.payment_method]} ${canEdit ? "cursor-pointer hover:opacity-80" : ""} h-5 w-fit px-2 text-[11px] leading-none`}
+                onClick={canEdit ? () => options.onEditPayment(reg) : undefined}
+              >
+                {paymentMethodLabels[reg.payment_method]}
+                {canEdit && <Pencil className="h-2.5 w-2.5 ml-1" />}
+              </Badge>
+            </div>
+            <div className="text-xs leading-4 text-muted-foreground truncate">
+              {paymentDetail}
+            </div>
             {isBPJSInpatient && (
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1.5">
                 {spriData ? (
                   (spriData.is_bpjs || !spriData.no_spri.startsWith("LOCAL-")) ? (
                     <TooltipProvider>
@@ -236,7 +250,7 @@ export function createRegistrationColumns(
                   <button
                     type="button"
                     onClick={() => options.onCreateSPRI(reg)}
-                    className="text-blue-600 hover:text-blue-800 underline text-[10px] cursor-pointer"
+                    className="text-blue-600 hover:text-blue-800 underline text-[10px] leading-none cursor-pointer"
                   >
                     SPRI
                   </button>
@@ -257,7 +271,7 @@ export function createRegistrationColumns(
                   <button
                     type="button"
                     onClick={() => options.onCreateSEPRanap(reg)}
-                    className="text-blue-600 hover:text-blue-800 underline text-[10px] cursor-pointer"
+                    className="text-blue-600 hover:text-blue-800 underline text-[10px] leading-none cursor-pointer"
                   >
                     SEP
                   </button>
@@ -274,7 +288,7 @@ export function createRegistrationColumns(
     },
     {
       accessorKey: "status",
-      header: "Status",
+      header: () => columnHeader("Status", "min-w-[112px]"),
       cell: ({ row }) => {
         const status = row.original.status;
         const colorClass = statusColors[status] || "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300";
@@ -288,7 +302,7 @@ export function createRegistrationColumns(
     },
     {
       id: "actions",
-      header: () => <div className="text-right">Aksi</div>,
+      header: () => <div className="min-w-[120px] text-right">Aksi</div>,
       cell: ({ row }) => {
         const reg = row.original;
         const hasRoomQueue = reg.visit?.room_queue;

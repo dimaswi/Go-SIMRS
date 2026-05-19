@@ -46,11 +46,7 @@ func GetProcedureOrders(c *gin.Context) {
 	}
 
 	// ALWAYS filter out casemix orders from normal queue/listing unless explicitly requested
-	if c.Query("is_casemix") == "true" {
-		query = query.Where("is_casemix = ?", true)
-	} else {
-		query = query.Where("is_casemix = ?", false)
-	}
+	query = applyCasemixEklaimScope(c, query.Where("is_casemix = ?", requestUsesCasemix(c)))
 
 	// Filter by source visit
 	if sourceVisitID := c.Query("source_visit_id"); sourceVisitID != "" {
@@ -134,7 +130,7 @@ func GetProcedureOrder(c *gin.Context) {
 	id := c.Param("id")
 
 	var order models.ProcedureOrder
-	if err := database.DB.
+	query := database.DB.
 		Preload("SourceVisit.Registration.Patient").
 		Preload("TargetVisit.RoomQueue").
 		Preload("SourceRoom").
@@ -149,8 +145,9 @@ func GetProcedureOrder(c *gin.Context) {
 		}).
 		Preload("Items.Results.ProcedureParameter").
 		Preload("Items.PerformedBy").
-		Preload("Consultation.Consultant").
-		First(&order, id).Error; err != nil {
+		Preload("Consultation.Consultant")
+	query = applyCasemixEklaimScope(c, query.Where("is_casemix = ?", requestUsesCasemix(c)))
+	if err := query.First(&order, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Procedure order not found"})
 		return
 	}
@@ -161,23 +158,7 @@ func GetProcedureOrder(c *gin.Context) {
 		return
 	}
 	if refreshed {
-		if err := database.DB.
-			Preload("SourceVisit.Registration.Patient").
-			Preload("TargetVisit.RoomQueue").
-			Preload("SourceRoom").
-			Preload("TargetRoom").
-			Preload("Registration.Patient").
-			Preload("OrderedBy").
-			Preload("SurgeonDoctor").
-			Preload("PerformedBy").
-			Preload("ValidatedBy").
-			Preload("Items.Procedure.Parameters", func(db *gorm.DB) *gorm.DB {
-				return db.Where("is_active = ?", true).Order("sort_order ASC")
-			}).
-			Preload("Items.Results.ProcedureParameter").
-			Preload("Items.PerformedBy").
-			Preload("Consultation.Consultant").
-			First(&order, id).Error; err != nil {
+		if err := query.First(&order, id).Error; err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Procedure order not found"})
 			return
 		}
@@ -410,7 +391,7 @@ func CreateProcedureOrder(c *gin.Context) {
 	// Create procedure order
 	order := models.ProcedureOrder{
 		OrderNumber:     orderNumber,
-		IsCasemix:       c.Query("is_casemix") == "true",
+		IsCasemix:       requestUsesCasemix(c),
 		CasemixEklaimID: getCasemixEklaimID(c),
 		OrderType:       input.OrderType,
 		SourceVisitID:   input.SourceVisitID,
@@ -470,6 +451,8 @@ func CreateProcedureOrder(c *gin.Context) {
 
 		item := models.ProcedureOrderItem{
 			ProcedureOrderID: order.ID,
+			IsCasemix:        requestUsesCasemix(c),
+			CasemixEklaimID:  getCasemixEklaimID(c),
 			ProcedureID:      itemInput.ProcedureID,
 			Status:           models.ProcedureOrderStatusPending,
 			Notes:            itemInput.Notes,
@@ -815,6 +798,8 @@ func SubmitProcedureResults(c *gin.Context) {
 
 			result := models.ProcedureOrderResult{
 				ProcedureOrderItemID: itemInput.ItemID,
+				IsCasemix:            order.IsCasemix,
+				CasemixEklaimID:      order.CasemixEklaimID,
 				ProcedureParameterID: resultInput.ParameterID,
 				Value:                resultInput.Value,
 				NumericValue:         resultInput.NumericValue,
@@ -1041,6 +1026,8 @@ func SaveItemResults(c *gin.Context) {
 
 			result := models.ProcedureOrderResult{
 				ProcedureOrderItemID: itemInput.ItemID,
+				IsCasemix:            order.IsCasemix,
+				CasemixEklaimID:      order.CasemixEklaimID,
 				ProcedureParameterID: resultInput.ParameterID,
 				Value:                resultInput.Value,
 				NumericValue:         resultInput.NumericValue,
@@ -1890,7 +1877,7 @@ func AddProcedureOrderItem(c *gin.Context) {
 
 	// Get procedure order
 	var order models.ProcedureOrder
-	if err := database.DB.First(&order, orderID).Error; err != nil {
+	if err := applyCasemixEklaimScope(c, database.DB.Where("is_casemix = ?", requestUsesCasemix(c))).First(&order, orderID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Procedure order not found"})
 		return
 	}
@@ -1933,6 +1920,8 @@ func AddProcedureOrderItem(c *gin.Context) {
 	// Create new item
 	item := models.ProcedureOrderItem{
 		ProcedureOrderID: uint(orderID),
+		IsCasemix:        order.IsCasemix,
+		CasemixEklaimID:  order.CasemixEklaimID,
 		ProcedureID:      input.ProcedureID,
 		Notes:            input.Notes,
 		Status:           "pending",
@@ -2073,4 +2062,3 @@ func DeleteProcedureOrderItem(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "Item berhasil dihapus"})
 }
-

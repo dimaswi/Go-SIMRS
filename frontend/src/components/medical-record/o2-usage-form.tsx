@@ -18,6 +18,8 @@ interface O2UsageFormProps {
   visitId: number;
   readOnly?: boolean;
   isPatientDischarged?: boolean;
+  externalData?: O2UsageRecord[];
+  useExternalData?: boolean;
 }
 
 const DELIVERY_METHODS = [
@@ -58,7 +60,7 @@ const parseO2Metadata = (metadata?: string): { price: number; tank_type: string 
   }
 };
 
-export function O2UsageForm({ visitId, readOnly = false, isPatientDischarged = false }: O2UsageFormProps) {
+export function O2UsageForm({ visitId, readOnly = false, isPatientDischarged = false, externalData, useExternalData = false }: O2UsageFormProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -91,6 +93,11 @@ export function O2UsageForm({ visitId, readOnly = false, isPatientDischarged = f
     let active = true;
     const load = async () => {
       setLoading(true);
+      if (useExternalData) {
+        setRecords(externalData || []);
+        setLoading(false);
+        return;
+      }
       try {
         const [recRes, mdRes] = await Promise.all([
           o2UsageApi.getAll(visitId),
@@ -112,7 +119,7 @@ export function O2UsageForm({ visitId, readOnly = false, isPatientDischarged = f
     };
     load();
     return () => { active = false; };
-  }, [visitId, toast]);
+  }, [externalData, useExternalData, visitId, toast]);
 
   const openAddModal = () => {
     setFormO2TypeId("");
@@ -188,7 +195,7 @@ export function O2UsageForm({ visitId, readOnly = false, isPatientDischarged = f
               <span className="flex items-center gap-2"><Wind className="h-3.5 w-3.5" />Penggunaan Oksigen</span>
               <div className="flex items-center gap-2">
                 {totalCharge > 0 && <span className="text-[10px] font-medium text-green-600 normal-case">Total: {formatCurrency(totalCharge)}</span>}
-                {!isFormDisabled && (
+                {!isFormDisabled && !useExternalData && (
                   <Button onClick={openAddModal} size="sm" className="h-6 px-2 py-0 text-[10px]">
                     <Plus className="h-3.5 w-3.5 mr-1" />Tambah O2
                   </Button>
@@ -236,12 +243,12 @@ export function O2UsageForm({ visitId, readOnly = false, isPatientDischarged = f
                           <div className="col-span-1">{formatCurrency(r.flow_rate * r.base_price)}</div>
                           <div className="col-span-1">{r.total_charge > 0 ? <span className="text-green-600 font-medium">{formatCurrency(r.total_charge)}</span> : "—"}</div>
                           <div className="col-span-2 flex items-center justify-end gap-1">
-                            {isActive && !isFormDisabled && (
+                            {isActive && !isFormDisabled && !useExternalData && (
                               <Button variant="destructive" size="sm" className="h-6 px-2 text-[10px] rounded-none" onClick={() => openStopModal(r)}>
                                 <Square className="h-3 w-3 mr-1" />Stop
                               </Button>
                             )}
-                            {!isFormDisabled && (
+                            {!isFormDisabled && !useExternalData && (
                               <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:bg-destructive/10 rounded-none" onClick={() => handleDelete(r.id)}>
                                 <Trash2 className="h-3.5 w-3.5" />
                               </Button>
